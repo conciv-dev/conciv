@@ -1,5 +1,5 @@
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {describe, expect, it, test, afterAll} from 'vitest'
+import {describe, expect, it, test} from 'vitest'
 import {
   EXTENSIONS_DOCK_RESOLVED_ID,
   EXTENSIONS_DOCK_ROUTE,
@@ -18,7 +18,7 @@ import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
-import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
+import {readdirSync, symlinkSync, writeFileSync, mkdirSync} from 'node:fs'
 import {defineExtension} from '@conciv/extension'
 import {scaffold} from '@conciv/extension/catalog'
 
@@ -211,15 +211,9 @@ describe('extensions', () => {
 
 describe('load extension packages', () => {
   const here = dirname(fileURLToPath(import.meta.url))
-  const roots: string[] = []
-
-  afterAll(() => {
-    for (const root of roots) rmSync(root, {recursive: true, force: true})
-  })
 
   function serverEntry(body: string): string {
-    const root = mkdtempSync(join(here, 'conciv-pkg-'))
-    roots.push(root)
+    const root = tempDir('conciv-pkg-')
     writeFileSync(join(root, 'package.json'), JSON.stringify({type: 'module'}))
     const file = join(root, 'server.js')
     writeFileSync(file, body)
@@ -247,19 +241,17 @@ describe('load extension packages', () => {
       server,
     )
   })
+  test('writes nothing inside the package test folder', () => {
+    expect(readdirSync(here).toSorted()).toEqual(['extension-compiler.it.test.ts', 'fixtures'])
+  })
 })
 
 describe('load server extensions', () => {
   const here = dirname(fileURLToPath(import.meta.url))
-  const roots: string[] = []
-
-  afterAll(() => {
-    for (const root of roots) rmSync(root, {recursive: true, force: true})
-  })
 
   function mkRoot(): string {
-    const root = mkdtempSync(join(here, 'conciv-ext-'))
-    roots.push(root)
+    const root = tempDir('conciv-ext-')
+    symlinkSync(fileURLToPath(new URL('../node_modules', import.meta.url)), join(root, 'node_modules'), 'dir')
     return root
   }
 
@@ -345,6 +337,9 @@ function Component() {
     const out = await loadServerExtensions(root, [builtin])
     expect(out[0]).toBe(builtin)
     expect(out.map((e) => e.name)).toEqual(['z', 'a'])
+  })
+  test('writes nothing inside the package test folder', () => {
+    expect(readdirSync(here).toSorted()).toEqual(['extension-compiler.it.test.ts', 'fixtures'])
   })
 })
 

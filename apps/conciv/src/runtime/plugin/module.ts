@@ -10,12 +10,14 @@ import {
 } from '@conciv/plugin/experimental/host'
 
 const modules = {
+  effect: () => import('effect'),
   '@conciv/plugin/experimental': () => import('@conciv/plugin/experimental'),
   '@conciv/plugin/rpc': () => import('@conciv/plugin/rpc'),
   zod: () => import('zod'),
   'solid-js': () => import('solid-js'),
   'solid-js/web': () => import('solid-js/web'),
   'solid-js/store': () => import('solid-js/store'),
+  '@conciv/plugin/experimental/page': () => import('@conciv/plugin/experimental/page'),
 } satisfies Record<PluginModule, () => Promise<object>>
 
 const chunkFile = /^\.\/([\w.-]+\.cjs)$/

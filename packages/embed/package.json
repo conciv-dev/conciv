@@ -50,6 +50,7 @@
     "@conciv/mascot": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
@@ -61,6 +62,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "bippy": "catalog:",
+    "effect": "catalog:",
     "react-grab": "catalog:",
     "solid-js": "catalog:"
   },

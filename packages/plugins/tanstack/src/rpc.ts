@@ -1,0 +1,116 @@
+import {z} from 'zod'
+import {Rpc} from '@conciv/plugin/rpc'
+
+export const FrameworkInfo = z.object({
+  name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
+  version: z.string().nullable(),
+  router: z.enum(['app', 'pages', 'file-based', 'unknown']),
+  dev: z.boolean(),
+})
+export type FrameworkInfo = z.infer<typeof FrameworkInfo>
+
+const RouteMatch = z.object({
+  id: z.string(),
+  routeId: z.string(),
+  path: z.string(),
+  params: z.record(z.string(), z.string()),
+  search: z.record(z.string(), z.unknown()),
+  status: z.enum(['pending', 'success', 'error', 'notFound', 'redirected']),
+  error: z.string().nullable(),
+  loaderData: z.unknown(),
+  updatedAt: z.number().nullable(),
+  isFetching: z.boolean(),
+})
+
+export const RouterCurrent = z.object({
+  location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
+  matches: z.array(RouteMatch),
+})
+export type RouterCurrent = z.infer<typeof RouterCurrent>
+
+const RouteKind = z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index', 'group'])
+
+export type RouteNode = {
+  id: string
+  path: string
+  kind: z.infer<typeof RouteKind>
+  hasLoader: boolean
+  children: RouteNode[]
+  truncated?: number | undefined
+}
+
+export const RouteNode: z.ZodType<RouteNode> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    path: z.string(),
+    kind: RouteKind,
+    hasLoader: z.boolean(),
+    children: z.array(RouteNode),
+    truncated: z.number().optional(),
+  }),
+)
+
+export const CacheEntry = z.object({
+  key: z.string(),
+  state: z.enum(['fresh', 'stale', 'fetching', 'error']),
+  status: z.string().nullable(),
+  value: z.unknown(),
+  updatedAt: z.number().nullable(),
+  error: z.string().nullable(),
+  observers: z.number().nullable(),
+})
+export type CacheEntry = z.infer<typeof CacheEntry>
+
+export const AppError = z.object({
+  id: z.string(),
+  kind: z.enum(['build', 'runtime', 'server', 'hydration']),
+  message: z.string(),
+  stack: z.string().nullable(),
+  source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullable(),
+  digest: z.string().nullable(),
+  at: z.number(),
+})
+export type AppError = z.infer<typeof AppError>
+
+const RouteInfo = z.object({
+  path: z.string(),
+  kind: z.enum(['page', 'layout', 'api', 'middleware']),
+  dynamic: z.boolean(),
+  file: z.string().nullable(),
+})
+
+const ServerFnTraces = z.object({
+  traces: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      durationMs: z.number(),
+      status: z.enum(['ok', 'error']),
+      at: z.number(),
+    }),
+  ),
+  functions: z.array(
+    z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
+  ),
+})
+
+export const Definition = Rpc.define({
+  id: 'experimental.tanstack',
+  methods: {
+    buildErrors: {
+      input: z.undefined(),
+      output: z.array(AppError),
+      errors: {BUNDLER_UNAVAILABLE: z.object({})},
+    },
+    routeManifest: {
+      input: z.undefined(),
+      output: z.array(RouteInfo),
+      errors: {MANIFEST_UNREADABLE: z.object({})},
+    },
+    serverFnTrace: {
+      input: z.object({count: z.number().int().positive().max(100).optional()}),
+      output: ServerFnTraces,
+    },
+  },
+  events: {},
+})

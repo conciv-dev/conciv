@@ -383,15 +383,25 @@
         "packages/plugin-host/test/core/database-drizzle.test.ts",
         "packages/plugin-host/test/core/fixture/tmpdir.ts",
         "packages/plugin-host/test/core/plugin.test.ts",
-        "packages/plugin-host/test/core/util/effect-flock.test.ts",
-        "packages/plugin-host/test/util/global.test.ts"
+        "packages/plugin-host/test/core/util/effect-flock.test.ts"
       ],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
     },
     {
-      "files": ["apps/site/test/helpers.ts", "e2e/nextjs/test/packed-closure.spec.ts"],
+      "files": [
+        "apps/site/test/helpers.ts",
+        "e2e/nextjs/test/packed-closure.spec.ts",
+        "e2e/nextjs/packed/harness.ts",
+        "e2e/nextjs/packed/trust-policy.ts"
+      ],
+      "rules": {
+        "conciv/no-hand-made-temp-dir": "off"
+      }
+    },
+    {
+      "files": ["packages/harness-testkit/src/create-testkit.ts", "packages/extension-testkit/src/boot-server.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
@@ -429,7 +439,7 @@
     {
       "files": ["packages/plugin-host/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 38}]
+        "conciv/test-file-budget": ["error", {"max": 39}]
       }
     },
     {
@@ -560,7 +570,15 @@
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
-    "e2e/*/src",
+    "e2e/solid-start/src",
+    "e2e/svelte/src",
+    "e2e/tanstack-start/src",
+    "e2e/tanstack-start-redact/src",
+    "e2e/vite-preact-component/src",
+    "e2e/vite-react/src",
+    "e2e/vite-react-component/src",
+    "e2e/vite-solid/src",
+    "e2e/vite-solid-component/src",
     "e2e/*/app"
   ]
 }

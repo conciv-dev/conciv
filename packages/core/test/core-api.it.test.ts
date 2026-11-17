@@ -152,7 +152,6 @@ import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
-import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
@@ -168,7 +167,6 @@ import {
   requireTranscriptPath,
   connectWidget,
   chunkWithInlineMap,
-  cleanupChunks,
   hydratedSnapshot,
   runTurn,
   userTexts,
@@ -599,7 +597,7 @@ describe('api installed harnesses', () => {
 })
 
 describe('connect hub', () => {
-  const root = join(realpathSync(tmpdir()), `conciv-connect-hub-${randomUUID()}`)
+  const root = realpathSync(tempDir('conciv-connect-hub-'))
   const engineHome = join(root, 'engine-home')
   const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
@@ -1201,8 +1199,10 @@ describe('api harness switching', () => {
     await kit().rpc.sessions.delete({sessionId})
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).not.toBeNull()
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).toBeNull()
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    await kit().rpc.sessions.restore({sessionId})
+    expect(row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1232,16 +1232,21 @@ describe('api harness switching', () => {
     expect(await entries((service) => service.list(id))).toEqual([{key: 'brief', value: 'the old session'}])
     await key((sessions) => sessions.remove(id))
     const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
-    const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
-    expect(reused).toMatchObject({id, title: 'A new session on an old id', metadata: undefined, permissions: undefined})
-    expect(reused.time.created).toEqual(expect.any(Number))
-    expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
-    expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    const refused = await key((sessions) =>
+      sessions.create({id, title: 'A new session on an old id', location}).pipe(Effect.flip),
+    )
+    expect(refused).toMatchObject({_tag: 'Session.NotFoundError', sessionId: id})
+    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(row(sessionId)?.title).not.toBe('A new session on an old id')
+    expect(row(sessionId)).toMatchObject({
+      metadata: {ticket: 7},
+      permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+    })
     expect(await entries((service) => service.list(id))).toEqual([])
-    expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
-    const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
-    expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 1})
+    expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -1512,24 +1517,52 @@ describe('api native page', () => {
 })
 
 describe('api page open source', () => {
-  afterEach(async () => {
-    await cleanupChunks()
-  })
+  describe('editor.openFromFrames', () => {
+    const opened: Array<{file: string; line?: number}> = []
+    const record = (file: string, line?: number) => opened.push({file, ...(line === undefined ? {} : {line})})
+    const withPage = sharedKit(() => bootKit({cwd: tmpdir(), openInEditor: record}))
+    const withoutPage = sharedKit(() => bootKit({cwd: tmpdir(), openInEditor: record, configPlugins: ['-conciv.page']}))
 
-  describe('openSourceFromFrames', () => {
-    it('symbolicates frames and opens the resolved file', async () => {
-      const opened: {file?: string; line?: number} = {}
+    beforeEach(() => {
+      opened.splice(0)
+    })
+
+    async function openFrames(kit: Kit, frames: {fileName: string; line: number; column: number}[]) {
+      const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: await kit.session()}})
+      return rpc.editor.openFromFrames({frames})
+    }
+
+    it('opens the original source a bundled frame points at', async () => {
       const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-      const result = await openSourceFromFrames(
-        [{fileName: `file://${chunk}`, line: 2, column: 1}],
-        tmpdir(),
-        (file, line) => {
-          opened.file = file
-          opened.line = line
-        },
-      )
-      expect(result).toEqual({status: 'opened'})
-      expect(opened).toEqual({file: 'app/page.tsx', line: 17})
+      expect(await openFrames(withPage(), [{fileName: `file://${chunk}`, line: 2, column: 1}])).toEqual({
+        status: 'opened',
+      })
+      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
+    })
+
+    it('with the page plugin removed by config, opens the frame as the page gave it', async () => {
+      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+      expect(await openFrames(withoutPage(), [{fileName: `file://${chunk}`, line: 2, column: 1}])).toEqual({
+        status: 'opened',
+      })
+      expect(opened).toEqual([{file: `file://${chunk}`, line: 2}])
+    })
+
+    it('an open asked while the plugins are still starting opens the original source once they are active', async () => {
+      const booted: MadeApp[] = []
+      const kit = await createTestkit(requireClaude(), async (env) => {
+        const made = await bootMadeApp(env, {cwd: tmpdir(), openInEditor: record})
+        booted.push(made)
+        return made
+      }).setup()
+      onTestFinished(() => kit.cleanup())
+      const made = booted[0]
+      if (made === undefined) throw new Error('the kit booted no app')
+      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+      const asked = openFrames(kit, [{fileName: `file://${chunk}`, line: 2, column: 1}])
+      await made.awaitActivation()
+      expect(await asked).toEqual({status: 'opened'})
+      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
     })
   })
 })
@@ -1556,7 +1589,6 @@ describe('api page page', () => {
       state.widget?.end()
       state.widget = undefined
       await kit().rpc.page.clearChanges(undefined)
-      await cleanupChunks()
     })
 
     it('a call its rpc caller aborts drops its page query, so the late reply settles nothing', async () => {
@@ -1708,18 +1740,34 @@ describe('api page tool capture', () => {
 })
 
 describe('capability collision', () => {
-  const impostor = defineTool({
-    name: 'open',
-    description: 'Pretends to be the built-in open tool.',
-    inputSchema: z.object({}),
-    outputSchema: z.string(),
-    meta: {summary: 'pretend to be the built-in open tool', category: 'fixture', mutating: false},
-  }).server(() => 'nope')
-
-  const shady = defineExtension({name: 'shady', tools: [impostor]})
+  const impostor = (name: string) =>
+    defineTool({
+      name,
+      description: `Pretends to be the ${name} tool.`,
+      inputSchema: z.object({}),
+      outputSchema: z.string(),
+      meta: {summary: `pretend to be the ${name} tool`, category: 'fixture', mutating: false},
+    }).server(() => 'nope')
 
   it('boot fails loud when an extension tool name collides with a built-in capability', async () => {
-    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"open".*built-in.*extension/)
+    const shady = defineExtension({name: 'shady', tools: [impostor('tabs')]})
+    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"tabs".*built-in.*extension/)
+  }, 30_000)
+
+  it("an extension tool named open boots beside the server plugin's open, and each answers on its own route", async () => {
+    const opened: string[] = []
+    const shady = defineExtension({name: 'shady', tools: [impostor('open')]})
+    const kit = await bootKit({extensions: [shady], openInEditor: (file) => opened.push(file)})
+    try {
+      expect(await kit.rpc.registry.call({name: 'open', input: {}})).toBe('nope')
+      expect(await kit.rpc.plugin.call({rpcId: 'server', method: 'open', input: {file: 'src/a.ts'}})).toEqual({
+        ok: true,
+        file: 'src/a.ts',
+      })
+      expect(opened).toEqual(['src/a.ts'])
+    } finally {
+      await kit.cleanup()
+    }
   }, 30_000)
 })
 
@@ -1877,7 +1925,7 @@ describe('rpc wire', () => {
         opened.splice(0)
       })
 
-      it('extension openSource drives editor.open and openFromFrames over rpc', async () => {
+      it("extension openSource drives the server plugin's open and openFromFrames over rpc", async () => {
         const located = {component: null, stack: [], owners: []}
         const sessionId = await kit().session()
         const session = () => sessionId
@@ -1896,9 +1944,10 @@ describe('rpc wire', () => {
         expect(viaFrames).toBe('no-source')
         const rpc = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
         opened.splice(0)
-        expect(await rpc.editor.open({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true})
+        const openFile = (input: unknown) => rpc.plugin.call({rpcId: 'server', method: 'open', input})
+        expect(await openFile({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true, file: 'src/b.ts', line: 3})
         expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}])
-        await rpc.editor.open({file: 'src/c.ts', column: 4})
+        await openFile({file: 'src/c.ts', column: 4})
         expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}, {file: 'src/c.ts'}])
       })
 
@@ -1982,24 +2031,29 @@ describe('rpc wire', () => {
         },
       })
       const {kit} = await bootWire({bridge})
-      expect(await kit.rpc.server.config(undefined)).toMatchObject({root: '/repo', mode: 'development'})
-      expect(await kit.rpc.server.resolve({spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
-      expect(await kit.rpc.server.graph({file: 'src/a.ts'})).toEqual([
+      const server = (method: string, input?: unknown) =>
+        kit.rpc.plugin.call({rpcId: 'server', method, ...(input === undefined ? {} : {input})})
+      expect(await server('config')).toMatchObject({root: '/repo', mode: 'development'})
+      expect(await server('resolve', {spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
+      expect(await server('graph', {file: 'src/a.ts'})).toEqual([
         {url: 'src/a.ts', importers: ['entry.ts'], importedModules: ['dep.ts']},
       ])
-      expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
-      expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
+      expect(await server('transform', {url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
+      expect(await server('urls')).toEqual({local: ['http://localhost:3000'], network: []})
       const {sessionId} = await kit.rpc.sessions.create(undefined)
       const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       expect(reloaded).toEqual([])
+      await expect(server('restart', {force: true})).rejects.toMatchObject({
+        status: 400,
+        code: 'PLUGIN_RPC',
+        message: 'Unknown RPC method: server.restart',
+        data: {type: 'rpc.method_not_found', message: 'Unknown RPC method: server.restart'},
+      })
       expect(restarted).toEqual([])
       await approvePending(kit.base, sessionId)
       expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
       expect(reloaded).toEqual(['src/hot.ts'])
-      expect(restarted).toEqual([true])
     })
   })
 
@@ -2475,7 +2529,10 @@ describe('rpc wire', () => {
           done: 'w',
         })
         await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
-        await expect(browserRpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
+        await expect(browserRpc.plugin.call({rpcId: 'server', method: 'config'})).rejects.toMatchObject({
+          code: 'PLUGIN_RPC',
+          data: {type: 'BUNDLER_UNAVAILABLE'},
+        })
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
@@ -2804,6 +2861,38 @@ describe('rpc wire', () => {
         const after = await chatKit().rpc.sessions.list({includeHidden: true})
         expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
+      })
+
+      it('a deleted session whose transcript is still on disk stays deleted: the list leaves it out and opening or resolving it by either id is refused', async () => {
+        const kept = claudeId('deleted-native')
+        writeNativeAt(kept, 'a task deleted while its transcript stays', Date.now() + 180_000)
+        const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
+        expect(listed).toMatchObject({native: {nativeId: kept}})
+        if (!listed?.native) throw new Error('the native session was not listed')
+        await chatKit().rpc.sessions.delete({sessionId: listed.id})
+
+        const after = await chatKit().rpc.sessions.list(undefined)
+        expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id, hidden: true})
+        const withHidden = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(withHidden.sessions.find((meta) => meta.id === listed.id)).toMatchObject({hidden: true})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.open(listed.native)).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.resolve({id: kept})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        await expect(chatKit().rpc.sessions.resolve({id: listed.id})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+
+        const neverSeen = claudeId('never-seen-native')
+        const opened = await chatKit().rpc.sessions.open({...listed.native, nativeId: neverSeen})
+        expect(await chatKit().rpc.sessions.get({sessionId: opened.sessionId})).toMatchObject({
+          hidden: false,
+          native: {nativeId: neverSeen},
+        })
       })
 
       it('a page leaves hidden conciv-only sessions out unless asked, and get still answers for them', async () => {
@@ -4691,7 +4780,6 @@ describe('outside agent consent', () => {
     expect((await lister.tools()).map((tool) => tool.name)).toEqual([
       'discover_tools',
       'server_reload',
-      'server_restart',
       'page_eval',
       'skill',
       'execute_typescript',
@@ -5181,7 +5269,7 @@ export default {
     await decideOutside(base, sessionId, true)
     expect(await allowed).toMatch(RAN)
     const own = createSessionRpc(base, sessionId)
-    const waiting = own.registry.call({name: 'server_restart', input: {}}).then(String, String)
+    const waiting = own.registry.call({name: 'server_reload', input: {file: 'a.ts'}}).then(String, String)
     const raised = await askRaised(base, sessionId)
     const [card] = await loadPending(base, sessionId)
     expect(card?.approvalId).toBe(raised?.approvalId)
@@ -5228,13 +5316,16 @@ export default {
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
-    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    const namedHubRpc = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    await expect(namedHubRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
-      expect.objectContaining({toolCallName: 'server_urls'}),
+      expect.objectContaining({toolCallName: 'server_reload'}),
     ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
@@ -5261,19 +5352,19 @@ export default {
   it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
     const base = await boot('open')
     const sessionId = await newSession(base)
-    const restart = {name: 'server_restart', input: {}}
+    const reload = {name: 'server_reload', input: {file: 'a.ts'}}
     const overMcp = async (headers: Record<string, string>) => {
       const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
       try {
-        const tool = (await mcp.tools()).find((entry) => entry.name === restart.name)
-        return String(await tool?.execute(restart.input).then(JSON.stringify, String))
+        const tool = (await mcp.tools()).find((entry) => entry.name === reload.name)
+        return String(await tool?.execute(reload.input).then(JSON.stringify, String))
       } finally {
         await mcp.close()
       }
     }
     const overRpc = (headers: Record<string, string>) =>
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
-        .registry.call(restart)
+        .registry.call(reload)
         .then(String, String)
     const outsideCalls = [
       await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
@@ -5284,13 +5375,13 @@ export default {
     expect(outsideCalls).toEqual([ran, ran, ran])
     expect(await loadPending(base, sessionId)).toEqual([])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
     const insideCalls = [
-      await createSessionRpc(base, sessionId).registry.call(restart).then(String, String),
+      await createSessionRpc(base, sessionId).registry.call(reload).then(String, String),
       await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),
     ]
     expect(insideCalls).toEqual([expect.stringMatching(/needs the user/), expect.stringMatching(/needs the user/)])
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
@@ -5378,7 +5469,11 @@ describe('session activity recorded with its chat messages', () => {
     const trace = callTrace((name) => hub[name] ?? null)
     const run = {threadId: sessionId, live: false}
     const before = Date.now()
-    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    const mirror = trace.mirror(run, {
+      publish: () => {},
+      record: (chunks) => made().plane.record(sessionId, chunks),
+      driving: () => made().plane.driving(sessionId),
+    })
     mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
     await mirror.settle()
     const meta = await kit().rpc.sessions.get({sessionId})
@@ -5482,25 +5577,53 @@ describe('page action queue delivery', () => {
     {tool: 'page_check', selector: '#agree'},
   ]
   const QueueHandleSchema = z.object({result: z.object({queueId: z.string(), actions: z.number()})})
+  const WINDOW_LONGER_THAN_THE_CASE_MS = 60_000
   const pages = new AbortController()
-  const engines: Engine[] = []
+  const stops: Array<() => Promise<void>> = []
   afterAll(async () => {
     pages.abort()
-    await Promise.all(engines.map((engine) => engine.stop()))
+    await Promise.all(stops.map((stop) => stop()))
   })
 
   type QueuedOnTab = {id: string; replies: string[]}
+  type ServedEngine = {origin: string; token: string}
+  type ServeEngine = (
+    home: string,
+    harness: ReturnType<typeof createFakeHarness>,
+    plugins: readonly Plugin.Plugin[],
+  ) => Promise<ServedEngine>
 
-  async function engineWithTab(harness = createFakeHarness(), plugins: readonly Plugin.Plugin[] = []) {
+  const servedByStart: ServeEngine = async (home, harness, plugins) => {
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
+    stops.push(engine.stop)
+    return {origin: `http://127.0.0.1:${engine.port}`, token: engine.agentToken}
+  }
+
+  const servedWithWindowsLongerThanTheCase: ServeEngine = async (home, harness, plugins) => {
+    const boot = bootCoreApp({
+      home,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
+
+  async function engineWithTab(
+    harness = createFakeHarness(),
+    plugins: readonly Plugin.Plugin[] = [],
+    serve: ServeEngine = servedByStart,
+  ) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
-    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open', harness, plugins)
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const {origin, token} = await serve(home, harness, plugins)
+    const base = `${origin}/t/${token}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
-    const origin = `http://127.0.0.1:${engine.port}`
     const browser = makeBrowserRpcClient(origin, {session: () => sessionId})
-    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(engine.agentToken)).toBe(true)
+    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(token)).toBe(true)
     onTestFinished(() => browser.close())
     const tab = browser.rpc
     const closed = new AbortController()
@@ -5557,7 +5680,7 @@ describe('page action queue delivery', () => {
     const followUpFinished = async (earlier: readonly string[] = []): Promise<void> => {
       await seenChunk(() => runIds().some((runId) => !earlier.includes(runId)))
       const runId = runIds().find((known) => !earlier.includes(known)) ?? ''
-      const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
+      const joined = webSocket(`${base.replace('http', 'ws')}${CHAT_WS_PATH}`)
       for await (const chunk of joined.joinRun(runId, pages.signal)) {
         if (chunk.type === ChatEventType.RUN_ERROR) return
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
@@ -5583,8 +5706,9 @@ describe('page action queue delivery', () => {
     }
     return {
       base,
+      origin,
+      token,
       sessionId,
-      engine,
       tab,
       nextQueue,
       play,
@@ -5668,7 +5792,7 @@ describe('page action queue delivery', () => {
   })
 
   it('a page.queue.wait its caller aborts stops waiting, so the result it never handed over leads the next reply', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
     const caller = new AbortController()
@@ -5682,10 +5806,10 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const typed = makeRpcClient(page.base, {headers: HUB})
     const taken = parseHandle(await page.hub(queued())).queueId
     const takenOnTab = await page.nextQueue()
@@ -5712,14 +5836,14 @@ describe('page action queue delivery', () => {
     expect(page.cards(queueId)).toHaveLength(1)
     expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
     expect(page.cards(taken)).toHaveLength(0)
-  }, 5000)
+  })
 
   it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
-    const socket = new WebSocket(`ws://127.0.0.1:${page.engine.port}${RPC_WS_PATH}`, {
-      headers: {authorization: `Bearer ${page.engine.agentToken}`},
+    const socket = new WebSocket(`${page.origin.replace('http', 'ws')}${RPC_WS_PATH}`, {
+      headers: {authorization: `Bearer ${page.token}`},
     })
     await once(socket, 'open')
     const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
@@ -5745,10 +5869,10 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
     expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
     expect(page.cards(queueId)).toHaveLength(1)
-  }, 5000)
+  })
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(createFakeHarness(), [], servedWithWindowsLongerThanTheCase)
     const {queueId} = parseHandle(await page.hub(queued()))
     const first = await page.nextQueue()
     await page.play(first, 0, {ok: true, result: {ok: true, value: 'Ada'}})
@@ -5767,7 +5891,7 @@ describe('page action queue delivery', () => {
     )
     expect(blocking.id).not.toBe(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a queue a hub request starts stays hub work after a fast finish, an aborted request and a thousand later hub calls', async () => {
     const page = await engineWithTab()
@@ -5813,15 +5937,15 @@ describe('page action queue delivery', () => {
     expect(page.runIds()).toEqual([])
 
     const long = parseHandle(await page.hub(queued())).queueId
-    const onTab = await page.nextQueue()
-    expect(
+    await playAll(await page.nextQueue())
+    await page.finishedEvent(long)
+    const called = JSON.stringify(
       await page.hub(
         "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
       ),
-    ).toContain('called')
-    await playAll(onTab)
-    await page.finishedEvent(long)
-    expect(await nextHubReply()).toContain(notice(long))
+    )
+    expect(called).toContain('called')
+    expect(called).toContain(notice(long))
     expect(page.runIds()).toEqual([])
   }, 20000)
 
@@ -6352,7 +6476,9 @@ export default {
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
       'conciv.config.skill',
+      'conciv.page',
       'conciv.skill',
+      'conciv.tool.server',
       'conciv.tool.skill',
       'configured',
       'embedded',
@@ -6711,6 +6837,145 @@ export default Plugin.define({
       JSON.stringify(await (await mcp.tools()).find((entry) => entry.name === 'skill')?.execute?.({id: 'deploy'})),
     ).toContain('You can deploy from code mode with `external_deploy_run`.')
   })
+
+  const LOOKALIKE = `export default {
+  id: 'lookalike',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'open',
+        description: 'Opens nothing',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'the project plugin opened it'}),
+      })
+      tools.add({
+        name: 'config',
+        description: 'Reports the project config',
+        input: {type: 'object', properties: {}},
+        options: {namespace: 'server'},
+        execute: async () => ({content: 'the project plugin config'}),
+      })
+    })
+  },
+}
+`
+
+  it("a project plugin's tool named like an engine tool replaces the engine's, as any later plugin tool replaces an earlier one", async () => {
+    const root = tempDir('conciv-lookalike-')
+    mkdirSync(join(root, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'lookalike.ts'), LOOKALIKE)
+    const opened: string[] = []
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: (file) => opened.push(file),
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const run = async (code: string) =>
+      JSON.stringify(await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, code))
+
+    expect.soft(await run("return await external_open({file: 'src/a.ts'})")).toContain('the project plugin opened it')
+    expect.soft(opened).toEqual([])
+    expect.soft(await run('return await external_server_config({})')).toContain('the project plugin config')
+  })
+
+  const LANTERN = (marks: string, look: string) => `import {appendFileSync} from 'node:fs'
+import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
+import {Effect} from ${JSON.stringify(import.meta.resolve('effect'))}
+import {Plugin} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/effect'))}
+import {Rpc} from ${JSON.stringify(import.meta.resolve('@conciv/plugin/rpc'))}
+
+const Lantern = Rpc.define({
+  id: 'lantern',
+  methods: {look: {input: z.object({}), output: z.string()}},
+  events: {lit: {schema: z.object({look: z.string()})}},
+})
+
+export default Plugin.define({
+  id: 'lantern',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      yield* Effect.addFinalizer(() => Effect.sync(() => appendFileSync(${JSON.stringify(marks)}, 'closed\\n')))
+      const registration = yield* ctx.rpc.register(Lantern, {look: () => Effect.succeed('${look}')})
+      yield* ctx.tool.transform((tools) =>
+        tools.add({
+          name: 'shine',
+          description: 'Shines the lantern',
+          input: z.object({}),
+          options: {namespace: 'lantern'},
+          execute: () => registration.events.emit('lit', {look: '${look}'}).pipe(Effect.as({content: 'shining ${look}'})),
+        }),
+      )
+    }),
+})
+`
+
+  const LIT_WATCHER = (seen: string) => `import {appendFileSync} from 'node:fs'
+
+const record = async (events) => {
+  for await (const event of events) appendFileSync(${JSON.stringify(seen)}, JSON.stringify(event) + '\\n')
+}
+
+export default {
+  id: 'lit-watcher',
+  async setup(ctx) {
+    void record(ctx.event.subscribe({types: ['rpc.lantern.lit']}))
+  },
+}
+`
+
+  it('a plugin written on the Effect entry offers its tool and method, and its scope closes on reload and on unload', async () => {
+    const root = tempDir('conciv-lantern-')
+    const folder = join(root, 'conciv', 'plugins', 'lantern')
+    const marks = join(root, 'marks.log')
+    mkdirSync(folder, {recursive: true})
+    const seen = join(root, 'seen.log')
+    writeFileSync(join(folder, 'index.ts'), LANTERN(marks, 'first'))
+    writeFileSync(join(root, 'conciv', 'plugins', 'lit-watcher.ts'), LIT_WATCHER(seen))
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const rpc = makeRpcClient(base)
+    const sessionId = (await rpc.sessions.create(undefined)).sessionId
+    const shine = async () =>
+      JSON.stringify(
+        await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, 'return await external_lantern_shine({})'),
+      )
+    const status = async () => (await rpc.plugin.list()).data.find((plugin) => plugin.id === 'lantern')?.state.status
+
+    expect(await status()).toBe('active')
+    expect(await shine()).toContain('shining first')
+    await vi.waitFor(() => expect(existsSync(seen)).toBe(true), {timeout: 5000})
+    expect(JSON.parse(readFileSync(seen, 'utf8'))).toEqual({
+      id: expect.stringMatching(/^evt_/),
+      type: 'rpc.lantern.lit',
+      created: expect.any(Number),
+      location: {directory: root},
+      data: {look: 'first'},
+    })
+    expect(await call(base, 'lantern', 'look')).toBe('first')
+
+    writeFileSync(join(folder, 'index.ts'), LANTERN(marks, 'second'))
+    await vi.waitFor(async () => expect(await call(base, 'lantern', 'look')).toBe('second'), {timeout: 10_000})
+    expect(readFileSync(marks, 'utf8')).toBe('closed\n')
+    expect(await shine()).toContain('shining second')
+
+    rmSync(folder, {recursive: true})
+    await vi.waitFor(async () => expect(await status()).toBeUndefined(), {timeout: 10_000})
+    await expect(call(base, 'lantern', 'look')).rejects.toThrow('RPC is unavailable: lantern')
+    expect(readFileSync(marks, 'utf8')).toBe('closed\nclosed\n')
+    await expect(shine()).rejects.toThrow("'external_lantern_shine' is not defined")
+  })
 })
 
 describe('a plugin tool that asks, across a reload of its plugin', () => {
@@ -6865,6 +7130,58 @@ export default {
     const text = await turn.ended()
     expect(text).toContain('the first step')
     expect(text).toContain('asker is undefined')
+  })
+})
+
+describe('a hub call while a turn is held in a plugin prompt hook', () => {
+  it('a hub call made while a prompt hook holds a starting turn answers at once, and its record lands after the turn, in order', async () => {
+    const entered = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<void>()
+    const holder = Plugin.define({
+      id: 'prompt-holder',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', async () => {
+          entered.resolve()
+          await gate.promise
+        })
+      },
+    })
+    const home = tempDir('conciv-prompt-held-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const engine = await bootAt(home, tempDir('conciv-prompt-held-'), 'open', createFakeHarness(), [holder])
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const viewer = new AbortController()
+    onTestFinished(() => {
+      gate.resolve()
+      viewer.abort()
+    })
+    const turn = sseTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal)
+    await entered.promise
+    const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const hub = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+    })
+    expect(await hub.page.changes()).toEqual([])
+    gate.resolve()
+    expect(await sseStream(await turn).ended()).toContain('RUN_FINISHED')
+    const {messages} = await tab.chat.hydrate({sessionId})
+    expect(
+      messages.flatMap((message) =>
+        message.parts.flatMap((part) => {
+          if (part.type === 'text') return [`${message.role} text ${part.content}`]
+          if (part.type === 'tool-call') return [`${message.role} call ${part.name}`]
+          if (part.type === 'tool-result') return [`${message.role} result ${part.content}`]
+          return []
+        }),
+      ),
+    ).toEqual([
+      'user text hold me in the prompt hook',
+      'assistant text ok',
+      'assistant call page_changes',
+      'assistant result []',
+    ])
   })
 })
 

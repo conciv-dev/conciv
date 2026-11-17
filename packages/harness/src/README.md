@@ -6,7 +6,7 @@
 
 ## Interface
 
-- `registerHarness(adapter)`, `getHarness(id)`, `listHarnesses()` (insertion order), `resolveHarnessModels(adapter)` (`[]` when `models` is unset, calls it when it is a function) (`registry.ts`).
+- `registerHarness(adapter)`, `getHarness(id)`, `listHarnesses()` (insertion order), `resolveHarnessModels(adapter, {signal})` (`[]` when `models` is unset, calls it with `{signal}` when it is a function, so the caller's signal reaches the listing) (`registry.ts`).
 - Re-exports `defineHarness`, types `HarnessAdapter`, `HarnessChatConfig`, `lastUserModelText`, `lastUserImages`, `containedPath`, `transcriptPathWithin` (`registry.ts`).
 - [_shared/README.md](./_shared/README.md): adapter contract and shared helpers.
 - [claude/README.md](./claude/README.md): Claude Code adapter.

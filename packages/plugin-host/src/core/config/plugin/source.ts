@@ -28,7 +28,7 @@ export interface Interface {
   readonly changes: () => Stream.Stream<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/ConfigPluginSource')
+export const Service = Context.Service<Interface>('@conciv/ConfigPluginSource')
 
 export const ConfiguredPlugins = Context.Service<readonly ConfigPlugin.Plugin[]>('@conciv/ConfiguredPlugins')
 
@@ -201,6 +201,7 @@ const scan = Effect.fn('ConfigPluginSource.scan')(function* (
       const times = yield* Effect.forEach(
         [
           ...Object.values(entrypoints)
+            .filter((entry) => entry !== entrypoints.experimental)
             .filter((entry) => entry !== undefined)
             .map((entry) => fileURLToPath(entry)),
           path.join(directory ? operation.target : path.dirname(operation.target), 'package.json'),

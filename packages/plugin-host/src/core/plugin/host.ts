@@ -2,9 +2,9 @@ export * as PluginHost from './host.js'
 
 import {mkdirSync} from 'node:fs'
 import path from 'node:path'
-import * as Plugin from '../../plugin/effect/plugin.js'
-import {EventManifest} from '../../schema/event-manifest.js'
-import type {Event} from '../../schema/event.js'
+import {Plugin} from '@conciv/plugin/effect'
+import {EventManifest} from '@conciv/plugin/schema/event-manifest'
+import type {Event} from '@conciv/plugin/schema/event'
 import {App} from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
 import type {BundlerDomain, HarnessDomain, Servers} from '@conciv/plugin'
@@ -39,6 +39,8 @@ export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
 export const HarnessSource = Context.Service<HarnessDomain>('@conciv/HarnessSource')
 export const BundlerSource = Context.Service<BundlerDomain | undefined>('@conciv/BundlerSource')
 export const ExtensionSlugs = Context.Service<ReadonlyArray<string>>('@conciv/ExtensionSlugs')
+export const EditorSource =
+  Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')
 
 export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interface, 'list'>, pluginId: string) {
   const app = yield* App.Service

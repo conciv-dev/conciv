@@ -3,7 +3,7 @@ export * as Skill from './skill.js'
 import {FSUtil} from '../util/fs-util.js'
 import path from 'path'
 import {Context, Effect, Layer, Types} from 'effect'
-import {Skill} from '../schema/skill.js'
+import {Skill} from '@conciv/plugin/schema/skill'
 import {Bus} from './bus.js'
 import {Permission} from './permission.js'
 import {State} from './state.js'
@@ -27,7 +27,7 @@ export type Id = Skill.Id
 export const Name = Skill.Name
 export type Name = Skill.Name
 
-export {Event} from '../schema/skill.js'
+export {Event} from '@conciv/plugin/schema/skill'
 
 export const available = (skills: ReadonlyArray<Info>, permissions: Permission.Ruleset) =>
   skills.filter((skill) => Permission.evaluate('skill', skill.id, permissions).effect !== 'deny')
@@ -111,7 +111,7 @@ export interface Interface extends State.Transformable<Editor> {
   readonly list: () => Effect.Effect<Info[]>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Skill')
+export const Service = Context.Service<Interface>('@conciv/Skill')
 
 export const layer = Layer.effect(
   Service,

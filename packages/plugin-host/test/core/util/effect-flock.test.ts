@@ -11,6 +11,7 @@ import {Global} from '../../../src/util/global.js'
 import {Hash} from '../../../src/util/hash.js'
 import {bundleLockWorker, runLockWorker, spawnLockWorker, stopLockWorker, waitForFile} from '../fixture/lock-worker'
 import {tmpdir} from '../fixture/tmpdir'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 function lock(dir: string, key: string) {
   return path.join(dir, Hash.fast(key) + '.lock')
@@ -38,10 +39,12 @@ type Msg = {
 
 const workerEntry = path.join(import.meta.dirname, '../fixture/effect-flock-worker.ts')
 
+const globalRoot = tempDir('eflock-global-')
+
 const testGlobal = Global.layerWith({
-  cache: os.tmpdir(),
-  config: os.tmpdir(),
-  state: os.tmpdir(),
+  cache: globalRoot,
+  config: globalRoot,
+  state: globalRoot,
 })
 
 const testLayer = EffectFlock.layer.pipe(

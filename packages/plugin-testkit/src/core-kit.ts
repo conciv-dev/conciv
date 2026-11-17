@@ -11,13 +11,17 @@ import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 
+export type EditorOpen = {file: string; line?: number; column?: number}
+
 export type CoreKit = Kit & {
   harness: FakeHarness
+  editorOpened: () => ReadonlyArray<EditorOpen>
   forSession: (id: SessionId) => SessionScope
   home: string
   writeProjectFile: (path: string, content: string) => void
@@ -48,6 +52,7 @@ export async function bootCoreKit(opts: {
   plugins?: NonNullable<ConcivConfig['plugins']>
   files?: Readonly<Record<string, string>>
   stateRoot?: string
+  bundler?: BundlerBridge
 }): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
@@ -60,11 +65,12 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
+  const editorOpens: EditorOpen[] = []
   const kit = await createTestkit(
     harness,
     async (env) => {
       for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
-      const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
+      const {fetch, dispose, runtime, agentToken, awaitActivation} = await makeApp({
         print: env.print,
         cfg: {
           enabled: true,
@@ -80,7 +86,9 @@ export async function bootCoreKit(opts: {
           policies: [],
         },
         cwd: env.cwd,
-        openInEditor: () => {},
+        openInEditor: (file, line, column) => {
+          editorOpens.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})})
+        },
         harness: env.harness,
         harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
         extensions: opts.extensions,
@@ -88,9 +96,10 @@ export async function bootCoreKit(opts: {
         staleness: opts.staleness,
         nativePageDir: opts.nativePageDir,
         home: kitHome(env.stateRoot),
+        bridge: opts.bundler,
       })
       captured.runtime = runtime
-      await startPlugins()
+      await awaitActivation()
       return {
         fetch,
         dispose,
@@ -104,6 +113,7 @@ export async function bootCoreKit(opts: {
   return {
     ...kit,
     harness,
+    editorOpened: () => editorOpens,
     forSession: runtime.forSession,
     home: kitHome(kit.stateRoot),
     writeProjectFile: (path, content) => writeInside(kit.stateRoot, path, content),

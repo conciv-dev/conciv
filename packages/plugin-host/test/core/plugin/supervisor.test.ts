@@ -5,9 +5,10 @@ import {Bus} from '../../../src/core/bus.js'
 import {ConfigPluginSource} from '../../../src/core/config/plugin/source.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
 import {Plugin} from '../../../src/core/plugin.js'
+import {InstancePlugins} from '../../../src/core/plugin/instance.js'
 import {SdkPlugins} from '../../../src/core/plugin/sdk.js'
 import {Tool} from '../../../src/core/tool.js'
-import {define} from '../../../src/plugin/effect/plugin.js'
+import {define} from '@conciv/plugin/effect/plugin'
 import {tmpdirScoped} from '../fixture/tmpdir'
 import {advance} from '../lib/clock'
 import {testEffect} from '../lib/effect'
@@ -251,4 +252,54 @@ describe('PluginSupervisor', () => {
       }
     }),
   )
+
+  describe("the host's own built-ins", () => {
+    const builtinLayer = (directory: string) =>
+      supervisorLayer(directory, {
+        plugins: [greeter('instance_greet', 'embedder')],
+        builtin: {pre: [greeter('engine_first', 'engine.first')], post: [greeter('engine_last', 'engine.last')]},
+        source: sourceLayer,
+      })
+
+    it.effect('are listed as built-ins, and the embedder plugin stays an sdk plugin', () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const inventory = yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          yield* plugins.awaitActivation
+          return yield* plugins.list()
+        }).pipe(Effect.scoped, Effect.provide(builtinLayer(directory.path)))
+        const sourceType = (plugin: string) => inventory.find((item) => item.id === plugin)?.source.type
+        expect(sourceType('engine.first')).toBe('builtin')
+        expect(sourceType('engine.last')).toBe('builtin')
+        expect(sourceType('embedder')).toBe('sdk')
+      }),
+    )
+
+    it.effect(
+      "run after plugin-host's own pre built-ins and before the embedder's, and post ones after its post built-ins",
+      () =>
+        Effect.gen(function* () {
+          const directory = yield* tmpdirScoped()
+          const order = yield* Effect.gen(function* () {
+            const plugins = yield* Plugin.Service
+            yield* plugins.awaitActivation
+            return (yield* plugins.list()).flatMap((item) => (item.id ? [item.id] : []))
+          }).pipe(Effect.scoped, Effect.provide(builtinLayer(directory.path)))
+          expect(
+            order.filter((plugin) =>
+              ['conciv.tool.skill', 'engine.first', 'embedder', 'conciv.config.skill', 'engine.last'].includes(plugin),
+            ),
+          ).toEqual(['conciv.tool.skill', 'engine.first', 'embedder', 'conciv.config.skill', 'engine.last'])
+        }),
+    )
+
+    it.effect('refuse an id an embedder plugin already uses', () =>
+      Effect.sync(() => {
+        expect(() =>
+          InstancePlugins.bound([greeter('instance_greet', 'shared')], {post: [greeter('engine_last', 'shared')]}),
+        ).toThrow('duplicate instance plugin ids: shared')
+      }),
+    )
+  })
 })

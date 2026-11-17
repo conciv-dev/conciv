@@ -2,15 +2,23 @@ import {mkdirSync, rmSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
+import {e2eStateDir} from './dev-endpoint.js'
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
-function reporters(): ReporterDescription[] {
-  if (!process.env.GITHUB_ACTIONS) return [['line']]
-  return [['line'], ['json', {outputFile: 'test-results.json'}]]
+function reporters(configDir: string, appStateFolders: string[], runFolders: string[] = []): ReporterDescription[] {
+  const cleanup: ReporterDescription = [
+    join(import.meta.dirname, 'state-cleanup-reporter.ts'),
+    {
+      stateDir: e2eStateDir(configDir),
+      appStateFolders: [...appStateFolders.map((folder) => join(configDir, folder)), ...runFolders],
+    },
+  ]
+  if (!process.env.GITHUB_ACTIONS) return [['line'], cleanup]
+  return [['line'], ['json', {outputFile: 'test-results.json'}], cleanup]
 }
 
-function e2eStateDir(configDir: string): string {
+function legacyStateDir(configDir: string): string {
   return join(configDir, '.conciv-e2e')
 }
 
@@ -31,9 +39,9 @@ function serverEntry(entry: {
   env: {CONCIV_HOME: string} & Record<string, string>
 }) {
   return {
-    command: `${entry.prepare} && (${entry.command}) 2>&1 | tee '${e2eServerLog(entry.configDir, entry.port)}'`,
+    command: `rm -rf '${legacyStateDir(entry.configDir)}' && ${entry.prepare} && (${entry.command}) 2>&1 | tee '${e2eServerLog(entry.configDir, entry.port)}'`,
     url: `http://localhost:${entry.port}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     stdout: 'pipe' as const,
     timeout: 180_000,
     env: entry.env,
@@ -51,13 +59,14 @@ function runConcivHome(configDir: string): {CONCIV_HOME: string} {
 }
 
 export function emptyE2eState(configDir: string): void {
+  rmSync(legacyStateDir(configDir), {recursive: true, force: true})
   rmSync(e2eStateDir(configDir), {recursive: true, force: true})
   mkdirSync(e2eStateDir(configDir), {recursive: true})
 }
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {dir: string; command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
+  opts: {dir: string; command: (port: number) => string; timeout?: number; runFolders?: string[]},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -67,18 +76,15 @@ export function e2eConfig(
     workers: 1,
     timeout,
     expect: {timeout},
-    reporter: reporters(),
+    reporter: reporters(opts.dir, ['.conciv'], opts.runFolders),
     use: {baseURL: `http://localhost:${port}`},
-    webServer: {
-      ...serverEntry({
-        configDir: opts.dir,
-        prepare: freshFolder(e2eStateDir(opts.dir)),
-        command: `rm -rf .conciv && ${opts.command(port)}`,
-        port,
-        env: runConcivHome(opts.dir),
-      }),
-      ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
-    },
+    webServer: serverEntry({
+      configDir: opts.dir,
+      prepare: freshFolder(e2eStateDir(opts.dir)),
+      command: `rm -rf .conciv && ${opts.command(port)}`,
+      port,
+      env: runConcivHome(opts.dir),
+    }),
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -92,7 +98,7 @@ export function packedE2eConfig(opts: {dir: string}): ReturnType<typeof defineCo
     workers: 1,
     timeout: 90_000,
     expect: {timeout: 90_000},
-    reporter: reporters(),
+    reporter: reporters(opts.dir, []),
     projects: [{name: 'packed', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -131,7 +137,10 @@ export function harnessMatrixConfig(opts: {
     testDir: './test',
     workers: 1,
     timeout: 150_000,
-    reporter: reporters(),
+    reporter: reporters(
+      opts.dir,
+      entries.map(([harness]) => `.conciv-${harness}`),
+    ),
     webServer: entries.map(([harness, port]) =>
       serverEntry({
         configDir: opts.dir,

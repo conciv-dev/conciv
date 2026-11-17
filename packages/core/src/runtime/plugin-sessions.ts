@@ -11,15 +11,11 @@ import {
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
 import {Agent, type Bus, type KV, Session, SessionErrors} from '@conciv/plugin-host'
+import {Model} from '@conciv/plugin/schema/model'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
-import {
-  createChatSession,
-  deleteSession,
-  newSessionId,
-  renameSession,
-  reuseDeletedChatSession,
-} from '../sessions/session-actions.js'
+import {createChatSession, deleteSession, newSessionId, renameSession} from '../sessions/session-actions.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
@@ -55,7 +51,11 @@ const NO_USAGE = {
 
 function sessionModel(chat: ChatContext, row: SessionRecord): ModelRef | undefined {
   if (row.model === null) return undefined
-  return {id: row.model, providerId: chat.harnessFor(row.id).id, variant: row.effort ?? undefined}
+  return {
+    id: Model.Id.make(row.model),
+    providerId: Model.Ref.fields.providerId.make(chat.harnessFor(row.id).id),
+    variant: row.effort === null ? undefined : Model.VariantId.make(row.effort),
+  }
 }
 
 function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
@@ -76,12 +76,12 @@ function sessionInfo(chat: ChatContext, row: SessionRecord): SessionInfo {
     title: row.title ?? undefined,
     metadata: row.metadata ?? undefined,
     permissions: row.permissions ?? undefined,
-    location: {directory: row.cwd},
+    location: {directory: AbsolutePath.make(row.cwd)},
   }
 }
 
-function modelChoice(harness: HarnessAdapter, ref: ModelRef) {
-  return Effect.promise(() => resolveHarnessModels(harness)).pipe(
+function modelChoice(harness: HarnessAdapter, ref: ModelRef, signal: AbortSignal) {
+  return Effect.promise(() => resolveHarnessModels(harness, {signal})).pipe(
     Effect.map((models): ModelChoice | null => {
       if (ref.providerId !== harness.id) return null
       const listed = models.find((candidate) => candidate.id === ref.id && candidate.disabled !== true)
@@ -110,7 +110,7 @@ function createdModel(chat: ChatContext, input: CreateInput, sessionId: SessionI
     }
     const model = given(input.model)
     if (model === undefined) return null
-    const choice = yield* modelChoice(chat.defaultHarness, model)
+    const choice = yield* modelChoice(chat.defaultHarness, model, chat.signal)
     if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
     return choice
   })
@@ -175,14 +175,11 @@ export function provideSessions(started: () => SessionKeyDeps) {
           const supplied = input.id
           const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
           if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
+          if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
           const sessionId = supplied ?? newSessionId()
           const choice = yield* createdModel(chat, input, sessionId)
           const scope = {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
-          yield* Effect.promise(() =>
-            recorded === null
-              ? createChatSession(chat.db, scope, sessionId)
-              : reuseDeletedChatSession(chat.db, scope, sessionId),
-          )
+          yield* Effect.promise(() => createChatSession(chat.db, scope, sessionId))
           yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
@@ -212,7 +209,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
         Effect.gen(function* () {
           const {chat} = started()
           yield* found(input.sessionId)
-          const choice = yield* modelChoice(chat.harnessFor(input.sessionId), input.model)
+          const choice = yield* modelChoice(chat.harnessFor(input.sessionId), input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
           }

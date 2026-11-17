@@ -28,6 +28,24 @@ import {FileReadCard} from '../src/styled/tools/file-read-card.js'
 import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/search-matches.js'
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
 import {builtinPageRegistry, mountView, registryCatalogView} from './helpers.js'
+import {parseClaudePatchBlocks, patchInfo} from '../src/primitives/tools/apply-patch.js'
+
+describe('patch headers', () => {
+  it('reads a file only from the header line itself', () => {
+    const named = '*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch'
+    expect(patchInfo(named).files).toEqual(['a.ts'])
+    expect(parseClaudePatchBlocks(named)).toEqual([{type: 'Update', path: 'src/a.ts', body: '\n+x'}])
+    const unnamed = '*** Add File:\nsrc/next.ts\n+x'
+    expect(patchInfo(unnamed).files).toEqual([])
+    expect(parseClaudePatchBlocks(unnamed)).toEqual([])
+    const padded = '*** Update File: \t  src/a.ts\n+x'
+    expect(patchInfo(padded).files).toEqual(['a.ts'])
+    expect(parseClaudePatchBlocks(padded)).toEqual([{type: 'Update', path: 'src/a.ts', body: '\n+x'}])
+    const blank = '*** Add File: \t \n+x'
+    expect(patchInfo(blank).files).toEqual([])
+    expect(parseClaudePatchBlocks(blank)).toEqual([])
+  })
+})
 
 describe('standalone outcome headers', () => {
   const REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const
@@ -61,7 +79,6 @@ describe('standalone outcome headers', () => {
       ))
 
       await expect.element(page.getByText('rm -rf build')).toBeVisible()
-      await page.screenshot({path: `__screenshots__/standalone-outcomes/${outcome}.png`})
       await expect.element(page.getByRole('img', {name: outcome}).nth(1)).toBeVisible()
       await expect.element(page.getByRole('img', {name: 'error'})).not.toBeInTheDocument()
     })
@@ -208,7 +225,7 @@ describe('catalog cards', () => {
   }
 
   function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
+    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => Promise.resolve(), catalog}
   }
 
   function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -233,7 +250,6 @@ describe('catalog cards', () => {
 
     await expect.element(page.getByText('Shipped the page #hero')).toBeVisible()
     expect(nowTitle(part('page_ship', {selector: '#hero'}, 'input-streaming'), catalog)).toBe('Shipping the page')
-    await page.screenshot({path: '__screenshots__/catalog-cards/declared-non-builtin.png'})
   })
 
   it('a mutating registry tool shows its write badge and its hint', async () => {
@@ -355,7 +371,7 @@ describe('new tool projection', () => {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: registryCatalogView(registryWith(shipTool)),
   }
 
@@ -415,7 +431,7 @@ describe('page tool cards', () => {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: registryCatalogView(builtinPageRegistry()),
   }
 
@@ -485,7 +501,13 @@ describe('page tool cards', () => {
 
 describe('registry card declarations', () => {
   const catalog = registryCatalogView(builtinPageRegistry())
-  const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
+  const ctx: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'test',
+    sendMessage: () => {},
+    addResult: () => Promise.resolve(),
+    catalog,
+  }
 
   function part(
     verb: string,
@@ -534,7 +556,6 @@ describe('registry card declarations', () => {
         <MetaToolCard part={part(verb, args)} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />
       ))
       await expect.element(page.getByText(headline, {exact: true}).first()).toBeVisible()
-      await page.screenshot({path: `__screenshots__/registry-card-declarations/page-${verb}.png`})
       cleanup()
     }
   })
@@ -634,7 +655,6 @@ describe('tool row projections', () => {
       mountView(() => row(call(name, input), stopped(outcome)))
 
       await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/body-${name}-${outcome}.png`})
       await expect.element(page.getByText(STOPPED[outcome].label, {exact: true})).toBeVisible()
       await expect.element(page.getByText(STOPPED[outcome].error)).toBeVisible()
       await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()

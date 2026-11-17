@@ -365,7 +365,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
     dispose: () => {
       unfollowEnableState()
       loaded.reject(new Error('the plugin manager was disposed'))
-      firstListing.reject(new Error('the plugin source was disposed before its first listing'))
+      firstListing.reject(new Error('the engine trust ended before the engine first listed its plugins'))
       dispatch({type: 'stopped'})
     },
   }

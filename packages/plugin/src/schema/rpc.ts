@@ -1,23 +1,22 @@
-import type {StandardSchemaV1} from '@standard-schema/spec'
-import type {PayloadBase} from './event.js'
-import type {Ref} from './location.js'
-import type {ValueSchema} from './tool.js'
+export * as Rpc from './rpc.js'
 
-export type ErrorMap = Readonly<Record<string, ValueSchema>> & {
+import type {StandardSchemaV1} from '@standard-schema/spec'
+import type {JsonSchema, Schema} from 'effect'
+import type {Event} from './event.js'
+import type {Location} from './location.js'
+import type {Tool} from './tool.js'
+
+export type ErrorMap = Readonly<Record<string, Tool.ValueSchema>> & {
   readonly [Name in `rpc.${string}`]?: never
 }
 
 export interface Method {
-  readonly input: ValueSchema
-  readonly output: ValueSchema
+  readonly input: Tool.ValueSchema
+  readonly output: Tool.ValueSchema
   readonly errors?: ErrorMap
 }
 
-interface JsonSchema {
-  [x: string]: unknown
-}
-
-export type PortableValueSchema = StandardSchemaV1<unknown, unknown> | JsonSchema
+export type PortableValueSchema = StandardSchemaV1<unknown, unknown> | JsonSchema.JsonSchema
 
 export interface PortableMethod extends Method {
   readonly input: PortableValueSchema
@@ -28,8 +27,13 @@ export interface PortableMethod extends Method {
 }
 
 type EventDataObject = Readonly<Record<string, unknown>>
-type EventValueSchema = StandardSchemaV1<unknown, EventDataObject> | (JsonSchema & {readonly type: 'object'})
-type PortableEventValueSchema = StandardSchemaV1<unknown, EventDataObject> | (JsonSchema & {readonly type: 'object'})
+type EventValueSchema =
+  | Schema.Codec<EventDataObject, EventDataObject>
+  | StandardSchemaV1<unknown, EventDataObject>
+  | (JsonSchema.JsonSchema & {readonly type: 'object'})
+type PortableEventValueSchema =
+  | StandardSchemaV1<unknown, EventDataObject>
+  | (JsonSchema.JsonSchema & {readonly type: 'object'})
 
 export interface EventDefinition {
   readonly schema: EventValueSchema
@@ -55,11 +59,19 @@ export function define<const D extends Definition>(definition: D) {
   return definition
 }
 
-export type Input<S extends ValueSchema> = S extends StandardSchemaV1 ? StandardSchemaV1.InferInput<S> : unknown
+export type Input<S extends Tool.ValueSchema> = S extends Schema.Top
+  ? S['Encoded']
+  : S extends StandardSchemaV1
+    ? StandardSchemaV1.InferInput<S>
+    : unknown
 
-export type Output<S extends ValueSchema> = S extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<S> : unknown
+export type Output<S extends Tool.ValueSchema> = S extends Schema.Top
+  ? S['Type']
+  : S extends StandardSchemaV1
+    ? StandardSchemaV1.InferOutput<S>
+    : unknown
 
-export type HandlerOutput<S extends ValueSchema> = Input<S>
+export type HandlerOutput<S extends Tool.ValueSchema> = S extends Schema.Top ? Output<S> : Input<S>
 
 type MethodErrors<M extends Method> = M extends {
   readonly errors: infer Errors extends ErrorMap
@@ -124,20 +136,22 @@ export type ErrorFactory<M extends Method> = <Name extends ErrorName<M>>(
   ...args: ErrorArguments<M, Name>
 ) => HandlerErrorFor<M, Name>
 
-export type EventInputData<S extends EventValueSchema> = S extends JsonSchema ? EventDataObject : HandlerOutput<S>
-export type EventData<S extends EventValueSchema> = S extends JsonSchema ? EventDataObject : Output<S>
+export type EventInputData<S extends EventValueSchema> = S extends JsonSchema.JsonSchema
+  ? EventDataObject
+  : HandlerOutput<S>
+export type EventData<S extends EventValueSchema> = S extends JsonSchema.JsonSchema ? EventDataObject : Output<S>
 
 export type EventInput<D extends Definition> = {
   [Name in keyof D['events'] & string]: [name: Name, data: EventInputData<D['events'][Name]['schema']>]
 }[keyof D['events'] & string]
 
 type EventPayloadFor<D extends Definition, Name extends keyof D['events'] & string> = Omit<
-  PayloadBase,
-  'type' | 'data' | 'location'
+  Event.Payload<Event.EphemeralDefinition>,
+  'type' | 'data' | 'durable' | 'location'
 > & {
   readonly type: `rpc.${D['id']}.${Name}`
   readonly data: EventData<D['events'][Name]['schema']>
-  readonly location: Ref
+  readonly location: Location.Ref
 }
 
 export type EventPayload<D extends Definition, Name extends keyof D['events'] & string = keyof D['events'] & string> = {

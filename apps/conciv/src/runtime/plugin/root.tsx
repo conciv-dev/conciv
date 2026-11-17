@@ -1,4 +1,15 @@
-import {createMemo, createSignal, lazy, on, onCleanup, Show, Suspense, untrack, type ParentProps} from 'solid-js'
+import {
+  createMemo,
+  createResource,
+  createSignal,
+  lazy,
+  on,
+  onCleanup,
+  Show,
+  Suspense,
+  untrack,
+  type ParentProps,
+} from 'solid-js'
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
@@ -76,6 +87,7 @@ export function PluginRoot(props: ParentProps) {
   })
   const first = Promise.withResolvers<BundleSource>()
   const listeners = new Set<Parameters<InstalledSource['on']>[0]>()
+  const experimentalListeners = new Set<Parameters<PluginExperimentalSource['on']>[0]>()
   const pluginListListeners = new Set<() => void>()
 
   first.promise.catch(() => undefined)
@@ -88,6 +100,7 @@ export function PluginRoot(props: ParentProps) {
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
+      onCleanup(created.on((message) => experimentalListeners.forEach((listener) => listener(message))))
       onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
       onCleanup(
         created.onSessionsChanged(
@@ -111,6 +124,17 @@ export function PluginRoot(props: ParentProps) {
     },
   }
 
+  const experimental: PluginExperimentalSource = {
+    pluginExperimentals: async () => (untrack(bundle) ?? (await first.promise)).pluginExperimentals(),
+    on(listener) {
+      experimentalListeners.add(listener)
+
+      return () => experimentalListeners.delete(listener)
+    },
+  }
+
+  const [ready] = createResource(() => first.promise)
+
   const [loaded, setLoaded] = createSignal<{
     settled: boolean
     plugins: readonly PluginExperimental[]
@@ -131,7 +155,7 @@ export function PluginRoot(props: ParentProps) {
     <HostApisContext.Provider value={apis}>
       <PluginsContext.Provider
         value={{
-          source: bundle,
+          source: () => (ready.state === 'ready' ? experimental : undefined),
           client: () => apis.engine.client,
           manager: () => bundle()?.manager,
           onPluginListChange(listener) {
@@ -142,11 +166,7 @@ export function PluginRoot(props: ParentProps) {
           set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
           reported: () => {
-            const status = login()?.status() ?? 'trusted'
-
-            if (status === 'checking' || status === 'unreachable') return undefined
-
-            if (status !== 'trusted') return []
+            if ((login()?.status() ?? 'trusted') !== 'trusted') return undefined
 
             return loaded().settled ? loaded().plugins.map((plugin) => plugin.definition.id) : undefined
           },
@@ -180,10 +200,10 @@ export function PluginAttachment(props: ParentProps) {
 
   return (
     <PluginAttachmentProvider value={attachment}>
-      <Show when={plugins?.source()} keyed>
+      <Show when={plugins?.source()}>
         {(source) => (
           <PluginExperimentalLoader
-            source={source}
+            source={source()}
             client={plugins?.client ?? (() => undefined)}
             onChange={(loaded, reserved) => plugins?.set(loaded, reserved)}
           />
