@@ -129,7 +129,6 @@ import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, once as onceOnly} from 'es-toolkit'
-import getPort from 'get-port'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
@@ -233,6 +232,21 @@ function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]
   return start({options, root, launchEditor: () => {}, ...overrides})
 }
 
+const ServerRecordSchema = z.object({port: z.number(), token: z.string()})
+
+function readServerRecord(root: string) {
+  return ServerRecordSchema.parse(JSON.parse(readFileSync(statePaths(root).server, 'utf8')))
+}
+
+function boundPortProbe(root: string) {
+  const bound = Promise.withResolvers<number>()
+  const extension = defineExtension({name: 'bound port'}).server(() => {
+    bound.resolve(readServerRecord(root).port)
+    return {context: null}
+  })
+  return {extension, port: bound.promise}
+}
+
 async function serveCore(
   root: string,
   extensions: AnyExtension[],
@@ -251,7 +265,7 @@ async function serveCore(
     await served.close()
     await made.dispose()
   }
-  return {made, origin: `http://127.0.0.1:${served.port}`, stop}
+  return {made, origin: `http://127.0.0.1:${served.port}`, port: served.port, stop}
 }
 
 async function nextEvent<Value extends {readonly type: string}>(
@@ -578,9 +592,6 @@ describe('chat plane', () => {
       db,
       root,
       storeCapture: () => Promise.resolve(),
-      bundler: () => undefined,
-      hotUpdate: async () => ({applied: false, waitedMs: 0}),
-      listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
       primitives,
@@ -1029,7 +1040,14 @@ describe('config', () => {
       .map((adapter) => adapter.id)
       .join(', ')
     const refusal = (id: string) => `conciv: unknown harness "${id}". Known harnesses: ${known}.`
-    const port = await getPort()
+    const held = createServer().listen(0, '127.0.0.1')
+    await once(held, 'listening')
+    onTestFinished(async () => {
+      await once(held.close(), 'close')
+    })
+    const address = held.address()
+    if (address === null || typeof address === 'string') throw new Error('the held server has no port')
+    const port = address.port
     const root = tempDir('conciv-core-unit-')
     const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
       onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
@@ -1042,9 +1060,6 @@ describe('config', () => {
     stopIfStarted(fromEnv)
     await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
     expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
-    const probe = createServer().listen(port, '127.0.0.1')
-    await expect(once(probe, 'listening')).resolves.toEqual([])
-    await once(probe.close(), 'close')
   })
 })
 
@@ -1308,18 +1323,20 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 
   it('releases the port when the endpoint file cannot be written', async () => {
     const root = tempDir('conciv-core-unit-')
-    const port = await getPort()
+    const bound = boundPortProbe(root)
     mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
-    await expect(bootEngine(root, {port: {exact: port}})).rejects.toThrow()
-    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(bootEngine(root, {extensions: [bound.extension]})).rejects.toMatchObject({syscall: 'rename'})
+    const probe = createServer().listen(await bound.port, '127.0.0.1')
     await once(probe, 'listening')
     await once(probe.close(), 'close')
   })
 
   it('a taken port fails start with the bind error before any extension is built', async () => {
-    const port = await getPort()
-    const taken = createServer().listen(port, '127.0.0.1')
+    const taken = createServer().listen(0, '127.0.0.1')
     await once(taken, 'listening')
+    const address = taken.address()
+    if (address === null || typeof address === 'string') throw new Error('the taken server has no port')
+    const port = address.port
     const built: string[] = []
     const counted = defineExtension({name: 'counted'}).server(() => {
       built.push('counted')
@@ -1355,7 +1372,6 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   })
 
   it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
-    const port = await getPort()
     const root = tempDir('conciv-core-unit-')
     const seeded = openDb(root)
     seeded.run(
@@ -1363,7 +1379,10 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     )
     seeded.$client.close()
     const outcomes: Array<Promise<number | 'dropped'>> = []
+    const bound = Promise.withResolvers<number>()
     const knocking = defineExtension({name: 'knocking'}).server(async () => {
+      const {port} = readServerRecord(root)
+      bound.resolve(port)
       const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
       outcomes.push(
         new Promise((resolve) => {
@@ -1374,9 +1393,9 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       await once(request.end(), 'continue')
       return {context: null}
     })
-    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow(/is not valid JSON/)
+    await expect(bootEngine(root, {extensions: [knocking]})).rejects.toThrow(/is not valid JSON/)
     expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
-    const probe = createServer().listen(port, '127.0.0.1')
+    const probe = createServer().listen(await bound.promise, '127.0.0.1')
     await expect(once(probe, 'listening')).resolves.toEqual([])
     await once(probe.close(), 'close')
   }, 20_000)
@@ -1389,9 +1408,6 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       )
       seeded.$client.close()
     }
-    const RecordSchema = z.object({port: z.number(), token: z.string()})
-    const readRecord = (root: string) =>
-      RecordSchema.parse(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8')))
 
     const fresh = tempDir('conciv-core-unit-')
     seedUnreadableRun(fresh)
@@ -1401,10 +1417,10 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     const root = tempDir('conciv-core-unit-')
     const running = await bootEngine(root)
     onTestFinished(() => running.stop())
-    expect(readRecord(root)).toEqual({port: running.port, token: running.agentToken})
+    expect(readServerRecord(root)).toEqual({port: running.port, token: running.agentToken})
     seedUnreadableRun(root)
     await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
-    const record = readRecord(root)
+    const record = readServerRecord(root)
     expect.soft(record).toEqual({port: running.port, token: running.agentToken})
     const health = await fetch(`http://127.0.0.1:${record.port}/health`)
     expect(await health.json()).toMatchObject({ok: true})
@@ -2161,6 +2177,61 @@ describe('page bus and the session scope', () => {
     await vi.waitFor(async () => expect(await pagePlugin.delivery.owed(id, false)).toEqual([]), {timeout: 5_000})
   })
 
+  it('a click the page performed is reported done even when the plugin storage refuses the capture and the journal', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const home = tempDir('conciv-core-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const harness = createTestHarness(requireClaude())
+    const tabs = pageTabs()
+    const {made, origin, stop} = await serveCore(stateRoot, [], {
+      cfg: {...resolveConfig({}, stateRoot), hubAccess: 'open'},
+      harness,
+      home,
+      plugins: [tabs.plugin],
+      print: () => {},
+    })
+    onTestFinished(stop)
+    await made.awaitActivation()
+    const id = SessionId.parse('conciv_click_storage_refused')
+    await ensureRow(made.chat.rows, id)
+    const tab = await tabs.open(id, () => ({type: 'success', result: {value: {ok: true}, files: [], capture: {}}}))
+    onTestFinished(() => tab.end())
+    made.chat.db.$client.exec(
+      "CREATE TRIGGER refuse_page_records BEFORE INSERT ON kv WHEN NEW.key LIKE '%:captures/%' OR NEW.key LIKE '%:changes/%' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    )
+    const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        ...JSON_TYPE,
+        accept: 'application/json, text/event-stream',
+        [CONCIV_SESSION_HEADER]: id,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'codex',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: "return await external_page_click({selector: '#go'})"},
+        },
+      }),
+    })
+    const text = await response.text()
+    const reply = z
+      .object({result: z.object({content: z.array(z.object({text: z.string()}))})})
+      .parse(JSON.parse(text.split('data: ').at(-1) ?? text))
+    expect(tab.seen()).toEqual(['page_click'])
+    const output = reply.result.content.map((part) => part.text).join('')
+    expect(output).not.toContain('disk full')
+    expect(z.object({result: z.object({ok: z.boolean()})}).parse(JSON.parse(output)).result).toEqual({ok: true})
+    const stored = made.chat.db.$client
+      .prepare("SELECT count(*) AS count FROM kv WHERE key LIKE '%:captures/%' OR key LIKE '%:changes/%'")
+      .get()
+    expect(stored).toEqual({count: 0})
+  })
+
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
     const bus = makePageBus(2000)
     bus.subscribe(SESSION_A, (frame) => {
@@ -2396,9 +2467,6 @@ describe('page bus and the session scope', () => {
         db: fixture.db,
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
-        bundler: () => undefined,
-        hotUpdate: async () => ({applied: false, waitedMs: 0}),
-        listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({
         name: 'fixture_click',
@@ -2944,10 +3012,10 @@ describe('settings storage', () => {
       scopes.push(api.scope)
       return {context: {}}
     })
-    const {made, origin, stop} = await serveCore(root, [probe], {home, agentToken: fixed.agentToken}, fixed.port)
+    const {made, origin, port, stop} = await serveCore(root, [probe], {home, agentToken: fixed.agentToken}, fixed.port)
     const scope = scopes[0]
     if (scope === undefined) throw new Error('the probe extension did not mount')
-    return {scope, server: scope(namespace).settings, rpc: makeRpcClient(`${origin}/t/${made.agentToken}`), stop}
+    return {scope, port, server: scope(namespace).settings, rpc: makeRpcClient(`${origin}/t/${made.agentToken}`), stop}
   }
 
   test('the server store, the rpc client store and a second subscriber share one debounced file per scope', async () => {
@@ -3004,9 +3072,10 @@ describe('settings storage', () => {
 
   test('a browser client keeps following a scope across an engine restart longer than the one-shot retry budget', async () => {
     const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
-    const fixed = {agentToken: randomUUID(), port: await getPort()}
     const project = {scope: 'project', namespace: 'probe'} as const
-    const first = await bootSettings(root, home, 'probe', fixed)
+    const agentToken = randomUUID()
+    const first = await bootSettings(root, home, 'probe', {agentToken})
+    const fixed = {agentToken, port: first.port}
     const browser = makeBrowserRpcClient(`http://127.0.0.1:${fixed.port}/t/${fixed.agentToken}`)
     const stream = new AbortController()
     const engines = {running: first}
@@ -4580,7 +4649,6 @@ describe('direct tools on the MCP surface', () => {
       moduleGraph: () => [],
       transform: async () => ({code: null}),
       urls: () => ({local: [], network: []}),
-      reload: async () => undefined,
       restart: async (force) => {
         restarts.push(force ?? false)
       },
@@ -4655,7 +4723,6 @@ describe('direct tools on the MCP surface', () => {
       'external_server_restart',
       'external_server_transform',
       'external_server_urls',
-      'external_tabs',
       'external_unit_coded',
     ])
     expect(bound.result.filter((name) => name.startsWith('external_page_'))).toEqual([])
@@ -4792,7 +4859,6 @@ describe('plugin context keys provided by core', () => {
       moduleGraph: () => [],
       transform: async () => ({code: null}),
       urls: () => ({local: [], network: []}),
-      reload: async () => undefined,
       restart: async () => undefined,
     })
     const host = ManagedRuntime.make(

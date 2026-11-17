@@ -6,7 +6,7 @@ Companion to the spec at `docs/superpowers/specs/2026-08-26-calm-chat-plane.md`.
 
 - Branch `issue-589-integration` (pushed, head `aa50a9b7`) carries all of issue #589's fixes plus follow-ups: run-log self-contained snapshots, gate grammar + session approval memory, Ark tabs, virtualized JsonTree (2.6s → 85ms expand), truncation tooltips (`TruncatedText` in ui-kit-system), restored braille narration line (one continuous mount per run, Ark Presence label swap), demo-page `backdrop-filter` removal (13fps → 120fps scroll in Firefox). Fully gated: typecheck, serial forced tests (excl. whiteboard locally), embed ITs, lint, format, fallow, changesets.
 - Issue #589 is filed; the integration branch has NO PR yet. Decide with Omri: one big PR vs split per lane.
-- The spec was adversarially reviewed by codex (16 findings, all folded in) and every library claim was verified against the TanStack/ai clone at `/Users/omrikatz/Public/web/tanstack-ai` (pull it fresh before relying on it).
+- The spec was adversarially reviewed by codex (16 findings, all folded in) and every library claim was verified against the TanStack/ai clone at `~/Public/web/tanstack-ai` (pull it fresh before relying on it).
 
 ## Open items not in the spec
 
@@ -38,4 +38,4 @@ Companion to the spec at `docs/superpowers/specs/2026-08-26-calm-chat-plane.md`.
 ## Key research artifacts (session-local, re-derive if needed)
 
 - Spec evidence lives in the spec's Evidence base section. The triage/RCA doc for #589: https://claude.ai/code/artifact/fd40090a-9c68-4f4b-9d23-d67480c32fea . The spec artifact mirror: https://claude.ai/code/artifact/c80426e7-042d-49c4-a15f-fcceeea0e657 (repo copy is authoritative).
-- TanStack AI local clone: `/Users/omrikatz/Public/web/tanstack-ai`. Reference UIs cloned: `assistant-ui`, `opencode`, `pi-mono` under `/Users/omrikatz/Public/web/`.
+- TanStack AI local clone: `~/Public/web/tanstack-ai`. Reference UIs cloned: `assistant-ui`, `opencode`, `pi-mono` under `~/Public/web/`.

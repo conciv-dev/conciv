@@ -95,7 +95,6 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-tap > @tiptap/suggestion',
   '@conciv/ui-kit-terminal > @xterm/xterm',
   '@conciv/ui-kit-terminal > @xterm/addon-fit',
-  '@conciv/extension-page > @zumer/snapdom',
   '@conciv/solid-streamdown > marked',
   '@conciv/solid-streamdown > rehype-harden',
   '@conciv/solid-streamdown > rehype-raw',

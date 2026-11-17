@@ -2,7 +2,6 @@ import {render} from 'solid-js/web'
 import {RouterProvider, createBrowserHistory} from '@tanstack/solid-router'
 import {createRoot} from 'solid-js'
 import {makeBrowserRpcClient} from '@conciv/contract'
-import pageExtension from '@conciv/extension-page/client'
 import {parseConcivSettings} from './data/settings.js'
 import {createConcivRouter} from './router.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from './app/engine-login.js'
@@ -20,7 +19,6 @@ function start(): void {
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,
-    extensions: [pageExtension],
     apiBase: () => core,
     connected: () => engineConnected(login.status()),
     login,

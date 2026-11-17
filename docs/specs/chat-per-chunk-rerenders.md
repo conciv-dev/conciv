@@ -9,7 +9,7 @@ When one part of one message changes, only these may re-run:
 
 Today one such chunk re-runs 85 computations. About 40 of them are our code reading a whole list (`chat.messages()`,
 `thread.turns`, all parts of a turn or segment). The measured list, source-mapped, is in
-`/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/u47.mapped.txt`.
+`/private/tmp/claude-501/-Users-dev-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/u47.mapped.txt`.
 
 ## The library pattern
 

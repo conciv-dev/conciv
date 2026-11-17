@@ -53,6 +53,8 @@ const Raised = z.object({code: z.string(), message: z.string()})
 
 const Unconfirmed = /^\[page\.(timeout|disconnected|tab_unavailable)\]/
 
+const NotDispatched = /^\[page\.not_dispatched\]/
+
 const Values = z.record(z.string(), z.unknown())
 
 function playedOutcome(index: number, tool: string, settlement: RequestSettlement): Settled {
@@ -61,6 +63,8 @@ function playedOutcome(index: number, tool: string, settlement: RequestSettlemen
     const parsed = Values.safeParse(value)
     return {outcome: {index, tool, ok: true, result: parsed.success ? parsed.data : {value}}, landed: 'played'}
   }
+  if (NotDispatched.test(settlement.error.message))
+    return {outcome: {index, tool, ok: false, error: settlement.error.message}, landed: 'lost'}
   const raised = Raised.safeParse(settlement.error.error)
   const error = raised.success ? raised.data.message || settlement.error.message : settlement.error.message
   if (raised.success) return {outcome: {index, tool, ok: false, error}, landed: unplayedAs(raised.data.code)}

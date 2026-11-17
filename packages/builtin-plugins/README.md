@@ -8,6 +8,21 @@ Private. The browser parts of conciv's built-in plugins, given to the widget fro
 The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
 
+The routed session attaches while its server is compatible and its event stream is connected (`ServerRef.connected`):
+a dropped stream or an engine restart ends the attachment and the reconnect starts a new one, with nobody touching the
+tab. In opencode the desktop's own stream ends with the connection, the attachment ends `closed` and the pane registers
+again on a backoff (`gui-plugins/src/browser/pane-machine.ts:254-279` `closeReason`, `machine.ts:736-737`, `:772-796`);
+here the stream reopens under its reader, so its reconnect is the cue. An `unsupported` or `unavailable` end stops
+attaching until the server reconnects or the panel routes another session, as the source's unsupported server is
+watched until `server.connected` (`model.ts:382-409`, `machine.ts:386-395`), not until a reload. An attachment the
+engine ends while the stream stays up waits for the user to focus, click or type in the tab (`woken`), as the source's
+suspended pane waits for those edges (`machine.ts:739-748`, `model.ts:513-528`). An attach the engine refuses because the session
+does not exist (deleted, or a new session before its first send; the refusal type `missing`) waits on the event stream
+for `session.created` and nothing else, with no timer. Any other attach refused before it attached (the session belongs
+to another location, or its page permissions could not be granted in time) tries again on the source's
+registration-closed back-off, 1 s doubling to 30 s (`RETRY_BASE_MS`, `RETRY_MAX_MS` in `plugin-experimental.tsx`), and
+at once when the session is created.
+
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.

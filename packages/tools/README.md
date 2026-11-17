@@ -1,6 +1,6 @@
 # @conciv/tools
 
-conciv agent tools: `conciv_ui`, the dev-server `server_*` tools and `open`, plus their Solid tool cards.
+conciv agent tools: `conciv_ui`, the `tabs` tool and `open`, plus their Solid tool cards.
 Tools are declared with `defineTool` (`@conciv/protocol/chat-tool-types`, `@conciv/extension/tool`).
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
@@ -8,9 +8,9 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 ## Interface
 
 - [src/README.md](./src/README.md): tool definitions, sandbox wrappers and the card registry.
-- [src/builtins/README.md](./src/builtins/README.md): `server_reload` and `tabs`.
+- [src/builtins/README.md](./src/builtins/README.md): `OpenInput` for the `open` card.
 - [src/cards/README.md](./src/cards/README.md): `UiCard`, `OpenCard`.
-- Exports (`package.json`): `.` -> `dist/tools.js`, `./defs` -> `dist/defs.js`, `./builtins` -> `dist/builtins.js`, `./cards` -> `dist/cards.js` (`browser` and `import` conditions), `./package.json`. No bin.
+- Exports (`package.json`): `.` -> `dist/tools.js`, `./defs` -> `dist/defs.js`, `./cards` -> `dist/cards.js` (`browser` and `import` conditions), `./package.json`. No bin.
 - Dependencies: `@conciv/extension`, `@conciv/extension-page`, `@conciv/protocol`, `@conciv/solid-diffs`, `@conciv/ui-kit-chat`, `@conciv/ui-kit-system`, `lucide-solid`, `zod`; peer `solid-js` ^1.9.13.
 - Scripts: `build` (`tsdown && vite build && tsc -p tsconfig.build.json`), `typecheck` (`tsconfig.json`), `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`--profile esm-only`).
 

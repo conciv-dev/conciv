@@ -50,6 +50,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
     "zod": "catalog:"
   },
@@ -59,7 +60,6 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
-    "@conciv/protocol": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
