@@ -653,6 +653,39 @@ describe('chat pane', () => {
       await expect.element(input()).toHaveTextContent(TEXT)
       expect(await readLocalCopy(sessionId)).toMatchObject({text: TEXT})
     })
+
+    test('the stored draft is in the composer while the engine read is held, typing meanwhile is never overwritten, and an untouched composer takes a newer engine row', async () => {
+      const {rpc, sessionId} = await newSession()
+      const TEXT = 'kept before the engine went quiet'
+      const TYPED = `${TEXT} and typed while it was away`
+      await typeSyncedDraft(sessionId, TEXT)
+      await seedDraft(rpc, sessionId, {text: 'changed in another tab'})
+      const heldRead = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TEXT)
+      await userEvent.click(input())
+      await userEvent.keyboard('{End} and typed while it was away')
+      await expect.element(input()).toHaveTextContent(TYPED)
+      await coreControl.releaseFault(heldRead)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
+      await expect.element(input()).toHaveTextContent(TYPED)
+      const saved = await rpc.drafts.get({sessionId})
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: TYPED, syncedAt: saved?.updatedAt})
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TYPED)
+      active.pane?.dispose()
+      await seedDraft(rpc, sessionId, {text: 'newer from another tab'})
+      const laterRead = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TYPED)
+      await coreControl.releaseFault(laterRead)
+      await expect.element(input()).toHaveTextContent('newer from another tab')
+    })
   })
 
   describe('the composer never waits on the server draft', () => {
