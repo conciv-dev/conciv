@@ -4638,6 +4638,9 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 'catalog:'
         version: 0.3.31
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
