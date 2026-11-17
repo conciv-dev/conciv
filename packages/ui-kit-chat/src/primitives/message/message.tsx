@@ -274,13 +274,16 @@ export function shownAttachmentParts(parts: readonly Part[]): AttachmentPart[] {
   return parts.filter((part): part is AttachmentPart => isAttachmentPart(part) && !partIsModelOnly(part))
 }
 
+function urlFileName(value: string): string | undefined {
+  const url = URL.parse(value)
+  if (url?.protocol !== 'http:' && url?.protocol !== 'https:') return undefined
+  return url.pathname.split('/').pop() || undefined
+}
+
 function attachmentName(part: AttachmentPart, index: number): string {
   const source = part.source
-  if (source.type === 'url') {
-    const tail = source.value.split('/').pop()
-    if (tail) return tail
-  }
-  return `${part.type}-${index + 1}`
+  if (source.type !== 'url') return `${part.type}-${index + 1}`
+  return urlFileName(source.value) ?? part.type
 }
 
 function partToAttachment(part: AttachmentPart, index: number): CompleteAttachment {
