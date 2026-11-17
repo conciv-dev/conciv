@@ -7,3 +7,5 @@ webpack and Rspack development builds now get the conciv widget on the page from
 The `widgetUrl` option and the `CONCIV_WIDGET_URL` environment variable are removed. Nothing read them.
 
 `widget: false` now keeps the widget off the page on webpack, Rspack and Next.js; the engine still starts.
+
+When the plugin cannot write the widget client (for example, `.conciv` is a file) or `port` is not an integer from 1 to 65535, it logs one `conciv:` line and the build goes on without the widget; the engine still starts on a good port.

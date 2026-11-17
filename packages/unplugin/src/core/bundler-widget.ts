@@ -14,17 +14,26 @@ export function noAppExtensionsPath(): string {
   return join(dirname(widgetStarterPath()), 'no-app-extensions.js')
 }
 
-export function writeWidgetClient(root: string, port: number): string {
+export function writeWidgetClient(root: string, port: number): string | undefined {
   if (!isEnginePort(port)) {
-    throw new Error(`conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}`)
+    console.error(
+      `conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}, so the page gets no widget`,
+    )
+    return undefined
   }
   const path = join(root, '.conciv', `widget-client.${String(port)}.gen.js`)
-  mkdirSync(dirname(path), {recursive: true})
   const source = [
     `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
     `startConcivWidget(${String(port)})`,
     '',
   ].join('\n')
-  writeFileSync(path, source, 'utf8')
+  try {
+    mkdirSync(dirname(path), {recursive: true})
+    writeFileSync(path, source, 'utf8')
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error)
+    console.error(`conciv: could not write the widget client ${path}, so the page gets no widget: ${cause}`)
+    return undefined
+  }
   return path
 }

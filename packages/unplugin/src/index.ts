@@ -96,6 +96,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
       compiler.hooks.shutdown.tapPromise('conciv', stopEngine)
       if (options.widget === false) return
       const client = writeWidgetClient(compiler.context, bundlerOptions.port)
+      if (client === undefined) return
       compiler.options.resolve.alias = withAlias(
         withAlias(compiler.options.resolve.alias, APP_EXTENSIONS_SPECIFIER, noAppExtensionsPath()),
         WIDGET_START_SPECIFIER,
