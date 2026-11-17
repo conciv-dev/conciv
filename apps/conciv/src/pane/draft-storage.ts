@@ -200,7 +200,7 @@ function makeLocalDraftWriter(
     const row = appData.cachedDraft(sessionId)
     const attachments = sendableAttachments(recorded, filed, encoded, row)
     const current = document.draft
-    if (!current || sameAsRow({...recorded, attachments}, row)) return
+    if (!current || appData.sessionDeleted(sessionId) || sameAsRow({...recorded, attachments}, row)) return
     if (row === null && isEmptied(recorded)) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
@@ -221,7 +221,7 @@ function makeLocalDraftWriter(
   }
   const feed = () => {
     const draft = document.draft
-    if (!draft || !sendable()) return
+    if (!draft || !sendable() || appData.sessionDeleted(sessionId)) return
     const recorded = structuredClone(unwrap(draft))
     const files = [...unwrap(document.files)]
     void encodeAttachments(files).then((encoded) => send(recorded, files, encoded))
@@ -233,7 +233,10 @@ function makeLocalDraftWriter(
     storage: NoLocalHydration,
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
-    write: (_value, serialized) => drafts.setDocument(sessionId, JSON.parse(serialized)).finally(feed),
+    write: (_value, serialized) =>
+      appData.sessionDeleted(sessionId)
+        ? Promise.resolve()
+        : drafts.setDocument(sessionId, JSON.parse(serialized)).finally(feed),
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
     const offsets = clampSelection(selection(), draft.draft)

@@ -63,6 +63,7 @@ export type AppData = {
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (save: DraftSave) => Promise<boolean>
   endDraftSaves: (sessionId: string) => void
+  sessionDeleted: (sessionId: string) => boolean
   dispose: () => void
 }
 
@@ -153,11 +154,16 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
   type ListedPages<Procedure extends 'list' | 'search'> = NonNullable<
     ReturnType<typeof queryClient.getQueryData<unknown, ReturnType<(typeof utils.sessions)[Procedure]['infiniteKey']>>>
   >
+  const endDraftSaves = (sessionId: string): void => {
+    queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
+  }
   const reading = new AbortController()
   const forgetDeletedSessions = async () => {
     for await (const event of client.event.subscribe({signal: reading.signal})) {
       if (event.type !== 'session.deleted') continue
       const sessionId = event.data.sessionID
+      queryClient.setQueryData(sessionKey(sessionId), (meta) => meta && {...meta, hidden: true})
+      endDraftSaves(sessionId)
       await drafts?.removeItem(sessionId).catch((error: unknown) => {
         console.error('[conciv] could not remove the local draft of a deleted session', error)
       })
@@ -171,7 +177,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
         {queryKey: utils.sessions.search.key({type: 'infinite'})},
         (data) => withoutSessionInPages(data, sessionId),
       )
-      queryClient.removeQueries({queryKey: sessionKey(sessionId)})
     }
   }
   forgetDeletedSessions().catch((error: unknown) => {
@@ -189,9 +194,8 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,
-    endDraftSaves: (sessionId) => {
-      queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
-    },
+    endDraftSaves,
+    sessionDeleted: (sessionId) => queryClient.getQueryData(sessionKey(sessionId))?.hidden === true,
     dispose: () => reading.abort(),
   }
 }
