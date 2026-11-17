@@ -91,7 +91,7 @@ async function openHost(browser: Browser, kit: CoreKit, withApp: boolean) {
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches and invalidates one exact query, redacts secret params, search, hash and query keys, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error and answers a router-less page', async ({
+  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches and invalidates one exact query, redacts secret params, search, hash and query keys, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
     browser,
   }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -181,6 +181,16 @@ describe('the tanstack plugin in the page', () => {
     expect(snapshot.errors).toContainEqual(
       expect.objectContaining({kind: 'runtime', message: expect.stringContaining('boom-from-event-handler')}),
     )
+
+    const lastRejection = page.waitForEvent('pageerror', {
+      predicate: (error) => error.message.startsWith('long-error-49 '),
+    })
+    await page.getByRole('button', {name: 'Reject fifty long promises'}).click()
+    await lastRejection
+    const flooded = ErrorsSchema.parse(await call('tanstack_errors_snapshot', {}))
+    const indices = flooded.errors.map((error) => Number(/^long-error-(\d+) /u.exec(error.message)?.[1]))
+    expect(indices.at(-1)).toBe(49)
+    expect(indices).toEqual(Array.from({length: indices.length}, (_, offset) => 50 - indices.length + offset))
 
     const bare = await openHost(browser, kit, false)
     await expect(bare.page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
