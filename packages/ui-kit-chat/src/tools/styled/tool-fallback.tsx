@@ -1,6 +1,6 @@
-import {children, createSignal, Show, type JSX} from 'solid-js'
+import {children, createMemo, createSignal, Show, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {fallbackErrorText, ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
@@ -14,6 +14,7 @@ import {TRACE_MICROLABEL} from '../../styled/trace/trace-row.js'
 import {ActionRow, ActionButton} from './action-row.js'
 import {ShapedText} from './shaped-content.js'
 import {useEmbeddedCard} from './card-chrome.js'
+import {genericToolHeadline} from './generic-tool-headline.js'
 
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
   const tool = useToolFallback()
@@ -29,26 +30,36 @@ function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
   )
 }
 
+const TOOL_NAME = '[color:var(--chat-text)] [font-family:var(--chat-mono)]'
+const TRIGGER_SUBTITLE = 'text-chat-text-3 min-w-0 truncate leading-none'
+const TRIGGER_ARGS =
+  'text-chat-text-3 text-[length:var(--chat-text-xs)] min-w-0 truncate leading-none [font-family:var(--chat-mono)]'
+
 function Trigger(): JSX.Element {
   const tool = useToolFallback()
   const embedded = useEmbeddedCard()
   const running = () => tool.status() === 'running'
+  const headline = createMemo(() => genericToolHeadline(tool.part()))
   return (
     <Show when={!embedded()}>
       <Collapsible.Trigger
-        class={`group text-[length:var(--chat-text-md)] text-chat-text-2 py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center hover:text-chat-text ${FOCUS}`}
+        class={`group text-[length:var(--chat-text-md)] text-chat-text-2 py-1.5 flex gap-2 max-w-full min-w-0 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center hover:text-chat-text ${FOCUS}`}
       >
         <StatusVisual status={tool.status()} form="icon" />
-        <span class="leading-none text-start inline-block relative">
+        <span class="leading-none text-start shrink-0 inline-block relative">
           <span>
-            Used tool: <b class="[color:var(--chat-text)]">{tool.name()}</b>
+            Called <b class={TOOL_NAME}>{tool.name()}</b>
           </span>
           <Show when={running()}>
             <span aria-hidden="true" class={`pointer-events-none inset-0 absolute ${SHIMMER}`}>
-              Used tool: <b>{tool.name()}</b>
+              Called <b class={TOOL_NAME}>{tool.name()}</b>
             </span>
           </Show>
         </span>
+        <Show when={headline().subtitle}>
+          {(subtitle) => <TruncatedText class={TRIGGER_SUBTITLE} text={subtitle()} />}
+        </Show>
+        <Show when={headline().args.join(' ')}>{(args) => <TruncatedText class={TRIGGER_ARGS} text={args()} />}</Show>
         <Show when={tool.durationMs()}>
           {(ms) => (
             <span class="text-[length:var(--chat-text-xs)] text-chat-text-3 tabular-nums">{formatDuration(ms())}</span>

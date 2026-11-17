@@ -363,6 +363,29 @@ const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = asy
   return started.map((path) => calls.startedSince(path))
 }
 
+const rpcMark: BrowserCommand<[]> = async (ctx): Promise<number> => {
+  const {rpcObserverFor} = await importTestkit(ctx)
+  return rpcObserverFor(ctx.page).mark()
+}
+
+const awaitRpcFailedCount: BrowserCommand<[string[], number, number, number]> = async (
+  ctx,
+  path,
+  status,
+  count,
+  since,
+): Promise<void> => {
+  const {rpcObserverFor} = await importTestkit(ctx)
+  const observer = rpcObserverFor(ctx.page)
+  const settle = async (): Promise<void> => {
+    const next = observer.mark()
+    if (observer.completedCount({path, status, since}) >= count) return
+    await observer.completed({path, status, since: next, timeout: AWAIT_RPC_TIMEOUT_MS})
+    await settle()
+  }
+  await settle()
+}
+
 function requireCalls(ctx: BrowserCommandContext): RpcCallCursor {
   const calls = ensureState(ctx).rpcCalls
   if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
@@ -801,6 +824,8 @@ export const coreCommands = {
   setHubConnection,
   rpcCallCount,
   rpcStartedOnceServed,
+  rpcMark,
+  awaitRpcFailedCount,
   installFault,
   releaseFault,
   faultPending,

@@ -23,6 +23,7 @@ import {createPageSessionGrouper} from '../src/store/page-session.js'
 import {turnRollup} from '../src/store/turn-rollup.js'
 import {shortToolLabel} from '../src/tools/primitives/tool-row.js'
 import {humanToolName} from '../src/tools/primitives/now-title.js'
+import {genericToolHeadline} from '../src/tools/styled/generic-tool-headline.js'
 
 describe('tool names', () => {
   it('shortens a tool name into a row label', () => {
@@ -68,6 +69,65 @@ describe('turn rollup', () => {
     expect(patchTurn('*** Add File:\nsrc/next.ts\n+x').files).toEqual([])
     expect(patchTurn('*** Update File: \t  src/a.ts\n+x').files).toEqual(['src/a.ts'])
     expect(patchTurn('*** Add File: \t \n+x').files).toEqual([])
+  })
+})
+
+describe('generic tool headline', () => {
+  function headline(input: unknown) {
+    return genericToolHeadline({
+      type: 'tool-call',
+      id: 'g1',
+      name: 'server_resolve',
+      arguments: input === undefined ? '' : JSON.stringify(input),
+      state: 'input-complete',
+    })
+  }
+
+  it('titles the call by its tool and takes a label key as the subtitle', () => {
+    expect(headline({path: 'src/a.ts'})).toEqual({
+      title: 'Called server_resolve',
+      subtitle: 'src/a.ts',
+      args: [],
+      target: 'src/a.ts',
+    })
+  })
+
+  it('takes the first label key in source order and never repeats a label key as an argument', () => {
+    expect(
+      headline({name: 'n', pattern: '*.ts', url: 'https://a.dev', query: 'q', description: 'd', mode: 'x'}),
+    ).toEqual({
+      title: 'Called server_resolve',
+      subtitle: 'd',
+      args: ['mode=x'],
+      target: 'd',
+    })
+    expect(headline({description: '', path: 'src/b.ts'}).subtitle).toBe('src/b.ts')
+  })
+
+  it('with no label key turns the scalars into arguments, first three only, and the first one is the target', () => {
+    expect(headline({spec: 'solid-js', count: 3, deep: false, extra: 'cut'})).toEqual({
+      title: 'Called server_resolve',
+      subtitle: undefined,
+      args: ['spec=solid-js', 'count=3', 'deep=false'],
+      target: 'solid-js',
+    })
+    expect(headline({count: 3}).target).toBe('3')
+  })
+
+  it('skips objects, arrays and null', () => {
+    expect(headline({options: {a: 1}, list: [1], empty: null, flag: true})).toEqual({
+      title: 'Called server_resolve',
+      subtitle: undefined,
+      args: ['flag=true'],
+      target: 'true',
+    })
+  })
+
+  it('reads an empty, missing or broken input as no arguments', () => {
+    const titleOnly = {title: 'Called server_resolve', subtitle: undefined, args: [], target: undefined}
+    expect(headline({})).toEqual(titleOnly)
+    expect(headline(undefined)).toEqual(titleOnly)
+    expect(headline([1, 2])).toEqual(titleOnly)
   })
 })
 

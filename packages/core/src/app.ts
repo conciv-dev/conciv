@@ -680,9 +680,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         ),
       ),
     )
-  const reportToolCollision = memoize((name: string) =>
-    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
-  )
+  const extensionFor = (name: string): string | undefined =>
+    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
+  const reportToolCollision = memoize((name: string) => {
+    const extension = extensionFor(name)
+    if (extension === undefined)
+      return logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`)
+    return logError(
+      `[core] the plugin tool "${name}" is left out: extension "${extension}" already has a tool with that name`,
+    )
+  })
   const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
@@ -691,9 +698,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
-
-  const extensionFor = (name: string): string | undefined =>
-    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
 
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [

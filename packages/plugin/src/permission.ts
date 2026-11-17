@@ -10,5 +10,6 @@ export const AssertInput = Schema.Struct({
   save: Permission.Request.fields.save,
   metadata: Permission.Request.fields.metadata,
   source: Permission.Request.fields.source,
+  fallback: Schema.Literal('ask').pipe(Schema.optional),
 })
 export interface AssertInput extends Schema.Schema.Type<typeof AssertInput> {}

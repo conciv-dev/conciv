@@ -2,7 +2,7 @@ import {z} from 'zod'
 import type {eventWithTime} from '@rrweb/types'
 import themeCss from './player-theme.css?inline'
 import type Player from 'rrweb-player'
-import {RrwebEventSchema, type RrwebEvent} from '../shared/protocol.js'
+import {RrwebEventSchema, type RrwebEvent} from '../protocol.js'
 
 const playerEvent = z.custom<eventWithTime>()
 const playerEvents = z.array(playerEvent)
