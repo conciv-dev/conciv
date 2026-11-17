@@ -11,6 +11,8 @@ export default defineConfig({
     'src/nextjs.ts',
     'src/nextjs-edge.ts',
     'src/nextjs-widget.ts',
+    'src/core/boot.ts',
+    'src/core/extensions-watch.ts',
   ],
   format: 'esm',
   fixedExtension: false,
