@@ -4834,6 +4834,9 @@ importers:
 
   packages/plugins/tanstack:
     dependencies:
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
       '@tanstack/react-router':
         specifier: '>=1.170.0'
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -4859,9 +4862,6 @@ importers:
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../plugin-testkit
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig

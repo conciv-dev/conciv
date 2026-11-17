@@ -1,4 +1,4 @@
-import type {SubscribeConnectionAdapter} from '@tanstack/ai-client'
+import {StreamReconnectLimitError, type SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
@@ -181,9 +181,14 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     setRun({phase: 'known', source: next})
     if (next !== null && !isRunPhaseTerminal(next.lifecycle.phase)) void stop()
   }
-  const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: Record<string, string>}>({
+  const [served, setServed] = createStore<{
+    pending: ApprovalAsk[]
+    harnesses: Record<string, string>
+    historyError: Error | undefined
+  }>({
     pending: [],
     harnesses: {},
+    historyError: undefined,
   })
   const hydrating: CardArrival[][] = []
   const arrive = (arrival: CardArrival): void => {
@@ -200,6 +205,17 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       return await read()
     } finally {
       hydrating.splice(hydrating.indexOf(arrivals), 1)
+    }
+  }
+  const latestHistory = async <Result>(load: Promise<Result>): Promise<Result> => {
+    try {
+      const hydration = await load
+      setServed('historyError', undefined)
+      return hydration
+    } catch (cause) {
+      const failure = asError(cause)
+      setServed('historyError', failure)
+      throw failure
     }
   }
   const connected = options.connect({
@@ -233,7 +249,14 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     refresh: (before) => whileHydrating(() => connected.refresh(before)),
     ...(hydrate === undefined
       ? {}
-      : {hydrate: (threadId, hydrateOptions) => whileHydrating(() => hydrate(threadId, hydrateOptions))}),
+      : {
+          hydrate: (threadId, hydrateOptions) =>
+            whileHydrating(() =>
+              hydrateOptions?.before === undefined
+                ? latestHistory(hydrate(threadId, hydrateOptions))
+                : hydrate(threadId, hydrateOptions),
+            ),
+        }),
   }
   const reaching = async (hydration: ChatSessionHydration): Promise<ChatMessage[]> => {
     if (overlaps(chat.messages(), hydration) || hydration.page?.truncated !== true) return hydration.messages
@@ -292,7 +315,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const latest = chat.error()
     return current.phase === 'withdrawn' && current.hidden === latest ? undefined : latest
   })
-  const loadFailed = createMemo(() => error() !== undefined && chat.messages().length === 0)
+  const loadFailed = createMemo(() => served.historyError !== undefined && chat.error() === served.historyError)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -326,10 +349,13 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const current = run()
     return current.phase === 'withdrawn' && current.hidden === chat.error()
   })
+  const lastLocalRunId = createMemo<string | null>((previous) => chat.runId() ?? previous, null)
   const neverLeft = (before: RunState, errorBefore: Error | undefined): Error | undefined => {
     if (run() !== before && withdrawn()) return new Error('The message was taken back before the engine had it')
     const refused = chat.error()
     if (refused === undefined || refused === errorBefore || answered(chat.messages())) return undefined
+    if (refused instanceof StreamReconnectLimitError) return refused
+    if (runSource()?.lifecycle.runId === lastLocalRunId()) return undefined
     return refused
   }
   const sendMessage: Chat['sendMessage'] = async (...args) => {

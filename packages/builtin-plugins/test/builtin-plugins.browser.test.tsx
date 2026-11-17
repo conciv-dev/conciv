@@ -16,7 +16,7 @@ import {GrabCard} from '../src/page/cards/grab-card.js'
 import {GrabSnapshotFrame} from '../src/page/cards/grab-snapshot-frame.js'
 import {mountAttachment} from './fixtures/attachment-harness.js'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
-import {installReactBridge, MASKED_VALUE} from '@conciv/page'
+import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
@@ -1570,6 +1570,26 @@ describe('the page contracts another plugin reads', () => {
       }
       expect(tree.rootFibers().flatMap(labels)).toContainEqual({label: 'A'})
       expect(tree.dehydrate({label: 'A', run: function run() {}})).toEqual({label: 'A', run: 'ƒ run()'})
+    })
+
+    it('Page.pick returns the clicked element’s source and box, and null when the user presses Escape', async () => {
+      const [leafFrame] = await makeReactTree().frames(leaf().element())
+      expect(leafFrame?.fn).toBe('Leaf')
+      const {x, y, width, height} = leaf().element().getBoundingClientRect()
+      await getReactGrabAdapter()
+      const picked = pageMembers.pick()
+      await vi.waitFor(() => expect(picking()).toBe(true))
+      await userEvent.click(leaf(), {force: true})
+      const result = await picked
+      expect(result?.source?.componentName).toBe(leafFrame?.fn)
+      expect(leafFrame?.fileName?.endsWith(`/${result?.source?.filePath}`)).toBe(true)
+      expect(Number.isInteger(result?.source?.lineNumber)).toBe(true)
+      expect(result?.source?.lineNumber).toBeGreaterThan(0)
+      expect(result?.rect).toEqual({x, y, width, height})
+      const cancelled = pageMembers.pick()
+      await vi.waitFor(() => expect(picking()).toBe(true))
+      await userEvent.keyboard('{Escape}')
+      expect(await cancelled).toBeNull()
     })
   })
 })
