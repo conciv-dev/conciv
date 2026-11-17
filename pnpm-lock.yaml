@@ -860,15 +860,15 @@ importers:
       '@conciv/extension-terminal':
         specifier: workspace:*
         version: link:../../../packages/extensions/terminal
-      '@conciv/extension-test-runner':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/test-runner
       '@conciv/extension-whiteboard':
         specifier: workspace:*
         version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-test-runner':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/test-runner
       next:
         specifier: 'catalog:'
         version: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
@@ -915,15 +915,15 @@ importers:
       '@conciv/extension-terminal':
         specifier: workspace:*
         version: link:../../../packages/extensions/terminal
-      '@conciv/extension-test-runner':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/test-runner
       '@conciv/extension-whiteboard':
         specifier: workspace:*
         version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-test-runner':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/test-runner
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
