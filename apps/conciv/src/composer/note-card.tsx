@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import {Button, TruncatedText} from '@conciv/ui-kit-system'
-import {NoteFrame, useComposerContext, type NoteFrameProps} from '@conciv/ui-kit-chat'
+import {CornerRemoveButton, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
 import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
@@ -15,6 +15,8 @@ import {readPromptPresentation} from './comment-note'
 const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
+const FRAME =
+  'relative flex flex-1 flex-col gap-0.5 min-w-0 py-2 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
 const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
 const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
@@ -49,8 +51,7 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
 function PluginNoteCard(props: {
   note: NoteCardProps['note']
   session: MountedSession | undefined
-  wide?: boolean
-  remove?: NoteFrameProps['remove']
+  remove?: {label: string; onRemove: () => void}
 }): JSX.Element {
   const host = usePluginHost()
   const [state, setState] = createStore({declined: false})
@@ -60,7 +61,7 @@ function PluginNoteCard(props: {
   )
 
   return (
-    <NoteFrame wide={props.wide} remove={props.remove}>
+    <div class={`${FRAME} ${props.remove ? 'pe-7' : ''}`}>
       <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
         {(item) => (
           <Contribution plugin={item.plugin} failed={decline}>
@@ -83,7 +84,10 @@ function PluginNoteCard(props: {
           </Contribution>
         )}
       </Show>
-    </NoteFrame>
+      <Show when={props.remove}>
+        {(remove) => <CornerRemoveButton label={remove().label} onRemove={remove().onRemove} />}
+      </Show>
+    </div>
   )
 }
 
@@ -106,7 +110,7 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
       <ul aria-label="Notes" class="flex flex-wrap items-start gap-1 list-none p-0">
         <Key each={notes()} by={(entry) => entry.key}>
           {(entry) => (
-            <li class="flex min-w-0 anim-presence-in">
+            <li class="flex min-w-24 max-w-56 anim-presence-in">
               <PluginNoteCard
                 note={entry().note}
                 session={props.session()}
@@ -141,8 +145,8 @@ export function SentNotes(props: {
               const shownNote = {...note, icon: noteIcon(note.icon)}
 
               return (
-                <li>
-                  <PluginNoteCard note={shownNote} session={props.session()} wide />
+                <li class="flex flex-col">
+                  <PluginNoteCard note={shownNote} session={props.session()} />
                 </li>
               )
             }}
