@@ -8516,6 +8516,7 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('{Enter}')
     await expect.element(control('Close the hiding overlay')).not.toBeInTheDocument()
     await expect.element(editor()).toBeVisible()
+    await expect.element(control('Open the hiding overlay')).toHaveFocus()
     await editor().click()
     await expect.element(editor()).toHaveFocus()
   }, 45_000)
