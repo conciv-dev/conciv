@@ -186,7 +186,13 @@ describe('engine port exact', () => {
 describe('webpack and rspack', () => {
   type Bundler = 'webpack' | 'rspack'
   type Mode = 'development' | 'production'
-  type PluginOptions = {port?: number; stateRoot: string; enabled?: boolean; extensions?: ExtensionPackage[]}
+  type PluginOptions = {
+    port?: number
+    stateRoot: string
+    enabled?: boolean
+    widget?: false
+    extensions?: ExtensionPackage[]
+  }
   type BuildStats = {hasErrors: () => boolean; compilation: {fileDependencies: Iterable<string>}}
   type BuildHandler = (error: Error | null, stats?: BuildStats) => void
   type WatchingLike = {
@@ -458,6 +464,28 @@ describe('webpack and rspack', () => {
         expect(existsSync(join(root, '.conciv'))).toBe(false)
         expect(await health(port)).toBe(false)
         expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+        await watch.close()
+        await compiler.close()
+      },
+      60_000,
+    )
+  })
+
+  describe('a development build with widget: false', () => {
+    it.each(bundlers)(
+      '%s watching carries no widget and still starts the engine',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-no-widget-`)
+        writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root, widget: false})
+        const watch = compiler.watch()
+        const files = await watch.next()
+        expect(files).toContain(join(root, 'index.js'))
+        expect(files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(existsSync(join(root, GENERATED_CLIENT))).toBe(false)
+        expect(await health(port)).toBe(true)
+        expect(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8'))).toMatchObject({port})
         await watch.close()
         await compiler.close()
       },
@@ -1339,6 +1367,14 @@ describe('nextjs', () => {
       withConciv({}, {port: 6123})
       expect(process.env.NEXT_PUBLIC_CONCIV_PORT).toBe('9999')
       expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port).toBe(9999)
+    })
+
+    it('exports no widget port when the widget is off, and still hands the engine its options', () => {
+      const cfg = withConciv({}, {port: 6124, widget: false})
+      expect(cfg.env).not.toHaveProperty('NEXT_PUBLIC_CONCIV_PORT')
+      expect(process.env.NEXT_PUBLIC_CONCIV_PORT).toBeUndefined()
+      expect(JSON.parse(cfg.env.CONCIV_OPTIONS ?? '{}')).toMatchObject({port: 6124, widget: false})
+      expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}')).toMatchObject({port: 6124, widget: false})
     })
 
     it('never assigns to a literal process.env.NEXT_PUBLIC_ member (bundlers inline it, breaking webpack)', () => {
