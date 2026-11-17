@@ -287,6 +287,11 @@ describe('the tanstack plugin with a page attached', () => {
     const elsewhere = await makeDiscoverTools(kit.base, other)([...ENGINE_TOOLS, ...BROWSER_TOOLS])
     expect(elsewhere.tools.map((tool) => tool.name)).toEqual(ENGINE_TOOLS.map((name) => `external_${name}`))
     expect(await useTool(kit, 'tabs_list')).toEqual({tabs: [page.tab], focusedTabId: page.tab.id})
+    const otherPage = await attachPage(kit, other, nextControl)
+    expect(await toolFailure(kit.callTool('tanstack_back', {tabId: page.tab.id}, other))).toContain(
+      '[tanstack.tab_unavailable] This tab is closed or does not belong to this session.',
+    )
+    otherPage.detach()
 
     const navigating = useTool(kit, 'navigate', {to: '/posts/$postId', params: {postId: '1'}})
     const command = await nextControl()
