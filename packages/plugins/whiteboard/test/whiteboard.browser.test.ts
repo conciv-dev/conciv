@@ -10,7 +10,7 @@ import {test} from '@conciv/browser-fixture'
 import {magicLink} from '@conciv/harness-testkit/login'
 import type {CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
-import {failRpcCalls, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
+import {failRpcCalls, garbleRpcReplies, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -170,6 +170,17 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         ]),
       )
       expect(await page.title()).not.toBe(SCRIPT_MARKER)
+
+      const draftBeforeCommit = await canvasElements(widget.kit, 'draft')
+      const liveWrites = await Promise.all(
+        ['elements.upsert', 'elements.bulkUpsert'].map((method) =>
+          garbleRpcReplies(page, {path: WHITEBOARD_CALL, input: {rpcId: 'whiteboard', method, input: {scope: 'live'}}}),
+        ),
+      )
+      expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(false)
+      expect(await canvasElements(widget.kit, 'draft')).toEqual(draftBeforeCommit)
+      expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
+      await Promise.all(liveWrites.map((fault) => fault.dispose()))
 
       expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
       expect(await canvasTypes(widget.kit, 'draft')).toEqual([])
