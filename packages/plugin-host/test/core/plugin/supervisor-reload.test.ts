@@ -2,7 +2,21 @@ import {describe, expect} from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {setTimeout} from 'node:timers/promises'
-import {Cause, Deferred, Duration, Effect, Exit, Fiber, Layer, LayerMap, Logger, Queue, Schedule} from 'effect'
+import {
+  Cause,
+  Deferred,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  LayerMap,
+  Logger,
+  Option,
+  Queue,
+  Schedule,
+  Stream,
+} from 'effect'
 import {z} from 'zod'
 import {TestClock} from 'effect/testing'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
@@ -124,22 +138,24 @@ describe('PluginSupervisor reload', () => {
         yield* Effect.gen(function* () {
           const plugins = yield* Plugin.Service
           const agents = yield* Agent.Service
-          const asked = (description: string) =>
-            agents.get(Agent.Id.make('reviewer')).pipe(
-              Effect.flatMap((agent) =>
-                agent?.description === description ? Effect.succeed(agent.permissions) : Effect.fail('not reloaded'),
-              ),
-              Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
-            )
+          const bus = yield* Bus.Service
+          const reviewerId = Agent.Id.make('reviewer')
           yield* plugins.awaitActivation
-          expect(yield* asked('v1')).toContainEqual(ask)
+          expect(yield* agents.get(reviewerId)).toMatchObject({description: 'v1'})
+          expect((yield* agents.get(reviewerId))?.permissions).toContainEqual(ask)
 
+          const reloaded = yield* bus.subscribe(Agent.Event.Updated).pipe(
+            Stream.mapEffect(() => agents.get(reviewerId)),
+            Stream.filter((agent) => agent?.description === 'v2'),
+            Stream.runHead,
+            Effect.forkScoped({startImmediately: true}),
+          )
           yield* Effect.promise(async () => {
             await write(file, reviewer(2))
             await fs.utimes(file, new Date(), new Date(Date.now() + 1000))
           })
           yield* watcher.emit({path: file, type: 'update'})
-          expect(yield* asked('v2')).toContainEqual(ask)
+          expect(Option.getOrUndefined(yield* Fiber.join(reloaded))?.permissions).toContainEqual(ask)
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
       }),
     30_000,
