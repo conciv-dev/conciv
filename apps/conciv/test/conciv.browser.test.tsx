@@ -7562,9 +7562,11 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
+  const builtinTanstackCard = {id: 'tanstack-card', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
+    builtinTanstackCard,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
@@ -7731,6 +7733,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
     await expect.element(page.getByText('test-runner-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('tanstack-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'tanstack-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
