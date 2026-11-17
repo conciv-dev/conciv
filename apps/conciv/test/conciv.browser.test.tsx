@@ -7829,6 +7829,14 @@ module.exports = {default: {stores: {
         setDraft('')
       }
       const pin = createComponent(ctx.ui.IconButton, {icon: 'message-square', label: 'Comment pin', variant: 'neutral', onClick: () => setOpen(!open())})
+      const [actionsOpen, setActionsOpen] = createSignal(false)
+      const actionsPin = createComponent(ctx.ui.IconButton, {icon: 'ellipsis', label: 'Comment actions', variant: 'neutral', onClick: () => setActionsOpen(!actionsOpen())})
+      const actions = document.createElement('div')
+      actions.className = 'flex flex-col gap-1 p-1'
+      insert(actions, [
+        createComponent(ctx.ui.Button, {variant: 'neutral', size: 'small', onClick: () => setActionsOpen(false), children: 'Resolve'}),
+        createComponent(ctx.ui.Button, {variant: 'danger', size: 'small', onClick: () => setActionsOpen(false), children: 'Delete'}),
+      ])
       const field = createComponent(ctx.ui.TextInput, {
         label: 'Reply to the comment',
         placeholder: 'Reply',
@@ -7853,8 +7861,8 @@ module.exports = {default: {stores: {
         createComponent(ctx.ui.Button, {variant: 'contrast', size: 'small', class: 'self-end', onClick: sendReply, children: 'Reply'}),
       ])
       const pinRow = document.createElement('div')
-      pinRow.className = 'flex p-2'
-      pinRow.append(pin)
+      pinRow.className = 'flex gap-2 p-2'
+      pinRow.append(pin, actionsPin)
       return [
         createComponent(ctx.ui.TextInput, {
           label: 'Fixture page note',
@@ -7873,6 +7881,15 @@ module.exports = {default: {stores: {
           label: 'Comment thread',
           initialFocus: () => thread.querySelector('input') ?? undefined,
           children: thread,
+        }),
+        createComponent(ctx.ui.Popover, {
+          anchor: () => actionsPin,
+          get open() {
+            return actionsOpen()
+          },
+          onOpenChange: setActionsOpen,
+          label: 'Comment actions',
+          children: actions,
         }),
       ]
     },
@@ -8112,6 +8129,15 @@ module.exports = {default: {setup(ctx) {
       await dialog('Comment thread').getByRole('button', {name: 'Reply', exact: true}).click()
       await expect.element(dialog('Comment thread').getByText('a reply', {exact: true})).toBeVisible()
       await expect.element(textbox('Reply to the comment')).toHaveValue('')
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+
+      await control('Comment actions').click()
+      await expect.element(dialog('Comment actions')).toBeVisible()
+      await expect.element(dialog('Comment actions').getByRole('button', {name: 'Resolve', exact: true})).toHaveFocus()
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment actions')).not.toBeInTheDocument()
+      await expect.element(control('Comment actions')).toHaveFocus()
     })
   })
 
