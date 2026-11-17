@@ -25,6 +25,21 @@ const RouterStateSchema = z.object({
 
 const ControlSchema = z.object({type: z.string(), connectionId: z.string()})
 
+const TabsSchema = z.object({tabs: z.array(z.object({id: z.string(), url: z.string()}))})
+
+const ErrorsSchema = z.object({errors: z.array(z.object({kind: z.string(), message: z.string()}))})
+
+const ExecuteFailureSchema = z.object({error: z.object({message: z.string()})})
+
+async function toolFailure(pending: Promise<unknown>): Promise<string> {
+  const failure = await pending.then(
+    () => new Error('the tool answered instead of failing'),
+    (error: unknown) => error,
+  )
+  if (!(failure instanceof Error)) throw new Error(`the tool failed with a non-error: ${String(failure)}`)
+  return ExecuteFailureSchema.parse(JSON.parse(failure.message)).error.message
+}
+
 async function hostFolder(apiBase: string, withApp: boolean): Promise<string> {
   const folder = tempDir('conciv-tanstack-host-')
   if (withApp)
@@ -76,17 +91,19 @@ async function openHost(browser: Browser, kit: CoreKit, withApp: boolean) {
   const page = await browser.newPage()
   onTestFinished(() => page.close())
   await page.goto(await magicLink(kit.base, `${host.base}/`), {waitUntil: 'domcontentloaded'})
-  await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
-  return page
+  return {page, base: host.base}
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip in the session status and answers router_state with the real location', async ({browser}) => {
+  test('shows its chip, reads the real location, navigates, refetches a query, reports a thrown handler error and answers a router-less page', async ({
+    browser,
+  }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
     onTestFinished(() => kit.cleanup())
     const attached = await attachedControls(kit)
 
-    const page = await openHost(browser, kit, true)
+    const {page} = await openHost(browser, kit, true)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
     await expect(page.getByRole('heading', {name: 'TanStack inspection home'})).toBeVisible({timeout: 30_000})
     await expect(page.getByRole('status', {name: CHIP})).toBeVisible({timeout: 30_000})
     await attached()
@@ -94,5 +111,33 @@ describe('the tanstack plugin in the page', () => {
     const state = RouterStateSchema.parse(await kit.callTool('tanstack_router_state', {}))
     expect(state.location.pathname).toBe('/')
     expect(state.matches.map((match) => match.routeId)).toEqual(['__root__', '/'])
+
+    expect(await kit.callTool('tanstack_navigate', {to: '/about'})).toEqual({ok: true, to: '/about'})
+    await expect(page.getByRole('heading', {name: 'About this app'})).toBeVisible()
+    await expect(page.getByText('Fetches: 1')).toBeVisible()
+    const moved = RouterStateSchema.parse(await kit.callTool('tanstack_router_state', {}))
+    expect(moved.location.pathname).toBe('/about')
+
+    expect(await kit.callTool('tanstack_query_invalidate', {key: '["spike","demo"]'})).toEqual({ok: true})
+    await expect(page.getByText('Fetches: 2')).toBeVisible()
+
+    await page.getByRole('link', {name: 'Boom'}).click()
+    const thrown = page.waitForEvent('pageerror')
+    await page.getByRole('button', {name: 'Trigger runtime error'}).click()
+    expect((await thrown).message).toBe('boom-from-event-handler')
+    const snapshot = ErrorsSchema.parse(await kit.callTool('tanstack_errors_snapshot', {}))
+    expect(snapshot.errors).toContainEqual(
+      expect.objectContaining({kind: 'runtime', message: expect.stringContaining('boom-from-event-handler')}),
+    )
+
+    const bare = await openHost(browser, kit, false)
+    await expect(bare.page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
+    await expect(bare.page.getByRole('status', {name: CHIP})).toBeVisible({timeout: 30_000})
+    await attached()
+    const tabs = TabsSchema.parse(await kit.callTool('tanstack_tabs_list', {}))
+    const bareTab = tabs.tabs.find((entry) => entry.url.startsWith(bare.base))
+    expect(await toolFailure(kit.callTool('tanstack_router_state', {tabId: bareTab?.id}))).toBe(
+      '[tanstack.handler-error] TanStack router not found on page',
+    )
   })
 })
