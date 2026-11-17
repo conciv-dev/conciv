@@ -207,6 +207,8 @@ async function rpcFailure(pending: Promise<unknown>): Promise<z.infer<typeof Rpc
 
 const RECORDING_CAP_BYTES = 16 * 1024 * 1024
 
+const RETENTION_PASSED_MS = 7 * 24 * 60 * 60 * 1000 + 60_000
+
 function sizedEvent(type: number, timestamp: number, bytes: number): RrwebEvent {
   const bare = Buffer.byteLength(JSON.stringify({type, data: {blob: ''}, timestamp}))
   return {type, data: {blob: 'x'.repeat(bytes - bare)}, timestamp}
@@ -531,7 +533,22 @@ describe('the recording tools', () => {
     expect(read).toContain('Old')
     expect(read).toContain('New')
     expect(await toolFailure(useTool(kit, 'get', {recordingId: 'gone-recording', keyframes: 0}))).toBe(
-      'the recording gone-recording has expired',
+      'there is no saved recording gone-recording',
+    )
+  })
+
+  it('reads a saved recording until it is older than the seven day retention, then reports it as expired', async () => {
+    vi.useFakeTimers({toFake: ['Date'], shouldAdvanceTime: true})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const kit = await bootRecorder()
+    const {recordingId} = await flushAndSave(kit, 'kept', fixtureStream(Date.now()))
+    expect(z.string().parse(await useTool(kit, 'get', {recordingId, keyframes: 0}))).toContain('Buy')
+
+    vi.setSystemTime(Date.now() + RETENTION_PASSED_MS)
+    expect(await toolFailure(useTool(kit, 'get', {recordingId, keyframes: 0}))).toBe(
+      `the recording ${recordingId} has expired`,
     )
   })
 
