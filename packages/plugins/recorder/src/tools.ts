@@ -2,7 +2,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Effect} from 'effect'
 import {z} from 'zod'
-import {pullWindow, type RecorderRuntime} from './runtime.js'
+import {pullWindow, renderRecording, type RecorderRuntime} from './runtime.js'
 
 const options = {namespace: 'recording', codemode: true}
 
@@ -85,6 +85,20 @@ export const register = Effect.fn('RecorderTools.register')(function* (
             yield* attemptPromise(() => runtime.control.awaitAppendAfter(appendCursor, FLUSH_WAIT_MS))
           }
           return yield* attemptPromise(() => pullWindow(runtime, toTs - secondsBack * 1000, toTs, keyframes))
+        }),
+    })
+    editor.add({
+      name: 'get',
+      description:
+        'Read a saved screen recording by its id. The user sends one as a screen recording note whose sentence names the id. Returns its semantic action log plus keyframe screenshots.',
+      input: z.object({recordingId: z.string().min(1).max(256), keyframes: Keyframes}),
+      output: z.string(),
+      options,
+      execute: ({recordingId, keyframes}) =>
+        Effect.gen(function* () {
+          const events = yield* attemptPromise(() => runtime.recordings.get(recordingId))
+          if (!events) return yield* Effect.fail(Tool.makeError({message: `the recording ${recordingId} has expired`}))
+          return yield* attemptPromise(() => renderRecording(runtime, events, keyframes))
         }),
     })
   })
