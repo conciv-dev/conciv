@@ -47,8 +47,7 @@ function TrailingControls(): JSX.Element {
   const context = useComposerContext()
   const handlers = useComposerHandlers()
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
-  const sendDisabled = () =>
-    context.sendingAttachments() || (!composer.canSend() && context.attachments().length + context.items().length === 0)
+  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.staged() === 0)
   return (
     <Show
       when={composer.isRunning()}

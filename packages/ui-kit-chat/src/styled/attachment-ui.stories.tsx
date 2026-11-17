@@ -48,6 +48,7 @@ function Frame(): JSX.Element {
         quote: () => null,
         setQuote: () => {},
         items: () => [],
+        staged: () => attachments().length,
         addItem: () => {},
         removeItem: () => {},
         updateItem: () => {},

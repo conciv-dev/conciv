@@ -1,5 +1,6 @@
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   onMount,
@@ -201,6 +202,7 @@ function Root(props: FormProps): JSX.Element {
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
   const attachments = () => state.attachments
+  const staged = createMemo(() => state.attachments.length + state.items.length)
   const draftKey = () => local.draftKey ?? DEFAULT_DRAFT_KEY
   const upsertAttachment = (attachment: PendingAttachment) => {
     if (removedIds.has(attachment.id)) return
@@ -344,8 +346,7 @@ function Root(props: FormProps): JSX.Element {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    const staged = state.attachments.length + state.items.length
-    if (!canSubmit(composer.canSend(), staged, state.sendingAttachments || composer.isStopping())) return
+    if (!canSubmit(composer.canSend(), staged(), state.sendingAttachments || composer.isStopping())) return
     await sendFromUser(deliverDraft)
   }
   return (
@@ -364,6 +365,7 @@ function Root(props: FormProps): JSX.Element {
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
         items: () => state.items,
+        staged,
         addItem,
         removeItem,
         updateItem,
@@ -473,7 +475,7 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
         local.disabled ||
         context.sendingAttachments() ||
         composer.isStopping() ||
-        (!composer.canSend() && context.attachments().length + context.items().length === 0)
+        (!composer.canSend() && context.staged() === 0)
       }
       {...rest}
       type="submit"
