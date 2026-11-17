@@ -7787,7 +7787,13 @@ module.exports = {default: {stores: {
     const label = Object.assign(document.createElement('p'), {className: 'bg-chat-panel text-chat-text', textContent: 'Fixture overlay label'})
     const hiddenByWidget = Object.assign(document.createElement('p'), {className: 'hidden', textContent: 'Fixture overlay widget-hidden note'})
     const hiddenByOwn = Object.assign(document.createElement('p'), {className: 'fixture-overlay-own', textContent: 'Fixture overlay own-hidden note'})
-    overlay.element.append(label, line(() => 'Overlay colors: ' + ctx.appearance.mode()), hiddenByWidget, hiddenByOwn)
+    const [overlayClicks, setOverlayClicks] = createSignal(0)
+    const clickable = Object.assign(document.createElement('div'), {className: 'pointer-events-auto'})
+    clickable.append(createComponent(ctx.ui.Button, {
+      onClick: () => setOverlayClicks(overlayClicks() + 1),
+      get children() { return overlayClicks() === 0 ? 'Count overlay clicks' : 'Overlay clicks: ' + overlayClicks() },
+    }))
+    overlay.element.append(label, clickable, line(() => 'Overlay colors: ' + ctx.appearance.mode()), hiddenByWidget, hiddenByOwn)
     shownOverlay.current = overlay
   }
   const [interruptAnswer, setInterruptAnswer] = createSignal('none')
@@ -8026,7 +8032,7 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
 
-  test('its overlay draws a widget-styled label above the page in the widget scheme, with its own styles, and goes away on dispose and when the plugin is turned off', async () => {
+  test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const label = () => page.getByText('Fixture overlay label', {exact: true})
     const colors = (scheme: string) => page.getByText(`Overlay colors: ${scheme}`, {exact: true})
@@ -8039,6 +8045,8 @@ module.exports = {default: {setup(ctx) {
     await control('Show the fixture overlay').click()
     await expect.element(label()).toBeVisible()
     await expect.element(colors('light')).toBeVisible()
+    await control('Count overlay clicks').click()
+    await expect.element(control('Overlay clicks: 1')).toBeVisible()
     await expect.element(widgetHidden()).toBeInTheDocument()
     await expect.element(widgetHidden()).not.toBeVisible()
     await expect.element(ownHidden()).toBeInTheDocument()

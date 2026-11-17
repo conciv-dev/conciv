@@ -191,8 +191,10 @@ export interface Context extends BaseContext {
   readonly appearance: Appearance
   /**
    * A layer over the page, under the app: a `div` in its own shadow root on `document.body`, styled with the app's
-   * stylesheet and carrying the app's base font, color scheme and skin. Removed by `dispose`, else with the current
-   * owner, else with the plugin.
+   * stylesheet and carrying the app's base font and text color, color scheme and skin. Removed by `dispose`, else with
+   * the current owner, else with the plugin. The layer lets clicks through to the page; content that must be clickable
+   * opts back in with `pointer-events-auto`. The layer is not an Ark environment: a `ctx.ui` popover, menu or tooltip
+   * rendered inside it portals to the page's `document.body`, outside the app's stylesheet.
    *
    * @param options - `styles`: CSS text added to that shadow root after the app's stylesheet.
    * @returns The `element` to render into, and `dispose` to remove it early.
