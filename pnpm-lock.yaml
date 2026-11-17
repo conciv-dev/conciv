@@ -2316,9 +2316,6 @@ importers:
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
-      '@unocss/reset':
-        specifier: 'catalog:'
-        version: 66.12.0
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
