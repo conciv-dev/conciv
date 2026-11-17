@@ -18,6 +18,10 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 
 ## Differences from opencode
 
+- The draft write transaction commits as soon as its document is put (`drafts.ts`, `transaction.commit()` in the
+  driver's `set`). The source waits for the auto-commit, which needs a round trip an unloading page never gets: the
+  put that the `pagehide` flush issues was lost on a reload in Chromium and in Firefox, and the reloaded page read the
+  write before it. A write whose blobs are looked up first still needs those lookups to answer before it commits.
 - The draft database closes itself when another tab opens it at a newer version (`drafts.ts`, the `versionchange`
   listener). The source keeps it open, so one old tab blocks every newer one for as long as it lives. After the close,
   the old tab stays closed: each later write or blob put fails, is logged, and the composer keeps what is on screen.
