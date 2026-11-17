@@ -79,9 +79,15 @@ Every fixture install goes through Socket Firewall (`sfw`) with the root `minimu
 produced lockfile is rejected if it resolves a remote tarball or git dependency outside the packed
 `@conciv/*@file:` entries.
 
-The workflow runs on pull requests touching anything under `packages/` or `apps/conciv/`, the root
-manifests and lockfile, `patches/`, `turbo.json`, `e2e-utils` or the packed fixtures, and on demand. On
-main it runs only from `release.yml`, on every push, and npm publish waits on it.
+The workflow runs on pull requests touching what can drift the two fixture lockfiles or change how a
+tarball is packed: the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` (the catalog),
+`patches/`, every `packages/**/package.json` and `apps/conciv/package.json`, the pack helper
+`packages/vitest-config/src/pack.ts`, `e2e/vite-react` (which `vite-react-packed` copies),
+`e2e/vite-react-packed`, `e2e/nextjs/packed`, the nextjs `test/packed-*.spec.ts` and
+`playwright.packed.config.ts`, and `packed.yml` itself. It also runs on demand
+(`gh workflow run packed.yml --ref <branch>`). On main it runs only from `release.yml`, on every push,
+and npm publish waits on it. A source-only change can still break a packed install; on a pull request
+that touches none of those paths, main's Packed run finds it and blocks publish.
 
 Every fixture install (the two locked fixtures, the tanstack resolution matrix and the nextjs trust-policy
 install) rejects any remote tarball or git resolution outside the packed `@conciv/*@file:` entries. Only the
@@ -92,7 +98,8 @@ and the trust-policy install resolve fresh on every run and have no committed lo
 produced over the committed one, shows the diff in the run summary and uploads both fixture locks as the
 `packed-fixture-locks` artifact. Refresh from that run, never locally:
 
-1. Take the id of the failed Packed run on YOUR PR: `gh run list --workflow packed.yml --branch <branch>`.
+1. Take the id of the failed Packed run (on your PR, or one you dispatched on the branch with
+   `gh workflow run packed.yml --ref <branch>`): `gh run list --workflow packed.yml --branch <branch>`.
 2. `gh run download <run-id> -n packed-fixture-locks -D e2e`. Always download by the run id: a fork PR can
    upload an artifact with the same name.
 3. Before committing, check the diff holds only the expected `name@version` changes, and no tarball or git
