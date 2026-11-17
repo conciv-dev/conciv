@@ -5,7 +5,6 @@ import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/proto
 import {isPageVerbError, isToolError} from '@conciv/extension'
 import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
-import {BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
@@ -21,7 +20,6 @@ import {
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
-import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
 import {
@@ -56,7 +54,6 @@ export const PAGE_ERROR_NAME = {
 } as const satisfies Record<PageErrorCode, RegistryCallErrorName>
 
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
-type BundlerErrors = {NO_BUNDLER: () => Error}
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
 type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: AbortSignal}
@@ -124,28 +121,10 @@ function contentPart(part: Tool.Content) {
   return {type: 'image', source: {type: 'data', value, mimeType: part.mime}}
 }
 
-function hasErrorCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
-}
-
-async function callTool<Output extends z.ZodType>(
-  tool: {name: string; outputSchema?: Output},
-  input: unknown,
-  errors?: BundlerErrors,
-): Promise<z.output<Output>> {
-  const output = tool.outputSchema
-  if (output === undefined) throw new Error(`tool "${tool.name}" declares no output schema`)
-  try {
-    return output.parse(await session().tools.call(tool.name, input))
-  } catch (error) {
-    if (errors && hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
-    throw error
-  }
-}
-
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
-  if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
+  const widget = widgetCaller(call.context.callerOrigin, deps.allowedOrigins)
   const asked = askedPagePermission(name, input)
+  if (asked === undefined && widget) return
   if (asked === undefined && callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
   const catalog = [...deps.runtime.engine.catalog(), ...(await deps.pluginHost.runPromise(pluginSignatures))]
   const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
@@ -161,7 +140,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
       ),
       {signal: call.signal},
     ))
-  if (allowed) return
+  if (allowed || widget) return
   const refusal = await deps.chat.plane.admitCall(scope.id, {toolName: name, input, publish: scope.stream.publish})
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }
@@ -305,7 +284,8 @@ async function pluginCall(
   signal?: AbortSignal,
 ) {
   return host.runPromise(
-    Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input)).pipe(
+    Plugin.awaitActivation.pipe(
+      Effect.andThen(Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input))),
       Effect.catchDefect((defect) =>
         Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
           Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),
@@ -493,14 +473,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       reply: sessionOs.page.reply.handler(({input, context, errors}) => {
         if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
-      }),
-    },
-    server: {
-      reload: sessionOs.server.reload.handler(async ({input, context, errors, signal}) => {
-        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors, signal})
-        return hubTraced(deps, context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors),
-        )
       }),
     },
     editor: {

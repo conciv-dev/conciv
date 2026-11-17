@@ -29,8 +29,10 @@ import {
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   TabOpenSchema,
+  TabsListingSchema,
 } from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
@@ -78,7 +80,6 @@ import {type HarnessInitIo, harnessInitStep} from '../src/init/steps/harness/ins
 import {hasIt, installItStep} from '../src/init/steps/install-it.js'
 import {
   answerNextQuery,
-  approvedSession,
   bootCli,
   captureStdout,
   cliSession,
@@ -384,6 +385,18 @@ describe('cli', () => {
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
+    describe('the dev-server reload command is gone', () => {
+      it('tools offers no server group and tools server reload is an unknown command', async () => {
+        await bootCli(cleanups)
+        expect(await helpText(['tools', '--help'])).not.toMatch(/^\s+server\s/m)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringMatching(/^Unknown command 'server' for conciv tools\./)},
+        })
+      })
+    })
+
     describe('the CLI reads its commands from the tool declarations', () => {
       it('sends every repeat of an array flag to the server as one array', async () => {
         const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
@@ -543,30 +556,6 @@ describe('cli', () => {
         )
       })
 
-      it('derives a dev-server operation and its positional from the declaration', async () => {
-        const reloaded: string[] = []
-        const kit = await bootCli(cleanups, {
-          bridge: {
-            id: 'derived-test',
-            config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
-            resolve: async (spec: string) => ({id: spec}),
-            moduleGraph: () => [],
-            transform: async () => ({code: null}),
-            urls: () => ({local: ['http://localhost:3000'], network: []}),
-            reload: async (file: string) => {
-              reloaded.push(file)
-            },
-            restart: async () => {},
-          },
-        })
-        const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(1)
-        expect(reloaded).toEqual([])
-        expect(await session.approve()).toHaveLength(1)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
-        expect(reloaded).toEqual(['src/hot.ts'])
-      })
-
       it('takes the positional the declaration names and leaves its other fields as flags', async () => {
         const actions: Array<Parameters<PageAnswer>[0]['action']> = []
         const held = await engineWithTab(tempDir('conciv-home-'), {
@@ -637,7 +626,7 @@ describe('cli', () => {
     describe('conciv CLI failure reporting', () => {
       it('names the address and the fix when no dev server is listening, with no stack', async () => {
         process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
+        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -661,7 +650,7 @@ describe('cli', () => {
             response.end(body)
           }),
         )
-        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
+        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -686,7 +675,7 @@ describe('cli', () => {
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
         process.env.CONCIV_PORT = String(await listen((_request, response) => response.end('not a rpc reply')))
-        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
+        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('unexpected')
@@ -719,30 +708,11 @@ describe('cli', () => {
         moduleGraph: (file) => [{url: file, importers: [], importedModules: []}],
         transform: async () => ({code: null}),
         urls: () => ({local: [], network: []}),
-        reload: async () => {},
         restart: async () => {},
       })
     }
 
     describe('conciv CLI (IT, real served core, typed rpc)', () => {
-      it('server reload is refused through the session and an approval lets the retry run', async () => {
-        const bridge = restartCapableBridge()
-        const kit = await bootCli(cleanups, {bridge})
-        const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({
-          ok: false,
-          error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
-        })
-        written.length = 0
-        expect(await session.approve()).toEqual(['conciv:tool:server_reload'])
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
-        written.length = 0
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
-        expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
-      })
-
       it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
         const placeholders: Record<string, string> = {
           '<selector>': '#a',
@@ -1055,6 +1025,7 @@ describe('cli', () => {
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; of: number}) => void
       answer?: PageAnswer
+      permissions?: Pick<ConcivConfig, 'permission' | 'permissions'>
     } = {},
   ) {
     const root = given.shared?.root ?? tempDir('conciv-hub-')
@@ -1065,6 +1036,7 @@ describe('cli', () => {
         stateRoot: root,
         systemPrompt: `the instructions of ${root}`,
         hubAccess: given.hubAccess ?? 'session',
+        ...given.permissions,
       },
       root,
       launchEditor: given.launchEditor ?? (() => {}),
@@ -1228,10 +1200,15 @@ describe('cli', () => {
     it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
       const home = tempDir('conciv-home-')
       const elsewhere = tempDir('conciv-elsewhere-')
-      const {engine, sessionId, page} = await engineWithTab(home)
+      const evaluated = {result: 'evaluated'}
+      const {engine, sessionId, page} = await engineWithTab(home, {
+        answer: (command): PageReply | undefined =>
+          command.action.type === 'eval' ? {type: 'success', result: {value: evaluated, files: []}} : undefined,
+        permissions: {permissions: [{action: 'page_eval', resource: '1', effect: 'allow'}]},
+      })
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
-        const viaTab = ['tools', 'tabs', '--tab', sessionId]
+        const viaTab = ['tools', 'page', 'route', '--tab', sessionId]
         const waiting = conciv(elsewhere, home, viaTab)
         await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
           timeout: 5000,
@@ -1239,13 +1216,15 @@ describe('cli', () => {
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
-        expect(await waiting).toMatchObject(listed)
-        const restart = ['tools', 'server', 'reload', 'src/a.ts']
+        expect(await waiting).toMatchObject({ok: true, data: {pathname: expect.any(String)}})
+        const evaluate = ['tools', 'page', 'eval', '--code', '1']
         expect([
-          await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
-          await conciv(elsewhere, home, restart),
+          await conciv(elsewhere, home, [...evaluate, '--tab', sessionId]),
+          await conciv(elsewhere, home, evaluate),
+          await conciv(elsewhere, home, ['tools', 'page', 'eval', '--code', '2', '--tab', sessionId]),
         ]).toMatchObject([
-          {ok: false, error: {code: 'NO_BUNDLER'}},
+          {ok: true, data: evaluated},
+          {ok: true, data: evaluated},
           {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
         ])
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
@@ -1275,7 +1254,7 @@ describe('cli', () => {
       const watched = new AbortController()
       try {
         const asked = askRaised(page, sessionId, AbortSignal.any([watched.signal, pages.signal]))
-        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        const waiting = conciv(elsewhere, home, ['tools', 'page', 'route'])
         await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
@@ -1296,7 +1275,7 @@ describe('cli', () => {
       try {
         const asked = askRaised(holder.page, holder.sessionId, AbortSignal.any([watched.signal, pages.signal]))
         const healthAsked = front.askedTwice()
-        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        const waiting = conciv(elsewhere, home, ['tools', 'page', 'route'])
         await Promise.race([healthAsked, waiting])
         front.answerHeld()
         await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
@@ -1434,13 +1413,10 @@ describe('cli', () => {
       const front = await startFront(home, holder, {hold: '/health'})
       try {
         const asked = front.askedTwice()
-        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        const answering = conciv(elsewhere, home, ['tools', 'page', 'route', '--tab', holder.sessionId])
         await Promise.race([asked, answering])
         front.answerHeld()
-        expect(await answering).toMatchObject({
-          ok: true,
-          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
-        })
+        expect(await answering).toMatchObject({ok: true, data: {pathname: holder.root}})
       } finally {
         await front.close()
         await holder.engine.stop()
@@ -1454,15 +1430,12 @@ describe('cli', () => {
       const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
       try {
         const asked = front.askedTwice()
-        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        const answering = conciv(elsewhere, home, ['tools', 'page', 'route', '--tab', holder.sessionId])
         await Promise.race([asked, answering])
         front.answerHeld()
-        expect(await answering).toMatchObject({
-          ok: true,
-          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
-        })
+        expect(await answering).toMatchObject({ok: true, data: {pathname: holder.root}})
         front.holdAgain()
-        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])).toMatchObject({
+        expect(await conciv(elsewhere, home, ['tools', 'page', 'route', '--tab', holder.sessionId])).toMatchObject({
           ok: false,
           error: {kind: 'user', message: expect.stringContaining(`${holder.root} did not answer (`)},
         })
@@ -2018,7 +1991,6 @@ describe('cli', () => {
           return {code: `export const served = ${JSON.stringify(url)}`}
         },
         urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
-        reload: async () => {},
         restart: async (force) => {
           restarts.push(force ?? false)
         },
@@ -2348,7 +2320,7 @@ describe('cli', () => {
 
     const ReplySchema = z.object({content: z.array(z.object({type: z.string(), text: z.string().optional()}))})
 
-    it('serves only execute_typescript and discover_tools, sends a block with tab to the engine holding it, keeps the engine registered longest ago for the rest, resends only a refused call', async () => {
+    it('serves execute_typescript, discover_tools and list_tabs, sends a block with tab to the engine holding it, keeps the engine registered longest ago for the rest, resends only a refused call', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const older = await engineWithTab(home, {hubAccess: 'open'})
@@ -2368,6 +2340,7 @@ describe('cli', () => {
         expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
           'discover_tools',
           'execute_typescript',
+          'list_tabs',
         ])
         const route = 'return await external_page_route({})'
         const onTab = async (engine: {sessionId: string}, typescriptCode: string) =>
@@ -2397,7 +2370,7 @@ describe('cli', () => {
           (await client.callTool('discover_tools', {toolNames: ['page_route'], tab: older.sessionId})).content,
         ).toEqual(signatures.content)
         expect(await onTab({sessionId: 'conciv_gone'}, route)).toEqual([
-          {type: 'text', text: 'TAB_NOT_OPEN: tab conciv_gone is not open; call external_tabs({})'},
+          {type: 'text', text: 'TAB_NOT_OPEN: tab conciv_gone is not open; call list_tabs'},
         ])
         expect(await run(client, route)).toContain(
           JSON.stringify(
@@ -2413,12 +2386,13 @@ describe('cli', () => {
         const undiscovered = await discoverErrors('page_route')
         const [listing, ...notes] = undiscovered.errors
         expect(undiscovered.tools).toEqual([])
-        expect(listing).toMatch(/^Unknown tool: 'page_route'\. Discoverable tools: \[external_tabs /)
+        expect(listing).toMatch(/^Unknown tool: 'page_route'\. Discoverable tools: \[external_/)
         expect(listing).not.toContain('external_page_')
+        expect(listing).not.toContain('external_tabs')
         expect(notes).toEqual([PAGE_TOOLS_NOTE])
         expect((await discoverErrors('external_page_route')).errors.at(-1)).toBe(PAGE_TOOLS_NOTE)
         expect((await discoverErrors('server_nope')).errors).not.toContain(PAGE_TOOLS_NOTE)
-        expect(await run(client, 'return await external_tabs({})')).toContain(older.sessionId)
+        expect(JSON.stringify(await client.callTool('list_tabs', {}))).toContain(older.sessionId)
         const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
         const direct = await createMCPClient({transport: {type: 'http', url: `${older.base}/api/mcp`, headers}})
         const engineReply = await direct.callTool('execute_typescript', {typescriptCode: 'return 1 + 1'})
@@ -2436,12 +2410,107 @@ describe('cli', () => {
         expect(await run(client, 'return 1 + 1')).toContain(JSON.stringify(engineReply.content))
         await front.close()
         await older.engine.stop()
-        const resent = await run(client, 'return await external_tabs({})')
-        expect(resent).toContain(survivor.sessionId)
-        expect(resent).not.toContain(older.sessionId)
+        expect(await run(client, 'return 1 + 1')).toContain(JSON.stringify(engineReply.content))
+        const listed = JSON.stringify(await client.callTool('list_tabs', {}))
+        expect(listed).toContain(survivor.sessionId)
+        expect(listed).not.toContain(older.sessionId)
       } finally {
         await client.close()
         await survivor.engine.stop()
+      }
+    })
+
+    const listedRow = (engine: {root: string; sessionId: string}) => ({
+      tab: engine.sessionId,
+      root: engine.root,
+      href: `http://localhost${engine.root}`,
+      pageTitle: engine.root,
+      state: 'visible',
+      sessionTitle: expect.any(String),
+      lastActive: expect.any(String),
+      running: false,
+      harness: expect.any(String),
+      browserTabs: [
+        {id: expect.any(String), href: `http://localhost${engine.root}`, pageTitle: engine.root, state: 'visible'},
+      ],
+    })
+
+    it('an outside agent whose first call is list_tabs gets the open tabs of every engine', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home)
+      const crashing = await failingEngine(home, 500)
+      const hung = createHttpServer(() => {})
+      hung.listen(0, '127.0.0.1')
+      await once(hung, 'listening')
+      const hungRoot = tempDir('conciv-hung-')
+      const hungPort = z.object({port: z.number()}).parse(hung.address()).port
+      withHomeDb(home, (db) =>
+        registerEngine(db, {id: 'hung', pid: process.pid, root: hungRoot, apiBase: `http://127.0.0.1:${hungPort}`}),
+      )
+      const client = await hub(home)
+      const listTabs = async () =>
+        DiscoverTextSchema.parse(ReplySchema.parse(await client.callTool('list_tabs', {})).content)[0].text
+      try {
+        expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
+          'discover_tools',
+          'execute_typescript',
+          'list_tabs',
+        ])
+        const text = await listTabs()
+        expect(text).not.toMatch(new RegExp(`${first.engine.agentToken}|${second.engine.agentToken}`))
+        const listing = TabsListingSchema.parse(JSON.parse(text))
+        expect(listing.tabs).toHaveLength(2)
+        expect(listing).toEqual({
+          tabs: expect.arrayContaining([listedRow(first), listedRow(second)]),
+          unreachable: expect.arrayContaining([
+            {root: crashing.root, error: 'Internal Server Error'},
+            {root: hungRoot, error: expect.any(String)},
+          ]),
+        })
+        expect(listing.unreachable).toHaveLength(2)
+        await second.engine.stop()
+        expect(TabsListingSchema.parse(JSON.parse(await listTabs())).tabs).toEqual([listedRow(first)])
+        writeFileSync(join(home, 'home.db'), 'garbage '.repeat(512))
+        expect(await listTabs()).toContain(`cannot read the conciv home folder ${home}`)
+      } finally {
+        await client.close()
+        hung.closeAllConnections()
+        hung.close()
+        await crashing.close()
+        await first.engine.stop()
+      }
+    })
+
+    it('conciv tools tabs lists the open tabs of every engine without asking any tab', async () => {
+      const home = tempDir('conciv-home-')
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home)
+      const watched = new AbortController()
+      try {
+        const signal = AbortSignal.any([watched.signal, pages.signal])
+        const asked = Promise.all([
+          askRaised(first.page, first.sessionId, signal),
+          askRaised(second.page, second.sessionId, signal),
+        ])
+        const listed = new Promise<unknown>((resolve) =>
+          execFile(
+            process.execPath,
+            [bin, 'tools', 'tabs'],
+            {cwd: tempDir('conciv-elsewhere-'), env: {CONCIV_HOME: home}},
+            (_error, stdout) => resolve(JSON.parse(stdout)),
+          ),
+        )
+        const outcome = await Promise.race([listed, asked])
+        expect(outcome).toEqual({
+          ok: true,
+          data: {tabs: expect.arrayContaining([listedRow(first), listedRow(second)]), unreachable: []},
+        })
+        expect(z.object({data: z.object({tabs: z.array(z.unknown())})}).parse(outcome).data.tabs).toHaveLength(2)
+      } finally {
+        watched.abort()
+        await Promise.all([first.engine.stop(), second.engine.stop()])
       }
     })
 
@@ -2518,7 +2587,7 @@ describe('cli', () => {
       return pid
     }
 
-    it('skips and removes engine rows whose process or root folder is gone, so calls without a tab and external_tabs land on the live engine', async () => {
+    it('skips and removes engine rows whose process or root folder is gone, so calls without a tab and list_tabs land on the live engine', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const removedRoot = tempDir('conciv-removed-')
@@ -2535,7 +2604,7 @@ describe('cli', () => {
       const client = await hub(home)
       try {
         expect(await run(client, 'return 1 + 1')).toContain('\\"result\\":2')
-        const tabs = await run(client, 'return await external_tabs({})')
+        const tabs = JSON.stringify(await client.callTool('list_tabs', {}))
         expect(tabs).toContain(live.sessionId)
         expect(tabs).not.toContain(removedRoot)
         expect(withHomeDb(home, listEngines).map((row) => row.root)).toEqual([live.root])
@@ -2690,7 +2759,7 @@ describe('cli', () => {
       }
     })
 
-    it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
+    it('with no engine running a call names the home folder, list_tabs answers the same, and the tools still say how to pick a tab', async () => {
       const home = tempDir('conciv-home-')
       const client = await hub(home)
       try {
@@ -2700,6 +2769,7 @@ describe('cli', () => {
         const reply = await run(client, 'return 1')
         expect(reply).toContain('no conciv dev server is running; start one and open its page')
         expect(reply).toContain(home)
+        expect(JSON.stringify(await client.callTool('list_tabs', {}))).toBe(reply)
       } finally {
         await client.close()
       }
@@ -2997,7 +3067,7 @@ describe('cli', () => {
             )
           expect(await onTab(healthy.sessionId)).toContain(`"pathname\\":\\"${healthy.root}`)
           expect(await onTab('conciv_gone')).toContain(`${old.root} (engine too old; upgrade its @conciv packages)`)
-          const listed = await run(client, 'return await external_tabs({})')
+          const listed = JSON.stringify(await client.callTool('list_tabs', {}))
           expect(listed).toContain(healthy.sessionId)
           expect(listed).toContain(
             JSON.stringify(
@@ -5600,7 +5670,7 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
           expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
           expect(section).toContain(`\`.conciv/bin/conciv plugin call server graph --data '{"file":"<file>"}'\``)
-          expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
+          expect(section).not.toContain('tools server')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
         })
 

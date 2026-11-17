@@ -135,7 +135,6 @@ export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
-const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
 const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
 const HubOutcome = z
@@ -503,12 +502,6 @@ export const contract = {
     reply: oc
       .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)
-      .output(Ok),
-  },
-  server: {
-    reload: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({file: z.string()}))
       .output(Ok),
   },
   editor: {

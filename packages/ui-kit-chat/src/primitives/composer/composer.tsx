@@ -11,7 +11,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
-import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
+import type {SendContent} from '@conciv/protocol/chat-message-types'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
@@ -82,15 +82,7 @@ function sendFailure(error: unknown): unknown {
   return error ?? new Error('The message could not be sent')
 }
 
-type SendOutcome = {failure: unknown; answered: boolean}
-
-function answeredLastUserMessage(messages: readonly ChatMessage[]): boolean {
-  const lastUser = messages.findLastIndex((message) => message.role === 'user')
-  return (
-    lastUser >= 0 &&
-    messages.slice(lastUser + 1).some((message) => message.role === 'assistant' && message.parts.length > 0)
-  )
-}
+type SendOutcome = {failure: unknown; left: boolean}
 
 function isAsyncGenerator(
   value: Promise<PendingAttachment> | AsyncGenerator<PendingAttachment, void>,
@@ -282,7 +274,7 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', original.draft)
     setState({quote: original.quote})
   }
-  const putBackUnansweredSend = (original: ComposerDraft) => {
+  const putBackUnsentMessage = (original: ComposerDraft) => {
     mergeAttachments(original)
     chat.setView('draft', [original.draft, chat.view.draft].filter((text) => text !== '').join('\n'))
     setState('quote', (current) => current ?? original.quote)
@@ -323,10 +315,10 @@ function Root(props: FormProps): JSX.Element {
     try {
       await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)
     } catch (error) {
-      return {failure: sendFailure(error), answered: false}
+      return {failure: sendFailure(error), left: false}
     }
     const after = chat.error()
-    return {failure: after === before ? undefined : after, answered: answeredLastUserMessage(chat.messages())}
+    return {failure: after === before ? undefined : after, left: true}
   }
   const deliverDraft = async (): Promise<void> => {
     const original = snapshotDraft()
@@ -336,7 +328,7 @@ function Root(props: FormProps): JSX.Element {
     clearDraft()
     const outcome = await runSend(content)
     if (!outcome.failure) return
-    if (!outcome.answered) putBackUnansweredSend(original)
+    if (!outcome.left) putBackUnsentMessage(original)
     handlers.onSendError?.(outcome.failure)
   }
   const submit = async (event: SubmitEvent) => {

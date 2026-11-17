@@ -42,6 +42,7 @@ import {
   type Refs,
 } from '@conciv/page'
 import {startConsoleBuffer, type ConsoleEntry} from './console-buffer.js'
+import {unwatchLayout} from './agent-cursor.js'
 import {badArgs, fail} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
@@ -68,6 +69,7 @@ type Queued = NonNullable<Command['queued']>
 type Call = {
   agentId: string
   queued?: Queued
+  signal?: AbortSignal
   document: Document
   target: (locator: Locator) => Element
   resolve: (locator: Locator) => Element | null
@@ -88,10 +90,16 @@ function serialize(value: unknown): unknown {
   return dehydrate(value)
 }
 
-function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number): Promise<PageResult> {
+function waitFor(
+  selector: string,
+  state: 'visible' | 'hidden',
+  timeout: number,
+  signal: AbortSignal | undefined,
+): Promise<PageResult> {
   const deadline = Date.now() + timeout
   return new Promise((resolve, reject) => {
     const tick = (): void => {
+      if (signal?.aborted) return reject(signal.reason)
       const el = selectDeep(selector)[0]
       const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
@@ -106,6 +114,21 @@ function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number)
 
 function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
+}
+
+function maskedValueAttribute(el: Element, attribute: string): string | null {
+  if (attribute.toLowerCase() === 'value' && isSensitiveField(el)) return el.hasAttribute('value') ? MASKED_VALUE : null
+  return el.getAttribute(attribute)
+}
+
+function maskedOuterHtml(root: Element): string {
+  const copy = root.cloneNode(true)
+  if (!(copy instanceof Element)) return fail('dom could not copy the element')
+  const sensitive = [copy, ...copy.querySelectorAll('[value]')].filter(
+    (el) => el.hasAttribute('value') && isSensitiveField(el),
+  )
+  sensitive.forEach((el) => el.setAttribute('value', MASKED_VALUE))
+  return copy.outerHTML
 }
 
 function result(value: unknown, attached: File[] = []): Answer {
@@ -145,6 +168,7 @@ function stoppedBefore(queued: Queued): void {
 }
 
 function stillQueued(call: Call): void {
+  call.signal?.throwIfAborted()
   if (call.queued !== undefined) stoppedBefore(call.queued)
 }
 
@@ -167,6 +191,7 @@ async function playQueued(options: {
   touchTask()
   const element = paceTarget(input, call)
   if (element !== null) await arriveAt({element, agent: call.agentId, beat})
+  call.signal?.throwIfAborted()
   stoppedBefore(queued)
   return landQueued({beat, act: async () => value()})
 }
@@ -295,7 +320,7 @@ function perform(
     case 'dom':
       return touching(() => {
         const root = hasLocator(action) ? call.target(action) : call.document.body
-        return {html: root.outerHTML.slice(0, DOM_CAP)}
+        return {html: maskedOuterHtml(root).slice(0, DOM_CAP)}
       })
     case 'query':
       return touching(() => {
@@ -383,7 +408,7 @@ function perform(
     case 'wait':
       return touchingAsync(() =>
         action.selector
-          ? waitFor(action.selector, action.state ?? 'visible', action.timeout ?? 5000)
+          ? waitFor(action.selector, action.state ?? 'visible', action.timeout ?? 5000, signal)
           : badArgs('wait requires a selector'),
       )
     case 'reload':
@@ -400,7 +425,7 @@ function perform(
         return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
       })
     case 'attr':
-      return touching(() => ({value: call.target(action).getAttribute(action.attribute)}))
+      return touching(() => ({value: maskedValueAttribute(call.target(action), action.attribute)}))
     case 'click':
       return acting(call, action, () => {
         simulateClick({element: actionableTarget(call, action), agent: call.agentId})
@@ -573,6 +598,7 @@ function callCtx(
   consoleBuf: ConsoleEntry[],
   slot: TargetSlot,
   queued: Queued | undefined,
+  signal: AbortSignal | undefined,
 ): Call {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
@@ -582,6 +608,7 @@ function callCtx(
   return {
     agentId,
     ...(queued === undefined ? {} : {queued}),
+    ...(signal === undefined ? {} : {signal}),
     document,
     resolve,
     target: (locator) => {
@@ -705,7 +732,7 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector(action.type)
-    const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued)
+    const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued, signal)
     try {
       const answer = await perform(action, capturingCall(call, mode, captures), effects, signal)
       const record = readPlainRecord(answer.value)
@@ -733,6 +760,7 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
   function dispose(): void {
     for (const effect of effects()) if (effect.enabled()) effect.set(false)
     disposeConsoleBuffer()
+    unwatchLayout()
   }
 
   return {execute, dispose}
