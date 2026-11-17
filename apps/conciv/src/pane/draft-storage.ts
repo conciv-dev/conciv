@@ -40,6 +40,7 @@ export type PaneDraftStorage = {
   noteSelection: (offsets: SelectionOffsets) => void
   restore: (apply: DraftApply, signal: AbortSignal) => Promise<void>
   retry: () => void
+  keptHere: (draft: DraftContent) => boolean
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -183,6 +184,7 @@ type LocalDraftWriter = {
   feed: () => void
   resend: () => void
   read: () => Promise<LocalDraft | null>
+  kept: () => LocalDraft | null
   takeStored: (stored: LocalDraft) => void
   settle: (verdict: DraftReconcile, row: DraftRow | null, edited: boolean) => void
 }
@@ -269,6 +271,12 @@ function makeLocalDraftWriter(
     })
   }
   const read = () => readLocalDraft(drafts, sessionId)
+  const kept = (): LocalDraft | null => {
+    const state = persisted.state()
+    if (state.status === 'hydrating' || state.status === 'disposed' || state.last === undefined) return null
+    const parsed = LocalDraftSchema.safeParse(JSON.parse(state.last))
+    return parsed.success ? parsed.data : null
+  }
   const takeStored = (stored: LocalDraft) => {
     if (document.draft) return persisted.setStore('draft', 'syncedAt', stored.syncedAt)
     persisted.setStore('draft', structuredClone(stored))
@@ -280,7 +288,7 @@ function makeLocalDraftWriter(
     if (verdict.kind === 'cleared') return persisted.setStore('draft', 'syncedAt', undefined)
     if (row) persisted.setStore('draft', 'syncedAt', row.updatedAt)
   }
-  return {writer, typed: () => document.draft, feed, resend, read, takeStored, settle}
+  return {writer, typed: () => document.draft, feed, resend, read, kept, takeStored, settle}
 }
 
 function serializeDraft(text: string, attachments: DraftRow['attachments']): string {
@@ -342,7 +350,7 @@ type DraftPlace = 'first' | 'last'
 
 type RestorePhase = {kind: 'reading'} | {kind: 'unread'; shown: LocalDraft | null} | {kind: 'read'}
 
-type DraftContent = {text: string; attachments: readonly {id: string}[]}
+export type DraftContent = {text: string; attachments: readonly {id: string}[]}
 
 export function sameContent(draft: DraftContent, other: DraftContent): boolean {
   return (
@@ -351,6 +359,14 @@ export function sameContent(draft: DraftContent, other: DraftContent): boolean {
       draft.attachments.map((attachment) => attachment.id),
       other.attachments.map((attachment) => attachment.id),
     )
+  )
+}
+
+function holdsDraft(kept: DraftContent | null | undefined, draft: DraftContent): boolean {
+  if (!kept) return false
+  return (
+    kept.text === draft.text &&
+    differenceBy(draft.attachments, kept.attachments, (attachment) => attachment.id).length === 0
   )
 }
 
@@ -606,6 +622,7 @@ export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessio
   return {
     writer: local?.writer,
     retry,
+    keptHere: (draft) => holdsDraft(local?.kept(), draft),
     storage: {
       getItem: () => {
         const row = appData.cachedDraft(sessionId)
