@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vit
 import {cdp, page, server, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
-import {installReactBridge, MASKED_VALUE} from '@conciv/page'
+import {installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
@@ -1447,6 +1447,25 @@ describe('the page contracts another plugin reads', () => {
       }
       expect(tree.rootFibers().flatMap(labels)).toContainEqual({label: 'A'})
       expect(tree.dehydrate({label: 'A', run: function run() {}})).toEqual({label: 'A', run: 'ƒ run()'})
+    })
+
+    it('Page.pick returns the clicked element’s source and box, and null when the user presses Escape', async () => {
+      const picked = pageMembers.pick()
+      await vi.waitFor(() => expect(picking()).toBe(true))
+      await userEvent.click(leaf(), {force: true})
+      const result = await picked
+      expect(result?.source?.filePath).toContain('react-app')
+      expect(result?.source?.lineNumber).toEqual(expect.any(Number))
+      expect(result?.rect).toEqual({
+        x: expect.any(Number),
+        y: expect.any(Number),
+        width: expect.any(Number),
+        height: expect.any(Number),
+      })
+      const cancelled = pageMembers.pick()
+      await vi.waitFor(() => expect(picking()).toBe(true))
+      await userEvent.keyboard('{Escape}')
+      expect(await cancelled).toBeNull()
     })
   })
 })
