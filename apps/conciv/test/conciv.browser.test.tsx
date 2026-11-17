@@ -7040,6 +7040,14 @@ describe('terminal panel', () => {
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('model busy-model')).toBeInTheDocument()
 
+    await terminalTab().click()
+    await expect.element(terminalTab()).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(output('interrupted'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(picker()).toBeEnabled()
+    await expect.element(newTerminal()).toBeEnabled()
+
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
     await expect.element(picker()).not.toBeInTheDocument()

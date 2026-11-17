@@ -44,7 +44,10 @@ const TERMINAL_STARTED_FILE = 'terminal-started'
 const BUSY_TERMINAL_MODEL = 'busy-model'
 
 function fakeTerminal(context: HarnessConnectContext): TtyCommand {
-  const busy = context.model === BUSY_TERMINAL_MODEL ? `printf '\\033]9;4;1\\007'; ` : ''
+  const busy =
+    context.model === BUSY_TERMINAL_MODEL
+      ? `trap 'echo; echo interrupted' INT; printf '\\033]9;4;1\\007'; sleep 600 & wait $!; kill $! 2>/dev/null; trap - INT; printf '\\033]9;4;0\\007'; `
+      : ''
   return {
     bin: 'bash',
     args: [
