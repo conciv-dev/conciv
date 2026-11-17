@@ -1,7 +1,8 @@
 import {createHash, randomBytes, randomUUID} from 'node:crypto'
-import {chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs'
+import {chmodSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {z} from 'zod'
+import {createConcivStateDir} from './state-types.js'
 
 export const TRUSTED_BROWSERS_FILE = 'trusted-browsers.json'
 
@@ -52,7 +53,7 @@ export function readTrustedBrowsers(stateDir: string): TrustedBrowser[] {
 
 export function writeTrustedBrowsers(stateDir: string, browsers: readonly TrustedBrowser[]): void {
   const path = trustFile(stateDir)
-  mkdirSync(stateDir, {recursive: true})
+  createConcivStateDir(stateDir)
   const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`
   try {
     writeFileSync(tempPath, `${JSON.stringify({browsers}, null, 2)}\n`, {mode: 0o600})
