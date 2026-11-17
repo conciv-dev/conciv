@@ -1,6 +1,7 @@
 import {createMemo, For, onCleanup, Show, untrack, type Accessor} from 'solid-js'
 import {Navigate, getRouteApi, useRouter} from '@tanstack/solid-router'
 import {Panel, Slot, type MountedSession, type SessionScreen} from '@conciv/plugin/experimental'
+import {FocusTrap} from '@conciv/ui-kit-system'
 import {useLayers} from '../app/context'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
 import {usePluginAttachment} from '../runtime/plugin/attachment'
@@ -219,7 +220,9 @@ export function PluginOverlay() {
           return null
         }}
       </For>
-      <PluginSlot at="page.overlay" input={{}} />
+      <FocusTrap disabled={overlays().length === 0}>
+        <PluginSlot at="page.overlay" input={{}} />
+      </FocusTrap>
     </Show>
   )
 }
