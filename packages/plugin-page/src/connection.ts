@@ -29,11 +29,12 @@ import {symbolicateFrames} from './symbolicate.js'
 
 const SessionNotFound = z.object({_tag: z.literal('Session.NotFoundError')})
 
-const DEFAULT_TIMEOUT_MS = 5000
-
 const TAB_RETURN_MS = 5000
 
-const QUEUED_ACTION_MS = 7000
+const Windows = z.object({
+  pageReplyTimeoutMs: z.number().int().positive().default(5000),
+  queuedActionTimeoutMs: z.number().int().positive().default(7000),
+})
 
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
 
@@ -60,12 +61,15 @@ function whenAborted(signal: AbortSignal | undefined): Promise<'aborted'> {
   return once(signal, 'abort').then(() => 'aborted')
 }
 
-function callTimeout(action: Action): number {
+function callTimeout(action: Action, pageReplyTimeoutMs: number): number {
   if ((action.type === 'wait' || action.type === 'hmr') && action.timeout !== undefined) return action.timeout + 1000
-  return DEFAULT_TIMEOUT_MS
+  return pageReplyTimeoutMs
 }
 
-export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage'>) {
+export async function make(
+  ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage' | 'options'>,
+) {
+  const {pageReplyTimeoutMs, queuedActionTimeoutMs} = Windows.parse(ctx.options)
   await ctx.agent.transform((editor) =>
     editor
       .list()
@@ -327,7 +331,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     if (!selected.ok) throw raise(selected.error)
     const mutating = operations[action.type].mutating
     const send = async (call: Call): Promise<Result> => {
-      const command = {action, agentId: call.agentId, timeoutMs: callTimeout(action)}
+      const command = {action, agentId: call.agentId, timeoutMs: callTimeout(action, pageReplyTimeoutMs)}
       const deadline = Date.now() + command.timeoutMs
       const first = await request(sessionId, selected.connectionId, command, call.signal)
       if (first.ok) return first.result
@@ -388,10 +392,10 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       const serial = lane(sessionId)
       await serial.acquire()
       try {
-        const acceptance = await send(play.action, -1, DEFAULT_TIMEOUT_MS)
+        const acceptance = await send(play.action, -1, pageReplyTimeoutMs)
         for (const [index, action] of play.actions.entries())
           played[index]?.resolve(
-            acceptance.ok ? await send(action, index, QUEUED_ACTION_MS) : refused(acceptance.error),
+            acceptance.ok ? await send(action, index, queuedActionTimeoutMs) : refused(acceptance.error),
           )
       } finally {
         serial.release()

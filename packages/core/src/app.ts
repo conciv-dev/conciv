@@ -55,7 +55,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {memoize} from 'es-toolkit'
+import {isNotNil, memoize, pickBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
@@ -637,7 +637,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineId,
     config: opts.cfg,
     plugins: opts.plugins ?? [],
-    post: [concivPage],
+    post: [
+      {
+        ...concivPage,
+        setup: (context) =>
+          concivPage.setup({
+            ...context,
+            options: pickBy(
+              {pageReplyTimeoutMs: opts.pageReplyTimeoutMs, queuedActionTimeoutMs: opts.queuedActionTimeoutMs},
+              isNotNil,
+            ),
+          }),
+      },
+    ],
     harness,
     signal: engineLife.signal,
     harnessSource: {
