@@ -2161,6 +2161,61 @@ describe('page bus and the session scope', () => {
     await vi.waitFor(async () => expect(await pagePlugin.delivery.owed(id, false)).toEqual([]), {timeout: 5_000})
   })
 
+  it('a click the page performed is reported done even when the plugin storage refuses the capture and the journal', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const home = tempDir('conciv-core-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const harness = createTestHarness(requireClaude())
+    const tabs = pageTabs()
+    const {made, origin, stop} = await serveCore(stateRoot, [], {
+      cfg: {...resolveConfig({}, stateRoot), hubAccess: 'open'},
+      harness,
+      home,
+      plugins: [tabs.plugin],
+      print: () => {},
+    })
+    onTestFinished(stop)
+    await made.awaitActivation()
+    const id = SessionId.parse('conciv_click_storage_refused')
+    await ensureRow(made.chat.rows, id)
+    const tab = await tabs.open(id, () => ({type: 'success', result: {value: {ok: true}, files: [], capture: {}}}))
+    onTestFinished(() => tab.end())
+    made.chat.db.$client.exec(
+      "CREATE TRIGGER refuse_page_records BEFORE INSERT ON kv WHEN NEW.key LIKE '%:captures/%' OR NEW.key LIKE '%:changes/%' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    )
+    const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        ...JSON_TYPE,
+        accept: 'application/json, text/event-stream',
+        [CONCIV_SESSION_HEADER]: id,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'codex',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: "return await external_page_click({selector: '#go'})"},
+        },
+      }),
+    })
+    const text = await response.text()
+    const reply = z
+      .object({result: z.object({content: z.array(z.object({text: z.string()}))})})
+      .parse(JSON.parse(text.split('data: ').at(-1) ?? text))
+    expect(tab.seen()).toEqual(['page_click'])
+    const output = reply.result.content.map((part) => part.text).join('')
+    expect(output).not.toContain('disk full')
+    expect(z.object({result: z.object({ok: z.boolean()})}).parse(JSON.parse(output)).result).toEqual({ok: true})
+    const stored = made.chat.db.$client
+      .prepare("SELECT count(*) AS count FROM kv WHERE key LIKE '%:captures/%' OR key LIKE '%:changes/%'")
+      .get()
+    expect(stored).toEqual({count: 0})
+  })
+
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
     const bus = makePageBus(2000)
     bus.subscribe(SESSION_A, (frame) => {
