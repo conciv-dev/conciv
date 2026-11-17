@@ -1,0 +1,17 @@
+/* Reset only: every --chat-* token comes from the token sheets imported before this one, the single
+   source of truth shared with the tool cards and their Storybook. */
+:host {
+  all: initial;
+}
+/* The resolved scheme rides the shadow HOST, not just the app's root wrap, so it reaches Ark content
+   portalled straight into the shadow root (menus, popovers, dialogs) as well. `all: initial` above
+   resets color-scheme on the host, so these have to sit after it. */
+:host(.light) {
+  color-scheme: light;
+}
+:host(.dark) {
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
