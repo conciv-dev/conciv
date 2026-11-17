@@ -28,7 +28,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `live-sessions.ts:hydrated`: a terminal `lastRun` settles the run only when it is the run this registry is watching, so a run that ended while the connection was down still settles once a replacement client hydrates, and older terminal runs are ignored
 - `warm-session.ts:createWarmSession`: the warm id latches once set; queries run only while `connected()`
 - `pane-provider.tsx:PaneProvider`: `newSession` calls `props.onNewSession` if given, otherwise creates a session over rpc and navigates to it
-- `pane-provider.tsx:PaneProvider`: `replaceSession(sessionId)` calls `props.onReplaceSession` if given (the quick terminal swaps that pane's id in place), otherwise navigates to `/panel/$sessionId`; the panel route's own pane context leaves it out, so the deleted panel navigates there itself
+- `pane-provider.tsx:PaneProvider`: `replaceSession(sessionId)` calls `props.onReplaceSession` if given (the quick terminal swaps that pane's id in place), otherwise navigates to `/panel/$sessionId`; `replaceSession` is required on every pane context, and the panel route's own pane context navigates to `/panel/$sessionId` with it
 
 ## Side Effects
 

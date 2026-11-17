@@ -1,6 +1,5 @@
 import {Show, type JSX} from 'solid-js'
 import {useMutation, useQuery} from '@conciv/client'
-import {useRouter} from '@tanstack/solid-router'
 import {Button} from '@conciv/ui-kit-system'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {prependDraft} from './draft-storage.js'
@@ -12,7 +11,6 @@ const PANEL =
 
 export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
-  const router = useRouter()
   const announce = useAnnounce()
   const startSession = useStartSession()
   const pane = usePane()
@@ -24,23 +22,24 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
       .saveDraft({sessionId: props.sessionId, text: '', selectionStart: 0, selectionEnd: 0, attachments: []})
       .catch(() => undefined)
 
+  const logMoveFailure = <T,>(work: Promise<T>): Promise<T> =>
+    work.catch((error: unknown) => {
+      console.error('[conciv] could not move to a new session', error)
+      throw error
+    })
+
   const move = useMutation(() => ({
     mutationFn: async () => {
-      const text = (await appData.readDraft(props.sessionId))?.text ?? ''
+      const text = (await logMoveFailure(appData.readDraft(props.sessionId)))?.text ?? ''
       const {sessionId} = await startSession()
-      if (text !== '') await prependDraft(appData, sessionId, text)
+      if (text !== '') await logMoveFailure(prependDraft(appData, sessionId, text))
       await clearDeletedDraft()
       return sessionId
     },
     onSuccess: (sessionId: string) => {
       announce('Started a new session')
-      if (pane.replaceSession) {
-        pane.replaceSession(sessionId)
-        return
-      }
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
+      pane.replaceSession(sessionId)
     },
-    onError: (error: unknown) => console.error('[conciv] could not move to a new session', error),
   }))
 
   return (

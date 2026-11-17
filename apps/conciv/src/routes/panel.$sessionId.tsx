@@ -290,6 +290,7 @@ function PanelSession(): JSX.Element {
   const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
+  const navigate = Route.useNavigate()
   const sessionMenu = useSessionMenu(() => params().sessionId)
   const search = Route.useSearch()
   const popOut = () => {
@@ -417,6 +418,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
+    replaceSession: (sessionId) => void navigate({to: '/panel/$sessionId', params: {sessionId}}),
     chat,
     refresh: coordinator.refresh,
     isRefreshing: coordinator.isRefreshing,
