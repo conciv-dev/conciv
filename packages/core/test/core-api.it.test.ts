@@ -5344,7 +5344,7 @@ export default {
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
       message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
     )
-    expect(saved).toEqual(['tabs'])
+    expect(saved).toEqual(['page_route'])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
