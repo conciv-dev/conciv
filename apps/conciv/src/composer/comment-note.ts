@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
 import type {ComposerDraft} from '@conciv/ui-kit-chat'
-import {NoteComment, NoteContextItem} from './note-schema'
+import {durableNote, NoteComment, NoteContextItem} from './note-schema'
 
 const PromptAttachmentReference = z.object({name: z.string(), mime: z.string(), path: z.string()})
 
@@ -49,6 +49,10 @@ export function noteComment(item: NoteContextItem, comment: string) {
   if (item.live) note.live = {...item.live}
 
   return note
+}
+
+export function commentContextItem(comment: NoteComment): NoteContextItem {
+  return {...durableNote(comment), commentId: crypto.randomUUID()}
 }
 
 export function formatNoteComment(input: NoteComment) {

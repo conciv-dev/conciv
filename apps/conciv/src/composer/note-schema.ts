@@ -36,3 +36,7 @@ export function contextItemKey(item: NoteContextItem) {
 export function noteValue(note: NoteComment) {
   return z.json().parse(JSON.parse(JSON.stringify(note)))
 }
+
+export function noteItem(note: NoteContextItem) {
+  return {key: contextItemKey(note), value: noteValue(note)}
+}

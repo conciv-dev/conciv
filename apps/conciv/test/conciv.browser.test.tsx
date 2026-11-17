@@ -4445,6 +4445,7 @@ describe('queue strip', () => {
     const sink = {
       insert: (text: string) => inputs[0]?.append(text),
       addFile: (file: File) => void attached.push(file),
+      addItem: () => {},
     }
     const stop = () => {
       returnQueueToDraft(session, sink)

@@ -24,6 +24,7 @@ import {
   useComposerContext,
   useThread,
   type ComposerDraft,
+  type ComposerItem,
   type PageSessionConfig,
   type TurnItem,
   type TurnPrefixSource,
@@ -106,6 +107,7 @@ function resetSlideOnSelf(reset: () => void) {
 
 type ComposerApi = {
   addAttachment: (file: File) => Promise<string | null>
+  addItem: (item: ComposerItem) => void
 }
 
 function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
@@ -119,7 +121,7 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
       removeAttachment: context.removeAttachment,
       hasAttachment: context.hasAttachment,
     })
-    props.onReady({addAttachment: context.addAttachment})
+    props.onReady({addAttachment: context.addAttachment, addItem: context.addItem})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
   onCleanup(() => pane.grabStaging.disconnect())
@@ -326,6 +328,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     void api.addAttachment(file)
     focusInput()
   }
+  const addItem = (item: ComposerItem) => composerApi.current?.addItem(item)
   const imageInput = () => harness()?.imageInput
   const attachments = createMemo(() =>
     paneAttachments(
@@ -512,7 +515,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     />
                     <DraftReturnReceiver
                       sessionId={sessionId}
-                      sinks={{queue: {insert, addFile: attach}, steered: {insert: insertFirst, addFile: attach}}}
+                      sinks={{
+                        queue: {insert, addFile: attach, addItem},
+                        steered: {insert: insertFirst, addFile: attach, addItem},
+                      }}
                     />
                     <Suspense fallback={<ComposerActionsPending />}>
                       <ComposerActions
@@ -556,7 +562,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSteer: messaging.onSteer,
               onSteerError: messaging.onSteerError,
               onCancel: () => {
-                returnQueueToDraft(chat, {insert, addFile: attach})
+                returnQueueToDraft(chat, {insert, addFile: attach, addItem})
                 void chat.stop()
               },
             }}

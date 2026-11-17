@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {uniqBy} from 'es-toolkit'
 import {DraftItemSchema, type DraftItem, type DraftRow} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
@@ -68,33 +69,53 @@ function serverDraft(row: DraftRow): ServerDraft {
 
 type DraftPlace = 'first' | 'last'
 
-async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
+function joinDraftText(saved: string, text: string, place: DraftPlace): string {
+  if (saved === '') return text
+  if (text === '') return saved
+  return place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
+}
+
+async function keepInDraft(
+  appData: AppData,
+  sessionId: string,
+  kept: {text: string; items: readonly DraftItem[]},
+  place: DraftPlace,
+): Promise<void> {
   const row = await appData.readDraft(sessionId).catch((error: unknown) => {
     console.error('[conciv] could not read the saved draft', error)
     return null
   })
-  const saved = row?.text ?? ''
-  const nextText = saved === '' ? text : place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
-  const caret = place === 'first' ? text.length : nextText.length
+  const nextText = joinDraftText(row?.text ?? '', kept.text, place)
+  const caret = place === 'first' ? kept.text.length : nextText.length
   await appData.saveDraft({
     sessionId,
     text: nextText,
     selectionStart: caret,
     selectionEnd: caret,
     attachments: row?.attachments ?? [],
-    items: row?.items ?? [],
+    items: uniqBy([...(row?.items ?? []), ...kept.items], (item) => item.key),
   })
 }
 
-export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
-  return keepInDraft(appData, sessionId, text, 'last')
+export function appendDraft(
+  appData: AppData,
+  sessionId: string,
+  text: string,
+  items: readonly DraftItem[] = [],
+): Promise<void> {
+  return keepInDraft(appData, sessionId, {text, items}, 'last')
 }
 
-export function prependDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
-  return keepInDraft(appData, sessionId, text, 'first')
+export function prependDraft(
+  appData: AppData,
+  sessionId: string,
+  text: string,
+  items: readonly DraftItem[] = [],
+): Promise<void> {
+  return keepInDraft(appData, sessionId, {text, items}, 'first')
 }
 
-type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<void>
+type DraftWrite = (appData: AppData, sessionId: string, text: string, items?: readonly DraftItem[]) => Promise<void>
 
 export type DraftWriteChain = (write: () => Promise<void>) => void
 
@@ -116,6 +137,7 @@ export function draftCacheSink(
   return {
     insert: (text) => keep(() => write(appData, sessionId, text)),
     addFile: () => {},
+    addItem: (item) => keep(() => write(appData, sessionId, '', [item])),
   }
 }
 

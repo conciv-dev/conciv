@@ -18,7 +18,7 @@ import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected} from '../../app/context'
 import {usePluginAttachment} from './attachment'
-import {contextItemKey, NoteContextItem, noteValue} from '../../composer/note-schema'
+import {NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
 import type {ComposerBinding} from './host-apis'
 import {
   createComposerWriteState,
@@ -183,8 +183,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     attach(part) {
       if (part.type !== 'note') return console.error('[plugin] Composer.attach is not implemented yet', part.type)
 
-      const note = NoteContextItem.parse(part)
-      const item = {key: contextItemKey(note), value: noteValue(note)}
+      const item = noteItem(NoteContextItem.parse(part))
 
       write((draft) => draft.addItem(item))
     },
