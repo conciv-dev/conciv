@@ -50,4 +50,4 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/extension-page` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/builtin-plugins` from the repo root (turbo builds the package and its dependencies first)

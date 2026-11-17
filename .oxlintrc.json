@@ -264,9 +264,7 @@
         "packages/brand-react/**",
         "apps/examples/tanstack-start/src/**",
         "packages/page/test/**",
-        "packages/extensions/page/test/fixtures/**",
-        "packages/builtin-plugins/test/fixtures/**",
-        "packages/extensions/page/test/page.browser.test.ts"
+        "packages/builtin-plugins/test/fixtures/**"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",

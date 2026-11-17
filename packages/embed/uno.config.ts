@@ -15,7 +15,6 @@ export default defineConfig({
       '../tools/src/**/*.{ts,tsx}',
       '../core/src/cards.tsx',
       '../core/src/cards/**/*.{ts,tsx}',
-      '../extensions/page/src/**/*.{ts,tsx}',
       '../builtin-plugins/src/**/*.{ts,tsx}',
       '../extensions/terminal/src/**/*.{ts,tsx}',
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
