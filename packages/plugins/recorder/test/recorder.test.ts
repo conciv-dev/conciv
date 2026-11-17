@@ -301,6 +301,45 @@ describe('the recorder RPC', () => {
       'clicked body "Buy Looped Moved"',
     ])
 
+    await call(kit, 'flush', {
+      clientId: 'moves',
+      events: [
+        {
+          type: 2,
+          data: {
+            node: pageFixture([
+              element('div', 10, [buttonFixture(4, 5, 'Buy')]),
+              element('div', 11, [{id: 12, type: 3, textContent: 'Cart'}]),
+            ]),
+          },
+          timestamp: base + 20,
+        },
+        {type: 3, data: addUnder(11, buttonFixture(4, 5, 'Buy')), timestamp: base + 21},
+        clickOn(10, base + 22),
+        clickOn(11, base + 23),
+        clickOn(4, base + 24),
+        clickOn(3, base + 25),
+        {type: 3, data: addUnder(11, element('button', 4, [])), timestamp: base + 26},
+        clickOn(11, base + 27),
+        clickOn(4, base + 28),
+        clickOn(3, base + 29),
+        {type: 3, data: addUnder(10, element('a', 4, [])), timestamp: base + 30},
+        clickOn(4, base + 31),
+        clickOn(3, base + 32),
+      ],
+    })
+    expect(LogSchema.parse(await call(kit, 'log', {clientId: 'moves'})).entries.map((entry) => entry.detail)).toEqual([
+      'clicked div',
+      'clicked div "Cart Buy"',
+      'clicked button "Buy"',
+      'clicked body "Cart Buy"',
+      'clicked div "Cart Buy"',
+      'clicked button "Buy"',
+      'clicked body "Cart Buy"',
+      'clicked a',
+      'clicked body "Cart Buy"',
+    ])
+
     const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'mine'}))
     expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events: mine.events})
     const stored = await filesNamed(kit.stateRoot, `${saved.recordingId}.json`)

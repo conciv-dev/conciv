@@ -109,6 +109,7 @@ describe('define', () => {
     expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<AgentEditor>>()
     expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
+    expectTypeOf<Parameters<Plugin.Context['permission']['assert']>[0]['fallback']>().toEqualTypeOf<'ask' | undefined>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
     expectTypeOf<Registration['dispose']>().toEqualTypeOf<() => Promise<void>>()
     expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()

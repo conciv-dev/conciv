@@ -6,6 +6,12 @@ export type SerializedNode = {
   tagName?: string
   attributes?: Record<string, unknown>
   textContent?: string
+  isSVG?: boolean
+  needBlock?: boolean
+  compatMode?: string
+  name?: string
+  publicId?: string
+  systemId?: string
   childNodes?: SerializedNode[]
 }
 
@@ -16,6 +22,12 @@ const serializedNode: z.ZodType<SerializedNode> = z.lazy(() =>
     tagName: z.string().optional(),
     attributes: z.record(z.string(), z.unknown()).optional(),
     textContent: z.string().optional(),
+    isSVG: z.boolean().optional(),
+    needBlock: z.boolean().optional(),
+    compatMode: z.string().optional(),
+    name: z.string().optional(),
+    publicId: z.string().optional(),
+    systemId: z.string().optional(),
     childNodes: z.array(serializedNode).optional(),
   }),
 )
@@ -37,6 +49,21 @@ function ownText(node: SerializedNode): string {
   const direct = node.textContent ?? ''
   const children = (node.childNodes ?? []).map(ownText).join(' ')
   return `${direct} ${children}`.replace(/\s+/g, ' ').trim()
+}
+
+const metaFieldsByType: Record<number, ReadonlyArray<keyof SerializedNode>> = {
+  0: ['compatMode'],
+  1: ['name', 'publicId', 'systemId'],
+  2: ['tagName', 'attributes', 'isSVG', 'needBlock'],
+  3: ['textContent'],
+  4: ['textContent'],
+  5: ['textContent'],
+}
+
+function sameMeta(existing: SerializedNode, added: SerializedNode): boolean {
+  const fields = metaFieldsByType[existing.type]
+  if (!fields || existing.type !== added.type) return false
+  return fields.every((field) => JSON.stringify(existing[field]) === JSON.stringify(added[field]))
 }
 
 function label(node: SerializedNode): string {
@@ -79,11 +106,29 @@ export function createNodeIndex(): NodeIndex {
     if (parent) parent.childNodes = (parent.childNodes ?? []).filter((child) => child.id !== id)
   }
 
+  const isInside = (id: number, ancestorId: number, seen: ReadonlySet<number> = new Set()): boolean => {
+    if (id === ancestorId) return true
+    const parentId = parentByNode.get(id)
+    if (parentId === undefined || seen.has(id)) return false
+    return isInside(parentId, ancestorId, new Set([...seen, id]))
+  }
+
+  const move = (node: SerializedNode, parent: SerializedNode): void => {
+    detach(node.id)
+    parentByNode.set(node.id, parent.id)
+    parent.childNodes = [...(parent.childNodes ?? []), node]
+  }
+
   type Mutation = z.infer<typeof mutationData>
 
   const applyAdds = (adds: Mutation['adds']): void => {
     for (const add of adds) {
       const parent = add.parentId === undefined ? undefined : byId.get(add.parentId)
+      const existing = byId.get(add.node.id)
+      if (parent && existing && sameMeta(existing, add.node) && !isInside(parent.id, existing.id)) {
+        move(existing, parent)
+        continue
+      }
       walk(add.node, add.parentId)
       if (parent) parent.childNodes = [...(parent.childNodes ?? []), add.node]
     }
