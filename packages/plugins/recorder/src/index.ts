@@ -101,9 +101,7 @@ export default Plugin.define({
   id: 'recorder',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const config = yield* Effect.try({try: () => recorderConfig.parse(ctx.options), catch: (error) => error}).pipe(
-        Effect.orDie,
-      )
+      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
       const rings = createClientRings({windowMs: config.windowMinutes * 60_000})
       const control = createCaptureControl(rings)
       const rendererCache = createRendererCache(createChromiumRenderer)
