@@ -447,6 +447,23 @@ describe('attachment only user message', () => {
     await expect.element(page.getByText('what color is this'), {timeout: 2000}).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'image-1'})).toBeVisible()
   })
+
+  it('an image sent as a data URL is named image, never by its data', async () => {
+    const sentDataUrl = (): SendContent => ({
+      content: [
+        {type: 'text', content: 'what is in this'},
+        {type: 'image', source: {type: 'url', value: `data:image/gif;base64,${GIF_BASE64}`}},
+      ],
+    })
+    mountView(() => <ThreadHost content={sentDataUrl} />)
+
+    await page.getByRole('button', {name: 'send'}).click()
+
+    await expect.element(page.getByText('what is in this'), {timeout: 2000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Open image', exact: true})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'image', exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /base64/})).not.toBeInTheDocument()
+  })
 })
 
 describe('chip', () => {

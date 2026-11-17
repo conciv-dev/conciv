@@ -9,4 +9,11 @@ export const builtins = compose({
         return {default: setup}
       }),
   },
+  'test-runner-card': {
+    windowEntry: () =>
+      import('./test-runner/plugin-experimental.js').then(({default: card}) => {
+        const setup: Plugin.Setup<typeof card> = (ctx) => card.setup?.(ctx)
+        return {default: setup}
+      }),
+  },
 })

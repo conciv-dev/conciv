@@ -1776,3 +1776,63 @@ describe('same-count turn replacement', () => {
     await replaceAndExpectPacked('')
   })
 })
+
+describe('message articles', () => {
+  const LONG_PROMPT = 'rename the header component and move every one of its styles into the shared theme tokens'
+
+  function imagePart(name: string): ChatPart {
+    return {type: 'image', source: {type: 'url', value: `https://example.test/${name}.png`}}
+  }
+
+  function fileContents(): ChatPart {
+    const part: ChatPart = {type: 'text', content: 'export function Button() {}'}
+    return Object.assign(part, {metadata: {modelOnly: true}})
+  }
+
+  const messages: ChatMessage[] = [
+    {
+      id: 'u1',
+      role: 'user',
+      parts: [{type: 'text', content: '**Fix** the `button` in @src/button.tsx\nthen run the tests'}, fileContents()],
+    },
+    {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'The button is fixed.'}]},
+    {id: 'u2', role: 'user', parts: [imagePart('screen')]},
+    {id: 'a2', role: 'assistant', parts: [{type: 'text', content: 'That is the settings screen.'}]},
+    {id: 'u3', role: 'user', parts: [{type: 'text', content: LONG_PROMPT}]},
+    {id: 'a3', role: 'assistant', parts: [{type: 'text', content: 'The header is renamed.'}]},
+    {id: 'u4', role: 'user', parts: [imagePart('before'), imagePart('after')]},
+  ]
+
+  function ArticleThread(): JSX.Element {
+    const chat = createChat({threadId: 'message-articles', connection: storyConnection()})
+    onMount(() => chat.setMessages(messages))
+    return (
+      <ChatProvider chat={chat}>
+        <div class="flex flex-col h-[520px] w-[560px]">
+          <Thread>
+            <Thread.Viewport>
+              <Thread.Messages />
+            </Thread.Viewport>
+          </Thread>
+        </div>
+      </ChatProvider>
+    )
+  }
+
+  it('names each message by who wrote it and the prompt it belongs to', async () => {
+    mountView(() => <ArticleThread />)
+    const article = (name: string): Locator => page.getByRole('article', {name, exact: true})
+    const excerpt = `${LONG_PROMPT.slice(0, 60)}…`
+
+    await expect.element(article('You: Fix the button in @src/button.tsx')).toMatchTextContent('then run the tests')
+    await expect
+      .element(article('Reply to: Fix the button in @src/button.tsx'))
+      .toMatchTextContent('The button is fixed.')
+    await expect.element(article('You: image')).toBeVisible()
+    await expect.element(article('Reply')).toMatchTextContent('That is the settings screen.')
+    await expect.element(article(`You: ${excerpt}`)).toMatchTextContent(LONG_PROMPT)
+    await expect.element(article(`Reply to: ${excerpt}`)).toMatchTextContent('The header is renamed.')
+    await expect.element(article('You: 2 attachments')).toBeVisible()
+    await expect.element(page.getByRole('log').getByRole('article')).toHaveLength(7)
+  })
+})

@@ -79,6 +79,7 @@ export type TurnPlan = {
 }
 
 export type TurnHooks = {
+  admit: (turn: Turn) => Promise<void>
   plan: (turn: Turn) => TurnPlan
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
@@ -583,13 +584,14 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     entry: LiveRun,
     plan: TurnPlan,
   ): AsyncGenerator<ChatEvent> {
-    const prompted = await promptedMessages(turn.threadId, messages, plan, controller.signal).catch(
-      (error: unknown) => {
+    const prompted = await hooks
+      .admit(turn)
+      .then(() => promptedMessages(turn.threadId, messages, plan, controller.signal))
+      .catch((error: unknown) => {
         live.delete(turn.runId)
         entry.settled.resolve()
         throw error
-      },
-    )
+      })
     yield* started(turn, prompted, controller, entry, plan)
   }
 

@@ -15,6 +15,7 @@ import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
+import {requireHarness} from './lib/require-harness.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
@@ -174,6 +175,7 @@ export function composeSystemPrompt(
 export async function start(opts: StartOpts): Promise<Engine> {
   assertAccessToken(opts.accessToken)
   const cfg = resolveConfig(opts.options, opts.root)
+  if (!opts.harness) requireHarness(cfg.harness)
   const paths = statePaths(cfg.stateRoot)
 
   const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {

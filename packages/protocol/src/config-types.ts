@@ -74,7 +74,6 @@ export const ConcivConfigSchema = z.object({
   extensions: z.array(ExtensionPackageSchema).readonly().optional(),
   plugins: z.array(PluginEntrySchema).readonly().optional(),
   policies: z.array(PolicyStatementSchema).readonly().optional(),
-  widgetUrl: z.string().optional(),
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
   stateRoot: z.string().optional(),
   harness: z.string().optional(),
