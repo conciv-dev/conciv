@@ -5,8 +5,8 @@
 Today a new trace row creates 251 Solid owners (144 ours) and a result body 300 (100 ours). Bring ours down to what
 the row actually shows. Owner trees, source-mapped:
 
-- `/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/dump2.mapped.txt` (row)
-- `/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/dump1.mapped.txt` (result body)
+- `/private/tmp/claude-501/-Users-dev-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/dump2.mapped.txt` (row)
+- `/private/tmp/claude-501/-Users-dev-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/dump1.mapped.txt` (result body)
 
 ## Cuts
 
@@ -37,7 +37,7 @@ No animation may be lost or changed:
 - reduced-motion behaviour.
 
 For every component you change, save headless frame captures from mid-animation, before and after, to
-`/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/perf-anim/`.
+`/private/tmp/claude-501/-Users-dev-Public-web-aidx/cf3d62ab-fbe3-44c9-b397-19316cb76228/scratchpad/perf-anim/`.
 The report lists which animations were verified and how. A lazily built tooltip or swap must still animate on its
 first open.
 

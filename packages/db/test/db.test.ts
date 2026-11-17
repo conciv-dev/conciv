@@ -603,23 +603,28 @@ describe('home db', () => {
     closed.server.close()
     await once(closed.server, 'close')
     const root = tempDir('conciv-root-')
+    const silentRoot = tempDir('conciv-silent-root-')
     withHomeDb(home, (db) => {
       registerEngine(db, {id: 'live', pid: process.pid, root, apiBase: `${live.origin}/t/token`})
       registerEngine(db, {id: 'imposter', pid: process.pid, root, apiBase: `${imposter.origin}/t/token`})
-      registerEngine(db, {id: 'silent', pid: process.pid, root, apiBase: `${silent.origin}/t/token`})
+      registerEngine(db, {id: 'silent', pid: process.pid, root: silentRoot, apiBase: `${silent.origin}/t/token`})
       registerEngine(db, {id: 'closed', pid: process.pid, root, apiBase: `${closed.origin}/t/token`})
     })
+    const listedIds = () =>
+      withHomeDb(home, (db) =>
+        listEngines(db)
+          .map((row) => row.id)
+          .toSorted(),
+      )
     try {
-      const result = await checkEngines(home, {timeoutMs: 300})
-      expect(result.live.map((row) => row.id)).toEqual(['live'])
-      expect(result.unreachable.map((row) => row.root)).toEqual([root])
-      expect(
-        withHomeDb(home, (db) =>
-          listEngines(db)
-            .map((row) => row.id)
-            .toSorted(),
-        ),
-      ).toEqual(['live', 'silent'])
+      const answered = await checkEngines(home, {timeoutMs: 10_000, roots: [root]})
+      expect(answered.live.map((row) => row.id)).toEqual(['live'])
+      expect(answered.unreachable).toEqual([])
+      expect(listedIds()).toEqual(['live', 'silent'])
+      const unanswered = await checkEngines(home, {timeoutMs: 300, roots: [silentRoot]})
+      expect(unanswered.live).toEqual([])
+      expect(unanswered.unreachable.map((row) => row.root)).toEqual([silentRoot])
+      expect(listedIds()).toEqual(['live', 'silent'])
     } finally {
       for (const {server} of [live, imposter, silent]) {
         server.closeAllConnections()

@@ -1,6 +1,6 @@
 # Harness switching within one chat session
 
-- **Author:** Omri Katz
+- **Author:** conciv maintainers
 - **Status:** Draft
 - **Date:** 2026-11-03
 
