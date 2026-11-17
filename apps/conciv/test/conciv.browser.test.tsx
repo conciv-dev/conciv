@@ -686,6 +686,41 @@ describe('chat pane', () => {
       await coreControl.releaseFault(laterRead)
       await expect.element(input()).toHaveTextContent('newer from another tab')
     })
+
+    test('a save in flight at reload keeps the character typed after it, because the stamps this browser sent are its own', async () => {
+      const start = Date.now()
+      vi.useFakeTimers({toFake: ['Date']})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+      vi.setSystemTime(start)
+      const {rpc, sessionId} = await newSession()
+      await typeSyncedDraft(sessionId, 'saved once')
+      mountChatPane(sessionId)
+      await expect.element(input()).toHaveTextContent('saved once')
+      const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
+      vi.setSystemTime(start + 1000)
+
+      await userEvent.click(input())
+      await userEvent.keyboard('{End} and held')
+      await coreControl.awaitFaultPending(held, 1)
+      vi.setSystemTime(start + 2000)
+      await userEvent.keyboard('!')
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: 'saved once and held!'})
+      active.pane?.dispose()
+      await coreControl.releaseFault(held)
+      await rpc.drafts.set({
+        sessionId,
+        text: 'saved once and held',
+        selectionStart: 19,
+        selectionEnd: 19,
+        attachments: [],
+        updatedAt: start + 1000,
+      })
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent('saved once and held!')
+    })
   })
 
   describe('the composer never waits on the server draft', () => {

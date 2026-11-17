@@ -512,6 +512,18 @@ describe('draft reconcile', () => {
       outcome: {kind: 'engine'},
     },
     {
+      row: 'the engine row is a save this browser sent whose answer never came back',
+      local: {text: 'typed after it', syncedAt: 5, sent: [7, 8]},
+      engine: {text: 'held', updatedAt: 7},
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
+      row: 'a local copy whose sent saves never reached the engine, and no engine row',
+      local: {text: 'engine was down', syncedAt: undefined, sent: [7]},
+      engine: null,
+      outcome: {kind: 'local', saveToEngine: true},
+    },
+    {
       row: 'a local copy that never synced, and no engine row',
       local: {text: 'engine was down', syncedAt: undefined},
       engine: null,
