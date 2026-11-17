@@ -6,7 +6,11 @@ import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 
 export default Plugin.define({
   setup(ctx) {
-    const [canvas, setCanvas] = createStore({open: false, engaged: false})
+    const [canvas, setCanvas] = createStore<{open: boolean; engaged: boolean; layer: HTMLElement | undefined}>({
+      open: false,
+      engaged: false,
+      layer: undefined,
+    })
     const [surface, {refetch}] = createResource(
       () => canvas.engaged,
       () => import('./client/canvas-surface.js'),
@@ -15,7 +19,7 @@ export default Plugin.define({
     const overlay: Slot = {
       at: 'page.overlay',
       hides: false,
-      render: () => <WhiteboardNotices ctx={ctx} surface={surface} />,
+      render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={(layer) => setCanvas('layer', layer)} />,
     }
     const pill: ComposerPill = {
       id: 'whiteboard-open',
@@ -36,7 +40,7 @@ export default Plugin.define({
     }
     onCleanup(
       render(
-        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} close={close} />,
+        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} layer={canvas.layer} close={close} />,
         document.createDocumentFragment(),
       ),
     )

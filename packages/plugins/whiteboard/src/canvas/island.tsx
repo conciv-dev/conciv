@@ -13,6 +13,7 @@ import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
 import {validateSvg} from '../shared/svg-caps.js'
+import type {Viewport} from './coords.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 
 type SceneElement = OrderedExcalidrawElement
@@ -79,10 +80,17 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-export function Island(props: {doc: Document; room: string; theme: 'light' | 'dark'; visible: boolean}): JSX.Element {
+export function Island(props: {
+  doc: Document
+  room: string
+  theme: 'light' | 'dark'
+  visible: boolean
+  onViewport: (viewport: Viewport) => void
+}): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
   let root: Root | undefined
+  let unsubscribeScroll: (() => void) | undefined
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
@@ -312,6 +320,18 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
             setApi(instance)
+            const pushViewport = (): void => {
+              const state = instance.getAppState()
+              props.onViewport({
+                scrollX: state.scrollX,
+                scrollY: state.scrollY,
+                zoom: state.zoom,
+                offsetLeft: state.offsetLeft,
+                offsetTop: state.offsetTop,
+              })
+            }
+            pushViewport()
+            unsubscribeScroll = instance.onScrollChange(pushViewport)
             requestAnimationFrame(() => {
               if (!bufferedScene) return
               applyRemote(bufferedScene)
@@ -326,7 +346,10 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
 
   onMount(renderExcalidraw)
 
-  onCleanup(() => root?.unmount())
+  onCleanup(() => {
+    unsubscribeScroll?.()
+    root?.unmount()
+  })
 
   return (
     <Portal mount={props.doc.body}>

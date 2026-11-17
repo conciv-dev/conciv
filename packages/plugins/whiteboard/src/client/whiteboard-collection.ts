@@ -1,6 +1,11 @@
 import {AsyncQueuer} from '@tanstack/pacer'
 import {createPacedMutations, throttleStrategy} from '@tanstack/solid-db'
-import type {DeleteMutationFnParams, InsertMutationFnParams, SyncConfig} from '@tanstack/solid-db'
+import type {
+  DeleteMutationFnParams,
+  InsertMutationFnParams,
+  SyncConfig,
+  UpdateMutationFnParams,
+} from '@tanstack/solid-db'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from '../shared/rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
@@ -79,6 +84,7 @@ type TableClient<Row extends {id: string}, Insert> = {
   list: () => Promise<Row[]>
   get: (id: string) => Promise<Row>
   insert: (row: Insert) => Promise<Row>
+  update: (id: string, patch: Partial<Row>) => Promise<Row>
   remove: (id: string) => Promise<{deleted: boolean}>
 }
 
@@ -120,6 +126,12 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
     onInsert: async ({transaction}: InsertMutationFnParams<Row, string>) => {
       for (const mutation of transaction.mutations) {
         confirm(await ops.insert(toInsert(mutation.modified)))
+      }
+      return {refetch: false}
+    },
+    onUpdate: async ({transaction}: UpdateMutationFnParams<Row, string>) => {
+      for (const mutation of transaction.mutations) {
+        confirm(await ops.update(String(mutation.key), mutation.changes))
       }
       return {refetch: false}
     },

@@ -2,16 +2,86 @@ import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import {createCollection} from '@tanstack/solid-db'
 import type {Context} from '@conciv/plugin/experimental'
 import {Whiteboard} from '../rpc.js'
-import {elementRowToInsert, type ElementRow, type PendingRow, type ReplyRow} from '../shared/rows.js'
+import {
+  elementRowToInsert,
+  type CommentRow,
+  type ElementRow,
+  type PendingRow,
+  type PinRow,
+  type ReadRow,
+  type ReplyRow,
+} from '../shared/rows.js'
 import {createChangeFeed} from './change-feed.js'
 import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'
 
 const withoutRoom = <Row extends {room: string}>({room: _room, ...row}: Row): Omit<Row, 'room'> => row
+const withoutSession = <Row extends {sessionId: string}>({sessionId: _session, ...row}: Row): Omit<Row, 'sessionId'> =>
+  row
+
+const ACCOUNT_KEY = 'conciv-whiteboard-account-id'
+
+const readAccountId = (): string => {
+  const fresh = crypto.randomUUID()
+  try {
+    const existing = localStorage.getItem(ACCOUNT_KEY)
+    if (existing) return existing
+    localStorage.setItem(ACCOUNT_KEY, fresh)
+  } catch (error) {
+    console.error('[whiteboard] the account id could not be kept; this tab gets its own', error)
+  }
+  return fresh
+}
 
 export function createWhiteboardDb(client: Context['client'], room: string, catchUpRetryMs: number) {
   const whiteboard = client.rpc(Whiteboard)
   const feed = createChangeFeed(client, room, {retryMs: catchUpRetryMs})
+  const account = readAccountId()
 
+  const comments = createCollection(
+    whiteboardCollectionOptions<CommentRow, Omit<CommentRow, 'sessionId'>>({
+      feed,
+      room,
+      table: 'comments',
+      ops: {
+        list: () => whiteboard['comments.list']({room}),
+        get: (id) => whiteboard['comments.get']({room, id}),
+        insert: (row) => whiteboard['comments.insert']({room, row}),
+        update: (id, patch) => whiteboard['comments.update']({room, id, patch}),
+        remove: (id) => whiteboard['comments.remove']({room, id}),
+      },
+      toInsert: withoutSession,
+    }),
+  )
+  const pins = createCollection(
+    whiteboardCollectionOptions<PinRow, Omit<PinRow, 'room'>>({
+      feed,
+      room,
+      table: 'pins',
+      ops: {
+        list: () => whiteboard['pins.list']({room}),
+        get: (id) => whiteboard['pins.get']({room, id}),
+        insert: (row) => whiteboard['pins.insert']({room, row}),
+        update: (id, patch) => whiteboard['pins.update']({room, id, patch}),
+        remove: (id) => whiteboard['pins.remove']({room, id}),
+      },
+      toInsert: withoutRoom,
+    }),
+  )
+  const reads = createCollection(
+    whiteboardCollectionOptions<ReadRow, Omit<ReadRow, 'sessionId'>>({
+      feed,
+      room,
+      table: 'reads',
+      ops: {
+        list: () => whiteboard['reads.list']({room}),
+        get: (id) => whiteboard['reads.get']({room, id}),
+        insert: (row) => whiteboard['reads.insert']({room, row}),
+        update: (id, patch) => whiteboard['reads.update']({room, id, patch}),
+        remove: (id) => whiteboard['reads.remove']({room, id}),
+      },
+      toInsert: withoutSession,
+    }),
+  )
   const canvasPending = createCollection(
     whiteboardCollectionOptions<PendingRow, Omit<PendingRow, 'room'>>({
       feed,
@@ -21,6 +91,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         list: () => whiteboard['canvasPending.list']({room}),
         get: (id) => whiteboard['canvasPending.get']({room, id}),
         insert: (row) => whiteboard['canvasPending.insert']({room, row}),
+        update: (id, patch) => whiteboard['canvasPending.update']({room, id, patch}),
         remove: (id) => whiteboard['canvasPending.remove']({room, id}),
       },
       toInsert: withoutRoom,
@@ -35,6 +106,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         list: () => whiteboard['canvasReplies.list']({room}),
         get: (id) => whiteboard['canvasReplies.get']({room, id}),
         insert: (row) => whiteboard['canvasReplies.insert']({room, row}),
+        update: (id, patch) => whiteboard['canvasReplies.update']({room, id, patch}),
         remove: (id) => whiteboard['canvasReplies.remove']({room, id}),
       },
       toInsert: withoutRoom,
@@ -56,6 +128,9 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   )
 
   return {
+    comments,
+    pins,
+    reads,
     canvasPending,
     canvasReplies,
     canvasElements,
@@ -64,6 +139,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
     claimPending: (id: string) => whiteboard['canvasPending.claim']({room, id}),
     listElements: (scope: 'live' | 'draft') => elementOps(scope).list(),
     bulkDeleteElements: (scope: 'live' | 'draft', elementIds: string[]) => elementOps(scope).bulkDelete(elementIds),
+    accountId: () => account,
     room,
     dispose: () => {
       canvasElements.utils.cleanupStrategy()

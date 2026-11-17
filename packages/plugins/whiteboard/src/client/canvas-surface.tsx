@@ -1,9 +1,12 @@
-import {onMount, type JSX} from 'solid-js'
+import {onMount, Show, type JSX} from 'solid-js'
+import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import type {Context} from '@conciv/plugin/experimental'
 import {Island} from '../canvas/island.js'
 import {WhiteboardDbProvider} from './db.js'
+import {CommentsProvider, useComments} from './model/comments.js'
+import {PinsLayer} from './pins/pins.js'
 
 function injectExcalidrawCss(doc: Document): void {
   if (doc.head.querySelector('[data-whiteboard-style]')) return
@@ -30,13 +33,33 @@ const chatLayerOpen = (event: KeyboardEvent): boolean => {
 const escapeLeftToOthers = (event: KeyboardEvent): boolean =>
   event.key !== 'Escape' || insideExcalidraw(event) || chatLayerOpen(event)
 
-export default function CanvasSurface(props: {
+type SurfaceProps = {
   client: Context['client']
+  ui: Context['ui']
   room: string
   catchUpRetryMs: number
   visible: boolean
+  layer: HTMLElement | undefined
   close: () => void
-}): JSX.Element {
+}
+
+function CanvasView(props: SurfaceProps): JSX.Element {
+  const model = useComments()
+  return (
+    <>
+      <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
+      <Show when={props.layer}>
+        {(layer) => (
+          <Portal mount={layer()}>
+            <PinsLayer ui={props.ui} />
+          </Portal>
+        )}
+      </Show>
+    </>
+  )
+}
+
+export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   injectExcalidrawCss(document)
   onMount(() =>
     makeEventListener(
@@ -53,7 +76,9 @@ export default function CanvasSurface(props: {
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <Island doc={document} room={props.room} theme="dark" visible={props.visible} />
+      <CommentsProvider room={() => props.room}>
+        <CanvasView {...props} />
+      </CommentsProvider>
     </WhiteboardDbProvider>
   )
 }

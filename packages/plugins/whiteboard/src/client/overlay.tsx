@@ -1,4 +1,4 @@
-import {ErrorBoundary, Match, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
+import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
 import {z} from 'zod'
@@ -41,9 +41,14 @@ function readRoom(ctx: Context): string | undefined {
   return session && !session.pending ? session.id : undefined
 }
 
-export function WhiteboardNotices(props: {ctx: Context; surface: Resource<SurfaceModule>}): JSX.Element {
+export function WhiteboardNotices(props: {
+  ctx: Context
+  surface: Resource<SurfaceModule>
+  layer: (element: HTMLElement | undefined) => void
+}): JSX.Element {
+  onCleanup(() => props.layer(undefined))
   return (
-    <div class="text-chat-text font-chat pointer-events-none inset-0 fixed">
+    <div ref={(element) => props.layer(element)} class="text-chat-text font-chat pointer-events-none inset-0 fixed">
       <Switch>
         <Match when={props.surface.error} keyed>
           {(error) => <OverlayError toast={props.ctx.toast} error={error} />}
@@ -63,6 +68,7 @@ export function WhiteboardCanvas(props: {
   ctx: Context
   surface: Resource<SurfaceModule>
   visible: boolean
+  layer: HTMLElement | undefined
   close: () => void
 }): JSX.Element {
   const module = (): SurfaceModule | undefined => (props.surface.state === 'ready' ? props.surface() : undefined)
@@ -75,9 +81,11 @@ export function WhiteboardCanvas(props: {
               <Dynamic
                 component={loaded().default}
                 client={props.ctx.client}
+                ui={props.ctx.ui}
                 room={current}
                 catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}
                 visible={props.visible}
+                layer={props.layer}
                 close={props.close}
               />
             )}
