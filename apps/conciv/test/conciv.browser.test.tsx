@@ -4617,6 +4617,79 @@ describe('panel view tabs', () => {
     }, 30_000)
   })
 
+  describe('the draft saves of a panel', () => {
+    const DRAFT_SET_PATH = ['drafts', 'set']
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const LocalCopySchema = z.object({
+      text: z.string(),
+      syncedAt: z.number().optional(),
+      sent: z.array(z.number()).default([]),
+    })
+
+    const readLocalCopy = async (sessionId: string): Promise<z.infer<typeof LocalCopySchema> | null> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : LocalCopySchema.parse(JSON.parse(kept))
+    }
+
+    async function openNewPanel(): Promise<string> {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      return sessionId
+    }
+
+    test('a picture too big for the engine copy is saved once per edit, not again after every answer', async () => {
+      const rpc = coreRpc(coreBase())
+      const sessionId = await openNewPanel()
+      await coreControl.chooseFiles('Add an attachment', [
+        {name: 'large.png', mimeType: 'image/png', text: 'x'.repeat(1024 * 1024)},
+      ])
+      await expect.element(page.getByRole('button', {name: 'Remove large.png'})).toBeVisible()
+
+      const typeAndAwaitAck = async (keys: string, text: string): Promise<void> => {
+        await userEvent.keyboard(keys)
+        await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text})
+        const row = await rpc.drafts.get({sessionId})
+        await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text, syncedAt: row?.updatedAt})
+      }
+
+      await userEvent.click(composer())
+      await typeAndAwaitAck('first', 'first')
+      await typeAndAwaitAck(' then second', 'first then second')
+      await typeAndAwaitAck(' then third', 'first then second then third')
+
+      expect(await coreControl.rpcCallCount(DRAFT_SET_PATH, {sessionId, text: 'first'})).toBe(1)
+      expect(await coreControl.rpcCallCount(DRAFT_SET_PATH, {sessionId, text: 'first then second'})).toBe(1)
+    }, 30_000)
+
+    test('while the engine refuses every save, this browser keeps the stamps of unanswered saves only', async () => {
+      const sessionId = await openNewPanel()
+      await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+
+      await userEvent.click(composer())
+      const words = ['one', ' two', ' three', ' four', ' five']
+      for (const [index, word] of words.entries()) {
+        await userEvent.keyboard(word)
+        await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: words.slice(0, index + 1).join('')})
+      }
+
+      await expect
+        .poll(
+          async () => {
+            await vi.advanceTimersByTimeAsync(1000)
+            return (await readLocalCopy(sessionId))?.sent
+          },
+          {timeout: 20_000},
+        )
+        .toEqual([])
+      await expect.element(composer()).toHaveTextContent('one two three four five')
+    }, 40_000)
+  })
+
   describe('a crashing extension', () => {
     const RECOVERED_BODY = 'the recovered tab body'
     const AFTER_TOOLS_TEXT = 'the thread kept going after the tools'
