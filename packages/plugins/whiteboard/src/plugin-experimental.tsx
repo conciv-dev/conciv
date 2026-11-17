@@ -1,14 +1,17 @@
-import {createResource, createSignal, onCleanup} from 'solid-js'
+import {createResource, onCleanup} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 
 export default Plugin.define({
   setup(ctx) {
-    const [open, setOpen] = createSignal(false)
-    const [engaged, setEngaged] = createSignal(false)
-    const [surface] = createResource(engaged, () => import('./client/canvas-surface.js'))
-    const close = (): void => void setOpen(false)
+    const [canvas, setCanvas] = createStore({open: false, engaged: false})
+    const [surface] = createResource(
+      () => canvas.engaged,
+      () => import('./client/canvas-surface.js'),
+    )
+    const close = (): void => setCanvas('open', false)
     const overlay: Slot = {
       at: 'page.overlay',
       hides: false,
@@ -22,19 +25,18 @@ export default Plugin.define({
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
         run: () => {
-          setEngaged(true)
-          setOpen((value) => !value)
+          setCanvas({engaged: true, open: !canvas.open})
         },
       }),
     }
     onCleanup(
       render(
-        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={open()} close={close} />,
+        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} close={close} />,
         document.createDocumentFragment(),
       ),
     )
     ctx.add(ComposerPill, pill)
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
-    ctx.add(Slot, () => (open() ? overlay : undefined))
+    ctx.add(Slot, () => (canvas.open ? overlay : undefined))
   },
 })
