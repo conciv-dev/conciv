@@ -54,7 +54,7 @@ function revokeOnCleanup(source: string | undefined): void {
 
 function refusalReason(attachment: AttachmentState): string | undefined {
   if (attachment.status.type !== 'incomplete') return undefined
-  return attachment.status.message ?? `${attachment.name} could not be attached`
+  return attachment.status.message || `${attachment.name} could not be attached`
 }
 
 export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
