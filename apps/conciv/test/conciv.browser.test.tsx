@@ -4562,6 +4562,25 @@ describe('a deleted session', () => {
     expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
   }, 40_000)
 
+  test('with no pane open a failed pane start shows only the add pane failure and its Retry', async () => {
+    await faults.install({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
+    harness.mountShell('/quick')
+    const paneFailed = () => page.getByText('conciv could not start a pane. Check the engine connection and retry.')
+    const retry = () => page.getByRole('button', {name: 'Retry', exact: true})
+    await expect.element(paneFailed(), {timeout: 8000}).toBeVisible()
+
+    const held = await faults.install({kind: 'cut-on-release', path: ['sessions', 'create']})
+    await userEvent.click(page.getByRole('button', {name: 'Split pane', exact: true}))
+    await coreControl.awaitFaultPending(held, 1)
+    await expect.element(page.getByText('Starting a pane…', {exact: true})).toBeVisible()
+    await faults.install({kind: 'fail', path: ['sessions', 'create'], status: 500})
+    await coreControl.releaseFault(held)
+
+    await expect.element(paneFailed(), {timeout: 8000}).toBeVisible()
+    await expect.element(retry()).toBeVisible()
+    await expect.element(notifications().getByText(START_FAILED, {exact: true})).not.toBeInTheDocument()
+  }, 30_000)
+
   test('in the quick terminal New session replaces the deleted pane in place and carries its text', async () => {
     const rpc = coreRpc(core())
     const liveId = await createSession(rpc)

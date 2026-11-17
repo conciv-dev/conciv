@@ -141,7 +141,9 @@ function QuickLayer(): JSX.Element {
 
   const startSession = useStartSession()
   const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
-  const createFreshPane = useMutation(() => paneStartOptions(() => startSession()))
+  const createFreshPane = useMutation(() =>
+    paneStartOptions(() => (paneIds().length === 0 ? appData.createSession() : startSession())),
+  )
 
   const lastPaneStart = () =>
     createFreshPane.submittedAt > resumeLatestPane.submittedAt ? createFreshPane : resumeLatestPane
