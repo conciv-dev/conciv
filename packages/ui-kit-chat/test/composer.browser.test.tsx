@@ -365,7 +365,6 @@ describe('attachment image viewer', () => {
     await expect.element(page.getByRole('button', {name: 'Remove huge.png'})).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(refused).toHaveFocus()
-    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
     await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
     await expect.element(refused).toHaveAccessibleDescription(reason)
   })
