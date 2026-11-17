@@ -331,7 +331,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         expect(SinceRead.parse(missedAgain.output).changes.map((change) => change.key)).toContain('drawn-while-away')
         await secondObserver.completed({
           path: WHITEBOARD_CALL,
-          input: {rpcId: 'whiteboard', method: 'elements.get', input: {id: 'drawn-while-away'}},
+          input: {rpcId: 'whiteboard', method: 'elements.get', input: {elementId: 'drawn-while-away'}},
           since: reconnected,
         })
 
@@ -377,7 +377,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         )
         await secondObserver.completed({
           path: WHITEBOARD_CALL,
-          input: {rpcId: 'whiteboard', method: 'elements.get', input: {id: TIE_BREAK_MARKER}},
+          input: {rpcId: 'whiteboard', method: 'elements.get', input: {elementId: TIE_BREAK_MARKER}},
           since: released,
         })
         const secondMoved = secondObserver.mark()
