@@ -15,7 +15,7 @@ DOM-level behaviors used by primitives: the thread virtualizer with end-followin
 ## Invariants
 
 - `composer-draft-storage.ts:readComposerDraft` returns `null` for missing or unparseable data; restored attachments get status `requires-action`.
-- `composer-draft-storage.ts:writeComposerDraft` persists attachments only within a shared `MAX_PERSISTED_ATTACHMENT_CHARACTERS` (1,000,000) budget and ignores storage write errors.
+- `composer-draft-storage.ts:writeComposerDraft` persists attachments only within a shared `MAX_PERSISTED_ATTACHMENT_CHARACTERS` (1,000,000) budget and ignores storage write errors; `encodeAttachments` leaves out an attachment with no `File`, one over the budget, and one whose bytes cannot be read, and logs only the last with `console.error`, naming the file.
 - `use-composer-draft.ts:useComposerDraftPersistence` debounces writes by `DRAFT_WRITE_DELAY_MS` (300); a cleared draft cancels the pending write and is written once immediately.
 - `use-composer-draft.ts:useComposerDraftPersistence` with a `writer` set: every change goes to the writer at once, with the attachments' `File`s and nothing encoded, and the kit writes no storage, debounces nothing and flushes nothing of its own; the host owns when and where the draft is kept. A cleared draft reaches the writer only after a typed one. conciv's pane uses this to keep the draft in two copies, this browser's `conciv-drafts` first and the engine second (see `apps/conciv/src/pane/README.md`).
 - `create-thread-virtualizer.ts` keeps following the end only while the reader has not scrolled away (`ReaderInput`: `untouched`, `holding`, `touched`), and re-lands on the end after a scroll write while still on the landing offset.

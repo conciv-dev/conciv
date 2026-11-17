@@ -77,7 +77,10 @@ export type EncodableAttachment = Pick<BaseAttachment, 'id' | 'type' | 'name'> &
 
 async function encodeAttachment(attachment: EncodableAttachment, budget: number): Promise<PersistedAttachment[]> {
   if (!attachment.file) return []
-  const source = await fileToDataSource(attachment.file).catch(() => null)
+  const source = await fileToDataSource(attachment.file).catch((error: unknown) => {
+    console.error(`[conciv] could not read ${attachment.name}, so the saved draft leaves it out`, error)
+    return null
+  })
   if (!source || source.value.length > budget) return []
   return [
     {
