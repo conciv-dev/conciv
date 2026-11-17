@@ -687,6 +687,31 @@ describe('chat pane', () => {
     expect(replies().elements()).toHaveLength(1)
   })
 
+  test('a turn the engine started that fails before any reply keeps the message and shows its error, not a failed load', async () => {
+    const {sessionId} = await newSession()
+    mountChatPane(sessionId)
+    const typed = 'a turn the agent never answers'
+    const failure = 'unexpected status 401 Unauthorized'
+    const runError = () =>
+      page.getByRole('alert').filter({hasText: failure, has: page.getByRole('button', {name: 'Retry'})})
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    const refresh = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await coreControl.scriptTurn({toolCalls: [], text: ''})
+    await coreControl.scriptError(failure)
+
+    await userEvent.click(input())
+    await userEvent.keyboard(`${typed}{Enter}`)
+    await coreControl.awaitFaultPending(refresh, 1)
+    await expect.element(notifications()).toMatchTextContent(new RegExp(failure))
+    await expect.element(stopButton()).not.toBeInTheDocument()
+
+    await expect.element(page.getByRole('log').getByText(typed, {exact: true})).toBeVisible()
+    await expect.element(runError()).toBeVisible()
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(input()).not.toHaveTextContent(typed)
+    await coreControl.releaseFault(refresh)
+  })
+
   test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {
     const {sessionId} = await newSession()
     await coreControl.holdTurn()
