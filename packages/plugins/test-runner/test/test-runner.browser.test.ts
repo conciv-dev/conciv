@@ -209,6 +209,12 @@ describe('the test card of the test-runner plugin', () => {
       await expect(failingTest).toBeVisible()
       await expect(failureText).toBeVisible()
 
+      await page.keyboard.press('Tab')
+      await page.keyboard.press('Enter')
+      await expect(failureText).toBeHidden()
+      await page.keyboard.press('Enter')
+      await expect(failureText).toBeVisible()
+
       await failFile.getByRole('button', {name: 'Fix this', exact: true}).click()
       await expect(composer).toContainText(`The test "this fails on purpose" in ${folder}/fail.test.ts is failing`)
     } finally {
