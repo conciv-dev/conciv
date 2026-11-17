@@ -7,7 +7,7 @@ import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
 import {REPLAY_MIN_EVENTS, recordingPoster, type RrwebEvent} from '../protocol.js'
 import type {CaptureState} from './boot.js'
-import {readRecordingVideo, saveFileToDisk} from './download.js'
+import {ExportVideoButton} from './export-video-button.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
@@ -32,7 +32,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
-  const [state, setState] = createStore({live: true, exporting: false, resetting: false, sending: false})
+  const [state, setState] = createStore({live: true, resetting: false, sending: false})
 
   const presence = (live: boolean): Promise<void> =>
     recorder()
@@ -108,23 +108,11 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const sendFailed = (): void =>
     void ctx.toast.show({title: 'Could not save the recording. Try again.', variant: 'error'})
 
-  const exportFailed = (): void =>
-    void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
-
-  const downloadVideo = async (): Promise<void> => {
-    setState('exporting', true)
-    try {
-      const saved = SavedRecording.safeParse(await recorder()['recordings.save']({clientId: props.clientId}))
-      if (!saved.success) {
-        exportFailed()
-        return
-      }
-      saveFileToDisk(await readRecordingVideo(ctx, props.clientId, saved.data.recordingId))
-    } catch {
-      exportFailed()
-    } finally {
-      setState('exporting', false)
-    }
+  const saveForExport = async (): Promise<string | undefined> => {
+    const saved = SavedRecording.safeParse(await recorder()['recordings.save']({clientId: props.clientId}))
+    if (saved.success) return saved.data.recordingId
+    ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
+    return undefined
   }
 
   const sendToAgent = async (): Promise<void> => {
@@ -217,15 +205,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
                 >
                   New recording
                 </ctx.ui.Button>
-                <ctx.ui.Button
-                  variant="neutral"
-                  size="small"
-                  disabled={state.exporting}
-                  busy={state.exporting}
-                  onClick={() => void downloadVideo()}
-                >
-                  {state.exporting ? 'Exporting…' : 'Export video'}
-                </ctx.ui.Button>
+                <ExportVideoButton clientId={props.clientId} recordingId={saveForExport} />
                 <div class="ml-auto flex gap-2 items-center">
                   <Show
                     when={state.live}
