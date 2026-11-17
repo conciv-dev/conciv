@@ -7,8 +7,10 @@ import {expect} from '@playwright/test'
 import type {Page} from 'playwright'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
+import {magicLink} from '@conciv/harness-testkit/login'
 import type {CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
+import {holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -26,7 +28,7 @@ const Exported = z.tuple([
   z.object({type: z.literal('image'), source: z.object({mimeType: z.string(), value: z.string()})}),
 ])
 
-const CanvasRead = z.object({elements: z.array(z.object({type: z.string()}).loose())})
+const CanvasRead = z.object({elements: z.array(z.object({id: z.string(), type: z.string()}).loose())})
 
 async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Promise<string[]> {
   const read = CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {scope}))
@@ -47,7 +49,7 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, converts what the agent draws, commits it and exports a PNG', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, and a second tab catches up after a reconnect', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -123,6 +125,59 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       const [, image] = Exported.parse(await widget.kit.callTool('whiteboard_canvas_export', {format: 'png'}))
       expect(image.source.mimeType).toBe('image/png')
       expect(image.source.value).toMatch(/^iVBORw0KGgo/)
+
+      const second = await browser.newPage()
+      try {
+        const secondObserver = rpcObserverFor(second)
+        const secondSocket = await holdRpcCalls(second)
+        await rpcSocketFor(second).installed
+        await second.goto(await magicLink(widget.kit.base, new URL('/', page.url()).href), {
+          waitUntil: 'domcontentloaded',
+        })
+        await second.setViewportSize({width: 1280, height: 800})
+        await expect(second.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+        await second.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+        await expect(second.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+        await secondObserver.completed({path: WHITEBOARD_CALL, input: {rpcId: 'whiteboard', method: 'elements.list'}})
+
+        await secondSocket.hold()
+        await widget.kit.callTool('whiteboard_canvas_draw', {
+          elements: [{id: 'drawn-while-away', type: 'diamond', x: 640, y: 160, width: 100, height: 100}],
+        })
+        expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
+        const reconnected = secondObserver.mark()
+        secondSocket.release()
+        await secondObserver.completed({
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'since'},
+          since: reconnected,
+          timeout: 30_000,
+        })
+        await secondObserver.completed({
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'elements.get', input: {id: 'drawn-while-away'}},
+          since: reconnected,
+        })
+
+        await second.mouse.click(120, 640)
+        const erased = secondObserver.mark()
+        await second.keyboard.press('ControlOrMeta+a')
+        await second.keyboard.press('Delete')
+        await secondObserver.completed({
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'elements.bulkUpsert'},
+          since: erased,
+        })
+        const erasedElements = CanvasRead.parse(await widget.kit.callTool('whiteboard_canvas_read', {}))
+        expect(erasedElements.elements.find((element) => element.id === 'drawn-while-away')).toMatchObject({
+          isDeleted: true,
+        })
+        expect(erasedElements.elements.filter((element) => element.type === 'rectangle')).not.toContainEqual(
+          expect.objectContaining({isDeleted: false}),
+        )
+      } finally {
+        await second.close()
+      }
     } finally {
       await widget.close()
     }
