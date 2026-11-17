@@ -6401,7 +6401,7 @@ describe('session selector', () => {
     await expect.element(doomedOption).toBeVisible()
     await rpc.sessions.delete({sessionId: doomed})
     await expect.element(doomedOption).not.toBeInTheDocument()
-    expect(await createBrowserDraftStore().getItem(doomed)).toBeNull()
+    expect(await createBrowserDraftStore().getItem(doomed)).toBe(JSON.stringify({text: 'left behind'}))
   })
 
   test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
