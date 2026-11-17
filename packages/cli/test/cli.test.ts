@@ -29,6 +29,7 @@ import {
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   TabOpenSchema,
+  TabsListingSchema,
 } from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -2419,6 +2420,77 @@ describe('cli', () => {
       } finally {
         await client.close()
         await survivor.engine.stop()
+      }
+    })
+
+    const listedRow = (engine: {root: string; sessionId: string}) => ({
+      tab: engine.sessionId,
+      root: engine.root,
+      href: `http://localhost${engine.root}`,
+      pageTitle: engine.root,
+      state: 'visible',
+      sessionTitle: expect.any(String),
+      lastActive: expect.any(String),
+      running: false,
+      harness: expect.any(String),
+      browserTabs: [
+        {id: expect.any(String), href: `http://localhost${engine.root}`, pageTitle: engine.root, state: 'visible'},
+      ],
+    })
+
+    it('an outside agent whose first call is list_tabs gets the open tabs of every engine', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home)
+      const client = await hub(home)
+      try {
+        expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
+          'discover_tools',
+          'execute_typescript',
+          'list_tabs',
+        ])
+        const [part] = DiscoverTextSchema.parse(ReplySchema.parse(await client.callTool('list_tabs', {})).content)
+        const listing = TabsListingSchema.parse(JSON.parse(part.text))
+        expect(listing.tabs).toHaveLength(2)
+        expect(listing).toEqual({
+          tabs: expect.arrayContaining([listedRow(first), listedRow(second)]),
+          unreachable: [],
+        })
+      } finally {
+        await client.close()
+        await Promise.all([first.engine.stop(), second.engine.stop()])
+      }
+    })
+
+    it('conciv tools tabs lists the open tabs of every engine without asking any tab', async () => {
+      const home = tempDir('conciv-home-')
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home)
+      const watched = new AbortController()
+      try {
+        const signal = AbortSignal.any([watched.signal, pages.signal])
+        const asked = Promise.all([
+          askRaised(first.page, first.sessionId, signal),
+          askRaised(second.page, second.sessionId, signal),
+        ])
+        const listed = new Promise<unknown>((resolve) =>
+          execFile(
+            process.execPath,
+            [bin, 'tools', 'tabs'],
+            {cwd: tempDir('conciv-elsewhere-'), env: {CONCIV_HOME: home}},
+            (_error, stdout) => resolve(JSON.parse(stdout)),
+          ),
+        )
+        const outcome = await Promise.race([listed, asked])
+        expect(outcome).toEqual({
+          ok: true,
+          data: {tabs: expect.arrayContaining([listedRow(first), listedRow(second)]), unreachable: []},
+        })
+        expect(z.object({data: z.object({tabs: z.array(z.unknown())})}).parse(outcome).data.tabs).toHaveLength(2)
+      } finally {
+        watched.abort()
+        await Promise.all([first.engine.stop(), second.engine.stop()])
       }
     })
 
