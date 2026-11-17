@@ -21,6 +21,7 @@ export type ComposerInputAdapterProps = {
   placeholder: string
   inputLabel: string
   editableClass?: string
+  disabled?: boolean
   addAttachmentOnPaste?: boolean
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
@@ -72,6 +73,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onSelectionChange={props.onSelectionChange}
         placeholder={props.placeholder}
         label={props.inputLabel}
+        disabled={props.disabled}
         editableClass={props.editableClass}
         onPaste={consumeFilePaste}
         onBackspaceAtStart={removeLastAttachment}
