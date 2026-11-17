@@ -1597,6 +1597,40 @@ describe('api page open source', () => {
       expect(await asked).toEqual({status: 'opened'})
       expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
     })
+
+    it('a page plugin call from a tab while the plugins are still starting answers once they are active', async () => {
+      const entered = Promise.withResolvers<void>()
+      const gate = Promise.withResolvers<void>()
+      const served = Promise.withResolvers<string>()
+      onTestFinished(() => gate.resolve())
+      const holder = Plugin.define({
+        id: 'activation-holder',
+        async setup() {
+          entered.resolve()
+          await gate.promise
+        },
+      })
+      const setup = createTestkit(requireClaude(), async (env) => {
+        const made = await bootMadeApp(env, {cwd: tmpdir(), plugins: [holder]})
+        return {
+          ...made,
+          fetch: (...input: Parameters<MadeApp['fetch']>) => {
+            const url = new URL(input[0].url)
+            served.resolve(`${url.origin}/t/${made.agentToken}`)
+            if (url.pathname.endsWith('/rpc/plugin/call')) gate.resolve()
+            return made.fetch(...input)
+          },
+        }
+      }).setup()
+      onTestFinished(async () => (await setup).cleanup())
+      await entered.promise
+      const asked = makeRpcClient(await served.promise).plugin.call({
+        rpcId: 'experimental.page',
+        method: 'sessions.attached',
+        input: {},
+      })
+      expect(await asked).toEqual([])
+    })
   })
 })
 
