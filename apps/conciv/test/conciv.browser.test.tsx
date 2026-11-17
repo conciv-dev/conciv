@@ -5855,6 +5855,25 @@ describe('engine login', () => {
     expect(await createBrowserDraftStore().keys()).toEqual([])
   }, 30_000)
 
+  test('a draft save the engine refuses because this browser was revoked locks the panel and raises no unsaved notice', async () => {
+    const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+    await faults.install({kind: 'detached-sockets'})
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
+
+    await userEvent.click(editor())
+    await userEvent.keyboard('typed as the revoke lands')
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await userEvent.click(reloginNotice().getByRole('button', {name: 'Log in'}))
+    await expect.element(dialog()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(dialog()).not.toBeInTheDocument()
+
+    await expect.element(reloginNotice()).toBeVisible()
+    await expect.element(unsaved).not.toBeInTheDocument()
+  }, 30_000)
+
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
     const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
