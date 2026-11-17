@@ -1,12 +1,11 @@
 import {For, Show, type JSX} from 'solid-js'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CHIP, CodeBlock} from '@conciv/ui-kit-chat/tools'
+import {CHIP, CodeBlock, SUNKEN_SURFACE} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './cards/shared.js'
 import {formatHtml} from './page-format.js'
 
 const HTML_CLASS = 'max-h-80 max-w-full block'
-const LIST =
-  'm-0 p-0 list-none rounded-[var(--chat-radius-sm)] max-h-[13.75rem] w-full [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto'
+const LIST = `m-0 p-0 list-none max-h-[13.75rem] w-full ${SUNKEN_SURFACE} overflow-auto`
 const LIST_ITEM = `text-[length:var(--chat-text-xs)] ${LIST_ROW_CLASS}`
 const ROLE =
   'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-accent-link)] [font-family:var(--chat-mono)]'

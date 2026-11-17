@@ -3,6 +3,7 @@ import {cva} from 'class-variance-authority'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import {codeBlockOptions, codeBlockFileChromeOptions, codeLineOptions} from '../primitives/tool-presentation.js'
 import {useEmbeddedCard} from './card-chrome.js'
+import {useInsideSurface} from '../../styled/trace/output-block.js'
 import {codeTheme} from '../../theme/code-theme.js'
 
 function blessedDiffOptions(): FileDiffOptions<undefined, undefined> {
@@ -15,7 +16,11 @@ function blessedDiffOptions(): FileDiffOptions<undefined, undefined> {
   }
 }
 
-const codeBlock = cva('block w-full min-w-0 overflow-auto [background:transparent] [font-family:var(--chat-mono)]', {
+export const SUNKEN_SURFACE = 'bg-chat-sunken border border-chat-line-soft rounded-chat-sm'
+
+const PAINTLESS_HIGHLIGHT = '[--shiki-background:transparent]'
+
+const codeBlock = cva(`block w-full min-w-0 overflow-auto ${PAINTLESS_HIGHLIGHT} [font-family:var(--chat-mono)]`, {
   variants: {
     size: {
       xs: 'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)]',
@@ -26,17 +31,21 @@ const codeBlock = cva('block w-full min-w-0 overflow-auto [background:transparen
       log: 'max-h-80',
       none: '',
     },
+    surface: {
+      sunken: SUNKEN_SURFACE,
+      inherited: '',
+    },
     chrome: {
       plain: '[--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
       file: '',
       line: 'whitespace-nowrap [--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
     },
   },
-  defaultVariants: {size: 'xs', maxHeight: 'result', chrome: 'plain'},
+  defaultVariants: {size: 'xs', maxHeight: 'result', chrome: 'plain', surface: 'sunken'},
 })
 
 const diffBlock = cva(
-  'block w-full min-w-0 max-h-80 overflow-auto [background:transparent] [font-family:var(--chat-mono)]',
+  `block w-full min-w-0 max-h-80 overflow-auto ${SUNKEN_SURFACE} ${PAINTLESS_HIGHLIGHT} [font-family:var(--chat-mono)]`,
   {
     variants: {
       size: {
@@ -57,10 +66,11 @@ export function CodeBlock(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'class'])
   const embedded = useEmbeddedCard()
+  const surface = useInsideSurface() ? 'inherited' : 'sunken'
   const chrome = (): 'plain' | 'file' | 'line' => local.chrome ?? 'plain'
   const cap = (): 'result' | 'log' | 'none' => (embedded() ? 'none' : (local.maxHeight ?? 'result'))
   const blockClass = (): string =>
-    `${codeBlock({size: local.size ?? 'xs', maxHeight: cap(), chrome: chrome()})} ${local.class ?? ''}`
+    `${codeBlock({size: local.size ?? 'xs', maxHeight: cap(), chrome: chrome(), surface})} ${local.class ?? ''}`
   const options = createMemo(() => {
     if (chrome() === 'file') return codeBlockFileChromeOptions()
     return chrome() === 'line' ? codeLineOptions() : codeBlockOptions()

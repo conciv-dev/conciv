@@ -1,7 +1,7 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, SUNKEN_SURFACE, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from '../page-result-views.js'
 import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError} from './shared.js'
 
@@ -13,8 +13,7 @@ const LINE_FORMAT = new Intl.NumberFormat()
 const LINE_PLURAL = new Intl.PluralRules('en')
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
-const LIST =
-  'm-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
+const LIST = `m-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto text-[length:var(--chat-text-xs)] ${SUNKEN_SURFACE}`
 const LEVEL = 'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [font-family:var(--chat-mono)]'
 const LEVEL_QUIET = `${LEVEL} [color:var(--chat-text-3)]`
 const LEVEL_DANGER = `${LEVEL} text-chat-danger`
