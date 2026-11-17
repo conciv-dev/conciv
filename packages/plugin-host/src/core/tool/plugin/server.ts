@@ -156,11 +156,6 @@ export const Plugin = {
         await current.restart(input.force ?? false)
         return {ok: true}
       })
-    yield* ctx.agent.transform((editor) =>
-      editor
-        .list()
-        .forEach((agent) => agent.permissions.push({action: 'server_restart', resource: '*', effect: 'ask'})),
-    )
     yield* ctx.tool
       .transform((editor) => {
         editor.namespace({
@@ -221,6 +216,7 @@ export const Plugin = {
                 action: 'server_restart',
                 resources: [bundler.id],
                 save: [bundler.id],
+                fallback: 'ask',
                 ...Permission.invocation(context),
               })
               return yield* toolAnswer(restart(input))

@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import type {RecorderControl} from '../shared/protocol.js'
+import type {RecorderControl} from './protocol.js'
 
 type AppendSource = {
   onAppend(listener: () => void): () => void

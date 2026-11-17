@@ -1,12 +1,6 @@
 import {Rpc} from '@conciv/plugin/rpc'
 import {z} from 'zod'
-import {
-  MAX_FLUSH_BYTES,
-  RecorderControlSchema,
-  RrwebEventSchema,
-  jsonByteLength,
-  recorderConfig,
-} from './shared/protocol.js'
+import {MAX_FLUSH_BYTES, RecorderControlSchema, RrwebEventSchema, jsonByteLength, recorderConfig} from './protocol.js'
 
 const ClientId = z.string().min(1).max(128)
 

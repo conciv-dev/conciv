@@ -407,7 +407,7 @@ export type MadeApp = {
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
   pluginHost: PluginHost
-  startPlugins: () => Promise<void>
+  awaitActivation: () => Promise<void>
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -680,9 +680,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         ),
       ),
     )
-  const reportToolCollision = memoize((name: string) =>
-    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
-  )
+  const extensionFor = (name: string): string | undefined =>
+    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
+  const reportToolCollision = memoize((name: string) => {
+    const extension = extensionFor(name)
+    if (extension === undefined)
+      return logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`)
+    return logError(
+      `[core] the plugin tool "${name}" is left out: extension "${extension}" already has a tool with that name`,
+    )
+  })
   const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
@@ -691,9 +698,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
-
-  const extensionFor = (name: string): string | undefined =>
-    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
 
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
@@ -812,6 +816,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
+    driving: (sessionId) => plane.driving(sessionId),
     outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
         await withPluginTools(sessionId, [
@@ -926,12 +931,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await ensureConfiguredRows(rows, opts.cfg).catch(async (error: unknown) => {
-    await dispose().catch((failure: unknown) =>
-      logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
-    )
-    throw error
-  })
+  await ensureConfiguredRows(rows, opts.cfg)
+    .then(plugins.supervise)
+    .catch(async (error: unknown) => {
+      await dispose().catch((failure: unknown) =>
+        logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+      )
+      throw error
+    })
 
   return {
     app,
@@ -944,7 +951,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
     pluginHost,
-    startPlugins: plugins.startPlugins,
+    awaitActivation: plugins.awaitActivation,
   }
 }
 

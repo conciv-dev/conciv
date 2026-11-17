@@ -26,6 +26,7 @@ import {
   type ConnectConnectionAdapter,
 } from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
+import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {Thread} from '../src/styled/thread.js'
 import {ActionButton} from '../src/tools/styled/action-row.js'
@@ -42,6 +43,7 @@ import {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
   createTextAttachmentAdapter,
+  type AttachmentAdapter,
   type CompleteAttachment,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
@@ -270,8 +272,13 @@ describe('attachment image viewer', () => {
     return <></>
   }
 
-  function mountComposer(files: File[]): void {
-    const adapter = composeAttachmentAdapters([createSimpleImageAttachmentAdapter(), createTextAttachmentAdapter()])
+  function mountComposer(
+    files: File[],
+    adapter: AttachmentAdapter = composeAttachmentAdapters([
+      createSimpleImageAttachmentAdapter(),
+      createTextAttachmentAdapter(),
+    ]),
+  ): void {
     render(() => {
       const chat = createChat({threadId: 'attachment-viewer', connection: storyConnection(untrack(() => undefined))})
       return (
@@ -348,6 +355,46 @@ describe('attachment image viewer', () => {
 
     await expect.element(page.getByRole('button', {name: `Open ${DOCUMENT}`})).not.toBeInTheDocument()
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('a refused image says why on its chip, by name and by a tooltip that opens on keyboard focus', async () => {
+    const tooLarge = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'huge.png', {type: 'image/png'})
+    const reason = `huge.png exceeds the ${MAX_ATTACHMENT_RAW_BYTES / (1024 * 1024)}MB image limit`
+    mountComposer([])
+
+    await userEvent.upload(page.getByRole('button', {name: 'Choose File'}), [tooLarge])
+
+    const refused = page.getByRole('button', {name: reason})
+    await expect.element(refused).toBeVisible()
+    await page.getByRole('textbox', {name: 'Message'}).click()
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+    await expect.element(page.getByRole('button', {name: 'Remove huge.png'})).toHaveFocus()
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+    await expect.element(refused).toHaveFocus()
+    await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
+    await expect.element(refused).toHaveAccessibleDescription(reason)
+  })
+
+  it('a refusal with an empty message still says why, by the file name', async () => {
+    const silentRefusal: AttachmentAdapter = {
+      accept: 'image/*',
+      add: async ({file}) => ({
+        id: 'silent',
+        type: 'image',
+        name: file.name,
+        file,
+        status: {type: 'incomplete', reason: 'error', message: ''},
+      }),
+      remove: async () => {},
+      send: async () => {
+        throw new Error('a refused attachment is never sent')
+      },
+    }
+    mountComposer([], silentRefusal)
+
+    await userEvent.upload(page.getByRole('button', {name: 'Choose File'}), [imageFile()])
+
+    await expect.element(page.getByRole('button', {name: `${IMAGE} could not be attached`})).toBeVisible()
   })
 
   it('a sent image tile opens the viewer too', async () => {
