@@ -124,8 +124,9 @@ plugins.
 
 ### `@conciv/plugin/experimental/builtin` (`experimental/builtin.ts`)
 
-The first-party tier, for conciv's own plugins only: `onIdle` and the `ToolCall` registry, which fills the body of a
-finished tool call's card (`ToolCallProps`).
+The first-party tier, for conciv's own plugins only: `onIdle` and the `ToolCall` registry, which either fills the body of a
+finished tool call's card (`render`, `ToolCallProps`) or draws the whole card while the call runs and after (`card`, the
+kit's `ToolCardView`, with the call's duration and page capture).
 
 ### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
 
@@ -362,7 +363,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - A `page.overlay` `Slot` item carries the conciv-only field `hides` (the widget hides while the overlay is up), because the host owns focus and layers as in opencode and this is the one thing a plugin states about its overlay; the plugin API has no layer registration, focus yielding or suppression.
 - The `NoteCard` registry is conciv-only, shaped like `CodeBlock` (`plugin/src/gui/registries.ts:719`), so a plugin can draw the inside of its own composer notes (a recording as a player); it is keyed by the note's existing `origin` field (`origins`, as `CodeBlock` lists `languages`), so the note type gains no field.
 - Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `TitlebarItem`, `Style`, `Theme` and its colour types.
-- `builtin.ts` ports `onIdle` and adds the built-in `ToolCall` registry (ruling). `ToolCallProps` follows `CodeBlockProps`: `tool`, `id`, `input`, `result` (`success` with `output`, or `error`), `session`; it is what a finished call has in conciv's tool card props (`ToolCardProps`, `packages/protocol/src/tool-view-types.ts:43`, through `ToolCard`, `packages/extension/src/types.ts:55`), without the card's `ctx`, `addResult`, `durationMs` and `capture`. Not ported: the legacy-key migration helpers `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (conciv has no shipped plugin keys to migrate), so `Entry.stores` is `Declarations.stores`; absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
+- `builtin.ts` ports `onIdle` and adds the built-in `ToolCall` registry (ruling). `ToolCallProps` follows `CodeBlockProps`: `tool`, `id`, `input`, `result` (`success` with `output`, or `error`), `session`; it is what a finished call has in conciv's tool card props (`ToolCardProps`, `packages/protocol/src/tool-view-types.ts:43`, through `ToolCard`, `packages/extension/src/types.ts:55`), without the card's `ctx`, `addResult`, `durationMs` and `capture`; the `card` form takes a `ToolCardView` as it is, so a built-in draws the whole card with all of them, and carries `streamTitle` and `display` as a `ToolCardEntry` does. Not ported: the legacy-key migration helpers `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (conciv has no shipped plugin keys to migrate), so `Entry.stores` is `Declarations.stores`; absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
 - `gui/file.ts`, `gui/review.ts`, `gui/browser.ts`, `gui/updater.ts` are not ported: they are contracts of opencode's own built-in plugins, and the audit has no row for any of them.
 
 ### Server registry
