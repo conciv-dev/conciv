@@ -11,6 +11,7 @@ import {
   groupByFile,
   parseRunResult,
   pathTail,
+  relativePath,
   shortDuration,
   STATE_LABEL,
   type FileGroup,
@@ -222,7 +223,9 @@ function renderRun(ctx: Context, call: ToolCallProps): JSX.Element | undefined {
       result={result}
       canOpen={ctx.desktop !== undefined}
       onOpen={(error) => openFailure(ctx, error)}
-      onFix={(error) => ctx.screen.current()?.composer.insert(fixPrompt(error, pathTail(error.file)))}
+      onFix={(error) =>
+        ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, call.session.directory)))
+      }
     />
   )
 }

@@ -216,7 +216,7 @@ describe('the test card of the test-runner plugin', () => {
       await expect(failureText).toBeVisible()
 
       await failFile.getByRole('button', {name: 'Fix this', exact: true}).click()
-      await expect(composer).toContainText(`The test "this fails on purpose" in ${folder}/fail.test.ts is failing`)
+      await expect(composer).toContainText('The test "this fails on purpose" in fail.test.ts is failing')
     } finally {
       await widget.close()
     }
