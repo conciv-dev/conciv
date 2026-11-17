@@ -1,4 +1,4 @@
-import {untrack} from 'solid-js'
+import {createMemo, untrack} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
 import {createLatest, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
@@ -40,10 +40,8 @@ function restartMessage(cause: unknown): string {
 }
 
 export function createTerminalState(ctx: TerminalContext) {
-  const read = createLatest(
-    () => ctx.sessions.current()?.id,
-    (sessionId, signal) => readMeta(ctx, sessionId, signal),
-  )
+  const readSessionId = createMemo((previous: string | undefined) => ctx.sessions.current()?.id ?? previous)
+  const read = createLatest(readSessionId, (sessionId, signal) => readMeta(ctx, sessionId, signal))
   const [run, setRun] = createStore<TerminalRun>({generation: 0, restarting: false, live: null, failure: null})
 
   const meta = (sessionId: string) => (read.latest?.sessionId === sessionId ? read.latest.meta : undefined)
