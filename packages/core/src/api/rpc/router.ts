@@ -37,7 +37,14 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
-import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
+import {
+  askedPagePermission,
+  callPluginTool,
+  isPageTool,
+  pagePermissionAllows,
+  pluginSignature,
+  pluginSignatures,
+} from '../../runtime/plugin-signatures.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -130,6 +137,18 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
   const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session
+  const asked = askedPagePermission(name, input)
+  const allowed =
+    asked !== undefined &&
+    (await deps.pluginHost.runPromise(
+      pagePermissionAllows(scope.id, asked).pipe(
+        Effect.catchTag('Permission.BlockedError', (blocked) =>
+          Effect.fail(call.errors.APPROVAL_DENIED({message: blocked.message})),
+        ),
+      ),
+      {signal: call.signal},
+    ))
+  if (allowed) return
   const refusal = await deps.chat.plane.admitCall(scope.id, {toolName: name, input, publish: scope.stream.publish})
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }

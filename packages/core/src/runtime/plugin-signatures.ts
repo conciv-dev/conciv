@@ -2,10 +2,19 @@ import {Effect} from 'effect'
 import {z} from 'zod'
 import {keyBy, omit} from 'es-toolkit'
 import type {ToolCommandSignature} from '@conciv/contract'
-import {Agent, Permission, Plugin, PluginHooks, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
+import {
+  Agent,
+  Permission,
+  Plugin,
+  PluginHooks,
+  SessionErrors,
+  SessionSchema,
+  Tool,
+  ToolRuntime,
+} from '@conciv/plugin-host'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {currentToolDomain} from './permission-cards.js'
-import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
+import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE, type AskedPermission} from '@conciv/plugin-page/rpc'
 
 const ObjectSchema = z.looseObject({
   properties: z.record(z.string(), z.unknown()).optional(),
@@ -18,6 +27,34 @@ const pageOperations = keyBy(Operations, (operation) =>
 
 export function isPageTool(name: string): boolean {
   return CliTools[pageOperations[name]?.name ?? '']?.terminal === true
+}
+
+export function askedPagePermission(name: string, input: unknown) {
+  return CliTools[pageOperations[name]?.name ?? '']?.asks?.(input)
+}
+
+export function pagePermissionAllows(
+  sessionId: SessionId,
+  asked: AskedPermission,
+): Effect.Effect<
+  boolean,
+  Permission.BlockedError | SessionErrors.NotFoundError,
+  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface | Permission.Interface
+> {
+  return currentToolDomain(sessionId).pipe(
+    Effect.flatMap(({agent}) =>
+      Permission.Service.use((permission) => {
+        const input: Permission.AssertInput = {
+          ...asked,
+          sessionId: SessionSchema.Id.make(sessionId),
+          agent,
+          save: ['*'],
+          fallback: 'ask',
+        }
+        return permission.assertNotDenied(input).pipe(Effect.andThen(permission.allows(input)))
+      }),
+    ),
+  )
 }
 
 function cliInput(schema: unknown) {
@@ -44,7 +81,7 @@ function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonl
       positional: entry.positional,
       mutating: operation.mutating,
       reachable: true,
-      approval: entry.asks ? 'ask' : undefined,
+      approval: entry.asks === undefined ? undefined : 'ask',
       inputSchema: cliInput(definition.inputSchema),
       outputSchema: definition.outputSchema,
       errors: [],

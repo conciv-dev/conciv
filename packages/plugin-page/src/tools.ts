@@ -3,15 +3,7 @@ import {z} from 'zod'
 import {Tool, type Plugin, type ToolContext} from '@conciv/plugin'
 import {raise, type Connection} from './connection.js'
 import * as Files from './files.js'
-import {
-  ASKING_OPERATION,
-  Operations,
-  PAGE_NAMESPACE,
-  type Action,
-  type File,
-  type Operation,
-  type Result,
-} from './rpc.js'
+import {CliTools, Operations, PAGE_NAMESPACE, type Action, type File, type Operation, type Result} from './rpc.js'
 import * as PageSkill from './skill.js'
 import {symbolicateFrames} from './symbolicate.js'
 
@@ -51,10 +43,10 @@ export async function register(
 ) {
   const asked = async (operation: Operation, input: unknown, tool: ToolContext): Promise<Tool.Result> => {
     const action = operation.action.parse({...JsonObject.safeParse(input).data, type: operation.name})
-    if (action.type === ASKING_OPERATION)
+    const permission = CliTools[operation.name]?.asks?.(action)
+    if (permission !== undefined)
       await ctx.permission.assert({
-        action: 'page_eval',
-        resources: [action.code],
+        ...permission,
         save: ['*'],
         fallback: 'ask',
         metadata: action,
