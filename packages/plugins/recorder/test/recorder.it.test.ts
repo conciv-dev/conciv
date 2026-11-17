@@ -276,6 +276,27 @@ describe('sending a recording to the agent', () => {
           .filter({hasText: /Screen recording · \d+ actions? · \d+s/}),
       ).toBeVisible({timeout: 30_000})
       await expect(notes().getByRole('button', {name: 'Remove Screen recording', exact: true})).toBeVisible()
+
+      await notes().getByRole('button', {name: 'Play', exact: true}).click()
+      const replayDialog = page.getByRole('dialog', {name: 'Screen recording replay', exact: true})
+      await expect(replayDialog.getByText(/Screen recording · \d+ actions? · \d+s/)).toBeVisible({timeout: 30_000})
+      await expect(replayDialog.getByRole('button', {name: 'Export video', exact: true})).toBeVisible()
+      await expect(
+        replayDialog.frameLocator('iframe').getByRole('button', {name: 'Pressed by the user', exact: true}),
+      ).toBeAttached({timeout: 30_000})
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+      await expect(replayDialog).toBeHidden()
+
+      const editor = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await editor.click()
+      await page.keyboard.press('Enter')
+      await expect(notes()).toBeHidden({timeout: 30_000})
+      const sentNotes = page.getByRole('list', {name: 'Notes on this message'})
+      await expect(sentNotes.getByText(/Screen recording · \d+ actions? · \d+s/)).toBeVisible({timeout: 30_000})
+      await sentNotes.getByRole('button', {name: 'Play', exact: true}).click()
+      await expect(replayDialog).toBeVisible()
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+      await expect(replayDialog).toBeHidden()
     } finally {
       await widget.close()
     }
