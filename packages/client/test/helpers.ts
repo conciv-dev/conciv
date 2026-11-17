@@ -11,7 +11,6 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
       print: env.print,
       cfg: {
         enabled: true,
-        widgetUrl: undefined,
         stateRoot: env.stateRoot,
         harness: env.harness.id,
         harnessBin: undefined,

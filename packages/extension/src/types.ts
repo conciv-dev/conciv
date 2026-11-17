@@ -9,7 +9,7 @@ import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import type {SettingsSnapshot} from '@conciv/contract'
-import type {UpgradeWebSocket} from './rpc-mount.js'
+import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 

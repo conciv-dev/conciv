@@ -94,15 +94,37 @@ function readText(input: string | ChatMessage): string {
     .join('\n')
 }
 
+type Release = () => unknown
+
+async function settleInOrder(steps: Release[]): Promise<unknown[]> {
+  return steps.reduce<Promise<unknown[]>>(async (pending, step) => {
+    const failures = await pending
+    const [outcome] = await Promise.allSettled([Promise.resolve().then(step)])
+    return outcome?.status === 'rejected' ? [...failures, outcome.reason] : failures
+  }, Promise.resolve([]))
+}
+
+async function abandonSetup(error: unknown, steps: Release[]): Promise<never> {
+  const failures = await settleInOrder(steps)
+  if (failures.length === 0) throw error
+  throw new AggregateError([error, ...failures], 'testkit setup failed')
+}
+
 export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: TestkitOptions = {}): Testkit {
   const ownsStateRoot = options.stateRoot === undefined
   return {
     setup: async () => {
       const stateRoot = options.stateRoot ?? mkdtempSync(join(tmpdir(), 'conciv-kit-'))
+      const removeOwnedRoot = (): Promise<void> | undefined =>
+        ownsStateRoot ? rm(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50}) : undefined
       const printed: string[] = []
       const terminal = (): string => printed.join('\n')
-      const app = await boot({stateRoot, cwd: stateRoot, harness, print: (text) => printed.push(text)})
-      let served = await serveApp(app.fetch)
+      const app = await boot({stateRoot, cwd: stateRoot, harness, print: (text) => printed.push(text)}).catch(
+        (error: unknown) => abandonSetup(error, [removeOwnedRoot]),
+      )
+      let served = await serveApp(app.fetch).catch((error: unknown) =>
+        abandonSetup(error, [() => app.dispose(), removeOwnedRoot]),
+      )
       const token = app.agentToken
       const base = `${served.base}/t/${token}`
       const wsBase = `${served.wsBase}/t/${token}`
@@ -121,7 +143,9 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           body: JSON.stringify(body),
         })
       const resolve = async (id?: string): Promise<string> => (await rpc.sessions.resolve(id ? {id} : {})).sessionId
-      activeSession.id = await resolve()
+      activeSession.id = await resolve().catch((error: unknown) =>
+        abandonSetup(error, [() => browser.close(), () => served.close(), () => app.dispose(), removeOwnedRoot]),
+      )
       const sessionFor = async (session?: string): Promise<string> => session ?? activeSession.id
 
       const callTool = async (name: string, input: unknown, session?: string): Promise<unknown> =>
@@ -183,14 +207,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           sockets.closeAll()
           for (const abort of aborts) abort.abort()
           browser.close()
-          const closing = await Promise.allSettled([served.close()])
-          const disposing = await Promise.allSettled([app.dispose()])
-          const removing = await Promise.allSettled(
-            ownsStateRoot ? [rm(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})] : [],
-          )
-          const failures = [...closing, ...disposing, ...removing].flatMap((outcome) =>
-            outcome.status === 'rejected' ? [outcome.reason] : [],
-          )
+          const failures = await settleInOrder([() => served.close(), () => app.dispose(), removeOwnedRoot])
           if (failures.length > 0) throw new AggregateError(failures, 'testkit cleanup failed')
         },
       }

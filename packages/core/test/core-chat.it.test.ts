@@ -17,7 +17,7 @@ import {SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 import {readDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {start, type Engine} from '../src/start.js'
-import {assertTurnAndResume, requireClaude, bootKit, runTurn, runReal} from './helpers.js'
+import {assertTurnAndResume, requireClaude, bootKit, runTurn, runReal, removeTurnTranscripts} from './helpers.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('claude tanstack', () => {
@@ -277,6 +277,7 @@ describe('api mcp claude image', () => {
       'delivers an image to claude so the model sees its pixels',
       async () => {
         const kit = await bootKit()
+        const keepTranscripts = removeTurnTranscripts(requireClaude(), kit.stateRoot, 'claude-code.session-id')
         try {
           const events = await runTurn(
             kit,
@@ -292,6 +293,7 @@ describe('api mcp claude image', () => {
             },
             await kit.session(),
           )
+          keepTranscripts(events)
           expect(events.text().toLowerCase()).toContain('red')
         } finally {
           await kit.cleanup()

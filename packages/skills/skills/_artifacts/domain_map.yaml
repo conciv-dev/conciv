@@ -45,13 +45,13 @@ skills:
       - 'ConcivConfig and ConcivSettingsInit fields'
       - 'production-gating the widget with enabled'
     tasks:
-      - 'add @conciv/it to a Vite or Next.js build'
+      - 'add @conciv/it to a Vite, Next.js, webpack or Rspack build'
       - 'wire a manual createConciv/mountConciv setup for a bundler with no plugin'
       - 'pick and configure a harness (claude/codex)'
       - 'gate the widget out of a production build'
     failure_modes:
       - mistake: 'assuming Rollup/esbuild plugin entries boot the engine'
-        mechanism: 'those plugin entries are documented no-ops today; only Vite and Next.js inject the widget and boot the engine automatically.'
+        mechanism: 'those plugin entries are documented no-ops today; only Vite, Next.js, webpack and Rspack put the widget on the page and boot the engine automatically.'
         wrong_pattern: |
           import conciv from '@conciv/it/plugin/rollup'
           export default {plugins: [conciv()]}
@@ -256,8 +256,6 @@ coverage:
     - name: '@conciv/ui-kit-tap'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/ui-kit-terminal'
-      reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/extension-test-runner'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/extension-whiteboard'
       reason: 'internal to @conciv/it, not installed directly'

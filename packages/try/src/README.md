@@ -18,7 +18,7 @@ Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports
 ## Invariants
 
 - `workspace`, when given, must be exactly `.`; otherwise `resolveWorkspace` throws `workspace must be "." when provided` (`connect.ts`).
-- An unknown harness throws `unknown harness "<x>"; try claude, codex, gemini-cli, opencode or pi`; `harnessAdapter` overrides `harness` (`resolveAdapter`).
+- An unknown harness throws `conciv: unknown harness "<x>". Known harnesses: <registered ids>.` before the workspace is seeded, the same text `@conciv/core` `start` refuses it with; `harnessAdapter` overrides `harness` (`resolveAdapter`).
 - Seeding runs only when `workspace` is undefined (`connect.ts`).
 - Ports are tried from `CONNECT_FIRST_PORT` to `CONNECT_LAST_PORT` (`@conciv/protocol/connect-ports`); only `EADDRINUSE` moves to the next port, other errors are rethrown, and exhaustion throws `no free port between ...` (`connect.ts`).
 - Core starts with `accessToken: opts.token`, `allowedOrigins: [origin ?? 'https://conciv.dev']`, `extensions: [terminal]`, `port: {exact}`, a no-op `launchEditor` and `systemPrompt: CONNECT_SYSTEM_PROMPT` (`connect.ts`).

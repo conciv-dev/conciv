@@ -4,7 +4,8 @@ import type {TestRunnerManager} from './runner/contract.js'
 import {TestRunResultSchema} from './shared/events.js'
 import {ListResultSchema} from './rpc.js'
 
-const options = {namespace: 'test_runner', codemode: true}
+const codeMode = {namespace: 'test_runner', codemode: true}
+const direct = {namespace: 'test_runner', codemode: false}
 
 export function register(tool: ToolDomain, manager: TestRunnerManager) {
   return tool.transform((editor) => {
@@ -17,7 +18,7 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       description: 'List the test files without running them.',
       input: z.object({}),
       output: ListResultSchema,
-      options,
+      options: codeMode,
       execute: async () => ({output: await manager.list()}),
     })
     editor.add({
@@ -25,7 +26,7 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       description: 'Run every test, or only the test files whose path matches the pattern, and wait for the result.',
       input: z.object({pattern: z.string().optional()}),
       output: TestRunResultSchema,
-      options,
+      options: direct,
       execute: async ({pattern}) => ({output: await manager.run({patterns: pattern ? [pattern] : undefined})}),
     })
     editor.add({
@@ -33,7 +34,7 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       description: 'Read the result of the last finished run without starting one.',
       input: z.object({}),
       output: TestRunResultSchema,
-      options,
+      options: direct,
       execute: async () => ({output: manager.status()}),
     })
   })

@@ -14,6 +14,10 @@ import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/sta
 import {encodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {test as browserTest} from '@conciv/browser-fixture'
+import {createHash} from 'node:crypto'
+import type {Duplex} from 'node:stream'
+import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {watchPushWire} from '../src/push-wire.js'
 
 describe('core kit seams', () => {
   const STALENESS: EngineStaleness = {
@@ -365,6 +369,64 @@ describe('rpc faults by input', () => {
       } finally {
         await page.close()
         await served.close()
+      }
+    },
+    15_000,
+  )
+})
+
+describe('push wire', () => {
+  const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+
+  const handshakeAnswer = (key: string): string =>
+    [
+      'HTTP/1.1 101 Switching Protocols',
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      `Sec-WebSocket-Accept: ${createHash('sha1').update(`${key}${WEBSOCKET_GUID}`).digest('base64')}`,
+      '',
+      '',
+    ].join('\r\n')
+
+  browserTest(
+    'a push socket counts as live once it opens, not when its handshake is sent',
+    async ({browser}) => {
+      const upgraded = Promise.withResolvers<() => void>()
+      const upgrades: Duplex[] = []
+      const server = createServer((_request, response) => response.end('<!doctype html><meta charset="utf-8">'))
+      server.on('upgrade', (request, socket) => {
+        const key = request.headers['sec-websocket-key'] ?? ''
+        upgrades.push(socket)
+        upgraded.resolve(() => socket.write(handshakeAnswer(key)))
+      })
+      const bound = await listenLocal(server)
+      const page = await browser.newPage()
+      try {
+        await page.goto(bound.base)
+        const watch = watchPushWire(page)
+        const order: string[] = []
+        const live = watch.awaitLive().then(() => order.push('live'))
+        const requested = page.waitForEvent('websocket')
+        await page.evaluate(
+          (url) => {
+            const socket = new WebSocket(url)
+            socket.addEventListener('open', () => socket.send('{}'))
+          },
+          `${bound.base.replace('http:', 'ws:')}${PUSH_WS_PATH}`,
+        )
+        const answer = await upgraded.promise
+        await requested
+        expect(watch.opened()).toBe(1)
+        expect(watch.liveSockets()).toBe(0)
+        order.push('answered')
+        answer()
+        await live
+        expect(order).toEqual(['answered', 'live'])
+        expect(watch.liveSockets()).toBe(1)
+      } finally {
+        await page.close()
+        for (const socket of upgrades) socket.destroy()
+        await bound.close()
       }
     },
     15_000,

@@ -1,5 +1,6 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
-import {expect, it, afterEach, afterAll, beforeAll, describe, vi} from 'vitest'
+import {expect, it, afterEach, afterAll, beforeAll, describe, onTestFinished, vi} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {z} from 'zod'
 import {getHarness} from '@conciv/harness'
 import {harnessAvailable} from '../src/harness-available.js'
@@ -9,7 +10,7 @@ import {join} from 'node:path'
 import {spawn, type ChildProcess} from 'node:child_process'
 import {createTestkit, type BootApp} from '../src/create-testkit.js'
 import {Hono} from 'hono'
-import {rpcWebsocketRoute} from '@conciv/extension/rpc-mount'
+import {rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {upgradeWebSocket} from '@conciv/serve'
 import {createFakeHarness} from '../src/create-fake-harness.js'
@@ -285,6 +286,22 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
       chmodSync(locked.dir, 0o700)
       rmSync(kit.stateRoot, {recursive: true, force: true})
     }
+  })
+})
+
+describe('setup failure', () => {
+  it('a boot that throws rejects setup with its error, removes the root the kit made and keeps a root the caller passed', async () => {
+    const handed: string[] = []
+    const boot: BootApp = async (env) => {
+      handed.push(env.stateRoot)
+      throw new Error('boot failed')
+    }
+    onTestFinished(() => handed.forEach((root) => rmSync(root, {recursive: true, force: true})))
+    await expect(createTestkit(createFakeHarness(), boot).setup()).rejects.toThrow('boot failed')
+    expect(existsSync(handed[0] ?? '')).toBe(false)
+    const passed = tempDir('conciv-kit-passed-')
+    await expect(createTestkit(createFakeHarness(), boot, {stateRoot: passed}).setup()).rejects.toThrow('boot failed')
+    expect(existsSync(passed)).toBe(true)
   })
 })
 

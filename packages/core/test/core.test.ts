@@ -74,12 +74,13 @@ import {
   type SettingsStore,
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
+import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
   idleFailedEvent,
   readApprovalAsk,
   readApprovalSettled,
+  SESSION_DELETED_CODE,
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
@@ -88,6 +89,8 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
   CHAT_WS_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
   SessionId,
@@ -133,7 +136,7 @@ import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
-import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
@@ -171,6 +174,9 @@ import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
+import {until} from '@conciv/harness-testkit/until'
+import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import {createTtySessions, type TtySessions, type TtySink} from '../src/pty/pty-sessions.js'
 import coreManifest from '../package.json' with {type: 'json'}
 import {
   currentRow,
@@ -201,7 +207,7 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, makeChatFixture, requireClaude} from './helpers.js'
+import {bootMadeApp, makeChatFixture, requireClaude, requireTranscriptPath} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -863,7 +869,7 @@ describe('chat plane', () => {
 
   function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind}),
+      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -1014,6 +1020,29 @@ describe('config', () => {
       },
     ])
   })
+
+  it('refuses a harness id nothing registers at start, from options or CONCIV_HARNESS, naming it and every registered id, and binds nothing', async () => {
+    const known = listHarnesses()
+      .map((adapter) => adapter.id)
+      .join(', ')
+    const refusal = (id: string) => `conciv: unknown harness "${id}". Known harnesses: ${known}.`
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
+      onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
+    const fromOptions = bootEngine(root, {port: {exact: port}, options})
+    stopIfStarted(fromOptions)
+    await expect(fromOptions).rejects.toThrow(refusal('no-such-harness'))
+    process.env.CONCIV_HARNESS = 'no-such-env-harness'
+    const fromEnv = bootEngine(root, {port: {exact: port}})
+    stopIfStarted(fromEnv)
+    await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
+    expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
+  })
 })
 
 describe('local state files', () => {
@@ -1053,6 +1082,12 @@ describe('local state files', () => {
     writeFileSync(tools, 'export const b = 2')
     expect(probe()).toMatchObject({stale: true, changed: ['@conciv/tools']})
     expect(probe().fingerprint).not.toBe(fresh.fingerprint)
+    expect(loadedModules()).toEqual(
+      expect.arrayContaining([
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve'))},
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve/rpc'))},
+      ]),
+    )
   })
 
   describe('home db reads', () => {
@@ -3409,6 +3444,172 @@ describe('plugin host bus', () => {
       {sessionId: running, what: 'session.deleted with no run'},
       {sessionId: queueing, what: 'session.deleted with no run'},
     ])
+
+    const refused = await created()
+    await kit.rpc.sessions.delete({sessionId: refused})
+    const publishedToRefused: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(refused).stream.listen((chunk) => void publishedToRefused.push(chunk)))
+    const beforeRefusal = await made.plane.hydrate(refused)
+    const refusedTurn = await kit.turn('sent to a deleted session', {session: refused, runId: 'refused-run'})
+    const refusedEvents = await refusedTurn.done()
+    expect(refusedEvents.errors()).toHaveLength(1)
+    expect(
+      refusedEvents.all.flatMap((chunk) =>
+        chunk.type === ChatEventType.RUN_ERROR ? [{message: chunk.message, code: chunk.code}] : [],
+      ),
+    ).toEqual([{message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE}])
+    const sseRefusal = await kit.post(
+      CHAT_SSE_PATH,
+      {
+        threadId: refused,
+        runId: 'refused-sse-run',
+        messages: [{id: 'refused-sse-user', role: 'user', content: 'sent over SSE to a deleted session'}],
+        tools: [],
+        context: [],
+      },
+      refused,
+    )
+    const sseFrame = z.object({
+      type: z.string(),
+      name: z.string().optional(),
+      message: z.string().optional(),
+      code: z.string().optional(),
+    })
+    const sseFrames = (await sseRefusal.text())
+      .split('\n')
+      .flatMap((line) => (line.startsWith('data: ') ? [sseFrame.parse(JSON.parse(line.slice('data: '.length)))] : []))
+    expect(sseFrames).toEqual([
+      {type: ChatEventType.CUSTOM, name: 'run.accepted'},
+      {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    expect(await made.plane.followUp(refused, 'a page queue result after the delete')).toEqual({
+      kind: 'failed',
+      error: `session "${refused}" does not exist`,
+    })
+    const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
+    await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
+    await expect(made.plane.compact(refused)).rejects.toMatchObject({code: SESSION_DELETED_CODE})
+    await expect(kit.rpc.sessions.compact({sessionId: refused})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
+    expect(
+      await made.plane.admitCall(refused, {
+        toolName: 'an outside call',
+        input: {},
+        publish: made.runtime.forSession(refused).stream.publish,
+        until: AbortSignal.abort(),
+      }),
+    ).toEqual({reason: 'missing', message: `session "${refused}" does not exist`})
+    expect(publishedToRefused).toEqual([])
+    expect(heardBy(refused)).toEqual(['session.deleted with no run'])
+    const afterRefusal = await made.plane.hydrate(refused)
+    expect([afterRefusal.messages, afterRefusal.lastRun]).toEqual([beforeRefusal.messages, beforeRefusal.lastRun])
+
+    const resent = await created()
+    const keptTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'kept-run',
+      messageId: 'kept-message',
+    })
+    expect((await keptTurn.done()).errors()).toEqual([])
+    await kit.rpc.sessions.delete({sessionId: resent})
+    const beforeResend = await made.plane.hydrate(resent)
+    const resentTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'resent-run',
+      messageId: 'kept-message',
+    })
+    expect((await resentTurn.done()).errors()).toEqual([`session "${resent}" does not exist`])
+    const afterResend = await made.plane.hydrate(resent)
+    expect([afterResend.messages, afterResend.lastRun]).toEqual([beforeResend.messages, beforeResend.lastRun])
+
+    await kit.rpc.sessions.restore({sessionId: refused})
+    const restoredTurn = await kit.turn('sent after the restore', {session: refused, runId: 'restored-run'})
+    expect((await restoredTurn.done()).errors()).toEqual([])
+
+    const reused = await created()
+    await kit.rpc.sessions.delete({sessionId: reused})
+    const location = Schema.decodeSync(Location.Ref)({directory: made.chat.cwd})
+    expect(
+      await sessionKey(made).fail((sessions) =>
+        sessions.create({id: SessionSchema.Id.make(reused), title: 'a refused session on a deleted id', location}),
+      ),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: reused})
+    const reusedTurn = await kit.turn('sent after a plugin create on the deleted id was refused', {
+      session: reused,
+      runId: 'refused-create-run',
+    })
+    expect((await reusedTurn.done()).errors()).toEqual([`session "${reused}" does not exist`])
+
+    const listed = await created()
+    const listedNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, listed, harness.id, listedNative)
+    const transcript = requireTranscriptPath(harness)(made.chat.cwd, listedNative)
+    mkdirSync(dirname(transcript), {recursive: true})
+    writeFileSync(transcript, JSON.stringify({type: 'user', message: {content: 'a task written in the terminal'}}))
+    await kit.rpc.sessions.delete({sessionId: listed})
+    expect((await kit.rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(listed)
+    const listedTurn = await kit.turn('sent after a listing left the deleted id out', {
+      session: listed,
+      runId: 'listed-still-deleted-run',
+    })
+    expect((await listedTurn.done()).errors()).toEqual([`session "${listed}" does not exist`])
+
+    const neverSeen = SessionId.parse('conciv_never_seen_before_its_first_send')
+    const firstTurn = await kit.turn('the first message to an id no session had', {
+      session: neverSeen,
+      runId: 'never-seen-run',
+    })
+    expect((await firstTurn.done()).errors()).toEqual([])
+    expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
+
+    const quiet = await created()
+    const quietNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, quiet, harness.id, quietNative)
+    await kit.rpc.sessions.delete({sessionId: quiet})
+    const tombstone = currentRow(made.chat.db, quiet)
+    const quietTranscript = requireTranscriptPath(harness)(made.chat.cwd, quietNative)
+    mkdirSync(dirname(quietTranscript), {recursive: true})
+    writeFileSync(
+      quietTranscript,
+      JSON.stringify({
+        type: 'user',
+        message: {content: 'written in the terminal after the delete'},
+      }),
+    )
+    const quietHydration = await made.plane.hydrate(quiet)
+    expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+    expect(quietHydration.messages).toEqual([])
+    expect((await kit.rpc.chat.hydrate({sessionId: quiet})).messages).toEqual([])
+
+    const openBooted: MadeApp[] = []
+    const openKit = await createTestkit(harness, async (env) => {
+      const app = await bootMadeApp(env, {hubAccess: 'open'})
+      openBooted.push(app)
+      return app
+    }).setup()
+    onTestFinished(() => openKit.cleanup())
+    const openMade = openBooted[0]
+    if (openMade === undefined) throw new Error('the open hub access kit booted no app')
+    const outsideOnDeleted = SessionId.parse((await openKit.rpc.sessions.create(undefined)).sessionId)
+    await openKit.rpc.sessions.delete({sessionId: outsideOnDeleted})
+    const publishedOutside: ChatEvent[] = []
+    onTestFinished(
+      openMade.runtime.forSession(outsideOnDeleted).stream.listen((chunk) => void publishedOutside.push(chunk)),
+    )
+    const beforeOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    const outsideRpc = makeRpcClient(openKit.base, {
+      headers: {
+        [CONCIV_SESSION_HEADER]: outsideOnDeleted,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+      },
+    })
+    await expect(outsideRpc.registry.call({name: 'conciv_extensions', input: {verb: 'catalog'}})).rejects.toMatchObject(
+      {code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`},
+    )
+    expect(publishedOutside).toEqual([])
+    const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
   })
 })
 
@@ -4698,5 +4899,222 @@ describe('engine build keeps runtime packages external', () => {
     expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
     const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
     expect(existsSync(wasm)).toBe(true)
+  })
+})
+
+describe('pty sessions', () => {
+  const BASH = {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}
+
+  type SinkUpdate = {kind: 'data'; text: string} | {kind: 'control'; frame: TtyServerControl}
+
+  type Collected = {chunks: string[]; controls: TtyServerControl[]; sink: TtySink}
+
+  function collect(onUpdate: (update: SinkUpdate) => void = () => {}): Collected {
+    const chunks: string[] = []
+    const controls: TtyServerControl[] = []
+    return {
+      chunks,
+      controls,
+      sink: {
+        data: (chunk) => {
+          chunks.push(chunk)
+          onUpdate({kind: 'data', text: chunks.join('')})
+        },
+        control: (frame) => {
+          controls.push(frame)
+          onUpdate({kind: 'control', frame})
+        },
+      },
+    }
+  }
+
+  describe('pty sessions', () => {
+    const cleanups: TtySessions[] = []
+
+    const make = (options?: Parameters<typeof createTtySessions>[0]): TtySessions => {
+      const sessions = createTtySessions(options)
+      cleanups.push(sessions)
+      return sessions
+    }
+
+    afterEach(() => {
+      for (const sessions of cleanups.splice(0)) sessions.shutdown()
+    })
+
+    it('streams output and echoes input through a real pty', async () => {
+      const sessions = make()
+      const session = await sessions.open('s1', BASH, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('tty-roundtrip-42')) echoed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write('echo tty-roundtrip-$((40+2))\r')
+      expect(await echoed.promise).toContain('tty-roundtrip-42')
+    })
+
+    it('replays buffered bytes to a late attacher', async () => {
+      const sessions = make()
+      const session = await sessions.open('s2', BASH, process.cwd(), 'test-tty')
+      const marked = Promise.withResolvers<string>()
+      const early = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('replay-marker')) marked.resolve(update.text)
+      })
+      const detach = session.attach(early.sink)
+      session.write('echo replay-marker\r')
+      expect(await marked.promise).toContain('replay-marker')
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.chunks.join('')).toContain('replay-marker')
+    })
+
+    it('applies resize', async () => {
+      const sessions = make()
+      const session = await sessions.open('s3', BASH, process.cwd(), 'test-tty')
+      const sized = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('41 97')) sized.resolve(update.text)
+      })
+      session.attach(sink)
+      session.resize(97, 41)
+      session.write('stty size\r')
+      expect(await sized.promise).toContain('41 97')
+    })
+
+    it('reports exit to sinks and via exited()', async () => {
+      const sessions = make()
+      const session = await sessions.open('s4', BASH, process.cwd(), 'test-tty')
+      const exited = Promise.withResolvers<TtyServerControl>()
+      const {controls, sink} = collect((update) => {
+        if (update.kind === 'control' && update.frame.type === 'exit') exited.resolve(update.frame)
+      })
+      session.attach(sink)
+      session.write('exit 3\r')
+      expect(await exited.promise).toEqual({type: 'exit', code: 3})
+      expect(session.exited()).toEqual({code: 3})
+      expect(controls.some((frame) => frame.type === 'exit' && frame.code === 3)).toBe(true)
+    })
+
+    it('surfaces a spawn failure as an error control frame, not a crash', async () => {
+      const sessions = make()
+      const session = await sessions.open(
+        's6',
+        {bin: '/nonexistent/definitely-missing-bin', args: [], env: {}},
+        process.cwd(),
+        'test-tty',
+      )
+      const failed = Promise.withResolvers<TtyServerControl>()
+      const {sink} = collect((update) => {
+        if (update.kind !== 'control') return
+        if (update.frame.type === 'error' || update.frame.type === 'exit') failed.resolve(update.frame)
+      })
+      session.attach(sink)
+      expect((await failed.promise).type).toMatch(/^(error|exit)$/)
+    })
+
+    it('injects into live sinks and the replay buffer', async () => {
+      const sessions = make()
+      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const injected = Promise.withResolvers<string>()
+      const live = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+      })
+      const detach = session.attach(live.sink)
+      session.inject('conciv marker')
+      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+    })
+
+    it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {
+      const sessions = make()
+      const session = await sessions.open('s8', BASH, process.cwd(), 'test-tty')
+      const started = Promise.withResolvers<string>()
+      const resumed = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind !== 'data') return
+        if (update.text.includes('R2Y')) started.resolve(update.text)
+        if (update.text.includes('B6K')) resumed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write("bash -c 'echo R$((1+1))Y; exec sleep 30' && echo S$((5+5))P\r")
+      await started.promise
+      session.interrupt()
+      session.write('echo B$((3+3))K\r')
+      expect(await resumed.promise).not.toContain('S10P')
+    })
+
+    it('broadcasts OSC 9;4 busy transitions to attached sinks', async () => {
+      const sessions = make()
+      const session = await sessions.open('s9', BASH, process.cwd(), 'test-tty')
+      const turnedBusy = Promise.withResolvers<TtyServerControl>()
+      const turnedIdle = Promise.withResolvers<TtyServerControl>()
+      const {controls, sink} = collect((update) => {
+        if (update.kind !== 'control' || update.frame.type !== 'busy') return
+        if (update.frame.busy) turnedBusy.resolve(update.frame)
+        if (!update.frame.busy && controls.some((frame) => frame.type === 'busy' && frame.busy))
+          turnedIdle.resolve(update.frame)
+      })
+      session.attach(sink)
+      expect(controls).toEqual([{type: 'busy', busy: false}])
+      session.write('printf "\\033]9;4;1\\007"\r')
+      expect(await turnedBusy.promise).toEqual({type: 'busy', busy: true})
+      expect(session.busy()).toBe(true)
+      session.write('printf "\\033]9;4;0\\007"\r')
+      expect(await turnedIdle.promise).toEqual({type: 'busy', busy: false})
+      expect(session.busy()).toBe(false)
+      expect(controls.filter((frame) => frame.type === 'busy').map((frame) => frame.busy)).toEqual([false, true, false])
+    })
+
+    it('tells a late attacher the current busy state', async () => {
+      const sessions = make()
+      const session = await sessions.open('s10', BASH, process.cwd(), 'test-tty')
+      const turnedBusy = Promise.withResolvers<TtyServerControl>()
+      const early = collect((update) => {
+        if (update.kind === 'control' && update.frame.type === 'busy' && update.frame.busy) {
+          turnedBusy.resolve(update.frame)
+        }
+      })
+      const detach = session.attach(early.sink)
+      session.write('printf "\\033]9;4;1\\007"\r')
+      await turnedBusy.promise
+      expect(session.busy()).toBe(true)
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.controls.some((frame) => frame.type === 'busy' && frame.busy)).toBe(true)
+    })
+
+    it('debounces rapid interrupts so a double-Escape cannot send two ctrl-c', async () => {
+      const sessions = make()
+      const session = await sessions.open('s11', BASH, process.cwd(), 'test-tty')
+      const started = Promise.withResolvers<string>()
+      const resumed = Promise.withResolvers<string>()
+      const {chunks, sink} = collect((update) => {
+        if (update.kind !== 'data') return
+        if (update.text.includes('R2Y')) started.resolve(update.text)
+        if (update.text.includes('D4N')) resumed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write("bash -c 'echo R$((1+1))Y; exec sleep 30'\r")
+      await started.promise
+      session.interrupt()
+      session.interrupt()
+      session.write('echo D$((2+2))N\r')
+      await resumed.promise
+      const echoed = chunks.join('').match(/\^C/g) ?? []
+      expect(echoed.length).toBe(1)
+    })
+
+    it('evicts an idle session with no sinks', async () => {
+      const sessions = make({idleEvictMs: 100})
+      const session = await sessions.open('s5', BASH, process.cwd(), 'test-tty')
+      const detach = session.attach(collect().sink)
+      detach()
+      await until(() => sessions.get('s5') === undefined, {hangGuardMs: 3000})
+    })
   })
 })

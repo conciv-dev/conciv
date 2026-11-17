@@ -10,7 +10,6 @@
 '@conciv/extension-recorder': patch
 '@conciv/extension-tanstack': patch
 '@conciv/extension-terminal': patch
-'@conciv/extension-test-runner': patch
 '@conciv/extension-whiteboard': patch
 ---
 

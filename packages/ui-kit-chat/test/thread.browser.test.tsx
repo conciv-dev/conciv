@@ -356,7 +356,6 @@ describe('now line', () => {
     mountView(() => framed(<NowLine title="Running pnpm test" />))
 
     await expect.element(page.getByText('Running pnpm test', {exact: true})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/now-line/quiet-narration-line.png'})
     await expect.element(spinnerGlyph(), {timeout: TIMEOUT_MS}).toBeVisible()
   })
 
@@ -375,7 +374,6 @@ describe('now line', () => {
     const stop = page.getByRole('button', {name: 'Stop generating'})
     await expect.element(stop).toBeVisible()
     await expect.element(stop).toHaveTextContent('Stop')
-    await page.screenshot({path: '__screenshots__/now-line/with-stop.png'})
 
     await userEvent.click(stop)
     await expect.element(page.getByText('Running pnpm test', {exact: true})).toBeVisible()
@@ -773,7 +771,6 @@ describe('thinking narration', () => {
       .toBeVisible()
     await userEvent.click(traceTrigger())
     await expect.element(page.getByText('reasoning', {exact: true})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thinking-narration/reasoning-only-trace.png'})
   })
 
   const RUNNING_TOOL_CHUNKS = [
@@ -789,7 +786,6 @@ describe('thinking narration', () => {
     await userEvent.click(traceTrigger())
     await expect.element(traceTrigger()).toHaveAttribute('data-state', 'closed')
     await expect.element(page.getByText('Running ls', {exact: true}), {timeout: TIMEOUT_MS}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thinking-narration/collapsed-activity-line.png'})
 
     await haltRun()
   })
@@ -889,14 +885,11 @@ describe('thread session log', () => {
     const trigger = page.getByRole('button', {name: /trace/i})
     await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/thread-session-log/collapsed-record.png'})
 
     await trigger.click()
 
     await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
-    await new Promise((resolve) => setTimeout(resolve, 900))
-    await page.screenshot({path: '__screenshots__/thread-session-log/expanded-record.png'})
   })
 
   function messagesWithTwoSegments(): ChatMessage[] {
@@ -1026,7 +1019,6 @@ describe('thread session log', () => {
     mountView(() => <OutsideJourney />)
 
     await expect.element(page.getByText('Fixed the type on line 9, the build is green.'), {timeout: 3000}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thread-session-log/padding-normal-chat.png'})
 
     await page.getByRole('button', {name: 'outside agent drives the tab'}).click()
 
@@ -1039,7 +1031,6 @@ describe('thread session log', () => {
     await expect.element(page.getByText('from claude').nth(2)).toBeVisible()
     await expect.element(page.getByRole('button', {name: /Show trace/})).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: /Hide trace/})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/thread-session-log/padding-outside-calls.png'})
 
     const toolbars = page.getByRole('toolbar', {name: 'Message actions'})
     await expect.element(toolbars.nth(3)).toBeInTheDocument()
@@ -1049,7 +1040,6 @@ describe('thread session log', () => {
     await expect.element(outsideActions.getByRole('button', {name: 'Copy'})).toBeVisible()
     await expect.element(outsideActions.getByRole('button', {name: /Refresh|Reload/})).not.toBeInTheDocument()
     await expect.element(toolbars.nth(3).getByRole('button', {name: /Refresh|Reload/})).toBeVisible()
-    await page.screenshot({path: '__screenshots__/thread-session-log/padding-outside-copy-row.png'})
 
     await outsideActions.getByRole('button', {name: 'Copy'}).click()
     await expect.element(outsideActions.getByRole('status')).toHaveTextContent('Could not copy the message')
@@ -1084,7 +1074,6 @@ describe('thread session log', () => {
     expect(triggerIndex).toBeGreaterThan(firstTextIndex)
     expect(answerIndex).toBeGreaterThan(triggerIndex)
     expect(answerIndex).toBe(contentRows.length - 1)
-    await page.screenshot({path: '__screenshots__/thread-session-log/interleaved-turn-order.png'})
   })
 })
 
@@ -1785,5 +1774,65 @@ describe('same-count turn replacement', () => {
 
   it('repacks the rows when the same turns come back with shorter content', async () => {
     await replaceAndExpectPacked('')
+  })
+})
+
+describe('message articles', () => {
+  const LONG_PROMPT = 'rename the header component and move every one of its styles into the shared theme tokens'
+
+  function imagePart(name: string): ChatPart {
+    return {type: 'image', source: {type: 'url', value: `https://example.test/${name}.png`}}
+  }
+
+  function fileContents(): ChatPart {
+    const part: ChatPart = {type: 'text', content: 'export function Button() {}'}
+    return Object.assign(part, {metadata: {modelOnly: true}})
+  }
+
+  const messages: ChatMessage[] = [
+    {
+      id: 'u1',
+      role: 'user',
+      parts: [{type: 'text', content: '**Fix** the `button` in @src/button.tsx\nthen run the tests'}, fileContents()],
+    },
+    {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'The button is fixed.'}]},
+    {id: 'u2', role: 'user', parts: [imagePart('screen')]},
+    {id: 'a2', role: 'assistant', parts: [{type: 'text', content: 'That is the settings screen.'}]},
+    {id: 'u3', role: 'user', parts: [{type: 'text', content: LONG_PROMPT}]},
+    {id: 'a3', role: 'assistant', parts: [{type: 'text', content: 'The header is renamed.'}]},
+    {id: 'u4', role: 'user', parts: [imagePart('before'), imagePart('after')]},
+  ]
+
+  function ArticleThread(): JSX.Element {
+    const chat = createChat({threadId: 'message-articles', connection: storyConnection()})
+    onMount(() => chat.setMessages(messages))
+    return (
+      <ChatProvider chat={chat}>
+        <div class="flex flex-col h-[520px] w-[560px]">
+          <Thread>
+            <Thread.Viewport>
+              <Thread.Messages />
+            </Thread.Viewport>
+          </Thread>
+        </div>
+      </ChatProvider>
+    )
+  }
+
+  it('names each message by who wrote it and the prompt it belongs to', async () => {
+    mountView(() => <ArticleThread />)
+    const article = (name: string): Locator => page.getByRole('article', {name, exact: true})
+    const excerpt = `${LONG_PROMPT.slice(0, 60)}…`
+
+    await expect.element(article('You: Fix the button in @src/button.tsx')).toMatchTextContent('then run the tests')
+    await expect
+      .element(article('Reply to: Fix the button in @src/button.tsx'))
+      .toMatchTextContent('The button is fixed.')
+    await expect.element(article('You: image')).toBeVisible()
+    await expect.element(article('Reply')).toMatchTextContent('That is the settings screen.')
+    await expect.element(article(`You: ${excerpt}`)).toMatchTextContent(LONG_PROMPT)
+    await expect.element(article(`Reply to: ${excerpt}`)).toMatchTextContent('The header is renamed.')
+    await expect.element(article('You: 2 attachments')).toBeVisible()
+    await expect.element(page.getByRole('log').getByRole('article')).toHaveLength(7)
   })
 })
