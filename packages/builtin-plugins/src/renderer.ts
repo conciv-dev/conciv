@@ -18,5 +18,5 @@ export const builtins = compose({
   },
 })
 
-export {pageAttachmentCards, pageSessionEntry, pageToolCards} from './page/cards/page-tool-cards.js'
+export {pageAttachmentCards, pageSessionEntry} from './page/cards/page-tool-cards.js'
 export {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, builtinToolMeta} from './page/cards/page-tool-names.js'

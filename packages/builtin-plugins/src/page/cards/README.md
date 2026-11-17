@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from `@conciv/ui-kit-chat/tools` with a `hasEmbeddedBody` predicate. `page-tool-cards.ts` binds these views to the page tool names (`pageToolCards`) and wires `SessionCard` as the group entry for `PAGE_SESSION_GROUP_KEY` groups (`pageSessionEntry`); `src/renderer.ts` exports both for the app chat pane. `shared.tsx` holds the common payload, error and chip helpers. `session-steps.ts` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.ts` provides part, result and ctx builders that the `*.stories.tsx` files use.
+Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from `@conciv/ui-kit-chat/tools` with a `hasEmbeddedBody` predicate. `page-tool-cards.ts` binds these views to the page tool names as `ToolCall` card claims (`pageToolCalls`), which the page plugin adds in its setup, and wires `SessionCard` as the group entry for `PAGE_SESSION_GROUP_KEY` groups (`pageSessionEntry`), which `src/renderer.ts` exports for the app chat pane. `shared.tsx` holds the common payload, error and chip helpers. `session-steps.ts` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.ts` provides part, result and ctx builders that the `*.stories.tsx` files use.
 
 ## Interface
 

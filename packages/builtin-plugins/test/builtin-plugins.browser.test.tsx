@@ -1576,8 +1576,8 @@ describe('the page contracts another plugin reads', () => {
 
 describe('the page cards in the chat', () => {
   it('draws a page call as its own card, and every page tool has one', async () => {
-    const {pageToolCards} = await import('../src/renderer.js')
-    const claimed = pageToolCards.flatMap((card) => card.names).toSorted()
+    const {pageToolCalls} = await import('../src/page/cards/page-tool-cards.js')
+    const claimed = pageToolCalls.flatMap((call) => call.tools).toSorted()
     const uncarded = ['queue_async', 'tabs.list', 'fill_form']
     const drawn = Operations.flatMap((operation) =>
       uncarded.includes(operation.name) ? [] : [`${PAGE_NAMESPACE}_${operation.name}`],
@@ -1599,7 +1599,8 @@ describe('the page cards in the chat', () => {
       state: 'complete',
     }
     const ctx = {...INERT_TOOL_CTX, catalog: {loaded: () => true, meta: () => undefined}}
-    render(() => <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => pageToolCards} />)
+    const pageCards = pageToolCalls.map((call) => ({...call.card, names: call.tools}))
+    render(() => <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => pageCards} />)
     await expect.element(page.getByRole('treeitem', {name: 'pathname: "/checkout"'})).toBeVisible()
   })
 })

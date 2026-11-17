@@ -1,4 +1,4 @@
-import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import type {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {PAGE_SESSION_GROUP_KEY, type AttachmentCardSlot, type GroupEntry} from '@conciv/ui-kit-chat'
 import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {actCard} from './act-card.js'
@@ -16,15 +16,15 @@ function pageNames(verbs: string[]): string[] {
   return verbs.map((verb) => `${PAGE_TOOL_PREFIX}${verb}`)
 }
 
-export const pageToolCards: ToolCardEntry[] = [
-  {...readValueCard, names: pageNames(['route', 'exists', 'screenshot', 'hmr', 'text', 'value', 'attr'])},
-  {...consoleCard, names: pageNames(['console'])},
-  {...readBulkCard, names: pageNames(['dom', 'query', 'snapshot'])},
-  {...reactCard, names: pageNames(['locate', 'inspect', 'override', 'tree', 'find', 'track'])},
-  {...effectCard, names: pageNames(['effect'])},
+export const pageToolCalls = [
+  {card: readValueCard, tools: pageNames(['route', 'exists', 'screenshot', 'hmr', 'text', 'value', 'attr'])},
+  {card: consoleCard, tools: pageNames(['console'])},
+  {card: readBulkCard, tools: pageNames(['dom', 'query', 'snapshot'])},
+  {card: reactCard, tools: pageNames(['locate', 'inspect', 'override', 'tree', 'find', 'track'])},
+  {card: effectCard, tools: pageNames(['effect'])},
   {
-    ...actCard,
-    names: pageNames([
+    card: actCard,
+    tools: pageNames([
       'wait',
       'reload',
       'click',
@@ -40,8 +40,8 @@ export const pageToolCards: ToolCardEntry[] = [
     ]),
   },
   {
-    ...editLiveCard,
-    names: pageNames([
+    card: editLiveCard,
+    tools: pageNames([
       'setattr',
       'removeattr',
       'addclass',
@@ -55,7 +55,7 @@ export const pageToolCards: ToolCardEntry[] = [
       'eval',
     ]),
   },
-]
+] satisfies ToolCall[]
 
 export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: SessionCard}
 

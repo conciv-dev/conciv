@@ -65,7 +65,8 @@ import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conc
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import {PAGE_TOOL_PREFIX, builtinToolMeta, pageToolCards} from '@conciv/builtin-plugins/renderer'
+import {PAGE_TOOL_PREFIX, builtinToolMeta} from '@conciv/builtin-plugins/renderer'
+import {createPluginToolCards} from '../src/pane/plugin-tool-cards.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -3161,6 +3162,36 @@ describe('page session card', () => {
   const core = bootedCore('page-session-card')
   const keep = keptPane()
 
+  test('a built-in page card wins over builtinToolCards for the same tool', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const click: ToolCallPart = {
+      type: 'tool-call',
+      id: 'd1',
+      name: 'page_click',
+      arguments: JSON.stringify({selector: '#cta'}),
+      input: {selector: '#cta'},
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={click}
+            result={undefined}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await page.getByRole('button', {name: /^page_click/}).click()
+    await expect.element(page.getByText('#cta')).toBeVisible()
+    expect(document.body.textContent).not.toContain('Called page_click')
+  })
+
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
@@ -5898,10 +5929,6 @@ describe('tool card dispatch', () => {
     render(child)
   }
 
-  function part(name: string, input: Record<string, unknown> = {}): ToolCallPart {
-    return {type: 'tool-call', id: 'd1', name, arguments: JSON.stringify(input), input, state: 'complete'}
-  }
-
   function askingPart(input: Record<string, unknown>): ToolCallPart {
     return {
       type: 'tool-call',
@@ -5918,23 +5945,6 @@ describe('tool card dispatch', () => {
   }
 
   const allTools = () => [...concivToolCards, ...builtinToolCards]
-
-  it('a built-in page card wins over builtinToolCards for the same tool', async () => {
-    const tools = [...pageToolCards, ...builtinToolCards]
-
-    mount(() => (
-      <ToolCallCard
-        part={part('page_click', {selector: '#cta'})}
-        result={undefined}
-        ctx={INERT_TOOL_CTX}
-        tools={() => tools}
-      />
-    ))
-
-    await browserPage.getByRole('button').click()
-    await expect.element(browserPage.getByText('#cta')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Called page_click')
-  })
 
   it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
     mount(() => (
@@ -6000,12 +6010,7 @@ describe('wire name coverage', () => {
     'ToolSearch',
   ]
 
-  const concivOwnedCards: ToolCardEntry[] = [
-    ...pageToolCards,
-    ...concivToolCards,
-    ...coreToolCards,
-    ...builtinToolCards,
-  ]
+  const concivOwnedCards: ToolCardEntry[] = [...concivToolCards, ...coreToolCards, ...builtinToolCards]
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
