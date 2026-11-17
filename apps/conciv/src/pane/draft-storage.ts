@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {differenceBy, intersectionBy, isEqual} from 'es-toolkit'
+import {differenceBy, intersectionBy, isEqual, union} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
@@ -73,6 +73,7 @@ const LocalDraftSchema = z.object({
   selectionEnd: z.number(),
   attachments: z.array(LocalAttachmentSchema),
   syncedAt: z.number().optional(),
+  sent: z.array(z.number()).default([]),
 })
 
 type LocalAttachment = z.infer<typeof LocalAttachmentSchema>
@@ -94,6 +95,7 @@ function rowLocalDraft(row: DraftRow): LocalDraft {
     selectionEnd: row.selectionEnd,
     attachments: row.attachments.map(({id, type, name, contentType}) => ({id, type, name, contentType})),
     syncedAt: row.updatedAt,
+    sent: [],
   }
 }
 
@@ -183,18 +185,23 @@ function makeLocalDraftWriter(
     const row = appData.cachedDraft(sessionId)
     if (!draft || !sendable() || sameAsRow(draft, row) || (row === null && isEmptied(draft))) return
     const updatedAt = Date.now()
-    void appData
-      .saveDraft({
-        sessionId,
-        text: draft.text,
-        selectionStart: draft.selectionStart,
-        selectionEnd: draft.selectionEnd,
-        attachments: [],
-        pending: [...unwrap(document.files)],
-        updatedAt,
-      })
+    setDocument('draft', 'sent', (sent) => union(sent, [updatedAt]))
+    const recorded = structuredClone(unwrap(draft))
+    const pending = [...unwrap(document.files)]
+    void keepLocally(drafts, sessionId, recorded)
+      .then(() =>
+        appData.saveDraft({
+          sessionId,
+          text: recorded.text,
+          selectionStart: recorded.selectionStart,
+          selectionEnd: recorded.selectionEnd,
+          attachments: [],
+          pending,
+          updatedAt,
+        }),
+      )
       .then((saved) => {
-        if (saved) persisted.setStore('draft', 'syncedAt', updatedAt)
+        if (saved) persisted.setStore('draft', (current) => current && ackedDraft(current, updatedAt))
       })
   }
   const persisted = persistStore({
@@ -218,6 +225,7 @@ function makeLocalDraftWriter(
       selectionEnd: offsets.end,
       attachments: draft.attachments.map(localAttachment),
       syncedAt: untrack(() => document.draft?.syncedAt),
+      sent: untrack(() => document.draft?.sent ?? []),
     })
   }
   const read = () => readLocalDraft(drafts, sessionId)
@@ -316,7 +324,15 @@ function maySend(phase: RestorePhase, typed: DraftContent | null): boolean {
   return phase.kind === 'read'
 }
 
-const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: []}
+const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: [], sent: []}
+
+function ackedDraft(draft: LocalDraft, updatedAt: number): LocalDraft {
+  return {...draft, syncedAt: updatedAt, sent: draft.sent.slice(draft.sent.indexOf(updatedAt) + 1)}
+}
+
+function withSent(draft: LocalDraft, updatedAt: number): LocalDraft {
+  return {...draft, sent: union(draft.sent, [updatedAt])}
+}
 
 function isEmptied(typed: DraftContent): boolean {
   return typed.text === '' && typed.attachments.length === 0
@@ -358,8 +374,9 @@ async function keepInDraft(appData: AppData, sessionId: string, text: string, pl
   const {base, encoded} = await readKeptBase(appData, sessionId)
   const {text: nextText, caret} = joinReturned(base.text, text, place)
   const selection = {text: nextText, selectionStart: caret, selectionEnd: caret}
-  if (drafts) await keepLocally(drafts, sessionId, {...base, ...selection})
-  const saving = appData.saveDraft({sessionId, ...selection, attachments: encoded, updatedAt: Date.now()})
+  const updatedAt = Date.now()
+  if (drafts) await keepLocally(drafts, sessionId, withSent({...base, ...selection}, updatedAt))
+  const saving = appData.saveDraft({sessionId, ...selection, attachments: encoded, updatedAt})
   if (!drafts) await saving
 }
 
@@ -378,11 +395,12 @@ async function keepImageInDraft(appData: AppData, sessionId: string, file: File)
   const drafts = appData.drafts
   const {base, encoded} = await readKeptBase(appData, sessionId)
   const attachment = {id: crypto.randomUUID(), type: 'image', name: file.name}
+  const updatedAt = Date.now()
   if (drafts) {
     const blob = await keepDraftImage(drafts, file)
     const local = {...attachment, contentType: file.type}
     const kept = blob ? {...local, blob: {id: blob.id}} : local
-    await keepLocally(drafts, sessionId, {...base, attachments: [...base.attachments, kept]})
+    await keepLocally(drafts, sessionId, withSent({...base, attachments: [...base.attachments, kept]}, updatedAt))
   }
   const {text, selectionStart, selectionEnd} = base
   const added = await encodeAttachments([{...attachment, file}])
@@ -392,7 +410,7 @@ async function keepImageInDraft(appData: AppData, sessionId: string, file: File)
     selectionStart,
     selectionEnd,
     attachments: [...encoded, ...added],
-    updatedAt: Date.now(),
+    updatedAt,
   })
   if (!drafts) await saving
 }
