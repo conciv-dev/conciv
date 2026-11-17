@@ -209,6 +209,18 @@ describe.skipIf(inFirefox)('page tools', () => {
         code: 'handler-error',
         message: 'wait timed out for #missing (visible)',
       })
+      const cancel = new AbortController()
+      const waiting = driver.execute(
+        command('wait', {selector: '#late', state: 'visible', timeout: 60_000}),
+        cancel.signal,
+      )
+      cancel.abort()
+      const late = document.createElement('p')
+      late.id = 'late'
+      late.textContent = 'late'
+      container.append(late)
+      onTestFinished(() => late.remove())
+      expect(await waiting).toMatchObject({type: 'failure'})
     })
 
     it('returns the value of a bare expression and still runs a statement body', async () => {
@@ -1335,6 +1347,20 @@ describe.skipIf(inFirefox)('page action queue', () => {
     await accept('q-after', after)
     await play('q-after', after)
     await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+  })
+
+  it('a queued fill the engine cancels while it waits on the editor stops there, and the next queue plays alone', async () => {
+    const cancelled = new AbortController()
+    const {heard, accept, play} = queuePage(() => cancelled.abort())
+    const draft = [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}]
+    await accept('q-cancelled', draft)
+    expect(await play('q-cancelled', draft, cancelled.signal)).toMatchObject([{type: 'failure'}])
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+    const after = [fill('city', 'Paris')]
+    await accept('q-after-cancel', after)
+    expect(await play('q-after-cancel', after)).toMatchObject([played({ok: true, value: 'Paris'})])
+    expect(heard).toEqual(['city'])
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
   })
 
   it('masks a card number in the result', async () => {
