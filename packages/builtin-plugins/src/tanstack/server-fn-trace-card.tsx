@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {keyBy} from 'es-toolkit'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
@@ -26,10 +27,10 @@ const PayloadSchema = z.object({
 function parsePayload(result: ToolCardProps['result']): TraceRow[] | null {
   const parsed = PayloadSchema.safeParse(parseResultPayload(result))
   if (!parsed.success) return null
-  const fileById = new Map(parsed.data.functions.map((fn) => [fn.id, fn.file ?? null]))
+  const functionById = keyBy(parsed.data.functions, (serverFunction) => serverFunction.id)
   return parsed.data.traces.map((trace) => ({
     name: trace.name,
-    file: fileById.get(trace.id) ?? null,
+    file: functionById[trace.id]?.file ?? null,
     durationMs: trace.durationMs,
     status: trace.status,
   }))

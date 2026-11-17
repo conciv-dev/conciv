@@ -76,8 +76,10 @@ const tanstackToolViews = {
   },
 } satisfies Record<keyof typeof tanstackCards, ToolViewMeta>
 
-const tanstackToolMetaByName: ReadonlyMap<string, ToolViewMeta> = new Map(Object.entries(tanstackToolViews))
+function isTanstackTool(name: string): name is keyof typeof tanstackToolViews {
+  return Object.hasOwn(tanstackToolViews, name)
+}
 
 export function tanstackToolMeta(name: string): ToolViewMeta | undefined {
-  return tanstackToolMetaByName.get(name)
+  return isTanstackTool(name) ? tanstackToolViews[name] : undefined
 }
