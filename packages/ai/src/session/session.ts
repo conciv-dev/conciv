@@ -2,7 +2,9 @@ import type {SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
+import {z} from 'zod'
 import {
+  SESSION_DELETED_CODE,
   isRunPhaseTerminal,
   type ApprovalAsk,
   type RunClockSource,
@@ -126,6 +128,8 @@ type RunState =
   | {phase: 'stop-queued'; source: RunClockSource | null; runId: string | null}
   | {phase: 'withdrawn'; source: RunClockSource | null; hidden: Error}
   | {phase: 'refused'; source: RunClockSource | null; hidden: Error}
+
+const SessionDeletedSchema = z.object({code: z.literal(SESSION_DELETED_CODE)})
 
 function heardRun(queued: string | null, next: RunClockSource | null): boolean {
   if (next === null) return false
@@ -336,6 +340,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     if (runSource()?.lifecycle.runId === lastLocalRunId()) return undefined
     return refused
   }
+  const hidesRefusal = (failure: Error): boolean =>
+    !withdrawn() && chat.messages().length === 0 && !SessionDeletedSchema.safeParse(failure).success
   const sendMessage: Chat['sendMessage'] = async (...args) => {
     const before = run()
     const errorBefore = chat.error()
@@ -343,7 +349,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const failure = neverLeft(before, errorBefore)
     if (failure === undefined) return
     chat.setMessages(beforeLastUser(chat.messages()))
-    if (!withdrawn() && chat.messages().length === 0) setRun({phase: 'refused', source: run().source, hidden: failure})
+    if (hidesRefusal(failure)) setRun({phase: 'refused', source: run().source, hidden: failure})
     throw failure
   }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
