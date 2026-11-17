@@ -7989,7 +7989,7 @@ export default {
       })
       .parse(await shot)
     expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 550}]})
-    expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe(ONE_PIXEL_WEBP)
+    expect(await readFile(join(root, saved.value.files[0]?.path ?? ''), 'base64')).toBe(ONE_PIXEL_WEBP)
 
     const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
     await next('conn_d')
