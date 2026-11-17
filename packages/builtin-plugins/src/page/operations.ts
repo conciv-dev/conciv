@@ -46,7 +46,7 @@ import {unwatchLayout} from './agent-cursor.js'
 import {badArgs, fail} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
-import {Operations, type Action, type Command, type File, type Outcome} from '@conciv/plugin-page/rpc'
+import {Operations, SHORT_MAX, type Action, type Command, type File, type Outcome} from '@conciv/plugin-page/rpc'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
 import {
@@ -715,7 +715,8 @@ function normalizePageError(error: unknown): PageError {
 }
 
 function failure(error: unknown): Outcome {
-  return {type: 'failure', ...normalizePageError(error)}
+  const normalized = normalizePageError(error)
+  return {type: 'failure', ...normalized, message: normalized.message.slice(0, SHORT_MAX)}
 }
 
 export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperations {
