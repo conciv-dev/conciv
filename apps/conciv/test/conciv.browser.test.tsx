@@ -7837,7 +7837,7 @@ module.exports = {default: {stores: {
   ctx.add(Panel, {
     id: 'popovers',
     region: 'pane',
-    list: () => [{id: 'popovers', title: 'Fixture popovers', pinned: true}],
+    list: (input) => (input.open.includes('popovers') ? [{id: 'popovers', title: 'Fixture popovers'}] : []),
     render: () => {
       const [pageNote, setPageNote] = createSignal('')
       const reply = Object.assign(document.createElement('input'), {type: 'text'})
@@ -8060,7 +8060,7 @@ module.exports = {default: {setup(ctx) {
 
     test('opens beside its anchor and leaves the page usable, closes on Escape with focus back on the anchor and on a click outside, and focuses the field it names', async () => {
       const sessionId = await createSession(coreRpc(coreBase()))
-      harness.mountShell(`/panel/${sessionId}?open=true`)
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:popovers')}?open=true`)
       await expect.element(tab('Fixture popovers'), {timeout: 15_000}).toBeVisible()
       await tab('Fixture popovers').click()
 
