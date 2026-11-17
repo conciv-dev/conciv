@@ -319,7 +319,7 @@
       }
     },
     {
-      "files": ["packages/solid-streamdown/**", "packages/page/**"],
+      "files": ["packages/solid-streamdown/**", "packages/page/**", "packages/extensions/page/**"],
       "rules": {
         "unocss/order": "off"
       }
