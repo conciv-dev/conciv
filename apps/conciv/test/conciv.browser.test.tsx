@@ -526,6 +526,11 @@ describe('chat pane', () => {
   }
 
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const tabIntoComposer = async (presses: number): Promise<void> => {
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await userEvent.keyboard('{Tab}'.repeat(presses))
+    await expect.element(input()).toHaveFocus()
+  }
   const snapshot = () => page.getByTitle('Grabbed element snapshot')
   const notifications = () => page.getByRole('region', {name: /Notifications/})
   const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
@@ -656,7 +661,7 @@ describe('chat pane', () => {
 
     test('the stored draft is in the composer while the engine read is held, typing meanwhile is never overwritten, and an untouched composer takes a newer engine row', async () => {
       const {rpc, sessionId} = await newSession()
-      const TEXT = 'kept'
+      const TEXT = 'kept before the engine went quiet'
       const TYPED = `${TEXT} and typed while it was away`
       await typeSyncedDraft(sessionId, TEXT)
       await seedDraft(rpc, sessionId, {text: 'changed in another tab'})
@@ -665,8 +670,8 @@ describe('chat pane', () => {
       mountChatPane(sessionId)
 
       await expect.element(input()).toHaveTextContent(TEXT)
-      await userEvent.click(input())
-      await userEvent.keyboard(' and typed while it was away')
+      await tabIntoComposer(5)
+      await userEvent.keyboard('{End} and typed while it was away')
       await expect.element(input()).toHaveTextContent(TYPED)
       await coreControl.releaseFault(heldRead)
       await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
@@ -701,7 +706,7 @@ describe('chat pane', () => {
       const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
       vi.setSystemTime(start + 1000)
 
-      await userEvent.click(input())
+      await tabIntoComposer(5)
       await userEvent.keyboard('{End} and held')
       await coreControl.awaitFaultPending(held, 1)
       vi.setSystemTime(start + 2000)
@@ -839,7 +844,7 @@ describe('chat pane', () => {
         await expect.poll(readLocalCopy).toMatchObject({text: 'refused at first', syncedAt: taken?.updatedAt, sent: []})
 
         const refusedAgain = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
-        await userEvent.click(input())
+        await tabIntoComposer(5)
         await userEvent.keyboard('{End} and more')
         await runClockPastDraftSaveRetries(unsaved)
         await expect.element(unsaved.getByText(KEPT_HERE)).toBeVisible()
@@ -952,7 +957,7 @@ describe('chat pane', () => {
       await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
       await expect.element(input()).toHaveTextContent(SEEDED)
 
-      await userEvent.click(input())
+      await tabIntoComposer(6)
       await userEvent.keyboard('{End}!')
       await expect.element(input()).toHaveTextContent(`${SEEDED}!`)
       await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
