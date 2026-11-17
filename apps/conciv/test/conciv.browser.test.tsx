@@ -5293,10 +5293,11 @@ describe('a deleted session', () => {
   test('a message sent as its session is deleted says it was not sent, offers no Retry, and the text moves to a new session', async () => {
     const rpc = coreRpc(core())
     const deletedId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
     harness.mountShell(`/panel/${deletedId}?open=true`)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(subscribe, 1)
 
-    const rowRead = await faults.install({kind: 'gate', path: ['sessions', 'get']})
     const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
     await userEvent.click(editor())
     await userEvent.keyboard('keep this text')
@@ -5311,7 +5312,7 @@ describe('a deleted session', () => {
     await expect.element(notifications().getByText(NOT_SENT, {exact: true})).toBeVisible()
     await expect.element(editor().getByText('keep this text')).toBeVisible()
 
-    await coreControl.releaseFault(rowRead)
+    await coreControl.releaseFault(subscribe)
 
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).not.toBeInTheDocument()
@@ -5434,9 +5435,10 @@ describe('a deleted session', () => {
     const OLD_DELETED_SENTENCE = 'This session was deleted, so it cannot be compacted.'
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    await coreControl.awaitFaultPending(subscribe, 1)
     await rpc.sessions.delete({sessionId})
 
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
