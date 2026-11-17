@@ -1,21 +1,18 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {CacheEntry} from '@conciv/plugin-tanstack/rpc'
 import {Chip, ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
 import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue, countLabel} from './card-shared.js'
 
-const EntrySchema = z
-  .object({
-    key: z.string(),
-    state: z.string().default('fresh'),
-    status: z.string().nullable().default(null),
-    observers: z.number().nullable().default(null),
-    updatedAt: z.number().nullable().default(null),
-    error: z.string().nullable().default(null),
-    value: z.unknown(),
-  })
-  .loose()
+const EntrySchema = CacheEntry.extend({
+  state: CacheEntry.shape.state.default('fresh'),
+  status: CacheEntry.shape.status.default(null),
+  observers: CacheEntry.shape.observers.default(null),
+  updatedAt: CacheEntry.shape.updatedAt.default(null),
+  error: CacheEntry.shape.error.default(null),
+}).loose()
 
 const QueryCacheSchema = z.object({
   queries: z.array(EntrySchema).default([]),

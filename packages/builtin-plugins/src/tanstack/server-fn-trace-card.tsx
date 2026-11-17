@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {ServerFnTraces} from '@conciv/plugin-tanstack/rpc'
 import {keyBy} from 'es-toolkit'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
@@ -8,18 +9,13 @@ import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody, countLabel
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 
-const TraceSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    durationMs: z.number(),
-    status: z.string(),
-  })
+const TraceSchema = ServerFnTraces.shape.traces.element
+  .pick({id: true, name: true, durationMs: true, status: true})
   .loose()
 
-const FunctionSchema = z.object({id: z.string(), file: z.string().nullish()}).loose()
+const FunctionSchema = ServerFnTraces.shape.functions.element.pick({id: true, file: true}).partial({file: true}).loose()
 
-const PayloadSchema = z.object({
+const PayloadSchema = ServerFnTraces.extend({
   traces: z.array(TraceSchema),
   functions: z.array(FunctionSchema),
 })

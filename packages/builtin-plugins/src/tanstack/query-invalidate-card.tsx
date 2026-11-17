@@ -1,10 +1,9 @@
 import {type JSX} from 'solid-js'
-import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseInput} from '@conciv/ui-kit-chat/tools'
-import {InspectionCard, actionCardBody, resultOk} from './card-shared.js'
+import {InspectionCard, actionCardBody, tanstackOperation, resultOk} from './card-shared.js'
 
-const KeyInputSchema = z.object({key: z.string()})
+const KeyInputSchema = tanstackOperation('query_invalidate').input.pick({key: true})
 
 function QueryInvalidateCard(props: ToolCardProps): JSX.Element {
   const summary = () => {

@@ -2292,6 +2292,9 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugin-page
+      '@conciv/plugin-tanstack':
+        specifier: workspace:^
+        version: link:../plugins/tanstack
       '@conciv/plugin-test-runner':
         specifier: workspace:^
         version: link:../plugins/test-runner

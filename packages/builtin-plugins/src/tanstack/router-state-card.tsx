@@ -1,18 +1,24 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {RouteMatch, RouterCurrent} from '@conciv/plugin-tanstack/rpc'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
-const MatchSchema = z.object({routeId: z.string(), path: z.string().default(''), status: z.string().optional()}).loose()
+const MatchSchema = RouteMatch.pick({routeId: true, status: true})
+  .partial({status: true})
+  .extend({path: RouteMatch.shape.path.default('')})
+  .loose()
 
-const RouterStateSchema = z
-  .object({
-    location: z.object({pathname: z.string(), search: z.string().default(''), hash: z.string().default('')}).loose(),
-    matches: z.array(MatchSchema),
+const LocationSchema = RouterCurrent.shape.location
+  .extend({
+    search: RouterCurrent.shape.location.shape.search.default(''),
+    hash: RouterCurrent.shape.location.shape.hash.default(''),
   })
   .loose()
+
+const RouterStateSchema = RouterCurrent.extend({location: LocationSchema, matches: z.array(MatchSchema)}).loose()
 
 type RouterState = z.infer<typeof RouterStateSchema>
 

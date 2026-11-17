@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {RouteNode} from '@conciv/plugin-tanstack/rpc'
 import {sumBy} from 'es-toolkit'
 import CornerDownRight from 'lucide-solid/icons/corner-down-right'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
@@ -7,24 +8,27 @@ import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
-type RawRouteNode = {id: string; hasLoader?: boolean; children: RawRouteNode[]}
+const RouteBranchSchema = RouteNode.pick({id: true})
+  .extend({
+    hasLoader: RouteNode.shape.hasLoader.default(false),
+    get children(): z.ZodDefault<z.ZodArray<typeof RouteBranchSchema>> {
+      return z.array(RouteBranchSchema).default([])
+    },
+  })
+  .loose()
 
-const RouteNodeSchema: z.ZodType<RawRouteNode> = z.lazy(() =>
-  z
-    .object({id: z.string(), hasLoader: z.boolean().default(false), children: z.array(RouteNodeSchema).default([])})
-    .loose(),
-)
+type RouteBranchNode = z.infer<typeof RouteBranchSchema>
 
-function parseTree(result: ToolCardProps['result']): RawRouteNode | null {
-  const parsed = RouteNodeSchema.safeParse(parseResultPayload(result))
+function parseTree(result: ToolCardProps['result']): RouteBranchNode | null {
+  const parsed = RouteBranchSchema.safeParse(parseResultPayload(result))
   return parsed.success ? parsed.data : null
 }
 
-function countRoutes(node: RawRouteNode): number {
+function countRoutes(node: RouteBranchNode): number {
   return 1 + sumBy(node.children, countRoutes)
 }
 
-function RouteBranch(props: {node: RawRouteNode; root: boolean}): JSX.Element {
+function RouteBranch(props: {node: RouteBranchNode; root: boolean}): JSX.Element {
   return (
     <>
       <CardRow>

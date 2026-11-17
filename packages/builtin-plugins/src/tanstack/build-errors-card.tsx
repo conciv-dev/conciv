@@ -1,17 +1,13 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {AppError} from '@conciv/plugin-tanstack/rpc'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardNote, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
-const AppErrorSchema = z
-  .object({
-    message: z.string(),
-    source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
-  })
-  .loose()
+const AppErrorSchema = AppError.pick({message: true, source: true}).partial({source: true}).loose()
 
 const AppErrorsSchema = z.array(AppErrorSchema)
 

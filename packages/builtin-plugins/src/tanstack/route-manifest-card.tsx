@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {RouteInfo} from '@conciv/plugin-tanstack/rpc'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
@@ -7,7 +8,7 @@ import {CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
 
-const RouteInfoSchema = z.object({path: z.string(), kind: z.string(), dynamic: z.boolean()}).loose()
+const RouteInfoSchema = RouteInfo.pick({path: true, kind: true, dynamic: true}).loose()
 
 const RouteManifestSchema = z.array(RouteInfoSchema)
 

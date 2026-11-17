@@ -69,7 +69,7 @@ export const AppError = z.object({
 })
 export type AppError = z.infer<typeof AppError>
 
-const RouteInfo = z.object({
+export const RouteInfo = z.object({
   path: z.string(),
   kind: z.enum(['page', 'layout', 'api', 'middleware']),
   dynamic: z.boolean(),
@@ -78,7 +78,7 @@ const RouteInfo = z.object({
 export type RouteInfo = z.infer<typeof RouteInfo>
 export type RouteInfoKind = RouteInfo['kind']
 
-const ServerFnTraces = z.object({
+export const ServerFnTraces = z.object({
   traces: z.array(
     z.object({
       id: z.string(),
