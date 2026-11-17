@@ -94,8 +94,13 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
       return
     }
     const incoming = new Set(rows.map((row) => row.elementId))
+    const shown = new Map(instance.getSceneElementsIncludingDeleted().map((element) => [element.id, element]))
+    const lostTie = (row: ElementRow): boolean => {
+      const element = shown.get(row.elementId)
+      return element?.version === row.version && element.versionNonce !== asScene(row.data).versionNonce
+    }
     const remoteChanged =
-      rows.some((row) => (versions.get(row.elementId) ?? -1) < row.version) ||
+      rows.some((row) => (versions.get(row.elementId) ?? -1) < row.version || lostTie(row)) ||
       [...versions.keys()].some((elementId) => !incoming.has(elementId))
     versions.forEach((_version, elementId) => {
       if (!incoming.has(elementId)) versions.delete(elementId)
