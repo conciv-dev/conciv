@@ -5889,7 +5889,7 @@ describe('engine login', () => {
     await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
     await expect.element(page.getByText('Log in to continue', {exact: true})).toBeVisible()
-    await userEvent.click(editor())
+    await userEvent.click(editor(), {force: true})
     await userEvent.keyboard('typed while locked out')
     await expect.element(editor()).toMatchTextContent(/^$/)
     await userEvent.keyboard('{Tab}')
@@ -5935,7 +5935,7 @@ describe('engine login', () => {
     expect(await keptDrafts()).toEqual([])
     await expect.element(editor()).toHaveTextContent(LOCAL_ONLY)
 
-    await userEvent.click(editor())
+    await userEvent.click(editor(), {force: true})
     await userEvent.keyboard('{End} and typed while locked out')
     await expect.element(editor()).toMatchTextContent(new RegExp(`^${LOCAL_ONLY}$`))
     await page.getByRole('button', {name: 'Close chat'}).click()

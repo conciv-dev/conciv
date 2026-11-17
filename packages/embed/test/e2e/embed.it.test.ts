@@ -2059,7 +2059,7 @@ test.describe('rebind', () => {
       const loggedOutSend = panel.getByRole('button', {name: LOGGED_OUT_SENTENCE, exact: true})
       await expect(panel.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
       await expect(panel.getByText('Log in to continue', {exact: true})).toBeVisible()
-      await composer.click()
+      await composer.click({force: true})
       await page.keyboard.type(REFUSED_TEXT)
       await expect(composer).toHaveText('')
       await expect(loggedOutSend).toBeDisabled({timeout: 30_000})
