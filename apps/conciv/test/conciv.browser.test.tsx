@@ -3203,6 +3203,7 @@ describe('notices', () => {
 describe('page session card', () => {
   const core = bootedCore('page-session-card')
   const keep = keptPane()
+  const faults = trackedFaults()
 
   test('a built-in page card wins over builtinToolCards for the same tool', async () => {
     const sessionId = await createSession(coreRpc(core()))
@@ -3284,6 +3285,30 @@ describe('page session card', () => {
     const turn = await sendTurn(core(), sessionId, 'save the form')
     try {
       await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
+
+  test('a first send that lands while the session still resolves keeps the prompt clear of the session card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_click', input: {selector: '#save'}, result: {ok: true}}],
+      text: 'Saved.',
+    })
+    await coreControl.holdResults()
+    const resolving = await faults.install({kind: 'gate', path: ['sessions', 'resolve']})
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'save the form')
+    try {
+      await coreControl.awaitFaultPending(resolving, 1)
+      await userEvent.click(page.getByRole('textbox', {name: 'Message the conciv agent'}))
+      await faults.releaseAll()
+      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await userEvent.click(page.getByText('save the form', {exact: true}))
+      await expect.element(page.getByText('save the form', {exact: true})).toBeVisible()
     } finally {
       await coreControl.releaseResults()
       await turn.awaitTurnEnd()
