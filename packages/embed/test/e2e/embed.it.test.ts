@@ -1982,7 +1982,6 @@ test.describe('reload continuity', () => {
     const unsaved = (page: Page) => page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
 
     test('text typed and reloaded at once is back in the composer', async ({page}) => {
-      test.setTimeout(240_000)
       await openPanelOnNewSession(page, suite)
       const input = chatBox(page)
 
@@ -1996,7 +1995,6 @@ test.describe('reload continuity', () => {
     test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({
       page,
     }) => {
-      test.setTimeout(240_000)
       const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
       try {
         const sessionId = await openPanelOnNewSession(page, suite)
@@ -2024,7 +2022,6 @@ test.describe('reload continuity', () => {
       page,
       browser,
     }) => {
-      test.setTimeout(240_000)
       const sessionId = await openPanelOnNewSession(page, suite)
       const input = chatBox(page)
       await input.click()
@@ -2045,7 +2042,6 @@ test.describe('reload continuity', () => {
     test('with the engine refusing every draft save, text typed and reloaded is back and the unsaved notice shows', async ({
       page,
     }) => {
-      test.setTimeout(240_000)
       const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
       try {
         const sessionId = await openPanelOnNewSession(page, suite)

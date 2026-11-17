@@ -141,15 +141,13 @@ async function runClockPastDraftSaveRetries(notice: Locator): Promise<void> {
       vi.useRealTimers()
     })
   }
-  await expect
-    .poll(
-      async () => {
-        await vi.advanceTimersByTimeAsync(1000)
-        return notice.elements().length
-      },
-      {timeout: 8000},
-    )
-    .toBe(1)
+  await vi.waitFor(
+    async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect.element(notice, {timeout: 100}).toBeVisible()
+    },
+    {timeout: 8000},
+  )
 }
 
 describe('approval replay', () => {
