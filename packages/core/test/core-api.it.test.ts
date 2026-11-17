@@ -6301,10 +6301,10 @@ describe('page action queue delivery', () => {
     expect(await asking).toMatchObject({sessionId: page.sessionId, action: 'page_eval', resources: ['document.domain']})
     expect(evals).toEqual(['document.title'])
     await page.onTab.reply(cliRequest, pageSuccess({result: 'Example'}))
+    expect(await admitted).toEqual({result: 'Example'})
     await events.return(undefined)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['agent-eval']})
     await (await agentTurn).text()
-    expect(await admitted).toEqual({result: 'Example'})
     expect(evals).toEqual(['document.title'])
   })
 
