@@ -1,15 +1,16 @@
-import {createMemo, Show, untrack, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {createMemo, onCleanup, Show, untrack, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {engineWebSocket} from '@conciv/contract'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/plugin/experimental'
+import {PANEL_KEY, type TerminalState} from './terminal-state.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
 const OPEN_FAILED = 'Couldn’t open the terminal.'
-const PANEL_KEY = 'terminal:terminal'
 
 type TerminalSize = {readonly cols: number; readonly rows: number}
+
+type PtyRequest = {readonly sessionId: string; readonly size: TerminalSize; readonly model: string | undefined}
 
 function readTerminalTheme(element: Element): TerminalTheme {
   const tokens = getComputedStyle(element)
@@ -22,37 +23,43 @@ function readTerminalTheme(element: Element): TerminalTheme {
   }
 }
 
-async function connectUrl(server: ServerRef, sessionId: string, size: TerminalSize): Promise<string> {
+async function openPty(server: ServerRef, request: PtyRequest): Promise<{ptyId: string; url: string}> {
   const terminal = server.client.experimental.persistentPty
-  const pty = await terminal.create({sessionId, size: {cols: size.cols, rows: size.rows}})
+  const size = {cols: request.size.cols, rows: request.size.rows}
+  const pty = await terminal.create({sessionId: request.sessionId, size, model: request.model})
   const {ticket} = await terminal.connectToken({ptyId: pty.id})
   const url = new URL(`${server.url}/api/experimental/persistent-pty/${pty.id}/connect`, window.location.href)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('ticket', ticket)
   url.searchParams.set('cols', String(size.cols))
   url.searchParams.set('rows', String(size.rows))
-  return url.toString()
+  return {ptyId: pty.id, url: url.toString()}
 }
 
 function TerminalSurface(props: {
   session: MountedSession
+  terminal: TerminalState
+  terminalKey: string
   themeHost: () => Element
-  failed: (message: string) => void
 }): JSX.Element {
   const ctx = usePlugin()
   const server = untrack(() => props.session.server)
   const sessionId = untrack(() => props.session.id)
-  const opened = {url: ''}
+  const terminalKey = untrack(() => props.terminalKey)
+  const connection = {url: ''}
   const model = createTerminalModel({
-    url: () => opened.url,
+    url: () => connection.url,
     socket: engineWebSocket(server.url),
-    beforeConnect: async (terminal) => {
-      opened.url = await connectUrl(server, sessionId, terminal).catch((cause: unknown) => {
+    beforeConnect: async (size) => {
+      const request = {sessionId, size, model: untrack(() => props.terminal.spawnModel(sessionId))}
+      const pty = await openPty(server, request).catch((cause: unknown) => {
         console.error('[terminal] opening the session terminal failed', cause)
         ctx.toast.show({title: OPEN_FAILED, variant: 'error'})
-        props.failed(OPEN_FAILED)
+        props.terminal.fail(terminalKey, OPEN_FAILED)
         throw new Error(OPEN_FAILED)
       })
+      connection.url = pty.url
+      props.terminal.opened({key: terminalKey, ptyId: pty.ptyId, busy: model.busy})
     },
     theme: () => readTerminalTheme(props.themeHost()),
   })
@@ -74,6 +81,7 @@ function TerminalSurface(props: {
     },
     {capture: true},
   )
+  onCleanup(() => props.terminal.closed(terminalKey))
   model.terminal.attachCustomKeyEventHandler((event) => {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     return true
@@ -92,17 +100,12 @@ function TerminalSurface(props: {
   )
 }
 
-export function TerminalPanel(props: {session: MountedSession}): JSX.Element {
+export function TerminalPanel(props: {session: MountedSession; terminal: TerminalState}): JSX.Element {
   const ctx = usePlugin()
-  const [state, setState] = createStore<{attempt: number; failure: {key: string; message: string} | null}>({
-    attempt: 0,
-    failure: null,
-  })
-  const key = createMemo(() => `${props.session.id}:${state.attempt}`)
-  const failure = createMemo(() => (state.failure?.key === key() ? state.failure.message : null))
+  const key = createMemo(() => props.terminal.key(props.session.id))
+  const failure = createMemo(() => props.terminal.failure(props.session.id))
   const host: {element: Element | undefined} = {element: undefined}
   const themeHost = () => host.element ?? document.body
-  const retry = () => setState({attempt: state.attempt + 1, failure: null})
   return (
     <div
       ref={(element) => {
@@ -117,8 +120,9 @@ export function TerminalPanel(props: {session: MountedSession}): JSX.Element {
             {(current) => (
               <TerminalSurface
                 session={props.session}
+                terminal={props.terminal}
+                terminalKey={current}
                 themeHost={themeHost}
-                failed={(message) => setState('failure', {key: current, message})}
               />
             )}
           </Show>
@@ -131,7 +135,7 @@ export function TerminalPanel(props: {session: MountedSession}): JSX.Element {
               role="alert"
             >
               <span>{message()}</span>
-              <ctx.ui.Button variant="contrast" size="small" onClick={retry}>
+              <ctx.ui.Button variant="contrast" size="small" onClick={() => props.terminal.retry()}>
                 Retry
               </ctx.ui.Button>
             </div>

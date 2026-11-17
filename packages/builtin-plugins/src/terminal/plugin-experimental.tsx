@@ -1,7 +1,10 @@
-import {untrack} from 'solid-js'
+import {Show} from 'solid-js'
 import TerminalIcon from 'lucide-solid/icons/terminal'
-import {createLatest, Panel, Plugin, type PanelTab, type Context} from '@conciv/plugin/experimental'
+import {Panel, Plugin, Slot, type PanelTab} from '@conciv/plugin/experimental'
+import {terminalDeclarations} from './stores.js'
 import {TerminalPanel} from './terminal-panel.js'
+import {createTerminalState, PANEL_KEY} from './terminal-state.js'
+import {TerminalToolbar} from './terminal-toolbar.js'
 
 const TAB_ID = 'terminal'
 
@@ -17,32 +20,30 @@ const tab: PanelTab = {
   ),
 }
 
-async function readSupport(ctx: Context, sessionId: string, signal: AbortSignal) {
-  const session = untrack(() => ctx.sessions.current())
-  if (session?.id !== sessionId) throw new Error(`the terminal read support for ${sessionId} after it was left`)
-  const models = await session.server.client.meta.models({sessionId}, {signal})
-  return {sessionId, persistentPty: models.harness.persistentPty}
-}
-
 export default Plugin.define({
+  ...terminalDeclarations,
   setup(ctx) {
-    const support = createLatest(
-      () => ctx.sessions.current()?.id,
-      (sessionId, signal) => readSupport(ctx, sessionId, signal),
-    )
-    const supported = (sessionId: string) =>
-      support.latest?.sessionId === sessionId ? support.latest.persistentPty : undefined
+    const terminal = createTerminalState(ctx)
 
     ctx.add(Panel, {
       id: TAB_ID,
       region: 'pane',
       list: (input) => {
-        const known = supported(input.session.id)
+        const known = terminal.supported(input.session.id)
         if (known === true) return [tab]
         if (known === undefined && input.open.includes(TAB_ID)) return [tab]
         return []
       },
-      render: (props) => <TerminalPanel session={props.session} />,
+      render: (props) => <TerminalPanel session={props.session} terminal={terminal} />,
+    })
+
+    ctx.add(Slot, {
+      at: 'session.panel.end',
+      render: (input) => (
+        <Show when={ctx.layout.state(PANEL_KEY, input.session) === 'visible'}>
+          <TerminalToolbar session={input.session} terminal={terminal} />
+        </Show>
+      ),
     })
   },
 })

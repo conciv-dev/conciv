@@ -6946,7 +6946,15 @@ module.exports = {default: {setup(ctx) {
 })
 
 describe('terminal panel', () => {
-  const coreBase = bootedCore('terminal-panel', {tty: true, alternates: [{id: 'plain', displayName: 'Plain'}]})
+  const coreBase = bootedCore('terminal-panel', {
+    tty: true,
+    models: [
+      {id: 'first-model', name: 'First model'},
+      {id: 'calm-model', name: 'Calm model'},
+      {id: 'busy-model', name: 'Busy model'},
+    ],
+    alternates: [{id: 'plain', displayName: 'Plain'}],
+  })
   const harness = createShellHarness(coreBase)
 
   afterEach(harness.dispose)
@@ -6992,6 +7000,48 @@ describe('terminal panel', () => {
     harness.mountShell(`/panel/${plain}?open=true`)
     await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true}), {timeout: 15_000}).toBeVisible()
     await expect.element(terminalTab()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('the toolbar picks the CLI model and keeps it across a reload, starts a new terminal, locks while the CLI is busy, and shows only on the Terminal tab', async () => {
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => bar().getByRole('button', {name: 'New session'})
+    const pick = async (name: string) => {
+      await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+      await picker().click()
+      await page.getByRole('option', {name}).click()
+    }
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    await pick('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((5*5))')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).not.toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+
+    await newTerminal().click()
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((4*4))')
+    await expect.element(output('16'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('25')).not.toBeInTheDocument()
+
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+    await expect.element(newTerminal()).toBeDisabled()
+
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    await expect.element(picker()).not.toBeInTheDocument()
   }, 60_000)
 })
 

@@ -2274,9 +2274,15 @@ importers:
       '@conciv/plugin-test-runner':
         specifier: workspace:^
         version: link:../plugins/test-runner
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../ui-kit-chat
       '@conciv/ui-kit-terminal':
         specifier: workspace:^
         version: link:../ui-kit-terminal
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -2289,6 +2295,9 @@ importers:
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*

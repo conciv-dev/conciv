@@ -25,11 +25,14 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-test-runner": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
+    "@orpc/client": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@zumer/snapdom": "catalog:",
     "lucide-solid": "catalog:",
-    "solid-js": "catalog:"
+    "solid-js": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
