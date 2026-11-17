@@ -245,3 +245,39 @@ describe('the recorder in the widget', () => {
     }
   }, 120_000)
 })
+
+describe('sending a recording to the agent', () => {
+  test('the user acts on the page, opens Recorder, sends the recording to the agent and lands back on the chat with a Screen recording note in the composer', async ({
+    browser,
+  }) => {
+    const widget = await openPluginWidget(browser, {
+      id: 'recorder-send',
+      plugins: [PACKAGE_DIR],
+      widgetBundle: WIDGET_BUNDLE,
+      body: '<button type="button" onclick="this.textContent = \'Pressed by the user\'">Press me</button>',
+    })
+    try {
+      const page = widget.page
+      const notes = () => page.getByRole('list', {name: 'Notes'})
+      await showRecorderTab(page)
+      await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
+        timeout: 30_000,
+      })
+      await page.getByRole('button', {name: 'Press me', exact: true}).click()
+      await expect(replayed(page, 'Pressed by the user')).toBeAttached({timeout: 30_000})
+
+      await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
+      await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: false})).toBeVisible()
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+      await expect(
+        notes()
+          .getByRole('listitem')
+          .filter({hasText: /Screen recording · \d+ actions? · \d+s/}),
+      ).toBeVisible({timeout: 30_000})
+      await expect(notes().getByRole('button', {name: 'Remove Screen recording', exact: true})).toBeVisible()
+    } finally {
+      await widget.close()
+    }
+  }, 120_000)
+})
