@@ -277,3 +277,49 @@ describe('rpc gate abandoned calls', () => {
     15_000,
   )
 })
+
+describe('rpc gate by input', () => {
+  browserTest(
+    'a gate given an input holds only the calls whose input matches, and the others pass',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const gate = await gateRpcCalls(page, {path: ['echo'], input: {value: 'held'}})
+        const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+        const request = (id: string, value: string) =>
+          encodeRequestMessage(id, MessageType.REQUEST, {
+            url: new URL('http://orpc/echo'),
+            method: 'POST',
+            headers: {},
+            body: serializer.serialize({value}),
+          })
+        const held = await request('1', 'held')
+        const passed = await request('2', 'passed')
+        if (typeof held !== 'string' || typeof passed !== 'string') throw new Error('an rpc frame encoded to binary')
+        const firstAnswer = page.evaluate(
+          ({url, heldFrame, passedFrame}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('message', () => resolve(), {once: true})
+              socket.addEventListener('open', () => {
+                socket.send(heldFrame)
+                socket.send(passedFrame)
+              })
+            }),
+          {url: served.wsUrl, heldFrame: held, passedFrame: passed},
+        )
+        await firstAnswer
+        expect(gate.pending()).toBe(1)
+        await gate.release()
+        await expect(gate.answered()).resolves.toEqual({value: 'held'})
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+})
