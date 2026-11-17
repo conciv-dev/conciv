@@ -11,7 +11,6 @@ import {
   type ClientEffect,
   type ClientToolEntry,
 } from '@conciv/extension'
-import pageExtension from '@conciv/extension-page/client'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
@@ -304,8 +303,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
 }
 
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
-  const supplied = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
-  const extensions = [pageExtension, ...supplied]
+  const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
   const engineToken = init.engineToken

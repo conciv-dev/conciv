@@ -99,6 +99,7 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
     },
     app: {name: 'conciv', version: '0.0.0', channel: 'local', platform: 'web', packaged: false},
     appearance: {font: unused, mode: unused},
+    overlay: unused,
     router: {routing: unused, path: unused},
     keybinds: {keybind: unused, keys: unused, matches: unused},
     servers: {list: unused, get: unused},

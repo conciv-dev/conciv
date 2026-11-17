@@ -10,7 +10,6 @@ import {defineTool} from '@conciv/extension/tool'
 import type {AnyToolBuilder} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {PAGE_TOOL_DEFS, findPageToolMeta, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {
   GENERIC_TOOL_ICON,
   INERT_ADD_RESULT,
@@ -27,7 +26,15 @@ import {TodoCard} from '../src/styled/tools/todo-card.js'
 import {FileReadCard} from '../src/styled/tools/file-read-card.js'
 import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/search-matches.js'
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
-import {builtinPageRegistry, mountView, registryCatalogView} from './helpers.js'
+import {
+  FIXTURE_TOOLS,
+  fixtureToolMeta,
+  fixtureToolName,
+  fixtureToolRegistry,
+  mountView,
+  readFixtureVerb,
+  registryCatalogView,
+} from './helpers.js'
 import {parseClaudePatchBlocks, patchInfo} from '../src/primitives/tools/apply-patch.js'
 
 describe('patch headers', () => {
@@ -218,7 +225,7 @@ describe('catalog cards', () => {
 
   function declaredRegistry() {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const def of PAGE_TOOL_DEFS) registry.register(def.client(), {owner: 'a built-in page tool'})
+    for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
     for (const tool of [shipTool, bannerTool, plainTool, countTool])
       registry.register(tool, {owner: 'a test registrant'})
     return registry
@@ -335,11 +342,11 @@ describe('catalog cards', () => {
 })
 
 describe('new tool projection', () => {
-  function part(verb: string, args: Record<string, unknown> = {}): ToolCallPart {
+  function part(name: string, args: Record<string, unknown> = {}): ToolCallPart {
     return {
       type: 'tool-call',
       id: 'p1',
-      name: `page_${verb}`,
+      name,
       arguments: JSON.stringify(args),
       input: args,
       state: 'complete',
@@ -362,7 +369,7 @@ describe('new tool projection', () => {
 
   function registryWith(extra: AnyToolBuilder) {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
+    for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
     registry.register(extra, {owner: 'a test registrant'})
     return registry
   }
@@ -382,7 +389,7 @@ describe('new tool projection', () => {
 
     mountView(() => (
       <MetaToolCard
-        part={part('ship', {note: 'after review'})}
+        part={part('page_ship', {note: 'after review'})}
         result={undefined}
         ctx={ctx}
         addResult={INERT_ADD_RESULT}
@@ -390,16 +397,16 @@ describe('new tool projection', () => {
     ))
 
     await expect.element(page.getByText('Shipped the page', {exact: false})).toBeVisible()
-    expect(nowTitle(part('ship'), ctx.catalog)).toBe('Shipping the page')
+    expect(nowTitle(part('page_ship'), ctx.catalog)).toBe('Shipping the page')
   })
 
-  it('the card and the running title read a built-in declaration through the default source', async () => {
-    const declared = findPageToolMeta('setattr')
-    if (!declared?.label) throw new Error('page_setattr declares no label')
+  it('the card and the running title read a registered declaration through the default source', async () => {
+    const declared = fixtureToolMeta('setattr')
+    if (!declared?.label) throw new Error('fixture_setattr declares no label')
 
     mountView(() => (
       <MetaToolCard
-        part={part('setattr', {selector: '#hero', attribute: 'hidden'})}
+        part={part(fixtureToolName('setattr'), {selector: '#hero', attribute: 'hidden'})}
         result={undefined}
         ctx={ctx}
         addResult={INERT_ADD_RESULT}
@@ -407,7 +414,7 @@ describe('new tool projection', () => {
     ))
 
     await expect.element(page.getByText(`${declared.label.done} #hero`, {exact: true})).toBeVisible()
-    expect(nowTitle(part('setattr'), ctx.catalog)).toBe(declared.label.running)
+    expect(nowTitle(part(fixtureToolName('setattr')), ctx.catalog)).toBe(declared.label.running)
     expect(toolIconRender(declared.icon)).toBe(toolIconRender('edit'))
     expect(toolIconRender(declared.icon)).not.toBe(GENERIC_TOOL_ICON)
   })
@@ -426,20 +433,20 @@ describe('new tool projection', () => {
   })
 })
 
-describe('page tool cards', () => {
+describe('registered tool cards', () => {
   const ctx: ToolViewCtx = {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
     addResult: () => Promise.resolve(),
-    catalog: registryCatalogView(builtinPageRegistry()),
+    catalog: registryCatalogView(fixtureToolRegistry()),
   }
 
   function part(verb: string, input: Record<string, unknown>): ToolCallPart {
     return {
       type: 'tool-call',
       id: 'p1',
-      name: `page_${verb}`,
+      name: fixtureToolName(verb),
       arguments: JSON.stringify(input),
       input,
       state: 'complete',
@@ -495,12 +502,12 @@ describe('page tool cards', () => {
       <MetaToolCard part={part('nosuchverb', {})} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />
     ))
 
-    await expect.element(page.getByText('page_nosuchverb')).toBeVisible()
+    await expect.element(page.getByText('fixture_nosuchverb')).toBeVisible()
   })
 })
 
 describe('registry card declarations', () => {
-  const catalog = registryCatalogView(builtinPageRegistry())
+  const catalog = registryCatalogView(fixtureToolRegistry())
   const ctx: ToolViewCtx = {
     apiBase: '',
     harnessId: 'test',
@@ -514,20 +521,27 @@ describe('registry card declarations', () => {
     args: Record<string, unknown> = {},
     state: ToolCallPart['state'] = 'complete',
   ): ToolCallPart {
-    return {type: 'tool-call', id: 'p1', name: `page_${verb}`, arguments: JSON.stringify(args), input: args, state}
+    return {
+      type: 'tool-call',
+      id: 'p1',
+      name: fixtureToolName(verb),
+      arguments: JSON.stringify(args),
+      input: args,
+      state,
+    }
   }
 
-  it('every registry page tool declares a label and a non-generic icon', () => {
-    for (const def of PAGE_TOOL_DEFS) {
+  it('every registry tool declares a label and a non-generic icon', () => {
+    for (const def of FIXTURE_TOOLS) {
       expect(def.meta?.label?.running, `${def.name} has no running label`).toBeTruthy()
       expect(def.meta?.label?.done, `${def.name} has no done label`).toBeTruthy()
       expect(toolIconRender(def.meta?.icon), `${def.name} renders the generic icon`).not.toBe(GENERIC_TOOL_ICON)
     }
   })
 
-  it('the card titles every registry page tool from its declaration, never the generic fallback', async () => {
-    for (const def of PAGE_TOOL_DEFS) {
-      const verb = pageVerbOfTool(def.name)
+  it('the card titles every registry tool from its declaration, never the generic fallback', async () => {
+    for (const def of FIXTURE_TOOLS) {
+      const verb = readFixtureVerb(def.name)
       const done = def.meta?.label?.done
       const running = def.meta?.label?.running
       if (done === undefined || running === undefined) throw new Error(`${def.name} declares no label`)
@@ -548,8 +562,8 @@ describe('registry card declarations', () => {
       {verb: 'effect', args: {action: 'enable', effect: 'highlight'}},
     ]
     for (const {verb, args} of representatives) {
-      const declared = PAGE_TOOL_DEFS.find((def) => def.name === `page_${verb}`)?.meta?.label
-      if (!declared) throw new Error(`page_${verb} declares no label`)
+      const declared = fixtureToolMeta(verb)?.label
+      if (!declared) throw new Error(`${fixtureToolName(verb)} declares no label`)
       const selector = args['selector']
       const headline = typeof selector === 'string' ? `${declared.done} ${selector}` : declared.done
       mountView(() => (

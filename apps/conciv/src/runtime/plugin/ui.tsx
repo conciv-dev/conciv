@@ -103,19 +103,21 @@ export const ui: Ui = {
     </Button>
   ),
   Tooltip: (props) => (
-    <Tooltip.Root positioning={{placement: props.placement ?? 'top'}}>
-      <Tooltip.Trigger asChild={(triggerProps) => <span {...triggerProps()}>{props.children}</span>} />
-      <Tooltip.Positioner>
-        <Tooltip.Content>
-          <span class="flex items-center gap-2">
-            <span>{props.value}</span>
-            <Show when={props.keys?.length}>
-              <Keys keys={props.keys ?? []} />
-            </Show>
-          </span>
-        </Tooltip.Content>
-      </Tooltip.Positioner>
-    </Tooltip.Root>
+    <span class="contents">
+      <Tooltip.Root positioning={{placement: props.placement ?? 'top'}}>
+        <Tooltip.Trigger asChild={(triggerProps) => <span {...triggerProps()}>{props.children}</span>} />
+        <Tooltip.Positioner>
+          <Tooltip.Content>
+            <span class="flex items-center gap-2">
+              <span>{props.value}</span>
+              <Show when={props.keys?.length}>
+                <Keys keys={props.keys ?? []} />
+              </Show>
+            </span>
+          </Tooltip.Content>
+        </Tooltip.Positioner>
+      </Tooltip.Root>
+    </span>
   ),
   Menu: (props) => (
     <Menu.Root positioning={{placement: props.placement ?? 'bottom-end', gutter: 4}}>
