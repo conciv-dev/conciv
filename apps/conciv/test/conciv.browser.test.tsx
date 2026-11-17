@@ -7662,13 +7662,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'tabs'],
+    tools: ['fixture_probe', 'page_route'],
     render(props) {
-      if (props.tool === 'tabs') {
+      if (props.tool === 'page_route') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture listed the tabs for ' + props.input.file})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture read the route for ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -8204,19 +8204,20 @@ module.exports = {default: {setup(ctx) {
   }, 90_000)
 
   test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
+    const routeResult = {pathname: '/', search: '', href: 'http://localhost/', title: 'home', state: 'visible'}
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
       toolCalls: [
         {
-          name: 'tabs',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'draw'},
-          result: {tabs: [], unreachable: []},
+          result: routeResult,
         },
         {
-          name: 'tabs',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'decline'},
-          result: {tabs: [], unreachable: []},
+          result: routeResult,
         },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
@@ -8233,13 +8234,13 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
-    await expect
-      .element(shown('list the open conciv tabs of every running conciv engine on this machine'))
-      .toBeVisible()
-    await expect.element(shown('Called tabs')).not.toBeInTheDocument()
+    const routeHeader = () => page.getByRole('button', {name: 'succeeded route src/a.ts'})
+    await expect.element(routeHeader().nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(routeHeader().first()).toBeVisible()
+    await expect.element(shown('report the current url of the live page')).toBeVisible()
+    await expect.element(shown('Called page_route')).not.toBeInTheDocument()
     await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture listed the tabs for src/a.ts')).toBeVisible()
+    await expect.element(shown('Fixture read the route for src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
     await expect.element(shown('mode=draw')).toBeVisible()
