@@ -384,6 +384,18 @@ describe('cli', () => {
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
+    describe('the dev-server reload command is gone', () => {
+      it('tools offers no server group and tools server reload is an unknown command', async () => {
+        await bootCli(cleanups)
+        expect(await helpText(['tools', '--help'])).not.toMatch(/^\s+server\s/m)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringMatching(/^Unknown command 'server' for conciv tools\./)},
+        })
+      })
+    })
+
     describe('the CLI reads its commands from the tool declarations', () => {
       it('sends every repeat of an array flag to the server as one array', async () => {
         const kit = await bootCli(cleanups, {extensions: [acmeExtension]})

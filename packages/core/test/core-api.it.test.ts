@@ -1864,6 +1864,24 @@ describe('rpc registry catalog cosmetics', () => {
   })
 })
 
+describe('rpc registry without a dev-server reload', () => {
+  it('the catalog has no server_reload and calling it answers unknown tool', async () => {
+    const kit = await bootKit()
+    try {
+      expect((await kit.rpc.registry.catalog(undefined)).map((signature) => signature.name)).not.toContain(
+        'server_reload',
+      )
+      const {sessionId} = await kit.rpc.sessions.create(undefined)
+      const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      await expect(sessionRpc.registry.call({name: 'server_reload', input: {file: 'src/a.ts'}})).rejects.toMatchObject({
+        code: 'UNKNOWN_TOOL',
+      })
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+})
+
 describe('rpc symbolicate', () => {
   const root = realpathSync(tempDir('conciv-symbolicate-'))
 
