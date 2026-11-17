@@ -49,10 +49,14 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
 }
 
+const ClaimsNoteSchema = z.object({type: z.literal('note')})
+
 function durableItems(item: DraftItem): DraftItem[] {
   const note = NoteContextItem.safeParse(item.value)
 
-  return note.success ? [{key: item.key, value: noteValue(durableNote(note.data))}] : []
+  if (note.success) return [{key: item.key, value: noteValue(durableNote(note.data))}]
+
+  return ClaimsNoteSchema.safeParse(item.value).success ? [] : [item]
 }
 
 function serializeRow(row: DraftRow): string {
