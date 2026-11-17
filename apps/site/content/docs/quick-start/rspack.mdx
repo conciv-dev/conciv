@@ -5,8 +5,8 @@ description: Add conciv to an Rspack app.
 
 In a development build the Rspack plugin puts the widget on every page of your app, and in watch mode
 (the dev server or `--watch`) it also starts the engine. A one-shot development build only adds the
-widget, so run the dev server or turn on watch mode. A production build carries neither, and a config
-without `mode: 'development'` counts as production.
+widget, so run the dev server or turn on watch mode. A config with `mode: 'production'` or no `mode` counts as
+production and gets neither; `mode: 'development'` and `mode: 'none'` get both.
 
 <Tabs items={['init', 'Manual']}>
 
