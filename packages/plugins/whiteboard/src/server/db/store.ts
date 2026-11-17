@@ -2,7 +2,7 @@ import {existsSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createClient} from '@libsql/client'
-import {and, asc, eq, gt, max, sql, type SQL} from 'drizzle-orm'
+import {and, asc, eq, gt, isNull, lte, max, or, sql, type SQL} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/libsql'
 import {migrate} from 'drizzle-orm/libsql/migrator'
 import type {RunnableQuery} from 'drizzle-orm/runnable-query'
@@ -48,6 +48,8 @@ const resolveMigrationsFolder = (): string => {
     .find((path) => existsSync(path))
   return found ?? fileURLToPath(new URL('../../../drizzle', import.meta.url))
 }
+
+const PENDING_CLAIM_LEASE_MS = 30_000
 
 const present = (table: SQLiteTable, condition: SQL | undefined): SQL =>
   sql`EXISTS (SELECT 1 FROM ${table} WHERE ${condition})`
@@ -110,13 +112,18 @@ export const createStore = async (dataDir: string) => {
     return db.select().from(table).where(eq(table.room, room))
   }
 
-  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+  const getElement = (scope: ElementScope, room: string, elementId: string): Promise<ElementRow | undefined> => {
     const table = elementTable(scope)
-    const current = await db
+    return db
       .select()
       .from(table)
-      .where(and(eq(table.room, row.room), eq(table.elementId, row.elementId)))
+      .where(and(eq(table.room, room), eq(table.elementId, elementId)))
       .get()
+  }
+
+  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+    const table = elementTable(scope)
+    const current = await getElement(scope, row.room, row.elementId)
     if (current && current.version >= row.version) return {ok: false, current}
     const change = {table: elementTableName(scope), room: row.room, key: row.elementId, type: 'upsert'} as const
     const [, recorded] = await db.batch([
@@ -241,12 +248,29 @@ export const createStore = async (dataDir: string) => {
     saved: (row: ReplyRow, room) => ({table: 'canvasReplies', room, key: row.id, type: 'upsert', row}),
   })
 
+  const claimPending = async (id: string, room: string): Promise<boolean> => {
+    const now = Date.now()
+    const claimed = await db
+      .update(canvasPending)
+      .set({claimedUntil: now + PENDING_CLAIM_LEASE_MS})
+      .where(
+        and(
+          eq(canvasPending.id, id),
+          eq(canvasPending.room, room),
+          or(isNull(canvasPending.claimedUntil), lte(canvasPending.claimedUntil, now)),
+        ),
+      )
+      .returning({id: canvasPending.id})
+    return claimed.length > 0
+  }
+
   return {
     db,
     onEvent,
     cursor,
     since,
     listElements,
+    getElement,
     upsertElement,
     upsertElements,
     deleteElement,
@@ -263,6 +287,7 @@ export const createStore = async (dataDir: string) => {
     insertPending: pendingRows.insert,
     updatePending: pendingRows.update,
     deletePending: pendingRows.remove,
+    claimPending,
     insertReply: replyRows.insert,
     updateReply: replyRows.update,
     deleteReply: replyRows.remove,

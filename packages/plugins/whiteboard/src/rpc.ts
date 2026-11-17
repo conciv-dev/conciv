@@ -1,5 +1,4 @@
 import {Rpc} from '@conciv/plugin/rpc'
-import {SessionId} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 import {
   commentRow,
@@ -16,9 +15,10 @@ import {
   replyRowInsert,
 } from './shared/rows.js'
 
-const RoomInput = z.object({room: SessionId})
+const Room = z.string().regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
+const RoomInput = z.object({room: Room})
 const ScopeInput = RoomInput.extend({scope: z.enum(['live', 'draft'])})
-const RemoveInput = RoomInput.extend({id: z.string()})
+const IdInput = RoomInput.extend({id: z.string()})
 const DeletedOutput = z.object({deleted: z.boolean()})
 const notFound = {NOT_FOUND: z.object({id: z.string()})}
 const conflict = {CONFLICT: z.object({current: elementRow})}
@@ -53,7 +53,9 @@ const update = <Row extends z.ZodType, Patch extends z.ZodType<object>>(row: Row
   errors: notFound,
 })
 
-const remove = {input: RemoveInput, output: DeletedOutput}
+const get = <Row extends z.ZodType>(row: Row) => ({input: IdInput, output: row, errors: notFound})
+
+const remove = {input: IdInput, output: DeletedOutput}
 
 const commentPatch = commentRow.omit({id: true, sessionId: true}).partial()
 const pinPatch = pinRow.omit({id: true, room: true}).partial()
@@ -65,26 +67,33 @@ export const Whiteboard = Rpc.define({
   id: 'whiteboard',
   methods: {
     'comments.list': list(commentRow),
+    'comments.get': get(commentRow),
     'comments.insert': insert(commentRow, commentRowInsert),
     'comments.update': update(commentRow, commentPatch),
     'comments.remove': remove,
     'pins.list': list(pinRow),
+    'pins.get': get(pinRow),
     'pins.insert': insert(pinRow, pinRowInsert),
     'pins.update': update(pinRow, pinPatch),
     'pins.remove': remove,
     'reads.list': list(readRow),
+    'reads.get': get(readRow),
     'reads.insert': insert(readRow, readRowInsert),
     'reads.update': update(readRow, readPatch),
     'reads.remove': remove,
     'canvasPending.list': list(pendingRow),
+    'canvasPending.get': get(pendingRow),
     'canvasPending.insert': insert(pendingRow, pendingRowInsert),
     'canvasPending.update': update(pendingRow, pendingPatch),
     'canvasPending.remove': remove,
+    'canvasPending.claim': {input: IdInput, output: z.object({claimed: z.boolean()})},
     'canvasReplies.list': list(replyRow),
+    'canvasReplies.get': get(replyRow),
     'canvasReplies.insert': insert(replyRow, replyRowInsert),
     'canvasReplies.update': update(replyRow, replyPatch),
     'canvasReplies.remove': remove,
     'elements.list': {input: ScopeInput, output: z.array(elementRow)},
+    'elements.get': {input: ScopeInput.extend({id: z.string()}), output: elementRow, errors: notFound},
     'elements.upsert': {input: ScopeInput.extend({row: elementRowInsert}), output: elementRow, errors: conflict},
     'elements.bulkUpsert': {
       input: ScopeInput.extend({rows: z.array(elementRowInsert)}),
@@ -104,7 +113,7 @@ export const Whiteboard = Rpc.define({
   },
   events: {
     changed: {
-      schema: z.object({room: SessionId, table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor}),
+      schema: z.object({room: Room, table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor}),
     },
   },
 })
