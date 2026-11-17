@@ -1169,6 +1169,66 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
   })
 })
 
+describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it', () => {
+  const AGENT = 'dispose-session'
+  const ObjectHandle = z.object({result: z.object({objectId: z.string()})})
+  const Listeners = z.object({
+    listeners: z.array(z.object({type: z.string(), useCapture: z.boolean(), passive: z.boolean()})),
+  })
+
+  async function layoutScrollListeners(): Promise<number> {
+    const handle = ObjectHandle.parse(
+      await cdp().send('Runtime.evaluate', {
+        expression: `[document, ...Array.from(document.querySelectorAll('iframe'), (frame) => frame.contentDocument)].find((doc) => doc?.getElementById('dispose-probe'))`,
+      }),
+    )
+    const {listeners} = Listeners.parse(
+      await cdp().send('DOMDebugger.getEventListeners', {objectId: handle.result.objectId}),
+    )
+    return listeners.filter((listener) => listener.type === 'scroll' && listener.useCapture && listener.passive).length
+  }
+
+  it('drops the agent cursor layout listeners when the plugin is disposed, and watches again on the next aim', async () => {
+    const probe = Object.assign(document.createElement('div'), {id: 'dispose-probe'})
+    document.body.append(probe)
+    onTestFinished(() => probe.remove())
+    makePageOperations(noContributions).dispose()
+    const before = await layoutScrollListeners()
+    const host = document.createElement('div')
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    const driver = makePageOperations(noContributions)
+    await aimCursor({id: AGENT, at: windowAt({x: 20, y: 20}), look: CursorLook.AGENT})
+    expect(await layoutScrollListeners()).toBe(before + 1)
+    driver.dispose()
+    dropCursor(AGENT)
+    expect(await layoutScrollListeners()).toBe(before)
+    const again = makePageOperations(noContributions)
+    onTestFinished(again.dispose)
+    await aimCursor({id: AGENT, at: windowAt({x: 20, y: 20}), look: CursorLook.AGENT})
+    expect(await layoutScrollListeners()).toBe(before + 1)
+    dropCursor(AGENT)
+  })
+
+  it('leaves a console wrapper installed after its own in place when disposed', () => {
+    const untouched = console.info
+    onTestFinished(() => {
+      console.info = untouched
+    })
+    const driver = makePageOperations(noContributions)
+    const heard: unknown[][] = []
+    const later = (...args: unknown[]) => {
+      heard.push(args)
+    }
+    console.info = later
+    driver.dispose()
+    expect(console.info).toBe(later)
+    console.info('after dispose')
+    expect(heard).toEqual([['after dispose']])
+  })
+})
+
 describe.skipIf(inFirefox)('page action queue', () => {
   const AGENT = 'queue-session'
   const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
