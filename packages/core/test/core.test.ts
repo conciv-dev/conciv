@@ -2939,23 +2939,45 @@ describe('plugin host bus', () => {
     expect(heardAt).toEqual([afterDelete])
   })
 
-  test('a session deleted before it ever ran stays deleted after the engine restarts, and its id is not taken again', async () => {
+  test('an engine restart sweeps the sessions that never ran and hold nothing, keeps one that holds a typed draft, and a deleted one stays deleted with its id not taken again', async () => {
     const root = tempDir('conciv-core-unit-')
     const first = await serveCore(root, [], {})
     const firstRpc = makeRpcClient(`${first.origin}/t/${first.made.agentToken}`)
-    const sessionId = await firstRpc.sessions
-      .create(undefined)
-      .then(async (created) => {
-        await firstRpc.sessions.delete({sessionId: created.sessionId})
-        return created.sessionId
+    const draftFor = (sessionId: SessionId, text: string) => ({
+      sessionId,
+      text,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      updatedAt: Date.now(),
+    })
+    const made = await Promise.all([
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+    ])
+      .then(async ([deleted, typed, cleared, empty]) => {
+        await firstRpc.sessions.delete({sessionId: deleted.sessionId})
+        await firstRpc.drafts.set(draftFor(typed.sessionId, 'typed before the restart'))
+        await firstRpc.drafts.set(draftFor(cleared.sessionId, ''))
+        return {
+          deleted: deleted.sessionId,
+          typed: typed.sessionId,
+          cleared: cleared.sessionId,
+          empty: empty.sessionId,
+        }
       })
       .finally(() => first.stop())
     const restarted = await serveCore(root, [], {})
     onTestFinished(() => restarted.stop())
     const rpc = makeRpcClient(`${restarted.origin}/t/${restarted.made.agentToken}`)
-    expect(await rpc.sessions.get({sessionId})).toMatchObject({id: sessionId, hidden: true})
-    await expect(rpc.sessions.resolve({id: sessionId})).rejects.toMatchObject({code: 'NOT_FOUND'})
-    expect(await rpc.sessions.get({sessionId})).toMatchObject({hidden: true})
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({id: made.deleted, hidden: true})
+    await expect(rpc.sessions.resolve({id: made.deleted})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({hidden: true})
+    await expect(rpc.sessions.get({sessionId: made.empty})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    await expect(rpc.sessions.get({sessionId: made.cleared})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.typed})).toMatchObject({id: made.typed, hidden: false})
+    expect(await rpc.drafts.get({sessionId: made.typed})).toMatchObject({text: 'typed before the restart'})
   })
 
   test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
