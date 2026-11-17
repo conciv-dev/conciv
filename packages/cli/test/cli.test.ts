@@ -31,6 +31,7 @@ import {
   TabOpenSchema,
 } from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
@@ -1024,6 +1025,7 @@ describe('cli', () => {
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; of: number}) => void
       answer?: PageAnswer
+      permissions?: Pick<ConcivConfig, 'permission' | 'permissions'>
     } = {},
   ) {
     const root = given.shared?.root ?? tempDir('conciv-hub-')
@@ -1034,6 +1036,7 @@ describe('cli', () => {
         stateRoot: root,
         systemPrompt: `the instructions of ${root}`,
         hubAccess: given.hubAccess ?? 'session',
+        ...given.permissions,
       },
       root,
       launchEditor: given.launchEditor ?? (() => {}),
@@ -1201,6 +1204,7 @@ describe('cli', () => {
       const {engine, sessionId, page} = await engineWithTab(home, {
         answer: (command): PageReply | undefined =>
           command.action.type === 'eval' ? {type: 'success', result: {value: evaluated, files: []}} : undefined,
+        permissions: {permissions: [{action: 'page_eval', resource: '1', effect: 'allow'}]},
       })
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
@@ -1217,7 +1221,9 @@ describe('cli', () => {
         expect([
           await conciv(elsewhere, home, [...evaluate, '--tab', sessionId]),
           await conciv(elsewhere, home, evaluate),
+          await conciv(elsewhere, home, ['tools', 'page', 'eval', '--code', '2', '--tab', sessionId]),
         ]).toMatchObject([
+          {ok: true, data: evaluated},
           {ok: true, data: evaluated},
           {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
         ])
