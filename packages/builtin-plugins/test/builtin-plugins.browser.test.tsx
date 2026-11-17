@@ -149,6 +149,17 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(await runForResult('value', {selector: '#secret'})).toEqual({value: '***'})
     })
 
+    it('masks a password value attribute in dom and attr reads as value reads do', async () => {
+      await runForResult('setattr', {selector: '#secret', attribute: 'value', value: 'hunter2'})
+      expect(await runForResult('attr', {selector: '#secret', attribute: 'value'})).toEqual({value: MASKED_VALUE})
+      expect(await runForResult('attr', {selector: '#field', attribute: 'type'})).toEqual({value: 'text'})
+      const dom = await runForResult('dom', {selector: '#secret'})
+      expect(dom.html).toContain(`value="${MASKED_VALUE}"`)
+      expect(dom.html).not.toContain('hunter2')
+      expect(document.querySelector('#secret')?.getAttribute('value')).toBe('hunter2')
+      await runForResult('removeattr', {selector: '#secret', attribute: 'value'})
+    })
+
     it('drives React-controlled checkboxes and radios so component state follows', async () => {
       expect(await runForResult('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
       await expect.element(formState()).toMatchTextContent('subscribed: true')
