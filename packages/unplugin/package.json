@@ -88,6 +88,7 @@
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@rspack/core": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/devtools": "catalog:",
@@ -97,7 +98,8 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "webpack": "catalog:"
   },
   "peerDependencies": {
     "next": "^15.3.0 || ^16.0.0",
