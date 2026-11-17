@@ -18,7 +18,7 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 - `GrabCard` (`grab-card.tsx`): attachment card that decodes a GrabPayload and shows a dom/image preview, a source label, and a Dialog with a toggle between snapshot and agent text
 - `GrabSnapshotFrame` (`grab-snapshot-frame.tsx`): renders grabbed HTML inside a sandboxed iframe in an SVG foreignObject
 - `toolInput`, `resultChips`, `ChipRow`, `cardPayload`, `cardErrorMessage`, `hasPayloadOrError`, `elementChip`, `mutatingBadge`, `ELEMENT_TARGET_KEYS`, `QUIET_TEXT_CLASS`, `LIST_ROW_CLASS` (`shared.tsx`): shared card helpers and class constants
-- `storyCtx`, `storyPart`, `storyResult`, `storyErrorResult`, `storyAddResult`, `STORY_FRAME_CLASS` (`story.fixtures.ts`): fixture builders used by the stories and by test/page.solid.browser.test.tsx
+- `storyCtx`, `storyPart`, `storyResult`, `storyErrorResult`, `storyAddResult`, `STORY_FRAME_CLASS` (`story.fixtures.ts`): fixture builders used by the stories and by test/builtin-plugins.browser.test.tsx
 - Storybook stories under `Extensions/Page/tool/*` (`*.stories.tsx`): ActCard, ConsoleCard, EditLiveCard, EffectCard, GrabCard, ReactCard, ReadBulkCard, ReadValueCard, SessionCard
 
 ## Invariants
