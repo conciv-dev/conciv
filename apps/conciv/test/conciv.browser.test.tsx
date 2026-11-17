@@ -4009,7 +4009,7 @@ describe('panel view tabs', () => {
     views: [{id: 'notes', label: 'Notes', Component: NotesView}],
   })
 
-  const coreBase = bootedCore('panel-view-tabs')
+  const coreBase = bootedCore('panel-view-tabs', {imageInput: 'native'})
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
 
@@ -4392,6 +4392,54 @@ describe('panel view tabs', () => {
         await expect.element(unsaved).not.toBeInTheDocument()
         await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId: running, text: joined})
         expect(await coreRpc(coreBase()).drafts.get({sessionId: running})).toMatchObject({text: joined})
+      }, 60_000)
+
+      test('a refused steer keeps its image: back in the composer from this browser while saves are refused, and Retry saves it to the engine', async () => {
+        const {running, titles} = await twoSessions('pictured')
+        const steered = 'steer the pictured one away'
+        const queueRow = page.getByRole('listitem').filter({hasText: steered})
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+        await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+        await coreControl.holdTurn()
+        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        await composer().fill('start a long turn')
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+        await composer().fill(steered)
+        await coreControl.chooseFiles('Add an attachment', [
+          {name: 'pictured.png', mimeType: 'image/png', text: 'the bytes of pictured.png'},
+        ])
+        await expect.element(page.getByRole('button', {name: 'Remove pictured.png'})).toBeVisible()
+        await userEvent.click(composer())
+        await userEvent.keyboard('{Enter}')
+        await expect.element(queueRow).toBeVisible()
+        const refused = await faults.install({kind: 'chat-refused', status: 500})
+        const held = await faults.install({kind: 'chat-gate'})
+        await queueRow.getByRole('button', {name: 'Steer'}).click()
+        await coreControl.awaitFaultPending(held, 1)
+        await switchToOther(titles)
+        const draftWrite = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        await coreControl.releaseFault(held)
+        await expect
+          .element(page.getByRole('region', {name: /Notifications/}))
+          .toMatchTextContent(/Internal Server Error|could not be sent/)
+        await coreControl.releaseFault(refused)
+
+        await goBack(titles)
+
+        await expect.element(composer(), {timeout: 8000}).toMatchTextContent(steered)
+        await expect.element(page.getByRole('button', {name: 'Remove image'})).toBeVisible()
+        expect(page.getByRole('button', {name: 'Remove image'}).elements()).toHaveLength(1)
+        await expect.element(unsaved, {timeout: 30_000}).toBeVisible()
+        await coreControl.releaseFault(draftWrite)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await expect
+          .poll(() => coreRpc(coreBase()).drafts.get({sessionId: running}))
+          .toMatchObject({
+            text: steered,
+            attachments: [expect.objectContaining({type: 'image', contentType: 'image/png'})],
+          })
       }, 60_000)
     })
 
