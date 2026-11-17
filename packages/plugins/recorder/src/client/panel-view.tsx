@@ -7,7 +7,7 @@ import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
 import {RECORDER_NAME, REPLAY_MIN_EVENTS, recordingPoster, type RrwebEvent} from '../protocol.js'
 import type {CaptureState} from './boot.js'
-import {saveFileToDisk} from './download.js'
+import {readRecordingVideo, saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
 
@@ -24,10 +24,6 @@ type ReplaySource = {events: RrwebEvent[]; cursor: number}
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
   if (!recording || recording.events.length < REPLAY_MIN_EVENTS) return undefined
   return recording
-}
-
-function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(atob(data), (character) => character.charCodeAt(0))
 }
 
 export function RecorderPanel(props: {clientId: string; capture: CaptureState; panel: PanelProps}): JSX.Element {
@@ -115,16 +111,6 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const exportFailed = (): void =>
     void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
 
-  const readVideo = async (id: string): Promise<File> => {
-    const read = async (offset: number, parts: Uint8Array<ArrayBuffer>[]): Promise<File> => {
-      const piece = await recorder()['recordings.exportVideo']({clientId: props.clientId, id, offset})
-      const bytes = base64Bytes(piece.data)
-      if (piece.eof) return new File([...parts, bytes], piece.name, {type: piece.mime})
-      return read(offset + bytes.length, [...parts, bytes])
-    }
-    return read(0, [])
-  }
-
   const downloadVideo = async (): Promise<void> => {
     setState('exporting', true)
     try {
@@ -133,7 +119,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
         exportFailed()
         return
       }
-      saveFileToDisk(await readVideo(saved.data.recordingId))
+      saveFileToDisk(await readRecordingVideo(ctx, props.clientId, saved.data.recordingId))
     } catch {
       exportFailed()
     } finally {

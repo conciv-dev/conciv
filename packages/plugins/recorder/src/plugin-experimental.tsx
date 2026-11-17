@@ -1,6 +1,7 @@
-import {Panel, Plugin} from '@conciv/plugin/experimental'
+import {NoteCard, Panel, Plugin} from '@conciv/plugin/experimental'
 import {bootCapture} from './client/boot.js'
 import {RecorderPanel} from './client/panel-view.js'
+import {RecordingCard} from './client/recording-card.js'
 import {RECORDER_NAME} from './protocol.js'
 
 const RECORDER_TAB = {id: RECORDER_NAME, title: 'Recorder', pinned: true}
@@ -14,6 +15,10 @@ export default Plugin.define({
       region: 'pane',
       list: () => [RECORDER_TAB],
       render: (panel) => <RecorderPanel clientId={clientId} capture={capture} panel={panel} />,
+    })
+    ctx.add(NoteCard, {
+      origins: [RECORDER_NAME],
+      render: (props) => <RecordingCard note={props.note} session={props.session} clientId={clientId} />,
     })
   },
 })
