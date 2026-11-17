@@ -1450,18 +1450,18 @@ describe('the page contracts another plugin reads', () => {
     })
 
     it('Page.pick returns the clicked element’s source and box, and null when the user presses Escape', async () => {
+      const [leafFrame] = await makeReactTree().frames(leaf().element())
+      expect(leafFrame?.fn).toBe('Leaf')
+      const {x, y, width, height} = leaf().element().getBoundingClientRect()
       const picked = pageMembers.pick()
       await vi.waitFor(() => expect(picking()).toBe(true))
       await userEvent.click(leaf(), {force: true})
       const result = await picked
-      expect(result?.source?.filePath).toContain('react-app')
-      expect(result?.source?.lineNumber).toEqual(expect.any(Number))
-      expect(result?.rect).toEqual({
-        x: expect.any(Number),
-        y: expect.any(Number),
-        width: expect.any(Number),
-        height: expect.any(Number),
-      })
+      expect(result?.source?.componentName).toBe(leafFrame?.fn)
+      expect(leafFrame?.fileName.endsWith(`/${result?.source?.filePath}`)).toBe(true)
+      expect(Number.isInteger(result?.source?.lineNumber)).toBe(true)
+      expect(result?.source?.lineNumber).toBeGreaterThan(0)
+      expect(result?.rect).toEqual({x, y, width, height})
       const cancelled = pageMembers.pick()
       await vi.waitFor(() => expect(picking()).toBe(true))
       await userEvent.keyboard('{Escape}')
