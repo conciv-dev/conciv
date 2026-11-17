@@ -22,16 +22,13 @@ import {
 } from '../src/types.js'
 import {Hono} from 'hono'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {createServer} from 'vite'
 import {makeViteBridge} from '../src/vite-bridge.js'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
 import {os, createRouterClient, onError, type AnyRouter} from '@orpc/server'
-import {rpcWebsocketRoute, type UpgradeWebSocket} from '../src/rpc-mount.js'
-import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {isDefinedError, ORPCError} from '@orpc/client'
 import {
   createToolRegistry,
@@ -42,6 +39,7 @@ import {
 } from '../src/tool-registry.js'
 import {walkRegistryProcedures} from '../src/registry-walk.js'
 import {type PageErrorCode} from '@conciv/protocol/page-types'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('catalog', () => {
   describe('extension catalog (new contract projection)', () => {
@@ -496,55 +494,6 @@ describe('page errors', () => {
       expect(error.verb).toBe('routerState')
       expect(error.message).toBe('no widget connected')
       expect(isPageVerbError(new Error('plain'))).toBe(false)
-    })
-  })
-})
-
-describe('rpc websocket route', () => {
-  const router = {ping: os.input(z.object({value: z.string()})).handler(({input}) => ({pong: input.value}))}
-
-  const strandedUpgrade: UpgradeWebSocket = () => () => Promise.resolve(new Response(null, {status: 500}))
-
-  const adaptedUpgrade: UpgradeWebSocket = () => () => Promise.resolve(new Response())
-
-  function upgradeRequest(): Request {
-    return new Request(`http://127.0.0.1${RPC_WS_PATH}`, {
-      headers: {upgrade: 'websocket', connection: 'Upgrade'},
-    })
-  }
-
-  describe('the rpc websocket route refuses to fail silently', () => {
-    it('reports a split @hono/node-server instance instead of closing the socket quietly', async () => {
-      const reported: string[] = []
-      const app = new Hono().get(
-        RPC_WS_PATH,
-        rpcWebsocketRoute(router, {upgrade: strandedUpgrade, onError: (message) => reported.push(message)}),
-      )
-      const response = await app.fetch(upgradeRequest())
-      expect(response.status).toBe(500)
-      expect(reported.join('\n')).toContain('different @hono/node-server module instance')
-    })
-
-    it('passes an upgrade the adapter accepted straight through', async () => {
-      const reported: string[] = []
-      const app = new Hono().get(
-        RPC_WS_PATH,
-        rpcWebsocketRoute(router, {upgrade: adaptedUpgrade, onError: (message) => reported.push(message)}),
-      )
-      const response = await app.fetch(upgradeRequest())
-      expect(response.status).toBe(200)
-      expect(reported).toEqual([])
-    })
-
-    it('leaves a plain request on the route alone', async () => {
-      const app = new Hono().get(
-        RPC_WS_PATH,
-        rpcWebsocketRoute(router, {
-          upgrade: () => () => Promise.resolve(new Response('not an upgrade', {status: 426})),
-        }),
-      )
-      const response = await app.fetch(new Request(`http://127.0.0.1${RPC_WS_PATH}`))
-      expect(response.status).toBe(426)
     })
   })
 })
@@ -1368,7 +1317,7 @@ describe('tool registry', () => {
 
 describe('vite bridge', () => {
   it('finds a module by a path relative to the project, by its /src url and by its absolute path, and names a file it does not know', async () => {
-    const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-vite-bridge-')))
+    const root = await realpath(tempDir('conciv-vite-bridge-'))
     await mkdir(join(root, 'src'))
     await writeFile(join(root, 'index.html'), '<!doctype html><script type="module" src="/src/main.ts"></script>')
     await writeFile(join(root, 'src/main.ts'), "import {dep} from './dep'\nexport const main = dep\n")

@@ -66,31 +66,55 @@ function serverDraft(row: DraftRow): ServerDraft {
   }
 }
 
-export async function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
+type DraftPlace = 'first' | 'last'
+
+async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
   const row = await appData.readDraft(sessionId).catch((error: unknown) => {
     console.error('[conciv] could not read the saved draft', error)
     return null
   })
-  const nextText = row?.text ? `${row.text}\n${text}` : text
+  const saved = row?.text ?? ''
+  const nextText = saved === '' ? text : place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
+  const caret = place === 'first' ? text.length : nextText.length
   await appData.saveDraft({
     sessionId,
     text: nextText,
-    selectionStart: nextText.length,
-    selectionEnd: nextText.length,
+    selectionStart: caret,
+    selectionEnd: caret,
     attachments: row?.attachments ?? [],
     items: row?.items ?? [],
   })
 }
 
-export function draftCacheSink(appData: AppData, sessionId: string): DraftSink {
+export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
+  return keepInDraft(appData, sessionId, text, 'last')
+}
+
+export function prependDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
+  return keepInDraft(appData, sessionId, text, 'first')
+}
+
+type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<void>
+
+export type DraftWriteChain = (write: () => Promise<void>) => void
+
+export function makeDraftWriteChain(): DraftWriteChain {
   let written = Promise.resolve()
-  const keep = (write: () => Promise<void>): void => {
+  return (write) => {
     written = written
       .then(write)
       .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
   }
+}
+
+export function draftCacheSink(
+  keep: DraftWriteChain,
+  appData: AppData,
+  sessionId: string,
+  write: DraftWrite,
+): DraftSink {
   return {
-    insert: (text) => keep(() => appendDraft(appData, sessionId, text)),
+    insert: (text) => keep(() => write(appData, sessionId, text)),
     addFile: () => {},
   }
 }

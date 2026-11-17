@@ -31,7 +31,6 @@ import {
   Watcher,
 } from '@conciv/plugin-host'
 import {Cause, Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {once} from 'es-toolkit'
 import type {PluginHost} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import {logError} from '../lib/debug.js'
@@ -43,6 +42,7 @@ import {
   provideApp,
   provideBundlerSource,
   provideConfiguredPolicies,
+  provideEditorSource,
   provideExtensionSlugs,
   provideGlobalRoots,
   provideHarnessSource,
@@ -59,9 +59,12 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies'>
   plugins: readonly PluginDefinition.Plugin[]
+  post: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
+  signal: AbortSignal
   harnessSource: Parameters<typeof provideHarnessSource>[0]
   bundler: BundlerBridge | undefined
+  openInEditor: (file: string, line?: number, column?: number) => void
   extensionSlugs: ReadonlyArray<string>
   sessions: Parameters<typeof provideSessions>[0]
 }
@@ -90,7 +93,12 @@ function pluginHostLayer(input: PluginRuntimeInput) {
   return Layer.mergeAll(
     Plugin.layer,
     SdkPlugins.layer,
-    InstancePlugins.bound(input.plugins.map((plugin) => PluginPromise.fromPromise(plugin))),
+    InstancePlugins.bound(
+      input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
+      {
+        post: input.post.map((plugin) => PluginPromise.fromPromise(plugin)),
+      },
+    ),
     PluginUpdate.layer,
     ConfigPluginSource.layer,
   ).pipe(
@@ -114,10 +122,11 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideServersSource({home: input.home, engineId: input.engineId}),
         provideHarnessSource(input.harnessSource),
         provideBundlerSource(input.bundler),
+        provideEditorSource(input.openInEditor),
         provideExtensionSlugs(input.extensionSlugs),
         provideConfiguredPolicies(input.config.policies),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
-        provideHarnessModels(input.harness),
+        provideHarnessModels(input.harness, input.signal),
         provideSessions(input.sessions),
         Watcher.layer().pipe(Layer.provide(Watcher.nativeLayer)),
         Npm.layer.pipe(Layer.provide(EffectFlock.layer)),
@@ -138,8 +147,9 @@ type SessionPrompt = PluginHooks.Domains['session']['prompt']
 
 export type PluginRuntime = {
   runtime: PluginHost
-  startPlugins: () => Promise<void>
-  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  supervise: () => Promise<void>
+  awaitActivation: () => Promise<void>
+  prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
@@ -151,16 +161,14 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
   const supervised = Scope.forkUnsafe(runtime.scope, 'sequential')
   return {
     runtime,
-    startPlugins: once(() =>
-      runtime.runPromise(
-        Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.andThen(Plugin.awaitActivation)),
-      ),
-    ),
-    prompt: (event) =>
+    supervise: () => runtime.runPromise(Layer.buildWithScope(PluginSupervisor.layer, supervised).pipe(Effect.asVoid)),
+    awaitActivation: () => runtime.runPromise(Plugin.awaitActivation),
+    prompt: (event, signal) =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(
           Effect.andThen(PluginHooks.Service.use((hooks) => hooks.trigger('session', 'prompt', event))),
         ),
+        {signal},
       ),
     promptHooked: () =>
       runtime.runPromise(

@@ -20,14 +20,14 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
 - `HostWiring` / `HostApiContext` / `use` / `useExtensionValue` (`host-context.ts`)
 - `MountedExtension` / `MountedSurface` / `MountedView` (`mount-extension.tsx`)
-- `ensureEffectsSurface` / `openSource` / `EFFECTS_SURFACE_ATTR` (`client-host.ts`)
+- `ensureEffectsSurface` / `openSource` (`client-host.ts`); `EFFECTS_SURFACE_ATTR` / `CONCIV_UI_SELECTOR` re-exported from `@conciv/protocol/page-types`
 - `makeExtRpcClient` (`ext-rpc.ts`): oRPC client at `${apiBase}/rpc/ext/<slug>`
 - `subscriptionIterator` (`server-stream.ts`); `pageVerbError` / `isPageVerbError` (`page-errors.ts`)
 - `buildCatalog` / `scaffold` / `validateSource` (`catalog.ts`)
 - `createToolRegistry` / `ToolRegistry` / `TOOL_TRANSPORT_ERRORS` / `toInlineJsonSchema` (`tool-registry.ts`)
 - `walkRegistryProcedures` (`registry-walk.ts`)
 - `makeViteBridge(server)` (`vite-bridge.ts`, the `./vite` export): a `BundlerBridge` over a Vite dev server (config, resolve, module graph, transform, urls, reload, restart); module graph and reload take a file path relative to the Vite root, a `/src/...` url or an absolute path, and throw a `NOT_FOUND` oRPC error naming the file when no module matches (an oRPC error because it is the one error the engine passes to the CLI as a user error today; a declared error on the `server_graph` / `server_reload` tools would be a contract change, so revisit when the bridge moves at the old-system removal); its `subscribe` reports `build-error`, `hmr-update` and `request-trace` diagnostics; the first subscribe wraps the client hot channel, watches file changes and unshifts a request-trace middleware
-- `makeCompositeRpcRouter` / `rpcFetchMiddleware` / `rpcWebsocketRoute` / `RpcSocketGate` / `RPC_PREFIX` ('/rpc') (`rpc-mount.ts`); the socket path is `RPC_WS_PATH` from `@conciv/protocol/rpc-types`
+- `makeCompositeRpcRouter` / `CompositeRpcRouter` / `MountedExtensionRouter` (`rpc-mount.ts`); the transport it is served over is `@conciv/serve/rpc`
 - `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `createSettingsStore` (`settings-store.ts`): the `SettingsStore` surface (get, set, delete, all, onChange) over a lazily resolved `SettingsState`, shared by the engine and the client
 - `createClientSettings(rpc, namespace, signal?)` (`settings-client.ts`): `{global, project}` stores that follow `settings.changes`, answer reads from the latest snapshot after the first one, run each store's calls in order, and ignore a snapshot older than the one held
@@ -48,7 +48,6 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `pageFailure` (`tool-registry.ts`): no-widget, timeout, unknown-verb, invalid-args, handler-error map to NO_PAGE_CLIENT, PAGE_TIMEOUT, UNKNOWN_TOOL, INVALID_ARGS, HANDLER_ERROR
 - `catalogEntries` (`tool-registry.ts`): client tools are reachable only while a page is connected
 - `makeCompositeRpcRouter` (`rpc-mount.ts`): throws on an extension slug collision
-- `rpcHandlerOptions` (`rpc-mount.ts`): refuses a call with `UNAUTHORIZED` when the context's `socket` trust does not allow its path; merges the request headers over the context headers (a socket's context starts with its upgrade request's `user-agent`) and sets `clientVersion` from `x-conciv-version` when it is a semver string (zod; anything else leaves it unset), for the HTTP and the websocket handler alike
 - `use` (`host-context.ts`): a hook used without its host wiring throws
 - `collect-client.ts`: first registration wins by tool name or MIME; `resolveCaptureMode` defaults mutating tools to 'after'
 - `validateSource` (`catalog.ts`): error without `export default defineExtension(`
@@ -56,10 +55,9 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 ## Side Effects
 
 - `ensureEffectsSurface` (`client-host.ts`): appends a fixed div with an open shadow root and a style element to document.body
-- `openSource` (`client-host.ts`): calls rpc.editor.open / rpc.editor.openFromFrames
+- `openSource` (`client-host.ts`): calls the server plugin's `open` method through `rpc.plugin.call` for a located source, else rpc.editor.openFromFrames
 - `makeExtRpcClient` (`ext-rpc.ts`): HTTP RPC with the session header; the node path (no global `location`) also sends `x-conciv-version` (the extension package.json version), the browser path goes through `dynamicBrowserRpcLink` and sends no version header
 - `collectClientEffects` (`collect-client.ts`): console.warn on duplicate effect names
-- `rpcWebsocketRoute` (`rpc-mount.ts`): closes the socket with 1011 on a rejected frame; a `{type: 'conciv:trust', token}` frame never reaches oRPC, it goes to the optional per-connection `gate` (dropped when there is none)
 - `forwardToolToPage` (`tool-registry.ts`): forwards client-tool calls to the connected page
 
 ## Verification

@@ -5,7 +5,7 @@ import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError, isToolError} from '@conciv/extension'
 import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
+import {BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Effect, Result, Stream} from 'effect'
@@ -93,6 +93,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
 }
 
 async function hubTraced<Result>(
+  deps: RpcDeps,
   context: SessionContext,
   name: string,
   input: unknown,
@@ -102,7 +103,11 @@ async function hubTraced<Result>(
   if (trace.hub === null) return run()
   const scope = context.session
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
-  const mirror = trace.mirror(mirrored, {publish: scope.stream.publish, record: scope.run.record})
+  const mirror = trace.mirror(mirrored, {
+    publish: scope.stream.publish,
+    record: scope.run.record,
+    driving: () => deps.code.driving(scope.id),
+  })
   mirror.publish(trace.start(mirrored, name, input))
   try {
     const value = await run()
@@ -119,6 +124,10 @@ async function hubTraced<Result>(
 type CodeErrors = {NO_CODE_MODE: (options?: {message: string}) => Error}
 
 type CodeCall = {context: RpcContext; errors: CodeErrors; signal?: AbortSignal}
+
+function replyWentOut(context: RpcContext, signal: AbortSignal | undefined): Promise<boolean> | undefined {
+  return context.replied?.then((sent) => sent && signal?.aborted !== true)
+}
 
 async function resolveCodeSession(
   deps: RpcDeps,
@@ -140,6 +149,7 @@ async function resolveCodeSession(
 
 async function eventStream(
   host: PluginHost,
+  heartbeatIntervalMs: number | undefined,
   types: ReadonlyArray<string> | undefined,
   signal: AbortSignal | undefined,
 ) {
@@ -148,7 +158,12 @@ async function eventStream(
   const output = Stream.unwrap(
     feed.subscribe(types).pipe(Effect.map((live) => Stream.make(connected).pipe(Stream.concat(live)))),
   )
-  return relayEvents(Stream.toAsyncIterable(output)[Symbol.asyncIterator](), signal)
+  const heartbeat = Stream.tick(heartbeatIntervalMs ?? 15_000).pipe(
+    Stream.drop(1),
+    Stream.map(() => ({id: Event.Id.create(), type: 'server.heartbeat', data: {}})),
+  )
+  const stream = output.pipe(Stream.merge(heartbeat, {haltStrategy: 'left'}))
+  return relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal)
 }
 
 async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
@@ -284,7 +299,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
           await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-          return hubTraced(context, input.name, input.input, run, trace)
+          return hubTraced(deps, context, input.name, input.input, run, trace)
         }
         const call = (): Promise<unknown> =>
           assist === undefined
@@ -307,7 +322,10 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       call: os.plugin.call.handler(async ({input, errors, signal}) => {
         const outcome = await pluginCall(deps.pluginHost, input, signal)
         if (Result.isSuccess(outcome)) return outcome.success
-        throw errors.PLUGIN_RPC({message: outcome.failure.message, data: outcome.failure})
+        const {type, message} = outcome.failure
+        if (type === 'rpc.internal' || type === 'rpc.invalid_output')
+          throw errors.PLUGIN_RPC_INTERNAL({message, data: {type, message}})
+        throw errors.PLUGIN_RPC({message, data: outcome.failure})
       }),
       list: os.plugin.list.handler(({signal}) => pluginList(deps.pluginHost, signal)),
       experimental: os.plugin.experimental.handler(async ({input, errors, signal}) => {
@@ -323,8 +341,30 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
       }),
     },
+    experimental: {
+      persistentPty: {
+        create: os.experimental.persistentPty.create.handler(async ({input, errors}) => {
+          const created = await deps.ptys.create(input)
+          if (created === null) throw errors.NO_TTY()
+          return created
+        }),
+        remove: os.experimental.persistentPty.remove.handler(({input, errors}) => {
+          const pty = deps.ptys.find(input.ptyId)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          if (pty.busy()) throw errors.BUSY()
+          pty.kill()
+          return {ok: true as const}
+        }),
+        connectToken: os.experimental.persistentPty.connectToken.handler(({input, context, errors}) => {
+          if (deps.ptys.find(input.ptyId) === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          return deps.ptys.issueTicket({ptyId: input.ptyId, origin: context.callerOrigin})
+        }),
+      },
+    },
     event: {
-      subscribe: os.event.subscribe.handler(({input, signal}) => eventStream(deps.pluginHost, input?.types, signal)),
+      subscribe: os.event.subscribe.handler(({input, signal}) =>
+        eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
+      ),
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
@@ -347,19 +387,21 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     page: {
       queue: {
-        wait: os.page.queue.wait.handler(({input, errors, signal}) =>
-          deps.queues.wait(input.sessionId, input.queueId, input.waitMs, signal).catch((error: unknown) => {
-            if (signal?.aborted === true) throw error
-            throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
-          }),
+        wait: os.page.queue.wait.handler(({input, context, errors, signal}) =>
+          deps.queues
+            .wait(input.sessionId, input.queueId, input.waitMs, signal, replyWentOut(context, signal))
+            .catch((error: unknown) => {
+              if (signal?.aborted === true) throw error
+              throw errors.NO_QUEUE({message: error instanceof Error ? error.message : String(error)})
+            }),
         ),
       },
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
       changes: sessionOs.page.changes.handler(({context}) =>
-        hubTraced(context, 'page_changes', {}, () => context.session.page.changes()),
+        hubTraced(deps, context, 'page_changes', {}, () => context.session.page.changes()),
       ),
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
-        hubTraced(context, 'page_clear_changes', {}, async () => {
+        hubTraced(deps, context, 'page_clear_changes', {}, async () => {
           await context.session.page.clearChanges()
           return {ok: true as const}
         }),
@@ -373,54 +415,20 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       }),
     },
     server: {
-      config: sessionOs.server.config.handler(({context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_config.name, {}, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_config, {}, errors),
-        ),
-      ),
-      resolve: sessionOs.server.resolve.handler(({input, context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_resolve.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_resolve, input, errors),
-        ),
-      ),
-      graph: sessionOs.server.graph.handler(({input, context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_graph.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_graph, input, errors),
-        ),
-      ),
-      transform: sessionOs.server.transform.handler(({input, context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_transform.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_transform, input, errors),
-        ),
-      ),
-      urls: sessionOs.server.urls.handler(({context, errors}) =>
-        hubTraced(context, BUILTIN_SERVER_TOOL.server_urls.name, {}, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors),
-        ),
-      ),
       reload: sessionOs.server.reload.handler(async ({input, context, errors, signal}) => {
         await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors, signal})
-        return hubTraced(context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
+        return hubTraced(deps, context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors),
-        )
-      }),
-      restart: sessionOs.server.restart.handler(async ({input, context, errors, signal}) => {
-        await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, {context, errors, signal})
-        return hubTraced(context, BUILTIN_SERVER_TOOL.server_restart.name, input, () =>
-          callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors),
         )
       }),
     },
     editor: {
-      open: sessionOs.editor.open.handler(({input, context}) =>
-        hubTraced(context, BUILTIN_OPEN_TOOL.name, input, () => callTool(BUILTIN_OPEN_TOOL, input)),
-      ),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
       models: os.meta.models.handler(async ({input}) => {
         const harness = chat.harnessFor(input.sessionId)
-        const models = await resolveHarnessModels(harness)
+        const models = await resolveHarnessModels(harness, {signal: chat.signal})
         return {
           models,
           defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
@@ -428,7 +436,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({
-        harnesses: await Promise.all(chat.harnesses.map(buildHarnessMenuEntry)),
+        harnesses: await Promise.all(chat.harnesses.map((harness) => buildHarnessMenuEntry(harness, chat.signal))),
         defaultHarness: chat.defaultHarness.id,
       })),
       commands: os.meta.commands.handler(({input, context}) =>

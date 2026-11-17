@@ -1,7 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {mkdtempSync, realpathSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {realpathSync, rmSync} from 'node:fs'
 import {describe, it, afterEach, afterAll, beforeAll, expect} from 'vitest'
 import {defineExtension, defineTool, toolError} from '@conciv/extension'
 import {
@@ -19,12 +17,13 @@ import {SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 import {readDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {start, type Engine} from '../src/start.js'
-import {assertTurnAndResume, requireClaude, bootKit, runTurn, runReal} from './helpers.js'
+import {assertTurnAndResume, requireClaude, bootKit, runTurn, runReal, removeTurnTranscripts} from './helpers.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('claude tanstack', () => {
   const runReal = !process.env.CI
 
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'claude-tanstack-')))
+  const dir = realpathSync(tempDir('claude-tanstack-'))
 
   describe('claude through claudeCodeText + conciv sandbox/gate', () => {
     it.skipIf(!runReal)(
@@ -44,7 +43,7 @@ describe('claude tanstack', () => {
 describe('codex tanstack', () => {
   const runReal = !process.env.CI && harnessAvailable(codex)
 
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'codex-tanstack-')))
+  const dir = realpathSync(tempDir('codex-tanstack-'))
 
   describe('codex through codexText + conciv sandbox/gate', () => {
     it.skipIf(!runReal)(
@@ -65,7 +64,7 @@ describe('opencode tanstack', () => {
   const optIn = process.env.CONCIV_OPENCODE_IT === '1'
   const runReal = !process.env.CI && optIn && harnessAvailable(opencode)
 
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'opencode-tanstack-')))
+  const dir = realpathSync(tempDir('opencode-tanstack-'))
 
   describe('opencode through opencodeText + conciv sandbox/gate (opt-in: CONCIV_OPENCODE_IT=1 + a funded opencode provider)', () => {
     it.skipIf(!runReal)(
@@ -216,8 +215,8 @@ describe('start dev endpoint', () => {
     engineCase: EngineCase,
     assertEndpoint: (engine: Engine, endpointDir: string) => Promise<void>,
   ): Promise<void> {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-start-endpoint-'))
-    const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-endpoint-dir-'))
+    const root = tempDir('conciv-start-endpoint-')
+    const endpointDir = tempDir('conciv-endpoint-dir-')
     try {
       const engine = await start({
         options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
@@ -278,6 +277,7 @@ describe('api mcp claude image', () => {
       'delivers an image to claude so the model sees its pixels',
       async () => {
         const kit = await bootKit()
+        const keepTranscripts = removeTurnTranscripts(requireClaude(), kit.stateRoot, 'claude-code.session-id')
         try {
           const events = await runTurn(
             kit,
@@ -293,6 +293,7 @@ describe('api mcp claude image', () => {
             },
             await kit.session(),
           )
+          keepTranscripts(events)
           expect(events.text().toLowerCase()).toContain('red')
         } finally {
           await kit.cleanup()

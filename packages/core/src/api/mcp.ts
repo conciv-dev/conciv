@@ -205,8 +205,9 @@ type McpDeps = {
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
   finishedQueues: (sessionId: SessionId, hub: boolean) => PageQueueResult[]
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => PageQueueHandle[]
-  outsideCapabilities: (sessionId: SessionId) => CodeCapability[]
+  outsideCapabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   admitCall: ChatPlane['admitCall']
+  driving: ChatPlane['driving']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   hubRefusal: (client: string | null) => string | null
@@ -270,7 +271,11 @@ export async function openCodeSession(
 ): Promise<CodeSession | null> {
   const hub = caller.trace.hub !== null
   const run = {threadId: scope.id, live: await scope.run.live()}
-  const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
+  const mirror = caller.trace.mirror(run, {
+    publish: scope.stream.publish,
+    record: scope.run.record,
+    driving: () => deps.driving(scope.id),
+  })
   const childCalls = new Set<string>()
   const publish = (chunk: ChatEvent): void => {
     if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
@@ -280,7 +285,7 @@ export async function openCodeSession(
   const runner = await deps.codeRunner(
     scope.id,
     publish,
-    hub && caller.outside ? deps.outsideCapabilities(scope.id) : undefined,
+    hub && caller.outside ? await deps.outsideCapabilities(scope.id) : undefined,
   )
   if (runner === null) return null
   const calls: CallPublisher = {

@@ -1,4 +1,4 @@
-import {createContext, createSignal, Show, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
+import {createContext, createSignal, onCleanup, Show, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
 import {createClipboardCopy, writeClipboardText, type ClipboardCopyStatus} from '@conciv/ui-kit-system'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useThread} from '../../store/chat-context.js'
@@ -6,7 +6,7 @@ import {useMessage} from '../message/message-context.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import type {Turn} from '../../store/grouping.js'
 import {useActionHandlers} from './action-handlers.js'
-import {ActionBarInteractionProvider} from './interaction-context.js'
+import {ActionBarInteractionProvider, useActionBarInteraction} from './interaction-context.js'
 
 const CopyStatusContext = createContext<Accessor<ClipboardCopyStatus>>()
 
@@ -66,7 +66,7 @@ function Root(props: RootProps): JSX.Element {
   return (
     <Show when={!hidden()}>
       <ActionBarInteractionProvider value={{acquireInteractionLock}}>
-        <div
+        <FocusHoldingBar
           data-floating={floating() ? 'true' : undefined}
           data-autohide={autohideEnabled() ? 'true' : undefined}
           data-active={active() ? 'true' : undefined}
@@ -75,6 +75,28 @@ function Root(props: RootProps): JSX.Element {
         />
       </ActionBarInteractionProvider>
     </Show>
+  )
+}
+
+function FocusHoldingBar(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+  const interaction = useActionBarInteraction()
+  let releaseFocusLock: (() => void) | undefined
+  const release = (): void => {
+    releaseFocusLock?.()
+    releaseFocusLock = undefined
+  }
+  onCleanup(release)
+  return (
+    <div
+      on:focusin={() => {
+        releaseFocusLock ??= interaction?.acquireInteractionLock()
+      }}
+      on:focusout={(event) => {
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+        release()
+      }}
+      {...props}
+    />
   )
 }
 

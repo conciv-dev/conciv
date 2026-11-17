@@ -1,10 +1,10 @@
 import {execFileSync} from 'node:child_process'
-import {mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
-import {tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
 import {packTarball} from '@conciv/vitest-config/pack'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const packageRoot = resolve(import.meta.dirname, '../..')
 const mascotRoot = realpathSync(join(packageRoot, 'node_modules/@conciv/mascot'))
@@ -57,7 +57,7 @@ describe('packed install', {tags: ['packed']}, () => {
   })
 
   test('a packed install with only react present imports and renders the react mascot', () => {
-    const consumerRoot = mkdtempSync(join(tmpdir(), 'conciv-mascot-react-packed-'))
+    const consumerRoot = tempDir('conciv-mascot-react-packed-')
     consumerRoots.push(consumerRoot)
     installPacked(consumerRoot, mascotRoot, '@conciv/mascot')
     installPacked(consumerRoot, packageRoot, '@conciv/mascot-react')

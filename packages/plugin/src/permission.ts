@@ -1,11 +1,15 @@
-import type {Source} from './schema/permission.js'
+import {Agent} from './schema/agent.js'
+import {Permission} from './schema/permission.js'
+import {Schema} from 'effect'
 
-export type AssertInput = {
-  sessionId: string
-  agent?: string | undefined
-  action: string
-  resources: string[]
-  save?: string[] | undefined
-  metadata?: Record<string, unknown> | undefined
-  source?: Source | undefined
-}
+export const AssertInput = Schema.Struct({
+  sessionId: Permission.Request.fields.sessionId,
+  agent: Agent.Id.pipe(Schema.optional),
+  action: Permission.Request.fields.action,
+  resources: Permission.Request.fields.resources,
+  save: Permission.Request.fields.save,
+  metadata: Permission.Request.fields.metadata,
+  source: Permission.Request.fields.source,
+  fallback: Schema.Literal('ask').pipe(Schema.optional),
+})
+export interface AssertInput extends Schema.Schema.Type<typeof AssertInput> {}

@@ -51,7 +51,7 @@ export interface RpcApi<Options = RpcCallOptions> {
 
 const RpcError = z.object({
   defined: z.literal(true),
-  code: z.literal('PLUGIN_RPC'),
+  code: z.enum(['PLUGIN_RPC', 'PLUGIN_RPC_INTERNAL']),
   data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
 })
 
@@ -122,9 +122,17 @@ export function makeRpc(
             const signal = options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
             const source = subscribe(name, {signal})
             async function deliver() {
-              for await (const event of source) await handler(event)
+              for await (const event of source) {
+                try {
+                  await handler(event)
+                } catch (error) {
+                  console.error(error)
+                }
+              }
             }
-            void deliver().catch((error: unknown) => console.error(error))
+            void deliver().catch((error: unknown) =>
+              console.error(`[plugin] the event subscription of rpc.${definition.id}.${name} failed`, error),
+            )
             return () => controller.abort()
           },
         },

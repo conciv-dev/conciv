@@ -7,11 +7,11 @@ import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
-import type {RpcClient} from '@conciv/contract'
 import {useAppData, useConnectionGeneration, usePreferences, useRpc, useSuppressed} from '../app/context.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
+import {useStartSession} from '../app/start-session.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {RefreshButton} from '../shell/refresh-button.js'
 import {ContextTracker} from '../pane/context-tracker.js'
@@ -30,7 +30,7 @@ const PANE_ACTION = 'text-chat-text-3 leading-none size-6'
 
 const ADD_PANE_FAILED_MESSAGE = 'conciv could not start a pane. Check the engine connection and retry.'
 
-type StartSession = () => ReturnType<RpcClient['sessions']['resolve']>
+type StartSession = () => Promise<{sessionId: string}>
 
 export const Route = createFileRoute('/quick')({
   validateSearch: QuickSearchSchema,
@@ -139,8 +139,11 @@ function QuickLayer(): JSX.Element {
     onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId),
   })
 
+  const startSession = useStartSession()
   const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
-  const createFreshPane = useMutation(() => paneStartOptions(() => rpc.sessions.create(undefined)))
+  const createFreshPane = useMutation(() =>
+    paneStartOptions(() => (paneIds().length === 0 ? appData.createSession() : startSession())),
+  )
 
   const lastPaneStart = () =>
     createFreshPane.submittedAt > resumeLatestPane.submittedAt ? createFreshPane : resumeLatestPane
@@ -285,7 +288,11 @@ function QuickLayer(): JSX.Element {
                     onPointerDown={onGutterDown}
                   />
                 </Show>
-                <PaneProvider sessionId={id} onNewSession={addFreshPane}>
+                <PaneProvider
+                  sessionId={id}
+                  onNewSession={addFreshPane}
+                  onReplaceSession={(next) => activatePane(index(), next)}
+                >
                   <Show when={focusedIndex() === index()}>
                     <PluginSession sessionId={id} />
                   </Show>

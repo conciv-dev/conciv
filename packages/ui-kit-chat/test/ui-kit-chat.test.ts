@@ -10,6 +10,7 @@ import {
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
+import {deriveSessionStatus, type SessionStatusInput} from '../src/store/session-status.js'
 import {
   coalesceTurns,
   defaultGrouper,
@@ -19,6 +20,116 @@ import {
   shareGroupNodes,
 } from '../src/store/grouping.js'
 import {createPageSessionGrouper} from '../src/store/page-session.js'
+import {turnRollup} from '../src/store/turn-rollup.js'
+import {shortToolLabel} from '../src/tools/primitives/tool-row.js'
+import {humanToolName} from '../src/tools/primitives/now-title.js'
+import {genericToolHeadline} from '../src/tools/styled/generic-tool-headline.js'
+
+describe('tool names', () => {
+  it('shortens a tool name into a row label', () => {
+    expect(shortToolLabel('HTMLParser')).toBe('html_parser')
+    expect(shortToolLabel('parseHTMLDocument')).toBe('document')
+    expect(shortToolLabel('XMLHttpRequest')).toBe('http_request')
+    expect(shortToolLabel('getURLForID')).toBe('get')
+    expect(shortToolLabel('ABCdef')).toBe('ab_cdef')
+    expect(shortToolLabel('snake_case_tool')).toBe('case_tool')
+    expect(shortToolLabel('mcp__playwright__browser_take_screenshot')).toBe('shot')
+    expect(shortToolLabel('')).toBe('')
+    expect(shortToolLabel('A'.repeat(400_000))).toBe('aaaaaaaaaaa…')
+  })
+
+  it('names an mcp tool by its tool part', () => {
+    expect(humanToolName('mcp__github__create_pull_request')).toBe('create pull request')
+    expect(humanToolName('mcp__srv__tool__with__extra')).toBe('tool  with  extra')
+    expect(humanToolName('mcp___a__b')).toBe('b')
+    expect(humanToolName('mcp__a____')).toBe('  ')
+    expect(humanToolName('mcp____x')).toBe('mcp____x')
+    expect(humanToolName('mcp__srv__')).toBe('mcp__srv__')
+    expect(humanToolName('mcp__srv__tool\n')).toBe('mcp__srv__tool\n')
+    expect(humanToolName('Bash')).toBe('Bash')
+    const slow = `mcp__${'a__'.repeat(240_000)}\n`
+    expect(humanToolName(slow)).toBe(slow)
+  })
+})
+
+describe('turn rollup', () => {
+  function patchTurn(patchText: string) {
+    const call: ToolCallPart = {
+      type: 'tool-call',
+      id: 'p1',
+      name: 'apply_patch',
+      arguments: JSON.stringify({patchText}),
+      state: 'input-complete',
+    }
+    return turnRollup({parts: [call]})
+  }
+
+  it('reads the edited files from patch headers', () => {
+    expect(patchTurn('*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch').files).toEqual(['src/a.ts'])
+    expect(patchTurn('*** Add File:\nsrc/next.ts\n+x').files).toEqual([])
+    expect(patchTurn('*** Update File: \t  src/a.ts\n+x').files).toEqual(['src/a.ts'])
+    expect(patchTurn('*** Add File: \t \n+x').files).toEqual([])
+  })
+})
+
+describe('generic tool headline', () => {
+  function headline(input: unknown) {
+    return genericToolHeadline({
+      type: 'tool-call',
+      id: 'g1',
+      name: 'server_resolve',
+      arguments: input === undefined ? '' : JSON.stringify(input),
+      state: 'input-complete',
+    })
+  }
+
+  it('titles the call by its tool and takes a label key as the subtitle', () => {
+    expect(headline({path: 'src/a.ts'})).toEqual({
+      title: 'Called server_resolve',
+      subtitle: 'src/a.ts',
+      args: [],
+      target: 'src/a.ts',
+    })
+  })
+
+  it('takes the first label key in source order and never repeats a label key as an argument', () => {
+    expect(
+      headline({name: 'n', pattern: '*.ts', url: 'https://a.dev', query: 'q', description: 'd', mode: 'x'}),
+    ).toEqual({
+      title: 'Called server_resolve',
+      subtitle: 'd',
+      args: ['mode=x'],
+      target: 'd',
+    })
+    expect(headline({description: '', path: 'src/b.ts'}).subtitle).toBe('src/b.ts')
+  })
+
+  it('with no label key turns the scalars into arguments, first three only, and the first one is the target', () => {
+    expect(headline({spec: 'solid-js', count: 3, deep: false, extra: 'cut'})).toEqual({
+      title: 'Called server_resolve',
+      subtitle: undefined,
+      args: ['spec=solid-js', 'count=3', 'deep=false'],
+      target: 'solid-js',
+    })
+    expect(headline({count: 3}).target).toBe('3')
+  })
+
+  it('skips objects, arrays and null', () => {
+    expect(headline({options: {a: 1}, list: [1], empty: null, flag: true})).toEqual({
+      title: 'Called server_resolve',
+      subtitle: undefined,
+      args: ['flag=true'],
+      target: 'true',
+    })
+  })
+
+  it('reads an empty, missing or broken input as no arguments', () => {
+    const titleOnly = {title: 'Called server_resolve', subtitle: undefined, args: [], target: undefined}
+    expect(headline({})).toEqual(titleOnly)
+    expect(headline(undefined)).toEqual(titleOnly)
+    expect(headline([1, 2])).toEqual(titleOnly)
+  })
+})
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
@@ -199,6 +310,25 @@ describe('run clock', () => {
     it('never reports a negative elapsed time when the host clock steps backwards', () => {
       expect(runClock(source(), 499_000)).toEqual({elapsedMs: 0, frozen: false})
     })
+  })
+})
+
+describe('session status', () => {
+  const settled: SessionStatusInput = {
+    latestRollup: undefined,
+    isStreaming: false,
+    queueLength: 0,
+    stopping: false,
+    runError: null,
+    stopped: false,
+    ran: false,
+  }
+
+  it('reads a session that never ran as unstarted, its first turn as running, and its settle as done', () => {
+    expect(deriveSessionStatus(settled).kind).toBe('unstarted')
+    expect(deriveSessionStatus({...settled, isStreaming: true})).toEqual({kind: 'running', label: 'RUNNING'})
+    expect(deriveSessionStatus({...settled, ran: true})).toEqual({kind: 'done', label: 'DONE'})
+    expect(deriveSessionStatus({...settled, ran: true, stopped: true})).toEqual({kind: 'stopped', label: 'STOPPED'})
   })
 })
 

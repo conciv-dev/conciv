@@ -236,7 +236,9 @@ README.md; this file is the non-obvious operational rules.
 
 ## Fallow local gate
 
-Before any `git commit` or `git push`, run `fallow audit --format json --quiet --explain --gate-marker agent`. If the verdict is `fail`, fix the reported findings before retrying. Treat JSON runtime errors like `{ "error": true, ... }` as non-blocking.
+Before any `git commit` or `git push`, run `fallow audit --format json --quiet --explain --gate-marker agent`. If the verdict is `fail`, fix the reported findings before retrying. Treat JSON runtime errors like `{ "error": true, ... }` as non-blocking. Agent sessions pin the comparison base to `origin/main` through `.claude/settings.json` `env.FALLOW_AUDIT_BASE`, so every commit is judged as the whole branch against main; a session started before that setting existed must be restarted to pick it up.
+
+To attribute findings, the audit keeps a checkout of the base commit per worktree and base, a `fallow-audit-base-cache-*` folder of about 70 MB in the OS temp dir. `.fallowrc.json` sets `audit.cacheMaxAgeDays: 1`, so each audit sweeps its own copies unused for a day (fallow's default is 30); `pnpm exec fallow audit-cache prune` applies the same sweep by hand.
 
 Audit defaults to `gate=new-only`: only findings introduced by the current changeset affect the verdict. Inherited findings on touched files are reported under `attribution` and annotated with `introduced: false`, but do not block the commit. Set `[audit] gate = "all"` in `fallow.toml` to gate every finding in changed files.
 

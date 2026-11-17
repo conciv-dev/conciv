@@ -78,11 +78,11 @@ describe('Watcher lifecycle', () => {
         const watcher = yield* Watcher.Service
         const consumer = yield* watcher
           .subscribe(
-            {path: '/shared', type: 'entries', names: ['opencode.json']},
+            {path: '/shared', type: 'entries', names: ['conciv.json']},
             Effect.gen(function* () {
               counts.ready++
               const notify = yield* Deferred.await(publish)
-              notify({path: '/shared/opencode.json', type: 'create'})
+              notify({path: '/shared/conciv.json', type: 'create'})
             }),
           )
           .pipe(Effect.flatMap(Stream.runHead), Effect.forkScoped({startImmediately: true}))
@@ -90,7 +90,7 @@ describe('Watcher lifecycle', () => {
         expect(counts.ready).toBe(0)
         yield* Deferred.succeed(acquired, undefined)
         expect(Option.getOrUndefined(yield* Fiber.join(consumer))).toEqual({
-          path: '/shared/opencode.json',
+          path: '/shared/conciv.json',
           type: 'create',
         })
         expect(counts).toEqual({ready: 1, closed: 1})
@@ -135,7 +135,7 @@ describe('Watcher lifecycle', () => {
             native.subscribe({
               type: 'entries',
               target: tmp.path,
-              names: ['opencode.json', '.opencode'],
+              names: ['conciv.json', '.conciv'],
               ignore: [],
               publish: (update) => events.push(update),
             }),
@@ -143,19 +143,19 @@ describe('Watcher lifecycle', () => {
           )
           yield* Effect.promise(async () => {
             await fs.mkdir(path.join(tmp.path, 'nested'))
-            await fs.writeFile(path.join(tmp.path, 'nested', 'opencode.json'), 'ignored')
-            await fs.writeFile(path.join(tmp.path, 'opencode.jsonc'), 'ignored')
-            await fs.writeFile(path.join(tmp.path, 'opencode.json'), 'first')
+            await fs.writeFile(path.join(tmp.path, 'nested', 'conciv.json'), 'ignored')
+            await fs.writeFile(path.join(tmp.path, 'conciv.jsonc'), 'ignored')
+            await fs.writeFile(path.join(tmp.path, 'conciv.json'), 'first')
           })
           yield* Effect.sync(() => events.length).pipe(
             Effect.filterOrFail((count) => count > 0),
             Effect.retry(Schedule.spaced('10 millis')),
             Effect.timeout('1 second'),
           )
-          expect(events.every((update) => update.path === path.join(tmp.path, 'opencode.json'))).toBe(true)
+          expect(events.every((update) => update.path === path.join(tmp.path, 'conciv.json'))).toBe(true)
           yield* Effect.sleep('10 millis')
-          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, '.opencode')))
-          yield* Effect.sync(() => events.some((update) => update.path === path.join(tmp.path, '.opencode'))).pipe(
+          yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, '.conciv')))
+          yield* Effect.sync(() => events.some((update) => update.path === path.join(tmp.path, '.conciv'))).pipe(
             Effect.filterOrFail(Boolean),
             Effect.retry(Schedule.spaced('10 millis')),
             Effect.timeout('1 second'),
@@ -204,8 +204,8 @@ describe('Watcher lifecycle', () => {
         watcher
           .subscribe({path: '/shared', type: 'entries', names})
           .pipe(Effect.flatMap(Stream.runDrain), Effect.forkScoped({startImmediately: true}))
-      const first = yield* consume(['opencode.json', '.opencode', 'opencode.json'])
-      const second = yield* consume(['.opencode', 'opencode.json'])
+      const first = yield* consume(['conciv.json', '.conciv', 'conciv.json'])
+      const second = yield* consume(['.conciv', 'conciv.json'])
       yield* Effect.yieldNow
       expect(counts.subscribes).toBe(1)
 
@@ -249,7 +249,7 @@ describeNative('LocationWatcher', () => {
       Effect.gen(function* () {
         const fs = yield* FSUtil.Service
         const watcher = yield* Watcher.Service
-        const target = path.join(directory, 'opencode.json')
+        const target = path.join(directory, 'conciv.json')
         const sibling = path.join(directory, 'other.json')
         const updates = yield* watcher.subscribe({path: target, type: 'file'})
         const update = yield* updates.pipe(Stream.take(1), Stream.runHead, Effect.forkScoped({startImmediately: true}))

@@ -4,8 +4,7 @@ import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
 import {afterEach, beforeEach, expect, vi} from 'vitest'
 import {execFileSync} from 'node:child_process'
-import {appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {appendFileSync, chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {z} from 'zod'
 import {CLAUDE_CONNECT_PLUGIN_VERSION} from '@conciv/harness-init/claude/files'
@@ -13,10 +12,10 @@ import type {LedgerEntry, StepNote} from '../src/init/ledger.js'
 import type {InitContext, InitResult, InitRuntime, RunSettings} from '../src/init/pipeline.js'
 import type {InitOutput, PlanPrompts} from '../src/init/wizard.js'
 import type {FileBackup} from '../src/init/interrupt.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
-  openInEditor?: (file: string, line?: number, column?: number) => void
   extensions?: Parameters<typeof makeApp>[0]['extensions']
 }
 
@@ -24,7 +23,6 @@ function bootCliApp(extras: BootExtras): BootApp {
   return async (env) => {
     const cfg: ResolvedConcivConfig = {
       enabled: true,
-      widgetUrl: undefined,
       stateRoot: env.stateRoot,
       harness: env.harness.id,
       harnessBin: undefined,
@@ -35,15 +33,16 @@ function bootCliApp(extras: BootExtras): BootApp {
       plugins: [],
       policies: [],
     }
-    const {fetch, dispose, agentToken} = await makeApp({
+    const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
       print: env.print,
       cfg,
       cwd: env.cwd,
-      openInEditor: extras.openInEditor ?? (() => {}),
+      openInEditor: () => {},
       harness: env.harness,
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }
 }
@@ -226,8 +225,8 @@ function recordClaudePluginState(opts: {home: string; cwd: string; args: string[
 export function fixture(options: FixtureOptions = {}): Fixture {
   const {configFixture = 'vite.config.vanilla.ts', vite = true, claude = true} = options
   const {recordOutput = true, injectInteractive = true} = options
-  const cwd = mkdtempSync(join(tmpdir(), 'conciv-init-run-'))
-  const home = mkdtempSync(join(tmpdir(), 'conciv-init-home-'))
+  const cwd = tempDir('conciv-init-run-')
+  const home = tempDir('conciv-init-home-')
   const binDir = join(home, 'shim-bin')
   mkdirSync(binDir, {recursive: true})
   if (claude) {

@@ -11,7 +11,6 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery, type ChatSession} from '@conciv/client'
-import {Button} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {
   activeToolCall,
@@ -40,10 +39,11 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft, type DraftSink} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
+import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
 import {createToolDurations} from './tool-durations.js'
 import {toolFallbackCard} from './tool-fallback-card.js'
@@ -68,12 +68,15 @@ import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
-import {RunErrorRow} from './run-error-row.js'
+import {RunErrorRow, sessionDeleted} from './run-error-row.js'
+import {DeletedSessionPanel} from './deleted-session-panel.js'
+import {PaneAlert} from './pane-alert.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 import {QueueStrip} from './queue-strip.js'
 import {
   createPaneSession,
   SessionComposerBinding,
+  SessionComposerPills,
   SessionHeaderSlot,
   SessionLinks,
   SessionStatusSlot,
@@ -93,7 +96,6 @@ const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
   'self-start ps-[var(--chat-trace-gutter)] text-chat-micro leading-loose [font-family:var(--chat-mono)] text-chat-faint'
-const ERROR = 'flex gap-2 items-center text-chat-danger text-chat-sm anim-msg'
 const LOAD_FAILED = 'Couldn’t load this conversation'
 
 function resetSlideOnSelf(reset: () => void) {
@@ -203,14 +205,19 @@ type OpenedChat = {chat: ChatSession; reopened: boolean}
 
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const pane = usePane()
+  const appData = useAppData()
+  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
+  const deleted = () => session.isSuccess && session.data.hidden
   const opened = createMemo<OpenedChat | undefined>(
     (previous) => ({chat: pane.chat(), reopened: previous !== undefined}),
     undefined,
     {equals: (previous, next) => previous?.chat === next?.chat},
   )
   return (
-    <Show when={opened()} keyed>
-      {(current) => <OpenedChatPane opened={current} sessionId={props.sessionId} viewTab={props.viewTab} />}
+    <Show when={!deleted()} fallback={<DeletedSessionPanel sessionId={props.sessionId} />}>
+      <Show when={opened()} keyed>
+        {(current) => <OpenedChatPane opened={current} sessionId={props.sessionId} viewTab={props.viewTab} />}
+      </Show>
     </Show>
   )
 }
@@ -273,7 +280,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
-    addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
+    addResult: messaging.onAnswer,
     durationFor: createToolDurations(chat.messages, Date.now),
     captureFor: captures.lookup,
   })
@@ -303,6 +310,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
   const insert = (text: string) => {
     inputHandle()?.append(text)
+    focusInput()
+  }
+  const insertFirst = (text: string) => {
+    inputHandle()?.select({start: 0, end: 0})
+    inputHandle()?.insert(`${text}\n`)
     focusInput()
   }
   const attach = (file: File) => {
@@ -443,7 +455,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={messaging.visibleError()}>
                       {(error) => (
                         <Show
-                          when={!chat.loadFailed()}
+                          when={!chat.loadFailed() || sessionDeleted(error())}
                           fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
                         >
                           <RunErrorRow
@@ -467,6 +479,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   </Suspense>
                   <ExtensionSurface name="status" instances={instances} />
                   <SessionStatusSlot pane={pluginSession} />
+                  <SessionComposerPills pane={pluginSession} />
                   <ExtensionSurface name="footer" instances={instances} />
                 </div>
                 <QueueStrip queue={chat.queue()} />
@@ -497,7 +510,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       input={inputHandle}
                       onRestore={restored.resolve}
                     />
-                    <LostQueueReceiver sessionId={sessionId} sink={{insert, addFile: attach}} />
+                    <DraftReturnReceiver
+                      sessionId={sessionId}
+                      sinks={{queue: {insert, addFile: attach}, steered: {insert: insertFirst, addFile: attach}}}
+                    />
                     <Suspense fallback={<ComposerActionsPending />}>
                       <ComposerActions
                         sessionId={sessionId}
@@ -538,7 +554,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
               onSteer: messaging.onSteer,
-              onSteerError: messaging.onSendError,
+              onSteerError: messaging.onSteerError,
               onCancel: () => {
                 returnQueueToDraft(chat, {insert, addFile: attach})
                 void chat.stop()
@@ -561,31 +577,13 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
   )
 }
 
-function LostQueueReceiver(props: {sessionId: string; sink: DraftSink}): JSX.Element {
+function DraftReturnReceiver(props: {sessionId: string; sinks: PaneDraftSinks}): JSX.Element {
   const liveSessions = useLiveSessions()
-  onMount(() => liveSessions.receiveLostQueue(props.sessionId, props.sink))
+  onMount(() => liveSessions.receiveDraftReturns(props.sessionId, props.sinks))
   return <></>
 }
 
 function LoadFailedAlert(props: {busy: boolean; sessionId: string}): JSX.Element {
   const liveSessions = useLiveSessions()
   return <PaneAlert message={LOAD_FAILED} busy={props.busy} onRetry={() => liveSessions.reopen(props.sessionId)} />
-}
-
-function PaneAlert(props: {message: string; busy: boolean; onRetry: () => void}): JSX.Element {
-  return (
-    <div class={ERROR} role="alert">
-      <span class="flex-1">{props.message}</span>
-      <Button
-        variant="outline-danger"
-        size="sm"
-        class="shrink-0 font-semibold"
-        disabled={props.busy}
-        aria-busy={props.busy}
-        onClick={() => props.onRetry()}
-      >
-        {props.busy ? 'Retrying…' : 'Retry'}
-      </Button>
-    </div>
-  )
 }

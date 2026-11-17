@@ -70,6 +70,9 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension-compiler',
   '@conciv/plugin',
   '@conciv/plugin-host',
+  '@conciv/plugin-page',
+  '@conciv/plugin-recorder',
+  '@conciv/plugin-test-runner',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
@@ -77,7 +80,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/ui-kit-chat-tools',
   '@conciv/ui-kit-tap',
   '@conciv/ui-kit-terminal',
-  '@conciv/extension-test-runner',
   '@conciv/extension-whiteboard',
   '@conciv/extension-terminal',
   '@conciv/extension-recorder',
@@ -288,6 +290,7 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
 
 const CATALOG_EXEMPTIONS: Record<string, string[]> = {
   'packages/extensions/whiteboard': ['drizzle-kit', 'drizzle-orm'],
+  'packages/plugins/whiteboard': ['drizzle-kit', 'drizzle-orm'],
 }
 
 type DependencyUse = {name: string; manifestDir: string; spec: string}

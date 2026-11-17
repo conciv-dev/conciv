@@ -1,4 +1,7 @@
+import type {ParsedLocation, RegisteredRouter} from '@tanstack/react-router'
 import {PANEL_TOGGLED_EVENT, type WidgetPanelToggledDetail} from '@conciv/protocol/event-bus'
+import {panelCommands} from './panel-commands'
+import {rootSearchSchema} from './search-schemas'
 import {dismissTry, getTrySession} from './try-session.functions'
 import {shouldAutoOpen, shouldDismissOnClose} from './try-state'
 
@@ -16,12 +19,33 @@ function ensureWidgetMeta(defaultOpen: boolean): void {
   document.head.appendChild(meta)
 }
 
-export async function mountLiveWidget(opts: {widgetOpen: boolean; tryParam: boolean}): Promise<void> {
+function tryRequested(location: ParsedLocation | undefined): boolean {
+  if (location === undefined) return false
+  return rootSearchSchema.parse(location.search).try === 1
+}
+
+function followTryParam(router: RegisteredRouter): void {
+  router.subscribe('onResolved', ({fromLocation, toLocation}) => {
+    const isRequested = tryRequested(toLocation)
+    if (isRequested === tryRequested(fromLocation)) return
+    panelCommands.emit(isRequested ? 'open' : 'close', undefined)
+  })
+}
+
+function clearTryParam(router: RegisteredRouter): void {
+  if (!tryRequested(router.state.location)) return
+  void router
+    .navigate({to: '.', search: (previous) => ({...previous, try: undefined}), replace: true, resetScroll: false})
+    .catch((error: unknown) => console.error('conciv try param could not be cleared', error))
+}
+
+export async function mountLiveWidget(opts: {widgetOpen: boolean; router: RegisteredRouter}): Promise<void> {
   if (document.querySelector('[data-conciv-root]')) return
+  const tryParam = tryRequested(opts.router.state.location)
+  followTryParam(opts.router)
   const {token, dismissed} = await getTrySession()
   const defaultOpen =
-    shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam: opts.tryParam, dismissed, widgetPresent: false}) ||
-    opts.tryParam
+    shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam, dismissed, widgetPresent: false}) || tryParam
   ensureWidgetMeta(defaultOpen)
 
   const [embed, terminal, tryItModule] = await Promise.all([
@@ -40,6 +64,7 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; tryParam: bool
       hasBeenOpen = true
       return
     }
+    clearTryParam(opts.router)
     if (shouldDismissOnClose({hasBeenOpen, connected: detail.connected})) void dismissTry().catch(() => {})
   })
 }

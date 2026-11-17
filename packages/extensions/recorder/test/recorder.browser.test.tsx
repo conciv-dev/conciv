@@ -168,7 +168,7 @@ describe('recording tool card', () => {
             }}
             result={{type: 'tool-result', toolCallId: 't1', content, state: 'complete'}}
             ctx={INERT_TOOL_CTX}
-            addResult={() => {}}
+            addResult={() => Promise.resolve()}
           />
         </CardChromeProvider>
       ))

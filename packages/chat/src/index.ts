@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Hono} from 'hono'
-import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
@@ -30,7 +30,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
+import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
 
 export {
   assistCapabilities,
@@ -95,6 +95,7 @@ export type ChatPlane = {
   stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true; stopped: boolean}>
   compact: (sessionId: SessionId) => Promise<void>
   clear: (sessionId: SessionId) => Promise<void>
+  endRuns: (sessionId: SessionId) => Promise<void>
   endAllRuns: () => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
   record: (sessionId: SessionId, chunks: readonly ChatEvent[]) => Promise<void>
@@ -127,7 +128,7 @@ export type ChatPlane = {
 type PermissionAsk = Omit<ApprovalAsked, 'runId' | 'permission'> & {permission: {always: boolean}}
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
-  const startingFollowUps = new Set<SessionId>()
+  const followingUp = new Map<SessionId, {answered: Promise<FollowUpOutcome>; ending: AbortController}>()
   const stores = drizzleChatStores(deps.db, {
     readHarness: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
     saved: (threadId, messages, at) => {
@@ -173,8 +174,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const normalize = toolNameNormalizer(deps.toolNames)
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
-    if (deps.sessions.row(sessionId) === null) {
-      return {reason: 'missing', message: `session "${sessionId}" does not exist`}
+    if (deps.sessions.row(sessionId) === null || sessionDeleted(deps.sessions, sessionId)) {
+      return {reason: 'missing', message: missingSession(sessionId)}
     }
     const approvalId = toolApprovalId(call.toolName)
     const settled = new AbortController()
@@ -199,7 +200,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
-      if (window?.before === undefined) await transcripts.sync(sessionId)
+      if (window?.before === undefined && !sessionDeleted(deps.sessions, sessionId)) await transcripts.sync(sessionId)
     }
     const thread = await server.hydrate(sessionId, window)
     const messages = normalizedMessages(thread.messages, normalize)
@@ -216,6 +217,27 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       interrupts: null,
       page: thread.page,
     }
+  }
+
+  const driveFollowUp = async (sessionId: SessionId, input: string, ended: AbortSignal): Promise<FollowUpOutcome> => {
+    if (sessionDeleted(deps.sessions, sessionId)) return {kind: 'failed', error: missingSession(sessionId)}
+    if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
+    if (ended.aborted) return {kind: 'stopped'}
+    const runId = randomUUID()
+    return server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
+      async () => resolveFollowUpOutcome(await stores.runs.get(runId)),
+      (error: unknown): FollowUpOutcome => {
+        deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
+        return {kind: 'failed', error: String(error)}
+      },
+    )
+  }
+
+  const endRuns = async (sessionId: SessionId): Promise<void> => {
+    const following = followingUp.get(sessionId)
+    following?.ending.abort()
+    await server.endRuns(sessionId)
+    await Promise.allSettled([following?.answered])
   }
 
   return {
@@ -243,6 +265,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return {ok: true, stopped}
     },
     compact: async (sessionId) => {
+      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
       const afterMessageId = messages.at(-1)?.id ?? null
@@ -250,9 +273,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
     },
     clear: async (sessionId) => {
-      await server.endRuns(sessionId)
+      await endRuns(sessionId)
       clearThread(deps.db, sessionId)
     },
+    endRuns,
     endAllRuns: () => server.endAllRuns(),
     live: async (sessionId) => (await stores.runs.findActiveRun(sessionId)) !== null,
     record: (sessionId, chunks) => server.record(sessionId, chunks),
@@ -284,25 +308,15 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     permissionAsked: (sessionId, ask) => approvals.asked(sessionId, {...ask, runId: null}),
     permissionSettled: (sessionId, approvalId) => approvals.remove(sessionId, approvalId),
     followUp: async (sessionId, input) => {
-      if (startingFollowUps.has(sessionId) || server.driving(sessionId)) return {kind: 'busy'}
-      startingFollowUps.add(sessionId)
-      try {
-        if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
-        const runId = randomUUID()
-        return await server.drive({threadId: sessionId, runId, kind: 'page-queue', input}, []).then(
-          async () => resolveFollowUpOutcome(await stores.runs.get(runId)),
-          (error: unknown): FollowUpOutcome => {
-            deps.log(`[chat] the page queue follow-up run ${runId} failed: ${String(error)}`)
-            return {kind: 'failed', error: String(error)}
-          },
-        )
-      } finally {
-        startingFollowUps.delete(sessionId)
-      }
+      if (followingUp.has(sessionId) || server.driving(sessionId)) return {kind: 'busy'}
+      const ending = new AbortController()
+      const answered = driveFollowUp(sessionId, input, ending.signal).finally(() => followingUp.delete(sessionId))
+      followingUp.set(sessionId, {answered, ending})
+      return answered
     },
     codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
-      const capabilities = given ?? deps.capabilities(sessionId)
+      const capabilities = given ?? (await deps.capabilities(sessionId))
       const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
       if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null
@@ -361,8 +375,9 @@ type EndedRun = Awaited<ReturnType<ReturnType<typeof drizzleChatStores>['runs'][
 
 function resolveFollowUpOutcome(ended: EndedRun): FollowUpOutcome {
   if (ended === null) return {kind: 'failed', error: 'the follow-up run left no record'}
+  if (ended.status === 'completed') return {kind: 'delivered'}
   if (ended.status === 'aborted' || ended.cancelRequested === true) return {kind: 'stopped'}
-  if (ended.status === 'completed' || ended.status === 'interrupted') return {kind: 'delivered'}
+  if (ended.status === 'interrupted') return {kind: 'delivered'}
   return {kind: 'failed', error: ended.error?.message ?? `the run ended ${ended.status}`}
 }
 

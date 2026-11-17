@@ -1,4 +1,15 @@
-import {batch, createMemo, createSignal, getOwner, on, onCleanup, runWithOwner, untrack, type Accessor} from 'solid-js'
+import {
+  batch,
+  createMemo,
+  createSignal,
+  from,
+  getOwner,
+  on,
+  onCleanup,
+  runWithOwner,
+  untrack,
+  type Accessor,
+} from 'solid-js'
 import {createStore, produce, type Store} from 'solid-js/store'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {createORPCClient} from '@orpc/client'
@@ -9,7 +20,8 @@ import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
-import {Conciv, type ConcivClient} from '@conciv/plugin'
+import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {
   Layout,
   MountedSession,
@@ -104,10 +116,15 @@ const UNAVAILABLE = 'The server that runs this plugin is unavailable'
 
 const HostSettingsTab = z.enum(['general', 'views', 'shortcuts', 'plugins', 'advanced'])
 
+function openInput(file: string, position: {line: number; column?: number} | undefined) {
+  if (position === undefined) return {file}
+  if (position.column === undefined) return {file, line: position.line}
+  return {file, line: position.line, column: position.column}
+}
+
 export function createHostApis() {
   const rpc = useRpc()
   const apiBase = useApiBase()
-  const connection = useConnected()
   const notices = useNotices()
   const systemDark = createMediaQuery('(prefers-color-scheme: dark)')
   const [attachState, setAttachState] = createSignal(createHostApiAttachState<Attached>())
@@ -119,6 +136,10 @@ export function createHostApis() {
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
+  const engineStream = from<ClientConnectionStatus>((set) => {
+    set(client.connection.status())
+    return client.connection.on(set)
+  })
 
   const engine: ServerRef = {
     id: 'engine',
@@ -133,7 +154,7 @@ export function createHostApis() {
       return !(engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data))
     },
     get connected() {
-      return connection()
+      return engineStream() === 'connected'
     },
   }
 
@@ -271,7 +292,7 @@ export function createHostApis() {
     }),
     desktop: () => ({
       launch: (path, position) =>
-        rpc.editor.open({file: path, line: position?.line, column: position?.column}).then(() => undefined),
+        rpc.plugin.call({rpcId: 'server', method: 'open', input: openInput(path, position)}).then(() => undefined),
       reveal: undefined,
       installed: undefined,
       pick: undefined,
@@ -429,7 +450,7 @@ export function createPluginAttachment(apis: HostApis) {
         get location() {
           const root = project.isSuccess ? project.data?.project.root : undefined
 
-          return root === undefined ? undefined : {directory: root}
+          return root === undefined ? undefined : {directory: AbsolutePath.make(root)}
         },
       })
     })

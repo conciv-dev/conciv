@@ -49,12 +49,14 @@ import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
+import {PaneAlert} from '../pane/pane-alert.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
+import {useStartSession} from '../app/start-session.js'
 import {openPipTarget} from '../shell/pip.js'
 import {createMountedSession} from '../runtime/plugin/mounted-session.js'
 import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
@@ -68,13 +70,16 @@ const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-
 const RAIL_TITLE_ROW =
   'group flex items-center gap-1 min-w-0 min-h-7 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const RAIL_TITLE = 'min-w-0 truncate'
+const RAIL_TITLE_LINE = 'flex items-center gap-2 min-w-0'
+const ROW_FAILED = 'Couldn’t load this session'
+const ROW_FAILED_LABEL = 'This session could not be loaded'
 const RAIL_TITLE_TRIGGER =
   '!justify-start gap-1.5 min-w-0 p-0 text-start [font:inherit] [letter-spacing:inherit] [color:inherit] rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
 const RAIL_TITLE_RENAME =
   'size-7 shrink-0 [&[hidden]]:hidden opacity-0 [transition:opacity_120ms_var(--chat-ease)] motion-reduce:[transition:none] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'
 const GHOST =
   'bg-transparent border border-transparent text-chat-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-chat-text'
-const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'
+const RAIL_MENU_CONTENT = 'p-2 w-72'
 const RAIL_MENU_CONTENT_STYLE = {
   background: 'var(--chat-bg)',
   'border-color': 'var(--chat-line)',
@@ -100,6 +105,14 @@ export const Route = createFileRoute('/panel/$sessionId')({
     const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
     throw redirect({to: '/panel/$sessionId', params: {sessionId}, replace: true})
   },
+  loader: async ({context, params}) => {
+    await context.queryClient
+      .query({
+        ...context.data.utils.sessions.get.queryOptions({input: {sessionId: params.sessionId}}),
+        staleTime: 'static',
+      })
+      .catch((error: unknown) => console.error('[conciv] the session row did not load before the panel', error))
+  },
   component: PanelSession,
 })
 
@@ -107,6 +120,7 @@ function SessionTitle(props: {
   sessionId: string
   savedTitle: string | undefined
   loading: boolean
+  failed: boolean
   refreshing: boolean
 }): JSX.Element {
   const appData = useAppData()
@@ -121,9 +135,11 @@ function SessionTitle(props: {
   const title = () => {
     if (rename.isPending && rename.variables?.sessionId === props.sessionId) return rename.variables.title
     if (props.loading) return ''
+    if (props.failed) return 'Session'
     return props.savedTitle || 'New session'
   }
-  const label = () => `${title() || 'Session'}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
+  const name = () => (props.failed ? ROW_FAILED_LABEL : title() || 'Session')
+  const label = () => `${name()}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
   const commit = (value: string) => {
     const next = value.trim()
     if (!next || next === title()) return
@@ -131,7 +147,7 @@ function SessionTitle(props: {
   }
   return (
     <Editable.Root
-      class={RAIL_TITLE_ROW}
+      class={props.failed ? RAIL_TITLE_ROW : `${RAIL_TITLE_ROW} flex-1`}
       activationMode="none"
       translations={{edit: 'Rename session', input: 'Session title'}}
       onValueCommit={(details) => commit(details.value)}
@@ -274,6 +290,7 @@ function PanelSession(): JSX.Element {
   const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
+  const navigate = Route.useNavigate()
   const sessionMenu = useSessionMenu(() => params().sessionId)
   const search = Route.useSearch()
   const popOut = () => {
@@ -331,12 +348,14 @@ function PanelSession(): JSX.Element {
   })
 
   const activate = sessionMenu.activate
-  const newSession = async () => {
-    const {sessionId} = await rpc.sessions.create(undefined)
-    void appData.invalidateSession(sessionId)
-    activate(sessionId)
-    announce('Started a new session')
-  }
+  const startSession = useStartSession()
+  const newSession = () =>
+    startSession()
+      .then(({sessionId}) => {
+        activate(sessionId)
+        announce('Started a new session')
+      })
+      .catch(() => undefined)
 
   const grabStaging = makeGrabStaging({
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
@@ -364,6 +383,7 @@ function PanelSession(): JSX.Element {
     stopping: chat().stopping(),
     runError: chat().runError(),
     stopped: chat().stopped(),
+    ran: (row()?.lastRunAt ?? null) !== null || chat().runSource() !== null,
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
@@ -372,8 +392,11 @@ function PanelSession(): JSX.Element {
     const state = clock()
     return state.elapsedMs === null ? '--' : formatElapsed(state.elapsedMs)
   }
-  const lastTask = () => sessionStatus().kind === 'done' || sessionStatus().kind === 'stopped'
-  const taskContext = () => (lastTask() ? 'LAST TASK' : 'ACTIVE TASK')
+  const taskContext = () => {
+    const kind = sessionStatus().kind
+    if (kind === 'unstarted') return undefined
+    return kind === 'done' || kind === 'stopped' ? 'LAST' : 'ACTIVE'
+  }
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
     ...views().map((view) => ({
@@ -395,6 +418,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
+    replaceSession: (sessionId) => void navigate({to: '/panel/$sessionId', params: {sessionId}}),
     chat,
     refresh: coordinator.refresh,
     isRefreshing: coordinator.isRefreshing,
@@ -410,62 +434,79 @@ function PanelSession(): JSX.Element {
         >
           <div class={RAIL_LEFT}>
             <span class={RAIL_MICROLABEL}>
-              <span class="chat-rail-context-full">
-                CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
-              </span>
-              <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
+              <Show when={taskContext()} fallback="CONCIV">
+                {(context) => (
+                  <>
+                    <span class="chat-rail-context-full">
+                      CONCIV <span class={RAIL_SEPARATOR}>/</span> {context()} TASK
+                    </span>
+                    <span class="chat-rail-context-narrow">{context()}</span>
+                  </>
+                )}
+              </Show>
             </span>
-            <SessionTitle
-              sessionId={params().sessionId}
-              savedTitle={row()?.title}
-              loading={session.isPending}
-              refreshing={coordinator.isRefreshing()}
-            />
+            <div class={RAIL_TITLE_LINE}>
+              <SessionTitle
+                sessionId={params().sessionId}
+                savedTitle={row()?.title}
+                loading={session.isPending}
+                failed={session.isError}
+                refreshing={coordinator.isRefreshing()}
+              />
+              <Show when={session.isError}>
+                <PaneAlert message={ROW_FAILED} busy={session.isFetching} onRetry={() => void session.refetch()} />
+              </Show>
+            </div>
           </div>
           <Popover.Positioner>
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
-              <span class={RAIL_MENU_LABEL}>Session</span>
-              <Suspense fallback={<SessionPillPending variant="bar" />}>
-                <SessionSelector
-                  variant="bar"
-                  activeId={() => params().sessionId}
-                  onActivate={activate}
-                  onNewSession={() => void newSession()}
-                />
-              </Suspense>
-              <hr class={RAIL_MENU_SEPARATOR} />
-              <span class={RAIL_MENU_LABEL}>Context</span>
-              <Suspense fallback={<UsagePending />}>
-                <ContextSummary usage={usage()} />
-              </Suspense>
-              <hr class={RAIL_MENU_SEPARATOR} />
-              <Show when={activeView() === 'chat'}>
-                <Popover.CloseTrigger
-                  asChild={(closeProps) => (
-                    <Button
-                      {...closeProps({'aria-label': 'Refresh the conversation', onClick: () => coordinator.refresh()})}
-                      variant="plain"
-                      size="none"
-                      class={RAIL_MENU_ROW}
-                      disabled={chat().runInProgress() || coordinator.isRefreshing()}
-                    >
-                      <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
-                      Refresh the conversation
-                    </Button>
-                  )}
-                />
-              </Show>
-              <AllowOutsideAgentsRow sessionId={params().sessionId} />
-              <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={popOut}>
-                <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
-                Pop out to a window
-              </Button>
-              <Show when={connectMode && disconnect}>
-                <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
-                  <Unplug class="size-4 block shrink-0" aria-hidden="true" />
-                  Disconnect this machine
+              <div>
+                <span class={RAIL_MENU_LABEL}>Session</span>
+                <Suspense fallback={<SessionPillPending variant="bar" />}>
+                  <SessionSelector
+                    variant="bar"
+                    activeId={() => params().sessionId}
+                    onActivate={activate}
+                    onNewSession={() => void newSession()}
+                  />
+                </Suspense>
+                <hr class={RAIL_MENU_SEPARATOR} />
+                <span class={RAIL_MENU_LABEL}>Context</span>
+                <Suspense fallback={<UsagePending />}>
+                  <ContextSummary usage={usage()} />
+                </Suspense>
+                <hr class={RAIL_MENU_SEPARATOR} />
+                <Show when={activeView() === 'chat'}>
+                  <Popover.CloseTrigger
+                    asChild={(closeProps) => (
+                      <Button
+                        {...closeProps({
+                          'aria-label': 'Refresh the conversation',
+                          onClick: () => coordinator.refresh(),
+                        })}
+                        variant="plain"
+                        size="none"
+                        class={RAIL_MENU_ROW}
+                        disabled={chat().runInProgress() || coordinator.isRefreshing()}
+                      >
+                        <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
+                        Refresh the conversation
+                      </Button>
+                    )}
+                  />
+                </Show>
+                <AllowOutsideAgentsRow sessionId={params().sessionId} />
+                <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={popOut}>
+                  <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
+                  Pop out to a window
                 </Button>
-              </Show>
+                <Show when={connectMode && disconnect}>
+                  <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
+                    <Unplug class="size-4 block shrink-0" aria-hidden="true" />
+                    Disconnect this machine
+                  </Button>
+                </Show>
+              </div>
             </Popover.Content>
           </Popover.Positioner>
         </Popover.Root>

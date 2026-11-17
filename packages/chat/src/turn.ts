@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises'
 import {
   readApprovalAsk,
   ChatEventType,
+  SESSION_DELETED_CODE,
   sessionRunEvent,
   type ChatEvent,
   type RunLifecycle,
@@ -33,6 +34,7 @@ export type SessionRow = {
   nativeId: HarnessSessionId | null
   cwd: string
   harnessKind: string
+  deletedAt: number | null
 }
 
 export type SessionPort = {
@@ -66,9 +68,9 @@ export type TurnDeps = {
   systemPrompt: SystemPromptSources
   sessions: SessionPort
   toolNames: ReadonlySet<string>
-  capabilities: (sessionId: SessionId) => CodeCapability[]
+  capabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   attachmentExpanders: AttachmentExpanders
-  prompt: (event: SessionPrompt) => Promise<SessionPrompt>
+  prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
   pluginInstructions: (
     sessionId: SessionId,
@@ -267,12 +269,29 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
   if (contextTokens !== undefined) await deps.sessions.recordContextTokens(sessionId, contextTokens)
 }
 
+export function sessionDeleted(sessions: SessionPort, sessionId: SessionId): boolean {
+  const row = sessions.row(sessionId)
+  return row !== null && row.deletedAt !== null
+}
+
+export function missingSession(sessionId: SessionId): string {
+  return `session "${sessionId}" does not exist`
+}
+
+export function deletedSessionError(sessionId: SessionId): Error {
+  return Object.assign(new Error(missingSession(sessionId)), {code: SESSION_DELETED_CODE})
+}
+
 export function turnHooks(
   deps: TurnDeps,
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
   return {
+    admit: async (turn) => {
+      const sessionId = SessionId.parse(turn.threadId)
+      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
+    },
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = deps.harnessFor(sessionId)
@@ -283,11 +302,8 @@ export function turnHooks(
       const resumeSessionId = resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
-      const toolSet = chatToolSet(
-        deps.capabilities(sessionId),
-        {sessionId, agentId: sessionId, model},
-        context.codeMode,
-      )
+      const toolSet = async () =>
+        chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
@@ -296,29 +312,26 @@ export function turnHooks(
         effort: own?.effort ?? undefined,
         env: deps.harnessEnv?.(sessionId) ?? process.env,
         kind: turn.kind,
-        hasTools: toolSet.codeMode.length + toolSet.asking.length + toolSet.direct.length > 0,
       })
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
         systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
-        codeMode: toolSet.codeMode,
-        search: toolSet.search,
-        asking: toolSet.asking,
-        direct: toolSet.direct,
+        tools: toolSet,
         setup: async () => {
           await deps.sessions.ensure(sessionId)
           await deps.sessions.onRunStart(sessionId)
           await context.transcripts.sync(sessionId)
           const approvals = await context.approvals.forRun(sessionId)
-          instructions.resolve(deps.pluginInstructions(sessionId, reset, toolSet.inventory))
+          const {inventory} = await toolSet()
+          instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
           return approvals
         },
-        prompt: async (message) => {
+        prompt: async (message, signal) => {
           if (turn.kind !== 'chat' || message.id === undefined) return message
           if (!(await deps.promptHooked())) return message
           const event = promptEvent(sessionId, message.id, message)
-          const prompted = await deps.prompt(structuredClone(event))
+          const prompted = await deps.prompt(structuredClone(event), signal)
           if (isEqual(prompted, event)) return message
           return promptedMessage(message, prompted)
         },

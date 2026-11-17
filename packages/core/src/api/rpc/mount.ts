@@ -41,6 +41,7 @@ import type {
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
 import type {EventFeed} from '../../event-feed.js'
+import type {PersistentPtys} from '../../pty/persistent-ptys.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -70,6 +71,7 @@ export type ChatContext = {
   basePath: string
   db: ConcivDb
   plane: ChatPlane
+  signal: AbortSignal
 }
 
 export type RpcDeps = {
@@ -87,9 +89,11 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PageQueues, 'wait' | 'release'>
+  queues: Pick<PageQueues, 'wait' | 'cancelSession'>
   pluginHost: PluginHost
+  eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer
+  ptys: PersistentPtys
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()
@@ -163,6 +167,14 @@ const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experim
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 
+const PTY_PROCEDURES = new Set([
+  'experimental.persistentPty.create',
+  'experimental.persistentPty.remove',
+  'experimental.persistentPty.connectToken',
+])
+
+const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"
+
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = callTrace((header) => rpcHeader(context, header)).hub
@@ -181,6 +193,7 @@ function refuseOutside(deps: RpcDeps, client: string | null, procedure: string):
   if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
   if (EVENT_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_EVENT_REFUSAL})
   if (PLUGIN_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PLUGIN_REFUSAL})
+  if (PTY_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PTY_REFUSAL})
 }
 
 async function admitHubCaller(

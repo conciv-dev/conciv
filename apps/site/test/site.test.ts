@@ -1,10 +1,10 @@
-import {mkdtempSync, mkdirSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {mkdirSync, writeFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import {buildManifest} from '../scripts/build-source-manifest.mjs'
 import {annotateSiteFile} from '../src/lib/source-annotations'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('source annotations', () => {
   const ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
@@ -32,7 +32,7 @@ describe('source manifest', () => {
   const SITE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
   function fixtureSite(files: Record<string, string>): string {
-    const dir = mkdtempSync(join(tmpdir(), 'manifest-fixture-'))
+    const dir = tempDir('manifest-fixture-')
     writeFileSync(join(dir, 'package.json'), '{"name":"fixture"}')
     for (const [path, content] of Object.entries(files)) {
       const target = join(dir, path)

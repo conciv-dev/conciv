@@ -177,7 +177,10 @@ export const AnswersAChoice: Story = {
           part={part({kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']})}
           result={undefined}
           ctx={INERT_TOOL_CTX}
-          addResult={(value) => setRecorded((seen) => [...seen, value])}
+          addResult={(value) => {
+            setRecorded((seen) => [...seen, value])
+            return Promise.resolve()
+          }}
         />
         <p>host recorded: {JSON.stringify(recorded())}</p>
       </>,

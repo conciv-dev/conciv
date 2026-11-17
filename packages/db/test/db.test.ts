@@ -1,8 +1,7 @@
-import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {deleteSessionCaptures, sessionCaptures, writeToolCapture} from '../src/capture-queries.js'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
 import {createServer, type Server} from 'node:http'
 import {Worker} from 'node:worker_threads'
 import {once} from 'node:events'
@@ -43,6 +42,7 @@ import {engines} from '../src/home-schema.js'
 import {homeMigrations} from '../src/home-migrations.gen.js'
 import {migrations} from '../src/migrations.gen.js'
 import {checkEngines} from '../src/engine-check.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 function legacyHistoryRows(db: ConcivDb, sessionId: string) {
   return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
@@ -69,7 +69,7 @@ describe('capture queries', () => {
   }
 
   function freshRoot(): string {
-    return mkdtempSync(join(tmpdir(), 'conciv-captures-'))
+    return tempDir('conciv-captures-')
   }
 
   describe('tool captures outlive the run that produced them', () => {
@@ -267,7 +267,7 @@ describe('db', () => {
     })
 
     it('boots a fresh db with the attach columns and rejects a duplicate token', () => {
-      const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-db-cwd-')))
+      const db = openDb(tempDir('conciv-db-cwd-'))
       db.insert(sessions)
         .values({
           ...record('conciv_a'),
@@ -400,7 +400,7 @@ describe('db', () => {
     })
 
     it('imports a legacy run under the harness of its session', () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-legacy-run-'))
+      const stateRoot = tempDir('conciv-db-legacy-run-')
       const first = openDb(stateRoot)
       first
         .insert(sessions)
@@ -522,7 +522,7 @@ describe('db', () => {
 
   describe('openDb', () => {
     it('sessions round-trip through the typed orm', () => {
-      const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-db-')))
+      const db = openDb(tempDir('conciv-db-'))
       db.insert(sessions).values(record('conciv_a')).run()
       const rows = db.select().from(sessions).where(eq(sessions.id, 'conciv_a')).all()
       expect(rows[0]?.cwd).toBe('/w')
@@ -531,7 +531,7 @@ describe('db', () => {
     })
 
     it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-fold-'))
+      const stateRoot = tempDir('conciv-db-fold-')
       const first = openDb(stateRoot)
       const imageTurn = [
         {
@@ -551,7 +551,7 @@ describe('db', () => {
     })
 
     it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
-      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-multi-'))
+      const stateRoot = tempDir('conciv-db-multi-')
       const first = openDb(stateRoot)
       const second = openDb(stateRoot)
       first.insert(sessions).values(record('conciv_a')).run()
@@ -585,7 +585,7 @@ describe('db', () => {
 })
 
 describe('run queries', () => {
-  const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-')))
+  const fresh = () => openDb(tempDir('conciv-run-'))
 
   describe('run lifecycle queries', () => {
     it('reads fall back safely for unknown sessions', () => {
@@ -621,7 +621,7 @@ describe('home db', () => {
   const homeDbModule = new URL('../src/home-db.ts', import.meta.url).href
 
   function freshHome(): string {
-    return join(mkdtempSync(join(tmpdir(), 'conciv-home-')), 'home')
+    return join(tempDir('conciv-home-'), 'home')
   }
 
   async function listen(handler: Parameters<typeof createServer>[1]): Promise<{server: Server; origin: string}> {
@@ -664,7 +664,7 @@ describe('home db', () => {
     const closed = await listen(healthAnswering('closed'))
     closed.server.close()
     await once(closed.server, 'close')
-    const root = mkdtempSync(join(tmpdir(), 'conciv-root-'))
+    const root = tempDir('conciv-root-')
     withHomeDb(home, (db) => {
       registerEngine(db, {id: 'live', pid: process.pid, root, apiBase: `${live.origin}/t/token`})
       registerEngine(db, {id: 'imposter', pid: process.pid, root, apiBase: `${imposter.origin}/t/token`})
@@ -826,7 +826,7 @@ describe('home db', () => {
   it('refuses a symlinked home folder', () => {
     const target = freshHome()
     mkdirSync(target, {recursive: true})
-    const link = join(mkdtempSync(join(tmpdir(), 'conciv-home-link-')), 'home')
+    const link = join(tempDir('conciv-home-link-'), 'home')
     symlinkSync(target, link)
     const refusal = captureThrow(() => openHomeDb(link))
     expect(isHomeFolderRefused(refusal)).toBe(true)
@@ -897,7 +897,7 @@ async function openTwiceAtOnce(
 ): Promise<unknown[]> {
   const rounds = await Promise.all(
     Array.from({length: 8}, async () => {
-      const target = opener(join(mkdtempSync(join(tmpdir(), 'conciv-race-')), 'state'))
+      const target = opener(join(tempDir('conciv-race-'), 'state'))
       const barrier = new SharedArrayBuffer(4)
       return Promise.all([openInWorker(target, barrier), openInWorker(target, barrier)])
     }),

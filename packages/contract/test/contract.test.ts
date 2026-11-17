@@ -123,9 +123,29 @@ describe('rows', () => {
         hidden: false,
         native: null,
         harnessKind: 'claude',
+        lastRunAt: null,
       })
       expect(parsed.hidden).toBe(false)
       expect(parsed.effort).toBeNull()
+      expect(parsed.lastRunAt).toBeNull()
+    })
+
+    it('a session meta says when its newest run started, and a row without that fact is refused', () => {
+      const meta = {
+        id: 'conciv_1',
+        title: 'hello',
+        updatedAt: 1,
+        running: false,
+        origin: 'conciv',
+        usage: null,
+        model: null,
+        effort: null,
+        hidden: false,
+        native: null,
+        harnessKind: 'claude',
+      }
+      expect(SessionMetaSchema.parse({...meta, lastRunAt: 1_700}).lastRunAt).toBe(1_700)
+      expect(SessionMetaSchema.safeParse(meta).success).toBe(false)
     })
 
     it('rejects an unknown marker kind', () => {
@@ -253,6 +273,33 @@ describe('browser rpc calls cancelled before the socket opens', () => {
       client.close()
       await peer.close()
     }
+  }, 15_000)
+})
+
+describe('browser rpc calls whose caller decides the retry', () => {
+  it('a call with its own shouldRetry stops retrying once its connection is released', async () => {
+    const vacant = createServer()
+    await new Promise<void>((resolve) => vacant.listen(0, '127.0.0.1', resolve))
+    const address = vacant.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+    await new Promise((resolve) => vacant.close(resolve))
+    const client = makeBrowserRpcClient(`http://127.0.0.1:${port}`)
+    const asks = [Promise.withResolvers<string>(), Promise.withResolvers<string>()]
+    const asked = {count: 0}
+    const shouldRetry = () => {
+      asks[asked.count]?.resolve(`asked ${asked.count + 1} times`)
+      asked.count += 1
+      return true
+    }
+    const call = client.rpc.sessions.resolve({}, {context: {shouldRetry}})
+    await asks[0]?.promise
+    client.close()
+    const settled = call.then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+    expect(await Promise.race([settled, asks[1]?.promise])).toBe('rejected')
+    expect(asked.count).toBe(1)
   }, 15_000)
 })
 

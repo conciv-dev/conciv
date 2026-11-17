@@ -32,7 +32,6 @@ import {
   SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
-import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
@@ -176,12 +175,6 @@ export const ToolCommandSignatureSchema = z.object({
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
-export const EditorOpenInputSchema = z.object({
-  file: z.string(),
-  line: z.number().int().min(1).optional(),
-  column: z.number().int().min(1).optional(),
-})
-
 export const EngineStalenessSchema = z.object({
   stale: z.boolean(),
   changed: z.array(z.string()),
@@ -250,8 +243,18 @@ const noQueue = {NO_QUEUE: {message: 'no such queue on this tab'}}
 
 const pluginRpcFailed = {
   PLUGIN_RPC: {
+    status: 400,
     message: 'the plugin rpc call failed',
     data: z.object({type: z.string(), message: z.string(), data: z.unknown().optional()}),
+  },
+  PLUGIN_RPC_INTERNAL: {
+    status: 500,
+    message: 'the plugin rpc call failed inside the plugin',
+    data: z.object({
+      type: z.enum(['rpc.internal', 'rpc.invalid_output']),
+      message: z.string(),
+      data: z.unknown().optional(),
+    }),
   },
 }
 
@@ -344,6 +347,21 @@ export const PluginExperimentalChunksSchema = z.object({
   chunks: z.array(PluginChunkSchema).min(1),
 })
 
+const PtyIdSchema = z.string().regex(/^pty_[0-9a-f-]{36}$/)
+const PtySizeSchema = z.object({cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500)})
+const PersistentPtyInfoSchema = z.object({
+  id: PtyIdSchema,
+  sessionId: SessionId,
+  size: PtySizeSchema,
+  busy: z.boolean(),
+})
+const PtyIdInput = z.object({ptyId: PtyIdSchema})
+const ptyNotFound = {
+  PTY_NOT_FOUND: {status: 404, message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
+}
+const noTty = {NO_TTY: {message: "the session's harness has no terminal command"}}
+const ptyBusy = {BUSY: {message: 'the terminal CLI is busy'}}
+
 export const contract = {
   auth: {
     trust: oc
@@ -366,9 +384,12 @@ export const contract = {
       .input(SessionIdInput)
       .output(SessionMetaSchema),
     preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
-    create: oc.output(SessionIdInput),
-    resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
-    open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
+    create: oc.output(SessionIdInput.extend({session: SessionMetaSchema})),
+    resolve: oc
+      .errors(notFound)
+      .input(z.object({id: z.string().optional()}))
+      .output(SessionIdInput),
+    open: oc.errors(notFound).input(NativeSessionRefSchema).output(SessionIdInput),
     restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),
     rename: oc
       .errors({...notFound, ...approvalDenied})
@@ -387,7 +408,10 @@ export const contract = {
       })
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
-    compact: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
+    compact: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(Ok),
     switchHarness: oc
       .errors({
         ...notFound,
@@ -485,33 +509,12 @@ export const contract = {
       .output(Ok),
   },
   server: {
-    config: oc.errors({...noBundler, ...approvalDenied}).output(BundlerConfigSchema),
-    resolve: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({spec: z.string(), importer: z.string().optional()}))
-      .output(z.object({id: z.string().nullable()})),
-    graph: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({file: z.string()}))
-      .output(z.array(ModuleNodeSchema)),
-    transform: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({url: z.string()}))
-      .output(z.object({code: z.string().nullable()})),
-    urls: oc
-      .errors({...noBundler, ...approvalDenied})
-      .output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
     reload: oc
       .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
       .output(Ok),
-    restart: oc
-      .errors({...noBundler, ...approvalDenied})
-      .input(z.object({force: z.boolean().default(false)}))
-      .output(Ok),
   },
   editor: {
-    open: oc.errors(approvalDenied).input(EditorOpenInputSchema).output(Ok),
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
@@ -538,6 +541,22 @@ export const contract = {
       .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
       .output(locationResponse(PluginExperimentalChunksSchema)),
+  },
+  experimental: {
+    persistentPty: {
+      create: oc
+        .errors({...noTty, ...approvalDenied})
+        .input(z.object({sessionId: SessionId, size: PtySizeSchema.optional(), model: z.string().min(1).optional()}))
+        .output(PersistentPtyInfoSchema),
+      remove: oc
+        .errors({...ptyNotFound, ...ptyBusy, ...approvalDenied})
+        .input(PtyIdInput)
+        .output(Ok),
+      connectToken: oc
+        .errors({...ptyNotFound, ...approvalDenied})
+        .input(PtyIdInput)
+        .output(z.object({ticket: z.string(), expiresIn: z.number().int().positive()})),
+    },
   },
   event: {
     subscribe: oc

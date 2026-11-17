@@ -6,7 +6,7 @@ const LANGUAGE_NAMES = ['valueOf', 'indexOf', 'lastIndexOf', 'getPrototypeOf', '
 
 const FOREIGN_KEYS = ['allOf', 'anyOf', 'oneOf', 'isPartOf']
 
-const OPENCODE_COPIES = [
+const PORTED_FILE_PATTERNS = [
   'packages/plugin-host/src/',
   'packages/plugin/src/',
   'apps/conciv/src/runtime/plugin/',
@@ -16,7 +16,7 @@ const OPENCODE_COPIES = [
 const ALLOWED_NAMES = [...LANGUAGE_NAMES, ...FOREIGN_KEYS]
 
 export default makeDeclarationRule({
-  exemptFiles: OPENCODE_COPIES,
+  exemptFiles: PORTED_FILE_PATTERNS,
   message:
     "'{{name}}' ends in 'Of': name a function with a verb first that says what its body does (readApprovalAsk, not approvalAskOf).",
   violation: (identifier) =>

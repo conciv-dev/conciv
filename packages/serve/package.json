@@ -23,6 +23,10 @@
     ".": {
       "types": "./dist/serve.d.ts",
       "import": "./dist/serve.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
     }
   },
   "publishConfig": {
@@ -37,15 +41,20 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:*",
     "@hono/node-server": "catalog:",
+    "@orpc/server": "catalog:",
     "hono": "catalog:",
-    "ws": "catalog:"
+    "semver": "catalog:",
+    "ws": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "@types/ws": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",

@@ -8,7 +8,7 @@ export interface Info {
   readonly channel: string
 }
 
-export const Service = Context.Service<Info>('@opencode/App')
+export const Service = Context.Service<Info>('@conciv/App')
 
 export function make(input: Partial<Info> = {}): Info {
   return {

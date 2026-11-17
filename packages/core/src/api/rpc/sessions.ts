@@ -147,9 +147,9 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
   }
 }
 
-export async function buildHarnessMenuEntry(harness: HarnessAdapter): Promise<HarnessMenuEntry> {
+export async function buildHarnessMenuEntry(harness: HarnessAdapter, signal: AbortSignal): Promise<HarnessMenuEntry> {
   try {
-    const models = await resolveHarnessModels(harness)
+    const models = await resolveHarnessModels(harness, {signal})
     return {
       ...buildHarnessMeta(harness),
       models,
@@ -157,7 +157,7 @@ export async function buildHarnessMenuEntry(harness: HarnessAdapter): Promise<Ha
       modelsFailed: false,
     }
   } catch (error) {
-    logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
+    if (!signal.aborted) logError(`[core] listing the ${harness.id} models failed: ${String(error)}`)
     return {...buildHarnessMeta(harness), models: [], defaultModel: harness.defaultModel ?? null, modelsFailed: true}
   }
 }
@@ -179,7 +179,7 @@ export async function switchSessionModel(
 ): Promise<'switched' | 'missing' | 'unknown'> {
   const row = await ensuredRow(chat, sessionId)
   if (!row) return 'missing'
-  const models = await resolveHarnessModels(chat.harnessFor(sessionId))
+  const models = await resolveHarnessModels(chat.harnessFor(sessionId), {signal: chat.signal})
   const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
   if (!found) return 'unknown'
   const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
@@ -200,7 +200,7 @@ export async function switchSessionEffort(
   if (!row) return 'missing'
   if (effort !== null) {
     const harness = chat.harnessFor(sessionId)
-    const models = await resolveHarnessModels(harness)
+    const models = await resolveHarnessModels(harness, {signal: chat.signal})
     const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
     const current = models.find((model) => model.id === modelId)
     if (!current?.efforts?.includes(effort)) return 'unsupported'
@@ -264,9 +264,22 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (input.cwd !== undefined) search.cover(input.cwd)
       return page
     }),
-    create: os.sessions.create.handler(() => createChatSession(db, scope)),
-    resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
-    open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
+    create: os.sessions.create.handler(async () => {
+      const {sessionId} = await createChatSession(db, scope)
+      const session = await rpcSessionMeta(chat, sessionId)
+      if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
+      return {sessionId, session}
+    }),
+    resolve: os.sessions.resolve.handler(async ({input, errors}) => {
+      const resolved = await resolveRow(scope, input)
+      if (resolved === null) throw errors.NOT_FOUND()
+      return resolved
+    }),
+    open: os.sessions.open.handler(async ({input, errors}) => {
+      const opened = await openNativeRow(scope, input)
+      if (opened === null) throw errors.NOT_FOUND()
+      return opened
+    }),
     restore: os.sessions.restore.handler(async ({input}) => {
       await restoreRow(db, input.sessionId)
       return {sessionId: input.sessionId}
@@ -277,7 +290,10 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return outcome
     }),
     delete: os.sessions.delete.handler(async ({input}) => {
-      await deleteSession({db, plane: chat.plane, pluginHost: deps.pluginHost, queues: deps.queues}, input.sessionId)
+      await deleteSession(
+        {db, plane: chat.plane, runtime: deps.runtime, pluginHost: deps.pluginHost, queues: deps.queues},
+        input.sessionId,
+      )
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {
@@ -301,14 +317,16 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
       const model = input.model ?? null
       if (model !== null) {
-        const models = await resolveHarnessModels(target)
+        const models = await resolveHarnessModels(target, {signal: chat.signal})
         if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
       }
       if (chat.plane.driving(input.sessionId)) throw errors.SESSION_RUNNING()
       switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
-    compact: os.sessions.compact.handler(async ({input}) => {
+    compact: os.sessions.compact.handler(async ({input, errors}) => {
+      const row = await rowById(db, input.sessionId)
+      if (row === null || row.deletedAt !== null) throw errors.NOT_FOUND()
       await deps.runtime.forSession(input.sessionId).run.compact()
       return {ok: true as const}
     }),

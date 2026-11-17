@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {accessSync, constants, existsSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -25,8 +26,9 @@ import {
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
-import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
-import {withSavedModels} from './lib/saved-models.js'
+import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
+import {requireHarness} from './lib/require-harness.js'
+import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -74,30 +76,28 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
+import {persistentPtySocketRoutes} from './api/persistent-pty-socket.js'
+import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
   followPermissionCards,
   pluginInstructions,
-  sessionToolDomain,
+  currentToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
-import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
+import {makePagePlugin} from './page/page-plugin.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
-import {
-  makeCompositeRpcRouter,
-  RPC_PREFIX,
-  rpcFetchMiddleware,
-  rpcWebsocketRoute,
-  type UpgradeWebSocket,
-} from '@conciv/extension/rpc-mount'
+import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
+import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
-import {loadIsolateDriver} from '@conciv/ai/server'
+import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -143,6 +143,12 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  eventHeartbeatIntervalMs?: number
+
+  pageReplyTimeoutMs?: number
+
+  queuedActionTimeoutMs?: number
+
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
@@ -177,12 +183,6 @@ function assertUniqueExtensionSlugs(extensions: readonly AnyExtension[]): void {
   }
 }
 
-function requireHarness(id: string): HarnessAdapter {
-  const found = getHarness(id) ?? getHarness('claude')
-  if (!found) throw new Error('no harness registered (built-in claude missing)')
-  return found
-}
-
 function executable(file: string): boolean {
   try {
     accessSync(file, constants.X_OK)
@@ -201,20 +201,16 @@ function detectedHarnesses(): HarnessAdapter[] {
   return listHarnesses().filter((adapter) => onPath(adapter.binName))
 }
 
-function availableHarnesses(boot: HarnessAdapter, opts: MakeAppOpts, stateDir: string): HarnessAdapter[] {
+function availableHarnesses(
+  boot: SavedModelsHarness,
+  opts: MakeAppOpts,
+  stateDir: string,
+  signal: AbortSignal,
+): SavedModelsHarness[] {
   const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
-    withSavedModels(adapter, stateDir),
+    withSavedModels(adapter, stateDir, signal),
   )
-  return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
-}
-
-function symbolicable(frame: {
-  fileName?: string
-  line?: number
-  column?: number
-  fn?: string
-}): frame is SymbolicableFrame {
-  return typeof frame.fileName === 'string' && typeof frame.line === 'number'
+  return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
 }
 
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
@@ -287,6 +283,7 @@ function sessionPort(
             nativeId: row.harnessSessionId,
             cwd: row.cwd,
             harnessKind: row.harnessKind,
+            deletedAt: row.deletedAt,
           }
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
@@ -351,6 +348,7 @@ function composeRoutes(
     plane: ChatPlane
     upgrade: UpgradeWebSocket
     trust: ConnectionTrust
+    ptys: PersistentPtys
   },
 ) {
   return new Hono<{Variables: CoreVars}>()
@@ -376,6 +374,7 @@ function composeRoutes(
     })
     .route('/', deps.plane.routes(deps.upgrade))
     .route('/', pushRoutes(deps.push, deps.upgrade))
+    .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {
@@ -403,7 +402,7 @@ export type MadeApp = {
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
   pluginHost: PluginHost
-  startPlugins: () => Promise<void>
+  awaitActivation: () => Promise<void>
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -441,13 +440,26 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   assertUniqueExtensionSlugs(extensions)
 
   const stateDir = concivStateDir(opts.cfg.stateRoot)
-  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
+  const engineLife = new AbortController()
+  const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
+  const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
-  const harnesses = availableHarnesses(harness, opts, stateDir)
+  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
+  const harnesses = listings.map((listing) => listing.harness)
+  const print = opts.print ?? ((text: string) => console.log(text))
+  const endListing = async (listing: SavedModelsHarness): Promise<void> => {
+    const ended = listing.settled().then(() => true)
+    if (await Promise.race([ended, delay(GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
+    print(`[core] the ${listing.harness.id} model listing did not end when the engine stopped; closing without it`)
+  }
+  const endListings = async (): Promise<void> => {
+    engineLife.abort(new Error('conciv: the engine stopped'))
+    await Promise.all(listings.map(endListing))
+  }
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -456,6 +468,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const outsideTabs = createOutsideTabs(opts.home)
+  const pagePlugin = makePagePlugin(() => pluginHost)
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
@@ -464,8 +477,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
-    openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
@@ -521,7 +535,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath,
         sessions: serverSessions,
         harness: serverHarness,
-        symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
+        symbolicate: pagePlugin.symbolicateOrNone,
         bundler: opts.bridge,
         nativeUrl,
         upgradeWebSocket: socketUpgrade,
@@ -570,6 +584,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
                 background: [],
               }),
             ),
+            {onlyIfMissing: true},
           ).pipe(Effect.flatMap(Fiber.join)),
         )
         .catch((error: unknown) => Exit.die(error))
@@ -608,13 +623,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineId,
     config: opts.cfg,
     plugins: opts.plugins ?? [],
+    post: [concivPage],
     harness,
+    signal: engineLife.signal,
     harnessSource: {
       harness: serverHarness,
       sessions: serverSessions,
       tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
     },
     bundler: opts.bridge,
+    openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
   })
@@ -624,6 +642,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     async (error: unknown): Promise<never> => {
       await runInOrder(
         [
+          endListings,
           plugins.closeRpc,
           plugins.closePlugins,
           plugins.closePermissions,
@@ -641,27 +660,41 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
-  const interruptIdle = (sessionId: SessionId): Promise<boolean> =>
+  const interruptIdle = (sessionId: SessionId, stopped: boolean): Promise<boolean> =>
     Effect.runPromise(
       FiberMap.has(idleTriggers, sessionId).pipe(
         Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
+        Effect.tap((running) =>
+          running || stopped
+            ? FiberMap.run(
+                idleTriggers,
+                sessionId,
+                Effect.promise(() => plane.settled(sessionId)),
+              )
+            : Effect.void,
+        ),
       ),
     )
-  const reportToolCollision = memoize((name: string) =>
-    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
-  )
-  const withPluginTools = (sessionId: SessionId, capabilities: CodeCapability[]): CodeCapability[] =>
+  const extensionFor = (name: string): string | undefined =>
+    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
+  const reportToolCollision = memoize((name: string) => {
+    const extension = extensionFor(name)
+    if (extension === undefined)
+      return logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`)
+    return logError(
+      `[core] the plugin tool "${name}" is left out: extension "${extension}" already has a tool with that name`,
+    )
+  })
+  const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
-      pluginHost.runSync(sessionToolDomain(sessionId)),
+      await pluginHost.runPromise(currentToolDomain(sessionId)),
+      currentToolDomain(sessionId),
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
 
-  const extensionFor = (name: string): string | undefined =>
-    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
-
-  const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] =>
+  const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
       ...registryCapabilities(
         registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
@@ -721,9 +754,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     basePath,
     db,
     plane,
+    signal: engineLife.signal,
   }
 
-  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
+  const runtime = makeCoreRuntime({
+    primitives,
+    plane,
+    db,
+    model: sessionModel,
+    staleness,
+    interruptIdle,
+    symbolicate: pagePlugin.symbolicateOrNone,
+  })
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
@@ -749,7 +791,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     client: string | null,
     signal: AbortSignal,
   ): Promise<string | null> => {
-    if (opts.cfg.hubAccess === 'open') return null
+    const deleted = (currentRow(db, scope.id)?.deletedAt ?? null) !== null
+    if (opts.cfg.hubAccess === 'open' && !deleted) return null
     const refusal = await plane.admitCall(scope.id, {
       toolName: OUTSIDE_SESSION_TARGET,
       input: {client},
@@ -769,9 +812,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
     startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
-    outsideCapabilities: (sessionId) =>
+    driving: (sessionId) => plane.driving(sessionId),
+    outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
-        withPluginTools(sessionId, [
+        await withPluginTools(sessionId, [
           ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),
@@ -781,7 +825,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     hubRefusal: hub.refusal,
     staleness,
   }
+  const ptys = createPersistentPtys({
+    harness: serverHarness,
+    sessions: serverSessions,
+    cwd: opts.cwd,
+    stateDir,
+    mcpUrl: () => {
+      const base = opts.tokenScopedBase?.()
+      return base === undefined ? null : `${base}/api/mcp`
+    },
+  })
   const rpcDeps: RpcDeps = {
+    ptys,
     code: mcp,
     tabs: createTabs({
       bus: primitives.page.bus,
@@ -791,11 +846,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
     queues: primitives.page.queues,
     pluginHost,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,
     search,
     settings,
     tools: toolList,
-    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
+    openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
@@ -805,7 +861,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     answerPermission: (sessionId, requestId, reply) =>
       pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
-      codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+      codes: makeCodeStore({now: Date.now, print}),
       trust,
       browsers,
       now: Date.now,
@@ -843,6 +899,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       plane,
       upgrade: socketUpgrade,
       trust,
+      ptys,
       push: {
         queries: (sessionId, signal, focus) => runtime.forSession(sessionId).page.queries(signal, focus),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
@@ -859,11 +916,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const dispose = (): Promise<void> =>
     runInOrder(
       [
+        endListings,
         plugins.closeRpc,
         plugins.closePlugins,
         () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
         plugins.closePermissions,
         () => plane.endAllRuns(),
+        ptys.shutdown,
         ...disposers,
         search.dispose,
         settings.close,
@@ -881,12 +940,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await ensureConfiguredRows(rows, opts.cfg).catch(async (error: unknown) => {
-    await dispose().catch((failure: unknown) =>
-      logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
-    )
-    throw error
-  })
+  await ensureConfiguredRows(rows, opts.cfg)
+    .then(plugins.supervise)
+    .catch(async (error: unknown) => {
+      await dispose().catch((failure: unknown) =>
+        logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+      )
+      throw error
+    })
 
   return {
     app,
@@ -899,7 +960,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
     pluginHost,
-    startPlugins: plugins.startPlugins,
+    awaitActivation: plugins.awaitActivation,
   }
 }
 

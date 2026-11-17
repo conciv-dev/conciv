@@ -1,40 +1,72 @@
-import {mkdtempSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {mkdirSync, rmSync} from 'node:fs'
+import {dirname, join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
+import {e2eStateDir} from './dev-endpoint.js'
 
 const PACKED_SPECS = '**/packed-*.spec.ts'
 
-function reporters(): ReporterDescription[] {
-  if (!process.env.GITHUB_ACTIONS) return [['line']]
-  return [['line'], ['json', {outputFile: 'test-results.json'}]]
+function reporters(configDir: string, appStateFolders: string[], runFolders: string[] = []): ReporterDescription[] {
+  const cleanup: ReporterDescription = [
+    join(import.meta.dirname, 'state-cleanup-reporter.ts'),
+    {
+      stateDir: e2eStateDir(configDir),
+      appStateFolders: [...appStateFolders.map((folder) => join(configDir, folder)), ...runFolders],
+    },
+  ]
+  if (!process.env.GITHUB_ACTIONS) return [['line'], cleanup]
+  return [['line'], ['json', {outputFile: 'test-results.json'}], cleanup]
 }
 
-export function e2eServerLog(port: number): string {
-  return join(tmpdir(), `conciv-e2e-server-${port}.log`)
+function legacyStateDir(configDir: string): string {
+  return join(configDir, '.conciv-e2e')
 }
 
-function serverEntry(command: string, port: number, env: {CONCIV_HOME: string} & Record<string, string>) {
+export function e2eConfigDir(configFile: string | undefined): string {
+  if (configFile === undefined) throw new Error('the e2e state folder needs a Playwright config file')
+  return dirname(configFile)
+}
+
+export function e2eServerLog(configDir: string, port: number): string {
+  return join(e2eStateDir(configDir), `server-${port}.log`)
+}
+
+function serverEntry(entry: {
+  configDir: string
+  prepare: string
+  command: string
+  port: number
+  env: {CONCIV_HOME: string} & Record<string, string>
+}) {
   return {
-    command: `(${command}) 2>&1 | tee ${e2eServerLog(port)}`,
-    url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
+    command: `rm -rf '${legacyStateDir(entry.configDir)}' && ${entry.prepare} && (${entry.command}) 2>&1 | tee '${e2eServerLog(entry.configDir, entry.port)}'`,
+    url: `http://localhost:${entry.port}`,
+    reuseExistingServer: false,
     stdout: 'pipe' as const,
     timeout: 180_000,
-    env,
+    env: entry.env,
   }
 }
 
-function isolatedConcivHome(): {CONCIV_HOME: string} {
-  const home = mkdtempSync(join(tmpdir(), 'conciv-e2e-home-'))
+function freshFolder(folder: string): string {
+  return `rm -rf '${folder}' && mkdir -p '${folder}'`
+}
+
+function runConcivHome(configDir: string): {CONCIV_HOME: string} {
+  const home = join(e2eStateDir(configDir), 'conciv-home')
   process.env.CONCIV_HOME = home
   return {CONCIV_HOME: home}
 }
 
+export function emptyE2eState(configDir: string): void {
+  rmSync(legacyStateDir(configDir), {recursive: true, force: true})
+  rmSync(e2eStateDir(configDir), {recursive: true, force: true})
+  mkdirSync(e2eStateDir(configDir), {recursive: true})
+}
+
 export function e2eConfig(
   app: E2EApp,
-  opts: {command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
+  opts: {dir: string; command: (port: number) => string; timeout?: number; runFolders?: string[]},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -44,25 +76,29 @@ export function e2eConfig(
     workers: 1,
     timeout,
     expect: {timeout},
-    reporter: reporters(),
+    reporter: reporters(opts.dir, ['.conciv'], opts.runFolders),
     use: {baseURL: `http://localhost:${port}`},
-    webServer: {
-      ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port, isolatedConcivHome()),
-      ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
-    },
+    webServer: serverEntry({
+      configDir: opts.dir,
+      prepare: freshFolder(e2eStateDir(opts.dir)),
+      command: `rm -rf .conciv && ${opts.command(port)}`,
+      port,
+      env: runConcivHome(opts.dir),
+    }),
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   })
 }
 
-export function packedE2eConfig(): ReturnType<typeof defineConfig> {
-  isolatedConcivHome()
+export function packedE2eConfig(opts: {dir: string}): ReturnType<typeof defineConfig> {
+  runConcivHome(opts.dir)
   return defineConfig({
     testDir: './test',
     testMatch: PACKED_SPECS,
+    globalSetup: join(import.meta.dirname, 'packed-global-setup.ts'),
     workers: 1,
     timeout: 90_000,
     expect: {timeout: 90_000},
-    reporter: reporters(),
+    reporter: reporters(opts.dir, []),
     projects: [{name: 'packed', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -83,16 +119,17 @@ function selectedHarnesses(): [HarnessApp, number][] {
   return entries.filter(([harness]) => harness === filter)
 }
 
-export function harnessHome(harness: HarnessApp): string {
-  return join(tmpdir(), `conciv-e2e-${harness}-home`)
+export function harnessHome(configDir: string, harness: HarnessApp): string {
+  return join(e2eStateDir(configDir), harness)
 }
 
-function isolatedHome(harness: HarnessApp): {CONCIV_HOME: string} & Record<string, string> {
-  const home = harnessHome(harness)
+function isolatedHome(configDir: string, harness: HarnessApp): {CONCIV_HOME: string} & Record<string, string> {
+  const home = harnessHome(configDir, harness)
   return {HOME: home, CODEX_HOME: join(home, '.codex'), CONCIV_HOME: join(home, '.conciv-home')}
 }
 
 export function harnessMatrixConfig(opts: {
+  dir: string
   command: (harness: HarnessApp, port: number) => string
 }): ReturnType<typeof defineConfig> {
   const entries = selectedHarnesses()
@@ -100,13 +137,18 @@ export function harnessMatrixConfig(opts: {
     testDir: './test',
     workers: 1,
     timeout: 150_000,
-    reporter: reporters(),
+    reporter: reporters(
+      opts.dir,
+      entries.map(([harness]) => `.conciv-${harness}`),
+    ),
     webServer: entries.map(([harness, port]) =>
-      serverEntry(
-        `rm -rf .conciv-${harness} '${harnessHome(harness)}' && mkdir -p '${join(harnessHome(harness), '.codex')}' && ${opts.command(harness, port)}`,
+      serverEntry({
+        configDir: opts.dir,
+        prepare: `rm -rf '${harnessHome(opts.dir, harness)}' && mkdir -p '${join(harnessHome(opts.dir, harness), '.codex')}'`,
+        command: `rm -rf .conciv-${harness} && ${opts.command(harness, port)}`,
         port,
-        isolatedHome(harness),
-      ),
+        env: isolatedHome(opts.dir, harness),
+      }),
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,

@@ -1,7 +1,4 @@
 import {randomUUID} from 'node:crypto'
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
 import WebSocket from 'ws'
@@ -10,86 +7,13 @@ import type {Page} from 'playwright'
 import type {RouterClient} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {heldBrowserRpcLink} from '@conciv/contract'
-import {fetchServerSentEvents} from '@conciv/ai/client'
-import {ChatEventType} from '@conciv/protocol/chat-event-types'
-import {start as startEngine, type Engine} from '@conciv/core'
-import {connectMcpClient, createFakeHarness, makeRpcClient, until, type RpcClient} from '@conciv/harness-testkit'
+import {createFakeHarness, until} from '@conciv/harness-testkit'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {HarnessAdapter} from '@conciv/harness'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
-import terminalExtension, {default as terminal, type TerminalRouter} from '../src/server.js'
+import terminal, {type TerminalRouter} from '../src/server.js'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/server/pty-sessions.js'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
-
-describe('prefixed serving', () => {
-  const TOKEN = '8a1e7d5c-3b2f-4e6a-9c0d-1f2e3a4b5c6d'
-
-  describe('prefixed serving over the real wire (start with an access token)', () => {
-    let root: string
-    let engine: Engine
-    let base: string
-    let rpc: RpcClient
-
-    beforeAll(async () => {
-      root = mkdtempSync(join(tmpdir(), 'conciv-prefixed-wire-'))
-      const harness: HarnessAdapter = createFakeHarness({id: 'fake-prefixed-wire', text: 'prefixed ok'})
-      engine = await startEngine({
-        options: {stateRoot: root, systemPrompt: false, harness: 'fake-prefixed-wire'},
-        root,
-        harness,
-        extensions: [terminalExtension],
-        launchEditor: () => {},
-        accessToken: TOKEN,
-      })
-      base = `http://127.0.0.1:${engine.port}/t/${TOKEN}`
-      rpc = makeRpcClient(base)
-    })
-
-    afterAll(async () => {
-      await engine?.stop()
-      rmSync(root, {recursive: true, force: true})
-    })
-
-    it('the mcp url under the token prefix answers mcp and the bare one is refused', {timeout: 15_000}, async () => {
-      const {sessionId} = await rpc.sessions.create(undefined)
-      const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
-      try {
-        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
-      } finally {
-        await mcp.close()
-      }
-      await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
-    })
-
-    it('streams a chat turn over the prefixed delivery route', {timeout: 15_000}, async () => {
-      const {sessionId} = await rpc.sessions.create(undefined)
-      const abort = new AbortController()
-      const connection = fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`)
-      const types: string[] = []
-      for await (const chunk of connection.connect(
-        [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello through the prefix'}]}],
-        {},
-        abort.signal,
-        {threadId: sessionId, runId: randomUUID()},
-      )) {
-        types.push(chunk.type)
-        if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) break
-      }
-      abort.abort()
-
-      expect(types).toContain(ChatEventType.RUN_FINISHED)
-    })
-
-    it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {
-      const {sessionId} = await rpc.sessions.create(undefined)
-      const sessionRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      await expect(
-        sessionRpc.chat.permissionDecision({approvalId: 'none-pending', approved: false}),
-      ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
-    })
-  })
-})
 
 describe('pty sessions', () => {
   const BASH = {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}

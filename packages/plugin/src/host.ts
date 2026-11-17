@@ -35,14 +35,9 @@ export function resolve(input: Target): Entrypoints {
   return {
     server: entry(['server', '']),
     rpc: entry(['rpc']),
-    experimental: target.name
-      ? [entry(['plugin-experimental'])].find((file) => file && /\.c?js$/.test(file))
-      : entry([
-          'plugin-experimental.cjs',
-          'plugin-experimental.js',
-          'plugin-experimental.tsx',
-          'plugin-experimental.ts',
-        ]),
+    experimental: [
+      target.name ? entry(['plugin-experimental']) : entry(['plugin-experimental.cjs', 'plugin-experimental.js']),
+    ].find((file) => file && /\.c?js$/.test(file)),
   }
 }
 

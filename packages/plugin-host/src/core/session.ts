@@ -54,4 +54,4 @@ export interface Interface {
   readonly interrupt: (sessionId: SessionId, options?: {readonly resume?: boolean}) => Effect.Effect<boolean>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Session')
+export const Service = Context.Service<Interface>('@conciv/Session')

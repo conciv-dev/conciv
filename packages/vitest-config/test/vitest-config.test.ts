@@ -1,6 +1,6 @@
-import {afterEach, expect, test, vi, describe} from 'vitest'
+import {afterEach, beforeEach, expect, test, vi, describe} from 'vitest'
 import {ciReporters, ciTest} from '../src/reporters.ts'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {
@@ -19,7 +19,7 @@ import {
   TARGET_SHARD_MS,
   type WorkspacePackage,
 } from '../src/shards.ts'
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import {
   loadSummaries,
   mergeSummaries,
@@ -29,8 +29,14 @@ import {
   renderSummary,
 } from '../src/summary.ts'
 import {assertLockNotDrifted} from '../src/pack.ts'
+import {tempDir} from '../src/temp-dir.ts'
+import setupConcivHome from '../src/setup/conciv-home-setup.ts'
 
 describe('reporters', () => {
+  beforeEach(() => {
+    vi.stubEnv('TMPDIR', tempDir('reporters-'))
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -59,15 +65,52 @@ describe('reporters', () => {
       hookTimeout: 30_000,
       teardownTimeout: 30_000,
       coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
-      env: {CONCIV_HOME: expect.stringContaining(tmpdir())},
+      globalSetup: [join(import.meta.dirname, '..', 'src', 'setup', 'conciv-home-setup.ts')],
     })
   })
 
-  test('every test config gets its own empty conciv home, also set for the main process', () => {
-    const homes = [ciTest().env.CONCIV_HOME, ciTest().env.CONCIV_HOME]
-    expect(new Set(homes).size).toBe(2)
-    expect(homes.map((home) => readdirSync(home))).toEqual([[], []])
-    expect(process.env.CONCIV_HOME).toBe(homes[1])
+  test('the run keeps one conciv home beside the config, emptied at the start and removed at the end by the globalSetup ciTest carries', () => {
+    const packageHome = join(import.meta.dirname, '..', 'test-results', 'conciv-home')
+    expect.soft(process.env.CONCIV_HOME).toBe(packageHome)
+    expect.soft(existsSync(packageHome)).toBe(true)
+
+    const tempHomes = (): string[] => readdirSync(tmpdir()).filter((entry) => entry.startsWith('conciv-home-'))
+    const before = tempHomes()
+    const configs = [ciTest(), ciTest(), ciTest()]
+    expect.soft(tempHomes()).toEqual(before)
+    expect.soft(configs.map((config) => Object.keys(config).includes('env'))).toEqual([false, false, false])
+    expect
+      .soft(configs.map((config) => config.globalSetup.map((file) => existsSync(file))))
+      .toEqual([[true], [true], [true]])
+
+    const root = tempDir('package-')
+    mkdirSync(join(root, 'test-results', 'conciv-home'), {recursive: true})
+    writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'left by an earlier run')
+    vi.stubEnv('CONCIV_HOME', undefined)
+    const removeHome = setupConcivHome({config: {root}})
+    expect.soft(readdirSync(join(root, 'test-results', 'conciv-home'))).toEqual([])
+    expect.soft(process.env.CONCIV_HOME).toBe(join(root, 'test-results', 'conciv-home'))
+
+    mkdirSync(join(root, 'test-results', 'conciv-home', 'harness-homes', 'claude'), {recursive: true})
+    writeFileSync(join(root, 'test-results', 'conciv-home', 'home.db'), 'written by this run')
+    removeHome()
+    expect.soft(existsSync(join(root, 'test-results', 'conciv-home'))).toBe(false)
+    expect.soft(existsSync(join(root, 'test-results'))).toBe(false)
+
+    const sharedRoot = tempDir('package-shared-')
+    const removeSharedHome = setupConcivHome({config: {root: sharedRoot}})
+    mkdirSync(join(sharedRoot, 'test-results', 'playwright-output'), {recursive: true})
+    writeFileSync(join(sharedRoot, 'test-results', 'test-results.json'), '{"numTotalTests":3}')
+    writeFileSync(join(sharedRoot, 'test-results', 'playwright-output', 'trace.zip'), 'a playwright trace')
+    expect.soft(() => removeSharedHome()).not.toThrow()
+    expect.soft(existsSync(join(sharedRoot, 'test-results', 'conciv-home'))).toBe(false)
+    expect
+      .soft(readdirSync(join(sharedRoot, 'test-results')).sort())
+      .toEqual(['playwright-output', 'test-results.json'])
+    expect.soft(readFileSync(join(sharedRoot, 'test-results', 'test-results.json'), 'utf8')).toBe('{"numTotalTests":3}')
+    expect
+      .soft(readFileSync(join(sharedRoot, 'test-results', 'playwright-output', 'trace.zip'), 'utf8'))
+      .toBe('a playwright trace')
   })
 
   test('a fork cap in the environment caps the worker count', () => {
@@ -96,7 +139,7 @@ describe('shards', () => {
   }
 
   test('discoverPackages finds workspace packages', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'packages/embed', {name: '@x/embed', devDependencies: {playwright: '^1'}})
     writeManifest(root, 'packages/core', {name: '@x/core', devDependencies: {vitest: '^4'}})
     writeManifest(root, 'packages/ui', {name: '@x/ui', devDependencies: {'@vitest/browser-playwright': '^4'}})
@@ -111,7 +154,7 @@ describe('shards', () => {
   })
 
   test('discoverPackages rejects package names that could smuggle turbo arguments', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'packages/evil', {name: '--filter=... --continue'})
     expect(() => discoverPackages(root, ['packages'])).toThrow(/invalid package name/)
   })
@@ -184,14 +227,14 @@ describe('shards', () => {
   })
 
   test('a package with a dedicated CI job is kept out of the shard matrix', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'apps/storybook', {name: 'conciv-storybook', version: '1.0.0'})
     writeManifest(root, 'apps/conciv', {name: '@conciv/app', version: '1.0.0'})
     expect(plannedPackages(root).map((entry) => entry.name)).toEqual(['@conciv/app'])
   })
 
   test('e2ePackages keeps only workspace packages that actually define a test:e2e script', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'e2e/vite-react', {name: 'x-e2e-vite-react', scripts: {'test:e2e': 'playwright test'}})
     writeManifest(root, 'e2e/e2e-utils', {name: '@x/e2e-utils', scripts: {build: 'tsc'}})
     writeManifest(root, 'apps/site', {name: 'site', scripts: {'test:e2e': 'vitest run'}})
@@ -236,7 +279,7 @@ describe('shards', () => {
   })
 
   test('a package.json without a usable name fails the plan instead of vanishing from it', () => {
-    const root = mkdtempSync(join(tmpdir(), 'shards-'))
+    const root = tempDir('shards-')
     writeManifest(root, 'packages/nameless', {version: '1.0.0'})
     expect(() => discoverPackages(root, ['packages'])).toThrow(/nameless/)
   })
@@ -361,7 +404,7 @@ describe('summary', () => {
   })
 
   test('parseReport splits one report by the workspace package owning each test file', async () => {
-    root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+    root = tempDir('conciv-ci-summary-')
     for (const {dir, name} of [
       {dir: 'packages/ui-kit-chat', name: '@conciv/ui-kit-chat'},
       {dir: 'packages/ui-kit-system', name: '@conciv/ui-kit-system'},
@@ -544,7 +587,7 @@ describe('summary', () => {
   })
 
   test('loadSummaries discovers reports, attaches per-package coverage, and renders one table', async () => {
-    root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+    root = tempDir('conciv-ci-summary-')
     for (const {dir, name, status} of [
       {dir: 'packages/green', name: '@conciv/green', status: 'passed'},
       {dir: 'packages/red', name: '@conciv/red', status: 'failed'},
@@ -691,7 +734,7 @@ describe('summary', () => {
   })
 
   test('loadSummaries never descends into node_modules', async () => {
-    root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+    root = tempDir('conciv-ci-summary-')
     await mkdir(join(root, 'packages/victim/node_modules/malicious'), {recursive: true})
     await writeFile(join(root, 'packages/victim/package.json'), JSON.stringify({name: '@conciv/victim'}))
     await writeFile(join(root, 'packages/victim/test-results.json'), report({}))
@@ -768,7 +811,7 @@ describe('packed fixture lock drift', () => {
   }
 
   function checkDrift(committed: string[], produced: string[]): string | undefined {
-    const root = mkdtempSync(join(tmpdir(), 'packed-lock-'))
+    const root = tempDir('packed-lock-')
     const lockPath = join(root, 'fixture-lock.yaml')
     writeFileSync(lockPath, lockText(committed))
     writeFileSync(join(root, 'pnpm-lock.yaml'), lockText(produced))

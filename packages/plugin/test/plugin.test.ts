@@ -1,6 +1,5 @@
 import * as NodeFs from 'node:fs'
-import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, it, vi} from 'vitest'
@@ -9,6 +8,7 @@ import * as SolidStore from 'solid-js/store'
 import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
 import * as Zod from 'zod'
+import * as Effect from 'effect'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {StandardSchemaV1} from '@standard-schema/spec'
@@ -20,6 +20,7 @@ import {
   Tool,
   type AgentEditor,
   type Hooks,
+  type Info,
   type Registration,
   type Rule,
   type Ruleset,
@@ -33,6 +34,7 @@ import {
   type Transform,
 } from '../src/promise/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
+import type * as SessionMessage from '../src/schema/session-message.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
 import {
@@ -46,8 +48,10 @@ import {
   type PluginModule,
 } from '../src/experimental/host.js'
 import {experimental} from '../src/experimental/vite.js'
+import * as PageModule from '../src/experimental/page.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 type Count = {count: number}
 
@@ -105,6 +109,7 @@ describe('define', () => {
     expectTypeOf<Plugin.Context['agent']['transform']>().toEqualTypeOf<Transform<AgentEditor>>()
     expectTypeOf<Plugin.Context['event']['subscribe']>().toBeFunction()
     expectTypeOf<undefined>().not.toExtend<Plugin.Context['permission']['assert']>()
+    expectTypeOf<Parameters<Plugin.Context['permission']['assert']>[0]['fallback']>().toEqualTypeOf<'ask' | undefined>()
     expectTypeOf<Plugin.Context['session']['update']>().parameter(0).toHaveProperty('permissions')
     expectTypeOf<Registration['dispose']>().toEqualTypeOf<() => Promise<void>>()
     expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
@@ -124,36 +129,37 @@ describe('define', () => {
     expectTypeOf<undefined>().toExtend<Plugin.Context['session']['synthetic']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['permission']['hook']>()
     expectTypeOf<undefined>().toExtend<Plugin.Context['model']['transform']>()
-    expectTypeOf<Plugin.Context['location']['project']['id']>().toEqualTypeOf<string>()
-    expectTypeOf<Plugin.Context['location']['project']['canonical']>().toEqualTypeOf<string>()
+    type Project = Plugin.Context['location']['project']
+    expectTypeOf<Project['id']>().toEqualTypeOf<string & import('effect').Brand.Brand<'Project.ID'>>()
+    expectTypeOf<Project['canonical']>().toEqualTypeOf<string & import('effect').Brand.Brand<'AbsolutePath'>>()
   })
 
-  it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema, as opencode does", () => {
+  it("types execute's input as the input schema's output and its output as the output schema's input from zod, any Standard Schema or a raw JSON Schema", () => {
     const Limit = z.object({limit: z.string().transform(Number)})
-    type LimitTool = Tool.Info<typeof Limit, typeof Limit>
+    type LimitTool = Info<typeof Limit, typeof Limit>
     expectTypeOf<Parameters<LimitTool['execute']>[0]>().toEqualTypeOf<{limit: number}>()
     expectTypeOf<NonNullable<Awaited<ReturnType<LimitTool['execute']>>['output']>>().toEqualTypeOf<{limit: string}>()
-    type CountTool = Tool.Info<typeof CountSchema, typeof CountSchema>
+    type CountTool = Info<typeof CountSchema, typeof CountSchema>
     expectTypeOf<Parameters<CountTool['execute']>[0]>().toEqualTypeOf<Count>()
     expectTypeOf<NonNullable<Awaited<ReturnType<CountTool['execute']>>['output']>>().toEqualTypeOf<Count>()
-    type JsonTool = Tool.Info<typeof CountJsonSchema, typeof CountJsonSchema>
+    type JsonTool = Info<typeof CountJsonSchema, typeof CountJsonSchema>
     expectTypeOf<Parameters<JsonTool['execute']>[0]>().toEqualTypeOf<unknown>()
     expectTypeOf<Awaited<ReturnType<JsonTool['execute']>>['output']>().toEqualTypeOf<any>()
   })
 
   it("gives a tool's execute the call's abort signal", () => {
-    const tool: Tool.Info = {
+    const tool: Info = {
       name: 'wait',
       input: CountJsonSchema,
       output: CountJsonSchema,
       description: 'Wait for a count',
       execute: async (_input, context) => ({output: context.signal.aborted}),
     }
-    expectTypeOf<Parameters<Tool.Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
-    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<string | undefined>()
+    expectTypeOf<Parameters<Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
     expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
     expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
-    expectTypeOf<ToolContext>().toEqualTypeOf<Tool.Context>()
+    expectTypeOf<Omit<ToolContext, 'signal' | 'progress'>>().toEqualTypeOf<Omit<Tool.Context, 'progress' | 'cancel'>>()
+    expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<SessionMessage.Id | undefined>()
     expect(tool.name).toBe('wait')
   })
 })
@@ -218,7 +224,7 @@ describe('Rpc', () => {
     expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi & {call: ServerRef['client']['plugin']['call']}>()
   })
 
-  it('types a contract from any Standard Schema or a raw JSON Schema, as opencode does', () => {
+  it("types a contract's methods, errors and events from any Standard Schema or a raw JSON Schema", () => {
     const Counter = Rpc.define({
       id: 'counter',
       methods: {bump: {input: CountSchema, output: CountSchema, errors: {full: CountSchema}}},
@@ -577,7 +583,7 @@ describe('host', () => {
   const name = '@fixture/plugin'
 
   async function fixture(files: Record<string, string>, installed = false) {
-    const root = await realpath(await mkdtemp(path.join(tmpdir(), 'conciv-host-')))
+    const root = await realpath(tempDir('conciv-host-'))
     const directory = installed ? path.join(root, 'node_modules', name) : root
     await Promise.all(
       Object.entries(files).map(async ([file, content]) => {
@@ -764,13 +770,17 @@ describe('host', () => {
       expect(Host.resolve(plugin.target)).toEqual({server: undefined, rpc: undefined, experimental: undefined})
     })
 
-    it('resolves a local folder plugin from its TypeScript source', async () => {
-      await using plugin = await fixture({'index.ts': source, 'rpc.ts': source, 'plugin-experimental.tsx': source})
-      expect(Host.resolve(plugin.target)).toEqual({
-        server: plugin.url('index.ts'),
-        rpc: plugin.url('rpc.ts'),
-        experimental: plugin.url('plugin-experimental.tsx'),
+    it('resolves a local folder engine part from TypeScript source and its app part only from a prebuilt bundle', async () => {
+      await using tsx = await fixture({'index.ts': source, 'rpc.ts': source, 'plugin-experimental.tsx': source})
+      await using ts = await fixture({'index.ts': source, 'plugin-experimental.ts': source})
+      await using bundled = await fixture({'index.ts': source, 'plugin-experimental.cjs': source})
+      expect(Host.resolve(tsx.target)).toEqual({
+        server: tsx.url('index.ts'),
+        rpc: tsx.url('rpc.ts'),
+        experimental: undefined,
       })
+      expect(Host.resolve(ts.target).experimental).toBeUndefined()
+      expect(Host.resolve(bundled.target).experimental).toBe(bundled.url('plugin-experimental.cjs'))
     })
   })
 
@@ -925,7 +935,7 @@ describe('experimental() build', () => {
   afterAll(() => Promise.all(dirs.map((dir) => rm(dir, {recursive: true, force: true}))))
 
   const project = async (files: Record<string, string>) => {
-    const root = await mkdtemp(path.join(tmpdir(), 'conciv-experimental-vite-'))
+    const root = tempDir('conciv-experimental-vite-')
     dirs.push(root)
     await Promise.all(
       Object.entries(files).map(async ([file, text]) => {
@@ -942,10 +952,12 @@ describe('experimental() build', () => {
   const provided: Record<PluginModule, object> = {
     '@conciv/plugin/experimental': Experimental,
     '@conciv/plugin/rpc': RpcEntry,
+    effect: Effect,
     zod: Zod,
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
+    '@conciv/plugin/experimental/page': PageModule,
   }
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 
@@ -980,13 +992,11 @@ describe('experimental() build', () => {
     expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
   }, 60_000)
 
-  it('the preset fails the build on a conciv or Solid module the app does not provide', async () => {
-    const root = await project({
-      'src/plugin-experimental.tsx':
-        'import { Button } from "@conciv/ui-kit-system"\nexport default { id: "acme", Button }',
-    })
-
-    await expect(bundle(root)).rejects.toThrow('@conciv/ui-kit-system is not a module the conciv app provides')
+  it('the preset fails the build on an Effect, conciv or Solid module the app does not provide', async () => {
+    for (const source of ['@conciv/ui-kit-system', 'effect/Schema']) {
+      const root = await project({'src/plugin-experimental.tsx': `export * from "${source}"`})
+      await expect(bundle(root)).rejects.toThrow(`${source} is not a module the conciv app provides`)
+    }
   }, 60_000)
 })
 

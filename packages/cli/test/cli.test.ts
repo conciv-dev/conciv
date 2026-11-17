@@ -1,16 +1,20 @@
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
-import {EventEmitter, once} from 'node:events'
+import {EventEmitter, on, once} from 'node:events'
 import {createServer} from 'node:net'
-import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {createServer as createHttpServer, type Server} from 'node:http'
+import {Hono} from 'hono'
+import {proxy} from 'hono/proxy'
+import {serveHono, type ServeFetch} from '@conciv/serve'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runLink, runRevoke} from '../src/auth.js'
@@ -229,7 +233,7 @@ describe('cli', () => {
     }
 
     beforeAll(async () => {
-      cwd = mkdtempSync(join(tmpdir(), 'conciv-cli-bin-'))
+      cwd = tempDir('conciv-cli-bin-')
       closedPort = await freedPort()
     })
 
@@ -278,8 +282,6 @@ describe('cli', () => {
 
   describe('cli derived commands', () => {
     const {cleanups, written} = cliSession()
-
-    const FailureSchema = z.object({ok: z.literal(false), error: z.object({kind: z.enum(['user', 'unexpected'])})})
 
     async function helpText(argv: string[]): Promise<string> {
       const logged: string[] = []
@@ -360,7 +362,7 @@ describe('cli', () => {
         const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
         const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         const home = process.cwd()
-        const dir = mkdtempSync(join(tmpdir(), 'conciv-path-flag-'))
+        const dir = tempDir('conciv-path-flag-')
         writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
         process.chdir(dir)
         cleanups.push(async () => {
@@ -543,34 +545,11 @@ describe('cli', () => {
         expect(reloaded).toEqual(['src/hot.ts'])
       })
 
-      it('takes the positional the dev-server declaration names and leaves its other fields as flags', async () => {
-        const resolved: string[] = []
-        await bootCli(cleanups, {
-          bridge: {
-            id: 'positional-test',
-            config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
-            resolve: async (spec: string, importer?: string) => {
-              resolved.push(`${spec} from ${importer ?? 'nowhere'}`)
-              return {id: spec}
-            },
-            moduleGraph: () => [],
-            transform: async () => ({code: null}),
-            urls: () => ({local: ['http://localhost:3000'], network: []}),
-            reload: async () => {},
-            restart: async () => {},
-          },
-        })
-        expect(await runCli(cliMain, ['tools', 'server', 'resolve', './x.ts', '--importer', 'src/a.ts'])).toBe(0)
-        expect(resolved).toEqual(['./x.ts from src/a.ts'])
-      })
-
-      it('rejects a zero, fractional or non-numeric line number as a plain user mistake, not a bug', async () => {
-        await bootCli(cleanups)
-        for (const line of ['0', '1.5', 'abc']) {
-          written.length = 0
-          expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', line])).toBe(1)
-          expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-        }
+      it('takes the positional the declaration names and leaves its other fields as flags', async () => {
+        const kit = await bootCli(cleanups)
+        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'large'}})
+        expect(await runCli(cliMain, ['tools', 'page', 'select', '#size', '--value', 'large'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'page_select', input: {selector: '#size', value: 'large'}})
       })
     })
   })
@@ -623,7 +602,7 @@ describe('cli', () => {
     describe('conciv CLI failure reporting', () => {
       it('names the address and the fix when no dev server is listening, with no stack', async () => {
         process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'server', 'urls'])
+        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -647,7 +626,7 @@ describe('cli', () => {
             response.end(body)
           }),
         )
-        const code = await runCli(cliMain, ['tools', 'server', 'urls'])
+        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -672,7 +651,7 @@ describe('cli', () => {
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
         process.env.CONCIV_PORT = String(await listen((_request, response) => response.end('not a rpc reply')))
-        const code = await runCli(cliMain, ['tools', 'server', 'urls'])
+        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('unexpected')
@@ -777,41 +756,22 @@ describe('cli', () => {
         expect(onlyDocument(written)).toEqual({ok: true, data: []})
       })
 
-      it('server restart is refused through the session and an approval lets the retry run', async () => {
+      it('server reload is refused through the session and an approval lets the retry run', async () => {
         const bridge = restartCapableBridge()
         const kit = await bootCli(cleanups, {bridge})
         const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
           error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
         })
         written.length = 0
-        expect(await session.approve()).toEqual(['conciv:tool:server_restart'])
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(0)
+        expect(await session.approve()).toEqual(['conciv:tool:server_reload'])
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
         written.length = 0
-        expect(await runCli(cliMain, ['tools', 'server', 'restart'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
         expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
-      })
-
-      it('server graph round-trips a real bundler bridge inside the envelope', async () => {
-        const bridge = defineBundlerBridge({
-          id: 'cli-test',
-          config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
-          resolve: async (spec) => ({id: spec}),
-          moduleGraph: (file) => [{url: file, importers: [], importedModules: ['dep.ts']}],
-          transform: async () => ({code: null}),
-          urls: () => ({local: [], network: []}),
-          reload: async () => {},
-          restart: async () => {},
-        })
-        await bootCli(cleanups, {bridge})
-        expect(await runCli(cliMain, ['tools', 'server', 'graph', '/x.ts'])).toBe(0)
-        expect(onlyDocument(written)).toEqual({
-          ok: true,
-          data: [{url: '/x.ts', importers: [], importedModules: ['dep.ts']}],
-        })
       })
 
       it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
@@ -823,7 +783,11 @@ describe('cli', () => {
           '<url>': '/src/a.ts',
         }
         const everyTaught = CONCIV_COMMAND_GUIDE.split('`')
-          .filter((span, index) => index % 2 === 1 && span.startsWith(`${CONCIV_BIN} tools `))
+          .filter(
+            (span, index) =>
+              index % 2 === 1 &&
+              (span.startsWith(`${CONCIV_BIN} tools `) || span.startsWith(`${CONCIV_BIN} plugin call `)),
+          )
           .map((span) => span.slice(CONCIV_BIN.length + 1))
         const needsDesignExtension = everyTaught.filter((command) => command.startsWith('tools design '))
         expect(needsDesignExtension).toEqual([
@@ -832,47 +796,42 @@ describe('cli', () => {
           'tools design status',
         ])
         const taught = everyTaught.filter((command) => !needsDesignExtension.includes(command))
-        expect(taught).toEqual(expect.arrayContaining(['tools page snapshot', 'tools page console']))
+        expect(taught).toEqual(
+          expect.arrayContaining([
+            'tools page snapshot',
+            'tools page console',
+            `plugin call server graph --data '{"file":"<file>"}'`,
+            `plugin call server transform --data '{"url":"<url>"}'`,
+          ]),
+        )
         await bootCli(cleanups, {bridge: restartCapableBridge()})
         const outcomes: Array<{command: string; reached: boolean; document: unknown}> = []
         for (const command of taught) {
           const argv = command
             .replace(/[[\]]/g, '')
             .split(' ')
-            .map((word) => placeholders[word] ?? word)
-          expect(argv.filter((word) => word.startsWith('<'))).toEqual([])
+            .map((word) =>
+              Object.entries(placeholders).reduce(
+                (filled, [placeholder, value]) => filled.replaceAll(placeholder, value),
+                word.replace(/^'(.*)'$/, '$1'),
+              ),
+            )
+          expect(argv.filter((word) => word.includes('<'))).toEqual([])
           written.length = 0
           await runCli(cliMain, argv)
+          const printed = onlyDocument(written)
           const document = z
             .object({ok: z.boolean(), error: z.object({code: z.string().optional(), message: z.string()}).optional()})
-            .parse(onlyDocument(written))
-          outcomes.push({command, reached: document.ok || document.error?.code !== undefined, document})
+            .parse(printed)
+          outcomes.push({command, reached: document.ok || document.error?.code !== undefined, document: printed})
         }
         expect(outcomes.filter((outcome) => !outcome.reached)).toEqual([])
-      })
-
-      it('tools open reaches the editor opener over rpc', async () => {
-        const opened: Array<{file: string; line?: number; column?: number}> = []
-        await bootCli(cleanups, {
-          openInEditor: (file, line, column) =>
-            opened.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})}),
-        })
-        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7'])).toBe(0)
-        expect(opened).toEqual([{file: 'src/thing.ts', line: 7}])
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--line', '7', '--column', '3'])).toBe(0)
-        expect(opened.at(-1)).toEqual({file: 'src/thing.ts', line: 7, column: 3})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/thing.ts', '--column', '3'])).toBe(0)
-        expect(opened.at(-1)).toEqual({file: 'src/thing.ts'})
-      })
-
-      it('open without its required positional is a user error, not a raw citty stack', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'open'])
-        expect(code).toBe(1)
-        const failure = onlyDocument(written)
-        expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
-        expect(JSON.stringify(failure)).toContain('FILE')
+        expect(
+          outcomes.filter((outcome) => outcome.command.startsWith('plugin call ')).map((outcome) => outcome.document),
+        ).toEqual([
+          {ok: true, data: [{url: 'src/a.ts', importers: [], importedModules: []}]},
+          {ok: true, data: {code: null}},
+        ])
       })
     })
   })
@@ -991,7 +950,7 @@ describe('cli', () => {
     })
 
     function projectWith(serverJson: string | null): {root: string; nested: string} {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-engine-origin-'))
+      const root = tempDir('conciv-engine-origin-')
       roots.push(root)
       const nested = join(root, 'src', 'deep')
       mkdirSync(nested, {recursive: true})
@@ -1003,7 +962,7 @@ describe('cli', () => {
     }
 
     const originFor = async (cwd: string, env: NodeJS.ProcessEnv) =>
-      (await engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)).origin
+      (await engineOrigin(cwd, {CONCIV_HOME: tempDir('conciv-home-'), ...env}, null)).origin
 
     test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234}))
@@ -1122,11 +1081,13 @@ describe('cli', () => {
       shared?: {root: string; sessionId: string}
       extensions?: Parameters<typeof startEngine>[0]['extensions']
       plugins?: Parameters<typeof startEngine>[0]['plugins']
+      bridge?: Parameters<typeof startEngine>[0]['bridge']
+      launchEditor?: Parameters<typeof startEngine>[0]['launchEditor']
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; replies: string[]}) => void
     } = {},
   ) {
-    const root = given.shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const root = given.shared?.root ?? tempDir('conciv-hub-')
     const engine = await startEngine({
       options: {
         harnessBin: 'true',
@@ -1135,10 +1096,11 @@ describe('cli', () => {
         hubAccess: given.hubAccess ?? 'session',
       },
       root,
-      launchEditor: () => {},
+      launchEditor: given.launchEditor ?? (() => {}),
       homeDir: home,
       extensions: given.extensions,
       plugins: given.plugins,
+      bridge: given.bridge,
     })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
@@ -1184,6 +1146,87 @@ describe('cli', () => {
     }
   }
 
+  async function startFront(home: string, engine: {root: string; base: string}, given: {hold?: string} = {}) {
+    const upstream = new URL(engine.base)
+    const held = new EventEmitter()
+    const mode = {dropCalls: false, holdWaits: false, held: Promise.withResolvers<void>()}
+    if (given.hold === undefined) mode.held.resolve()
+    const asked = (url: string) => `${new URL(url).pathname}${new URL(url).search}`
+    const app = new Hono<{Bindings: Parameters<ServeFetch>[1]}>()
+      .use(async (c, next) => {
+        if (given.hold === undefined || !asked(c.req.url).endsWith(given.hold)) return next()
+        held.emit('ask')
+        await mode.held.promise
+        return next()
+      })
+      .use(async (c, next) => {
+        if (!mode.holdWaits || !asked(c.req.url).endsWith('/rpc/page/queue/wait')) return next()
+        await once(c.req.raw.signal, 'abort')
+        return c.body(null)
+      })
+      .use(async (c, next) => {
+        if (!mode.dropCalls || !asked(c.req.url).endsWith('/rpc/code/execute')) return next()
+        c.env.incoming.socket.destroy()
+        return c.body(null)
+      })
+      .all('*', (c) => {
+        const requested = new URL(c.req.url)
+        const target = new URL(upstream)
+        target.pathname = requested.pathname
+        target.search = requested.search
+        return proxy(target, {...c.req})
+      })
+    const {port, close} = await serveHono({fetch: app.fetch, port: 0})
+    const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
+    if (row === undefined) throw new Error('the engine has no row in the home db')
+    const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
+    withHomeDb(home, (db) => registerEngine(db, {...row, apiBase}))
+    return {
+      dropCalls: (drop: boolean) => {
+        mode.dropCalls = drop
+      },
+      holdWaits: (hold: boolean) => {
+        mode.holdWaits = hold
+      },
+      askedTwice: async () => {
+        const asks = on(held, 'ask')
+        await asks.next()
+        await asks.next()
+        await asks.return?.()
+      },
+      answerHeld: () => mode.held.resolve(),
+      holdAgain: () => {
+        mode.held = Promise.withResolvers<void>()
+      },
+      close,
+    }
+  }
+
+  async function failingEngine(home: string, status: number, given: {healthStatus?: number} = {}) {
+    const id = `failing-engine-${status}`
+    const server = createHttpServer((request, response) => {
+      if (request.url === '/health') {
+        const body = given.healthStatus === undefined ? {ok: true, id} : {}
+        response.writeHead(given.healthStatus ?? 200, {'content-type': 'application/json'}).end(JSON.stringify(body))
+        return
+      }
+      response.writeHead(status).end()
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const port = z.object({port: z.number()}).parse(server.address()).port
+    const root = tempDir('conciv-failing-')
+    withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
+    return {
+      root,
+      close: async () => {
+        server.closeAllConnections()
+        server.close()
+        await once(server, 'close')
+      },
+    }
+  }
+
   describe('conciv tools on any tab', () => {
     const conciv = (cwd: string, home: string, args: string[], agentEnv: Record<string, string> = {}) =>
       new Promise<unknown>((resolve) =>
@@ -1193,8 +1236,8 @@ describe('cli', () => {
       )
 
     it('names the calling agent from its shell env, so a disconnected Codex is refused before any Allow card', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const refused = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', sessionId], {
@@ -1210,8 +1253,8 @@ describe('cli', () => {
     })
 
     it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
@@ -1224,7 +1267,7 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
-        const restart = ['tools', 'server', 'restart']
+        const restart = ['tools', 'server', 'reload', 'src/a.ts']
         expect([
           await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
           await conciv(elsewhere, home, restart),
@@ -1240,7 +1283,7 @@ describe('cli', () => {
         })
         const malformed = {ok: false, error: {kind: 'user', message: expect.stringContaining('--tab')}}
         expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'nope'])).toMatchObject(malformed)
-        const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+        const project = tempDir('conciv-project-')
         mkdirSync(join(project, '.conciv'))
         writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify({port: 9}))
         expect(await conciv(project, home, ['tools', 'tabs'])).toMatchObject({
@@ -1253,26 +1296,55 @@ describe('cli', () => {
     })
 
     it('a call that found its engine through the home db asks the tab like --tab does, and a deny refuses it', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
+      const watched = new AbortController()
       try {
+        const asked = askRaised(page, sessionId, AbortSignal.any([watched.signal, pages.signal]))
         const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
-        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
-          timeout: 5000,
-        })
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
         expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
       } finally {
+        watched.abort()
         await engine.stop()
       }
     })
 
+    it('a call through the home db asks the tab of a dev server slow to answer its health check, never the default port', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const holder = await engineWithTab(home)
+      const front = await startFront(home, holder, {hold: '/health'})
+      const watched = new AbortController()
+      try {
+        const asked = askRaised(holder.page, holder.sessionId, AbortSignal.any([watched.signal, pages.signal]))
+        const healthAsked = front.askedTwice()
+        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        await Promise.race([healthAsked, waiting])
+        front.answerHeld()
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
+        const [ask] = (await holder.page.chat.hydrate({sessionId: holder.sessionId})).pendingApprovals
+        await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        const denied = await waiting
+        expect(denied).toMatchObject({
+          ok: false,
+          error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/The user denied terminal access/)},
+        })
+        expect(JSON.stringify(denied)).not.toContain('5173')
+      } finally {
+        watched.abort()
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
     it('a root --tab and a verb --tab naming different tabs are refused instead of acting on the first', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const watched = new AbortController()
@@ -1291,7 +1363,7 @@ describe('cli', () => {
     })
 
     it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const lantern = defineTool({
         name: 'page_lantern',
         description: 'Light the lantern over the page.',
@@ -1301,7 +1373,7 @@ describe('cli', () => {
       }).client()
       const cwdEngine = await engineWithTab(home)
       const holder = await engineWithTab(home, {extensions: [defineExtension({name: 'lantern', tools: [lantern]})]})
-      const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      const project = tempDir('conciv-project-')
       mkdirSync(join(project, '.conciv'))
       const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
       writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify(recorded))
@@ -1321,8 +1393,114 @@ describe('cli', () => {
       }
     })
 
+    it('names each dev server that did not answer instead of counting 0 running, and never guesses the default port', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'user',
+          message: `no conciv dev server is running; start one and open its page (conciv home folder read: ${home}).`,
+        },
+      })
+      const silent = await failingEngine(home, 500, {healthStatus: 503})
+      const named = `${silent.root} did not answer (/health answered HTTP 503 without an engine id)`
+      try {
+        const onTab = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])
+        expect(onTab).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: `cannot find tab conciv_gone: ${named}.`},
+        })
+        expect(JSON.stringify(onTab)).not.toContain('0 running')
+        await expect(engineOrigin(elsewhere, {CONCIV_HOME: home}, null)).rejects.toThrow(
+          `no conciv dev server answered: ${named}.`,
+        )
+        const unguessed = await conciv(elsewhere, home, ['tools', 'tabs'])
+        expect(unguessed).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: `no conciv dev server answered: ${named}.`},
+        })
+        expect(JSON.stringify(unguessed)).not.toContain('5173')
+      } finally {
+        await silent.close()
+      }
+    })
+
+    it('a registered dev server whose port is closed is retired, so --tab finds none running and a call without it uses the default port', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const closed = createHttpServer()
+      closed.listen(0, '127.0.0.1')
+      await once(closed, 'listening')
+      const port = z.object({port: z.number()}).parse(closed.address()).port
+      closed.close()
+      await once(closed, 'close')
+      const root = tempDir('conciv-closed-')
+      const row = {id: 'closed-port', pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}
+      withHomeDb(home, (db) => registerEngine(db, row))
+      expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'conciv_gone'])).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'user',
+          message: `no conciv dev server is running; start one and open its page (conciv home folder read: ${home}).`,
+        },
+      })
+      expect(withHomeDb(home, listEngines)).toEqual([])
+      withHomeDb(home, (db) => registerEngine(db, row))
+      expect(await engineOrigin(elsewhere, {CONCIV_HOME: home}, null)).toEqual({
+        origin: 'http://127.0.0.1:5173',
+        outside: false,
+      })
+      expect(withHomeDb(home, listEngines)).toEqual([])
+    })
+
+    it('--tab runs on an engine that answers its health check only when asked again', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      try {
+        const asked = front.askedTwice()
+        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(await answering).toMatchObject({
+          ok: true,
+          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
+        })
+      } finally {
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('--tab asks an engine whose tab check timed out once more, and names it when it never answers', async () => {
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
+      try {
+        const asked = front.askedTwice()
+        const answering = conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(await answering).toMatchObject({
+          ok: true,
+          data: {tabs: [expect.objectContaining({tab: holder.sessionId})]},
+        })
+        front.holdAgain()
+        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', holder.sessionId])).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining(`${holder.root} did not answer (`)},
+        })
+      } finally {
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
     it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const first = await engineWithTab(home)
       const second = await engineWithTab(home, {shared: first})
       try {
@@ -1377,8 +1555,8 @@ describe('cli', () => {
     })
 
     it('answers a plugin method from the project and from anywhere as the owner, prints engine errors, and refuses bad --data before any call', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const home = tempDir('conciv-home-')
+      const elsewhere = tempDir('conciv-elsewhere-')
       const {engine, base, root} = await engineWithTab(home, {plugins: [probe]})
       try {
         expect(await pluginCall(root, home, ['probe', 'echo', '--data', '{"word":"hi"}'])).toEqual({
@@ -1422,6 +1600,147 @@ describe('cli', () => {
         await engine.stop()
       }
     })
+
+    it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
+      const home = tempDir('conciv-home-')
+      const restarts: boolean[] = []
+      const bridge = defineBundlerBridge({
+        id: 'cli-server-methods',
+        config: () => ({
+          root: '/repo',
+          base: '/app/',
+          mode: 'development',
+          aliases: [{find: '@', replacement: '/repo/src'}],
+          plugins: ['vite:react'],
+        }),
+        resolve: async (spec, importer) => ({id: `/repo/src/${spec}${importer === undefined ? '' : '?from'}`}),
+        moduleGraph: (file) => [{url: file, importers: ['/src/main.ts'], importedModules: ['/src/dep.ts']}],
+        transform: async (url) => {
+          if (url === '/src/broken.ts') throw new Error('transform failed for /src/broken.ts')
+          return {code: `export const served = ${JSON.stringify(url)}`}
+        },
+        urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
+        reload: async () => {},
+        restart: async (force) => {
+          restarts.push(force ?? false)
+        },
+      })
+      const launched: Array<{file: string; line: number; column?: number}> = []
+      const attached = await engineWithTab(home, {
+        bridge,
+        launchEditor: (file, line, column) => launched.push({file, line, ...(column === undefined ? {} : {column})}),
+      })
+      const detached = await engineWithTab(home)
+      try {
+        expect(await pluginCall(attached.root, home, ['server', 'config'])).toEqual({
+          code: 0,
+          document: {ok: true, data: bridge.config()},
+        })
+        expect(await pluginCall(attached.root, home, ['server', 'urls'])).toEqual({
+          code: 0,
+          document: {ok: true, data: bridge.urls()},
+        })
+        expect(
+          await pluginCall(attached.root, home, [
+            'server',
+            'resolve',
+            '--data',
+            '{"spec":"app.ts","importer":"/src/main.ts"}',
+          ]),
+        ).toEqual({code: 0, document: {ok: true, data: {id: '/repo/src/app.ts?from'}}})
+        expect(await pluginCall(attached.root, home, ['server', 'graph', '--data', '{"file":"/src/app.ts"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: bridge.moduleGraph('/src/app.ts')},
+        })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'transform', '--data', '{"url":"/src/app.ts"}']),
+        ).toEqual({
+          code: 0,
+          document: {ok: true, data: {code: 'export const served = "/src/app.ts"'}},
+        })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'transform', '--data', '{"url":"/src/broken.ts"}']),
+        ).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'BUNDLER_FAILED',
+              message: 'Unable to transform /src/broken.ts',
+              data: {message: 'transform failed for /src/broken.ts'},
+            },
+          },
+        })
+        expect(await pluginCall(attached.root, home, ['server', 'restart', '--data', '{"force":true}'])).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'rpc.method_not_found',
+              message: 'Unknown RPC method: server.restart',
+            },
+          },
+        })
+        expect(restarts).toEqual([])
+        expect(
+          await pluginCall(attached.root, home, [
+            'server',
+            'open',
+            '--data',
+            '{"file":"src/thing.ts","line":7,"column":3}',
+          ]),
+        ).toEqual({code: 0, document: {ok: true, data: {ok: true, file: 'src/thing.ts', line: 7}}})
+        expect(await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/other.ts"}'])).toEqual({
+          code: 0,
+          document: {ok: true, data: {ok: true, file: 'src/other.ts'}},
+        })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/third.ts","column":3}']),
+        ).toEqual({code: 0, document: {ok: true, data: {ok: true, file: 'src/third.ts'}}})
+        for (const line of ['0', '1.5', '"abc"']) {
+          expect(
+            await pluginCall(attached.root, home, ['server', 'open', '--data', `{"file":"src/a.ts","line":${line}}`]),
+          ).toMatchObject({
+            code: 1,
+            document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+          })
+        }
+        expect(await pluginCall(attached.root, home, ['server', 'open'])).toMatchObject({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+        })
+        expect(
+          await pluginCall(attached.root, home, ['server', 'open', '--data', '{"file":"src/thing.ts","line":"7"}']),
+        ).toMatchObject({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input'}},
+        })
+        expect(launched).toEqual([
+          {file: 'src/thing.ts', line: 7, column: 3},
+          {file: 'src/other.ts', line: 1},
+          {file: 'src/third.ts', line: 1},
+        ])
+        expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'PLUGIN_RPC',
+              type: 'BUNDLER_UNAVAILABLE',
+              message: 'no dev server is attached to conciv',
+              data: {},
+            },
+          },
+        })
+      } finally {
+        await Promise.all([attached.engine.stop(), detached.engine.stop()])
+      }
+    })
   })
 
   describe('conciv mcp hub', () => {
@@ -1436,8 +1755,8 @@ describe('cli', () => {
       })
 
     const fakeClaude = () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const binDir = mkdtempSync(join(tmpdir(), 'conciv-agent-bin-'))
+      const home = tempDir('conciv-home-')
+      const binDir = tempDir('conciv-agent-bin-')
       const log = join(binDir, 'calls.log')
       writeFileSync(join(binDir, 'claude'), `#!/bin/sh\necho "$*" >> '${log}'\n`)
       chmodSync(join(binDir, 'claude'), 0o755)
@@ -1489,7 +1808,7 @@ describe('cli', () => {
       JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
 
     it('a connect still waiting on the agent CLI never reconnects an agent disconnected meanwhile', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const adding = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
       const connections = createHubConnections(home, async (argv) => {
@@ -1513,7 +1832,7 @@ describe('cli', () => {
     })
 
     it('a reconnect waits out a slow remove, so the remove never deletes the entry the reconnect installed', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const entries = new Set<string>()
       const removing = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
@@ -1543,7 +1862,7 @@ describe('cli', () => {
     })
 
     it('a lease lasts as long as its process or the agent CLI it spawned, up to a ten minute ceiling against pid reuse', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const leased = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
       const lease = (pid: number, childPid: number | null, age: number) =>
         withHomeDb(home, (db) =>
@@ -1569,7 +1888,7 @@ describe('cli', () => {
     it.skipIf(process.getuid?.() === 0)(
       'an agent CLI the lease cannot record is refused, so no untracked change outlives its owner',
       async () => {
-        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        const home = tempDir('conciv-home-')
         withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
         const untracked = createHubConnections(home, async (argv, options) => {
           chmodSync(join(home, 'home.db'), 0o000)
@@ -1591,7 +1910,7 @@ describe('cli', () => {
     )
 
     it('an agent CLI whose lease was taken over meanwhile is refused, so it never runs untracked', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const overtaken = createHubConnections(home, async (argv, options) => {
         withHomeDb(home, (db) =>
           takeHubOperation(db, {harness: 'claude', pid: process.pid, childPid: null, startedAt: 1}, () => true),
@@ -1610,7 +1929,7 @@ describe('cli', () => {
     it.skipIf(process.getuid?.() === 0)(
       'an unreadable home fails closed: no generation, and connect answers instead of throwing',
       async () => {
-        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        const home = tempDir('conciv-home-')
         withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
         const unreadable = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
         try {
@@ -1628,54 +1947,6 @@ describe('cli', () => {
         }
       },
     )
-
-    async function startFront(home: string, engine: {root: string; base: string}) {
-      const upstream = new URL(engine.base)
-      const mode = {dropCalls: false, holdWaits: false}
-      const front = createHttpServer(async (request, response) => {
-        const chunks: Buffer[] = []
-        for await (const chunk of request) chunks.push(Buffer.from(chunk))
-        const body = Buffer.concat(chunks)
-        if (mode.holdWaits && request.url?.endsWith('/rpc/page/queue/wait')) return
-        if (mode.dropCalls && request.url?.endsWith('/rpc/code/execute')) {
-          request.socket.destroy()
-          return
-        }
-        const headers = Object.fromEntries(
-          Object.entries(request.headers).flatMap(([key, value]) =>
-            typeof value === 'string' && !['host', 'connection', 'content-length'].includes(key) ? [[key, value]] : [],
-          ),
-        )
-        const answer = await fetch(new URL(request.url ?? '/', upstream.origin), {
-          method: request.method,
-          headers,
-          ...(body.length === 0 ? {} : {body}),
-        })
-        const kept = [...answer.headers].filter(([key]) => !['content-encoding', 'content-length'].includes(key))
-        response.writeHead(answer.status, Object.fromEntries(kept))
-        response.end(Buffer.from(await answer.arrayBuffer()))
-      })
-      front.listen(0, '127.0.0.1')
-      await once(front, 'listening')
-      const port = z.object({port: z.number()}).parse(front.address()).port
-      const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
-      if (row === undefined) throw new Error('the engine has no row in the home db')
-      const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
-      withHomeDb(home, (db) => registerEngine(db, {...row, apiBase}))
-      return {
-        dropCalls: (drop: boolean) => {
-          mode.dropCalls = drop
-        },
-        holdWaits: (hold: boolean) => {
-          mode.holdWaits = hold
-        },
-        close: async () => {
-          front.closeAllConnections()
-          front.close()
-          await once(front, 'close')
-        },
-      }
-    }
 
     const ReplySchema = z.object({content: z.array(z.object({type: z.string(), text: z.string().optional()}))})
 
@@ -1806,30 +2077,6 @@ describe('cli', () => {
       }
     })
 
-    async function failingEngine(home: string, status: number) {
-      const id = `failing-engine-${status}`
-      const server = createHttpServer((request, response) => {
-        if (request.url === '/health') {
-          response.writeHead(200, {'content-type': 'application/json'}).end(JSON.stringify({ok: true, id}))
-          return
-        }
-        response.writeHead(status).end()
-      })
-      server.listen(0, '127.0.0.1')
-      await once(server, 'listening')
-      const port = z.object({port: z.number()}).parse(server.address()).port
-      const root = mkdtempSync(join(tmpdir(), 'conciv-failing-'))
-      withHomeDb(home, (db) => registerEngine(db, {id, pid: process.pid, root, apiBase: `http://127.0.0.1:${port}`}))
-      return {
-        root,
-        close: async () => {
-          server.closeAllConnections()
-          server.close()
-          await once(server, 'close')
-        },
-      }
-    }
-
     async function staleEngine(home: string, given: {id: string; pid: number; root: string}) {
       const server = createHttpServer((request, response) => {
         if (request.url === '/health') {
@@ -1861,14 +2108,14 @@ describe('cli', () => {
     it('skips and removes engine rows whose process or root folder is gone, so calls without a tab and external_tabs land on the live engine', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
-      const removedRoot = mkdtempSync(join(tmpdir(), 'conciv-removed-'))
+      const removedRoot = tempDir('conciv-removed-')
       rmSync(removedRoot, {recursive: true})
       const closers = [
         await staleEngine(home, {id: 'root-gone', pid: process.pid, root: removedRoot}),
         await staleEngine(home, {
           id: 'pid-gone',
           pid: await deadPid(),
-          root: mkdtempSync(join(tmpdir(), 'conciv-dead-')),
+          root: tempDir('conciv-dead-'),
         }),
       ]
       const live = await engineWithTab(home, {hubAccess: 'open'})
@@ -1908,7 +2155,7 @@ describe('cli', () => {
           JSON.stringify([
             {
               type: 'text',
-              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and the tab probe failed on ${crashing.root} (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
+              text: `cannot tell whether tab conciv_gone is open: no engine that answered has it, and ${crashing.root} did not answer (Internal Server Error); ${old.root} (engine too old; upgrade its @conciv packages); nothing ran`,
             },
           ]),
         )
@@ -1919,8 +2166,119 @@ describe('cli', () => {
       }
     })
 
+    it('with every registered engine unreachable the hub names each, never as no dev server running', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const silent = await failingEngine(home, 500, {healthStatus: 503})
+      const named = `${silent.root} did not answer (/health answered HTTP 503 without an engine id)`
+      const client = await hub(home)
+      try {
+        const reply = await run(client, 'return 1 + 1')
+        expect(reply).toContain(`no conciv dev server answered: ${named}`)
+        expect(reply).not.toContain('no conciv dev server is running')
+        const onTab = JSON.stringify(
+          await client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: 'conciv_gone'}),
+        )
+        expect(onTab).toContain(named)
+        expect(onTab).not.toContain('TAB_NOT_OPEN')
+      } finally {
+        await client.close()
+        await silent.close()
+      }
+    })
+
+    it('the hub picks an engine that answers its health check only when asked again, and finds its tab the same way', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      const asked = front.askedTwice()
+      const starting = hub(home)
+      await Promise.race([asked, starting])
+      front.answerHeld()
+      const client = await starting
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('\\"result\\":2')
+        front.holdAgain()
+        const askedOnTab = front.askedTwice()
+        const answeringOnTab = client.callTool('execute_typescript', {
+          typescriptCode: 'return 1 + 1',
+          tab: holder.sessionId,
+        })
+        await Promise.race([askedOnTab, answeringOnTab])
+        front.answerHeld()
+        expect(JSON.stringify(await answeringOnTab)).toContain('\\"result\\":2')
+      } finally {
+        await client.close()
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('a tab whose check timed out on its engine is asked once more before the hub answers, and named when it never answers', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/rpc/tabs/get'})
+      const client = await hub(home)
+      try {
+        const asked = front.askedTwice()
+        const answering = client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: holder.sessionId})
+        await Promise.race([asked, answering])
+        front.answerHeld()
+        expect(JSON.stringify(await answering)).toContain('\\"result\\":2')
+        front.holdAgain()
+        const unanswered = JSON.stringify(
+          await client.callTool('execute_typescript', {typescriptCode: 'return 1 + 1', tab: 'conciv_gone'}),
+        )
+        expect(unanswered).toContain(`${holder.root} did not answer (`)
+        expect(unanswered).not.toContain('the tab probe failed on')
+      } finally {
+        await client.close()
+        await front.close()
+        await holder.engine.stop()
+      }
+    })
+
+    it('with no usable engine among those that answered, the hub names each it cannot use and each that did not answer', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const old = await failingEngine(home, 404)
+      const silent = await failingEngine(home, 500, {healthStatus: 503})
+      const client = await hub(home)
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain(
+          `no conciv dev server this hub can use is running: ${old.root} (engine too old; upgrade its @conciv packages); ${silent.root} did not answer (/health answered HTTP 503 without an engine id)`,
+        )
+      } finally {
+        await client.close()
+        await Promise.all([old.close(), silent.close()])
+      }
+    })
+
+    it('when no engine that answered is usable, the hub picks a slow engine, whichever ask finds it', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const old = await failingEngine(home, 404)
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await startFront(home, holder, {hold: '/health'})
+      const asked = front.askedTwice()
+      const starting = hub(home)
+      await Promise.race([asked, starting])
+      front.answerHeld()
+      const client = await starting
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('\\"result\\":2')
+      } finally {
+        await client.close()
+        await front.close()
+        await old.close()
+        await holder.engine.stop()
+      }
+    })
+
     it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const home = tempDir('conciv-home-')
       const client = await hub(home)
       try {
         const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
@@ -1936,7 +2294,7 @@ describe('cli', () => {
     it.skipIf(process.getuid?.() === 0)(
       'an unreadable home folder is named as such, never reported as no dev server running',
       async () => {
-        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        const home = tempDir('conciv-home-')
         withHomeDb(home, listEngines)
         chmodSync(join(home, 'home.db'), 0o000)
         try {
@@ -2331,7 +2689,7 @@ describe('cli', () => {
 
       async function engineWithoutCodeMode(home: string) {
         const id = 'engine-without-code-mode'
-        const root = mkdtempSync(join(tmpdir(), 'conciv-codeless-'))
+        const root = tempDir('conciv-codeless-')
         const server = createHttpServer((request, response) => {
           const url = new URL(request.url ?? '/', 'http://127.0.0.1')
           if (url.pathname === '/health') {
@@ -2355,7 +2713,7 @@ describe('cli', () => {
 
       async function engineBeforeOrpcTabs(home: string) {
         const id = 'engine-before-orpc-tabs'
-        const root = mkdtempSync(join(tmpdir(), 'conciv-before-orpc-'))
+        const root = tempDir('conciv-before-orpc-')
         const server = createHttpServer((request, response) => {
           const url = new URL(request.url ?? '/', 'http://127.0.0.1')
           const json = (body: unknown) =>
@@ -2480,7 +2838,7 @@ describe('init', () => {
   })
 
   describe('init detect', () => {
-    const dir = (): string => mkdtempSync(join(tmpdir(), 'conciv-detect-'))
+    const dir = (): string => tempDir('conciv-detect-')
 
     const seed = (cwd: string, manifest: object): void => {
       writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
@@ -2589,7 +2947,7 @@ describe('init', () => {
   })
 
   describe('init harness detect', () => {
-    const dir = (label: string): string => mkdtempSync(join(tmpdir(), `conciv-harness-${label}-`))
+    const dir = (label: string): string => tempDir(`conciv-harness-${label}-`)
 
     const shim = (binDir: string, name: string): void => {
       const file = join(binDir, name)
@@ -2702,7 +3060,7 @@ describe('init', () => {
 
   describe('init interrupt', () => {
     function scratchFile(name: string, content: string): string {
-      const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+      const dir = tempDir('conciv-interrupt-')
       const path = join(dir, name)
       writeFileSync(path, content)
       return path
@@ -2748,7 +3106,7 @@ describe('init', () => {
       })
 
       it('removes a file the run created when the captured backup recorded it as absent', () => {
-        const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+        const dir = tempDir('conciv-interrupt-')
         const created = join(dir, 'AGENTS.md')
         const guard = guardBackups()
         guard.remember(captureFile(created))
@@ -3187,7 +3545,7 @@ describe('init', () => {
   })
 
   describe('init preflight', () => {
-    const dir = (): string => mkdtempSync(join(tmpdir(), 'conciv-init-'))
+    const dir = (): string => tempDir('conciv-init-')
 
     describe('preflight', () => {
       it('refuses without package.json', async () => {
@@ -3770,7 +4128,7 @@ describe('steps', () => {
     const intentStartOnly = '<!-- intent-skills:start -->\nguidance, no end marker\n'
 
     function project(manifest: object, feed: (line: string) => void = () => {}): InitContext {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-docs-pack-'))
+      const cwd = tempDir('conciv-docs-pack-')
       writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
       return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}, feed}
     }
@@ -3985,7 +4343,7 @@ describe('steps', () => {
   describe('framework', () => {
     describe('config edit', () => {
       function renderChange(before: string, after: string): string {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-config-edit-'))
+        const cwd = tempDir('conciv-config-edit-')
         const path = join(cwd, 'vite.config.ts')
         writeFileSync(path, before)
         const {notes, ctx} = stepContext(cwd)
@@ -4345,7 +4703,7 @@ export default defineConfig({
       const clientContent = "import '@conciv/it/plugin/nextjs/widget'\n"
 
       function project(fixtureName: string | null): {cwd: string; detected: Detected} & ReturnType<typeof stepContext> {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-nextjs-'))
+        const cwd = tempDir('conciv-nextjs-')
         writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', dependencies: {next: '^15.0.0'}}))
         const configFile = fixtureName === null ? null : 'next.config.ts'
         if (fixtureName !== null) {
@@ -4482,7 +4840,7 @@ export default defineConfig({
 export default defineConfig({plugins: [conciv()]})`
 
       function project(fixtureName: string | null): {cwd: string; detected: Detected} & ReturnType<typeof stepContext> {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-vite-'))
+        const cwd = tempDir('conciv-vite-')
         writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', devDependencies: {vite: '^7.0.0'}}))
         const configFile = fixtureName === null ? null : 'vite.config.ts'
         if (fixtureName !== null) {
@@ -4617,7 +4975,7 @@ export default defineConfig({plugins: [conciv()]})`
       type Project = {cwd: string; detected: Detected} & ReturnType<typeof stepContext>
 
       function project(framework: Framework, configFile: string | null, fixtureName: string | null): Project {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-webpack-family-'))
+        const cwd = tempDir('conciv-webpack-family-')
         writeFileSync(
           join(cwd, 'package.json'),
           JSON.stringify({name: 'app', devDependencies: {[framework]: '^1.0.0'}}),
@@ -4650,19 +5008,12 @@ export default defineConfig({plugins: [conciv()]})`
       ]
 
       describe('webpackFamilyStep', () => {
-        it('wires a CJS webpack config with a require line and conciv.default(), carding that the widget is not added', async () => {
+        it('wires a CJS webpack config with a require line and conciv.default(), with nothing left to do by hand', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
           const step = webpackFamilyStep(detected)
           expect(step.id).toBe('framework')
           expect(await step.detect(ctx)).toBe('missing')
-          const outcome = await step.apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual(['The widget is not added for you'])
-          const body = outcome.cards[0]?.body ?? ''
-          expect(body).toContain('does not add the widget to your page')
-          expect(body).toContain('https://conciv.dev/docs/quick-start/webpack')
-          expect(body).not.toContain('@conciv/widget')
-          expect(body).not.toContain('widgetUrl')
+          expect(await step.apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("const conciv = require('@conciv/it/plugin/webpack')")
           expect(written).toContain('plugins: [new DefinePlugin({DEV: true}), conciv.default()],')
@@ -4672,16 +5023,14 @@ export default defineConfig({plugins: [conciv()]})`
         it('reports already on the second pipeline run over a wired CJS config', async () => {
           const {detected, settings, output} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
           const first = await runSteps([webpackFamilyStep(detected)], settings, output)
-          expect(first.map((entry) => entry.status)).toEqual(['manual'])
+          expect(first.map((entry) => entry.status)).toEqual(['done'])
           const second = await runSteps([webpackFamilyStep(detected)], settings, output)
           expect(second.map((entry) => entry.status)).toEqual(['already'])
         })
 
         it('wires an ESM webpack config through the engine with a default import', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.esm.js')
-          const outcome = await webpackFamilyStep(detected).apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual(['The widget is not added for you'])
+          expect(await webpackFamilyStep(detected).apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
           expect(written).toContain('plugins: [new TerserPlugin(), conciv()],')
@@ -4693,7 +5042,9 @@ export default defineConfig({plugins: [conciv()]})`
             'webpack.config.js',
             'webpack.config.esm-mentions-module-exports.js',
           )
-          expect(await unwiredCardTitles(detected, ctx)).toEqual(['The widget is not added for you'])
+          const step = webpackFamilyStep(detected)
+          expect(await step.detect(ctx)).toBe('missing')
+          expect(await step.apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
           expect(written).toContain('conciv()')
@@ -4708,29 +5059,23 @@ export default defineConfig({plugins: [conciv()]})`
             'webpack.config.ambiguous-both-styles.js',
           )
           const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-          expect(await unwiredCardTitles(detected, ctx)).toEqual([
-            'Wire the conciv webpack plugin',
-            'The widget is not added for you',
-          ])
+          expect(await unwiredCardTitles(detected, ctx)).toEqual(['Wire the conciv webpack plugin'])
           expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
         })
 
         it('picks the rspack module path for rspack projects', async () => {
           const {cwd, detected, ctx} = project('rspack', 'rspack.config.js', 'rspack.config.esm.js')
-          const outcome = await webpackFamilyStep(detected).apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+          expect(await webpackFamilyStep(detected).apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'rspack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/rspack'")
           expect(written).toContain('plugins: [conciv()],')
-          expect(outcome.cards[0]?.body).toContain('https://conciv.dev/docs/quick-start/rspack')
         })
 
         it('treats a lone plugin require as unwired and lands the call', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-require-only.js')
           const step = webpackFamilyStep(detected)
           expect(await step.detect(ctx)).toBe('missing')
-          const outcome = await step.apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+          expect(await step.apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain('plugins: [conciv.default()]')
           expect(await step.detect(ctx)).toBe('present')
@@ -4740,10 +5085,7 @@ export default defineConfig({plugins: [conciv()]})`
           it(`cards a CJS config that ${reason} and leaves the file byte-identical`, async () => {
             const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', fixtureName)
             const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-            expect(await unwiredCardTitles(detected, ctx)).toEqual([
-              'Wire the conciv webpack plugin',
-              'The widget is not added for you',
-            ])
+            expect(await unwiredCardTitles(detected, ctx)).toEqual(['Wire the conciv webpack plugin'])
             expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
           })
         }
@@ -4753,10 +5095,7 @@ export default defineConfig({plugins: [conciv()]})`
           const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           const outcome = await webpackFamilyStep(detected).apply(ctx)
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual([
-            'Wire the conciv webpack plugin',
-            'The widget is not added for you',
-          ])
+          expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin'])
           expect(outcome.cards[0]?.snippet).toBe(`const conciv = require('@conciv/it/plugin/webpack')
 
 module.exports = {
@@ -4769,10 +5108,7 @@ module.exports = {
           const {detected, ctx} = project('rspack', null, null)
           const outcome = await webpackFamilyStep(detected).apply(ctx)
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual([
-            'Wire the conciv rspack plugin',
-            'The widget is not added for you',
-          ])
+          expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv rspack plugin'])
           expect(outcome.cards[0]?.snippet).toContain("require('@conciv/it/plugin/rspack')")
         })
 
@@ -4831,7 +5167,7 @@ export default defineConfig({plugins: [conciv()]})`)
       const consented: HarnessId[] = ['claude', 'codex']
 
       function project(): {cwd: string} & ReturnType<typeof stepContext> {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-agents-'))
+        const cwd = tempDir('conciv-agents-')
         return {cwd, ...stepContext(cwd)}
       }
 
@@ -4846,7 +5182,7 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(sandbox).toBeGreaterThan(table)
           expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
           expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
-          expect(section).toContain('`.conciv/bin/conciv tools server graph <file>`')
+          expect(section).toContain(`\`.conciv/bin/conciv plugin call server graph --data '{"file":"<file>"}'\``)
           expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
         })
@@ -5044,8 +5380,8 @@ export default defineConfig({plugins: [conciv()]})`)
       }
 
       function fixture(opts: {exitCode: number; cwdPrefix?: string}): Fixture {
-        const cwd = mkdtempSync(join(tmpdir(), opts.cwdPrefix ?? 'conciv-claude-step-'))
-        const home = mkdtempSync(join(tmpdir(), 'conciv-claude-home-'))
+        const cwd = tempDir(opts.cwdPrefix ?? 'conciv-claude-step-')
+        const home = tempDir('conciv-claude-home-')
         const binDir = join(home, 'shim-bin')
         const recordFile = join(home, 'claude-argv.log')
         mkdirSync(binDir, {recursive: true})
@@ -5056,7 +5392,7 @@ export default defineConfig({plugins: [conciv()]})`)
       }
 
       function siblingProject(source: Fixture): Fixture {
-        const cwd = mkdtempSync(join(tmpdir(), 'conciv-claude-other-'))
+        const cwd = tempDir('conciv-claude-other-')
         return {...source, cwd, harness: stepContext(cwd)}
       }
 
@@ -5271,7 +5607,7 @@ export default defineConfig({plugins: [conciv()]})`)
 
   describe('install it', () => {
     function project(manifest: object): InitContext {
-      const cwd = mkdtempSync(join(tmpdir(), 'conciv-install-'))
+      const cwd = tempDir('conciv-install-')
       writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
       return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}, feed: () => {}}
     }

@@ -6,7 +6,8 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 ## Interface
 
-- `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, env: {CONCIV_HOME}}`; each call creates an empty temp conciv home and also sets it on the main process `process.env`, so engines started by browser commands and globalSetup never write the real home.
+- `ciTest()` (`reporters.ts`): `{reporters, coverage (v8, json-summary, reportsDirectory 'coverage', enabled on CI only), testTimeout/hookTimeout/teardownTimeout 30_000, maxWorkers?, globalSetup: [setup/conciv-home-setup.ts]}`; calling it makes nothing. `TEST_TIMEOUT_MS` and `HOOK_TIMEOUT_MS` are its timeouts as constants.
+- `tempDir(prefix)` (`temp-dir.ts`, export `./temp-dir`): makes a folder inside one `conciv-test-*` folder per test file, which an `afterAll` registered when the module loads removes once that file is done, passed or failed. Every test that needs a temp folder takes it from here.
 - `ciReporters()` (`reporters.ts`): `['default']` locally; on CI adds `github-actions` (jobSummary off) and `json` -> `test-results.json`.
 - `ciTestSolidBrowser()` (`reporters.ts`): `ciTest()` plus `setupFiles: ['@conciv/vitest-config/solid-cleanup']`.
 - `browserOptimizeDeps(alsoInclude = [])`, `TANSTACK_AI_SOLID_DEPS` (`reporters.ts`).
@@ -16,6 +17,8 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - CLI `conciv-ci-summary [--details] [--title T] [roots...]` (`ci-summary.ts`): summary from `test-results.json` files; roots default to `packages`.
 - `planShards(packages, timings, sizing?)`, `planE2eShards`, `discoverPackages(rootDir, groupDirs)`, `plannedPackages`, `e2ePackages`, `parseTimings`; constants `PACKAGE_GROUPS`, `PACKAGES_WITH_DEDICATED_JOBS` (`['conciv-storybook']`), `E2E_HARNESS_PACKAGE`, `TARGET_SHARD_MS` (150_000), `DEFAULT_PACKAGE_MS` (5_000), `E2E_SHARD_SIZING`; types `WorkspacePackage`, `ShardPlan`, `E2eShardPlan`, `ShardSizing` (`shards.ts`).
 - `parseReport`, `parseCoverage`, `parseSummaries`, `mergeSummaries`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
+- Subdirectories:
+  - setup: [./setup/README.md](./setup/README.md) - the conciv home globalSetup `ciTest()` carries
 
 ## Invariants
 
@@ -31,6 +34,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 
 - Reads `GITHUB_ACTIONS` and `VITEST_MAX_FORKS`; on CI the json reporter writes `test-results.json` and coverage goes to `coverage/` (`reporters.ts`).
 - Registers a global `afterEach(cleanup)` (`solid-cleanup-setup.ts`).
+- `temp-dir.ts` creates its `conciv-test-*` folder and registers its `afterAll` on import.
 - `plan` appends `matrix=<json>` to `$GITHUB_OUTPUT` and prints it; `run` spawns `pnpm exec turbo run <tasks> --filter=<pkg>...` with `execFileSync` and inherited stdio; `report` writes `--output` (default `shard-report.json`); `summarize` appends to `$GITHUB_STEP_SUMMARY` (or stdout) and writes measured timings to `--timings` (`ci-shards.ts`).
 - `ci-summary.ts` appends to `$GITHUB_STEP_SUMMARY` or writes to stdout.
 - `summary.ts` walks directories, reads `test-results.json`, `coverage/coverage-summary.json` and package.json files, and caches owner lookups in the module-level `packageByDir` map; `discoverPackages` reads workspace package.json files (`shards.ts`).

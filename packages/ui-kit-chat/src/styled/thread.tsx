@@ -24,7 +24,7 @@ import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@con
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
-import {Message} from '../primitives/message/message.js'
+import {Message, shownAttachmentParts} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
 import {
   CHAIN_GROUP_KEY,
@@ -64,6 +64,7 @@ import {
   PROMPT_TIME_CLASS,
   TURN_FRAME_CLASS,
   TURN_INDENT_CLASS,
+  USER_ROOT_CLASS,
   TURN_LEAD_CLASS,
 } from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
@@ -111,6 +112,42 @@ function promptTimeLabel(createdAt: Date | undefined): string | undefined {
   if (!createdAt) return undefined
   const date = createdAt instanceof Date ? createdAt : new Date(createdAt)
   return Number.isNaN(date.getTime()) ? undefined : PROMPT_TIME_FORMAT.format(date)
+}
+
+const EXCERPT_LENGTH = 60
+
+const COUNT_PLURALS = new Intl.PluralRules('en')
+
+function plainLine(line: string): string {
+  return line
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s*(?:#{1,6}|>|[-*+]|\d+[.)])\s+/, '')
+    .replace(/[*`~]|(?<!\w)_+|_+(?!\w)/g, '')
+    .trim()
+}
+
+function promptExcerpt(turn: Turn): string {
+  const line =
+    collectPromptText(turn)
+      .split('\n')
+      .map(plainLine)
+      .find((candidate) => candidate.length > 0) ?? ''
+  const characters = Array.from(line)
+  return characters.length > EXCERPT_LENGTH ? `${characters.slice(0, EXCERPT_LENGTH).join('')}…` : line
+}
+
+function promptLabel(turn: Turn): string {
+  const excerpt = promptExcerpt(turn)
+  if (excerpt) return `You: ${excerpt}`
+  const attachments = shownAttachmentParts(turn.parts)
+  if (attachments.length === 1 && attachments[0]?.type === 'image') return 'You: image'
+  const noun = COUNT_PLURALS.select(attachments.length) === 'one' ? 'attachment' : 'attachments'
+  return `You: ${attachments.length} ${noun}`
+}
+
+function replyLabel(prompt: Turn | undefined): string {
+  const excerpt = prompt?.role === 'user' ? promptExcerpt(prompt) : ''
+  return excerpt ? `Reply to: ${excerpt}` : 'Reply'
 }
 
 function firstLine(text: string): string {
@@ -213,6 +250,7 @@ function AssistantTurn(props: {
       ),
     )
   const folded = () => !message.isLast() && !outside()
+  const label = createMemo(() => replyLabel(outside() ? undefined : thread.turns[message.index() - 1]?.turn()))
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentItems = createMemo(() =>
       groupProps.node.indices.flatMap((partIndex) => turnParts.items()[partIndex] ?? []),
@@ -359,7 +397,7 @@ function AssistantTurn(props: {
     </Key>
   )
   return (
-    <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
+    <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
       <Message.Error />
       <Show when={!runActive() && !joinsBelow()}>
@@ -397,34 +435,47 @@ function UserTurn(): JSX.Element {
   const message = useMessage()
   const AttachmentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
   const promptText = createMemo(() => collectPromptText(message.message()))
+  const shown = createMemo(() => promptText().length > 0 || shownAttachmentParts(message.message().parts).length > 0)
+  const label = createMemo(() => promptLabel(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
     <TurnFrame>
       <TurnPrefix />
-      <Message.If hasAttachments>
-        <div class="flex flex-wrap gap-1 self-end">
-          <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
-        </div>
-      </Message.If>
       <Show
-        when={promptText()}
+        when={shown()}
         fallback={
           <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
             <PromptSuffix besideText={false} />
           </div>
         }
       >
-        <Message.Root data-conciv-msg class={PROMPT_ROOT_CLASS}>
-          <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
-            ❯
-          </span>
-          <div class={PROMPT_BODY_CLASS}>
-            <span class={PROMPT_TEXT_CLASS}>
-              <HighlightedText text={promptText()} />
-            </span>
-            <PromptSuffix besideText />
-          </div>
-          <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+        <Message.Root role="article" aria-label={label()} class={USER_ROOT_CLASS}>
+          <Message.If hasAttachments>
+            <div class="flex flex-wrap gap-1 self-end">
+              <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
+            </div>
+          </Message.If>
+          <Show
+            when={promptText()}
+            fallback={
+              <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
+                <PromptSuffix besideText={false} />
+              </div>
+            }
+          >
+            <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
+              <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
+                ❯
+              </span>
+              <div class={PROMPT_BODY_CLASS}>
+                <span class={PROMPT_TEXT_CLASS}>
+                  <HighlightedText text={promptText()} />
+                </span>
+                <PromptSuffix besideText />
+              </div>
+              <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+            </div>
+          </Show>
         </Message.Root>
       </Show>
     </TurnFrame>

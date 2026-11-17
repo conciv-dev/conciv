@@ -2,12 +2,13 @@ import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstac
 import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
+import {useStartSession} from '../app/start-session.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
 import {isPluginView} from '../runtime/plugin/panel-keys.js'
 import {PluginTabContent} from '../shell/plugin-surfaces.js'
@@ -29,7 +30,6 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
 
 function PanelView(): JSX.Element {
   const params = Route.useParams()
-  const rpc = useRpc()
   const appData = useAppData()
   const instances = useInstances()
   const pane = usePane()
@@ -51,16 +51,11 @@ function PanelView(): JSX.Element {
     },
   })
 
+  const startSession = useStartSession()
   const newSession = () => {
-    void rpc.sessions
-      .create(undefined)
-      .then(({sessionId}) => {
-        void appData.invalidateSession(sessionId)
-        void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
-      })
-      .catch((error: unknown) => {
-        console.error('[conciv] could not create a session', error)
-      })
+    void startSession()
+      .then(({sessionId}) => router.navigate({to: '/panel/$sessionId', params: {sessionId}}))
+      .catch(() => undefined)
   }
 
   const [content, setContent] = createSignal<HTMLDivElement>()

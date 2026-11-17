@@ -8,7 +8,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 
 - `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, disposes the code mode driver, then rethrows any failed cancel writes and a failed driver dispose together as one `AggregateError`), `settled`, `hydrate`, `record`, `codeRunner`).
 - `chat-server.ts:record` - folds the given chunks through a `StreamProcessor` and appends the assistant messages to the thread the same way a stopped turn is saved, skipping tool calls the thread already holds.
-- `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types.
+- `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types. `TurnPlan.prompt(message, signal)` receives the run's abort signal; the engine still races the call against that signal, so a stopped turn ends at once even when a plan ignores it.
 - `code-mode.ts:codeModeTools` - the code-mode `discover_tools` carries our own short description (`DISCOVER_DESCRIPTION`) in place of the library's, which embeds the whole capability catalog; the same tool serves chat turns and MCP.
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
@@ -33,6 +33,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:gatedTools` - a tool runs only when its approval is `true`; `false` throws the denied error, and a missing approval emits `APPROVAL_REQUESTED_EVENT` then throws `approvalNeeded`.
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
+- `chat-server.ts:admitted` - `hooks.admit(turn)` is awaited before the last user message is looked up or handed to `TurnPlan.prompt`, before `chat()` runs: a rejection removes the live entry and ends the run stream with that error as its one RUN_ERROR, with no run row, no stored message, no `hooks.started` and no `hooks.end`.
 - `chat-server.ts:endedPhase` - a `completed` phase is reported as `aborted` when the record has `cancelRequested` (the user stopped the run while it was finishing by itself); `terminalChunk` and `buildLifecycle` both use it, so the terminal chunk, `hydrate`'s `lastRun` and `hooks.end` agree.
 - `chat-server.ts` `onStart`: `hooks.started` (the run announcement) is skipped once the run's controller is aborted; `@tanstack/ai` calls `onStart` after setup even for a cancelled run.
 - `chat-server.ts:endedWithItsRecord` - a run stream that ends without a terminal chunk (a stopped run) is closed with its recorded terminal run-lifecycle chunk, so a replay or join of a stopped run reads its `aborted` end; no `RUN_FINISHED` is added, because the run's owner reads the same log and a late `RUN_FINISHED` would settle the owner's next turn.

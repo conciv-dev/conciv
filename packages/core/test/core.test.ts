@@ -1,6 +1,5 @@
 import {
   existsSync,
-  mkdtempSync,
   rmSync,
   readFileSync,
   readdirSync,
@@ -10,10 +9,10 @@ import {
   utimesSync,
   chmodSync,
 } from 'node:fs'
+import {spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
-import {createServer} from 'node:net'
-import {tmpdir} from 'node:os'
+import {connect, createServer, type Socket} from 'node:net'
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -21,6 +20,7 @@ import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {webSocket} from '@conciv/ai/client'
 import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
@@ -49,6 +49,7 @@ import {
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
+  appendPageChange,
   chatMetadata,
   chatRuns,
   hubConnections,
@@ -73,12 +74,13 @@ import {
   type SettingsStore,
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
+import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
   idleFailedEvent,
   readApprovalAsk,
   readApprovalSettled,
+  SESSION_DELETED_CODE,
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
@@ -87,11 +89,14 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
   CHAT_WS_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
+import {PAGE_QUEUE_ASYNC_TOOL} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq, sql} from 'drizzle-orm'
 import {
@@ -122,6 +127,7 @@ import {
   Tool,
 } from '@conciv/plugin-host'
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
+import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, once as onceOnly} from 'es-toolkit'
 import getPort from 'get-port'
@@ -129,9 +135,8 @@ import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
-import {symbolicateFrame} from '../src/editor/symbolicate.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
-import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
@@ -169,6 +174,9 @@ import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
+import {until} from '@conciv/harness-testkit/until'
+import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import {createTtySessions, type TtySessions, type TtySink} from '../src/pty/pty-sessions.js'
 import coreManifest from '../package.json' with {type: 'json'}
 import {
   currentRow,
@@ -181,6 +189,7 @@ import {
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
+import {deleteSession} from '../src/sessions/session-actions.js'
 import {createSessionSearch} from '../src/sessions/session-search.js'
 import {
   provideApp,
@@ -198,7 +207,7 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, chunkWithInlineMap, cleanupChunks, makeChatFixture, requireClaude} from './helpers.js'
+import {bootMadeApp, makeChatFixture, requireClaude, requireTranscriptPath} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -213,11 +222,7 @@ const NO_CAPABILITIES = {
 
 const JSON_TYPE = {'content-type': 'application/json'}
 
-function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'conciv-core-unit-'))
-  onTestFinished(() => rmSync(dir, {recursive: true, force: true}))
-  return dir
-}
+const UNSTOPPED = new AbortController().signal
 
 function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]> = {}) {
   const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
@@ -243,6 +248,14 @@ async function serveCore(
     await made.dispose()
   }
   return {made, origin: `http://127.0.0.1:${served.port}`, stop}
+}
+
+async function nextEvent<Value extends {readonly type: string}>(
+  events: AsyncIterator<Value, unknown>,
+): Promise<IteratorResult<Value, unknown>> {
+  const next = await events.next()
+  if (next.done !== true && next.value.type === 'server.heartbeat') return nextEvent(events)
+  return next
 }
 
 function rawRequest(port: number, path: string, headers: Record<string, string> = {}, body?: string) {
@@ -291,7 +304,7 @@ describe('chat plane', () => {
   })
 
   it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog while an asking tool still needs approval', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli()
     const log: string[] = []
     const missing = join(root, 'no-such-prompt.md')
@@ -307,7 +320,7 @@ describe('chat plane', () => {
     const chat = await plane(cliHarness(cli), root, {
       systemPrompt: {systemPromptFile: missing, systemPromptText: 'the fallback prompt'},
       log: (line) => log.push(line),
-      capabilities: () => [echo, secret],
+      capabilities: async () => [echo, secret],
     })
     const seen = await readUntil(await startTurn(chat, sessionId('prompt'), 'prompt-run', 'hi'), 'end')
     expect(seen).toContain(ChatEventType.RUN_FINISHED)
@@ -386,10 +399,11 @@ describe('chat plane', () => {
           ).pipe(Scope.provide(scope)),
         )
         .then(() => scope)
-    const capabilities = (id: SessionId): CodeCapability[] =>
+    const capabilities = async (id: SessionId): Promise<CodeCapability[]> =>
       toolDomainCapabilities(
         id === builtins ? [echo, secret] : [],
         host.runSync(sessionToolDomain(id)),
+        sessionToolDomain(id),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -534,10 +548,11 @@ describe('chat plane', () => {
     )
     const withoutDriver = await plane(cliHarness(told), root, {
       ...instructed,
-      capabilities: (id) =>
+      capabilities: async (id) =>
         toolDomainCapabilities(
           pinged,
           host.runSync(sessionToolDomain(id)),
+          sessionToolDomain(id),
           (effect, signal) => host.runPromiseExit(effect, {signal}),
           () => undefined,
         ),
@@ -562,7 +577,6 @@ describe('chat plane', () => {
       root,
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
-      openInEditor: () => {},
       listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
@@ -572,6 +586,7 @@ describe('chat plane', () => {
       model: () => null,
       staleness: () => unchanged,
       interruptIdle: async () => false,
+      symbolicate: async () => null,
     })
     const mcp = new Hono<{Variables: McpVars}>()
       .use(async (c, next) => {
@@ -581,8 +596,9 @@ describe('chat plane', () => {
           hubReplied: () => {},
           finishedQueues: () => [],
           startedQueues: () => [],
-          outsideCapabilities: () => [],
+          outsideCapabilities: async () => [],
           admitCall: (id, call) => withoutDriver.admitCall(id, call),
+          driving: (id) => withoutDriver.driving(id),
           resolveSession: async () => runtime.forSession(codeless),
           admitOutside: async () => null,
           hubRefusal: () => null,
@@ -627,7 +643,7 @@ describe('chat plane', () => {
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('reply', 'partial')
     const first = await plane(cliHarness(cli), root)
     const id = sessionId('durable')
@@ -659,7 +675,7 @@ describe('chat plane', () => {
       ]),
     }
     const sessions = sessionPort(HarnessSessionId.parse('native-session'), 'native')
-    const chat = await plane(nativeHarness(native), tempDir(), {sessions})
+    const chat = await plane(nativeHarness(native), tempDir('conciv-core-unit-'), {sessions})
     const id = sessionId('native-paged')
     const newest = await chat.hydrate(id, {limit: 2})
     const readsForNewest = native.reads
@@ -691,7 +707,7 @@ describe('chat plane', () => {
   })
 
   it('engine stop refuses new requests, ends a run held mid-stream as aborted, and never queries a closed database', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('streaming')
     const written = vi.spyOn(process.stderr, 'write')
     const engine = await bootEngine(root, {harness: cliHarness(cli)})
@@ -715,7 +731,7 @@ describe('chat plane', () => {
   })
 
   it('an engine that died mid-run starts again on the same state, the cut run ends aborted once, and no turn follows it', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const cli = fakeCli('streaming')
     const died = await bootEngine(root, {harness: cliHarness(cli)})
     onTestFinished(async () => {
@@ -743,7 +759,7 @@ describe('chat plane', () => {
 
   it('a push socket that opens while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
-    const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
+    const engine = await bootEngine(tempDir('conciv-core-unit-'), {harness: cliHarness(cli)})
     onTestFinished(async () => {
       cli.release()
       await engine.stop()
@@ -853,7 +869,7 @@ describe('chat plane', () => {
 
   function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind}),
+      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -867,7 +883,7 @@ describe('chat plane', () => {
 
   async function plane(
     harness: HarnessAdapter,
-    root = tempDir(),
+    root = tempDir('conciv-core-unit-'),
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
     const db = openDatabase(root)
@@ -881,7 +897,7 @@ describe('chat plane', () => {
       systemPrompt: {},
       sessions: sessionPort(),
       toolNames: new Set(),
-      capabilities: () => [],
+      capabilities: async () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
       promptHooked: async () => false,
@@ -1004,11 +1020,34 @@ describe('config', () => {
       },
     ])
   })
+
+  it('refuses a harness id nothing registers at start, from options or CONCIV_HARNESS, naming it and every registered id, and binds nothing', async () => {
+    const known = listHarnesses()
+      .map((adapter) => adapter.id)
+      .join(', ')
+    const refusal = (id: string) => `conciv: unknown harness "${id}". Known harnesses: ${known}.`
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
+      onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
+    const fromOptions = bootEngine(root, {port: {exact: port}, options})
+    stopIfStarted(fromOptions)
+    await expect(fromOptions).rejects.toThrow(refusal('no-such-harness'))
+    process.env.CONCIV_HARNESS = 'no-such-env-harness'
+    const fromEnv = bootEngine(root, {port: {exact: port}})
+    stopIfStarted(fromEnv)
+    await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
+    expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
+  })
 })
 
 describe('local state files', () => {
   it('the dev endpoint file is owner-only, reads null when missing or malformed, and only its owner pid removes it', () => {
-    const dir = tempDir()
+    const dir = tempDir('conciv-core-unit-')
     const file = join(dir, 'dev-endpoint.json')
     expect(readDevEndpoint(dir)).toBeNull()
     writeFileSync(file, 'not json')
@@ -1026,7 +1065,7 @@ describe('local state files', () => {
   })
 
   it('the staleness probe turns stale on a content change only, names that package, and mints a new fingerprint', () => {
-    const dir = tempDir()
+    const dir = tempDir('conciv-core-unit-')
     const [core, tools] = [join(dir, 'core.js'), join(dir, 'tools.js')]
     writeFileSync(core, 'export const a = 1')
     writeFileSync(tools, 'export const b = 1')
@@ -1043,11 +1082,17 @@ describe('local state files', () => {
     writeFileSync(tools, 'export const b = 2')
     expect(probe()).toMatchObject({stale: true, changed: ['@conciv/tools']})
     expect(probe().fingerprint).not.toBe(fresh.fingerprint)
+    expect(loadedModules()).toEqual(
+      expect.arrayContaining([
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve'))},
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve/rpc'))},
+      ]),
+    )
   })
 
   describe('home db reads', () => {
     it('yields every home db write made after the first value, from before the db exists until the abort', async () => {
-      const home = tempDir()
+      const home = tempDir('conciv-core-unit-')
       const stop = new AbortController()
       onTestFinished(() => stop.abort())
       const reads = homeDbReads(home, stop.signal, () => readHomeDb(home, hubConnections) ?? [])
@@ -1076,63 +1121,116 @@ describe('local state files', () => {
         chatConfig: () => ({adapter: fakeText()}),
         capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
       })
-      return withSavedModels(harness, dir)
+      return withSavedModels(harness, dir, UNSTOPPED).harness
     }
 
     it('waits for the first live list, then answers from the saved one at once while a refresh, a failure or an empty list lands', async () => {
-      const dir = tempDir()
+      const dir = tempDir('conciv-core-unit-')
       const savedFile = () => JSON.parse(readFileSync(join(dir, 'listing-models.json'), 'utf8'))
-      expect(await resolveHarnessModels(listing(dir, async () => [OPUS]))).toEqual([OPUS])
+      expect(
+        await resolveHarnessModels(
+          listing(dir, async () => [OPUS]),
+          {signal: UNSTOPPED},
+        ),
+      ).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
-      expect(await resolveHarnessModels(listing(dir, () => Promise.reject(new Error('probe failed'))))).toEqual([OPUS])
+      expect(
+        await resolveHarnessModels(
+          listing(dir, () => Promise.reject(new Error('probe failed'))),
+          {signal: UNSTOPPED},
+        ),
+      ).toEqual([OPUS])
       expect(savedFile()).toEqual([OPUS])
       const grown = Promise.withResolvers<Listed[]>()
       const growing = listing(dir, () => grown.promise)
-      expect(await resolveHarnessModels(growing)).toEqual([OPUS])
+      expect(await resolveHarnessModels(growing, {signal: UNSTOPPED})).toEqual([OPUS])
       grown.resolve([OPUS, SONNET])
       await setImmediate()
       expect(savedFile()).toEqual([OPUS, SONNET])
-      expect(await resolveHarnessModels(growing)).toEqual([OPUS, SONNET])
+      expect(await resolveHarnessModels(growing, {signal: UNSTOPPED})).toEqual([OPUS, SONNET])
       const emptied = Promise.withResolvers<Listed[]>()
       const emptying = listing(dir, () => emptied.promise)
-      expect(await resolveHarnessModels(emptying)).toEqual([OPUS, SONNET])
+      expect(await resolveHarnessModels(emptying, {signal: UNSTOPPED})).toEqual([OPUS, SONNET])
       emptied.resolve([])
       await setImmediate()
-      expect(await resolveHarnessModels(emptying)).toEqual([])
+      expect(await resolveHarnessModels(emptying, {signal: UNSTOPPED})).toEqual([])
       expect(savedFile()).toEqual([])
     })
 
     it('reports the failure when nothing is saved and retries on the next call', async () => {
       const outcomes: Promise<Listed[]>[] = [Promise.reject(new Error('probe failed')), Promise.resolve([OPUS])]
       outcomes[0]?.catch(() => {})
-      const harness = listing(tempDir(), () => outcomes.shift() ?? Promise.resolve([]))
-      await expect(resolveHarnessModels(harness)).rejects.toThrow('probe failed')
-      expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+      const harness = listing(tempDir('conciv-core-unit-'), () => outcomes.shift() ?? Promise.resolve([]))
+      await expect(resolveHarnessModels(harness, {signal: UNSTOPPED})).rejects.toThrow('probe failed')
+      expect(await resolveHarnessModels(harness, {signal: UNSTOPPED})).toEqual([OPUS])
     })
-  })
-})
 
-describe('editor symbolicate', () => {
-  afterEach(() => cleanupChunks())
+    it('closing the engine ends a listing still running: its child has exited and nothing is saved', async () => {
+      const root = tempDir('conciv-core-unit-')
+      const spawned = Promise.withResolvers<ChildProcess>()
+      const ended: {signal?: NodeJS.Signals | null} = {}
+      const harness = defineHarness({
+        id: 'listing',
+        binName: 'listing',
+        models: ({signal}) =>
+          new Promise<Listed[]>((resolve) => {
+            const child = spawn(process.execPath, ['-e', 'process.stdin.resume()'], {
+              signal,
+              stdio: ['pipe', 'ignore', 'ignore'],
+            })
+            child.on('error', () => {})
+            child.on('spawn', () => spawned.resolve(child))
+            child.on('exit', (_code, exitSignal) => {
+              ended.signal = exitSignal
+              resolve([OPUS])
+            })
+          }),
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, harness})
+      const listing = expect(resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED})).rejects.toThrow(
+        'the engine stopped',
+      )
+      const child = await spawned.promise
+      onTestFinished(() => {
+        child.kill()
+      })
+      await made.dispose()
+      expect(ended).toEqual({signal: 'SIGTERM'})
+      await listing
+      expect(existsSync(join(concivStateDir(root), 'listing-models.json'))).toBe(false)
+    })
 
-  it('reads a React server frame, fetches a loopback http frame, and never fetches another host', async () => {
-    const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-    const fetched: string[] = []
-    const fakeFetch: typeof fetch = async (input) => {
-      fetched.push(String(input))
-      return new Response(readFileSync(chunk, 'utf8'))
-    }
-    const at = (fileName: string) => symbolicateFrame({fileName, line: 2, column: 1}, tmpdir(), fakeFetch)
-    expect((await at(`about://React/Server/file://${chunk}?42`))?.file).toBe('app/page.tsx')
-    expect((await at('http://localhost:3000/src/App.tsx?x=1'))?.file).toBe('app/page.tsx')
-    expect(await at('http://169.254.169.254/latest/meta-data')).toBeNull()
-    expect(fetched.some((url) => url.includes('169.254'))).toBe(false)
+    it('closing two engines that share a listing which ignores the stop ends both after the grace and names the harness', async () => {
+      const stuck = new Promise<Listed[]>(() => {})
+      const harness = defineHarness({
+        id: 'stuck-listing',
+        binName: 'stuck-listing',
+        models: () => stuck,
+        chatConfig: () => ({adapter: fakeText()}),
+        capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+      })
+      const printed: string[] = []
+      const boot = (root: string) =>
+        makeApp({
+          cfg: resolveConfig({}, root),
+          cwd: root,
+          openInEditor: () => {},
+          harness,
+          print: (text) => printed.push(text),
+        })
+      const engines = [await boot(tempDir('conciv-core-unit-')), await boot(tempDir('conciv-core-unit-'))]
+      engines.forEach((made) => void resolveHarnessModels(made.chat.defaultHarness, {signal: UNSTOPPED}))
+      await Promise.all(engines.map((made) => made.dispose()))
+      expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
+    })
   })
 })
 
 describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   it('start records the MCP endpoint a headless stdio bridge reads, the endpoint answers, and repeat opens launch the editor once', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const launched: unknown[] = []
     const engine = await bootEngine(root, {launchEditor: (...call) => launched.push(call)})
     try {
@@ -1151,7 +1249,12 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
       const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
       const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      const open = (column?: number) => rpc.editor.open({file: 'src/a.ts', line: 3, column})
+      const open = (column?: number) =>
+        rpc.plugin.call({
+          rpcId: 'server',
+          method: 'open',
+          input: {file: 'src/a.ts', line: 3, ...(column === undefined ? {} : {column})},
+        })
       await open(9)
       await open(9)
       expect(launched).toEqual([['src/a.ts', 3, 9]])
@@ -1168,7 +1271,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   })
 
   it('releases the port when the endpoint file cannot be written', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const port = await getPort()
     mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
     await expect(bootEngine(root, {port: {exact: port}})).rejects.toThrow()
@@ -1177,10 +1280,27 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     await once(probe.close(), 'close')
   })
 
-  it('a taken port fails start with the bind error even when disposing an extension also fails', async () => {
+  it('a taken port fails start with the bind error before any extension is built', async () => {
     const port = await getPort()
     const taken = createServer().listen(port, '127.0.0.1')
     await once(taken, 'listening')
+    const built: string[] = []
+    const counted = defineExtension({name: 'counted'}).server(() => {
+      built.push('counted')
+      return {context: null}
+    })
+    try {
+      const booting = bootEngine(tempDir('conciv-core-unit-'), {port: {exact: port}, extensions: [counted]})
+      await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
+      expect(built).toEqual([])
+    } finally {
+      await once(taken.close(), 'close')
+    }
+  })
+
+  it('a failed endpoint write fails start with its own error even when disposing an extension also fails', async () => {
+    const root = tempDir('conciv-core-unit-')
+    mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
     const written = vi.spyOn(console, 'error')
     const failingDispose = defineExtension({name: 'failing-dispose'}).server(() => ({
       context: null,
@@ -1189,21 +1309,75 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
       },
     }))
     try {
-      const booting = bootEngine(tempDir(), {port: {exact: port}, extensions: [failingDispose]})
-      await expect(booting).rejects.toMatchObject({code: 'EADDRINUSE'})
+      await expect(bootEngine(root, {extensions: [failingDispose]})).rejects.toMatchObject({syscall: 'rename'})
       const logged = written.mock.calls.flat().map(String).join('\n')
       expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
       expect.soft(logged).toContain('extension dispose failed')
     } finally {
       written.mockRestore()
-      await once(taken.close(), 'close')
     }
   })
+
+  it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const seeded = openDb(root)
+    seeded.run(
+      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    )
+    seeded.$client.close()
+    const outcomes: Array<Promise<number | 'dropped'>> = []
+    const knocking = defineExtension({name: 'knocking'}).server(async () => {
+      const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
+      outcomes.push(
+        new Promise((resolve) => {
+          request.on('response', (response) => resolve(response.statusCode ?? 0))
+          request.on('error', () => resolve('dropped'))
+        }),
+      )
+      await once(request.end(), 'continue')
+      return {context: null}
+    })
+    await expect(bootEngine(root, {port: {exact: port}, extensions: [knocking]})).rejects.toThrow(/is not valid JSON/)
+    expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
+  }, 20_000)
+
+  it('a start that fails to build its app leaves server.json as it found it: absent when there was none, and naming the engine still running in that project', async () => {
+    const seedUnreadableRun = (root: string): void => {
+      const seeded = openDb(root)
+      seeded.run(
+        sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+      )
+      seeded.$client.close()
+    }
+    const RecordSchema = z.object({port: z.number(), token: z.string()})
+    const readRecord = (root: string) =>
+      RecordSchema.parse(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8')))
+
+    const fresh = tempDir('conciv-core-unit-')
+    seedUnreadableRun(fresh)
+    await expect(bootEngine(fresh)).rejects.toThrow(/is not valid JSON/)
+    expect.soft(existsSync(join(concivStateDir(fresh), 'server.json'))).toBe(false)
+
+    const root = tempDir('conciv-core-unit-')
+    const running = await bootEngine(root)
+    onTestFinished(() => running.stop())
+    expect(readRecord(root)).toEqual({port: running.port, token: running.agentToken})
+    seedUnreadableRun(root)
+    await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
+    const record = readRecord(root)
+    expect.soft(record).toEqual({port: running.port, token: running.agentToken})
+    const health = await fetch(`http://127.0.0.1:${record.port}/health`)
+    expect(await health.json()).toMatchObject({ok: true})
+  }, 20_000)
 })
 
 describe('configured session rows', () => {
   it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
     openDb(root).$client.close()
     chmodSync(databaseFile, 0o644)
@@ -1220,7 +1394,7 @@ describe('configured session rows', () => {
   })
 
   it('a start that fails once the plugin host is built closes every handle on the database', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
     const seeded = openDb(root)
     seeded.run(
@@ -1234,7 +1408,7 @@ describe('configured session rows', () => {
 
 describe('session metadata', () => {
   it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const db = openDb(root)
     const id = SessionId.parse('conciv_metadata')
     await ensureRow(db, id, 'fake-cli', root)
@@ -1299,7 +1473,7 @@ describe('page bus and the session scope', () => {
   }
 
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
-    const db = openDb(tempDir())
+    const db = openDb(tempDir('conciv-core-unit-'))
     onTestFinished(() => db.$client.close())
     const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
     for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
@@ -1435,16 +1609,40 @@ describe('page bus and the session scope', () => {
     queues.hubReplied(SESSION_A, new Set(['hub-replied']))
     queues.hubCall(SESSION_A, 'hub-running')
     const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
-    queues.release(SESSION_A)
-    await playOut(1)
-    await finished(replied)
-    await playOut(2)
-    await finished(running)
+    queues.cancelSession(SESSION_A)
+    const answered = async (index: number): Promise<boolean[]> => {
+      const frame = await tab.frame(index)
+      return frame.queue.replies.map((reply) => bus.resolve(SESSION_A, reply, {ok: true, result: {}}))
+    }
+    expect(await answered(1)).toEqual([true])
+    expect(await answered(2)).toEqual([true])
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
     expect(queues.undelivered(SESSION_A, true)).toEqual([])
-    expect(queues.owedTurn(SESSION_A).map((record) => [record.queueId, record.result?.status])).toEqual([
-      [replied, 'finished'],
-      [running, 'finished'],
-    ])
+    await expect(queues.wait(SESSION_A, replied, 0)).rejects.toThrow(`no queue ${replied} on this tab`)
+    await expect(queues.wait(SESSION_A, running, 0)).rejects.toThrow(`no queue ${running} on this tab`)
+  })
+
+  it('a session deleted while a waiter holds a claim on its result: the reply that did not go out puts nothing back', async () => {
+    const bus = makePageBus(2000)
+    const tab = arrivingTab(bus)
+    const queues = pageQueues(bus)
+    const finished = trackFinished(queues)
+    const announced: string[] = []
+    queues.finished((record) => announced.push(record.queueId))
+    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
+    const frame = await tab.frame(0)
+    for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
+    await finished(queueId)
+    const reply = Promise.withResolvers<boolean>()
+    expect(await queues.wait(SESSION_A, queueId, 0, undefined, reply.promise)).toMatchObject({queueId})
+    queues.cancelSession(SESSION_A)
+    reply.resolve(false)
+    await setImmediate()
+    expect(announced).toEqual([queueId])
+    expect(queues.owedTurn(SESSION_A)).toEqual([])
+    expect(queues.undelivered(SESSION_A, false)).toEqual([])
+    expect(queues.undelivered(SESSION_A, true)).toEqual([])
+    await expect(queues.wait(SESSION_A, queueId, 0)).rejects.toThrow(`no queue ${queueId} on this tab`)
   })
 
   it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
@@ -1718,6 +1916,38 @@ describe('page bus and the session scope', () => {
     })
   })
 
+  it('a follow-up admitted in the same tick as the runs of its session end (not held in its read), or deleted while its turn is in flight, starts no other turn, and its queue is gone', async () => {
+    const {fixture, queues, played, runStatuses} = await followUpFixture()
+    const admitted = fixture.plane.followUp(fixture.sessionId, 'admitted just before the session ends')
+    const ended = fixture.plane.endRuns(fixture.sessionId)
+    expect(await admitted).toEqual({kind: 'stopped'})
+    await ended
+    expect(runStatuses()).toEqual([])
+    const owed = await played()
+    const turns: string[] = []
+    const answering = Promise.withResolvers<FollowUpOutcome>()
+    const entered = Promise.withResolvers<void>()
+    const plane = {
+      live: fixture.plane.live,
+      followUp: (sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
+        turns.push(input)
+        entered.resolve()
+        return turns.length === 1 ? answering.promise : fixture.plane.followUp(sessionId, input)
+      },
+    }
+    const following = startQueueFollowUp(queues, plane, fixture.sessionId)
+    await entered.promise
+    await deleteSession(
+      {db: fixture.db, plane: fixture.plane, runtime: fixture.runtime, pluginHost: fixture.pluginHost, queues},
+      fixture.sessionId,
+    )
+    answering.resolve({kind: 'failed', error: 'the harness could not launch'})
+    await following
+    expect(turns).toHaveLength(1)
+    expect(runStatuses()).toEqual([])
+    await expect(queues.wait(fixture.sessionId, owed, 0)).rejects.toThrow(`no queue ${owed} on this tab`)
+  })
+
   it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
     const bus = makePageBus(2000)
     bus.subscribe(SESSION_A, (frame) => {
@@ -1954,7 +2184,6 @@ describe('page bus and the session scope', () => {
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
         bundler: () => undefined,
-        openInEditor: () => {},
         listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({
@@ -1973,6 +2202,7 @@ describe('page bus and the session scope', () => {
         model: () => null,
         staleness: () => fresh,
         interruptIdle: async () => false,
+        symbolicate: async () => null,
       })
       const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)
@@ -2063,7 +2293,7 @@ describe('engine login', () => {
   })
 
   test('the gate refuses until a printed code is exchanged, and the browser stays trusted across a restart', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const printed: string[] = []
     const clientRequests = {count: 0}
     const boot = () =>
@@ -2102,7 +2332,7 @@ describe('engine login', () => {
   })
 
   test('every route refuses an unknown caller except the declared open paths, and every response names the core version', async () => {
-    const root = tempDir()
+    const root = tempDir('conciv-core-unit-')
     const probe = defineExtension({name: 'probe'}).server(() => ({
       context: {},
       app: new Hono().get('/ping', (c) => c.text('pong')),
@@ -2239,7 +2469,7 @@ describe('browser rpc over one websocket', () => {
   }
 
   test('an untrusted socket is refused until an auth call on that same socket trusts it, and nothing rides http', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const served = await engine(root)
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
@@ -2270,7 +2500,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('an open changes stream keeps delivering after the engine restarts on the same port', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const first = await engine(root)
     const token = first.made.trustBrowser(requester, Date.now())
     const votes: boolean[] = []
@@ -2300,7 +2530,7 @@ describe('browser rpc over one websocket', () => {
   }, 20_000)
 
   test('a socket that closed before its auth call finished is never trusted afterwards', () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const browsers = watchTrustedBrowsers(concivStateDir(root))
     const agentToken = 'conciv-agent-token'
     try {
@@ -2319,10 +2549,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('each api base keeps its own socket, and one closing client leaves the base open for the others', async () => {
-    const [firstRoot, secondRoot] = [
-      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
-      mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-')),
-    ]
+    const [firstRoot, secondRoot] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const first = await engine(firstRoot)
     const second = await engine(secondRoot)
     const firstClient = makeBrowserRpcClient(first.origin)
@@ -2356,7 +2583,7 @@ describe('browser rpc over one websocket', () => {
   }, 20_000)
 
   test('a trust observer keeps hearing its base after the last client released it and a new client opened', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const served = await engine(root)
     const observer = browserRpcConnection(served.origin)
     const heard: TrustStatus[] = []
@@ -2382,7 +2609,7 @@ describe('browser rpc over one websocket', () => {
   })
 
   test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const root = tempDir('conciv-core-unit-')
     const served = await engine(root)
     const {trust, release} = browserRpcConnection(served.origin)
     try {
@@ -2398,6 +2625,85 @@ describe('browser rpc over one websocket', () => {
       rmSync(root, {recursive: true, force: true})
     }
   }, 20_000)
+})
+
+describe('a stalled event stream gets a new socket', () => {
+  const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
+
+  async function relay(target: number) {
+    const flows: {client: Socket; engine: Socket}[] = []
+    const server = createServer((client) => {
+      const engine = connect(target, '127.0.0.1')
+      client.on('error', () => client.destroy())
+      engine.on('error', () => engine.destroy())
+      client.pipe(engine)
+      engine.pipe(client)
+      flows.push({client, engine})
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('the relay has no port')
+    return {
+      origin: `http://127.0.0.1:${address.port}`,
+      freeze: () => {
+        for (const {client, engine} of flows) {
+          client.unpipe(engine)
+          engine.unpipe(client)
+          client.pause()
+          engine.pause()
+        }
+      },
+      close: async () => {
+        for (const {client, engine} of flows) {
+          client.destroy()
+          engine.destroy()
+        }
+        await new Promise((resolve) => server.close(resolve))
+      },
+    }
+  }
+
+  test('a stream that stalls on a socket that stays open, after or before its first frame, comes back over a new socket, and a quiet healthy stream cut by the same short idle timeout comes back the same way', async () => {
+    const idleTimeoutShorterThanTheHeartbeat = 5_000
+    const root = tempDir('conciv-core-unit-')
+    const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    const network = await relay(served.port)
+    const client = makeBrowserRpcClient(network.origin)
+    const connection = browserRpcConnection(network.origin)
+    const conciv = Conciv.make(client.rpc, {idleTimeout: idleTimeoutShorterThanTheHeartbeat})
+    const statuses: string[] = []
+    const stopWatching = conciv.connection.on((status) => statuses.push(status))
+    const lastTwoStatusesOfAnyNumberOfCuts = () => statuses.slice(-2)
+    try {
+      expect(await connection.trust.requestTrustWithToken(made.trustBrowser(requester, Date.now()))).toBe(true)
+      const reader = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await reader.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(conciv.connection.status()).toBe('connected')
+
+      network.freeze()
+      expect(await reader.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(lastTwoStatusesOfAnyNumberOfCuts()).toEqual(['reconnecting', 'connected'])
+      expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      await reader.return?.()
+
+      network.freeze()
+      const late = conciv.event.subscribe()[Symbol.asyncIterator]()
+      expect(await late.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(lastTwoStatusesOfAnyNumberOfCuts()).toEqual(['reconnecting', 'connected'])
+      expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      await late.return?.()
+    } finally {
+      stopWatching()
+      connection.release()
+      client.close()
+      await network.close()
+      await served.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 30_000)
 })
 
 describe('settings storage', () => {
@@ -2431,7 +2737,7 @@ describe('settings storage', () => {
   }
 
   test('the server store, the rpc client store and a second subscriber share one debounced file per scope', async () => {
-    const [root, home] = [tempDir(), tempDir()]
+    const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const projectFolder = join(root, '.conciv', 'settings')
     const globalFolder = join(home, 'settings')
     mkdirSync(projectFolder, {recursive: true})
@@ -2483,7 +2789,7 @@ describe('settings storage', () => {
   })
 
   test('a browser client keeps following a scope across an engine restart longer than the one-shot retry budget', async () => {
-    const [root, home] = [tempDir(), tempDir()]
+    const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const fixed = {agentToken: randomUUID(), port: await getPort()}
     const project = {scope: 'project', namespace: 'probe'} as const
     const first = await bootSettings(root, home, 'probe', fixed)
@@ -2517,7 +2823,7 @@ describe('settings storage', () => {
   }, 30_000)
 
   test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder or a key over 512 characters is refused', async () => {
-    const [root, home] = [tempDir(), tempDir()]
+    const [root, home] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const folder = join(root, '.conciv', 'settings')
     mkdirSync(folder, {recursive: true})
     writeFileSync(join(folder, 'saved.json'), '{"__proto__": {"polluted": true}, "theme": "dark"}')
@@ -2589,7 +2895,7 @@ function sessionKey(made: MadeApp) {
 
 describe('plugin host bus', () => {
   test('deleting a session delivers one session.deleted event to a bus subscriber and keeps none of its events, and a plugin host failure leaves the session in place', async () => {
-    const served = await serveCore(tempDir(), [], {})
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
     try {
       const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
       const db = served.made.chat.db
@@ -2627,8 +2933,148 @@ describe('plugin host bus', () => {
     }
   })
 
+  test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    onTestFinished(() => served.stop())
+    const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+    const key = sessionKey(served.made)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    const readBack = () =>
+      Promise.all([
+        key.run((sessions) =>
+          sessions.get(sessionId).pipe(
+            Effect.match({
+              onFailure: (error) => ({gone: error}),
+              onSuccess: (session) => ({alive: session.id}),
+            }),
+          ),
+        ),
+        rpc.drafts.get({sessionId}),
+      ])
+    const heardAt: Awaited<ReturnType<typeof readBack>>[] = []
+    await served.made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          event.type === SessionEvent.Deleted.type
+            ? Effect.promise(async () => void heardAt.push(await readBack()))
+            : Effect.void,
+        ),
+      ),
+    )
+    await rpc.sessions.delete({sessionId})
+    const afterDelete = await readBack()
+    expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
+    expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_is_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    await expect(key.run((sessions) => sessions.remove(SessionSchema.Id.make(id)))).rejects.toThrow(/event_sequence/)
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
+  })
+
+  test('a delete whose session.deleted publish and captures cleanup both fail still clears the messages and page changes, and rejects with both failures, the publish first', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_the_bus_and_captures_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [(await made.plane.hydrate(id)).messages.length, (await scope.page.changes()).length]
+    expect(await left()).toEqual([1, 1])
+    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    made.chat.db.run(sql`DROP TABLE tool_captures`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({
+      errors: [
+        expect.objectContaining({message: expect.stringMatching(/event_sequence/)}),
+        expect.objectContaining({message: expect.stringMatching(/tool_captures/)}),
+      ],
+    })
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0])
+  })
+
+  test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, captures and page changes, and rejects with the drafts failure', async () => {
+    const stateRoot = tempDir('conciv-core-unit-')
+    const harness = createTestHarness(requireClaude())
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
+    onTestFinished(() => made.dispose())
+    const key = sessionKey(made)
+    const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
+    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
+    const scope = made.runtime.forSession(id)
+    await scope.captures.store('call-1', {
+      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
+    })
+    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
+    const left = async () => [
+      (await made.plane.hydrate(id)).messages.length,
+      (await scope.captures.list()).captures.length,
+      (await scope.page.changes()).length,
+    ]
+    expect(await left()).toEqual([1, 1, 1])
+    const heard: {type: string; data: unknown}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    made.chat.db.run(sql`DROP TABLE drafts`)
+    const failure = await key
+      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).not.toBeInstanceOf(AggregateError)
+    expect(failure).toMatchObject({message: expect.stringMatching(/drafts/)})
+    expect(heard.filter((event) => event.type === SessionEvent.Deleted.type)).toEqual([
+      expect.objectContaining({data: {sessionID: id}}),
+    ])
+    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+    })
+    expect(await left()).toEqual([0, 0, 0])
+  })
+
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
-    const stateRoot = tempDir()
+    const stateRoot = tempDir('conciv-core-unit-')
     const turnEnds: SessionId[] = []
     const recorder = defineExtension({name: 'turn-ends'}).server(() => ({
       context: {},
@@ -2757,7 +3203,7 @@ describe('plugin host bus', () => {
     expect(await waitingAtClose).toEqual({kind: 'delivered'})
   })
   test('the session key interrupts a live run, waits for it to end, answers false with nothing to stop even when asked to resume, and compacts a session on its harness', async () => {
-    const stateRoot = tempDir()
+    const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
     onTestFinished(() => made.dispose())
@@ -2808,6 +3254,363 @@ describe('plugin host bus', () => {
       await key.fail((sessions) => sessions.compact({sessionId: SessionSchema.Id.make('conciv_no_such_session')})),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: 'conciv_no_such_session'})
   })
+  test('deleting a session stops its run, its idle hook and a preparing turn first, so plugins hear Deleted last with no run left and nothing of that session after it', async () => {
+    const harness = createTestHarness(requireClaude())
+    const booted: MadeApp[] = []
+    const ending = SessionId.parse('conciv_deleted_while_its_turn_ends')
+    const endingGates: {entered: PromiseWithResolvers<void>; held: PromiseWithResolvers<void>}[] = []
+    const endingIdleHolds: Promise<void>[] = []
+    const turnEndHolder = defineExtension({name: 'turn-end-holder'}).server(() => ({
+      context: {},
+      turnEnd: async (sessionId) => {
+        if (sessionId !== ending) return
+        const gate = endingGates.shift()
+        if (gate === undefined) return
+        gate.entered.resolve()
+        await gate.held.promise
+      },
+    }))
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env, {extensions: [turnEndHolder]})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the deletion kit booted no app')
+    await made.awaitActivation()
+    const created = async () => SessionId.parse((await kit.rpc.sessions.create(undefined)).sessionId)
+    const running = await created()
+    const idling = await created()
+    const preparing = await created()
+    const entries = (sessionId: SessionId) =>
+      made.pluginHost.runPromise(
+        InstructionEntry.Service.use((service) => service.list(SessionSchema.Id.make(sessionId))),
+      )
+    const brief = (sessionId: SessionId) =>
+      made.pluginHost.runPromise(
+        InstructionEntry.Service.use((service) =>
+          service.put({sessionId: SessionSchema.Id.make(sessionId), key: 'brief', value: 'ship it'}),
+        ),
+      )
+    await brief(running)
+    await brief(idling)
+    const seen: {sessionId: SessionId; what: string}[] = []
+    const heardBy = (sessionId: SessionId) =>
+      seen.filter((entry) => entry.sessionId === sessionId).map((entry) => entry.what)
+    const idleEntered = Promise.withResolvers<void>()
+    const idleHeld = Promise.withResolvers<void>()
+    const promptEntered = Promise.withResolvers<void>()
+    const scopedEvent = z.object({sessionID: z.string()})
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          Effect.sync(() => {
+            const scoped = scopedEvent.safeParse(event.data)
+            if (!scoped.success) return
+            const sessionId = SessionId.parse(scoped.data.sessionID)
+            seen.push({
+              sessionId,
+              what: `${event.type} ${made.plane.driving(sessionId) ? 'during a run' : 'with no run'}`,
+            })
+            if (event.type === SessionEvent.Deleted.type) idleHeld.resolve()
+          }),
+        ),
+      ),
+    )
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        Effect.all([
+          hooks.register('session', 'experimental.idle', (event) =>
+            event.sessionId !== idling
+              ? Effect.void
+              : Effect.sync(() => idleEntered.resolve()).pipe(
+                  Effect.andThen(Effect.promise(() => idleHeld.promise)),
+                  Effect.ensuring(
+                    Effect.promise(async () => {
+                      const read = await entries(idling)
+                      seen.push({sessionId: idling, what: `idle hook ended reading ${JSON.stringify(read)}`})
+                    }),
+                  ),
+                ),
+          ),
+          hooks.register('session', 'prompt', (event) =>
+            event.sessionId !== preparing
+              ? Effect.void
+              : Effect.sync(() => {
+                  seen.push({sessionId: preparing, what: 'prompt hook entered'})
+                  promptEntered.resolve()
+                }).pipe(Effect.andThen(Effect.never)),
+          ),
+          hooks.register('session', 'experimental.idle', (event) =>
+            event.sessionId !== ending
+              ? Effect.void
+              : Effect.sync(() => seen.push({sessionId: ending, what: 'idle hook entered'})).pipe(
+                  Effect.andThen(Effect.promise(() => endingIdleHolds.shift() ?? Promise.resolve())),
+                ),
+          ),
+        ]),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+
+    const answered = made.plane.followUp(idling, 'answer, then the idle hook holds')
+    await idleEntered.promise
+    await kit.rpc.sessions.delete({sessionId: idling})
+    expect(heardBy(idling)).toEqual([
+      'session.instructions.updated during a run',
+      'idle hook ended reading [{"key":"brief","value":"ship it"}]',
+      'session.deleted with no run',
+    ])
+    expect(await answered).toEqual({kind: 'delivered'})
+    expect(await entries(idling)).toEqual([])
+
+    const held = await kit.turn('never admitted', {session: preparing, runId: 'preparing-run'})
+    await promptEntered.promise
+    await kit.rpc.sessions.delete({sessionId: preparing})
+    expect(heardBy(preparing)).toEqual(['prompt hook entered', 'session.deleted with no run'])
+    expect((await held.done()).errors()).toHaveLength(1)
+    expect(made.plane.driving(preparing)).toBe(false)
+    const unadmitted = await made.plane.hydrate(preparing)
+    expect([unadmitted.messages, unadmitted.lastRun]).toEqual([[], null])
+
+    harness.script.hold()
+    const inFlight = await kit.turn('keep going until the session is deleted', {session: running, runId: 'deleted-run'})
+    await inFlight.waitForRunStart({runId: 'deleted-run'})
+    await kit.rpc.sessions.delete({sessionId: running})
+    expect(heardBy(running)).toEqual(['session.deleted with no run'])
+    expect(made.plane.driving(running)).toBe(false)
+    expect(await entries(running)).toEqual([])
+    await inFlight.done()
+    harness.script.release()
+
+    const queueing = await created()
+    const queueingScope = made.runtime.forSession(queueing)
+    const tabClosed = new AbortController()
+    onTestFinished(() => tabClosed.abort())
+    const queries = queueingScope.page.queries(tabClosed.signal)
+    const offered = queries.next()
+    const queueStarted = queueingScope.tools.call(PAGE_QUEUE_ASYNC_TOOL, {
+      actions: [{tool: 'page_check', selector: '#agree'}],
+    })
+    const offer = z
+      .object({requestId: z.string(), query: z.object({queue: z.object({replies: z.array(z.string())})})})
+      .parse((await offered).value)
+    expect(queueingScope.page.reply(offer.requestId, {ok: true, result: {}})).toBe(true)
+    const {queueId} = z.object({queueId: z.string()}).parse(await queueStarted)
+    await kit.rpc.sessions.delete({sessionId: queueing})
+    const publishedAfterDeleted: ChatEvent[] = []
+    onTestFinished(queueingScope.stream.listen((chunk) => void publishedAfterDeleted.push(chunk)))
+    await expect(kit.rpc.page.queue.wait({sessionId: queueing, queueId, waitMs: 0})).rejects.toMatchObject({
+      code: 'NO_QUEUE',
+    })
+    expect(queueingScope.page.reply(offer.query.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
+    await queries.return(undefined)
+
+    await ensureRow(made.chat.db, ending, harness.id, made.chat.cwd)
+    const stoppedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    endingGates.push(stoppedGate)
+    const stoppedWhileEnding = made.plane.followUp(ending, 'answer, then a stop arrives while the turn ends')
+    await stoppedGate.entered.promise
+    expect(await made.runtime.forSession(ending).run.stop()).toEqual({ok: true, stopped: true})
+    stoppedGate.held.resolve()
+    expect(await stoppedWhileEnding).toEqual({kind: 'delivered'})
+    expect(heardBy(ending)).toEqual(['session.instructions.updated during a run'])
+
+    const heardBeforeDelete = heardBy(ending).length
+    const deletedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const idleHeldPastDelete = Promise.withResolvers<void>()
+    onTestFinished(() => idleHeldPastDelete.resolve())
+    endingGates.push(deletedGate)
+    endingIdleHolds.push(idleHeldPastDelete.promise)
+    const deletedWhileEnding = made.plane.followUp(ending, 'answer, then the session is deleted while the turn ends')
+    await deletedGate.entered.promise
+    const deleting = kit.rpc.sessions.delete({sessionId: ending})
+    deletedGate.held.resolve()
+    await deleting
+    expect([['session.deleted with no run'], ['idle hook entered', 'session.deleted with no run']]).toContainEqual(
+      heardBy(ending).slice(heardBeforeDelete),
+    )
+    expect(await deletedWhileEnding).toEqual({kind: 'delivered'})
+
+    expect(publishedAfterDeleted).toEqual([])
+    const queueingAfter = await made.plane.hydrate(queueing)
+    expect([queueingAfter.messages, queueingAfter.lastRun]).toEqual([[], null])
+    expect(seen.filter((entry) => entry.sessionId !== ending)).toEqual([
+      {sessionId: idling, what: 'session.instructions.updated during a run'},
+      {sessionId: idling, what: 'idle hook ended reading [{"key":"brief","value":"ship it"}]'},
+      {sessionId: idling, what: 'session.deleted with no run'},
+      {sessionId: preparing, what: 'prompt hook entered'},
+      {sessionId: preparing, what: 'session.deleted with no run'},
+      {sessionId: running, what: 'session.deleted with no run'},
+      {sessionId: queueing, what: 'session.deleted with no run'},
+    ])
+
+    const refused = await created()
+    await kit.rpc.sessions.delete({sessionId: refused})
+    const publishedToRefused: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(refused).stream.listen((chunk) => void publishedToRefused.push(chunk)))
+    const beforeRefusal = await made.plane.hydrate(refused)
+    const refusedTurn = await kit.turn('sent to a deleted session', {session: refused, runId: 'refused-run'})
+    const refusedEvents = await refusedTurn.done()
+    expect(refusedEvents.errors()).toHaveLength(1)
+    expect(
+      refusedEvents.all.flatMap((chunk) =>
+        chunk.type === ChatEventType.RUN_ERROR ? [{message: chunk.message, code: chunk.code}] : [],
+      ),
+    ).toEqual([{message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE}])
+    const sseRefusal = await kit.post(
+      CHAT_SSE_PATH,
+      {
+        threadId: refused,
+        runId: 'refused-sse-run',
+        messages: [{id: 'refused-sse-user', role: 'user', content: 'sent over SSE to a deleted session'}],
+        tools: [],
+        context: [],
+      },
+      refused,
+    )
+    const sseFrame = z.object({
+      type: z.string(),
+      name: z.string().optional(),
+      message: z.string().optional(),
+      code: z.string().optional(),
+    })
+    const sseFrames = (await sseRefusal.text())
+      .split('\n')
+      .flatMap((line) => (line.startsWith('data: ') ? [sseFrame.parse(JSON.parse(line.slice('data: '.length)))] : []))
+    expect(sseFrames).toEqual([
+      {type: ChatEventType.CUSTOM, name: 'run.accepted'},
+      {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    expect(await made.plane.followUp(refused, 'a page queue result after the delete')).toEqual({
+      kind: 'failed',
+      error: `session "${refused}" does not exist`,
+    })
+    const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
+    await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
+    await expect(made.plane.compact(refused)).rejects.toMatchObject({code: SESSION_DELETED_CODE})
+    await expect(kit.rpc.sessions.compact({sessionId: refused})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
+    expect(
+      await made.plane.admitCall(refused, {
+        toolName: 'an outside call',
+        input: {},
+        publish: made.runtime.forSession(refused).stream.publish,
+        until: AbortSignal.abort(),
+      }),
+    ).toEqual({reason: 'missing', message: `session "${refused}" does not exist`})
+    expect(publishedToRefused).toEqual([])
+    expect(heardBy(refused)).toEqual(['session.deleted with no run'])
+    const afterRefusal = await made.plane.hydrate(refused)
+    expect([afterRefusal.messages, afterRefusal.lastRun]).toEqual([beforeRefusal.messages, beforeRefusal.lastRun])
+
+    const resent = await created()
+    const keptTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'kept-run',
+      messageId: 'kept-message',
+    })
+    expect((await keptTurn.done()).errors()).toEqual([])
+    await kit.rpc.sessions.delete({sessionId: resent})
+    const beforeResend = await made.plane.hydrate(resent)
+    const resentTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'resent-run',
+      messageId: 'kept-message',
+    })
+    expect((await resentTurn.done()).errors()).toEqual([`session "${resent}" does not exist`])
+    const afterResend = await made.plane.hydrate(resent)
+    expect([afterResend.messages, afterResend.lastRun]).toEqual([beforeResend.messages, beforeResend.lastRun])
+
+    await kit.rpc.sessions.restore({sessionId: refused})
+    const restoredTurn = await kit.turn('sent after the restore', {session: refused, runId: 'restored-run'})
+    expect((await restoredTurn.done()).errors()).toEqual([])
+
+    const reused = await created()
+    await kit.rpc.sessions.delete({sessionId: reused})
+    const location = Schema.decodeSync(Location.Ref)({directory: made.chat.cwd})
+    expect(
+      await sessionKey(made).fail((sessions) =>
+        sessions.create({id: SessionSchema.Id.make(reused), title: 'a refused session on a deleted id', location}),
+      ),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: reused})
+    const reusedTurn = await kit.turn('sent after a plugin create on the deleted id was refused', {
+      session: reused,
+      runId: 'refused-create-run',
+    })
+    expect((await reusedTurn.done()).errors()).toEqual([`session "${reused}" does not exist`])
+
+    const listed = await created()
+    const listedNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, listed, harness.id, listedNative)
+    const transcript = requireTranscriptPath(harness)(made.chat.cwd, listedNative)
+    mkdirSync(dirname(transcript), {recursive: true})
+    writeFileSync(transcript, JSON.stringify({type: 'user', message: {content: 'a task written in the terminal'}}))
+    await kit.rpc.sessions.delete({sessionId: listed})
+    expect((await kit.rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(listed)
+    const listedTurn = await kit.turn('sent after a listing left the deleted id out', {
+      session: listed,
+      runId: 'listed-still-deleted-run',
+    })
+    expect((await listedTurn.done()).errors()).toEqual([`session "${listed}" does not exist`])
+
+    const neverSeen = SessionId.parse('conciv_never_seen_before_its_first_send')
+    const firstTurn = await kit.turn('the first message to an id no session had', {
+      session: neverSeen,
+      runId: 'never-seen-run',
+    })
+    expect((await firstTurn.done()).errors()).toEqual([])
+    expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
+
+    const quiet = await created()
+    const quietNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, quiet, harness.id, quietNative)
+    await kit.rpc.sessions.delete({sessionId: quiet})
+    const tombstone = currentRow(made.chat.db, quiet)
+    const quietTranscript = requireTranscriptPath(harness)(made.chat.cwd, quietNative)
+    mkdirSync(dirname(quietTranscript), {recursive: true})
+    writeFileSync(
+      quietTranscript,
+      JSON.stringify({
+        type: 'user',
+        message: {content: 'written in the terminal after the delete'},
+      }),
+    )
+    const quietHydration = await made.plane.hydrate(quiet)
+    expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+    expect(quietHydration.messages).toEqual([])
+    expect((await kit.rpc.chat.hydrate({sessionId: quiet})).messages).toEqual([])
+
+    const openBooted: MadeApp[] = []
+    const openKit = await createTestkit(harness, async (env) => {
+      const app = await bootMadeApp(env, {hubAccess: 'open'})
+      openBooted.push(app)
+      return app
+    }).setup()
+    onTestFinished(() => openKit.cleanup())
+    const openMade = openBooted[0]
+    if (openMade === undefined) throw new Error('the open hub access kit booted no app')
+    const outsideOnDeleted = SessionId.parse((await openKit.rpc.sessions.create(undefined)).sessionId)
+    await openKit.rpc.sessions.delete({sessionId: outsideOnDeleted})
+    const publishedOutside: ChatEvent[] = []
+    onTestFinished(
+      openMade.runtime.forSession(outsideOnDeleted).stream.listen((chunk) => void publishedOutside.push(chunk)),
+    )
+    const beforeOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    const outsideRpc = makeRpcClient(openKit.base, {
+      headers: {
+        [CONCIV_SESSION_HEADER]: outsideOnDeleted,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+      },
+    })
+    await expect(outsideRpc.registry.call({name: 'conciv_extensions', input: {verb: 'catalog'}})).rejects.toMatchObject(
+      {code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`},
+    )
+    expect(publishedOutside).toEqual([])
+    const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
+  })
 })
 
 describe('session prompt hook', () => {
@@ -2844,7 +3647,7 @@ describe('session prompt hook', () => {
     onTestFinished(() => kit.cleanup())
     const made = booted[0]
     if (made === undefined) throw new Error('the prompt kit booted no app')
-    if (started) await made.startPlugins()
+    if (started) await made.awaitActivation()
     return {kit, made, asked}
   }
 
@@ -2924,6 +3727,47 @@ describe('session prompt hook', () => {
     expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
 
+  test('a stop interrupts the prompt hook in flight, and the hook never resumes', async () => {
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const hookEnded = Promise.withResolvers<void>()
+    const hookTrail: string[] = []
+    const trail = (step: string) =>
+      Effect.sync(() => {
+        hookTrail.push(step)
+        hookEnded.resolve()
+      })
+    const {kit, made, asked} = await promptKit([])
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'prompt', () =>
+          Effect.sync(() => entered.resolve()).pipe(
+            Effect.andThen(Effect.promise(() => held.promise)),
+            Effect.andThen(trail('prompt hook resumed')),
+            Effect.onInterrupt(() => trail('prompt hook interrupted')),
+          ),
+        ),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('Never admitted', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+    held.resolve()
+    await hookEnded.promise
+
+    expect(hookTrail).toEqual(['prompt hook interrupted'])
+    expect(ended.errors()).toHaveLength(1)
+    expect(asked).toEqual([])
+    const stored = await kit.hydrate(session)
+    expect(stored.messages).toEqual([])
+    expect(stored.lastRun).toBeNull()
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
+  })
+
   test('runs prompt hooks from a cold Location before admitting a prompt', async () => {
     const entered = Promise.withResolvers<void>()
     const ready = Promise.withResolvers<void>()
@@ -2939,7 +3783,7 @@ describe('session prompt hook', () => {
     })
     const {kit, made, asked} = await promptKit([plugin], false)
     const session = await kit.session()
-    const activating = made.startPlugins()
+    const activating = made.awaitActivation()
     await entered.promise
 
     const turn = await kit.turn('Original', {session})
@@ -3102,8 +3946,8 @@ describe('plugin rpc over the socket', () => {
     events: {},
   })
 
-  test('a registered contract answers a socket client, every failure keeps its text, and an event reaches two subscribers', async () => {
-    const served = await serveCore(tempDir(), [], {})
+  test('a registered contract answers a socket client, every failure keeps its text, an event reaches two subscribers, and a quiet filtered stream hears the heartbeat', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {eventHeartbeatIntervalMs: 100})
     const client = makeBrowserRpcClient(served.origin)
     const connection = browserRpcConnection(served.origin)
     const host = served.made.pluginHost
@@ -3128,22 +3972,33 @@ describe('plugin rpc over the socket', () => {
 
       const inProcess = (rpcId: string, method: string, input: unknown) =>
         host.runPromise(Rpc.Service.use((rpc) => rpc.call(rpcId, method, input)).pipe(Effect.flip))
-      const failures: [string, string, unknown, string, () => Promise<unknown>][] = [
-        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable', () => api(Nobody).search({query: 'docs'})],
-        ['acme', 'missing', undefined, 'rpc.method_not_found', () => acme.missing()],
-        ['acme', 'search', {query: 1}, 'rpc.invalid_input', () => acme.search({query: 1})],
-        ['acme', 'explode', undefined, 'rpc.internal', () => acme.explode()],
-        ['acme', 'malformed', undefined, 'rpc.invalid_output', () => acme.malformed()],
+      const overHttp = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`).plugin
+      const mistake = {status: 400, code: 'PLUGIN_RPC'}
+      const defect = {status: 500, code: 'PLUGIN_RPC_INTERNAL'}
+      const failures: [string, string, unknown, string, typeof mistake, () => Promise<unknown>][] = [
+        ['nobody', 'search', {query: 'docs'}, 'rpc.unavailable', mistake, () => api(Nobody).search({query: 'docs'})],
+        ['acme', 'missing', undefined, 'rpc.method_not_found', mistake, () => acme.missing()],
+        ['acme', 'search', {query: 1}, 'rpc.invalid_input', mistake, () => acme.search({query: 1})],
+        ['acme', 'explode', undefined, 'rpc.internal', defect, () => acme.explode()],
+        ['acme', 'malformed', undefined, 'rpc.invalid_output', defect, () => acme.malformed()],
       ]
-      for (const [rpcId, method, input, type, call] of failures) {
+      for (const [rpcId, method, input, type, answer, call] of failures) {
         const expected = await inProcess(rpcId, method, input)
         expect(expected.type).toBe(type)
         await expect(call()).rejects.toStrictEqual({type, message: expected.message})
+        await expect(overHttp.call({rpcId, method, input})).rejects.toMatchObject({
+          ...answer,
+          data: {type, message: expected.message},
+        })
       }
       await expect(acme.search({query: 'slow'})).rejects.toStrictEqual({
         type: 'limited',
         message: 'try later',
         data: {retryAfter: 5},
+      })
+      await expect(overHttp.call({rpcId: 'acme', method: 'search', input: {query: 'slow'}})).rejects.toMatchObject({
+        ...mistake,
+        data: {type: 'limited', message: 'try later', data: {retryAfter: 5}},
       })
 
       const connected = conciv.event.subscribe()[Symbol.asyncIterator]()
@@ -3151,10 +4006,14 @@ describe('plugin rpc over the socket', () => {
       const typed = acme.events.subscribe('indexed')[Symbol.asyncIterator]()
       const typedNext = typed.next()
       const all = await client.rpc.event.subscribe({types: ['rpc.acme.indexed']})
-      expect(await all.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(await nextEvent(all)).toMatchObject({done: false, value: {type: 'server.connected'}})
       await host.runPromise(registration.events.emit('indexed', {count: 3}))
       const indexed = {done: false, value: expect.objectContaining({type: 'rpc.acme.indexed', data: {count: 3}})}
-      expect(await Promise.all([typedNext, all.next()])).toEqual([indexed, indexed])
+      expect(await Promise.all([typedNext, nextEvent(all)])).toEqual([indexed, indexed])
+      expect(await all.next()).toEqual({
+        done: false,
+        value: {id: expect.stringMatching(/^evt_/), type: 'server.heartbeat', data: {}},
+      })
       await typed.return?.()
       await all.return()
       await connected.return?.()
@@ -3240,6 +4099,7 @@ describe('plugin permission cards', () => {
       toolDomainCapabilities(
         [],
         host.runSync(sessionToolDomain(sessionId)),
+        sessionToolDomain(sessionId),
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
@@ -3429,9 +4289,23 @@ describe('direct tools on the MCP surface', () => {
   })
 
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
-    const root = tempDir()
-    const {made, origin, stop} = await serveCore(root, [], {})
+    const root = tempDir('conciv-core-unit-')
+    const restarts: boolean[] = []
+    const bridge = defineBundlerBridge({
+      id: 'unit-direct-bundler',
+      config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
+      resolve: async (spec) => ({id: spec}),
+      moduleGraph: () => [],
+      transform: async () => ({code: null}),
+      urls: () => ({local: [], network: []}),
+      reload: async () => undefined,
+      restart: async (force) => {
+        restarts.push(force ?? false)
+      },
+    })
+    const {made, origin, stop} = await serveCore(root, [], {bridge})
     onTestFinished(stop)
+    await made.awaitActivation()
     const id = SessionId.parse('conciv_mcp_direct')
     await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
     const scope = made.pluginHost.runSync(Scope.make())
@@ -3538,13 +4412,14 @@ describe('direct tools on the MCP surface', () => {
       'external_server_config',
       'external_server_graph',
       'external_server_resolve',
+      'external_server_restart',
       'external_server_transform',
       'external_server_urls',
       'external_tabs',
       'external_unit_coded',
     ])
     expect(execute).toMatch(/^- page \(41 tools/m)
-    expect(execute).toMatch(/^- server \(5 tools/m)
+    expect(execute).toMatch(/^- server \(6 tools/m)
     expect(execute).toMatch(/^- conciv \(2 tools/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
@@ -3556,6 +4431,18 @@ describe('direct tools on the MCP surface', () => {
     const called = ToolCalled.parse(await post('tools/call', {name: 'unit_direct', arguments: {text: 'hi'}}))
     expect(called.result.isError).not.toBe(true)
     expect(called.result.content.map((part) => part.text).join('')).toContain('direct hi')
+    expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
+    const restarting = post('tools/call', {
+      name: 'execute_typescript',
+      arguments: {typescriptCode: 'return await external_server_restart({force: true})'},
+    })
+    await vi.waitFor(async () => expect((await made.plane.hydrate(id)).pendingApprovals).toHaveLength(1))
+    expect(restarts).toEqual([])
+    const [restartAsk] = (await made.plane.hydrate(id)).pendingApprovals
+    const widget = makeRpcClient(`${origin}/t/${made.agentToken}`, {headers: {[CONCIV_SESSION_HEADER]: id}})
+    await widget.chat.permissionDecision({approvalId: restartAsk?.approvalId ?? '', approved: true})
+    expect(ToolCalled.parse(await restarting).result.isError).not.toBe(true)
+    expect(restarts).toEqual([true])
     expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])
 
     const direct: CodeCapability = {
@@ -3574,11 +4461,22 @@ describe('direct tools on the MCP surface', () => {
     })
 
     await setPermissions(made.chat.db, id, [{action: 'execute', resource: '*', effect: 'deny'}])
-    expect((await listed()).toSorted()).toEqual(['unit_coded', 'unit_direct'])
+    expect((await listed()).toSorted()).toEqual([
+      'open',
+      'server_config',
+      'server_graph',
+      'server_resolve',
+      'server_restart',
+      'server_transform',
+      'server_urls',
+      'skill',
+      'unit_coded',
+      'unit_direct',
+    ])
     const shut = ToolCalled.parse(await post('tools/call', {name: 'unit_coded', arguments: {text: 'shut'}}))
     expect(shut.result.content.map((part) => part.text).join('')).toContain('coded shut')
 
-    const builtIn = open.filter((name) => name !== 'unit_direct')
+    const builtIn = open.filter((name) => name !== 'unit_direct' && name !== 'skill')
     const searchedCoded = async () =>
       ToolCalled.parse(
         await post('tools/call', {
@@ -3607,8 +4505,8 @@ describe('direct tools on the MCP surface', () => {
 })
 
 describe('plugin context keys provided by core', () => {
-  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models filled as opencode fills an unknown model, and the cache and state roots sit under the conciv home', async () => {
-    const root = tempDir()
+  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models, each filled from the default model info where the harness reports nothing, and the cache and state roots sit under the conciv home', async () => {
+    const root = tempDir('conciv-core-unit-')
     const home = join(root, 'home')
     const OPUS = {id: 'opus', name: 'Opus 5.5', contextWindow: 1_000_000}
     const SONNET = {
@@ -3677,7 +4575,7 @@ describe('plugin context keys provided by core', () => {
           {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
           {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
         ]),
-        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet')),
+        provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet'), UNSTOPPED),
         provideGlobalRoots(home),
       ).pipe(
         Layer.provideMerge(
@@ -3758,7 +4656,9 @@ describe('plugin context keys provided by core', () => {
     expect(await models((service) => service.available(['image']))).toEqual([])
     expect(await models((service) => service.default())).toEqual(filled(SONNET, sonnetVariants))
     const empty = (run: (service: Model.Interface) => Effect.Effect<unknown>) =>
-      Effect.runPromise(Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([])))))
+      Effect.runPromise(
+        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness([]), UNSTOPPED))),
+      )
     expect(await empty((service) => service.available())).toEqual([])
     expect(await empty((service) => service.default())).toBeUndefined()
     const listed = (
@@ -3767,7 +4667,9 @@ describe('plugin context keys provided by core', () => {
       run: (service: Model.Interface) => Effect.Effect<unknown>,
     ) =>
       Effect.runPromise(
-        Model.Service.use(run).pipe(Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel)))),
+        Model.Service.use(run).pipe(
+          Effect.provide(provideHarnessModels(listingHarness(harnessModels, defaultModel), UNSTOPPED)),
+        ),
       )
     expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.default())).toEqual(filled(OPUS, []))
     expect(await listed([RETIRED, OPUS, SONNET], 'retired', (service) => service.available())).toEqual([
@@ -3783,7 +4685,7 @@ describe('plugin context keys provided by core', () => {
     expect(existsSync(roots.cache) && existsSync(roots.config) && existsSync(roots.state)).toBe(true)
   })
   it('the session key creates, reads, pages, renames, re-describes, switches and removes conciv sessions on their own rows', async () => {
-    const stateRoot = tempDir()
+    const stateRoot = tempDir('conciv-core-unit-')
     const harness = defineHarness({
       id: 'listing-cli',
       binName: 'listing-cli',
@@ -3831,8 +4733,9 @@ describe('plugin context keys provided by core', () => {
     expect(created.time.created).toBeLessThanOrEqual(created.time.updated)
     expect(await key.run((sessions) => sessions.get(sessionId))).toEqual(created)
 
+    const modelRef = Schema.decodeSync(ModelSchema.Ref)
     await key.run((sessions) =>
-      sessions.switchModel({sessionId, model: {id: 'sonnet', providerId: 'listing-cli', variant: 'high'}}),
+      sessions.switchModel({sessionId, model: modelRef({id: 'sonnet', providerId: 'listing-cli', variant: 'high'})}),
     )
     expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
       id: 'sonnet',
@@ -3841,7 +4744,7 @@ describe('plugin context keys provided by core', () => {
     })
 
     const second = await key.run((sessions) =>
-      sessions.create({model: {id: 'opus', providerId: 'listing-cli'}, location}),
+      sessions.create({model: modelRef({id: 'opus', providerId: 'listing-cli'}), location}),
     )
     expect(second.model).toEqual({id: 'opus', providerId: 'listing-cli'})
     const listed = await key.run((sessions) => sessions.list())
@@ -3853,7 +4756,9 @@ describe('plugin context keys provided by core', () => {
       agent: 'plan',
     })
     expect(
-      await key.fail((sessions) => sessions.create({model: {id: 'gone', providerId: 'listing-cli'}, location})),
+      await key.fail((sessions) =>
+        sessions.create({model: modelRef({id: 'gone', providerId: 'listing-cli'}), location}),
+      ),
     ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: expect.stringMatching(/^conciv_/)})
     expect((await key.run((sessions) => sessions.list())).data.map((session) => session.id).toSorted()).toEqual(
       [sessionId, second.id].toSorted(),
@@ -3890,8 +4795,8 @@ describe('plugin context keys provided by core', () => {
       agent: 'plan',
     })
 
-    const switchedTo = (model: {id: string; providerId: string | undefined; variant?: string}) =>
-      key.fail((sessions) => sessions.switchModel({sessionId, model}))
+    const switchedTo = (model: typeof ModelSchema.Ref.Encoded) =>
+      key.fail((sessions) => sessions.switchModel({sessionId, model: modelRef(model)}))
     expect(await switchedTo({id: 'opus', providerId: 'claude'})).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(await switchedTo({id: 'gone', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
     expect(await switchedTo({id: 'retired', providerId: 'listing-cli'})).toMatchObject({_tag: 'Session.NotFoundError'})
@@ -3903,7 +4808,9 @@ describe('plugin context keys provided by core', () => {
       providerId: 'listing-cli',
       variant: 'high',
     })
-    await key.run((sessions) => sessions.switchModel({sessionId, model: {id: 'opus', providerId: 'listing-cli'}}))
+    await key.run((sessions) =>
+      sessions.switchModel({sessionId, model: modelRef({id: 'opus', providerId: 'listing-cli'})}),
+    )
     expect((await key.run((sessions) => sessions.get(sessionId))).model).toEqual({
       id: 'opus',
       providerId: 'listing-cli',
@@ -3941,7 +4848,7 @@ describe('plugin context keys provided by core', () => {
         sessions.create({
           id: suppliedId,
           title: 'Overwritten',
-          model: {id: 'sonnet', providerId: 'listing-cli'},
+          model: modelRef({id: 'sonnet', providerId: 'listing-cli'}),
           metadata: {overwritten: true},
           location,
         }),
@@ -3992,5 +4899,222 @@ describe('engine build keeps runtime packages external', () => {
     expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
     const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
     expect(existsSync(wasm)).toBe(true)
+  })
+})
+
+describe('pty sessions', () => {
+  const BASH = {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}
+
+  type SinkUpdate = {kind: 'data'; text: string} | {kind: 'control'; frame: TtyServerControl}
+
+  type Collected = {chunks: string[]; controls: TtyServerControl[]; sink: TtySink}
+
+  function collect(onUpdate: (update: SinkUpdate) => void = () => {}): Collected {
+    const chunks: string[] = []
+    const controls: TtyServerControl[] = []
+    return {
+      chunks,
+      controls,
+      sink: {
+        data: (chunk) => {
+          chunks.push(chunk)
+          onUpdate({kind: 'data', text: chunks.join('')})
+        },
+        control: (frame) => {
+          controls.push(frame)
+          onUpdate({kind: 'control', frame})
+        },
+      },
+    }
+  }
+
+  describe('pty sessions', () => {
+    const cleanups: TtySessions[] = []
+
+    const make = (options?: Parameters<typeof createTtySessions>[0]): TtySessions => {
+      const sessions = createTtySessions(options)
+      cleanups.push(sessions)
+      return sessions
+    }
+
+    afterEach(() => {
+      for (const sessions of cleanups.splice(0)) sessions.shutdown()
+    })
+
+    it('streams output and echoes input through a real pty', async () => {
+      const sessions = make()
+      const session = await sessions.open('s1', BASH, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('tty-roundtrip-42')) echoed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write('echo tty-roundtrip-$((40+2))\r')
+      expect(await echoed.promise).toContain('tty-roundtrip-42')
+    })
+
+    it('replays buffered bytes to a late attacher', async () => {
+      const sessions = make()
+      const session = await sessions.open('s2', BASH, process.cwd(), 'test-tty')
+      const marked = Promise.withResolvers<string>()
+      const early = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('replay-marker')) marked.resolve(update.text)
+      })
+      const detach = session.attach(early.sink)
+      session.write('echo replay-marker\r')
+      expect(await marked.promise).toContain('replay-marker')
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.chunks.join('')).toContain('replay-marker')
+    })
+
+    it('applies resize', async () => {
+      const sessions = make()
+      const session = await sessions.open('s3', BASH, process.cwd(), 'test-tty')
+      const sized = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('41 97')) sized.resolve(update.text)
+      })
+      session.attach(sink)
+      session.resize(97, 41)
+      session.write('stty size\r')
+      expect(await sized.promise).toContain('41 97')
+    })
+
+    it('reports exit to sinks and via exited()', async () => {
+      const sessions = make()
+      const session = await sessions.open('s4', BASH, process.cwd(), 'test-tty')
+      const exited = Promise.withResolvers<TtyServerControl>()
+      const {controls, sink} = collect((update) => {
+        if (update.kind === 'control' && update.frame.type === 'exit') exited.resolve(update.frame)
+      })
+      session.attach(sink)
+      session.write('exit 3\r')
+      expect(await exited.promise).toEqual({type: 'exit', code: 3})
+      expect(session.exited()).toEqual({code: 3})
+      expect(controls.some((frame) => frame.type === 'exit' && frame.code === 3)).toBe(true)
+    })
+
+    it('surfaces a spawn failure as an error control frame, not a crash', async () => {
+      const sessions = make()
+      const session = await sessions.open(
+        's6',
+        {bin: '/nonexistent/definitely-missing-bin', args: [], env: {}},
+        process.cwd(),
+        'test-tty',
+      )
+      const failed = Promise.withResolvers<TtyServerControl>()
+      const {sink} = collect((update) => {
+        if (update.kind !== 'control') return
+        if (update.frame.type === 'error' || update.frame.type === 'exit') failed.resolve(update.frame)
+      })
+      session.attach(sink)
+      expect((await failed.promise).type).toMatch(/^(error|exit)$/)
+    })
+
+    it('injects into live sinks and the replay buffer', async () => {
+      const sessions = make()
+      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const injected = Promise.withResolvers<string>()
+      const live = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+      })
+      const detach = session.attach(live.sink)
+      session.inject('conciv marker')
+      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+    })
+
+    it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {
+      const sessions = make()
+      const session = await sessions.open('s8', BASH, process.cwd(), 'test-tty')
+      const started = Promise.withResolvers<string>()
+      const resumed = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind !== 'data') return
+        if (update.text.includes('R2Y')) started.resolve(update.text)
+        if (update.text.includes('B6K')) resumed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write("bash -c 'echo R$((1+1))Y; exec sleep 30' && echo S$((5+5))P\r")
+      await started.promise
+      session.interrupt()
+      session.write('echo B$((3+3))K\r')
+      expect(await resumed.promise).not.toContain('S10P')
+    })
+
+    it('broadcasts OSC 9;4 busy transitions to attached sinks', async () => {
+      const sessions = make()
+      const session = await sessions.open('s9', BASH, process.cwd(), 'test-tty')
+      const turnedBusy = Promise.withResolvers<TtyServerControl>()
+      const turnedIdle = Promise.withResolvers<TtyServerControl>()
+      const {controls, sink} = collect((update) => {
+        if (update.kind !== 'control' || update.frame.type !== 'busy') return
+        if (update.frame.busy) turnedBusy.resolve(update.frame)
+        if (!update.frame.busy && controls.some((frame) => frame.type === 'busy' && frame.busy))
+          turnedIdle.resolve(update.frame)
+      })
+      session.attach(sink)
+      expect(controls).toEqual([{type: 'busy', busy: false}])
+      session.write('printf "\\033]9;4;1\\007"\r')
+      expect(await turnedBusy.promise).toEqual({type: 'busy', busy: true})
+      expect(session.busy()).toBe(true)
+      session.write('printf "\\033]9;4;0\\007"\r')
+      expect(await turnedIdle.promise).toEqual({type: 'busy', busy: false})
+      expect(session.busy()).toBe(false)
+      expect(controls.filter((frame) => frame.type === 'busy').map((frame) => frame.busy)).toEqual([false, true, false])
+    })
+
+    it('tells a late attacher the current busy state', async () => {
+      const sessions = make()
+      const session = await sessions.open('s10', BASH, process.cwd(), 'test-tty')
+      const turnedBusy = Promise.withResolvers<TtyServerControl>()
+      const early = collect((update) => {
+        if (update.kind === 'control' && update.frame.type === 'busy' && update.frame.busy) {
+          turnedBusy.resolve(update.frame)
+        }
+      })
+      const detach = session.attach(early.sink)
+      session.write('printf "\\033]9;4;1\\007"\r')
+      await turnedBusy.promise
+      expect(session.busy()).toBe(true)
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.controls.some((frame) => frame.type === 'busy' && frame.busy)).toBe(true)
+    })
+
+    it('debounces rapid interrupts so a double-Escape cannot send two ctrl-c', async () => {
+      const sessions = make()
+      const session = await sessions.open('s11', BASH, process.cwd(), 'test-tty')
+      const started = Promise.withResolvers<string>()
+      const resumed = Promise.withResolvers<string>()
+      const {chunks, sink} = collect((update) => {
+        if (update.kind !== 'data') return
+        if (update.text.includes('R2Y')) started.resolve(update.text)
+        if (update.text.includes('D4N')) resumed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write("bash -c 'echo R$((1+1))Y; exec sleep 30'\r")
+      await started.promise
+      session.interrupt()
+      session.interrupt()
+      session.write('echo D$((2+2))N\r')
+      await resumed.promise
+      const echoed = chunks.join('').match(/\^C/g) ?? []
+      expect(echoed.length).toBe(1)
+    })
+
+    it('evicts an idle session with no sinks', async () => {
+      const sessions = make({idleEvictMs: 100})
+      const session = await sessions.open('s5', BASH, process.cwd(), 'test-tty')
+      const detach = session.attach(collect().sink)
+      detach()
+      await until(() => sessions.get('s5') === undefined, {hangGuardMs: 3000})
+    })
   })
 })
