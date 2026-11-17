@@ -2,10 +2,10 @@ import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
-import {pageOperationOutput} from './page-tool-names.js'
+import {pageOperation} from './page-tool-names.js'
 import {QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError, mutatingBadge} from './shared.js'
 
-const [SingleEffect, EffectList] = pageOperationOutput('effect').options
+const [SingleEffect, EffectList] = pageOperation('effect').output.options
 
 const EFFECT_NAME_KEYS = new Set(['effect'])
 

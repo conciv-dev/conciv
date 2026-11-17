@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from './page-result-views.js'
-import {pageOperationOutput} from './page-tool-names.js'
+import {pageOperation} from './page-tool-names.js'
 import {
   ELEMENT_TARGET_KEYS,
   QUIET_TEXT_CLASS,
@@ -13,7 +13,7 @@ import {
   hasPayloadOrError,
 } from './shared.js'
 
-const HtmlPayload = pageOperationOutput('dom')
+const HtmlPayload = pageOperation('dom').output
 
 const NodesPayload = z.looseObject({
   nodes: z.array(
@@ -27,7 +27,7 @@ const NodesPayload = z.looseObject({
   ),
 })
 
-const MatchesPayload = pageOperationOutput('query')
+const MatchesPayload = pageOperation('query').output
 
 const COUNT_FORMAT = new Intl.NumberFormat()
 const COUNT_PLURAL = new Intl.PluralRules('en')

@@ -16,10 +16,10 @@ export function builtinToolMeta(name: string): ToolViewMeta | undefined {
   return {summary: operation.description, mutating: operation.mutating, icon: view?.icon, label: view?.label}
 }
 
-export function pageOperationOutput<const Name extends Method>(name: Name): NamedOperation<Name>['output'] {
+export function pageOperation<const Name extends Method>(name: Name): NamedOperation<Name> {
   const operation = Operations.find((candidate): candidate is NamedOperation<Name> => candidate.name === name)
   if (operation === undefined) throw new Error(`No page operation is named ${name}`)
-  return operation.output
+  return operation
 }
 
 export function pageVerbOfTool(name: string): string {

@@ -14,9 +14,9 @@ import {
   hasPayloadOrError,
   mutatingBadge,
 } from './shared.js'
-import {pageOperationOutput} from './page-tool-names.js'
+import {pageOperation} from './page-tool-names.js'
 
-const SourcePayload = pageOperationOutput('locate').extend({frames: z.array(RawFrameSchema).optional()})
+const SourcePayload = pageOperation('locate').output.extend({frames: z.array(RawFrameSchema).optional()})
 
 type TrackReport = ReturnType<typeof trackReport>
 

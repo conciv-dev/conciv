@@ -31,7 +31,7 @@ import {
   builtinToolMeta,
   PAGE_ACT_TOOL_NAMES,
   PAGE_TOOL_PREFIX,
-  pageOperationOutput,
+  pageOperation,
   pageVerbGerund,
 } from './page-tool-names.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
@@ -99,7 +99,7 @@ const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text
 const ROW_TARGET_ACTIVE = `flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] ${SHIMMER}`
 const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo min-w-0 leading-none'
 
-const RoutePayload = pageOperationOutput('route').pick({href: true})
+const RoutePayload = pageOperation('route').output.pick({href: true})
 
 function actionsLabel(count: number): string {
   return `${ACTION_FORMAT.format(count)} ${ACTION_PLURAL.select(count) === 'one' ? 'action' : 'actions'}`

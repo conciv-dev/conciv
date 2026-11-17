@@ -3,10 +3,10 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from './page-result-views.js'
-import {pageOperationOutput} from './page-tool-names.js'
+import {pageOperation} from './page-tool-names.js'
 import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError} from './shared.js'
 
-const ConsolePayload = pageOperationOutput('console')
+const ConsolePayload = pageOperation('console').output
 
 const LINE_FORMAT = new Intl.NumberFormat()
 const LINE_PLURAL = new Intl.PluralRules('en')
