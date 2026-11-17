@@ -125,6 +125,7 @@ type RunState =
   | {phase: 'known'; source: RunClockSource | null}
   | {phase: 'stop-queued'; source: RunClockSource | null; runId: string | null}
   | {phase: 'withdrawn'; source: RunClockSource | null; hidden: Error}
+  | {phase: 'refused'; source: RunClockSource | null; hidden: Error}
 
 function heardRun(queued: string | null, next: RunClockSource | null): boolean {
   if (next === null) return false
@@ -290,7 +291,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const error = createMemo(() => {
     const current = run()
     const latest = chat.error()
-    return current.phase === 'withdrawn' && current.hidden === latest ? undefined : latest
+    const hides = current.phase === 'withdrawn' || current.phase === 'refused'
+    return hides && current.hidden === latest ? undefined : latest
   })
   const loadFailed = createMemo(() => error() !== undefined && chat.messages().length === 0)
   const seenRunIds = (): string[] => {
@@ -341,6 +343,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const failure = neverLeft(before, errorBefore)
     if (failure === undefined) return
     chat.setMessages(beforeLastUser(chat.messages()))
+    if (!withdrawn() && chat.messages().length === 0) setRun({phase: 'refused', source: run().source, hidden: failure})
     throw failure
   }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
