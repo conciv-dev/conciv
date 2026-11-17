@@ -32,6 +32,15 @@ function readTerminalTheme(element: Element, scheme: 'light' | 'dark'): Terminal
   return theme
 }
 
+function readTerminalFont(element: Element, font: string): string {
+  const probe = document.createElement('span')
+  probe.style.fontFamily = font
+  element.append(probe)
+  const family = getComputedStyle(probe).fontFamily
+  probe.remove()
+  return family === '' ? font : family
+}
+
 function takesFocusOnPress(node: EventTarget, view: Window & typeof globalThis): boolean {
   if (!(node instanceof view.HTMLElement) || node.matches(':disabled')) return false
   return node.tabIndex >= 0 || node.hasAttribute('tabindex')
@@ -96,6 +105,13 @@ export default function TerminalSurface(props: {
     () => ctx.appearance.mode(),
     (scheme) => {
       model.terminal.options.theme = readTerminalTheme(props.themeHost(), scheme)
+    },
+  )
+  createKeyed(
+    () => ctx.appearance.font('mono'),
+    (font) => {
+      model.terminal.options.fontFamily = readTerminalFont(props.themeHost(), font)
+      model.fit()
     },
   )
   onCleanup(() => props.terminal.closed(terminalKey))
