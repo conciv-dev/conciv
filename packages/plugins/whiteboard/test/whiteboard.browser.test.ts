@@ -10,7 +10,7 @@ import {test} from '@conciv/browser-fixture'
 import {magicLink} from '@conciv/harness-testkit/login'
 import type {CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
-import {holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
+import {failRpcCalls, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -49,7 +49,7 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, and a second tab catches up after a reconnect', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -177,6 +177,25 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         )
       } finally {
         await second.close()
+      }
+
+      await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeHidden()
+      await expect(rectangleTool).toBeVisible()
+
+      const failing = await browser.newPage()
+      try {
+        const chunks = await failRpcCalls(failing, {path: ['plugin', 'experimentalChunk']})
+        await failing.goto(await magicLink(widget.kit.base, new URL('/', page.url()).href), {
+          waitUntil: 'domcontentloaded',
+        })
+        await failing.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+        await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+        await expect(failing.getByText('The whiteboard needs a running conciv server')).toBeVisible({timeout: 30_000})
+        await expect(failing.getByRole('status').filter({hasText: 'The whiteboard is unavailable.'})).toBeVisible()
+        await chunks.dispose()
+      } finally {
+        await failing.close()
       }
     } finally {
       await widget.close()
