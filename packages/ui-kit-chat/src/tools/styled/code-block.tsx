@@ -26,15 +26,19 @@ export const SUNKEN_SURFACE = 'bg-chat-sunken border border-chat-line-soft round
 
 const PAINTLESS_HIGHLIGHT = '[--shiki-background:transparent]'
 
-const BOX = `relative block w-full min-w-0 overflow-hidden ${SUNKEN_SURFACE}`
+const BOX = 'relative block w-full min-w-0 overflow-hidden bg-chat-sunken border rounded-chat-sm'
+const BOX_TONE: Record<CodeBlockTone, string> = {
+  normal: 'border-chat-line-soft',
+  error: 'border-chat-danger-line',
+}
 const CORNER_ACTIONS = 'absolute top-1 end-1 z-1 flex'
 const ACTION_BUTTON = 'size-6 shrink-0'
 const CLAMP_FOOTER = 'px-2 pb-1'
 const CLEAR_OF_CORNER = 'pe-8'
 const TITLE_ROW = 'flex items-center justify-between gap-2 min-w-0 ps-3 pe-1 py-1'
 const TITLE_TEXT: Record<CodeBlockTone, string> = {
-  normal: 'min-w-0 truncate text-chat-xs [font-family:var(--chat-font)] text-chat-text-2',
-  error: 'min-w-0 truncate text-chat-xs [font-family:var(--chat-font)] text-chat-danger',
+  normal: 'min-w-0 truncate text-chat-xs font-chat text-chat-text-2',
+  error: 'min-w-0 truncate text-chat-xs font-chat text-chat-danger',
 }
 
 type CodeBlockTone = 'normal' | 'error'
@@ -80,12 +84,17 @@ function BlockFrame(props: {
   text: string
   cap: HeightCap
   cornerCopy: boolean
+  tone?: CodeBlockTone
   class?: string
   children: JSX.Element
 }): JSX.Element {
   const lines = () => props.text.split('\n').length
   return (
-    <div class={`${BOX}  ${props.class ?? ''}`} role="group" aria-label={props.label}>
+    <div
+      class={`${BOX}  ${BOX_TONE[props.tone ?? 'normal']}  ${props.class ?? ''}`}
+      role="group"
+      aria-label={props.label}
+    >
       <Show when={props.cornerCopy}>
         <div class={CORNER_ACTIONS}>
           <CopyAction text={props.text} />
@@ -154,6 +163,7 @@ export function CodeBlock(props: {
         text={local.file.contents}
         cap={cap()}
         cornerCopy={chrome() === 'plain'}
+        tone={local.tone}
         class={local.class}
       >
         <SolidCodeBlock
