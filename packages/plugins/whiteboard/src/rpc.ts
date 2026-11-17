@@ -86,6 +86,7 @@ export const Whiteboard = Rpc.define({
     'canvasPending.insert': insert(pendingRow, pendingRowInsert),
     'canvasPending.update': update(pendingRow, pendingPatch),
     'canvasPending.remove': remove,
+    'canvasPending.claim': {input: IdInput, output: z.object({claimed: z.boolean()})},
     'canvasReplies.list': list(replyRow),
     'canvasReplies.get': get(replyRow),
     'canvasReplies.insert': insert(replyRow, replyRowInsert),

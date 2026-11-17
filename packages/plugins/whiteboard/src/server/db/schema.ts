@@ -31,6 +31,7 @@ export const canvasPending = sqliteTable('canvas_pending', {
     .notNull()
     .default('live'),
   payload: text('payload', {mode: 'json'}).$type<JsonValue>().notNull(),
+  claimedUntil: integer('claimed_until'),
 })
 
 export const canvasReplies = sqliteTable('canvas_replies', {

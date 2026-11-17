@@ -61,6 +61,7 @@ export function createWhiteboardDb(client: Context['client'], room: string) {
     canvasElements,
     canvasDraftElements,
     bulkUpsertElements: (scope: 'live' | 'draft', rows: ElementRow[]) => elementOps(scope).bulkUpsert(rows),
+    claimPending: (id: string) => whiteboard['canvasPending.claim']({room, id}),
     listElements: (scope: 'live' | 'draft') => elementOps(scope).list(),
     bulkDeleteElements: (scope: 'live' | 'draft', elementIds: string[]) => elementOps(scope).bulkDelete(elementIds),
     room,

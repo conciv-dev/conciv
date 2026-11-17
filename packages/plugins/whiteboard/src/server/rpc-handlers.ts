@@ -54,6 +54,7 @@ export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard>
       (await store.updatePending(id, room, patch)) ??
       error('NOT_FOUND', `no pending row ${id} in this room`, notFound(id)),
     'canvasPending.remove': async ({room, id}) => ({deleted: await store.deletePending(id, room)}),
+    'canvasPending.claim': async ({room, id}) => ({claimed: await store.claimPending(id, room)}),
     'canvasReplies.list': ({room}) => db.select().from(canvasReplies).where(eq(canvasReplies.room, room)),
     'canvasReplies.get': async ({room, id}, {error}) =>
       (await db

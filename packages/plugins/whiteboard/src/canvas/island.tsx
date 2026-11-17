@@ -222,7 +222,22 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
     commit: performCommit,
     export: performExport,
   }
-  const runPending = (row: PendingRow): void => void pendingHandlers[row.kind]?.(row)
+  const claimPending = (row: PendingRow): Promise<boolean> =>
+    db.claimPending(row.id).then(
+      ({claimed}) => claimed,
+      (error: unknown) => {
+        console.error(`[whiteboard] claiming pending ${row.kind} ${row.id} failed: ${String(error)}`)
+        return false
+      },
+    )
+  const claimAndRun = async (row: PendingRow, handler: (row: PendingRow) => Promise<void>): Promise<void> => {
+    if (!(await claimPending(row))) return void draining.delete(row.id)
+    await handler(row)
+  }
+  const runPending = (row: PendingRow): void => {
+    const handler = pendingHandlers[row.kind]
+    if (handler) void claimAndRun(row, handler)
+  }
   const drainTask = new Batcher<PendingRow>((rows) => rows.forEach(runPending), {wait: PENDING_DRAIN_TASK_MS})
   const queueDrain = (row: PendingRow): void => {
     if (draining.has(row.id) || !pendingHandlers[row.kind]) return
