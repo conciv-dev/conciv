@@ -178,7 +178,10 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     setModel: () => false,
     setVariant: () => false,
     attach(part) {
-      if (part.type !== 'note') return console.error('[plugin] Composer.attach is not implemented yet', part.type)
+      if (part.type !== 'note') {
+        console.error('[plugin] Composer.attach is not implemented yet', part.type)
+        return
+      }
 
       const item = noteItem(NoteContextItem.parse(part))
 
