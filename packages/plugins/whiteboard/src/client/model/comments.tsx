@@ -96,8 +96,9 @@ export function createCommentsModel(
   const toggleThread = (cid: string): void => (state.openCid === cid ? closeThread() : openThread(cid))
   const registerPin = (cid: string, button: HTMLButtonElement | undefined): void =>
     void setState('pinButtons', cid, button)
+  const pinButton = (cid: string): HTMLButtonElement | undefined => state.pinButtons[cid]
   const openPinButton = (): HTMLButtonElement | undefined =>
-    state.openCid === null ? undefined : state.pinButtons[state.openCid]
+    state.openCid === null ? undefined : pinButton(state.openCid)
 
   const stepIndex = (): number => orderedThreads().findIndex((thread) => thread.cid === state.openCid)
   const stepThread = (delta: number): void => {
@@ -163,6 +164,15 @@ export function createCommentsModel(
   const movePin = (cid: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>): void => {
     const pin = pins().find((row) => row.cid === cid)
     if (pin) db.pins.update(pin.id, (draft) => void Object.assign(draft, patch))
+  }
+  const detachAnchor = (cid: string): void => {
+    const comment = findRoot(cid)
+    if (comment)
+      db.comments.update(comment.id, (draft) => {
+        draft.kind = 'floating'
+        draft.anchor = null
+        draft.anchorFile = null
+      })
   }
 
   const startCompose = (target: ComposeTarget): void => void setState('composeTarget', target)
@@ -238,8 +248,10 @@ export function createCommentsModel(
     closeThread,
     toggleThread,
     registerPin,
+    pinButton,
     openPinButton,
     movePin,
+    detachAnchor,
     isUnread,
     markRead,
     composeTarget: () => state.composeTarget,

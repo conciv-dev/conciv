@@ -3,6 +3,7 @@ import {createStore} from 'solid-js/store'
 import type {Context} from '@conciv/plugin/experimental'
 import {sceneToScreen, screenToScene, type Viewport} from '../../canvas/coords.js'
 import {useComments, type Comment, type Pin} from '../model/comments.js'
+import {DragPrompt} from './drag-prompt.js'
 
 type CommentStatus = Comment['status']
 
@@ -20,6 +21,7 @@ const UNREAD_DOT = 'absolute -top-1 -right-1 size-2.5 rounded-chat-pill bg-chat-
 const DRAG_THRESHOLD = 4
 
 type Drag = {cid: string; grabX: number; grabY: number; originX: number; originY: number; x: number; y: number}
+type Prompt = {cid: string; x: number; y: number; originX: number; originY: number}
 
 const authorLabel = (kind: Comment['authorKind'] | undefined): string =>
   kind === 'ai' ? 'AI' : kind === 'human' ? 'Human' : 'Unknown'
@@ -32,12 +34,30 @@ const movedPastThreshold = (drag: Drag): boolean =>
 
 export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
   const model = useComments()
-  const [state, setState] = createStore<{drag: Drag | null}>({drag: null})
+  const [state, setState] = createStore<{drag: Drag | null; prompt: Prompt | null}>({drag: null, prompt: null})
 
   const scenePosition = (pin: Pin): {x: number; y: number} => {
-    const drag = state.drag
-    return drag && drag.cid === pin.cid ? {x: drag.x, y: drag.y} : {x: pin.x, y: pin.y}
+    const held = [state.drag, state.prompt].find((entry) => entry?.cid === pin.cid)
+    return held ? {x: held.x, y: held.y} : {x: pin.x, y: pin.y}
   }
+
+  const disconnect = (entry: Prompt): void => {
+    model.detachAnchor(entry.cid)
+    model.movePin(entry.cid, {x: entry.x, y: entry.y, pinState: 'offset'})
+    setState('prompt', null)
+  }
+  const keep = (entry: Prompt): void => {
+    model.movePin(entry.cid, {
+      x: entry.x,
+      y: entry.y,
+      pinState: 'offset',
+      anchorX: entry.originX,
+      anchorY: entry.originY,
+    })
+    setState('prompt', null)
+  }
+  const promptAnchor = (): HTMLButtonElement | undefined =>
+    state.prompt ? model.pinButton(state.prompt.cid) : undefined
 
   const grab = (view: Viewport, pin: Pin, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
     event.preventDefault()
@@ -67,51 +87,62 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
     setState('drag', null)
     if (drag?.cid !== pin.cid) return
     if (!movedPastThreshold(drag)) return model.toggleThread(pin.cid)
-    if (comment?.kind !== 'source-linked') model.movePin(pin.cid, {x: drag.x, y: drag.y})
+    if (comment?.kind !== 'source-linked') return model.movePin(pin.cid, {x: drag.x, y: drag.y})
+    setState('prompt', {cid: pin.cid, x: drag.x, y: drag.y, originX: drag.originX, originY: drag.originY})
   }
 
   return (
-    <Show when={model.viewport()}>
-      {(view) => (
-        <For each={model.pins()}>
-          {(pin) => {
-            const comment = (): Comment | undefined => model.findRoot(pin.cid)
-            const status = (): CommentStatus => comment()?.status ?? 'open'
-            const label = (): string => pinLabel(comment(), status(), model.isUnread(pin.cid))
-            const position = (): {x: number; y: number} => {
-              const scene = scenePosition(pin)
-              return sceneToScreen(view(), scene.x, scene.y)
-            }
-            onCleanup(() => model.registerPin(pin.cid, undefined))
-            return (
-              <div
-                class="left-0 top-0 absolute"
-                style={{transform: `translate(calc(${position().x}px - 50%), calc(${position().y}px - 50%))`}}
-              >
-                <props.ui.Tooltip value={label()}>
-                  <button
-                    type="button"
-                    ref={(button) => model.registerPin(pin.cid, button)}
-                    aria-label={label()}
-                    class={PIN}
-                    onPointerDown={(event) => grab(view(), pin, event)}
-                    onPointerMove={(event) => follow(view(), pin, event)}
-                    onPointerUp={() => drop(pin, comment())}
-                    onPointerCancel={() => setState('drag', null)}
-                    onClick={(event) => event.detail === 0 && model.toggleThread(pin.cid)}
-                  >
-                    <span class={`${PIN_MARK}  ${STATUS_FILL[status()]}`}>
-                      <Show when={model.isUnread(pin.cid)}>
-                        <span class={UNREAD_DOT} aria-hidden="true" />
-                      </Show>
-                    </span>
-                  </button>
-                </props.ui.Tooltip>
-              </div>
-            )
-          }}
-        </For>
-      )}
-    </Show>
+    <>
+      <Show when={model.viewport()}>
+        {(view) => (
+          <For each={model.pins()}>
+            {(pin) => {
+              const comment = (): Comment | undefined => model.findRoot(pin.cid)
+              const status = (): CommentStatus => comment()?.status ?? 'open'
+              const label = (): string => pinLabel(comment(), status(), model.isUnread(pin.cid))
+              const position = (): {x: number; y: number} => {
+                const scene = scenePosition(pin)
+                return sceneToScreen(view(), scene.x, scene.y)
+              }
+              onCleanup(() => model.registerPin(pin.cid, undefined))
+              return (
+                <div
+                  class="left-0 top-0 absolute"
+                  style={{transform: `translate(calc(${position().x}px - 50%), calc(${position().y}px - 50%))`}}
+                >
+                  <props.ui.Tooltip value={label()}>
+                    <button
+                      type="button"
+                      ref={(button) => model.registerPin(pin.cid, button)}
+                      aria-label={label()}
+                      class={PIN}
+                      onPointerDown={(event) => grab(view(), pin, event)}
+                      onPointerMove={(event) => follow(view(), pin, event)}
+                      onPointerUp={() => drop(pin, comment())}
+                      onPointerCancel={() => setState('drag', null)}
+                      onClick={(event) => event.detail === 0 && model.toggleThread(pin.cid)}
+                    >
+                      <span class={`${PIN_MARK}  ${STATUS_FILL[status()]}`}>
+                        <Show when={model.isUnread(pin.cid)}>
+                          <span class={UNREAD_DOT} aria-hidden="true" />
+                        </Show>
+                      </span>
+                    </button>
+                  </props.ui.Tooltip>
+                </div>
+              )
+            }}
+          </For>
+        )}
+      </Show>
+      <DragPrompt
+        ui={props.ui}
+        anchor={promptAnchor}
+        open={state.prompt !== null}
+        onDisconnect={() => state.prompt && disconnect(state.prompt)}
+        onKeep={() => state.prompt && keep(state.prompt)}
+        onCancel={() => setState('prompt', null)}
+      />
+    </>
   )
 }
