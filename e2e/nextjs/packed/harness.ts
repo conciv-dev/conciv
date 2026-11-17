@@ -16,6 +16,7 @@ import {dirname, join} from 'node:path'
 import {promisify} from 'node:util'
 import {z} from 'zod'
 
+import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/vitest-config/pack'
 
@@ -29,7 +30,7 @@ const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.y
 
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
-const DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
+const DEV_ENDPOINT_DIR = e2eDevEndpointDir(join(WORKSPACE_ROOT, 'e2e/nextjs'))
 
 const ServerStateSchema = z.object({port: z.number(), token: z.string()})
 

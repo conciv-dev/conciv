@@ -2937,7 +2937,6 @@ describe('launcher drag', () => {
   const minimize = () => page.getByRole('button', {name: 'Minimize conciv chat'})
   const edgeTab = () => page.getByRole('button', {name: 'Show conciv launcher'})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const capture = (name: string) => page.screenshot({path: `__screenshots__/launcher-drag/${name}.png`})
 
   test('a drag off the right edge tucks the launcher into a tab without opening the chat, and the tab brings it back', async () => {
     await page.viewport(1000, 700)
@@ -2947,12 +2946,10 @@ describe('launcher drag', () => {
     await expect.element(edgeTab()).toBeVisible()
     await expect.element(launcher()).not.toBeInTheDocument()
     await expect.element(editor()).not.toBeInTheDocument()
-    await capture('tucked-right')
     await edgeTab().click()
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
     await expect.element(launcher()).toHaveFocus()
-    await capture('restored-right')
   })
 
   test('a tucked launcher stays tucked after a reload, and Enter on the focused tab restores it', async () => {
@@ -2969,7 +2966,6 @@ describe('launcher drag', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(launcher()).toHaveFocus()
     await expect.element(edgeTab()).not.toBeInTheDocument()
-    await capture('restored-left-keyboard')
   })
 
   test('Escape mid-drag drops the gesture, so a release past the edge leaves the launcher where it was', async () => {
@@ -2978,7 +2974,6 @@ describe('launcher drag', () => {
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}], escape: true})
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
-    await capture('escape-cancelled')
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}]})
     await expect.element(edgeTab()).toBeVisible()
   })
@@ -2991,10 +2986,8 @@ describe('launcher drag', () => {
       moves: [{deltaX: -844, deltaY: -544, steps: 20}],
       settleMs: 300,
     })
-    await capture('pinned-top-left')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await capture('pinned-top-left-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -90, deltaY: 0, steps: 6}]})
@@ -3009,10 +3002,8 @@ describe('launcher drag', () => {
       moves: [{deltaX: -454, deltaY: -304, steps: 20}],
       settleMs: 300,
     })
-    await capture('free-centre')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await capture('free-centre-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -520, deltaY: 0, steps: 12}]})
@@ -3034,15 +3025,12 @@ describe('launcher drag', () => {
     await userEvent.tab()
     await expect.element(launcher()).toHaveFocus()
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowUp}')
-    await capture('keyboard-nudged')
     await userEvent.keyboard('{Shift>}{ArrowUp}{ArrowLeft}{/Shift}')
-    await capture('keyboard-top-left')
     await expect.element(launcher()).toHaveFocus()
     await expect.element(editor()).not.toBeInTheDocument()
     harness.dispose()
     harness.mountShell('/')
     await expect.element(launcher()).toBeVisible()
-    await capture('keyboard-top-left-reloaded')
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -150, deltaY: 0, steps: 8}]})
     await expect.element(edgeTab()).toBeVisible()
   })
@@ -3062,7 +3050,6 @@ describe('launcher drag', () => {
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 70, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
-    await capture('locked-right-of-middle-open')
     await leaveLocked()
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
@@ -3073,11 +3060,9 @@ describe('launcher drag', () => {
     await page.viewport(1000, 700)
     mountLocked()
     await expect.element(locked()).toBeVisible()
-    await capture('locked-bottom-right-closed')
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
-    await capture('locked-bottom-right-open')
   })
 
   test('the locked launcher dropped near the right edge without room for its pill grows it to the left and its robot stays put', async () => {
@@ -3090,7 +3075,6 @@ describe('launcher drag', () => {
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -120, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
-    await capture('locked-near-right-edge-open')
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 50, deltaY: 0}]})
@@ -4236,7 +4220,6 @@ describe('panel view tabs', () => {
 
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
-      await page.screenshot({path: '__screenshots__/extension-boundary/tab-fallback.png'})
       expect(crashReports('crash-tab')).toBe(1)
 
       await retry().click()
@@ -5836,7 +5819,6 @@ describe('run errors', () => {
     await expect.element(alert.getByText(OVERFLOW_TEXT)).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', {name: 'Compact conversation'}))
     expect(compacted.count).toBe(1)
-    await page.screenshot({path: '__screenshots__/run-errors/context-overflow.png'})
   })
 
   it('the Compact action is disabled while a compaction is already running', async () => {
@@ -5850,7 +5832,6 @@ describe('run errors', () => {
 
     const compact = page.getByRole('button', {name: 'Compact conversation'})
     await expect.element(compact).toBeVisible()
-    await page.screenshot({path: '__screenshots__/run-errors/context-overflow-compacting.png'})
     await expect.element(compact).toBeDisabled()
   })
 
@@ -5922,7 +5903,6 @@ describe('run errors', () => {
       await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
 
       await expect.element(runError('upstream is overloaded')).not.toBeInTheDocument()
-      await page.screenshot({path: '__screenshots__/run-errors/compacted-clears-error.png'})
 
       await coreControl.scriptError('the model went away')
       await typeTurn('second turn')
@@ -5933,7 +5913,6 @@ describe('run errors', () => {
       await expect.element(page.getByRole('separator', {name: 'Context compacted'})).toBeVisible()
       await expect.element(runError('the model went away')).toBeVisible()
       expect(alerts().all()).toHaveLength(1)
-      await page.screenshot({path: '__screenshots__/run-errors/failed-after-reload.png'})
 
       await heldTurn('third turn')
       await expect.element(page.getByText('third turn')).toBeVisible()
@@ -5945,7 +5924,6 @@ describe('run errors', () => {
       await expect.element(idleError()).toBeVisible()
       await expect.element(idleError().getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
       expect(alerts().all()).toHaveLength(1)
-      await page.screenshot({path: '__screenshots__/run-errors/idle-failed.png'})
 
       reloaded.dispose()
       mountChatPane(sessionId)
@@ -6104,7 +6082,6 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-denied.png'})
   })
 
   it('a cancelled tool reads as cancelled, not as a failure', async () => {
@@ -6112,7 +6089,6 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'cancelled'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-cancelled.png'})
   })
 
   for (const [outcome, name] of [
@@ -6123,7 +6099,6 @@ describe('tool outcomes', () => {
       render(() => stoppedTool(outcome, name, {pattern: 'TODO'}))
 
       await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
       await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
       await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
       await expect.element(page.getByText(STOPPED_REASON[outcome])).toBeVisible()
@@ -6907,12 +6882,10 @@ module.exports = {default: {setup(ctx) {
     await expect
       .element(page.getByRole('button', {name: 'running probe draw mode=draw'}), {timeout: 15_000})
       .toBeVisible()
-    await page.screenshot({path: '__screenshots__/plugin-tool-cards/running.png'})
     await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
 
     await coreControl.releaseResults()
     await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/plugin-tool-cards/finished.png'})
     await expect.element(probeRow('mode=draw')).toBeVisible()
     await expect.element(probeRow('mode=decline')).toBeVisible()
     await expect.element(probeRow('mode=throw')).toBeVisible()

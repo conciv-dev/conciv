@@ -79,7 +79,6 @@ describe('standalone outcome headers', () => {
       ))
 
       await expect.element(page.getByText('rm -rf build')).toBeVisible()
-      await page.screenshot({path: `__screenshots__/standalone-outcomes/${outcome}.png`})
       await expect.element(page.getByRole('img', {name: outcome}).nth(1)).toBeVisible()
       await expect.element(page.getByRole('img', {name: 'error'})).not.toBeInTheDocument()
     })
@@ -251,7 +250,6 @@ describe('catalog cards', () => {
 
     await expect.element(page.getByText('Shipped the page #hero')).toBeVisible()
     expect(nowTitle(part('page_ship', {selector: '#hero'}, 'input-streaming'), catalog)).toBe('Shipping the page')
-    await page.screenshot({path: '__screenshots__/catalog-cards/declared-non-builtin.png'})
   })
 
   it('a mutating registry tool shows its write badge and its hint', async () => {
@@ -558,7 +556,6 @@ describe('registry card declarations', () => {
         <MetaToolCard part={part(verb, args)} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />
       ))
       await expect.element(page.getByText(headline, {exact: true}).first()).toBeVisible()
-      await page.screenshot({path: `__screenshots__/registry-card-declarations/page-${verb}.png`})
       cleanup()
     }
   })
@@ -658,7 +655,6 @@ describe('tool row projections', () => {
       mountView(() => row(call(name, input), stopped(outcome)))
 
       await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/body-${name}-${outcome}.png`})
       await expect.element(page.getByText(STOPPED[outcome].label, {exact: true})).toBeVisible()
       await expect.element(page.getByText(STOPPED[outcome].error)).toBeVisible()
       await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
