@@ -29,6 +29,11 @@ import {symbolicateFrames} from './symbolicate.js'
 
 const SessionNotFound = z.object({_tag: z.literal('Session.NotFoundError')})
 
+function refusalReason(error: unknown): string {
+  if (SessionNotFound.safeParse(error).success) return 'it was deleted'
+  return error instanceof Error ? error.message : String(error)
+}
+
 const TAB_RETURN_MS = 5000
 
 const Windows = z.object({
@@ -178,7 +183,7 @@ export async function make(
         })
         .then(
           (session) => ({session, reason: ''}),
-          (error: unknown) => ({session: undefined, reason: error instanceof Error ? error.message : String(error)}),
+          (error: unknown) => ({session: undefined, reason: refusalReason(error)}),
         )
       const session = opened.session
       if (!session) {

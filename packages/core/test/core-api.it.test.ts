@@ -8108,7 +8108,7 @@ export default {
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
-      error: expect.stringContaining(`Session ${session} could not be opened`),
+      error: `Session ${session} could not be opened: it was deleted`,
     })
     expect(await page('sessions.attached')).not.toContain(session)
     expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(session)
