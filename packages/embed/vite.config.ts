@@ -5,7 +5,14 @@ import UnoCSS from 'unocss/vite'
 
 const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
-const INLINED_PREFIXES = ['@conciv/page', '@conciv/app', '@conciv/builtin-plugins', '@conciv/tools', '@conciv/core']
+const INLINED_PREFIXES = [
+  '@conciv/page',
+  '@conciv/app',
+  '@conciv/builtin-plugins',
+  '@conciv/plugin-test-runner',
+  '@conciv/tools',
+  '@conciv/core',
+]
 
 const isExternal = (id: string): boolean => {
   if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false

@@ -11,6 +11,7 @@ import {useAppData, useConnectionGeneration, usePreferences, useRpc, useSuppress
 import {toRawHotkey} from '../lib/hotkey.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
+import {useStartSession} from '../app/start-session.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {RefreshButton} from '../shell/refresh-button.js'
 import {ContextTracker} from '../pane/context-tracker.js'
@@ -138,8 +139,11 @@ function QuickLayer(): JSX.Element {
     onSuccess: ({sessionId}: {sessionId: string}) => openPane(sessionId),
   })
 
+  const startSession = useStartSession()
   const resumeLatestPane = useMutation(() => paneStartOptions(() => rpc.sessions.resolve({})))
-  const createFreshPane = useMutation(() => paneStartOptions(() => appData.createSession()))
+  const createFreshPane = useMutation(() =>
+    paneStartOptions(() => (paneIds().length === 0 ? appData.createSession() : startSession())),
+  )
 
   const lastPaneStart = () =>
     createFreshPane.submittedAt > resumeLatestPane.submittedAt ? createFreshPane : resumeLatestPane
@@ -284,7 +288,11 @@ function QuickLayer(): JSX.Element {
                     onPointerDown={onGutterDown}
                   />
                 </Show>
-                <PaneProvider sessionId={id} onNewSession={addFreshPane}>
+                <PaneProvider
+                  sessionId={id}
+                  onNewSession={addFreshPane}
+                  onReplaceSession={(next) => activatePane(index(), next)}
+                >
                   <Show when={focusedIndex() === index()}>
                     <PluginSession sessionId={id} />
                   </Show>

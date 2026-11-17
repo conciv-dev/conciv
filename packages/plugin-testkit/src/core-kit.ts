@@ -74,7 +74,6 @@ export async function bootCoreKit(opts: {
         print: env.print,
         cfg: {
           enabled: true,
-          widgetUrl: undefined,
           stateRoot: env.stateRoot,
           harness: env.harness.id,
           harnessBin: undefined,

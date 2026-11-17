@@ -10,7 +10,7 @@ Engine and plugin:
 
 - core: [core/README.md](./core/README.md) - `@conciv/core`, the Hono engine: sessions, chat plane, oRPC router, MCP endpoint, push WebSocket and extension mounting.
 - it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries and bundles the built-in extensions.
-- unplugin: [unplugin/README.md](./unplugin/README.md) - `@conciv/unplugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot, Next.js wrapper).
+- unplugin: [unplugin/README.md](./unplugin/README.md) - `@conciv/unplugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot and widget entry, Next.js wrapper).
 - extension-compiler: [extension-compiler/README.md](./extension-compiler/README.md) - Build plumbing for extension code: client/server split, Solid compile, source stamping, the `virtual:conciv-extensions` module.
 - cli: [cli/README.md](./cli/README.md) - The `conciv` binary: `init` and `tools`, each leaf command writing one JSON envelope.
 - try: [try/README.md](./try/README.md) - `npx @conciv/try --token`: a token-gated loopback core paired with conciv.dev.
@@ -21,7 +21,7 @@ Engine and plugin:
 - harness: [harness/README.md](./harness/README.md) - Coding-agent adapters (`claude`, `codex`, `gemini-cli`, `opencode`, `pi`) behind the `HarnessAdapter` contract.
 - harness-init: [harness-init/README.md](./harness-init/README.md) - Per-harness `conciv init` contributions: detection, AGENTS.md text, generated install files.
 - harness-testkit: [harness-testkit/README.md](./harness-testkit/README.md) - Test helpers that boot an app against a scripted or real harness.
-- tools: [tools/README.md](./tools/README.md) - Agent tools `conciv_ui`, `conciv_extensions`, `server_*` and `open`, with their Solid cards.
+- tools: [tools/README.md](./tools/README.md) - Agent tools `conciv_ui`, `server_*` and `open`, with their Solid cards.
 - skills: [skills/README.md](./skills/README.md) - Agent skill markdown discovered through `@tanstack/intent`, plus a citation checker.
 
 Contracts:

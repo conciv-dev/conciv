@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it, onTestFinished, vi} from 'vitest'
 import {z} from 'zod'
-import {makeDiscoverTools} from '@conciv/harness-testkit'
+import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
@@ -93,8 +93,29 @@ async function unavailableError(pending: Promise<unknown>): Promise<string> {
   return UnavailableSchema.parse(failure).data.data.error
 }
 
-function useTool(kit: CoreKit, name: 'list' | 'run' | 'status', input: {pattern?: string} = {}): Promise<unknown> {
-  return kit.callTool(`test_runner_${name}`, input)
+async function useTool(
+  kit: CoreKit,
+  name: 'list' | 'run' | 'status',
+  input: {pattern?: string} = {},
+): Promise<unknown> {
+  if (name === 'list') return kit.callTool('test_runner_list', input)
+  const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
+  try {
+    const tool = (await mcp.tools()).find((entry) => entry.name === `test_runner_${name}`)
+    if (!tool) throw new Error(`test_runner_${name} is not a direct tool on /api/mcp`)
+    return JSON.parse(z.string().parse(await tool.execute(input)))
+  } finally {
+    await mcp.close()
+  }
+}
+
+async function directToolNames(kit: CoreKit): Promise<string[]> {
+  const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
+  try {
+    return (await mcp.tools()).map((tool) => tool.name)
+  } finally {
+    await mcp.close()
+  }
 }
 
 async function fileAppears(directory: string, name: string, signal: AbortSignal): Promise<void> {
@@ -166,7 +187,7 @@ async function followRun(kit: CoreKit, start: () => Promise<unknown>) {
 }
 
 describe('the test-runner plugin on a vitest project', () => {
-  it('is active, lists for code mode, lists, runs, streams a run live, reports status and stops a run on rpc stop and on engine stop', async () => {
+  it('is active, lists for code mode, offers run and status as direct tools, lists, runs, streams a run live, reports status and stops a run on rpc stop and on engine stop', async () => {
     const {kit, stop} = await bootProject({...fixtureFiles('vitest-app'), 'blocked.test.ts': BLOCKED_VITEST_TEST})
     installDependencies(kit)
 
@@ -184,11 +205,11 @@ describe('the test-runner plugin on a vitest project', () => {
       kit.base,
       await kit.session(),
     )(['test_runner_list', 'test_runner_run', 'test_runner_status'])
-    expect(discovered.tools.map((tool) => tool.name)).toEqual([
-      'external_test_runner_list',
-      'external_test_runner_run',
-      'external_test_runner_status',
-    ])
+    expect(discovered.tools.map((tool) => tool.name)).toEqual(['external_test_runner_list'])
+
+    const direct = await directToolNames(kit)
+    expect(direct).toEqual(expect.arrayContaining(['execute_typescript', 'test_runner_run', 'test_runner_status']))
+    expect(direct).not.toContain('test_runner_list')
 
     const listed = ListSchema.parse(await useTool(kit, 'list'))
     expect(listed.files.map((file) => file.relPath).toSorted()).toEqual([

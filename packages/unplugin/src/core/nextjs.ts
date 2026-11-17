@@ -2,11 +2,15 @@ import {existsSync} from 'node:fs'
 import {join} from 'node:path'
 import {ConcivConfigSchema, type ConcivConfig} from '@conciv/protocol/config-types'
 import {writeExtensionsEntry} from './extensions-entry.js'
+import type * as Boot from './boot.js'
+import type * as ExtensionsWatch from './extensions-watch.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
 
-const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+export const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+export const WIDGET_START_SPECIFIER = '@conciv/widget-start'
 const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
+const WIDGET_PORT_KEY = 'NEXT_PUBLIC_CONCIV_PORT'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
 type WebpackEntry = () => Promise<Record<string, unknown>>
@@ -30,6 +34,8 @@ type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/unplugin', '@conciv/core', '@conciv/db', '@conciv/harness']
 const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/unplugin/nextjs']
+const EXTENSIONS_WATCH_FILE = './core/extensions-watch.js'
+const BOOT_FILE = './core/boot.js'
 
 function findInstrumentationFile(dir: string, pageExtensions: string[]): string | undefined {
   const hasRootRoutes = existsSync(join(dir, 'app')) || existsSync(join(dir, 'pages'))
@@ -57,10 +63,13 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
   const port = options.port ?? CONCIV_DEFAULT_PORT
   const resolved: ConcivConfig = {...options, port}
-  const concivEnv = {
-    NEXT_PUBLIC_CONCIV_PORT: String(port),
-    CONCIV_OPTIONS: JSON.stringify(resolved),
-  }
+  const widgetOff = options.widget === false
+  const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port)}
+  const concivEnv = {...widgetEnv, CONCIV_OPTIONS: JSON.stringify(resolved)}
+  const userEnv = widgetOff
+    ? Object.fromEntries(Object.entries(baseEnv).filter(([key]) => key !== WIDGET_PORT_KEY))
+    : baseEnv
+  if (widgetOff) Reflect.deleteProperty(process.env, WIDGET_PORT_KEY)
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
@@ -82,7 +91,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
   return {
     ...nextConfig,
-    env: {...baseEnv, ...concivEnv},
+    env: {...userEnv, ...concivEnv},
     serverExternalPackages,
     turbopack,
     webpack,
@@ -96,13 +105,17 @@ export async function register(): Promise<void> {
   if (options.enabled === false) return
   const root = process.cwd()
   try {
-    const {watchExtensionsDir} = await import('./extensions-watch.js')
-    watchExtensionsDir(root, listClientEntries(options))
+    const extensionsWatch: typeof ExtensionsWatch = await importBesideEntry(EXTENSIONS_WATCH_FILE)
+    extensionsWatch.watchExtensionsDir(root, listClientEntries(options))
   } catch (error) {
     console.error('conciv: failed to start extensions watcher', error)
   }
-  const {makeEngineBooter} = await import('./boot.js')
-  await makeEngineBooter(options, root, {}, 'exact')()
+  const boot: typeof Boot = await importBesideEntry(BOOT_FILE)
+  await boot.makeEngineBooter(options, root, {}, 'exact')()
+}
+
+function importBesideEntry(file: string) {
+  return import(/* webpackIgnore: true */ new URL(file, new URL(import.meta.url)).href)
 }
 
 function readConcivOptions(text: string): ConcivConfig {

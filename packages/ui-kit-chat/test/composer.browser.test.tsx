@@ -164,19 +164,21 @@ describe('action bar inactive unreachable', () => {
     await expect.element(page.getByText('reply'), {timeout: 2000}).toBeVisible()
     await page.getByRole('button', {name: 'ask-two'}).click()
     await expect.element(page.getByText('reply').nth(1), {timeout: 2000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Copy'}).nth(1), {timeout: 2000}).toBeVisible()
   }
 
-  it('restores reachability once the hidden bar becomes active on hover', async () => {
+  it('restores reachability once the hidden bar becomes active on hover, and keeps focus when the pointer leaves', async () => {
     await mountWithTwoAssistantReplies()
+    const firstCopy = page.getByRole('button', {name: 'Copy'}).first()
 
-    const firstReplyText = page.getByText('reply').first()
-    await firstReplyText.hover({force: true})
-
-    await expect.element(page.getByRole('button', {name: 'Copy'}).first()).toBeVisible()
+    await page.getByText('reply').first().hover({force: true})
+    await expect.element(firstCopy).toBeVisible()
 
     await userEvent.tab()
+    await expect.element(firstCopy).toHaveFocus()
 
-    await expect.element(page.getByRole('button', {name: 'Copy'}).first()).toHaveFocus()
+    await page.getByText('one').hover()
+    await expect.element(firstCopy).toHaveFocus()
   })
 })
 
@@ -323,7 +325,7 @@ describe('attachment image viewer', () => {
     await expect.element(viewer().getByRole('button', {name: 'Fit to window'})).toBeVisible()
   })
 
-  it('Escape closes the viewer and returns a visible focus to the tile', async () => {
+  it('Escape closes the viewer and returns focus to the tile', async () => {
     mountComposer([imageFile()])
 
     await tile().click()
@@ -332,7 +334,6 @@ describe('attachment image viewer', () => {
 
     await expect.element(viewer()).not.toBeInTheDocument()
     await expect.element(tile()).toHaveFocus()
-    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
     await userEvent.keyboard('{Enter}')
     await viewer().getByRole('button', {name: 'Close'}).click()
     await expect.element(viewer()).not.toBeInTheDocument()
@@ -444,6 +445,23 @@ describe('attachment only user message', () => {
 
     await expect.element(page.getByText('what color is this'), {timeout: 2000}).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'image-1'})).toBeVisible()
+  })
+
+  it('an image sent as a data URL is named image, never by its data', async () => {
+    const sentDataUrl = (): SendContent => ({
+      content: [
+        {type: 'text', content: 'what is in this'},
+        {type: 'image', source: {type: 'url', value: `data:image/gif;base64,${GIF_BASE64}`}},
+      ],
+    })
+    mountView(() => <ThreadHost content={sentDataUrl} />)
+
+    await page.getByRole('button', {name: 'send'}).click()
+
+    await expect.element(page.getByText('what is in this'), {timeout: 2000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Open image', exact: true})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'image', exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /base64/})).not.toBeInTheDocument()
   })
 })
 

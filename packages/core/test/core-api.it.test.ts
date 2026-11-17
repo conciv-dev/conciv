@@ -45,6 +45,7 @@ import {
   codeExecuteReply,
   makeBrowserRpcClient,
   PluginExperimentalBundleSchema,
+  SOCKET_TRUST_FRAME,
   type EngineStaleness,
 } from '@conciv/contract'
 import {
@@ -58,7 +59,7 @@ import {
   defineAttachment,
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
-import {getHarness} from '@conciv/harness'
+import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {createHubConnections} from '@conciv/harness-init/hub'
 import {
   anchorKey,
@@ -97,6 +98,7 @@ import {
   type RunStream,
   type McpClient,
   type McpTool,
+  type RpcClient,
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
@@ -113,7 +115,7 @@ import {
   runLifecycleEvent,
   sessionRunEvent,
 } from '@conciv/protocol/chat-event-types'
-import {webSocket} from '@conciv/ai/client'
+import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   CHAT_SSE_PATH,
@@ -131,7 +133,15 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
+import {
+  type HarnessChatDeps,
+  type HarnessConnectContext,
+  type HarnessListCursor,
+  type HarnessModel,
+} from '@conciv/protocol/harness-types'
+import {type TtyCommand} from '@conciv/protocol/terminal-types'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   type PageOutcome,
   PageQuerySchema,
@@ -167,7 +177,6 @@ import {
   requireTranscriptPath,
   connectWidget,
   chunkWithInlineMap,
-  cleanupChunks,
   hydratedSnapshot,
   runTurn,
   userTexts,
@@ -598,7 +607,7 @@ describe('api installed harnesses', () => {
 })
 
 describe('connect hub', () => {
-  const root = join(realpathSync(tmpdir()), `conciv-connect-hub-${randomUUID()}`)
+  const root = realpathSync(tempDir('conciv-connect-hub-'))
   const engineHome = join(root, 'engine-home')
   const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
@@ -1518,10 +1527,6 @@ describe('api native page', () => {
 })
 
 describe('api page open source', () => {
-  afterEach(async () => {
-    await cleanupChunks()
-  })
-
   describe('editor.openFromFrames', () => {
     const opened: Array<{file: string; line?: number}> = []
     const record = (file: string, line?: number) => opened.push({file, ...(line === undefined ? {} : {line})})
@@ -1594,7 +1599,6 @@ describe('api page page', () => {
       state.widget?.end()
       state.widget = undefined
       await kit().rpc.page.clearChanges(undefined)
-      await cleanupChunks()
     })
 
     it('a call its rpc caller aborts drops its page query, so the late reply settles nothing', async () => {
@@ -3495,7 +3499,7 @@ describe('rpc wire', () => {
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
         expect(await executeResult('return 1 + 1')).toBe(2)
         expect(await executeResult('return await external_fixture_echo({text: "bound"})')).toEqual({echoed: 'bound'})
-        expect(await executeResult('return typeof external_conciv_extensions')).toBe('function')
+        expect(await executeResult('return typeof external_conciv_ui')).toBe('function')
         expect(await runTypescript('console.log("logged line"); return 5')).toMatchObject({
           result: 5,
           logs: ['logged line'],
@@ -7289,4 +7293,394 @@ describe('engine plugin bundles', () => {
     await expect(cancelled).rejects.toMatchObject({name: 'AbortError', message: 'Stream was cancelled'})
     expect(await changes.next()).toEqual({done: true, value: undefined})
   })
+})
+
+describe('prefixed serving', () => {
+  const TOKEN = '8a1e7d5c-3b2f-4e6a-9c0d-1f2e3a4b5c6d'
+
+  describe('prefixed serving over the real wire (start with an access token)', () => {
+    let root: string
+    let engine: Engine
+    let base: string
+    let rpc: RpcClient
+
+    beforeAll(async () => {
+      root = tempDir('conciv-prefixed-wire-')
+      const harness: HarnessAdapter = createFakeHarness({id: 'fake-prefixed-wire', text: 'prefixed ok'})
+      engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-prefixed-wire'},
+        root,
+        harness,
+        launchEditor: () => {},
+        accessToken: TOKEN,
+      })
+      base = `http://127.0.0.1:${engine.port}/t/${TOKEN}`
+      rpc = makeRpcClient(base)
+    })
+
+    afterAll(async () => {
+      await engine?.stop()
+      rmSync(root, {recursive: true, force: true})
+    })
+
+    it('the mcp url under the token prefix answers mcp and the bare one is refused', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+      try {
+        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
+      } finally {
+        await mcp.close()
+      }
+      await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
+    })
+
+    it('streams a chat turn over the prefixed delivery route', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const abort = new AbortController()
+      const connection = fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`)
+      const types: string[] = []
+      for await (const chunk of connection.connect(
+        [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello through the prefix'}]}],
+        {},
+        abort.signal,
+        {threadId: sessionId, runId: randomUUID()},
+      )) {
+        types.push(chunk.type)
+        if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) break
+      }
+      abort.abort()
+
+      expect(types).toContain(ChatEventType.RUN_FINISHED)
+    })
+
+    it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const sessionRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      await expect(
+        sessionRpc.chat.permissionDecision({approvalId: 'none-pending', approved: false}),
+      ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+    })
+  })
+})
+
+describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', () => {
+  const SHELL = ['--noprofile', '--norc', '-i']
+  const BUSY_MODEL = 'busy-model'
+  const terminalHarness = (id: string, pidFile: string) => {
+    const connects: HarnessConnectContext[] = []
+    const command = (context: HarnessConnectContext): TtyCommand => {
+      connects.push(context)
+      const env = {TERM: 'xterm-256color', PS1: 'P> ', PID_FILE: pidFile}
+      const busy = context.model === BUSY_MODEL ? `printf '\\033]9;4;1\\007'; ` : ''
+      return {bin: 'bash', args: ['-c', `echo $$ > "$PID_FILE"; ${busy}exec bash ${SHELL.join(' ')}`], env}
+    }
+    return {connects, harness: createFakeHarness({id, history: [], tty: {command}})}
+  }
+  const processAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  type TerminalSocket = {socket: WebSocket; text: () => string; controls: string[]}
+
+  const openTerminalSocket = (url: string, origin?: string): Promise<TerminalSocket> => {
+    const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
+    const received: string[] = []
+    const controls: string[] = []
+    socket.on('message', (data, isBinary) => {
+      if (isBinary) received.push(new TextDecoder().decode(Array.isArray(data) ? Buffer.concat(data) : data))
+      else controls.push(String(data))
+    })
+    return new Promise((resolve, reject) => {
+      socket.once('open', () => resolve({socket, text: () => received.join(''), controls}))
+      socket.once('error', reject)
+    })
+  }
+
+  const refusedStatus = (url: string, origin?: string): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
+      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
+      socket.once('open', () => reject(new Error('the upgrade completed without a valid ticket')))
+    })
+
+  const closeCode = (url: string): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const socket = new WebSocket(url)
+      socket.once('close', (code) => resolve(code))
+      socket.once('error', reject)
+    })
+
+  const shows = async (terminal: TerminalSocket, text: string): Promise<void> => {
+    await until(() => terminal.text().includes(text))
+  }
+
+  const connectUrl = async (base: string, ptyId: string, query = '', origin?: string): Promise<string> => {
+    const client = makeRpcClient(base, origin === undefined ? {} : {headers: {origin}})
+    const {ticket, expiresIn} = await client.experimental.persistentPty.connectToken({ptyId})
+    expect(expiresIn).toBe(60)
+    return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
+  }
+
+  const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
+
+  it(
+    'creates one terminal per session running its harness CLI, reuses it, refuses removing it while busy, resumes a known transcript, and dies with the engine',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-')
+      const transcripts = join(root, 'transcripts')
+      mkdirSync(transcripts)
+      const pidFile = join(root, 'pid')
+      const fake = terminalHarness('fake-terminal', pidFile)
+      if (fake.harness.history === undefined) throw new Error('the fake harness has no history')
+      const harness: HarnessAdapter = {
+        ...fake.harness,
+        history: {
+          ...fake.harness.history,
+          transcriptRoot: () => transcripts,
+          transcriptPath: (_cwd: string, token: HarnessSessionId) => join(transcripts, `${token}.jsonl`),
+        },
+      }
+      const engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal'},
+        root,
+        harness,
+        launchEditor: () => {},
+        homeDir: tempDir('conciv-home-'),
+      })
+      const stopped = {current: false}
+      onTestFinished(async () => {
+        if (!stopped.current) await engine.stop()
+      })
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const rpc = makeRpcClient(base)
+      const terminal = rpc.experimental.persistentPty
+      const {sessionId} = await rpc.sessions.create(undefined)
+
+      const created = await terminal.create({sessionId, size: {cols: 100, rows: 30}, model: 'claude-x'})
+      expect(created).toEqual({id: expect.stringMatching(/^pty_/), sessionId, size: {cols: 100, rows: 30}, busy: false})
+      expect(fake.connects).toHaveLength(1)
+      const first = fake.connects[0]
+      expect(first).toMatchObject({cwd: root, concivSessionId: sessionId, model: 'claude-x', resume: false})
+      expect(first?.mcpUrl).toBe(`${base}/api/mcp`)
+      expect(first?.harnessSessionId).toEqual(expect.any(String))
+
+      expect(await terminal.create({sessionId, size: {cols: 90, rows: 20}})).toEqual({
+        ...created,
+        size: {cols: 90, rows: 20},
+      })
+      expect(fake.connects).toHaveLength(1)
+
+      expect(await terminal.remove({ptyId: created.id})).toEqual({ok: true})
+      await expect(terminal.remove({ptyId: created.id})).rejects.toMatchObject({
+        code: 'PTY_NOT_FOUND',
+        status: 404,
+        data: {ptyId: created.id},
+      })
+
+      writeFileSync(join(transcripts, `${first?.harnessSessionId}.jsonl`), '')
+      const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
+      expect(resumed.id).not.toBe(created.id)
+      expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
+      const banner = await openTerminalSocket(await connectUrl(base, resumed.id))
+      await shows(banner, '\u2500 conciv: resumed session \u2500')
+      banner.socket.close()
+
+      await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
+      await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
+      expect((await terminal.create({sessionId})).id).toBe(resumed.id)
+
+      const pid = readPid(pidFile)
+      expect(processAlive(pid)).toBe(true)
+      stopped.current = true
+      await engine.stop()
+      await until(() => !processAlive(pid))
+    },
+  )
+
+  it(
+    'a session switched to another harness never gets the old terminal back, and one with no terminal command is refused NO_TTY',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-switch-')
+      const first = terminalHarness('fake-terminal-a', join(root, 'pid-a'))
+      const second = terminalHarness('fake-terminal-b', join(root, 'pid-b'))
+      const bare = createFakeHarness({id: 'fake-no-terminal'})
+      const kit = await bootKit({cwd: root, harnesses: [second.harness, bare]}, first.harness)
+      onTestFinished(() => kit.cleanup())
+      const terminal = kit.rpc.experimental.persistentPty
+      const {sessionId} = await kit.rpc.sessions.create(undefined)
+
+      const onFirst = await terminal.create({sessionId})
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-b'})
+      const onSecond = await terminal.create({sessionId})
+      expect(onSecond.id).not.toBe(onFirst.id)
+      expect(first.connects).toHaveLength(1)
+      expect(second.connects).toHaveLength(1)
+      await expect(terminal.remove({ptyId: onFirst.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-a'})
+      const back = await terminal.create({sessionId})
+      expect(back.id).not.toBe(onFirst.id)
+      expect(first.connects).toHaveLength(2)
+      await expect(terminal.remove({ptyId: onSecond.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-no-terminal'})
+      await expect(terminal.create({sessionId})).rejects.toMatchObject({code: 'NO_TTY'})
+    },
+  )
+
+  it(
+    'a ticketed socket carries the terminal both ways and replays to a late attacher, a socket with a missing, used, foreign, disallowed or other-origin ticket is refused, and outside agents cannot use the terminal',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-socket-')
+      const fake = terminalHarness('fake-terminal-socket', join(root, 'pid'))
+      const engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-socket'},
+        root,
+        harness: fake.harness,
+        launchEditor: () => {},
+        homeDir: tempDir('conciv-home-'),
+      })
+      onTestFinished(() => engine.stop())
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const rpc = makeRpcClient(base)
+      const terminal = rpc.experimental.persistentPty
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const pty = await terminal.create({sessionId})
+
+      const first = await openTerminalSocket(await connectUrl(base, pty.id, '&cols=100&rows=30'))
+      first.socket.send('echo ws-roundtrip-$((40+2))\r')
+      await shows(first, 'ws-roundtrip-42')
+      expect(first.controls).toContain(JSON.stringify({type: 'busy', busy: false}))
+      first.socket.send('stty size\r')
+      await shows(first, '30 100')
+      first.socket.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
+      first.socket.send('stty size\r')
+      await shows(first, '27 91')
+      first.socket.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
+      await shows(first, '\r\nconciv says hi\r\n')
+      first.socket.close()
+
+      const late = await openTerminalSocket(await connectUrl(base, pty.id))
+      await shows(late, 'ws-roundtrip-42')
+      await shows(late, '\r\nconciv says hi\r\n')
+      late.socket.close()
+
+      const connectPath = (ptyId: string) =>
+        `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect`
+      expect(await refusedStatus(connectPath(pty.id))).toBe(403)
+      expect(await refusedStatus(`${connectPath(pty.id)}?ticket=not-a-ticket`)).toBe(403)
+      const used = await connectUrl(base, pty.id)
+      const usedOnce = await openTerminalSocket(used)
+      usedOnce.socket.close()
+      expect(await refusedStatus(used)).toBe(403)
+      const foreign = new URL(await connectUrl(base, pty.id)).searchParams.get('ticket')
+      expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
+      expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
+      await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const widget = 'http://localhost:5173'
+      const sameOrigin = await openTerminalSocket(await connectUrl(base, pty.id, '', widget), widget)
+      await shows(sameOrigin, 'ws-roundtrip-42')
+      sameOrigin.socket.close()
+      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget), 'http://127.0.0.1:5173')).toBe(403)
+      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget))).toBe(403)
+
+      const outside = makeRpcClient(base, {
+        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+      }).experimental.persistentPty
+      await expect(outside.create({sessionId})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(outside.connectToken({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      expect((await terminal.create({sessionId})).id).toBe(pty.id)
+
+      const gone = await connectUrl(base, pty.id)
+      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
+      expect(await closeCode(gone)).toBe(4404)
+    },
+  )
+
+  const trustedBrowserTerminal = async (prefix: string) => {
+    const root = tempDir(prefix)
+    const fake = terminalHarness('fake-terminal-revoke', join(root, 'pid'))
+    const engine = await start({
+      options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-revoke'},
+      root,
+      harness: fake.harness,
+      launchEditor: () => {},
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const origin = `http://127.0.0.1:${engine.port}`
+    const base = `${origin}/t/${engine.agentToken}`
+    const rpc = makeRpcClient(base)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    const pty = await rpc.experimental.persistentPty.create({sessionId})
+    const browserToken = engine.trustBrowser(
+      {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'},
+      Date.now(),
+    )
+    const browserTicketUrl = async (): Promise<string> => {
+      const url = new URL(await connectUrl(`${origin}/t/${browserToken}`, pty.id))
+      url.pathname = url.pathname.replace(`/t/${browserToken}`, '')
+      return url.toString()
+    }
+    const openAsBrowser = async (url: string) => {
+      const terminal = await openTerminalSocket(url)
+      const closes: number[] = []
+      terminal.socket.on('close', (code) => closes.push(code))
+      terminal.socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: browserToken}))
+      return {...terminal, closes}
+    }
+    const revoke = (): void => {
+      revokeBrowsers(concivStateDir(root), 'all')
+    }
+    const shownToEngine = async (proof: string): Promise<string> => {
+      const witness = await openTerminalSocket(await connectUrl(base, pty.id))
+      witness.socket.send(`\recho ${proof}-$((3+4))\r`)
+      await shows(witness, `${proof}-7`)
+      witness.socket.close()
+      return witness.text()
+    }
+    return {browserTicketUrl, openAsBrowser, revoke, shownToEngine}
+  }
+
+  it(
+    'revoking a browser closes its terminal socket with 1008, and nothing it writes afterwards reaches the terminal',
+    {timeout: 20_000},
+    async () => {
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-live-')
+      const kept = await browser.openAsBrowser(await browser.browserTicketUrl())
+      kept.socket.send('\recho kept-$((40+2))\r')
+      await shows(kept, 'kept-42')
+
+      browser.revoke()
+      await until(() => kept.closes.length > 0)
+      expect(kept.closes).toEqual([1008])
+      kept.socket.send('\recho late-$((5+6))\r')
+      expect(await browser.shownToEngine('after-late')).not.toContain('late-11')
+    },
+  )
+
+  it(
+    'a terminal ticket a browser was given before its revoke opens no terminal after it: the socket closes 1008',
+    {timeout: 20_000},
+    async () => {
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-ticket-')
+      const minted = await browser.browserTicketUrl()
+      browser.revoke()
+
+      const stale = await browser.openAsBrowser(minted)
+      stale.socket.send('\recho stale-$((2+3))\r')
+      await until(() => stale.closes.length > 0)
+      expect(stale.closes).toEqual([1008])
+      expect(await browser.shownToEngine('after-stale')).not.toContain('stale-5')
+    },
+  )
 })

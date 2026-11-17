@@ -56,7 +56,6 @@ skills:
     sources:
       - 'conciv-dev/conciv:apps/site/content/docs/extending/your-first-extension.mdx'
       - 'conciv-dev/conciv:apps/site/content/docs/extending/install-first-party.mdx'
-      - 'conciv-dev/conciv:packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md'
       - 'conciv-dev/conciv:packages/extension/src/define-extension.ts'
       - 'conciv-dev/conciv:packages/extension/src/define-tool.ts'
 
@@ -143,8 +142,6 @@ coverage:
     - name: '@conciv/ui-kit-tap'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/ui-kit-terminal'
-      reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/extension-test-runner'
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/extension-whiteboard'
       reason: 'internal to @conciv/it, not installed directly'

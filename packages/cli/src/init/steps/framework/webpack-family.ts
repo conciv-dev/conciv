@@ -28,14 +28,6 @@ module.exports = {
   }
 }
 
-function widgetCard(name: FamilyName): ManualCard {
-  return {
-    title: 'The widget is not added for you',
-    body: `conciv's ${name} integration starts the engine while the dev server runs, but it does not add the widget to your page.
-What works today: https://conciv.dev/docs/quick-start/${name}`,
-  }
-}
-
 function pluginCall(style: 'cjs' | 'esm'): string {
   if (style === 'cjs') return 'conciv.default()'
   return 'conciv()'
@@ -72,13 +64,11 @@ export function webpackFamilyStep(detected: Detected): InitStep {
     }),
     apply: async (ctx) => {
       const config = readConfig(ctx.cwd, detected.configFile)
-      if (config === null) return {status: 'manual', cards: [configCard(name), widgetCard(name)]}
+      if (config === null) return {status: 'manual', cards: [configCard(name)]}
       const transformed = transformConfig(config.content, name)
-      if (!transformed.matched || transformed.output === null) {
-        return {status: 'manual', cards: [configCard(name), widgetCard(name)]}
-      }
+      if (!transformed.matched || transformed.output === null) return {status: 'manual', cards: [configCard(name)]}
       writeConfigChange(ctx, config, transformed.output)
-      return {status: 'manual', cards: [widgetCard(name)]}
+      return {status: 'done'}
     },
     verify: async (ctx) => detectWired(ctx.cwd, detected.configFile, name) === 'present',
     manualCard: () => configCard(name),
