@@ -99,9 +99,9 @@ async function waitForEngine(handle: NextHandle, port: number): Promise<void> {
   }
 }
 
-function binShimTargetExists(appDir: string): boolean {
+function binShimLinksToRealFile(appDir: string): boolean {
   const shim = join(appDir, '.conciv/bin/conciv')
-  return lstatSync(shim, {throwIfNoEntry: false}) === undefined || existsSync(shim)
+  return lstatSync(shim, {throwIfNoEntry: false}) !== undefined && existsSync(shim)
 }
 
 test.describe('a workspace-linked @conciv/it under next dev and then next build', () => {
@@ -114,7 +114,7 @@ test.describe('a workspace-linked @conciv/it under next dev and then next build'
       writeLinkedApp(appDir, enginePort)
       handle = startLinkedNextDev(appDir, devPort)
       await waitForEngine(handle, enginePort)
-      expect(binShimTargetExists(appDir), '.conciv/bin/conciv links to a file that exists').toBe(true)
+      expect(binShimLinksToRealFile(appDir), '.conciv/bin/conciv exists and links to a file that exists').toBe(true)
       expect(readFileSync(handle.logPath, 'utf8')).not.toContain('too dynamic')
       await stopNext(handle, enginePort)
       handle = undefined
