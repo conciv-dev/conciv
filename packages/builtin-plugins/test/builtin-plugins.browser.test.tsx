@@ -34,6 +34,7 @@ import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
+import {makeHighlight} from '../src/page/highlight.js'
 import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
@@ -1070,6 +1071,38 @@ describe('page effects', () => {
     expect(readValue(await driver.execute(command('effect', {action: 'list'})), 'effect')).toEqual({
       effects: [{name: 'banner', description: 'first banner', enabled: false}],
     })
+  })
+
+  it('holding Alt inspects the page until Alt is released or Esc is pressed, and not while typing in a textbox', async () => {
+    const highlight = makeHighlight({open: async () => 'no-source', toast: () => {}})
+    const layer = document.createElement('div')
+    const field = document.createElement('input')
+    field.setAttribute('aria-label', 'note')
+    document.body.append(layer, field)
+    const dispose = highlight.mount(layer)
+    onTestFinished(() => {
+      dispose()
+      layer.remove()
+      field.remove()
+    })
+    const hint = page.getByText('Inspecting')
+
+    expect(document.activeElement).toBe(document.body)
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hint).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+
+    await userEvent.click(page.getByRole('textbox', {name: 'note'}))
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
   })
 })
 

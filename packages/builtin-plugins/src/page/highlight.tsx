@@ -1,6 +1,7 @@
 import {Show, onCleanup, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {getKeyStateTracker} from '@tanstack/hotkeys'
 import {render} from 'solid-js/web'
 import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
@@ -16,6 +17,8 @@ export type HighlightOptions = {
 }
 
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
+
+type AltHold = 'released' | 'inspecting' | 'ignored'
 
 const SRC_SELECTOR = '[data-tsd-source]'
 const GLIDE = 'transition-transform duration-[80ms] ease-chat'
@@ -38,6 +41,17 @@ function elementAt(x: number, y: number): Element | null {
       .elementsFromPoint(x, y)
       .find((element) => !element.closest('[data-conciv-root]') && !element.closest(`[${PLUGIN_OVERLAY_ATTR}]`)) ?? null
   )
+}
+
+const isEditing = (): boolean => {
+  const element = document.activeElement
+  if (!(element instanceof HTMLElement)) return false
+  return element.isContentEditable || element.tagName === 'INPUT' || element.tagName === 'TEXTAREA'
+}
+
+function followAltHold(onChange: (down: boolean) => void): void {
+  const subscription = getKeyStateTracker().store.subscribe((state) => onChange(state.heldKeys.includes('Alt')))
+  onCleanup(() => subscription.unsubscribe())
 }
 
 function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX.Element {
@@ -127,17 +141,26 @@ export function makeHighlight(options: HighlightOptions): {
   effect: PageEffect
   mount: (element: HTMLElement) => () => void
 } {
-  const [state, setState] = createStore({driven: false})
+  const [state, setState] = createStore<{driven: boolean; alt: AltHold}>({driven: false, alt: 'released'})
 
-  const mount = (element: HTMLElement) =>
-    render(
-      () => (
-        <Show when={state.driven}>
-          <HighlightInspector open={options.open} toast={options.toast} onExit={() => setState('driven', false)} />
-        </Show>
-      ),
-      element,
+  const setAltHold = (down: boolean) => {
+    if (!down) return setState('alt', 'released')
+    if (state.alt === 'released') setState('alt', isEditing() ? 'ignored' : 'inspecting')
+  }
+
+  const exit = () => setState({driven: false, alt: state.alt === 'released' ? 'released' : 'ignored'})
+
+  const HighlightLayer = (): JSX.Element => {
+    followAltHold(setAltHold)
+
+    return (
+      <Show when={state.driven || state.alt === 'inspecting'}>
+        <HighlightInspector open={options.open} toast={options.toast} onExit={exit} />
+      </Show>
     )
+  }
+
+  const mount = (element: HTMLElement) => render(() => <HighlightLayer />, element)
 
   return {
     effect: {
