@@ -23,7 +23,7 @@ export function mountOverlay(
   root.adoptedStyleSheets = styles === undefined ? [shared] : [shared, createStyleSheet(styles.join('\n'))]
 
   return createRoot((disposeRoot) => {
-    const element = <div class={themeClasses(theme())} />
+    const element = <div class={`font-chat ${themeClasses(theme())}`} />
 
     if (!(element instanceof HTMLElement)) throw new Error('The overlay element did not render')
     root.append(element)
