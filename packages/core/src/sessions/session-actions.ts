@@ -7,7 +7,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
-import {createRow, rowById, tombstoneRow, type FreshRowInput} from './session-rows.js'
+import {createRow, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {PagePlugin} from '../page/page-plugin.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
@@ -24,9 +24,7 @@ type SessionDeletion = {
 
 export const newSessionId = (): SessionId => SessionId.parse(`conciv_${randomUUID()}`)
 
-type ChatSessionScope = {harnessKind: string; cwd: string}
-
-function chatRow(scope: ChatSessionScope, sessionId: SessionId): FreshRowInput {
+function chatRow(scope: RowScope, sessionId: SessionId): FreshRowInput {
   return {
     id: sessionId,
     harnessSessionId: null,
@@ -45,12 +43,11 @@ async function markNew(db: ConcivDb, sessionId: SessionId): Promise<void> {
 }
 
 export async function createChatSession(
-  db: ConcivDb,
-  scope: ChatSessionScope,
+  scope: RowScope,
   sessionId: SessionId = newSessionId(),
 ): Promise<{sessionId: SessionId}> {
-  await createRow(db, chatRow(scope, sessionId))
-  await markNew(db, sessionId)
+  await createRow(scope, chatRow(scope, sessionId))
+  await markNew(scope.db, sessionId)
   return {sessionId}
 }
 

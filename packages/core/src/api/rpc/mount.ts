@@ -12,6 +12,7 @@ import type {ConcivServerTool} from '@conciv/tools'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
+import type {RowScope} from '../../sessions/session-rows.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import {callTrace} from '../call-trace.js'
 import type {makeRpcRouter} from './router.js'
@@ -70,6 +71,7 @@ export type ChatContext = {
   cwd: string
   basePath: string
   db: ConcivDb
+  rows: RowScope
   plane: ChatPlane
   signal: AbortSignal
 }

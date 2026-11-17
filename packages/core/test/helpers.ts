@@ -228,6 +228,7 @@ export type ChatFixture = {
   stateRoot: string
   runtime: MadeApp['runtime']
   pluginHost: MadeApp['pluginHost']
+  rows: MadeApp['chat']['rows']
   dispose: () => Promise<void>
 }
 
@@ -236,7 +237,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const stateRoot = tempDir('conciv-fixture-')
   const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
   const sessionId = SessionId.parse('conciv_fixture')
-  if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)
+  if (opts.seedSession !== false) await ensureRow(made.chat.rows, sessionId)
   return {
     plane: made.plane,
     db: made.chat.db,
@@ -245,6 +246,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     stateRoot,
     runtime: made.runtime,
     pluginHost: made.pluginHost,
+    rows: made.chat.rows,
     dispose: made.dispose,
   }
 }

@@ -32,7 +32,13 @@ import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import {OUTSIDE_SESSION_TARGET, type ChatTool, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
+import {
+  OUTSIDE_SESSION_TARGET,
+  type ChatTool,
+  type HarnessSessionId,
+  type SessionId,
+  type SessionRecord,
+} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
@@ -58,7 +64,7 @@ import {
 import {eq} from 'drizzle-orm'
 import {isNotNil, memoize, pickBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
-import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
+import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
@@ -287,7 +293,7 @@ function sessionPort(
             deletedAt: row.deletedAt,
           }
     },
-    ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
+    ensure: (sessionId) => ensureRow(rows, sessionId),
     recordNativeId: (sessionId, harnessId, nativeId) => recordNativeId(db, sessionId, harnessId, nativeId),
     recordUsage: (sessionId, usage) => recordSessionUsage(db, sessionId, usage),
     recordContextTokens: async (sessionId, contextTokens) => {
@@ -421,6 +427,13 @@ function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness 
   }
 }
 
+function publishCreated(born: SessionRecord) {
+  const sessionID = SessionSchema.Id.make(born.id)
+  return Bus.Service.use((bus) =>
+    bus.publish(SessionEvent.Created, born.title === null ? {sessionID} : {sessionID, title: born.title}),
+  ).pipe(Effect.asVoid)
+}
+
 async function mcpSessionId(
   rows: RowScope,
   header: SessionId | null,
@@ -484,7 +497,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
   const {registry, stream} = primitives
-  const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
+  const rows: RowScope = {
+    db,
+    harnessKind: harness.id,
+    cwd: opts.cwd,
+    publishCreated: (born) => pluginHost.runPromise(publishCreated(born)),
+  }
   const harnessFor = (sessionId: SessionId): HarnessAdapter => {
     const kind = currentRow(db, sessionId)?.harnessKind
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
@@ -497,7 +515,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
-      await ensureRow(db, sessionId, harness.id, opts.cwd)
+      await ensureRow(rows, sessionId)
       await recordNativeId(db, sessionId, harnessFor(sessionId).id, token)
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
@@ -774,6 +792,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     cwd: opts.cwd,
     basePath,
     db,
+    rows,
     plane,
     signal: engineLife.signal,
   }
@@ -1003,7 +1022,7 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
     })
   }
   if (sessionId !== undefined) {
-    await ensureRow(rows.db, sessionId, rows.harnessKind, rows.cwd).catch((error: unknown) => {
+    await ensureRow(rows, sessionId).catch((error: unknown) => {
       throw new Error(`conciv: the configured conciv session "${sessionId}" could not be ensured`, {cause: error})
     })
   }

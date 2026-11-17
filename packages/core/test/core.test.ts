@@ -190,6 +190,7 @@ import {
   rowById,
   setMetadata,
   setPermissions,
+  type RowScope,
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
@@ -338,8 +339,8 @@ describe('chat plane', () => {
     const skilled = sessionId('skills')
     const builtins = sessionId('builtins')
     const db = openDatabase(root)
-    await ensureRow(db, skilled, 'fake-cli', root)
-    await ensureRow(db, builtins, 'fake-cli', root)
+    await ensureRow(unheardRows(db, root), skilled)
+    await ensureRow(unheardRows(db, root), builtins)
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
         Layer.provideMerge(
@@ -526,7 +527,7 @@ describe('chat plane', () => {
     expect(told.asked.at(-1)).toBe('sixth')
 
     const codeless = sessionId('codeless')
-    await ensureRow(db, codeless, 'fake-cli', root)
+    await ensureRow(unheardRows(db, root), codeless)
     const registry = createToolRegistry()
     const ping = defineTool({
       name: 'unit_ping',
@@ -1416,7 +1417,7 @@ describe('session metadata', () => {
     const root = tempDir('conciv-core-unit-')
     const db = openDb(root)
     const id = SessionId.parse('conciv_metadata')
-    await ensureRow(db, id, 'fake-cli', root)
+    await ensureRow(unheardRows(db, root), id)
     expect((await rowById(db, id))?.metadata).toBeNull()
 
     await setMetadata(db, id, {owner: 'review', tags: ['a', 'b']})
@@ -2004,7 +2005,7 @@ describe('page bus and the session scope', () => {
     onTestFinished(() => made.dispose())
     await made.awaitActivation()
     const id = SessionId.parse('conciv_queue_cancelled_on_delete')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     const offered = Promise.withResolvers<string>()
     const held = Promise.withResolvers<string>()
     const tab = await tabs.open(id, (command, requestId): PageReply | undefined => {
@@ -2070,7 +2071,7 @@ describe('page bus and the session scope', () => {
     onTestFinished(stop)
     await made.awaitActivation()
     const id = SessionId.parse('conciv_queue_reply_went_out')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     const held = Promise.withResolvers<string>()
     const tab = await tabs.open(id, (command, requestId): PageReply | undefined => {
       if (command.queued === undefined) return {type: 'success', result: {value: {}, files: []}}
@@ -3057,6 +3058,10 @@ describe('settings storage', () => {
 
 type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
 
+function unheardRows(db: ConcivDb, cwd: string): RowScope {
+  return {db, harnessKind: 'fake-cli', cwd, publishCreated: async () => {}}
+}
+
 function sessionKey(made: MadeApp) {
   const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
   onTestFinished(() => search.dispose())
@@ -3158,7 +3163,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_deleted_while_the_bus_is_broken')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
     const scope = made.runtime.forSession(id)
     await scope.captures.store('call-1', {
@@ -3186,7 +3191,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_deleted_while_the_bus_and_captures_are_broken')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
     const scope = made.runtime.forSession(id)
     await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
@@ -3220,7 +3225,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
     const scope = made.runtime.forSession(id)
     await scope.captures.store('call-1', {
@@ -3268,7 +3273,7 @@ describe('plugin host bus', () => {
     const dispose = onceOnly(() => made.dispose())
     onTestFinished(dispose)
     const id = SessionId.parse('conciv_idle')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     const idles: unknown[] = []
     const laterIdles: unknown[] = []
     const idleFailure: {message: string | null} = {message: null}
@@ -3392,7 +3397,7 @@ describe('plugin host bus', () => {
     onTestFinished(() => made.dispose())
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_keyed_run')
-    await ensureRow(made.chat.db, id, harness.id, stateRoot)
+    await ensureRow(made.chat.rows, id)
     const runs = async () => (await made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id))).length
 
     harness.script.hold()
@@ -3566,7 +3571,7 @@ describe('plugin host bus', () => {
     await inFlight.done()
     harness.script.release()
 
-    await ensureRow(made.chat.db, ending, harness.id, made.chat.cwd)
+    await ensureRow(made.chat.rows, ending)
     const stoppedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
     endingGates.push(stoppedGate)
     const stoppedWhileEnding = made.plane.followUp(ending, 'answer, then a stop arrives while the turn ends')
@@ -3574,7 +3579,7 @@ describe('plugin host bus', () => {
     expect(await made.runtime.forSession(ending).run.stop()).toEqual({ok: true, stopped: true})
     stoppedGate.held.resolve()
     expect(await stoppedWhileEnding).toEqual({kind: 'delivered'})
-    expect(heardBy(ending)).toEqual(['session.instructions.updated during a run'])
+    expect(heardBy(ending)).toEqual(['session.created with no run', 'session.instructions.updated during a run'])
 
     const heardBeforeDelete = heardBy(ending).length
     const deletedGate = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
@@ -3656,7 +3661,7 @@ describe('plugin host bus', () => {
       }),
     ).toEqual({reason: 'missing', message: `session "${refused}" does not exist`})
     expect(publishedToRefused).toEqual([])
-    expect(heardBy(refused)).toEqual(['session.deleted with no run'])
+    expect(heardBy(refused)).toEqual(['session.created with no run', 'session.deleted with no run'])
     const afterRefusal = await made.plane.hydrate(refused)
     expect([afterRefusal.messages, afterRefusal.lastRun]).toEqual([beforeRefusal.messages, beforeRefusal.lastRun])
 
@@ -3816,7 +3821,7 @@ describe('session.created on the plugin host bus', () => {
     expect.soft(bornAs(fromRpc)).toHaveLength(1)
 
     const key = sessionKey(made)
-    const fromPlugin = await key.run((sessions) => sessions.create({}))
+    const fromPlugin = await key.run((sessions) => sessions.create({parentId: null}))
     expect.soft(bornAs(fromPlugin.id)).toHaveLength(1)
 
     const {sessionId: fromNative} = await kit.rpc.sessions.resolve({id: resolvedNative})
@@ -3841,7 +3846,9 @@ describe('session.created on the plugin host bus', () => {
     expect.soft(bornAs(fromList)).toHaveLength(1)
 
     await kit.rpc.sessions.delete({sessionId: fromRpc})
-    expect(await key.fail((sessions) => sessions.create({id: SessionSchema.Id.make(fromRpc)}))).toMatchObject({
+    expect(
+      await key.fail((sessions) => sessions.create({id: SessionSchema.Id.make(fromRpc), parentId: null})),
+    ).toMatchObject({
       _tag: 'Session.NotFoundError',
       sessionId: fromRpc,
     })
@@ -4275,7 +4282,7 @@ describe('plugin permission cards', () => {
     const fixture = await makeChatFixture()
     const {plane, runtime, db, sessionId: id, stateRoot} = fixture
     const other = SessionId.parse('conciv_other')
-    await ensureRow(db, other, fixture.harness.id, stateRoot)
+    await ensureRow(fixture.rows, other)
     const host = ManagedRuntime.make(
       Layer.mergeAll(Tool.layer, Permission.layer).pipe(
         Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
@@ -4546,7 +4553,7 @@ describe('direct tools on the MCP surface', () => {
     onTestFinished(stop)
     await made.awaitActivation()
     const id = SessionId.parse('conciv_mcp_direct')
-    await ensureRow(made.chat.db, id, made.chat.defaultHarness.id, root)
+    await ensureRow(made.chat.rows, id)
     const scope = made.pluginHost.runSync(Scope.make())
     await made.pluginHost.runPromise(
       Effect.gen(function* () {
@@ -4741,8 +4748,8 @@ describe('plugin context keys provided by core', () => {
     const db = openDb(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
-    await ensureRow(db, id, 'fake-cli', root)
-    await ensureRow(db, other, 'fake-cli', root)
+    await ensureRow(unheardRows(db, root), id)
+    await ensureRow(unheardRows(db, root), other)
     const base: {current: string | undefined} = {current: undefined}
     const devServer = defineBundlerBridge({
       id: 'unit-bundler',

@@ -30,7 +30,13 @@ import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
 
-export type RowScope = {db: ConcivDb; harnessKind: string; cwd: string; mintId?: () => SessionId}
+export type RowScope = {
+  db: ConcivDb
+  harnessKind: string
+  cwd: string
+  mintId?: () => SessionId
+  publishCreated: (born: SessionRecord) => Promise<void>
+}
 
 const resolveMintId = (scope: RowScope): (() => SessionId) =>
   scope.mintId ?? (() => SessionIdSchema.parse(`conciv_${randomUUID()}`))
@@ -119,9 +125,18 @@ function freshRecord(input: FreshRowInput): SessionRecord {
   return SessionRecordSchema.parse({...input, createdAt: now, updatedAt: now})
 }
 
-export async function createRow(db: ConcivDb, input: FreshRowInput): Promise<SessionRecord> {
+async function insertBorn(scope: RowScope, record: SessionRecord): Promise<void> {
+  const born = await scope.db
+    .insert(sessions)
+    .values(record)
+    .onConflictDoNothing({target: [sessions.harnessKind, sessions.cwd, sessions.harnessSessionId]})
+    .returning({id: sessions.id})
+  if (born.length > 0) await scope.publishCreated(record)
+}
+
+export async function createRow(scope: RowScope, input: FreshRowInput): Promise<SessionRecord> {
   const record = freshRecord(input)
-  await db.insert(sessions).values(record)
+  await insertBorn(scope, record)
   return record
 }
 
@@ -144,10 +159,7 @@ async function claimNativeRow(
     createdAt: now,
     updatedAt: now,
   })
-  await scope.db
-    .insert(sessions)
-    .values(record)
-    .onConflictDoNothing({target: [sessions.harnessKind, sessions.cwd, sessions.harnessSessionId]})
+  await insertBorn(scope, record)
   const settled = await rowByNativeRef(scope.db, ref)
   if (settled === null) throw new Error(`session row for native session "${ref.nativeId}" vanished while claiming it`)
   return settled
@@ -168,17 +180,17 @@ export async function recordNativeId(
     .where(and(eq(sessions.id, id), eq(sessions.harnessKind, harnessKind)))
 }
 
-export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string, cwd: string): Promise<void> {
-  if (await rowById(db, id)) return
-  await createRow(db, {
+export async function ensureRow(scope: RowScope, id: SessionId): Promise<void> {
+  if (await rowById(scope.db, id)) return
+  await createRow(scope, {
     id,
     harnessSessionId: null,
-    harnessKind,
+    harnessKind: scope.harnessKind,
     origin: 'chat',
     title: null,
     model: null,
     usage: null,
-    cwd,
+    cwd: scope.cwd,
     deletedAt: null,
   })
 }
@@ -203,7 +215,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
     if (existing) return existing.deletedAt === null ? {sessionId: existing.id} : null
-    await ensureRow(scope.db, body.id, scope.harnessKind, scope.cwd)
+    await ensureRow(scope, body.id)
     return {sessionId: body.id}
   }
   const nativeId = HarnessSessionIdSchema.safeParse(body.id)
@@ -217,7 +229,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   const latest = await latestRow(scope)
   if (latest) return {sessionId: latest.id}
   const minted = mint()
-  await ensureRow(scope.db, minted, scope.harnessKind, scope.cwd)
+  await ensureRow(scope, minted)
   return {sessionId: minted}
 }
 
@@ -252,7 +264,7 @@ export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId
 }
 
 export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
-  const created = await createRow(scope.db, {
+  const created = await createRow(scope, {
     id: resolveMintId(scope)(),
     harnessSessionId: null,
     harnessKind: scope.harnessKind,
@@ -354,6 +366,7 @@ type MetaContext = {
 
 export type SessionListInput = MetaContext & {
   cwd: string
+  publishCreated: RowScope['publishCreated']
   nativePages: NativePage[]
   page: HarnessListPage
   includeHidden: boolean
@@ -576,7 +589,7 @@ function isListed(row: SessionRecord, input: SessionListInput): boolean {
 
 async function materializedRow(native: NativeSession, input: SessionListInput): Promise<SessionRecord | null> {
   const cwd = resolveHome(native, input)
-  const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd}
+  const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd, publishCreated: input.publishCreated}
   const opened = await openNativeRow(scope, {
     harnessKind: native.harnessKind,
     cwd,

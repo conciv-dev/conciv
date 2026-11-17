@@ -178,8 +178,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
           if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
           const sessionId = supplied ?? newSessionId()
           const choice = yield* createdModel(chat, input, sessionId)
-          const scope = {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
-          yield* Effect.promise(() => createChatSession(chat.db, scope, sessionId))
+          yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
           yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
