@@ -89,7 +89,12 @@ export function PluginRoot(props: ParentProps) {
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
       onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
-      onCleanup(created.onSessionDeleted((sessionId) => void appData.invalidateSession(sessionId)))
+      onCleanup(
+        created.onSessionsChanged(
+          (sessionId) =>
+            void (sessionId === undefined ? appData.invalidateSessions() : appData.invalidateSession(sessionId)),
+        ),
+      )
       onCleanup(created.dispose)
 
       return created
