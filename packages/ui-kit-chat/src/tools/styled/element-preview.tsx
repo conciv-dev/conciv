@@ -43,9 +43,9 @@ const REPLICA_FRAME_ATTRIBUTES: Record<string, string> = {
 }
 
 const FRAME_BASE =
-  'relative w-full h-36 overflow-hidden contain-strict rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
+  'relative w-full max-h-36 overflow-hidden contain-content rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 const FRAME_READY = `${FRAME_BASE} opacity-100`
-const FRAME_LOADING = `${FRAME_BASE} anim-skel`
+const FRAME_LOADING = `${FRAME_BASE} h-36 anim-skel`
 const FRAME_FAILED = `${FRAME_BASE} hidden`
 const REPLICA_HOST = 'block w-full h-full'
 const REPLICA_HOST_READY = `${REPLICA_HOST} visible`
@@ -102,7 +102,12 @@ function Root(props: {capture?: ElementCapture; css?: string; children: JSX.Elem
   return <ElementPreviewContext.Provider value={value}>{props.children}</ElementPreviewContext.Provider>
 }
 
-function cropToTarget(frame: Element, replicaRoot: HTMLElement, target: Element): boolean {
+function frameCap(frame: HTMLElement, measured: number): number {
+  const cap = Number.parseFloat(getComputedStyle(frame).maxHeight)
+  return Number.isFinite(cap) ? cap : measured
+}
+
+function cropToTarget(frame: HTMLElement, replicaRoot: HTMLElement, target: Element): boolean {
   const frameRect = frame.getBoundingClientRect()
   if (frameRect.width === 0 || frameRect.height === 0) return false
   replicaRoot.style.transform = 'none'
@@ -112,12 +117,13 @@ function cropToTarget(frame: Element, replicaRoot: HTMLElement, target: Element)
   const dx = targetRect.left - replicaRect.left
   const dy = targetRect.top - replicaRect.top
   const availableWidth = Math.max(frameRect.width - FRAME_PADDING * 2, 1)
-  const availableHeight = Math.max(frameRect.height - FRAME_PADDING * 2, 1)
+  const availableHeight = Math.max(frameCap(frame, frameRect.height) - FRAME_PADDING * 2, 1)
   const scale = Math.min(availableWidth / targetRect.width, availableHeight / targetRect.height, MAX_CROP_SCALE)
   const translateX = -(dx - FRAME_PADDING / scale)
   const translateY = -(dy - FRAME_PADDING / scale)
   replicaRoot.style.transformOrigin = '0 0'
   replicaRoot.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`
+  frame.style.height = `${targetRect.height * scale + FRAME_PADDING * 2}px`
   return true
 }
 
@@ -200,7 +206,7 @@ function Frame(props: {class?: string}): JSX.Element {
     const descriptor = ctx.capture()?.descriptor
     return descriptor?.accessibleName ?? descriptor?.tagName ?? 'captured element'
   }
-  const applyCrop = (frame: Element): void => {
+  const applyCrop = (frame: HTMLElement): void => {
     const current = replica
     if (current === undefined) return
     if (!cropToTarget(frame, current.built, current.target)) return
@@ -237,7 +243,10 @@ function Frame(props: {class?: string}): JSX.Element {
       applyCrop(frame)
     })
   })
-  createResizeObserver(frameElement, (_rect, frame) => applyCrop(frame))
+  createResizeObserver(frameElement, () => {
+    const frame = frameElement()
+    if (frame !== undefined) applyCrop(frame)
+  })
   createEffect(() => {
     if (ctx.status() !== 'ready') return
     const frame = frameElement()
