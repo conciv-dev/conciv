@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {differenceBy, intersectionBy, isEqual, union, without} from 'es-toolkit'
+import {differenceBy, intersectionBy, isEqual, keyBy, union, without} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
@@ -164,6 +164,18 @@ function sameAsRow(draft: DraftRowContent, row: DraftRow | null | undefined): bo
   )
 }
 
+function sendableAttachments(
+  draft: LocalDraft,
+  filed: readonly {id: string}[],
+  encoded: DraftRow['attachments'],
+  row: DraftRow | null | undefined,
+): DraftRow['attachments'] {
+  const unfiled = differenceBy(draft.attachments, filed, (attachment) => attachment.id)
+  const held = intersectionBy(row?.attachments ?? [], unfiled, (attachment) => attachment.id)
+  const byId = keyBy([...held, ...encoded], (attachment) => attachment.id)
+  return draft.attachments.flatMap((attachment) => byId[attachment.id] ?? [])
+}
+
 type LocalDraftWriter = {
   writer: ComposerDraftWriter
   typed: () => DraftContent | null
@@ -184,11 +196,11 @@ function makeLocalDraftWriter(
     draft: null,
     files: [],
   })
-  const inFlight = (draft: LocalDraft | null): boolean => draft !== null && appData.savingDraft(sessionId, draft.sent)
-  const send = (recorded: LocalDraft, attachments: DraftRow['attachments']) => {
+  const send = (recorded: LocalDraft, filed: readonly {id: string}[], encoded: DraftRow['attachments']) => {
     const row = appData.cachedDraft(sessionId)
+    const attachments = sendableAttachments(recorded, filed, encoded, row)
     const current = document.draft
-    if (!current || inFlight(current) || sameAsRow({...recorded, attachments}, row)) return
+    if (!current || sameAsRow({...recorded, attachments}, row)) return
     if (row === null && isEmptied(recorded)) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
@@ -209,9 +221,10 @@ function makeLocalDraftWriter(
   }
   const feed = () => {
     const draft = document.draft
-    if (!draft || !sendable() || inFlight(draft)) return
+    if (!draft || !sendable()) return
     const recorded = structuredClone(unwrap(draft))
-    void encodeAttachments([...unwrap(document.files)]).then((attachments) => send(recorded, attachments))
+    const files = [...unwrap(document.files)]
+    void encodeAttachments(files).then((encoded) => send(recorded, files, encoded))
   }
   const persisted = persistStore({
     store: document,

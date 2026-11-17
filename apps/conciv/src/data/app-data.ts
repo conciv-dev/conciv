@@ -28,8 +28,6 @@ export type PendingDraftAttachment = z.infer<typeof PendingAttachmentSchema>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
-const DraftStampSchema = DraftSessionSchema.extend({updatedAt: z.number()})
-
 type SessionPage = Awaited<ReturnType<RpcClient['sessions']['list']>>
 
 function withoutSessionOnPage<Page extends {sessions: readonly {id: string}[]}>(page: Page, sessionId: string): Page {
@@ -64,7 +62,7 @@ export type AppData = {
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (save: DraftSave) => Promise<boolean>
-  savingDraft: (sessionId: string, stamps: readonly number[]) => boolean
+  endDraftSaves: (sessionId: string) => void
   dispose: () => void
 }
 
@@ -82,6 +80,8 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     gcTime: Infinity,
     mutationFn: async (input) => {
       const {pending, ...row} = DraftSaveSchema.parse(input)
+      const held = queryClient.getQueryData(draftQuery(row.sessionId).queryKey)
+      if (!held || held.updatedAt > row.updatedAt) return null
       const encoded = DraftRowSchema.parse({
         ...row,
         attachments: [...row.attachments, ...(await encodeAttachments(pending))],
@@ -102,7 +102,8 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     onError: (error) => {
       console.error('[conciv] could not save the draft', error)
     },
-    onSuccess: (_data, input) => {
+    onSuccess: (answer, input) => {
+      if (answer === null) return
       const mutationCache = queryClient.getMutationCache()
       const settled = mutationCache.findAll({
         mutationKey: utils.drafts.set.mutationKey(),
@@ -123,7 +124,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     return observer
       .mutate(save)
       .then(
-        () => true,
+        (answer) => answer !== null,
         () => false,
       )
       .finally(() => observer.reset())
@@ -188,14 +189,9 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,
-    savingDraft: (sessionId, stamps) =>
-      queryClient.isMutating({
-        mutationKey: utils.drafts.set.mutationKey(),
-        predicate: (mutation) => {
-          const save = DraftStampSchema.safeParse(mutation.state.variables).data
-          return save?.sessionId === sessionId && stamps.includes(save.updatedAt)
-        },
-      }) > 0,
+    endDraftSaves: (sessionId) => {
+      queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
+    },
     dispose: () => reading.abort(),
   }
 }

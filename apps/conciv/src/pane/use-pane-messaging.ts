@@ -125,6 +125,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const onSend = async (content: string | SendContent): Promise<void> => {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
+    deps.appData.endDraftSaves(deps.sessionId)
     await deps.chat.sendMessage(content).catch((error: unknown) => {
       throw deps.chat.withdrawn() ? WITHDRAWN : error
     })
