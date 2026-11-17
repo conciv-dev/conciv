@@ -230,12 +230,72 @@ function rootTransform(svg: SVGSVGElement, options: ConvertOptions): {scale: num
   return {scale, origin: {x: (viewBox?.x ?? 0) * scale - options.x, y: (viewBox?.y ?? 0) * scale - options.y}}
 }
 
+const DRAWABLE_TAGS = new Set([...CONTAINERS, ...Object.keys(BUILDERS)])
+const GEOMETRY_ATTRIBUTES = [
+  'viewBox',
+  'transform',
+  'x',
+  'y',
+  'width',
+  'height',
+  'cx',
+  'cy',
+  'r',
+  'rx',
+  'ry',
+  'x1',
+  'y1',
+  'x2',
+  'y2',
+  'points',
+  'd',
+]
+const PAINT_PROPERTIES = ['fill', 'stroke', 'stroke-width', 'font-size']
+
+function parseInert(svgMarkup: string): Element {
+  const root = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml').documentElement
+  if (root.getElementsByTagName('parsererror').length) {
+    throw new Error('svg markup is not well-formed xml')
+  }
+  if (root.localName !== 'svg') throw new Error('no <svg> root found')
+  return root
+}
+
+function copyPaint(source: Element, copy: SVGElement): void {
+  const declared = document.createElementNS(SVG_NAMESPACE, 'g')
+  declared.setAttribute('style', source.getAttribute('style') ?? '')
+  PAINT_PROPERTIES.forEach((name) => {
+    const value = declared.style.getPropertyValue(name) || source.getAttribute(name)
+    if (value) copy.style.setProperty(name, value)
+    if (copy.style.getPropertyValue(name).includes('url(')) copy.style.removeProperty(name)
+  })
+}
+
+function drawableCopy(source: Element): SVGElement | null {
+  if (!DRAWABLE_TAGS.has(source.localName)) return null
+  const copy = document.createElementNS(SVG_NAMESPACE, source.localName)
+  GEOMETRY_ATTRIBUTES.forEach((name) => {
+    const value = source.getAttribute(name)
+    if (value !== null) copy.setAttribute(name, value)
+  })
+  copyPaint(source, copy)
+  if (source.localName === 'text') {
+    copy.textContent = source.textContent
+    return copy
+  }
+  Array.from(source.children).forEach((child) => {
+    const drawable = drawableCopy(child)
+    if (drawable) copy.append(drawable)
+  })
+  return copy
+}
+
 export function svgToSkeletons(svgMarkup: string, options: ConvertOptions): ExcalidrawElementSkeleton[] {
+  const svg = drawableCopy(parseInert(svgMarkup))
+  if (!(svg instanceof SVGSVGElement)) throw new Error('no <svg> root found')
   const host = document.createElement('div')
   host.style.cssText = 'position:fixed;left:-10000px;top:0;'
-  host.innerHTML = svgMarkup
-  const svg = host.querySelector('svg')
-  if (!svg) throw new Error('no <svg> root found')
+  host.append(svg)
   document.body.appendChild(host)
   try {
     const {scale, origin} = rootTransform(svg, options)

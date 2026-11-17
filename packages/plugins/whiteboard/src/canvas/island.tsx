@@ -11,6 +11,7 @@ import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
+import {validateSvg} from '../shared/svg-caps.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 
 type SceneElement = OrderedExcalidrawElement
@@ -42,6 +43,7 @@ async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleto
   if (row.kind === 'svg') {
     const {svgToSkeletons} = await import('./svg-convert.js')
     const {svg, x, y, width, roughness} = SvgPayload.parse(row.payload)
+    validateSvg(svg)
     return withStableIds(svgToSkeletons(svg, {x, y, width, roughness}), row.id)
   }
   return withStableIds(SkeletonsPayload.parse(row.payload).elements, row.id)

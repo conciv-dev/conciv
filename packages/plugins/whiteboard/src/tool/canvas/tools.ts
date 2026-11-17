@@ -7,7 +7,7 @@ import {json, type JsonValue} from '../../shared/rows.js'
 import {confirmed, fail, type Confirm} from '../refusal.js'
 import {draftToSvg, type DraftElement} from './draft-svg.js'
 import {renderDraftPng} from './preview.js'
-import {validateSvg} from './svg-caps.js'
+import {validateSvg} from '../../shared/svg-caps.js'
 
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
