@@ -20,7 +20,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
 - `HostWiring` / `HostApiContext` / `use` / `useExtensionValue` (`host-context.ts`)
 - `MountedExtension` / `MountedSurface` / `MountedView` (`mount-extension.tsx`)
-- `ensureEffectsSurface` / `openSource` / `EFFECTS_SURFACE_ATTR` (`client-host.ts`)
+- `ensureEffectsSurface` / `openSource` (`client-host.ts`); `EFFECTS_SURFACE_ATTR` / `CONCIV_UI_SELECTOR` re-exported from `@conciv/protocol/page-types`
 - `makeExtRpcClient` (`ext-rpc.ts`): oRPC client at `${apiBase}/rpc/ext/<slug>`
 - `subscriptionIterator` (`server-stream.ts`); `pageVerbError` / `isPageVerbError` (`page-errors.ts`)
 - `buildCatalog` / `scaffold` / `validateSource` (`catalog.ts`)

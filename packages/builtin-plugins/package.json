@@ -19,11 +19,11 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-test-runner": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@zumer/snapdom": "catalog:",
     "solid-js": "catalog:"
   },
