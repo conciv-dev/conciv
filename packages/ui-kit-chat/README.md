@@ -14,7 +14,7 @@ npm install -D @conciv/it
 
 ## Interface
 
-- `package.json:exports` - `.` (`dist/index.js`), `./tools` (`dist/tools.js`), `./draft-storage` (`dist/draft-storage.js`: `encodeAttachments`, the draft attachment encoder, which loads under node with no Solid DOM code), `./theme/tokens.css` (source CSS), `./theme/fonts`, `./theme/code-theme`.
+- `package.json:exports` - `.` (`dist/index.js`), `./tools` (`dist/tools.js`), `./theme/tokens.css` (source CSS), `./theme/fonts`, `./theme/code-theme`.
 - `package.json:scripts` - `build` (`vite build && tsc -p tsconfig.build.json`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw`.
 - `package.json:peerDependencies` - `solid-js` `^1.9.13`.
 - Subdirectory: [src](./src/README.md) - entries, store, behaviors, primitives, styled, tools, theme.

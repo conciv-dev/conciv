@@ -4,18 +4,6 @@ The widget's persisted stores. Most files are copied from opencode (at commit `a
 relative to `packages/app/src/runtime/persistence/`). Names and shapes are opencode's, except for the lines under
 "Differences from opencode".
 
-## Files
-
-- `persist.ts`, `persist-machine.ts`, `equality.ts`: copied from opencode's files of the same names. `persistStore`
-  keeps a Solid store in a storage, with the source's 100 ms write batch, the flush when the page is hidden or left,
-  and the skip of an unchanged value.
-- `schema.ts`, `storage.ts`: from opencode's files of the same names. `persisted`, `Persist` and `removePersisted` are
-  the store layer that plugin stores use.
-- `drafts.ts`, `drafts-machine.ts`: copied from opencode's files of the same names. `createBrowserDraftStore` keeps
-  composer drafts in the IndexedDB database `conciv-drafts`, with the stores `documents` and `blobs`; images are kept
-  as blobs under the SHA-256 of their bytes, and a blob no document points to is removed when the database opens.
-- `settings-storage.ts`: conciv's own. It reads and writes engine settings through the RPC client as an async storage.
-
 ## Differences from opencode
 
 - The draft write transaction commits as soon as its document is put (`drafts.ts`, `transaction.commit()` in the

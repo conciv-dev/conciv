@@ -8,8 +8,7 @@ DOM-level behaviors used by primitives: the thread virtualizer with end-followin
 
 - `create-thread-virtualizer.ts:createThreadVirtualizer` - returns `ThreadVirtualizer` (`items`, `totalSize`, `measured`, `atEnd`, `nearStart` (scrolled within three viewport heights of the top, so older history loads before the reader reaches it), `landOnEnd`, `glideToEnd`, `measureRow`, `remeasure`); `SCROLL_END_THRESHOLD_PX` (1); type `ThreadVirtualizerConfig`.
 - `composer-draft-storage.ts:readComposerDraft`, `composer-draft-storage.ts:writeComposerDraft`, type `PersistedComposerDraft`.
-- `composer-draft-storage.ts:encodeAttachments`, type `EncodableAttachment`: the draft attachment encoder (base64 within the persisted budget), also served by the package's `./draft-storage` entry (`src/draft-storage.ts`) for hosts that encode their own saves.
-- `use-composer-draft.ts:useComposerDraftPersistence`, types `ComposerDraftPersistenceOptions` and `ComposerDraftWriter` (`(key, draft) => void`, synchronous).
+- `use-composer-draft.ts:useComposerDraftPersistence`, type `ComposerDraftPersistenceOptions`.
 - `use-scroll-lock.ts:useScrollLock`; `use-size-handle.ts:useSizeHandle`.
 
 ## Invariants
