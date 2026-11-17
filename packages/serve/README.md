@@ -2,12 +2,13 @@
 
 ## Overview
 
-Package root for `@conciv/serve`, internal to `@conciv/it`. Builds `src/serve.ts` with tsdown.
+Package root for `@conciv/serve`, internal to `@conciv/it`. Builds `src/serve.ts` and `src/rpc.ts` with tsdown.
 
 ## Interface
 
 - `package.json:exports["."]` - `dist/serve.js` with types in `dist/serve.d.ts`.
-- `tsdown.config.ts:entry` - `src/serve.ts`, ESM, with type declarations.
+- `package.json:exports["./rpc"]` - `dist/rpc.js` with types in `dist/rpc.d.ts`.
+- `tsdown.config.ts:entry` - `src/serve.ts` and `src/rpc.ts`, ESM, with type declarations.
 - Source: [src](./src/README.md).
 
 ## Invariants

@@ -74,7 +74,7 @@ import {
   type SettingsStore,
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
+import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
   idleFailedEvent,
@@ -136,7 +136,7 @@ import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
-import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
@@ -1020,6 +1020,29 @@ describe('config', () => {
       },
     ])
   })
+
+  it('refuses a harness id nothing registers at start, from options or CONCIV_HARNESS, naming it and every registered id, and binds nothing', async () => {
+    const known = listHarnesses()
+      .map((adapter) => adapter.id)
+      .join(', ')
+    const refusal = (id: string) => `conciv: unknown harness "${id}". Known harnesses: ${known}.`
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
+      onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
+    const fromOptions = bootEngine(root, {port: {exact: port}, options})
+    stopIfStarted(fromOptions)
+    await expect(fromOptions).rejects.toThrow(refusal('no-such-harness'))
+    process.env.CONCIV_HARNESS = 'no-such-env-harness'
+    const fromEnv = bootEngine(root, {port: {exact: port}})
+    stopIfStarted(fromEnv)
+    await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
+    expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
+  })
 })
 
 describe('local state files', () => {
@@ -1059,6 +1082,12 @@ describe('local state files', () => {
     writeFileSync(tools, 'export const b = 2')
     expect(probe()).toMatchObject({stale: true, changed: ['@conciv/tools']})
     expect(probe().fingerprint).not.toBe(fresh.fingerprint)
+    expect(loadedModules()).toEqual(
+      expect.arrayContaining([
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve'))},
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve/rpc'))},
+      ]),
+    )
   })
 
   describe('home db reads', () => {
