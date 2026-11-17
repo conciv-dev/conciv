@@ -8104,6 +8104,7 @@ module.exports = {default: {setup(ctx) {
 
     await tab('Fixture tools').click()
     await expect.element(control('Write a plain note')).toBeVisible()
+    await expect.element(shownText('Engine attached: 1')).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toBeVisible()
