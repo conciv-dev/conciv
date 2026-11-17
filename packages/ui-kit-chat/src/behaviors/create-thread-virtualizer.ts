@@ -296,6 +296,15 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     setEdges({atEnd: followingReader(), nearStart: liveNearStart()})
   }
 
+  const onViewportResized = (): void => {
+    const element = config.scrollElement()
+    if (!element?.isConnected || readerInput === 'holding' || !stillOnTheLanding(element)) {
+      syncAtEnd()
+      return
+    }
+    landOnEnd()
+  }
+
   const sync = () => {
     const virtualItems = instance.getVirtualItems()
     setItems(reconcile(virtualItems, {key: 'key'}))
@@ -324,7 +333,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createEffect(() => {
     const element = config.scrollElement()
-    createResizeObserver(element, syncAtEnd)
+    createResizeObserver(element, onViewportResized)
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
