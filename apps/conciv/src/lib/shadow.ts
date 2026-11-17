@@ -106,7 +106,7 @@ export function createShadowRoot(
   registerSelectionContainment()
   placeHost(host, surface)
   const root = host.attachShadow({mode: 'open'})
-  root.adoptedStyleSheets = [widgetSheet(host.ownerDocument)]
+  root.adoptedStyleSheets = [widgetSheet()]
   const releaseKeys = keepEditableKeysOffTheHostPage(root)
   const releaseSelection = keepSelectionInsideTheWidget(host, root)
   return {

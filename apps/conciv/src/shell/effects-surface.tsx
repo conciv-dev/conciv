@@ -9,7 +9,7 @@ import type {ExtensionInstance} from '../extension/extension-slots.js'
 import {widgetSheet} from '../lib/widget-styles.js'
 
 function decorateHost(element: HTMLDivElement): void {
-  if (element.shadowRoot) element.shadowRoot.adoptedStyleSheets = [widgetSheet(element.ownerDocument)]
+  if (element.shadowRoot) element.shadowRoot.adoptedStyleSheets = [widgetSheet()]
   element.setAttribute('data-conciv-effects', '')
   element.style.position = 'fixed'
   element.style.zIndex = '2147483000'

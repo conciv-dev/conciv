@@ -19,7 +19,7 @@ export function mountOverlay(
   const host = document.createElement('div')
   placeHost(host)
   const root = host.attachShadow({mode: 'open'})
-  const shared = widgetSheet(document)
+  const shared = widgetSheet()
   root.adoptedStyleSheets = styles === undefined ? [shared] : [shared, createStyleSheet(styles.join('\n'))]
 
   return createRoot((disposeRoot) => {
