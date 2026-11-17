@@ -171,6 +171,9 @@ import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
+import {until} from '@conciv/harness-testkit/until'
+import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import {createTtySessions, type TtySessions, type TtySink} from '../src/pty/pty-sessions.js'
 import coreManifest from '../package.json' with {type: 'json'}
 import {
   currentRow,
@@ -4698,5 +4701,222 @@ describe('engine build keeps runtime packages external', () => {
     expect(existsSync(join(hostDir, 'photon-worker.js'))).toBe(true)
     const wasm = createRequire(join(hostDir, 'index.js')).resolve('@silvia-odwyer/photon-node/photon_rs_bg.wasm')
     expect(existsSync(wasm)).toBe(true)
+  })
+})
+
+describe('pty sessions', () => {
+  const BASH = {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}
+
+  type SinkUpdate = {kind: 'data'; text: string} | {kind: 'control'; frame: TtyServerControl}
+
+  type Collected = {chunks: string[]; controls: TtyServerControl[]; sink: TtySink}
+
+  function collect(onUpdate: (update: SinkUpdate) => void = () => {}): Collected {
+    const chunks: string[] = []
+    const controls: TtyServerControl[] = []
+    return {
+      chunks,
+      controls,
+      sink: {
+        data: (chunk) => {
+          chunks.push(chunk)
+          onUpdate({kind: 'data', text: chunks.join('')})
+        },
+        control: (frame) => {
+          controls.push(frame)
+          onUpdate({kind: 'control', frame})
+        },
+      },
+    }
+  }
+
+  describe('pty sessions', () => {
+    const cleanups: TtySessions[] = []
+
+    const make = (options?: Parameters<typeof createTtySessions>[0]): TtySessions => {
+      const sessions = createTtySessions(options)
+      cleanups.push(sessions)
+      return sessions
+    }
+
+    afterEach(() => {
+      for (const sessions of cleanups.splice(0)) sessions.shutdown()
+    })
+
+    it('streams output and echoes input through a real pty', async () => {
+      const sessions = make()
+      const session = await sessions.open('s1', BASH, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('tty-roundtrip-42')) echoed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write('echo tty-roundtrip-$((40+2))\r')
+      expect(await echoed.promise).toContain('tty-roundtrip-42')
+    })
+
+    it('replays buffered bytes to a late attacher', async () => {
+      const sessions = make()
+      const session = await sessions.open('s2', BASH, process.cwd(), 'test-tty')
+      const marked = Promise.withResolvers<string>()
+      const early = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('replay-marker')) marked.resolve(update.text)
+      })
+      const detach = session.attach(early.sink)
+      session.write('echo replay-marker\r')
+      expect(await marked.promise).toContain('replay-marker')
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.chunks.join('')).toContain('replay-marker')
+    })
+
+    it('applies resize', async () => {
+      const sessions = make()
+      const session = await sessions.open('s3', BASH, process.cwd(), 'test-tty')
+      const sized = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('41 97')) sized.resolve(update.text)
+      })
+      session.attach(sink)
+      session.resize(97, 41)
+      session.write('stty size\r')
+      expect(await sized.promise).toContain('41 97')
+    })
+
+    it('reports exit to sinks and via exited()', async () => {
+      const sessions = make()
+      const session = await sessions.open('s4', BASH, process.cwd(), 'test-tty')
+      const exited = Promise.withResolvers<TtyServerControl>()
+      const {controls, sink} = collect((update) => {
+        if (update.kind === 'control' && update.frame.type === 'exit') exited.resolve(update.frame)
+      })
+      session.attach(sink)
+      session.write('exit 3\r')
+      expect(await exited.promise).toEqual({type: 'exit', code: 3})
+      expect(session.exited()).toEqual({code: 3})
+      expect(controls.some((frame) => frame.type === 'exit' && frame.code === 3)).toBe(true)
+    })
+
+    it('surfaces a spawn failure as an error control frame, not a crash', async () => {
+      const sessions = make()
+      const session = await sessions.open(
+        's6',
+        {bin: '/nonexistent/definitely-missing-bin', args: [], env: {}},
+        process.cwd(),
+        'test-tty',
+      )
+      const failed = Promise.withResolvers<TtyServerControl>()
+      const {sink} = collect((update) => {
+        if (update.kind !== 'control') return
+        if (update.frame.type === 'error' || update.frame.type === 'exit') failed.resolve(update.frame)
+      })
+      session.attach(sink)
+      expect((await failed.promise).type).toMatch(/^(error|exit)$/)
+    })
+
+    it('injects into live sinks and the replay buffer', async () => {
+      const sessions = make()
+      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const injected = Promise.withResolvers<string>()
+      const live = collect((update) => {
+        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+      })
+      const detach = session.attach(live.sink)
+      session.inject('conciv marker')
+      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+    })
+
+    it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {
+      const sessions = make()
+      const session = await sessions.open('s8', BASH, process.cwd(), 'test-tty')
+      const started = Promise.withResolvers<string>()
+      const resumed = Promise.withResolvers<string>()
+      const {sink} = collect((update) => {
+        if (update.kind !== 'data') return
+        if (update.text.includes('R2Y')) started.resolve(update.text)
+        if (update.text.includes('B6K')) resumed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write("bash -c 'echo R$((1+1))Y; exec sleep 30' && echo S$((5+5))P\r")
+      await started.promise
+      session.interrupt()
+      session.write('echo B$((3+3))K\r')
+      expect(await resumed.promise).not.toContain('S10P')
+    })
+
+    it('broadcasts OSC 9;4 busy transitions to attached sinks', async () => {
+      const sessions = make()
+      const session = await sessions.open('s9', BASH, process.cwd(), 'test-tty')
+      const turnedBusy = Promise.withResolvers<TtyServerControl>()
+      const turnedIdle = Promise.withResolvers<TtyServerControl>()
+      const {controls, sink} = collect((update) => {
+        if (update.kind !== 'control' || update.frame.type !== 'busy') return
+        if (update.frame.busy) turnedBusy.resolve(update.frame)
+        if (!update.frame.busy && controls.some((frame) => frame.type === 'busy' && frame.busy))
+          turnedIdle.resolve(update.frame)
+      })
+      session.attach(sink)
+      expect(controls).toEqual([{type: 'busy', busy: false}])
+      session.write('printf "\\033]9;4;1\\007"\r')
+      expect(await turnedBusy.promise).toEqual({type: 'busy', busy: true})
+      expect(session.busy()).toBe(true)
+      session.write('printf "\\033]9;4;0\\007"\r')
+      expect(await turnedIdle.promise).toEqual({type: 'busy', busy: false})
+      expect(session.busy()).toBe(false)
+      expect(controls.filter((frame) => frame.type === 'busy').map((frame) => frame.busy)).toEqual([false, true, false])
+    })
+
+    it('tells a late attacher the current busy state', async () => {
+      const sessions = make()
+      const session = await sessions.open('s10', BASH, process.cwd(), 'test-tty')
+      const turnedBusy = Promise.withResolvers<TtyServerControl>()
+      const early = collect((update) => {
+        if (update.kind === 'control' && update.frame.type === 'busy' && update.frame.busy) {
+          turnedBusy.resolve(update.frame)
+        }
+      })
+      const detach = session.attach(early.sink)
+      session.write('printf "\\033]9;4;1\\007"\r')
+      await turnedBusy.promise
+      expect(session.busy()).toBe(true)
+      detach()
+      const late = collect()
+      session.attach(late.sink)
+      expect(late.controls.some((frame) => frame.type === 'busy' && frame.busy)).toBe(true)
+    })
+
+    it('debounces rapid interrupts so a double-Escape cannot send two ctrl-c', async () => {
+      const sessions = make()
+      const session = await sessions.open('s11', BASH, process.cwd(), 'test-tty')
+      const started = Promise.withResolvers<string>()
+      const resumed = Promise.withResolvers<string>()
+      const {chunks, sink} = collect((update) => {
+        if (update.kind !== 'data') return
+        if (update.text.includes('R2Y')) started.resolve(update.text)
+        if (update.text.includes('D4N')) resumed.resolve(update.text)
+      })
+      session.attach(sink)
+      session.write("bash -c 'echo R$((1+1))Y; exec sleep 30'\r")
+      await started.promise
+      session.interrupt()
+      session.interrupt()
+      session.write('echo D$((2+2))N\r')
+      await resumed.promise
+      const echoed = chunks.join('').match(/\^C/g) ?? []
+      expect(echoed.length).toBe(1)
+    })
+
+    it('evicts an idle session with no sinks', async () => {
+      const sessions = make({idleEvictMs: 100})
+      const session = await sessions.open('s5', BASH, process.cwd(), 'test-tty')
+      const detach = session.attach(collect().sink)
+      detach()
+      await until(() => sessions.get('s5') === undefined, {hangGuardMs: 3000})
+    })
   })
 })

@@ -294,6 +294,7 @@
     },
     {
       "files": [
+        "packages/core/src/pty/**",
         "packages/extensions/terminal/src/server/**",
         "packages/extensions/terminal/test/**",
         "packages/ui-kit-terminal/**"

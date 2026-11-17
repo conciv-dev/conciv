@@ -75,6 +75,8 @@ import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
+import {persistentPtySocketRoutes} from './api/persistent-pty-socket.js'
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
@@ -355,6 +357,7 @@ function composeRoutes(
     plane: ChatPlane
     upgrade: UpgradeWebSocket
     trust: ConnectionTrust
+    ptys: PersistentPtys
   },
 ) {
   return new Hono<{Variables: CoreVars}>()
@@ -380,6 +383,7 @@ function composeRoutes(
     })
     .route('/', deps.plane.routes(deps.upgrade))
     .route('/', pushRoutes(deps.push, deps.upgrade))
+    .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {
@@ -829,7 +833,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     hubRefusal: hub.refusal,
     staleness,
   }
+  const ptys = createPersistentPtys({
+    harness: serverHarness,
+    sessions: serverSessions,
+    cwd: opts.cwd,
+    stateDir,
+    mcpUrl: () => {
+      const base = opts.tokenScopedBase?.()
+      return base === undefined ? null : `${base}/api/mcp`
+    },
+  })
   const rpcDeps: RpcDeps = {
+    ptys,
     code: mcp,
     tabs: createTabs({
       bus: primitives.page.bus,
@@ -892,6 +907,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       plane,
       upgrade: socketUpgrade,
       trust,
+      ptys,
       push: {
         queries: (sessionId, signal, focus) => runtime.forSession(sessionId).page.queries(signal, focus),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
@@ -914,6 +930,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
         plugins.closePermissions,
         () => plane.endAllRuns(),
+        ptys.shutdown,
         ...disposers,
         search.dispose,
         settings.close,

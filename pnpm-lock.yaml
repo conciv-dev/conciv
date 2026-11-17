@@ -39,6 +39,9 @@ catalogs:
     '@libsql/client':
       specifier: ^0.18.0
       version: 0.18.0
+    '@lydell/node-pty':
+      specifier: ^1.1.0
+      version: 1.1.0
     '@modelcontextprotocol/sdk':
       specifier: ^1.32.2
       version: 1.32.2
@@ -2621,6 +2624,9 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@lydell/node-pty':
+        specifier: 'catalog:'
+        version: 1.1.0
       '@orama/orama':
         specifier: 'catalog:'
         version: 3.1.18
@@ -3683,7 +3689,7 @@ importers:
         specifier: workspace:^
         version: link:../../ui-kit-terminal
       '@lydell/node-pty':
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       '@orpc/client':
         specifier: 'catalog:'
