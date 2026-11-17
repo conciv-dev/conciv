@@ -124,7 +124,7 @@ function LockedNotice(props: {login: EngineLogin; message: string}): JSX.Element
   const composerHeldFocus = composerFocus?.handle()?.focused() === true
   let logIn: HTMLButtonElement | undefined
   onMount(() => {
-    if (composerHeldFocus) logIn?.focus()
+    if (composerHeldFocus) logIn?.focus({focusVisible: true})
   })
   onCleanup(() => {
     if (view.loggingIn) composerFocus?.handle()?.focus()
