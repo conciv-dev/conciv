@@ -326,10 +326,12 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const current = run()
     return current.phase === 'withdrawn' && current.hidden === chat.error()
   })
+  const lastLocalRunId = createMemo<string | null>((previous) => chat.runId() ?? previous, null)
   const neverLeft = (before: RunState, errorBefore: Error | undefined): Error | undefined => {
     if (run() !== before && withdrawn()) return new Error('The message was taken back before the engine had it')
     const refused = chat.error()
     if (refused === undefined || refused === errorBefore || answered(chat.messages())) return undefined
+    if (runSource()?.lifecycle.runId === lastLocalRunId()) return undefined
     return refused
   }
   const sendMessage: Chat['sendMessage'] = async (...args) => {

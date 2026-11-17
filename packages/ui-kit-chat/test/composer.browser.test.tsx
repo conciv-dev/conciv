@@ -1029,18 +1029,23 @@ describe('composer completion', () => {
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the server refuses')
   })
 
-  it('restores the draft when the chat run reports an error', async () => {
+  it('keeps the draft out of the composer when a run the engine started reports an error', async () => {
+    const [sendError, setSendError] = createSignal('')
+    const handlers: ComposerHandlers = {
+      onSendError: (error) => setSendError(error instanceof Error ? error.message : String(error)),
+    }
     mountView(() => (
-      <ChatHost connection={{shouldError: true, error: new Error('the run never started')}}>
+      <ChatHost handlers={handlers} connection={{shouldError: true, error: new Error('the run failed')}}>
         <ComposerHarness />
+        <p>send failed: {sendError()}</p>
       </ChatHost>
     ))
 
-    await page.getByRole('textbox', {name: 'Message'}).fill('a message the run refuses')
+    await page.getByRole('textbox', {name: 'Message'}).fill('a message the run accepted')
     await page.getByRole('button', {name: 'Send'}).click()
 
-    await expect.element(page.getByText('the run never started')).toBeVisible()
-    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the run refuses')
+    await expect.element(page.getByText('send failed: the run failed')).toBeVisible()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
   })
 })
 
