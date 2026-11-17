@@ -74,7 +74,7 @@ import {
   type SettingsStore,
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
+import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
 import {
   ChatEventType,
   idleFailedEvent,
@@ -1019,6 +1019,29 @@ describe('config', () => {
           'plugin "@acme/hooks": the entry must be [name, options] and every option value must be JSON (a string, number, boolean, null, array or object)',
       },
     ])
+  })
+
+  it('refuses a harness id nothing registers at start, from options or CONCIV_HARNESS, naming it and every registered id, and binds nothing', async () => {
+    const known = listHarnesses()
+      .map((adapter) => adapter.id)
+      .join(', ')
+    const refusal = (id: string) => `conciv: unknown harness "${id}". Known harnesses: ${known}.`
+    const port = await getPort()
+    const root = tempDir('conciv-core-unit-')
+    const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
+      onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
+    const fromOptions = bootEngine(root, {port: {exact: port}, options})
+    stopIfStarted(fromOptions)
+    await expect(fromOptions).rejects.toThrow(refusal('no-such-harness'))
+    process.env.CONCIV_HARNESS = 'no-such-env-harness'
+    const fromEnv = bootEngine(root, {port: {exact: port}})
+    stopIfStarted(fromEnv)
+    await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
+    expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
+    await once(probe.close(), 'close')
   })
 })
 
