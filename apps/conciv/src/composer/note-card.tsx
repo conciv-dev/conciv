@@ -2,6 +2,7 @@ import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
+import {isNil} from 'es-toolkit'
 import {Button, TruncatedText} from '@conciv/ui-kit-system'
 import {CornerRemoveButton, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
@@ -76,7 +77,7 @@ function PluginNoteCard(props: {
               })
 
               return (
-                <Show when={drawn !== undefined && drawn !== null} fallback={<NoteChip note={props.note} />}>
+                <Show when={!isNil(drawn)} fallback={<NoteChip note={props.note} />}>
                   {drawn}
                 </Show>
               )
