@@ -87,9 +87,9 @@ const ROUTE_RESULT = {pathname: '/form', search: '', href: 'http://localhost:300
 
 function sessionParts(lastCall: ToolCallPart): ToolCallPart[] {
   return [
-    storyPart('page_fill', {selector: '#fullname', value: 'Omri Katz'}, 'complete', 'c1'),
+    storyPart('page_fill', {selector: '#fullname', value: 'Ada Lovelace'}, 'complete', 'c1'),
     storyPart('page_route', {}, 'complete', 'c2'),
-    storyPart('page_fill', {selector: '#email', value: 'omri@payzen.com'}, 'complete', 'c3'),
+    storyPart('page_fill', {selector: '#email', value: 'ada@example.com'}, 'complete', 'c3'),
     storyPart('page_select', {selector: '#role', value: 'Full Stack'}, 'complete', 'c4'),
     lastCall,
   ]
@@ -97,9 +97,9 @@ function sessionParts(lastCall: ToolCallPart): ToolCallPart[] {
 
 function settledResults(lastResult: ToolResultPart): Record<string, ToolResultPart> {
   return {
-    c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
+    c1: storyResult({ok: true, value: 'Ada Lovelace'}, 'complete', 'c1'),
     c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
-    c3: storyResult({ok: true, value: 'omri@payzen.com'}, 'complete', 'c3'),
+    c3: storyResult({ok: true, value: 'ada@example.com'}, 'complete', 'c3'),
     c4: storyResult({ok: true, value: 'Full Stack'}, 'complete', 'c4'),
     c5: lastResult,
   }
@@ -128,9 +128,9 @@ export const Streaming: Story = {
     sessionFrame(
       sessionParts(storyPart('page_check', {selector: '#terms'}, 'input-streaming', 'c5')),
       {
-        c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
+        c1: storyResult({ok: true, value: 'Ada Lovelace'}, 'complete', 'c1'),
         c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
-        c3: storyResult({ok: true, value: 'omri@payzen.com'}, 'complete', 'c3'),
+        c3: storyResult({ok: true, value: 'ada@example.com'}, 'complete', 'c3'),
         c4: storyResult({ok: true, value: 'Full Stack'}, 'complete', 'c4'),
       },
       DONE_CAPTURES,
@@ -188,8 +188,8 @@ export const BornOpen: Story = {
     await expect(canvas.getAllByText('fill')).toHaveLength(2)
     await expect(canvas.getByText('select')).toBeVisible()
     await expect(canvas.getByText('check')).toBeVisible()
-    await expect(canvas.getByText('“Omri Katz”')).toBeVisible()
-    await expect(canvas.getByText('“omri@payzen.com”')).toBeVisible()
+    await expect(canvas.getByText('“Ada Lovelace”')).toBeVisible()
+    await expect(canvas.getByText('“ada@example.com”')).toBeVisible()
   },
 }
 
@@ -198,9 +198,9 @@ export const Aborted: Story = {
     sessionFrame(
       sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
       {
-        c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
+        c1: storyResult({ok: true, value: 'Ada Lovelace'}, 'complete', 'c1'),
         c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
-        c3: storyResult({ok: true, value: 'omri@payzen.com'}, 'complete', 'c3'),
+        c3: storyResult({ok: true, value: 'ada@example.com'}, 'complete', 'c3'),
         c4: storyResult({ok: true, value: 'Full Stack'}, 'complete', 'c4'),
       },
       DONE_CAPTURES,
@@ -284,9 +284,9 @@ export const Narrow: Story = {
     sessionFrame(
       sessionParts(storyPart('page_check', {selector: '#terms'}, 'input-streaming', 'c5')),
       {
-        c1: storyResult({ok: true, value: 'Omri Katz'}, 'complete', 'c1'),
+        c1: storyResult({ok: true, value: 'Ada Lovelace'}, 'complete', 'c1'),
         c2: storyResult(ROUTE_RESULT, 'complete', 'c2'),
-        c3: storyResult({ok: true, value: 'omri@payzen.com'}, 'complete', 'c3'),
+        c3: storyResult({ok: true, value: 'ada@example.com'}, 'complete', 'c3'),
         c4: storyResult({ok: true, value: 'Full Stack'}, 'complete', 'c4'),
       },
       DONE_CAPTURES,
@@ -297,7 +297,7 @@ export const Narrow: Story = {
     await expect(canvas.getByText('Editing the page')).toBeVisible()
     await waitFor(() => expect(canvas.queryByText('localhost:3000/form')).not.toBeVisible())
     await expect(canvas.queryByText('4 actions')).not.toBeVisible()
-    await expect(canvas.queryByText('“Omri Katz”')).not.toBeVisible()
+    await expect(canvas.queryByText('“Ada Lovelace”')).not.toBeVisible()
     await expect(canvas.getByText('Full name')).toBeVisible()
   },
 }
