@@ -1,6 +1,6 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
-import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import type {PersistentPtys} from '../pty/persistent-ptys.js'
 import type {TtySession, TtySink} from '../pty/pty-sessions.js'

@@ -2,6 +2,10 @@ import {z} from 'zod'
 import {PageCaptureBundleSchema} from './element-capture-types.js'
 import {CODE_MODE_TIMEOUT_MS} from './chat-types.js'
 
+export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
+
+export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${EFFECTS_SURFACE_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
+
 export const PAGE_QUEUE_TOOL = 'page_queue'
 export const PAGE_QUEUE_ASYNC_TOOL = 'page_queue_async'
 export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000

@@ -5,7 +5,13 @@ import type {EngineStaleness} from '@conciv/contract'
 
 export type TrackedModule = {label: string; path: string}
 
-const TRACKED_PACKAGES = ['@conciv/harness', '@conciv/tools', '@conciv/db', '@conciv/extension']
+const TRACKED_PACKAGES: Record<string, string[]> = {
+  '@conciv/harness': ['@conciv/harness'],
+  '@conciv/tools': ['@conciv/tools'],
+  '@conciv/db': ['@conciv/db'],
+  '@conciv/extension': ['@conciv/extension'],
+  '@conciv/serve': ['@conciv/serve', '@conciv/serve/rpc'],
+}
 
 const CORE_LABEL = '@conciv/core'
 
@@ -53,10 +59,12 @@ export function loadedModules(): TrackedModule[] {
     const path = resolveEntry(specifier)
     return path === null ? [] : [{label: CORE_LABEL, path}]
   })
-  const siblings = TRACKED_PACKAGES.flatMap((label) => {
-    const path = resolveEntry(label)
-    return path === null ? [] : [{label, path}]
-  })
+  const siblings = Object.entries(TRACKED_PACKAGES).flatMap(([label, specifiers]) =>
+    specifiers.flatMap((specifier) => {
+      const path = resolveEntry(specifier)
+      return path === null ? [] : [{label, path}]
+    }),
+  )
   return [own, ...coreEntries, ...siblings].filter(
     (entry, index, all) => all.findIndex((other) => other.path === entry.path) === index,
   )

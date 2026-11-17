@@ -1,7 +1,8 @@
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {execFileSync} from 'node:child_process'
-import {cp, realpath, writeFile} from 'node:fs/promises'
+import {execFile, execFileSync} from 'node:child_process'
+import {cp, readdir, readFile, realpath, writeFile} from 'node:fs/promises'
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -16,10 +17,15 @@ import {createServer as createHttpServer, type Server, type ServerResponse} from
 import {createServer as createNetServer} from 'node:net'
 import {dirname, isAbsolute, join, relative} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {promisify} from 'node:util'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest'
 import getPort from 'get-port'
+import {z} from 'zod'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
+import webpack from 'webpack'
+import {rspack} from '@rspack/core'
+import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
 import {DevTools} from '@vitejs/devtools'
 import {devtools} from '@tanstack/devtools-vite'
 import {createLogger, createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
@@ -180,163 +186,619 @@ describe('engine port exact', () => {
   })
 })
 
-describe('webpack and rspack hooks', () => {
-  type Taps = {
-    watchRun: Array<() => Promise<void>>
-    watchClose: Array<() => unknown>
-    shutdown: Array<() => Promise<void>>
+describe('webpack and rspack', () => {
+  type Bundler = 'webpack' | 'rspack'
+  type Mode = 'development' | 'production'
+  type PluginOptions = {
+    port?: number
+    stateRoot: string
+    enabled?: boolean
+    widget?: false
+    extensions?: ExtensionPackage[]
+  }
+  type BuildStats = {hasErrors: () => boolean; compilation: {fileDependencies: Iterable<string>}}
+  type BuildHandler = (error: Error | null, stats?: BuildStats) => void
+  type WatchingLike = {
+    invalidate: (callback?: () => void) => void
+    close: (callback: (error?: Error | null) => void) => void
+  }
+  type CompilerLike = {
+    watch: (options: object, handler: BuildHandler) => WatchingLike | undefined
+    run: (handler: BuildHandler) => void
+    close: (callback: (error?: Error | null) => void) => void
+  }
+  type Watch = {next: () => Promise<string[]>; rebuild: () => Promise<string[]>; close: () => Promise<void>}
+  type TestCompiler = {watch: () => Watch; run: () => Promise<string[]>; close: () => Promise<void>}
+
+  const bundlers = ['webpack', 'rspack'] as const
+  const generatedClient = (port: number) => join('.conciv', `widget-client.${String(port)}.gen.js`)
+  const webpackCache = tempDir('conciv-webpack-cache-')
+
+  function writeFixtureApp(root: string): string {
+    const publicDir = join(root, 'public')
+    mkdirSync(publicDir, {recursive: true})
+    writeFileSync(join(root, 'index.js'), `document.body.append('fixture app')\n`)
+    writeFileSync(
+      join(publicDir, 'index.html'),
+      '<!doctype html><html><head><meta charset="utf-8"><title>fixture</title></head><body><script src="/main.js"></script></body></html>',
+    )
+    return publicDir
   }
 
-  function bundlerCompiler(taps: Taps) {
-    return {
-      hooks: {
-        watchRun: {tapPromise: (_name: string, run: () => Promise<void>) => void taps.watchRun.push(run)},
-        watchClose: {tap: (_name: string, close: () => unknown) => void taps.watchClose.push(close)},
-        shutdown: {tapPromise: (_name: string, close: () => Promise<void>) => void taps.shutdown.push(close)},
-      },
+  function createBundlerCompiler(
+    bundler: Bundler,
+    root: string,
+    mode: Mode,
+    options: PluginOptions,
+    cacheDirectory?: string,
+  ): CompilerLike {
+    const config: {
+      context: string
+      mode: Mode
+      entry: string
+      devtool: false
+      output: {path: string; filename: string}
+      infrastructureLogging: {level: 'none'}
+    } = {
+      context: root,
+      mode,
+      entry: './index.js',
+      devtool: false,
+      output: {path: join(root, 'public'), filename: 'main.js'},
+      infrastructureLogging: {level: 'none'},
     }
+    if (bundler === 'webpack') {
+      return webpack({
+        ...config,
+        cache: {type: 'filesystem', cacheDirectory: cacheDirectory ?? webpackCache},
+        plugins: [createConcivUnplugin().webpack(options)],
+      })
+    }
+    if (cacheDirectory === undefined) return rspack({...config, plugins: [createConcivUnplugin().rspack(options)]})
+    return rspack({
+      ...config,
+      cache: {type: 'persistent', storage: {type: 'filesystem', directory: cacheDirectory}},
+      plugins: [createConcivUnplugin().rspack(options)],
+    })
   }
 
-  function applyHook(
-    framework: 'webpack' | 'rspack',
-    options: {port: number; stateRoot: string; extensions?: ExtensionPackage[]},
-  ): Taps {
-    const taps: Taps = {watchRun: [], watchClose: [], shutdown: []}
-    const compiler = bundlerCompiler(taps)
-    const meta =
-      framework === 'webpack'
-        ? {framework, versions: {}, webpack: {compiler}}
-        : {framework, versions: {}, rspack: {compiler}}
-    const plugin = createConcivUnplugin().raw(options, meta)
-    if (Array.isArray(plugin)) throw new Error('expected one plugin')
-    plugin[framework]?.(compiler)
-    return taps
+  function settle(resolve: () => void, reject: (error: Error) => void) {
+    return (error?: Error | null) => (error ? reject(error) : resolve())
   }
 
-  async function runAll(hooks: Array<() => unknown>): Promise<void> {
-    for (const hook of hooks) await hook()
+  function builtFiles(stats: BuildStats | undefined): string[] {
+    if (stats === undefined) throw new Error('the build reported no stats')
+    if (stats.hasErrors()) throw new Error('the build failed')
+    return Array.from(stats.compilation.fileDependencies)
   }
 
-  it.each(['webpack', 'rspack'] as const)(
-    '%s starts the engine on the first watch run only, and stops it when watching closes',
-    async (framework) => {
-      const root = tempDir(`conciv-${framework}-hook-`)
-      const serverFile = join(concivStateDir(root), 'server.json')
-      try {
+  function testCompiler(
+    bundler: Bundler,
+    root: string,
+    mode: Mode,
+    options: PluginOptions,
+    cacheDirectory?: string,
+  ): TestCompiler {
+    const compiler = createBundlerCompiler(bundler, root, mode, options, cacheDirectory)
+    const closing: {watches: Array<() => Promise<void>>; compiler?: Promise<void>} = {watches: []}
+    const close = () => {
+      closing.compiler ??= Promise.all(closing.watches.map((closeWatch) => closeWatch())).then(
+        () => new Promise<void>((resolve, reject) => compiler.close(settle(resolve, reject))),
+      )
+      return closing.compiler
+    }
+    onTestFinished(close)
+    const run = () =>
+      new Promise<string[]>((resolve, reject) =>
+        compiler.run((error, stats) => {
+          if (error) return reject(error)
+          try {
+            resolve(builtFiles(stats))
+          } catch (failure) {
+            reject(failure)
+          }
+        }),
+      )
+    const watch = (): Watch => {
+      const builds: Array<PromiseWithResolvers<string[]>> = []
+      const build = (index: number) => (builds[index] ??= Promise.withResolvers<string[]>())
+      const counts = {done: 0, awaited: 0}
+      const watching = compiler.watch({}, (error, stats) => {
+        const settled = build(counts.done++)
+        if (error) return settled.reject(error)
+        try {
+          settled.resolve(builtFiles(stats))
+        } catch (failure) {
+          settled.reject(failure)
+        }
+      })
+      if (watching === undefined) throw new Error('the compiler did not start watching')
+      const next = () => build(counts.awaited++).promise
+      const stopped: {closed?: Promise<void>} = {}
+      const closeWatch = () => {
+        stopped.closed ??= new Promise<void>((resolve, reject) => watching.close(settle(resolve, reject)))
+        return stopped.closed
+      }
+      closing.watches.push(closeWatch)
+      return {
+        next,
+        rebuild: () => {
+          watching.invalidate()
+          return next()
+        },
+        close: closeWatch,
+      }
+    }
+    return {watch, run, close}
+  }
+
+  function readWidgetClient(files: string[]): Promise<string> {
+    const client = files.find((file) => file.includes('widget-client'))
+    if (client === undefined) throw new Error('the build carries no widget client')
+    return readFile(client, 'utf8')
+  }
+
+  function serveDirectory(dir: string): Promise<{url: string; close: () => Promise<void>}> {
+    const server = createHttpServer((request, response) => {
+      const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+      const file = join(dir, path === '/' ? 'index.html' : path)
+      readFile(file).then(
+        (body) => {
+          response.writeHead(200, {
+            'content-type': file.endsWith('.html') ? 'text/html; charset=utf-8' : 'text/javascript',
+          })
+          response.end(body)
+        },
+        () => {
+          response.writeHead(404)
+          response.end()
+        },
+      )
+    })
+    return new Promise((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        if (address === null || typeof address === 'string') return reject(new Error('the static server has no port'))
+        resolve({
+          url: `http://127.0.0.1:${address.port}/`,
+          close: () => new Promise<void>((done) => server.close(() => done())),
+        })
+      })
+    })
+  }
+
+  async function health(port: number): Promise<boolean> {
+    return fetch(`http://127.0.0.1:${port}/health`).then(
+      (response) => response.ok,
+      () => false,
+    )
+  }
+
+  describe('the widget on the page of a development build', () => {
+    const state: {browser?: Browser} = {}
+
+    beforeAll(async () => {
+      state.browser = await chromium.launch({headless: true})
+    })
+
+    afterAll(async () => {
+      await state.browser?.close()
+    })
+
+    async function openPage(): Promise<Page> {
+      const page = await state.browser?.newPage()
+      if (page === undefined) throw new Error('the browser did not start')
+      onTestFinished(() => page.close())
+      return page
+    }
+
+    it.each(bundlers)(
+      '%s watching puts the launcher on the page, and the widget unlocks against the engine',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-widget-`)
+        const publicDir = writeFixtureApp(root)
         const port = await getPort()
-        const taps = applyHook(framework, {port, stateRoot: root})
-        expect(taps.watchRun).toHaveLength(1)
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root})
+        const watch = compiler.watch()
+        await watch.next()
+        expect(await health(port)).toBe(true)
+        const site = await serveDirectory(publicDir)
+        onTestFinished(site.close)
+
+        const page = await openPage()
+        await page.goto(await magicLink(recordedEngineBase(root), site.url), {waitUntil: 'domcontentloaded'})
+        await expectLocator(page.getByText('fixture app')).toBeVisible()
+        const launcher = page.getByRole('button', {name: 'Open conciv chat'})
+        await expectLocator(launcher).toBeVisible()
+        await launcher.click()
+        const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
+        await expectLocator(chat.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+        expect(await page.getByRole('button', {name: /Authorize conciv/}).count()).toBe(0)
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      `%s without a port bakes the default engine port ${CONCIV_DEFAULT_PORT} into the widget client`,
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-default-port-`)
+        writeFixtureApp(root)
+        const compiler = testCompiler(bundler, root, 'development', {stateRoot: root})
+        expect(await compiler.run()).toContain(join(root, generatedClient(CONCIV_DEFAULT_PORT)))
+        const generated = await readFile(join(root, generatedClient(CONCIV_DEFAULT_PORT)), 'utf8')
+        expect(generated).not.toContain(fileURLToPath(new URL('..', import.meta.url)))
+        expect(generated).not.toContain('/dist/')
+        expect(generated).toContain(`startConcivWidget(${CONCIV_DEFAULT_PORT})`)
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s compilers sharing a context with two ports each build a client with their own port',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-two-ports-`)
+        writeFixtureApp(root)
+        const firstPort = await getPort()
+        const secondPort = await getPort({exclude: [firstPort]})
+        const first = testCompiler(bundler, root, 'development', {port: firstPort, stateRoot: root})
+        const second = testCompiler(bundler, root, 'development', {port: secondPort, stateRoot: root})
+        const firstFiles = await first.run()
+        const secondFiles = await second.run()
+        expect(await readWidgetClient(firstFiles)).toContain(`startConcivWidget(${String(firstPort)})`)
+        expect(await readWidgetClient(secondFiles)).toContain(`startConcivWidget(${String(secondPort)})`)
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s with a port opens the widget socket at that port',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-socket-port-`)
+        const publicDir = writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root})
+        await compiler.run()
+        const site = await serveDirectory(publicDir)
+        onTestFinished(site.close)
+
+        const page = await openPage()
+        const engineSocket = Promise.withResolvers<string>()
+        page.on('websocket', (socket) => engineSocket.resolve(socket.url()))
+        await page.goto(site.url, {waitUntil: 'domcontentloaded'})
+        expect(new URL(await engineSocket.promise).host).toBe(`127.0.0.1:${port}`)
+      },
+      60_000,
+    )
+  })
+
+  describe('a build that carries no widget and starts no engine', () => {
+    it.each(bundlers)(
+      '%s production watching',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-production-`)
+        writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'production', {port, stateRoot: root})
+        const watch = compiler.watch()
+        const files = await watch.next()
+        expect(files).toContain(join(root, 'index.js'))
+        expect(files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(existsSync(join(root, generatedClient(port)))).toBe(false)
+        expect(await health(port)).toBe(false)
+        expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+        await watch.close()
+        await compiler.close()
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s production run',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-production-run-`)
+        writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'production', {port, stateRoot: root})
+        const files = await compiler.run()
+        expect(files).toContain(join(root, 'index.js'))
+        expect(files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(await health(port)).toBe(false)
+        await compiler.close()
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s development watching with enabled: false',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-disabled-`)
+        writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root, enabled: false})
+        const watch = compiler.watch()
+        const files = await watch.next()
+        expect(files).toContain(join(root, 'index.js'))
+        expect(files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(existsSync(join(root, '.conciv'))).toBe(false)
+        expect(await health(port)).toBe(false)
+        expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
+        await watch.close()
+        await compiler.close()
+      },
+      60_000,
+    )
+  })
+
+  describe('a development build with widget: false', () => {
+    it.each(bundlers)(
+      '%s watching carries no widget and still starts the engine',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-no-widget-`)
+        writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root, widget: false})
+        const watch = compiler.watch()
+        const files = await watch.next()
+        expect(files).toContain(join(root, 'index.js'))
+        expect(files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(existsSync(join(root, generatedClient(port)))).toBe(false)
+        expect(await health(port)).toBe(true)
+        expect(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8'))).toMatchObject({port})
+        await watch.close()
+        await compiler.close()
+      },
+      60_000,
+    )
+  })
+
+  describe('a second dev run on another port, on the same persistent cache', () => {
+    const widgetStartCall = (port: number) => new RegExp(`startConcivWidget\\)?\\(${String(port)}\\)`)
+
+    it.each(bundlers)(
+      '%s builds the new port into the page and rebuilds after a save',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-port-change-`)
+        const publicDir = writeFixtureApp(root)
+        const emittedScripts = async () =>
+          (await readdir(publicDir)).filter((file) => file.endsWith('.js')).map((file) => join(publicDir, file))
+        const cacheDirectory = join(root, 'node_modules', '.cache', bundler)
+        const firstPort = await getPort()
+        const secondPort = await getPort({exclude: [firstPort]})
+        const first = testCompiler(bundler, root, 'development', {port: firstPort, stateRoot: root}, cacheDirectory)
+        const firstWatch = first.watch()
+        expect(await readWidgetClient(await firstWatch.next())).toContain(`startConcivWidget(${String(firstPort)})`)
+        await firstWatch.close()
+        await first.close()
+        for (const file of await emittedScripts()) rmSync(file)
+
+        const second = testCompiler(bundler, root, 'development', {port: secondPort, stateRoot: root}, cacheDirectory)
+        const secondWatch = second.watch()
+        const files = await secondWatch.next()
+        expect(files).toContain(join(root, generatedClient(secondPort)))
+        expect(files).not.toContain(join(root, generatedClient(firstPort)))
+        const bundle = (await Promise.all((await emittedScripts()).map((file) => readFile(file, 'utf8')))).join('\n')
+        expect(bundle).toMatch(widgetStartCall(secondPort))
+        expect(bundle).not.toMatch(widgetStartCall(firstPort))
+
+        appendFileSync(join(root, 'index.js'), `console.log('saved')\n`)
+        await expect(secondWatch.next()).resolves.toContain(join(root, 'index.js'))
+        await secondWatch.close()
+        await second.close()
+      },
+      60_000,
+    )
+  })
+
+  describe('the engine follows the watcher', () => {
+    it.each(bundlers)(
+      '%s starts the engine on the first watch run only, and stops it when watching closes',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-hook-`)
+        writeFixtureApp(root)
+        const serverFile = join(concivStateDir(root), 'server.json')
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root})
         expect(existsSync(serverFile)).toBe(false)
 
-        await runAll(taps.watchRun)
-        expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true)
-        await runAll(taps.watchRun)
-        expect(JSON.parse(readFileSync(serverFile, 'utf8'))).toMatchObject({port})
+        const watch = compiler.watch()
+        await watch.next()
+        expect(await health(port)).toBe(true)
+        const recorded = readFileSync(serverFile, 'utf8')
+        expect(JSON.parse(recorded)).toMatchObject({port})
+        await watch.rebuild()
+        expect(readFileSync(serverFile, 'utf8')).toBe(recorded)
+        expect(await health(port)).toBe(true)
 
-        await runAll(taps.watchClose)
-        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
-      } finally {
-        rmSync(root, {recursive: true, force: true})
-      }
-    },
-    60_000,
-  )
+        await watch.close()
+        await compiler.close()
+        expect(await health(port)).toBe(false)
+      },
+      60_000,
+    )
 
-  it.each(['webpack', 'rspack'] as const)(
-    '%s compiler close settles only after the engine has stopped',
-    async (framework) => {
-      const root = tempDir(`conciv-${framework}-close-`)
-      try {
+    it.each(bundlers)(
+      '%s compiler close settles only after the engine has stopped',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-close-`)
+        writeFixtureApp(root)
         const port = await getPort()
-        const taps = applyHook(framework, {port, stateRoot: root, extensions: [fixtureExtension()]})
-        await runAll(taps.watchRun)
-        expect((await fetch(`http://127.0.0.1:${port}/health`)).ok).toBe(true)
+        const compiler = testCompiler(bundler, root, 'development', {
+          port,
+          stateRoot: root,
+          extensions: [fixtureExtension()],
+        })
+        const watch = compiler.watch()
+        await watch.next()
+        expect(await health(port)).toBe(true)
 
-        taps.watchClose.forEach((close) => void close())
-        await runAll(taps.shutdown)
+        await watch.close()
+        await compiler.close()
         expect(existsSync(join(concivStateDir(root), 'fixture-disposed'))).toBe(true)
-        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
-      } finally {
-        rmSync(root, {recursive: true, force: true})
-      }
-    },
-    60_000,
-  )
+        expect(await health(port)).toBe(false)
+      },
+      60_000,
+    )
 
-  it.each(['webpack', 'rspack'] as const)(
-    '%s watching again after watching closed boots a new engine, after the old one has stopped',
-    async (framework) => {
-      const root = tempDir(`conciv-${framework}-rewatch-`)
-      const disposed = join(concivStateDir(root), 'fixture-disposed')
-      try {
+    it.each(bundlers)(
+      '%s watching again after watching closed boots a new engine, after the old one has stopped',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-rewatch-`)
+        writeFixtureApp(root)
+        const disposed = join(concivStateDir(root), 'fixture-disposed')
         const port = await getPort()
-        const health = `http://127.0.0.1:${port}/health`
-        const taps = applyHook(framework, {port, stateRoot: root, extensions: [fixtureExtension()]})
-        await runAll(taps.watchRun)
-        expect((await fetch(health)).ok).toBe(true)
+        const compiler = testCompiler(bundler, root, 'development', {
+          port,
+          stateRoot: root,
+          extensions: [fixtureExtension()],
+        })
+        const first = compiler.watch()
+        await first.next()
+        expect(await health(port)).toBe(true)
 
-        await runAll(taps.watchClose)
+        await first.close()
+        const second = compiler.watch()
+        await second.next()
         expect(existsSync(disposed)).toBe(true)
-        await expect(fetch(health)).rejects.toThrow()
-
-        await runAll(taps.watchRun)
-        await expect(fetch(health).then((response) => response.ok)).resolves.toBe(true)
+        expect(await health(port)).toBe(true)
 
         rmSync(disposed)
-        taps.watchClose.forEach((close) => void close())
-        await runAll(taps.watchRun)
+        await second.close()
+        const third = compiler.watch()
+        await third.next()
         expect(existsSync(disposed)).toBe(true)
-        await expect(fetch(health).then((response) => response.ok)).resolves.toBe(true)
+        expect(await health(port)).toBe(true)
 
-        taps.watchClose.forEach((close) => void close())
-        await runAll(taps.shutdown)
-        await expect(fetch(health)).rejects.toThrow()
-      } finally {
-        rmSync(root, {recursive: true, force: true})
-      }
-    },
-    60_000,
-  )
+        await third.close()
+        await compiler.close()
+        expect(await health(port)).toBe(false)
+      },
+      60_000,
+    )
 
-  it.each(['webpack', 'rspack'] as const)(
-    '%s keeps watching without an engine when the configured port is taken',
-    async (framework) => {
-      const root = tempDir(`conciv-${framework}-taken-`)
-      const taken = await getPort()
-      const release = await holdPort(taken)
-      try {
-        const taps = applyHook(framework, {port: taken, stateRoot: root})
-        expect(taps.watchRun).toHaveLength(1)
-        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
-        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
+    it.each(bundlers)(
+      '%s keeps watching without an engine when the configured port is taken',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-taken-`)
+        writeFixtureApp(root)
+        const taken = await getPort()
+        const release = await holdPort(taken)
+        onTestFinished(release)
+        const compiler = testCompiler(bundler, root, 'development', {port: taken, stateRoot: root})
+        const watch = compiler.watch()
+        await expect(watch.next()).resolves.toContain(join(root, 'index.js'))
+        await expect(watch.rebuild()).resolves.toContain(join(root, 'index.js'))
         expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
-        await expect(runAll(taps.watchClose)).resolves.toBeUndefined()
-      } finally {
-        await release()
-        rmSync(root, {recursive: true, force: true})
-      }
-    },
-    60_000,
-  )
+        await expect(watch.close()).resolves.toBeUndefined()
+        await expect(compiler.close()).resolves.toBeUndefined()
+      },
+      60_000,
+    )
 
-  it.each(['webpack', 'rspack'] as const)(
-    '%s keeps watching without an engine when the conciv state folder cannot be created',
-    async (framework) => {
-      const root = tempDir(`conciv-${framework}-unwritable-`)
-      const stateRoot = join(root, 'a-file-not-a-folder')
-      writeFileSync(stateRoot, '')
-      try {
+    it.each(bundlers)(
+      '%s keeps watching without an engine when the conciv state folder cannot be created',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-unwritable-`)
+        writeFixtureApp(root)
+        const stateRoot = join(root, 'a-file-not-a-folder')
+        writeFileSync(stateRoot, '')
         const port = await getPort()
-        const taps = applyHook(framework, {port, stateRoot})
-        await expect(runAll(taps.watchRun)).resolves.toBeUndefined()
-        await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow()
-        await expect(runAll(taps.watchClose)).resolves.toBeUndefined()
-      } finally {
-        rmSync(root, {recursive: true, force: true})
-      }
-    },
-    60_000,
-  )
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot})
+        const watch = compiler.watch()
+        await expect(watch.next()).resolves.toContain(join(root, 'index.js'))
+        expect(await health(port)).toBe(false)
+        await expect(watch.close()).resolves.toBeUndefined()
+        await expect(compiler.close()).resolves.toBeUndefined()
+      },
+      60_000,
+    )
+  })
+
+  describe('a development watch that cannot add the widget', () => {
+    const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+    const RESULT_PREFIX = 'watch-once '
+    const WATCH_ONCE = `
+const [bundler, root, port, stateRoot] = process.argv.slice(1)
+const plugin = (await import('@conciv/unplugin/' + bundler)).default
+const config = {
+  context: root,
+  mode: 'development',
+  entry: './index.js',
+  devtool: false,
+  output: {path: root + '/public', filename: 'main.js'},
+  infrastructureLogging: {level: 'none'},
+  plugins: [plugin({port: Number(port), stateRoot})],
+}
+const compiler = bundler === 'webpack' ? (await import('webpack')).default(config) : (await import('@rspack/core')).rspack(config)
+const watching = compiler.watch({}, async (error, stats) => {
+  const engine = await fetch('http://127.0.0.1:' + port + '/health').then((response) => response.ok, () => false)
+  const result = {
+    error: error ? error.message : null,
+    failed: stats ? stats.hasErrors() : true,
+    files: stats ? Array.from(stats.compilation.fileDependencies) : [],
+    engine,
+  }
+  watching.close(() => compiler.close(() => console.log('${RESULT_PREFIX}' + JSON.stringify(result))))
+})
+`
+    const WatchOnceSchema = z.object({
+      error: z.string().nullable(),
+      failed: z.boolean(),
+      files: z.array(z.string()),
+      engine: z.boolean(),
+    })
+    const runNode = promisify(execFile)
+
+    async function watchOnce(bundler: Bundler, root: string, port: number, stateRoot: string) {
+      const {stdout, stderr} = await runNode(
+        process.execPath,
+        ['--input-type=module', '-e', WATCH_ONCE, bundler, root, String(port), stateRoot],
+        {cwd: PACKAGE_ROOT, encoding: 'utf8', timeout: 50_000},
+      )
+      const line = stdout.split('\n').find((entry) => entry.startsWith(RESULT_PREFIX))
+      if (line === undefined) throw new Error(`the watch printed no result\n${stdout}\n${stderr}`)
+      const logged = stderr.split('\n').filter((entry) => entry.startsWith('conciv:'))
+      return {...WatchOnceSchema.parse(JSON.parse(line.slice(RESULT_PREFIX.length))), logged}
+    }
+
+    it.each(bundlers)(
+      '%s builds without the widget and still starts the engine when .conciv is a file',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-conciv-file-`)
+        writeFixtureApp(root)
+        writeFileSync(join(root, '.conciv'), '')
+        const stateRoot = testTempDir(`conciv-${bundler}-conciv-file-state-`)
+        const port = await getPort()
+        const run = await watchOnce(bundler, root, port, stateRoot)
+        expect(run.error).toBeNull()
+        expect(run.failed).toBe(false)
+        expect(run.files).toContain(join(root, 'index.js'))
+        expect(run.files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(run.engine).toBe(true)
+        const clientLine = run.logged.find((entry) => entry.includes(join(root, generatedClient(port))))
+        expect(clientLine).toContain('EEXIST')
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s builds without the widget when the port is not an engine port',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-bad-port-`)
+        writeFixtureApp(root)
+        const run = await watchOnce(bundler, root, 70_000, root)
+        expect(run.error).toBeNull()
+        expect(run.failed).toBe(false)
+        expect(run.files).toContain(join(root, 'index.js'))
+        expect(run.files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(existsSync(join(root, generatedClient(70_000)))).toBe(false)
+        expect(run.logged).toContain(
+          'conciv: the engine port must be an integer from 1 to 65535, got 70000, so the page gets no widget',
+        )
+      },
+      60_000,
+    )
+  })
 })
 
 describe('engine port fallback', () => {
@@ -1088,6 +1550,15 @@ describe('nextjs', () => {
       withConciv({}, {port: 6123})
       expect(process.env.NEXT_PUBLIC_CONCIV_PORT).toBe('9999')
       expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port).toBe(9999)
+    })
+
+    it('exports no widget port when the widget is off, inherited ones included, and still hands the engine its options', () => {
+      process.env.NEXT_PUBLIC_CONCIV_PORT = '6125'
+      const cfg = withConciv({env: {NEXT_PUBLIC_CONCIV_PORT: '6124'}}, {port: 6124, widget: false})
+      expect(cfg.env).not.toHaveProperty('NEXT_PUBLIC_CONCIV_PORT')
+      expect(process.env.NEXT_PUBLIC_CONCIV_PORT).toBeUndefined()
+      expect(JSON.parse(cfg.env.CONCIV_OPTIONS ?? '{}')).toMatchObject({port: 6124, widget: false})
+      expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}')).toMatchObject({port: 6124, widget: false})
     })
 
     it('never assigns to a literal process.env.NEXT_PUBLIC_ member (bundlers inline it, breaking webpack)', () => {

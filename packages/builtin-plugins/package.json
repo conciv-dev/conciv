@@ -20,11 +20,11 @@
   },
   "dependencies": {
     "@conciv/contract": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-test-runner": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
     "@orpc/client": "catalog:",

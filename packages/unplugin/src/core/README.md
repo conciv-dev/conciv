@@ -17,13 +17,17 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `bin-shim.ts:installConcivBinShim(stateDir)` - returns a `PATH` with `<stateDir>/bin` first.
 - `open-editor.ts:makeOpenInEditor(root)` - opens `file:line` or `file:line:column` with `launch-editor`.
 - `app-extensions.d.ts` - declares the `@conciv/app-extensions` module.
+- `no-app-extensions.ts:entries` - an empty extension list, a build entry of its own (`dist/core/no-app-extensions.js`): the `@conciv/app-extensions` the starter imports on webpack and rspack.
+- `widget-start.ts:isEnginePort(port)` - true for an integer from 1 to 65535; the starter and `writeWidgetClient` both check the port with it.
+- `widget-start.ts:startConcivWidget(port)` - the browser starter shared by the Next.js widget entry and the webpack/rspack client entry; a build entry of its own (`dist/core/widget-start.js`).
+- `bundler-widget.ts:writeWidgetClient(root, port)` - logs one `conciv:` line and returns `undefined` unless `port` is an integer in 1..65535 (the engine start logs a bad port the same way and the bundler goes on), and logs one `conciv:` line naming the client path and the cause and returns `undefined` when `.conciv/` or the client cannot be written; otherwise it writes `.conciv/widget-client.<port>.gen.js` (named for the port, so compilers that share a context with different ports each keep their own client), whose text is constant except the port: it imports the starter by the fixed specifier `@conciv/widget-start` (`nextjs.ts:WIDGET_START_SPECIFIER`, aliased by the webpack and rspack hooks), and calls `startConcivWidget(<port>)` with the port as an integer literal. The client is only the build entry, never an import target. `widgetStarterPath()` returns the `dist/core/widget-start.js` path the `@conciv/widget-start` alias points at, and `noAppExtensionsPath()` the `dist/core/no-app-extensions.js` path the `@conciv/app-extensions` alias points at.
 
 ## Invariants
 
 - `boot.ts:makeEngineBooter` - the engine boots once; later calls return the same promise.
 - `nextjs.ts:registerWith` - returns early in production or unless `NEXT_RUNTIME === 'nodejs'`.
 - `nextjs.ts:registerWith` - known limit: conciv never stops the engine that `register()` boots, since neither Next.js instrumentation nor the `withConciv` config wrapper offers a close hook; the engine ends with the process.
-- `nextjs.ts:withConciv` - with `enabled: false` returns the config with only `env` and `serverExternalPackages`; existing `process.env` keys are not overwritten.
+- `nextjs.ts:withConciv` - with `enabled: false` returns the config with only `env` and `serverExternalPackages`; existing `process.env` keys are not overwritten. With `widget: false` it sets no `NEXT_PUBLIC_CONCIV_PORT`, so `nextjs-widget.ts` mounts nothing; `CONCIV_OPTIONS` still reaches `register()` and the engine boots.
 - `extensions-entry.ts` - throws when two extension files resolve to the same extensionless specifier.
 - `open-editor.ts:makeOpenInEditor` - a relative path is opened only when it resolves inside `root`.
 - `vite.ts:makeViteHook` - when the resolved config is not `enabled`, `configureServer` boots nothing, `transformIndexHtml` adds no tags and `transform` returns null.
@@ -34,6 +38,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `boot.ts:makeEngineBooter` - starts the engine with a child env of `process.env` plus the shimmed `PATH` and `CONCIV_PORT`.
 - `bin-shim.ts:installConcivBinShim` - creates `<stateDir>/bin` and symlinks `conciv` to `@conciv/cli/bin`.
 - `extensions-entry.ts:writeExtensionsEntry` - creates `.conciv/` and writes `extensions-client.gen.tsx`.
+- `bundler-widget.ts:writeWidgetClient` - creates `.conciv/` and writes `widget-client.<port>.gen.js`.
 - `extensions-watch.ts:watchExtensionsDir` - a `chokidar` `watch` on `<root>/conciv`; logs watcher errors.
 - `vite.ts` - `configureServer` boots the engine, mounts the widget middleware and passes the engine the `makeViteBridge` bundler bridge from `@conciv/extension/vite`; Vite's `closeServer` hook stops the engine that server booted, so `server.close()` (and a restart) settles only once the engine has stopped. A failed stop is logged, never thrown into Vite.
 - `nextjs.ts:withConciv` - writes missing keys into `process.env`.

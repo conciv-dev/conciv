@@ -4549,6 +4549,215 @@ describe('quick refresh', () => {
   }, 30_000)
 })
 
+describe('a deleted session', () => {
+  const core = bootedCore('deleted-session')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const NOT_SENT = 'This session was deleted, so your message was not sent.'
+  const START_FAILED = 'Could not start a new session. Check that the engine is running, then try again.'
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const deletedTitle = () => page.getByText('This session was deleted.', {exact: true})
+  const movesLine = () => page.getByText('Your text moves to the new session.', {exact: true})
+  const newSessionButton = () => page.getByRole('button', {name: 'New session', exact: true})
+  const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
+
+  test('a session opened after it was deleted shows the deleted panel in place of the chat, and New session opens a fresh one', async () => {
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(newSessionButton()).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).not.toBeInTheDocument()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+
+    harness.dispose()
+    harness.mountShell(`/quick?panes=${deletedId}&focus=0`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a delete arriving while the session is open turns the pane into the deleted panel', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    await rpc.sessions.delete({sessionId})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a delete made before the event stream is subscribed turns the open pane into the deleted panel once it subscribes', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(subscribe, 1)
+
+    await rpc.sessions.delete({sessionId})
+    await coreControl.releaseFault(subscribe)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a message sent as its session is deleted says it was not sent, offers no Retry, and the text moves to a new session', async () => {
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    const rowRead = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+    await userEvent.click(editor())
+    await userEvent.keyboard('keep this text')
+    await userEvent.keyboard('{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await coreControl.releaseFault(frame)
+
+    const errorRow = page.getByRole('log').getByRole('alert')
+    await expect.element(errorRow.getByText(NOT_SENT, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(errorRow.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+    await expect.element(notifications().getByText(NOT_SENT, {exact: true})).toBeVisible()
+    await expect.element(editor().getByText('keep this text')).toBeVisible()
+
+    await coreControl.releaseFault(rowRead)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(movesLine()).toBeVisible()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText('keep this text'), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 40_000)
+
+  test('a session that cannot be started says so, keeps the text with the deleted session, and the next press carries it', async () => {
+    const rpc = coreRpc(core())
+    const liveId = await createSession(rpc)
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'words worth keeping'})
+    harness.mountShell(`/quick?panes=${liveId}&focus=0`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    const refused = await faults.install({kind: 'fail', path: ['sessions', 'create'], status: 500})
+
+    await userEvent.click(page.getByRole('button', {name: 'Split pane', exact: true}))
+
+    await expect.element(notifications().getByText(START_FAILED, {exact: true}), {timeout: 8000}).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(notifications().getByText(START_FAILED, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+
+    await coreControl.releaseFault(refused)
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText('words worth keeping'), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+  }, 40_000)
+
+  test('with no pane open a failed pane start shows only the add pane failure and its Retry', async () => {
+    await faults.install({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
+    harness.mountShell('/quick')
+    const paneFailed = () => page.getByText('conciv could not start a pane. Check the engine connection and retry.')
+    const retry = () => page.getByRole('button', {name: 'Retry', exact: true})
+    await expect.element(paneFailed(), {timeout: 8000}).toBeVisible()
+
+    const held = await faults.install({kind: 'cut-on-release', path: ['sessions', 'create']})
+    await userEvent.click(page.getByRole('button', {name: 'Split pane', exact: true}))
+    await coreControl.awaitFaultPending(held, 1)
+    await expect.element(page.getByText('Starting a pane…', {exact: true})).toBeVisible()
+    await faults.install({kind: 'fail', path: ['sessions', 'create'], status: 500})
+    await coreControl.releaseFault(held)
+
+    await expect.element(paneFailed(), {timeout: 8000}).toBeVisible()
+    await expect.element(retry()).toBeVisible()
+    await expect.element(notifications().getByText(START_FAILED, {exact: true})).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('in the quick terminal New session replaces the deleted pane in place and carries its text', async () => {
+    const rpc = coreRpc(core())
+    const liveId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: liveId, title: 'Live pane'})
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'quick words to carry'})
+    harness.mountShell(`/quick?panes=${liveId},${deletedId}&focus=0`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().nth(1).getByText('quick words to carry'), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Close pane'}).nth(2)).not.toBeInTheDocument()
+    await expect.element(sessionTrigger().nth(0)).toHaveAccessibleName('Session: Live pane')
+    expect(harness.pathname()).toBe('/quick')
+    expect(harness.href()).not.toContain(deletedId)
+  }, 40_000)
+
+  test('compacting a session deleted elsewhere and compacting an id no session ever had both say the session no longer exists', async () => {
+    const NO_LONGER_EXISTS = 'This session no longer exists.'
+    const OLD_DELETED_SENTENCE = 'This session was deleted, so it cannot be compacted.'
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    await rpc.sessions.delete({sessionId})
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    await expect.element(notifications().getByText(NO_LONGER_EXISTS, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(notifications().getByText(OLD_DELETED_SENTENCE, {exact: true})).not.toBeInTheDocument()
+
+    harness.dispose()
+    await faults.releaseAll()
+    harness.mountShell(`/panel/conciv_${crypto.randomUUID()}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    await expect.element(notifications().getByText(NO_LONGER_EXISTS, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(notifications().getByText(OLD_DELETED_SENTENCE, {exact: true})).not.toBeInTheDocument()
+  }, 30_000)
+})
+
 describe('reachability flows', () => {
   const core = bootedCore('reachability-flows')
   const harness = createShellHarness(core)

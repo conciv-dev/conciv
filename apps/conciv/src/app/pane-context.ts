@@ -19,6 +19,7 @@ export type PaneContextValue = {
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
   newSession: () => void
+  replaceSession: (sessionId: string) => void
   chat: Accessor<ChatSession>
   refresh: () => void
   isRefreshing: Accessor<boolean>
