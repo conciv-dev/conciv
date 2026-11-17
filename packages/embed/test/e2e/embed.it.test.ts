@@ -1626,11 +1626,11 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     }
 
-    const toolsPage = async (kit: EmbedKit, args: string[]) => {
+    const toolsPage = async (kit: EmbedKit, args: string[], sessionId?: string) => {
       const {port, pathname} = new URL(kit.base)
       const env = {
         CONCIV_HOME: kit.home,
-        CONCIV_SESSION_ID: await kit.session(),
+        CONCIV_SESSION_ID: sessionId ?? (await kit.session()),
         CONCIV_PORT: port,
         CONCIV_TOKEN: pathname.replace(/^\/t\//, ''),
       }
@@ -1641,14 +1641,35 @@ test.describe('page dispatch parity', () => {
       )
     }
 
+    const askRefusal = {
+      code: 1,
+      document: {
+        ok: false,
+        error: {
+          kind: 'user',
+          code: 'APPROVAL_DENIED',
+          message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+        },
+      },
+    }
+    let denied: EmbedKit
+    let blanket: EmbedKit
+    let otherAction: EmbedKit
+
     test.beforeAll(async ({browser}) => {
       refused = await openTab(browser, {})
       allowed = await openTab(browser, {permission: {page_eval: 'allow'}})
+      denied = await bootEmbedKit({permission: {page_eval: 'deny'}})
+      blanket = await bootEmbedKit({permission: 'allow'})
+      otherAction = await bootEmbedKit({permission: {page_click: 'allow'}})
     })
 
     test.afterAll(async () => {
       await closeTab(refused)
       await closeTab(allowed)
+      await denied.cleanup()
+      await blanket.cleanup()
+      await otherAction.cleanup()
     })
 
     test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
@@ -1676,6 +1697,26 @@ test.describe('page dispatch parity', () => {
         document: {ok: true, data: {result: 'evaluated'}},
       })
       await expect(page.getByText('evaluated', {exact: true})).toBeVisible()
+    })
+
+    test('only a page_eval rule decides eval, and an allowed eval still needs an attached tab', async () => {
+      expect.soft(await toolsPage(denied, ['eval', '--code', EVAL])).toEqual({
+        code: 1,
+        document: {
+          ok: false,
+          error: {kind: 'user', code: 'APPROVAL_DENIED', message: 'Permission denied: page_eval'},
+        },
+      })
+      expect.soft(await toolsPage(blanket, ['eval', '--code', EVAL])).toEqual(askRefusal)
+      expect.soft(await toolsPage(otherAction, ['eval', '--code', EVAL])).toEqual(askRefusal)
+      const {sessionId} = await allowed.kit.rpc.sessions.create()
+      expect.soft(await toolsPage(allowed.kit, ['eval', '--code', EVAL], sessionId)).toEqual({
+        code: 1,
+        document: {
+          ok: false,
+          error: {kind: 'user', code: 'NO_PAGE_CLIENT', message: 'page_eval: no widget connected to session'},
+        },
+      })
     })
   })
 })
