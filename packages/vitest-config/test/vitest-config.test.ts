@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, expect, test, vi, describe} from 'vitest'
 import {ciReporters, ciTest} from '../src/reporters.ts'
 import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {
@@ -216,6 +217,30 @@ describe('shards', () => {
         !PACKAGES_WITH_DEDICATED_JOBS.includes(name) &&
         !PACKAGES_OUT_OF_CI.includes(name),
     )
+    expect(unplanned).toEqual([])
+  })
+
+  test('every pnpm workspace package with a test script lands in a shard unless it owns a dedicated CI job or is out of CI', () => {
+    const repoRoot = join(import.meta.dirname, '..', '..', '..')
+    const listed: unknown = JSON.parse(
+      execFileSync('pnpm', ['ls', '--recursive', '--depth', '-1', '--json'], {cwd: repoRoot, encoding: 'utf8'}),
+    )
+    const workspaceDirs = (Array.isArray(listed) ? listed : []).flatMap((entry: unknown) =>
+      typeof entry === 'object' && entry !== null && 'path' in entry && typeof entry.path === 'string'
+        ? [entry.path]
+        : [],
+    )
+    const tested = workspaceDirs
+      .filter((dir) => dir !== repoRoot)
+      .map((dir) => JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')))
+      .filter((manifest) => typeof manifest.scripts?.test === 'string')
+      .map((manifest) => manifest.name)
+    const planned = new Set(plannedPackages(repoRoot).map((entry) => entry.name))
+    const unplanned = tested.filter(
+      (name) =>
+        !planned.has(name) && !PACKAGES_WITH_DEDICATED_JOBS.includes(name) && !PACKAGES_OUT_OF_CI.includes(name),
+    )
+    expect(workspaceDirs).toContain(join(repoRoot, 'packages', 'vitest-config'))
     expect(unplanned).toEqual([])
   })
 

@@ -15,7 +15,7 @@ export type ShardSizing = {
   bootstrapShards: number
 }
 
-export const PACKAGE_GROUPS = ['packages', 'packages/extensions', 'apps']
+export const PACKAGE_GROUPS = ['packages', 'packages/extensions', 'packages/plugins', 'apps']
 
 const E2E_GROUPS = ['e2e', 'apps']
 
