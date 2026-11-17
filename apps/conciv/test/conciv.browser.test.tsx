@@ -114,7 +114,7 @@ import {
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
-import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
+import {concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
@@ -5935,7 +5935,6 @@ describe('wire name coverage', () => {
     EXECUTE_TOOL_NAME,
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
-    concivExtensionsToolDef.name,
     ...registry.catalog.list().map((entry) => entry.name),
     ...SERVER_PLUGIN_TOOL_NAMES,
   ]

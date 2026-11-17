@@ -3604,9 +3604,9 @@ describe('plugin host bus', () => {
         [CONCIV_CLIENT_HEADER]: 'terminal',
       },
     })
-    await expect(outsideRpc.registry.call({name: 'conciv_extensions', input: {verb: 'catalog'}})).rejects.toMatchObject(
-      {code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`},
-    )
+    await expect(
+      outsideRpc.registry.call({name: 'conciv_ui', input: {kind: 'confirm', question: 'Proceed?'}}),
+    ).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`})
     expect(publishedOutside).toEqual([])
     const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
     expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
@@ -4365,7 +4365,6 @@ describe('direct tools on the MCP surface', () => {
       .object({result: z.array(z.string())})
       .parse(JSON.parse(bindings.result.content.map((part) => part.text).join('')))
     expect(bound.result.toSorted()).toEqual([
-      'external_conciv_extensions',
       'external_conciv_ui',
       'external_open',
       'external_page_addclass',
