@@ -108,9 +108,10 @@ function CommentEntry(props: {comment: Comment; ui: Context['ui']}): JSX.Element
   )
 }
 
-function ThreadHeader(props: Kit): JSX.Element {
+function ThreadHeader(props: Kit & {root: Comment}): JSX.Element {
   const model = useComments()
   const confirmDelete = (): void => {
+    const root = props.root
     props.dialogs.open((dialog) => (
       <props.ui.Dialog
         title="Delete this thread?"
@@ -123,7 +124,7 @@ function ThreadHeader(props: Kit): JSX.Element {
             <props.ui.Button
               variant="danger"
               onClick={() => {
-                model.deleteThread()
+                model.deleteThread(root)
                 dialog.close()
               }}
             >
@@ -206,7 +207,7 @@ function ThreadContent(props: Kit): JSX.Element {
     <Show when={model.openRoot()}>
       {(root) => (
         <div class="flex flex-col max-h-full min-h-0">
-          <ThreadHeader ui={props.ui} dialogs={props.dialogs} />
+          <ThreadHeader ui={props.ui} dialogs={props.dialogs} root={root()} />
           <div class="overscroll-contain flex-1 min-h-0 overflow-y-auto">
             <For each={model.collectThread(root().cid)}>
               {(comment) => <CommentEntry comment={comment} ui={props.ui} />}

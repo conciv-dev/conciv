@@ -146,18 +146,16 @@ export function createCommentsModel(
     })
     closeThread()
   }
-  const deleteThread = (): void => {
-    const parent = openRoot()
-    if (!parent) return
+  const deleteThread = (parent: Comment): void => {
     comments()
       .filter((comment) => comment.threadId === parent.threadId)
       .forEach((comment) => db.comments.delete(comment.id))
     const pin = pins().find((row) => row.cid === parent.cid)
     if (pin) db.pins.delete(pin.id)
-    closeThread()
+    if (state.openCid === parent.cid) closeThread()
   }
   const removeComment = (comment: Comment): void => {
-    if (comment.cid === comment.threadId) return deleteThread()
+    if (comment.cid === comment.threadId) return deleteThread(comment)
     db.comments.delete(comment.id)
   }
 
