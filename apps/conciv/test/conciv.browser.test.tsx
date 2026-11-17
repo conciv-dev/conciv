@@ -8164,7 +8164,8 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentence()).not.toBeInTheDocument()
     await expect.element(sentCard('the changed comment')).toHaveTextContent('the changed commentFixture note')
     await expect.element(chatPanel()).toMatchTextContent(/❯notedthe changed commentFixture note/)
-    await expect.element(sentCard('a card it draws')).toHaveTextContent('a card it drawsDrawn note')
+    await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
+    await expect.element(sentCard('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
 
     await tab('Fixture tools').click()
     await control('Attach six notes alone').click()
@@ -8199,6 +8200,8 @@ module.exports = {default: {setup(ctx) {
     await expect.element(title()).toBeInTheDocument()
     await expect.element(sentence()).not.toBeInTheDocument()
     await expect.element(sentCard('the changed comment')).toBeVisible()
+    await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
+    await expect.element(sentCard('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
     await expect.element(sentCard('note number 5')).toBeVisible()
     await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
     await expect.element(sentCard('alone note 6')).toBeVisible()
