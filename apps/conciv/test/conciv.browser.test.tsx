@@ -672,6 +672,8 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent(typed)
     await expect.element(input()).not.toMatchTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
     expect(turns().elements()).toHaveLength(0)
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
     await coreControl.releaseFault(refused)
     await userEvent.click(input())
@@ -685,6 +687,21 @@ describe('chat pane', () => {
     await expect.element(replies()).toBeVisible()
     expect(turns().elements()).toHaveLength(1)
     expect(replies().elements()).toHaveLength(1)
+
+    const refusedAgain = await faults.install({kind: 'chat-refused', status: 500})
+    const later = 'a later message the server refuses'
+    await userEvent.click(input())
+    await userEvent.keyboard(`${later}{Enter}`)
+    await expect.element(input()).toHaveTextContent(later)
+    await expect
+      .element(
+        page
+          .getByRole('alert')
+          .filter({hasText: 'Internal Server Error', has: page.getByRole('button', {name: 'Retry'})}),
+      )
+      .toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    await coreControl.releaseFault(refusedAgain)
   })
 
   test('a turn the engine started that fails before any reply keeps the message and shows its error, not a failed load', async () => {
