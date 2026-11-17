@@ -57,8 +57,8 @@ async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Prom
 }
 
 async function openChat(page: Page): Promise<void> {
-  await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
-  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+  await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 10_000})
+  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
 }
 
 async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: number; y: number}): Promise<void> {
@@ -88,9 +88,9 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await openChat(page)
 
       const pill = page.getByRole('button', {name: 'Open the whiteboard canvas'})
-      await pill.click({timeout: 30_000})
+      await pill.click({timeout: 10_000})
       const rectangleTool = page.getByRole('radio', {name: /Rectangle/})
-      await expect(rectangleTool).toBeVisible({timeout: 60_000})
+      await expect(rectangleTool).toBeVisible({timeout: 10_000})
 
       await page.mouse.click(120, 640)
       await page.keyboard.press('r')
@@ -110,7 +110,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await composer.click()
       await page.keyboard.type('keep this turn running')
       await page.keyboard.press('Enter')
-      await expect(stop).toBeVisible({timeout: 30_000})
+      await expect(stop).toBeVisible({timeout: 10_000})
       await composer.click()
       await page.keyboard.press('Escape')
       await expect(rectangleTool).toBeHidden()
@@ -118,7 +118,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(stop).toBeVisible()
       await expect(composer).toBeVisible()
       widget.kit.harness.script.release()
-      await expect(stop).toBeHidden({timeout: 30_000})
+      await expect(stop).toBeHidden({timeout: 10_000})
       await expect(composer).toBeFocused()
       await page.keyboard.type('the canvas is closed')
       await expect(composer).toHaveText('the canvas is closed')
@@ -133,7 +133,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       expect(await canvasTypes(widget.kit, 'draft')).toEqual(['line'])
 
       await pill.click()
-      await expect(rectangleTool).toBeVisible({timeout: 60_000})
+      await expect(rectangleTool).toBeVisible({timeout: 10_000})
       await expect(page.getByRole('button', {name: 'Zoom in'})).toBeVisible()
       await expect(rectangleTool).not.toBeChecked()
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
@@ -181,7 +181,16 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       expect(
         Pending.parse(await widget.kit.callTool('whiteboard_canvas_diagram', {mermaid: 'flowchart LR\n  A --> B'})),
       ).toEqual({pending: expect.any(String)})
-      expect(await canvasTypes(widget.kit, 'draft')).toEqual(expect.arrayContaining(['ellipse', 'rectangle', 'arrow']))
+      expect((await canvasTypes(widget.kit, 'draft')).toSorted()).toEqual([
+        'arrow',
+        'ellipse',
+        'line',
+        'rectangle',
+        'rectangle',
+        'rectangle',
+        'text',
+        'text',
+      ])
 
       const hostileByTool = Pending.parse(
         await widget.kit.callTool('whiteboard_canvas_svg', {svg: HOSTILE_SVG, x: 660, y: 300, width: 200}),
@@ -207,7 +216,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
             },
           },
         },
-        {signal: AbortSignal.timeout(30_000)},
+        {signal: AbortSignal.timeout(10_000)},
       )
       await removeFails.answered()
       await removeFails.dispose()
@@ -216,15 +225,13 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         PendingIds.parse(
           await widget.kit.rpc.plugin.call(
             {rpcId: 'whiteboard', method: 'canvasPending.list', input: {room}},
-            {signal: AbortSignal.timeout(30_000)},
+            {signal: AbortSignal.timeout(10_000)},
           ),
         ).map((row) => row.id),
       ).not.toContain('svg-over-rpc')
-      expect(await canvasElements(widget.kit, 'draft')).toEqual(
-        expect.arrayContaining([
-          {id: `${hostileByTool.pending}-0`, type: 'rectangle'},
-          {id: 'svg-over-rpc-0', type: 'rectangle'},
-        ]),
+      const hostileIds = [`${hostileByTool.pending}-0`, 'svg-over-rpc-0']
+      expect((await canvasElements(widget.kit, 'draft')).filter((element) => hostileIds.includes(element.id))).toEqual(
+        hostileIds.map((id) => ({id, type: 'rectangle'})),
       )
       expect(await page.title()).not.toBe(SCRIPT_MARKER)
       await expect(
@@ -247,7 +254,19 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 
       expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
       expect(await canvasTypes(widget.kit, 'draft')).toEqual([])
-      expect(await canvasTypes(widget.kit)).toEqual(expect.arrayContaining(['rectangle', 'ellipse', 'arrow']))
+      expect((await canvasTypes(widget.kit)).toSorted()).toEqual([
+        'arrow',
+        'ellipse',
+        'line',
+        'rectangle',
+        'rectangle',
+        'rectangle',
+        'rectangle',
+        'rectangle',
+        'rectangle',
+        'text',
+        'text',
+      ])
 
       const [, image] = Exported.parse(await widget.kit.callTool('whiteboard_canvas_export', {format: 'png'}))
       expect(image.source.mimeType).toBe('image/png')
@@ -266,8 +285,8 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
           waitUntil: 'domcontentloaded',
         })
         await second.setViewportSize({width: 1280, height: 800})
-        await expect(second.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
-        await second.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+        await expect(second.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
+        await second.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 10_000})
         await positionRead.awaitCaptured(1)
         const liveList = {
           path: WHITEBOARD_CALL,
@@ -296,10 +315,10 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
               },
             },
           },
-          {signal: AbortSignal.timeout(30_000)},
+          {signal: AbortSignal.timeout(10_000)},
         )
         await positionRead.dispose()
-        await expect(second.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+        await expect(second.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 10_000})
         await secondObserver.completed({path: WHITEBOARD_CALL, input: {rpcId: 'whiteboard', method: 'elements.list'}})
 
         await secondSocket.hold()
@@ -318,7 +337,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
           input: {rpcId: 'whiteboard', method: 'since'},
           since: reconnected,
           status: 500,
-          timeout: 30_000,
+          timeout: 10_000,
         })
         await missedRead.dispose()
         const missedAgain = await secondObserver.completed({
@@ -326,7 +345,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
           input: {rpcId: 'whiteboard', method: 'since'},
           since: reconnected,
           served: true,
-          timeout: 20_000,
+          timeout: 10_000,
         })
         expect(SinceRead.parse(missedAgain.output).changes.map((change) => change.key)).toContain('drawn-while-away')
         await secondObserver.completed({
@@ -373,7 +392,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
               },
             },
           },
-          {signal: AbortSignal.timeout(30_000)},
+          {signal: AbortSignal.timeout(10_000)},
         )
         await secondObserver.completed({
           path: WHITEBOARD_CALL,
@@ -432,7 +451,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         expect(
           await widget.kit.rpc.plugin.call(
             {rpcId: 'whiteboard', method: 'canvasReplies.list', input: {room}},
-            {signal: AbortSignal.timeout(30_000)},
+            {signal: AbortSignal.timeout(10_000)},
           ),
         ).toEqual([])
       } finally {
@@ -455,10 +474,10 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await failing.goto(await magicLink(widget.kit.base, new URL('/', page.url()).href), {
           waitUntil: 'domcontentloaded',
         })
-        await failing.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+        await failing.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 10_000})
         const failedToast = failing.getByText('The whiteboard needs a running conciv server')
-        await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
-        await expect(failedToast).toHaveCount(1, {timeout: 30_000})
+        await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 10_000})
+        await expect(failedToast).toHaveCount(1, {timeout: 10_000})
         await expect(failing.getByRole('status').filter({hasText: 'The whiteboard is unavailable.'})).toBeVisible()
         expect(failureLogs).toHaveLength(1)
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
@@ -466,7 +485,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         expect(failureLogs).toHaveLength(2)
         await chunks.dispose()
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
-        await expect(failing.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+        await expect(failing.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 10_000})
         await expect(failing.getByRole('status').filter({hasText: 'The whiteboard is unavailable.'})).toBeHidden()
       } finally {
         await failing.close()
@@ -474,5 +493,5 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
     } finally {
       await widget.close()
     }
-  }, 240_000)
+  })
 })
