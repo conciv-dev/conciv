@@ -14,7 +14,11 @@ import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 
 const VIEWER_RENEW_MS = 7000
 
-const SavedRecording = z.object({recordingId: z.string()})
+const SAVE_FAILURES = {
+  empty: 'Nothing to save yet: interact with the page first.',
+  'too-large': 'The recording is too large to save. Start a new recording.',
+  'io-error': 'Could not write the recording to the project folder. Try again.',
+}
 
 const AppendedHere = z.object({clientId: z.string()})
 
@@ -108,26 +112,28 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const sendFailed = (): void =>
     void ctx.toast.show({title: 'Could not save the recording. Try again.', variant: 'error'})
 
+  const saveFailed = (failure: keyof typeof SAVE_FAILURES): void =>
+    void ctx.toast.show({title: SAVE_FAILURES[failure], variant: 'error'})
+
   const saveForExport = async (): Promise<string | undefined> => {
-    const saved = SavedRecording.safeParse(await recorder()['recordings.save']({clientId: props.clientId}))
-    if (saved.success) return saved.data.recordingId
-    ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
+    const stored = await recorder()['recordings.save']({clientId: props.clientId})
+    if (stored.saved) return stored.recordingId
+    saveFailed(stored.error)
     return undefined
   }
 
   const sendToAgent = async (): Promise<void> => {
     setState('sending', true)
     try {
-      const [saved, log] = await Promise.all([
+      const [stored, log] = await Promise.all([
         recorder()['recordings.save']({clientId: props.clientId}),
         recorder().log({clientId: props.clientId}),
       ])
-      const savedRecording = SavedRecording.safeParse(saved)
-      if (!savedRecording.success) {
-        sendFailed()
+      if (!stored.saved) {
+        saveFailed(stored.error)
         return
       }
-      const {recordingId} = savedRecording.data
+      const {recordingId} = stored
       const poster = recordingPoster(log.entries)
       props.panel.screen.composer.attach({
         type: 'note',

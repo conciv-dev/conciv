@@ -74,12 +74,10 @@ function registerRpc(rpc: Context['rpc'], runtime: RecorderRuntime, announce: An
       }),
     log: (input) => Effect.sync(() => ({entries: distill(runtime.rings.window(input, input.clientId))})),
     'recordings.save': (input) =>
-      Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))).pipe(
-        Effect.map((saved) => (saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason})),
-      ),
+      Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))),
     'recordings.get': (input) =>
       Effect.promise(() => runtime.recordings.get(input.recordingId)).pipe(
-        Effect.map((recording) => (recording.kind === 'found' ? {events: recording.events} : EXPIRED)),
+        Effect.map((recording) => (recording.kind === 'found' ? {expired: false, events: recording.events} : EXPIRED)),
       ),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {

@@ -11,7 +11,7 @@ const MAX_RECORDING_BYTES = 16 * 1024 * 1024
 const MAX_TOTAL_RECORDING_BYTES = 200 * 1024 * 1024
 const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}
+type SaveResult = {saved: true; recordingId: string} | {saved: false; error: 'too-large' | 'empty' | 'io-error'}
 
 export type ReadResult = {kind: 'found'; events: RrwebEvent[]} | {kind: 'expired'} | {kind: 'missing'}
 
@@ -102,18 +102,18 @@ export function createRecordingStore(dir: string): RecordingStore {
       await rename(`${target}.tmp`, target)
     } catch {
       await unlink(`${target}.tmp`).catch(() => {})
-      return {ok: false, reason: 'io-error'}
+      return {saved: false, error: 'io-error'}
     }
     await prune(dir).catch((error: unknown) => {
       console.error(`[recorder] pruning old recordings failed: ${String(error)}`)
     })
-    return {ok: true, recordingId}
+    return {saved: true, recordingId}
   }
   return {
     async save(events) {
-      if (events.length < 2) return {ok: false, reason: 'empty'}
+      if (events.length < 2) return {saved: false, error: 'empty'}
       const trimmed = trimToCap(events)
-      if (!trimmed || trimmed.length < 2) return {ok: false, reason: 'too-large'}
+      if (!trimmed || trimmed.length < 2) return {saved: false, error: 'too-large'}
       const payload = JSON.stringify({events: trimmed})
       return changes.add(() => publish(payload))
     },

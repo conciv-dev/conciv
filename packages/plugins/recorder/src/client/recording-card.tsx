@@ -1,14 +1,11 @@
 import {Match, Show, Switch, createMemo, createResource, onCleanup, type JSX} from 'solid-js'
-import {z} from 'zod'
 import {usePlugin, type NoteCardProps} from '@conciv/plugin/experimental'
 import {Recorder} from '../rpc.js'
-import {REPLAY_MIN_EVENTS, RrwebEventSchema, type RrwebEvent} from '../protocol.js'
+import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../protocol.js'
 import {ExportVideoButton} from './export-video-button.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {mountPlayer, type PlayerKit} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
-
-const SavedEvents = z.object({events: z.array(RrwebEventSchema)})
 
 type RecordingNote = {readonly recordingId: string; readonly poster: string}
 
@@ -41,9 +38,11 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
     () => props.recording.recordingId,
     (recordingId) => ctx.client.rpc(Recorder)['recordings.get']({recordingId}, {signal: ctx.signal}),
   )
-  const events = createMemo((): RrwebEvent[] | undefined =>
-    saved.state === 'ready' ? SavedEvents.safeParse(saved()).data?.events : undefined,
-  )
+  const events = createMemo((): RrwebEvent[] | undefined => {
+    if (saved.state !== 'ready') return undefined
+    const recording = saved()
+    return recording.expired ? undefined : recording.events
+  })
   const playerKit = usePlayerKit()
   const replayRef = (kit: PlayerKit, playable: RrwebEvent[]) => (container: HTMLDivElement) => {
     onCleanup(mountPlayer(kit, container, playable))

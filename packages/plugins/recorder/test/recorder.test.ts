@@ -343,12 +343,15 @@ describe('the recorder RPC', () => {
     ])
 
     const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'mine'}))
-    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events: mine.events})
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({
+      expired: false,
+      events: mine.events,
+    })
     const stored = await filesNamed(kit.stateRoot, `${saved.recordingId}.json`)
     expect(stored).toEqual([join(recordingsDirectory(kit), `${saved.recordingId}.json`)])
 
     expect(await call(kit, 'recordings.get', {recordingId: 'missing-recording'})).toEqual({expired: true})
-    expect(await call(kit, 'recordings.save', {clientId: 'nobody'})).toEqual({error: 'empty'})
+    expect(await call(kit, 'recordings.save', {clientId: 'nobody'})).toEqual({saved: false, error: 'empty'})
     expect(await failureType(call(kit, 'recordings.save', {clientId: ''}))).toBe('rpc.invalid_input')
 
     const recordingsDir = recordingsDirectory(kit)
@@ -366,6 +369,7 @@ describe('the recorder RPC', () => {
     }
     const trimmed = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'trim'}))
     expect(await call(kit, 'recordings.get', {recordingId: trimmed.recordingId})).toEqual({
+      expired: false,
       events: [keptSnapshot, keptTail],
     })
 
@@ -377,7 +381,7 @@ describe('the recorder RPC', () => {
     ]) {
       expect(await call(kit, 'flush', {clientId: 'tail', events})).toEqual({ok: true})
     }
-    expect(await call(kit, 'recordings.save', {clientId: 'tail'})).toEqual({error: 'too-large'})
+    expect(await call(kit, 'recordings.save', {clientId: 'tail'})).toEqual({saved: false, error: 'too-large'})
 
     await writeFile(join(recordingsDir, `${saved.recordingId}.webm`), 'rendered', 'utf8')
     const kept = await Array.from({length: 50}).reduce<Promise<string[]>>(
@@ -392,14 +396,14 @@ describe('the recorder RPC', () => {
     expect((await readdir(recordingsDir)).toSorted()).toEqual(kept.map((id) => `${id}.json`).toSorted())
     expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({expired: true})
     expect(await call(kit, 'recordings.get', {recordingId: trimmed.recordingId})).toEqual({expired: true})
-    expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({events: mine.events})
+    expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({expired: false, events: mine.events})
 
     await writeFile(join(recordingsDir, `${newest}.json`), '{corrupt', 'utf8')
     expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({expired: true})
 
     await chmod(recordingsDir, 0o500)
     onTestFinished(() => chmod(recordingsDir, 0o700))
-    expect(await call(kit, 'recordings.save', {clientId: 'mine'})).toEqual({error: 'io-error'})
+    expect(await call(kit, 'recordings.save', {clientId: 'mine'})).toEqual({saved: false, error: 'io-error'})
     await chmod(recordingsDir, 0o700)
 
     const stray = join(recordingsDir, '123-dead.json.tmp')
@@ -409,6 +413,7 @@ describe('the recorder RPC', () => {
     await expect
       .poll(() => call(kit, 'recordings.get', {recordingId: survivor}), {timeout: 15_000})
       .toEqual({
+        expired: false,
         events: mine.events,
       })
 
@@ -425,7 +430,10 @@ describe('the recorder RPC', () => {
     const reopenEvents = fixtureStream(Date.now())
     const reopened = await flushAndSave(first, 'reopen', reopenEvents).finally(() => first.cleanup())
     const second = await bootRecorder(folder)
-    expect(await call(second, 'recordings.get', {recordingId: reopened.recordingId})).toEqual({events: reopenEvents})
+    expect(await call(second, 'recordings.get', {recordingId: reopened.recordingId})).toEqual({
+      expired: false,
+      events: reopenEvents,
+    })
   })
 })
 

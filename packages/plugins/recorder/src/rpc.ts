@@ -25,8 +25,8 @@ const ActionLogEntrySchema = z.object({
 })
 
 const SaveOutput = z.union([
-  z.object({recordingId: z.string()}),
-  z.object({error: z.enum(['too-large', 'empty', 'io-error'])}),
+  z.object({saved: z.literal(true), recordingId: z.string()}),
+  z.object({saved: z.literal(false), error: z.enum(['too-large', 'empty', 'io-error'])}),
 ])
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -38,7 +38,10 @@ const VideoPieceOutput = z.strictObject({
   mime: z.literal('video/webm'),
 })
 
-const RecordingOutput = z.union([z.object({events: z.array(RrwebEventSchema)}), z.object({expired: z.literal(true)})])
+const RecordingOutput = z.union([
+  z.object({expired: z.literal(false), events: z.array(RrwebEventSchema)}),
+  z.object({expired: z.literal(true)}),
+])
 
 export const Recorder = Rpc.define({
   id: 'recorder',
