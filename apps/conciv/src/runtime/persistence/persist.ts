@@ -37,6 +37,7 @@ export function persistStore<T extends object>(input: {
   sync?: PersistenceSyncAPI
   delay?: number
   write?: (value: T, serialized: string) => Promise<void>
+  writeLeaving?: (value: T, serialized: string) => Promise<void>
 }) {
   const delay = input.delay ?? persistSaveDelay
   const init = input.storage.getItem(input.name)
@@ -47,10 +48,10 @@ export function persistStore<T extends object>(input: {
   const stopSave = () => {
     clearTimeout(timer)
     timer = undefined
-    pending.delete(flush)
+    pending.delete(flushLeaving)
   }
 
-  const dispatch = (event: PersistStoreEvent) => {
+  const dispatch = (event: PersistStoreEvent, write = input.write) => {
     const prev = untrack(persistState)
     const next = transitionPersistStore(prev, event)
 
@@ -58,15 +59,15 @@ export function persistStore<T extends object>(input: {
 
     batch(() => {
       setPersistState(next.state)
-      next.effects.forEach(run)
+      next.effects.forEach((effect) => run(effect, write))
     })
   }
 
-  const run = (effect: PersistStoreEffect) => {
+  const run = (effect: PersistStoreEffect, write = input.write) => {
     if (effect.type === 'hydrate') return input.setStore(reconcile(input.deserialize(effect.raw)))
 
     if (effect.type === 'schedule-save') {
-      pending.add(flush)
+      pending.add(flushLeaving)
       timer ??= setTimeout(flush, delay)
 
       return
@@ -75,8 +76,8 @@ export function persistStore<T extends object>(input: {
     input.sync?.[1](input.name, effect.serialized)
     const failed = () => dispatch({type: 'write.failed', attempted: effect.serialized, fallback: effect.fallback})
 
-    const result: unknown = input.write
-      ? input.write(input.store, effect.serialized)
+    const result: unknown = write
+      ? write(input.store, effect.serialized)
       : input.storage.setItem(input.name, effect.serialized)
 
     if (result === false) return failed()
@@ -89,12 +90,14 @@ export function persistStore<T extends object>(input: {
     }
   }
 
-  const flush = () => {
+  const flushWith = (write: typeof input.write) => () => {
     stopSave()
 
     if (!needsPersistFlush(untrack(persistState))) return
-    dispatch({type: 'flushed', serialized: untrack(() => input.serialize(input.store))})
+    dispatch({type: 'flushed', serialized: untrack(() => input.serialize(input.store))}, write)
   }
+  const flush = flushWith(input.write)
+  const flushLeaving = flushWith(input.writeLeaving ?? input.write)
 
   const apply = input.setStore as unknown as (...values: unknown[]) => void
 
@@ -109,7 +112,7 @@ export function persistStore<T extends object>(input: {
     dispatch(baseline === undefined ? EDITED : {type: 'edited', baseline})
   }) as unknown as SetStoreFunction<T>
 
-  initial.effects.forEach(run)
+  initial.effects.forEach((effect) => run(effect))
 
   if (init instanceof Promise) {
     void init.then(

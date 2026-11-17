@@ -248,6 +248,7 @@ function makeLocalDraftWriter(
     if (sendable()) encoded(sendChanged)
   }
   const resend = () => encoded(send)
+  const writeDocument = (serialized: string) => drafts.setDocument(sessionId, JSON.parse(serialized))
   const persisted = persistStore({
     store: document,
     setStore: setDocument,
@@ -255,7 +256,8 @@ function makeLocalDraftWriter(
     storage: NoLocalHydration,
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
-    write: (_value, serialized) => keep(() => drafts.setDocument(sessionId, JSON.parse(serialized))).finally(feed),
+    write: (_value, serialized) => keep(() => writeDocument(serialized)).finally(feed),
+    writeLeaving: (_value, serialized) => writeDocument(serialized).finally(feed),
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
     const offsets = clampSelection(selection(), draft.draft)
