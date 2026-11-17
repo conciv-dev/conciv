@@ -22,6 +22,7 @@ const WHITEBOARD_CALL = ['plugin', 'call']
 
 const Pending = z.object({pending: z.string()})
 
+const PendingIds = z.array(z.object({id: z.string()}).loose())
 const Committed = z.object({committed: z.boolean()})
 const Exported = z.tuple([
   z.unknown(),
@@ -186,6 +187,11 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await widget.kit.callTool('whiteboard_canvas_svg', {svg: HOSTILE_SVG, x: 660, y: 300, width: 200}),
       )
       const room = await widget.kit.session()
+      const pendingRemoved = {
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'canvasPending.remove', input: {id: 'svg-over-rpc'}},
+      }
+      const removeFails = await failRpcCalls(page, pendingRemoved)
       const insertedOverRpc = observer.mark()
       await widget.kit.rpc.plugin.call(
         {
@@ -203,11 +209,17 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         },
         {signal: AbortSignal.timeout(30_000)},
       )
-      await observer.completed({
-        path: WHITEBOARD_CALL,
-        input: {rpcId: 'whiteboard', method: 'canvasPending.remove', input: {id: 'svg-over-rpc'}},
-        since: insertedOverRpc,
-      })
+      await removeFails.answered()
+      await removeFails.dispose()
+      await observer.completed({...pendingRemoved, since: insertedOverRpc, status: 200})
+      expect(
+        PendingIds.parse(
+          await widget.kit.rpc.plugin.call(
+            {rpcId: 'whiteboard', method: 'canvasPending.list', input: {room}},
+            {signal: AbortSignal.timeout(30_000)},
+          ),
+        ).map((row) => row.id),
+      ).not.toContain('svg-over-rpc')
       expect(await canvasElements(widget.kit, 'draft')).toEqual(
         expect.arrayContaining([
           {id: `${hostileByTool.pending}-0`, type: 'rectangle'},
