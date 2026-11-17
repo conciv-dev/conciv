@@ -1,4 +1,4 @@
-import {children, createUniqueId, For, Show, type JSX} from 'solid-js'
+import {children, createUniqueId, For, onCleanup, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Ui, UiIconProps, UiMenuItem, UiMenuSubProps} from '@conciv/plugin/experimental'
 import {Markdown} from '@conciv/ui-kit-chat'
@@ -10,6 +10,7 @@ import {
   LIST_PANEL_ITEM,
   Loader,
   Menu,
+  Popover,
   Select,
   Switch,
   TextField,
@@ -19,6 +20,7 @@ import {
   type LoaderSize,
 } from '@conciv/ui-kit-system'
 import {ActionRow, Group, SettingsHeader} from '../../settings/settings-ui'
+import {useLayers} from '../../app/context'
 import {icons} from './icons'
 
 const iconSize = {small: 'size-3.5', normal: 'size-4', large: 'size-5'}
@@ -227,6 +229,30 @@ export const ui: Ui = {
       </Dialog.Content>
     )
   },
+  Popover: (props) => (
+    <Popover.Root
+      open={props.open}
+      onOpenChange={(details) => props.onOpenChange(details.open)}
+      modal={false}
+      portalled={false}
+      positioning={{
+        placement: 'right-start',
+        flip: ['left-start', 'bottom-start', 'top-start'],
+        gutter: 8,
+        getAnchorElement: () => props.anchor() ?? null,
+      }}
+      persistentElements={[() => props.anchor() ?? null]}
+      initialFocusEl={() => props.initialFocus?.() ?? null}
+      finalFocusEl={() => props.anchor() ?? null}
+    >
+      <Show when={props.open}>
+        <OpenLayer />
+      </Show>
+      <Popover.Positioner>
+        <Popover.Content aria-label={props.label}>{props.children}</Popover.Content>
+      </Popover.Positioner>
+    </Popover.Root>
+  ),
   Switch: (props) => (
     <Switch.Root
       checked={props.checked}
@@ -343,6 +369,12 @@ function Icon(props: UiIconProps): JSX.Element {
       aria-hidden="true"
     />
   )
+}
+
+function OpenLayer(): JSX.Element {
+  onCleanup(useLayers().register(() => true, false))
+
+  return null
 }
 
 function Busy(): JSX.Element {
