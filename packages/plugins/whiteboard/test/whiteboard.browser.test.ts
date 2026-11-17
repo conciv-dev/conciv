@@ -10,7 +10,7 @@ import {test} from '@conciv/browser-fixture'
 import {magicLink} from '@conciv/harness-testkit/login'
 import type {CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
-import {failRpcCalls, garbleRpcReplies, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
+import {failRpcCalls, garbleRpcReplies, gateRpcCalls, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {openPluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -29,6 +29,8 @@ const Exported = z.tuple([
 ])
 
 const CanvasRead = z.object({elements: z.array(z.object({id: z.string(), type: z.string()}).loose())})
+const ShownElement = z.object({version: z.number(), index: z.string()}).loose()
+const SAVED_BEFORE_POSITION = 'saved-before-position'
 
 const SCRIPT_MARKER = 'svg markup ran as script'
 const HOSTILE_SVG = `<svg viewBox='0 0 100 50' onload="document.title='${SCRIPT_MARKER}'"><image href='missing.png' onerror="document.title='${SCRIPT_MARKER}'"/><rect x='0' y='0' width='100' height='50' fill='#e03131'/></svg>`
@@ -195,12 +197,47 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         const secondObserver = rpcObserverFor(second)
         const secondSocket = await holdRpcCalls(second)
         await rpcSocketFor(second).installed
+        const positionRead = await gateRpcCalls(second, {
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'since'},
+        })
         await second.goto(await magicLink(widget.kit.base, new URL('/', page.url()).href), {
           waitUntil: 'domcontentloaded',
         })
         await second.setViewportSize({width: 1280, height: 800})
         await expect(second.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
         await second.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+        await positionRead.awaitCaptured(1)
+        const liveList = {
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'elements.list', input: {scope: 'live'}},
+        }
+        if (secondObserver.startedCount(liveList) > 0) await secondObserver.completed(liveList)
+        const shownElements = ShownElement.array().parse(
+          CanvasRead.parse(await widget.kit.callTool('whiteboard_canvas_read', {})).elements,
+        )
+        const [shown] = shownElements
+        const lastIndex = shownElements
+          .map((element) => element.index)
+          .toSorted()
+          .at(-1)
+        await widget.kit.rpc.plugin.call(
+          {
+            rpcId: 'whiteboard',
+            method: 'elements.upsert',
+            input: {
+              room,
+              scope: 'live',
+              row: {
+                elementId: SAVED_BEFORE_POSITION,
+                data: {...shown, id: SAVED_BEFORE_POSITION, x: 900, index: `${lastIndex}V`},
+                version: shown?.version ?? 1,
+              },
+            },
+          },
+          {signal: AbortSignal.timeout(30_000)},
+        )
+        await positionRead.dispose()
         await expect(second.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
         await secondObserver.completed({path: WHITEBOARD_CALL, input: {rpcId: 'whiteboard', method: 'elements.list'}})
 
@@ -234,6 +271,9 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         })
         const erasedElements = CanvasRead.parse(await widget.kit.callTool('whiteboard_canvas_read', {}))
         expect(erasedElements.elements.find((element) => element.id === 'drawn-while-away')).toMatchObject({
+          isDeleted: true,
+        })
+        expect(erasedElements.elements.find((element) => element.id === SAVED_BEFORE_POSITION)).toMatchObject({
           isDeleted: true,
         })
         expect(erasedElements.elements.filter((element) => element.type === 'rectangle')).not.toContainEqual(
