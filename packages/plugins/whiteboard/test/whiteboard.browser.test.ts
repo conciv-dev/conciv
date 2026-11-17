@@ -339,7 +339,9 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
           PlacedElement.array().parse(
             CanvasRead.parse(await widget.kit.callTool('whiteboard_canvas_read', {})).elements,
           )
-        const beforeMoves = (await placedElements()).find((element) => element.id === 'drawn-while-away')
+        const beforeMoves = PlacedElement.parse(
+          (await placedElements()).find((element) => element.id === 'drawn-while-away'),
+        )
         const secondWrite = await gateRpcCalls(second, MOVED_DIAMOND_WRITE)
         await second.mouse.click(120, 640)
         await second.keyboard.press('ControlOrMeta+a')
@@ -367,7 +369,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
               row: {
                 elementId: TIE_BREAK_MARKER,
                 data: {...beforeMoves, id: TIE_BREAK_MARKER, index: `${lastPlacedIndex}V`},
-                version: beforeMoves?.version ?? 1,
+                version: beforeMoves.version,
               },
             },
           },
@@ -382,8 +384,8 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await second.keyboard.press('ArrowDown')
         await secondObserver.completed({...MOVED_DIAMOND_WRITE, since: secondMoved})
         expect((await placedElements()).find((element) => element.id === 'drawn-while-away')).toMatchObject({
-          x: (beforeMoves?.x ?? 0) + 1,
-          y: (beforeMoves?.y ?? 0) + 1,
+          x: beforeMoves.x + 1,
+          y: beforeMoves.y + 1,
         })
 
         await second.mouse.click(120, 640)

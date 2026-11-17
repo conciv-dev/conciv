@@ -27,6 +27,9 @@ const chatLayerOpen = (event: KeyboardEvent): boolean => {
   return (root instanceof ShadowRoot || root instanceof Document) && root.querySelector(OPEN_CHAT_LAYER) !== null
 }
 
+const escapeLeftToOthers = (event: KeyboardEvent): boolean =>
+  event.key !== 'Escape' || insideExcalidraw(event) || chatLayerOpen(event)
+
 export default function CanvasSurface(props: {
   client: Context['client']
   room: string
@@ -40,7 +43,7 @@ export default function CanvasSurface(props: {
       window,
       'keydown',
       (event) => {
-        if (event.key !== 'Escape' || !props.visible || insideExcalidraw(event) || chatLayerOpen(event)) return
+        if (!props.visible || escapeLeftToOthers(event)) return
         event.preventDefault()
         event.stopPropagation()
         props.close()
