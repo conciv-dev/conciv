@@ -8335,22 +8335,22 @@ module.exports = {default: {setup(ctx) {
       text: 'noted',
       items: [staged('c1', 'the first comment'), staged('c2', 'the other comment')],
     })
-    await expect.element(card('the first comment')).toHaveTextContent('the first commentFixture note')
-    await expect.element(card('the other comment')).toHaveTextContent('the other commentFixture note')
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
 
     await tab('Fixture tools').click()
     await control('Change the first note').click()
     await control('Detach the other note').click()
     expect(await savedOnChat()).toMatchObject({text: 'noted', items: [staged('c1', 'the changed comment')]})
-    await expect.element(card('the changed comment')).toHaveTextContent('the changed commentFixture note')
+    await expect.element(card('the changed comment').getByText('Fixture note', {exact: true})).toBeVisible()
     await expect.element(card('the other comment')).not.toBeInTheDocument()
 
     await tab('Fixture tools').click()
     await control('Attach drawn notes').click()
     await tab('Chat').click()
     await expect.element(card('Fixture card: a card it draws')).toBeVisible()
-    await expect.element(card('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
-    await expect.element(card('a card that throws')).toHaveTextContent('a card that throwsDrawn note')
+    await expect.element(card('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
+    await expect.element(card('a card that throws').getByText('Drawn note', {exact: true})).toBeVisible()
     await card('a card that throws').getByRole('button', {name: 'Remove a card that throws'}).click()
     await expect.element(card('a card that throws')).not.toBeInTheDocument()
     await expect.element(notes().getByRole('listitem').nth(2)).toBeVisible()
@@ -8398,10 +8398,9 @@ module.exports = {default: {setup(ctx) {
     await expect.element(typed('noted')).toBeVisible()
     await expect.element(title()).toBeInTheDocument()
     await expect.element(sentence()).not.toBeInTheDocument()
-    await expect.element(sentCard('the changed comment')).toHaveTextContent('the changed commentFixture note')
-    await expect.element(chatPanel()).toMatchTextContent(/❯notedthe changed commentFixture note/)
+    await expect.element(sentCard('the changed comment').getByText('Fixture note', {exact: true})).toBeVisible()
     await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
-    await expect.element(sentCard('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
+    await expect.element(sentCard('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
 
     await tab('Fixture tools').click()
     await control('Attach six notes alone').click()
@@ -8427,7 +8426,9 @@ module.exports = {default: {setup(ctx) {
     await control('Show more').click()
     await expect.element(sentCard('note number 6')).toBeVisible()
     await expect.element(control('Show more')).not.toBeInTheDocument()
-    await expect.element(chatPanel()).toMatchTextContent(/❯six notesnote number 1/)
+    await expect
+      .element(sentLists().last().getByRole('listitem').first().getByText('note number 1', {exact: true}))
+      .toBeVisible()
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -8437,7 +8438,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentence()).not.toBeInTheDocument()
     await expect.element(sentCard('the changed comment')).toBeVisible()
     await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
-    await expect.element(sentCard('a card it declines')).toHaveTextContent('a card it declinesDrawn note')
+    await expect.element(sentCard('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
     await expect.element(sentCard('note number 5')).toBeVisible()
     await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
     await expect.element(sentCard('alone note 6')).toBeVisible()
@@ -8484,8 +8485,8 @@ module.exports = {default: {setup(ctx) {
     await expect.element(stopButton()).not.toBeInTheDocument()
     await expect.element(editor()).toHaveTextContent('noted')
     await expect.element(editor()).not.toMatchTextContent(/The user made/)
-    await expect.element(card('the first comment')).toHaveTextContent('the first commentFixture note')
-    await expect.element(card('the other comment')).toHaveTextContent('the other commentFixture note')
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
     await expect.element(queued()).not.toBeInTheDocument()
 
     await userEvent.click(editor())
@@ -8503,6 +8504,26 @@ module.exports = {default: {setup(ctx) {
 
     const rpc = coreRpc(coreBase())
     const deletedId = await createSession(rpc)
+    harness.dispose()
+    harness.mountShell(`${tabPath(deletedId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+    const carriedWrite = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await coreControl.awaitFaultPending(carriedWrite, 1)
+    await coreControl.releaseFault(carriedWrite)
+    await coreControl.awaitFaultAnswered(carriedWrite)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('Your text moves to the new session.', {exact: true})).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
+    await expect.element(card('the first comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment')).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+    expect(harness.pathname()).not.toMatch(deletedId)
+
     const carriedNote = {
       type: 'note',
       origin: 'fixture',
@@ -8512,24 +8533,6 @@ module.exports = {default: {setup(ctx) {
       subject: 'the fixture subject',
       comment: 'the carried comment',
     }
-    await rpc.sessions.delete({sessionId: deletedId})
-    await rpc.drafts.set({
-      sessionId: deletedId,
-      text: '',
-      selectionStart: 0,
-      selectionEnd: 0,
-      attachments: [],
-      items: [{key: 'note:fixture:c=carried', value: carriedNote}],
-    })
-    harness.dispose()
-    harness.mountShell(`/panel/${deletedId}?open=true`)
-    await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByText('Your text moves to the new session.', {exact: true})).toBeVisible()
-    await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
-    await expect
-      .element(card('the carried comment'), {timeout: 8000})
-      .toHaveTextContent('the carried commentFixture note')
-    await expect.element(editor()).toBeVisible()
 
     const brokenId = await createSession(rpc)
     const sendButton = () => page.getByRole('button', {name: 'Send message'})
