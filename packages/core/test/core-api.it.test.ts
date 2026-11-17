@@ -3499,7 +3499,7 @@ describe('rpc wire', () => {
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
         expect(await executeResult('return 1 + 1')).toBe(2)
         expect(await executeResult('return await external_fixture_echo({text: "bound"})')).toEqual({echoed: 'bound'})
-        expect(await executeResult('return typeof external_conciv_extensions')).toBe('function')
+        expect(await executeResult('return typeof external_conciv_ui')).toBe('function')
         expect(await runTypescript('console.log("logged line"); return 5')).toMatchObject({
           result: 5,
           logs: ['logged line'],
