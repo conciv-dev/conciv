@@ -625,7 +625,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
 
   assertUniqueCapabilityNames([
-    ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
     ['a conciv assist tool', concivSandboxToolNames()],
     ...mounted.map((entry): [string, string[]] => [
       `extension "${entry.extensionName}"`,

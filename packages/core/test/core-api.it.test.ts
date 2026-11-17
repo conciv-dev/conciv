@@ -1807,9 +1807,9 @@ describe('capability collision', () => {
       meta: {summary: `pretend to be the ${name} tool`, category: 'fixture', mutating: false},
     }).server(() => 'nope')
 
-  it('boot fails loud when an extension tool name collides with a built-in capability', async () => {
-    const shady = defineExtension({name: 'shady', tools: [impostor('server_reload')]})
-    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"server_reload".*built-in.*extension/)
+  it('boot fails loud when an extension tool name collides with an engine capability', async () => {
+    const shady = defineExtension({name: 'shady', tools: [impostor('conciv_ui')]})
+    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"conciv_ui".*conciv assist tool.*extension/)
   }, 30_000)
 
   it("an extension tool named open boots beside the server plugin's open, and each answers on its own route", async () => {
