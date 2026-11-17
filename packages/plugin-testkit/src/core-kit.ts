@@ -13,7 +13,13 @@ import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {HarnessCapabilities, HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCapabilities,
+  HarnessCommand,
+  HarnessConnectContext,
+  HarnessModel,
+} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -56,6 +62,7 @@ export async function bootCoreKit(
     files?: Readonly<Record<string, string>>
     stateRoot?: string
     bundler?: BundlerBridge
+    tty?: {command(context: HarnessConnectContext): TtyCommand}
   },
 ): Promise<CoreKit> {
   const harness = createFakeHarness({
@@ -68,6 +75,7 @@ export async function bootCoreKit(
     history: opts.history,
     resumeBin: opts.resumeBin,
     imageInput: opts.imageInput,
+    tty: opts.tty,
   })
   const captured: {runtime?: CoreRuntime} = {}
   const editorOpens: EditorOpen[] = []

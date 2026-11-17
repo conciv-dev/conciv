@@ -2159,6 +2159,29 @@ describe('session card', () => {
     expect(rows()[1]).toBe(secondRow)
   })
 
+  test('a form fill step reads the shared tool label while it runs and once it is done', async () => {
+    const parts: ToolCallPart[] = [
+      toolCall('ff1', 'page_fill_form', {fields: [{type: 'text', selector: '#name', value: 'Ada'}]}, 'input-complete'),
+    ]
+    const [results, setResults] = createSignal<Record<string, ToolResultPart>>({})
+    const [streaming, setStreaming] = createSignal(true)
+    mount(() => (
+      <SessionCard
+        node={sessionNode(parts)}
+        parts={() => parts}
+        resultFor={(id) => results()[id]}
+        streaming={streaming()}
+      />
+    ))
+
+    await expect.element(page.getByRole('listitem').getByText('Filling the form', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('fill_form', {exact: true})).not.toBeInTheDocument()
+
+    setResults({ff1: okResult('ff1')})
+    setStreaming(false)
+    await expect.element(page.getByRole('listitem').getByText('Filled the form', {exact: true})).toBeVisible()
+  })
+
   test('a streaming act outside the shorthand verbs still reads as a running phrase', async () => {
     const parts: ToolCallPart[] = [toolCall('h1', 'page_hover', {selector: '#menu'}, 'input-complete')]
     mount(() => (

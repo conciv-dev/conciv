@@ -1034,6 +1034,7 @@ describe('api harness switching', () => {
           id: 'alpha',
           name: 'Alpha',
           imageInput: false,
+          persistentPty: false,
           models: [{id: 'a-model', name: 'A'}],
           defaultModel: 'a-model',
           modelsFailed: false,
@@ -1042,6 +1043,7 @@ describe('api harness switching', () => {
           id: 'beta',
           name: 'Beta',
           imageInput: false,
+          persistentPty: false,
           models: [{id: 'b-model', name: 'B'}],
           defaultModel: 'b-model',
           modelsFailed: false,
@@ -1050,6 +1052,7 @@ describe('api harness switching', () => {
           id: 'gamma',
           name: 'Gamma',
           imageInput: false,
+          persistentPty: false,
           models: [],
           defaultModel: null,
           modelsFailed: true,
@@ -8468,7 +8471,7 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
   )
 
   it(
-    'a session switched to another harness never gets the old terminal back, and one with no terminal command is refused NO_TTY',
+    'a session says whether its harness has a terminal, one switched to another harness never gets the old terminal back, and one with no terminal command is refused NO_TTY',
     {timeout: 20_000},
     async () => {
       const root = tempDir('conciv-terminal-switch-')
@@ -8480,6 +8483,7 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
       const terminal = kit.rpc.experimental.persistentPty
       const {sessionId} = await kit.rpc.sessions.create(undefined)
 
+      expect((await kit.rpc.meta.models({sessionId})).harness.persistentPty).toBe(true)
       const onFirst = await terminal.create({sessionId})
       await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-b'})
       const onSecond = await terminal.create({sessionId})
@@ -8495,6 +8499,7 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
       await expect(terminal.remove({ptyId: onSecond.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
 
       await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-no-terminal'})
+      expect((await kit.rpc.meta.models({sessionId})).harness.persistentPty).toBe(false)
       await expect(terminal.create({sessionId})).rejects.toMatchObject({code: 'NO_TTY'})
     },
   )

@@ -2277,6 +2277,9 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
@@ -2304,6 +2307,12 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../ui-kit-terminal
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -2316,9 +2325,6 @@ importers:
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
-      '@unocss/reset':
-        specifier: 'catalog:'
-        version: 66.12.0
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
@@ -2959,6 +2965,9 @@ importers:
       '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../ui-kit-tap
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../ui-kit-terminal
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
