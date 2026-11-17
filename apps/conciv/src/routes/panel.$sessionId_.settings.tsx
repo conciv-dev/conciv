@@ -34,10 +34,10 @@ const SPLIT = 'flex flex-1 min-h-0 flex-row'
 const RAIL =
   'relative flex flex-col shrink-0 gap-0.5 w-37.5 py-2.5 px-2 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [border-inline-end:1px_solid_var(--chat-line-soft)]'
 const TAB =
-  'group relative z-1 flex shrink-0 items-center gap-2.25 py-2 px-2.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] font-chat text-[0.78125rem] font-medium whitespace-nowrap text-start text-chat-text-2 cursor-pointer trans-color hover:text-chat-text-hi data-[selected]:text-chat-text-hi data-[focus-visible]:[outline:0.125rem_solid_var(--chat-accent)] data-[focus-visible]:[outline-offset:-0.125rem]'
+  'group relative z-1 flex shrink-0 items-center gap-2.25 py-2 px-2.5 rounded-chat-sm bg-transparent [border:none] font-chat text-[0.78125rem] font-medium whitespace-nowrap text-start text-chat-text-2 cursor-pointer trans-color hover:text-chat-text-hi data-[selected]:text-chat-text-hi data-[focus-visible]:[outline:0.125rem_solid_var(--chat-accent)] data-[focus-visible]:[outline-offset:-0.125rem]'
 const TAB_ICON = 'size-3.75 shrink-0 group-data-[selected]:text-chat-accent'
 const INDICATOR =
-  'rounded-[var(--chat-radius-sm)] bg-chat-fill-strong [left:var(--left)] [top:var(--top)] [width:var(--width)] [height:var(--height)] [--transition-duration:var(--chat-duration-slow)] [--transition-timing-function:var(--chat-ease-expo)] before:content-[""] before:absolute before:start-0 before:top-1.25 before:bottom-1.25 before:w-0.5 before:rounded-chat-pill before:bg-chat-accent'
+  'rounded-chat-sm bg-chat-fill-strong [left:var(--left)] [top:var(--top)] [width:var(--width)] [height:var(--height)] [--transition-duration:var(--chat-duration-slow)] [--transition-timing-function:var(--chat-ease-expo)] before:content-[""] before:absolute before:start-0 before:top-1.25 before:bottom-1.25 before:w-0.5 before:rounded-chat-pill before:bg-chat-accent'
 const SPACER = 'flex-1 min-h-3'
 const BODY = 'flex flex-1 min-h-0 min-w-0 flex-col overflow-y-auto p-3.5 focus-visible:outline-none'
 const TAB_PAGE = 'flex shrink-0 flex-col gap-3.5 anim-rise [&>*]:shrink-0'

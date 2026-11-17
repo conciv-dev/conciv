@@ -35,7 +35,7 @@ const LABEL: Record<UiInput['kind'], string> = {
 }
 
 const CONTAINER =
-  'w-full min-w-0 overflow-hidden rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-frame-line)] [background:var(--chat-frame-bg)]'
+  'w-full min-w-0 overflow-hidden rounded-chat-sm [border:1px_solid_var(--chat-frame-line)] [background:var(--chat-frame-bg)]'
 const HEADER = 'flex items-center gap-2 px-3 py-2 [border-bottom:1px_solid_var(--chat-frame-line)]'
 const MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none text-chat-microlabel'

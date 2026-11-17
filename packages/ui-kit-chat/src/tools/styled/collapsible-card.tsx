@@ -20,7 +20,7 @@ export type CollapsibleCardProps = {
 const CARD =
   'w-full min-w-0 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] overflow-hidden'
 const CARD_TERMINAL =
-  'w-full min-w-0 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-frame-line)] [background:var(--chat-frame-bg)] overflow-hidden'
+  'w-full min-w-0 rounded-chat-sm [border:1px_solid_var(--chat-frame-line)] [background:var(--chat-frame-bg)] overflow-hidden'
 const CARD_BY_VARIANT: Record<CardVariant, string> = {card: CARD, terminal: CARD_TERMINAL}
 const ROW = 'w-full flex items-center gap-2 px-3 py-2 text-start text-[length:var(--chat-text-md)] text-chat-text-2'
 const ROW_TERMINAL =

@@ -20,7 +20,7 @@ type Option = {value: string; label: string}
 type FieldProps = {label: string; hint?: string; lock?: string}
 
 const SEGMENT_ROOT =
-  '!grid w-full !gap-0.5 !p-0.5 !bg-chat-sunken ![border-color:var(--chat-line-soft)] !rounded-[var(--chat-radius-sm)]'
+  '!grid w-full !gap-0.5 !p-0.5 !bg-chat-sunken ![border-color:var(--chat-line-soft)] !rounded-chat-sm'
 const SEGMENT_ITEM = '!min-h-7.5 !px-2 !text-[0.75rem] !rounded-[var(--chat-radius-chip)]'
 const SEGMENT_INDICATOR =
   '!rounded-[var(--chat-radius-chip)] !bg-chat-fill-strong ![border-color:var(--chat-line-2)] !shadow-none'
@@ -59,7 +59,7 @@ export function SegmentField(props: FieldProps & {options: readonly Option[]}): 
 
 const SKINS = 'grid grid-cols-2 gap-2'
 const SKIN =
-  'flex flex-col overflow-hidden rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-line)] cursor-pointer trans-border data-[state=checked]:[border-color:var(--chat-accent)] data-[state=checked]:[box-shadow:0_0_0_1px_var(--chat-accent)] data-[focus-visible]:[outline:0.125rem_solid_var(--chat-accent)] data-[focus-visible]:[outline-offset:0.125rem] data-[readonly]:cursor-default'
+  'flex flex-col overflow-hidden rounded-chat-sm [border:1px_solid_var(--chat-line)] cursor-pointer trans-border data-[state=checked]:[border-color:var(--chat-accent)] data-[state=checked]:[box-shadow:0_0_0_1px_var(--chat-accent)] data-[focus-visible]:[outline:0.125rem_solid_var(--chat-accent)] data-[focus-visible]:[outline-offset:0.125rem] data-[readonly]:cursor-default'
 const SKIN_PREVIEW = 'flex flex-col gap-1.25 h-14.5 p-2'
 const SKIN_BAR = 'h-1.25'
 const SKIN_CAPTION =

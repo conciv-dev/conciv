@@ -82,7 +82,7 @@ export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {
 
 export function ErrorRecord(props: {heading?: string; body: string}): JSX.Element {
   return (
-    <div class="px-2.5 py-1.75 border border-chat-frame-line-error rounded-[var(--chat-radius-sm)] bg-chat-frame-bg flex flex-col gap-1 min-w-0">
+    <div class="px-2.5 py-1.75 border border-chat-frame-line-error rounded-chat-sm bg-chat-frame-bg flex flex-col gap-1 min-w-0">
       <Show when={props.heading}>
         {(heading) => (
           <TruncatedText

@@ -23,7 +23,7 @@ const KBD =
   'inline-grid place-items-center min-w-4.5 h-5 px-1.25 rounded-[var(--chat-radius-chip)] [border:1px_solid_var(--chat-line-2)] [border-block-end-width:2px] bg-chat-fill-soft font-chat-mono text-[0.65625rem] text-chat-text'
 const NONE = 'text-[0.75rem] text-chat-dim whitespace-nowrap'
 const CLEAR =
-  'grid place-items-center size-5.5 shrink-0 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi'
+  'grid place-items-center size-5.5 shrink-0 rounded-chat-sm bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi'
 const ROW_NOTE = `min-w-0 truncate ${NOTE_TEXT}`
 const WARN =
   'flex items-start gap-2 py-2 px-3 bg-[color-mix(in_oklch,var(--chat-warn)_7%,transparent)] text-[0.75rem] leading-[1.4] text-chat-warn'
