@@ -408,14 +408,25 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 
       const failing = await browser.newPage()
       try {
+        const failureLogs: string[] = []
+        failing.on('console', (message) => {
+          if (message.type() === 'error' && message.text().startsWith('[whiteboard] the canvas failed to open')) {
+            failureLogs.push(message.text())
+          }
+        })
         const chunks = await failRpcCalls(failing, {path: ['plugin', 'experimentalChunk']})
         await failing.goto(await magicLink(widget.kit.base, new URL('/', page.url()).href), {
           waitUntil: 'domcontentloaded',
         })
         await failing.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+        const failedToast = failing.getByText('The whiteboard needs a running conciv server')
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
-        await expect(failing.getByText('The whiteboard needs a running conciv server')).toBeVisible({timeout: 30_000})
+        await expect(failedToast).toHaveCount(1, {timeout: 30_000})
         await expect(failing.getByRole('status').filter({hasText: 'The whiteboard is unavailable.'})).toBeVisible()
+        expect(failureLogs).toHaveLength(1)
+        await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+        await expect(failedToast).toHaveCount(2)
+        expect(failureLogs).toHaveLength(2)
         await chunks.dispose()
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
         await expect(failing.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
