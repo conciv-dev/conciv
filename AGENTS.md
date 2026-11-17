@@ -51,6 +51,10 @@ README.md; this file is the non-obvious operational rules.
   Turbo shares the main checkout's `.turbo/cache` with every git worktree automatically. Never set
   `TURBO_CACHE_DIR` or pass `--cache-dir`: a second store makes runs miss each other's results, and
   `.claude/hooks/turbo-filter-gate.sh` blocks it.
+- Disk: the local turbo cache is capped at 5GB and 7 days by turbo's own `cacheMaxSize` and `cacheMaxAge`
+  (`turbo.json`); the e2e app builds (`e2e/*` with `.next`, `.output` or `.svelte-kit` output) are not cached;
+  agent sessions run with `NODE_DISABLE_COMPILE_CACHE=1` (`.claude/settings.json` `env`, passed through by
+  turbo), so vite and tsdown write no Node compile cache to `/private/tmp`.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs `oxlint --fix`
   and then oxfmt on staged files, so whatever the lint autofix rewrites is formatted before it is
   restaged. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
