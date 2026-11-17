@@ -1,6 +1,5 @@
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
-import {SessionId} from '@conciv/protocol/chat-types'
 
 export const FrameworkInfo = z.object({
   name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
@@ -94,6 +93,11 @@ const ServerFnTraces = z.object({
     z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
   ),
 })
+
+const SessionId = z
+  .string()
+  .regex(/^conciv_[A-Za-z0-9_-]{1,128}$/u)
+  .brand<'ConcivSessionId'>()
 
 export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
 export type TabId = z.infer<typeof TabId>

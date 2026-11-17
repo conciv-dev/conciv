@@ -1,0 +1,152 @@
+import type {ReactTree} from '@conciv/plugin/experimental/page'
+import type {CacheEntry, CacheEntryState} from '@conciv/protocol/framework-types'
+import {findInFibers, type Fiber} from './router-adapter.js'
+
+type QueryClientLike = {
+  getQueryCache: () => {getAll: () => unknown[]}
+  getMutationCache: () => {getAll: () => unknown[]}
+  invalidateQueries: (filters: {queryKey: unknown}) => Promise<unknown>
+  refetchQueries: (filters: {queryKey: unknown}) => Promise<unknown>
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+function isQueryClient(candidate: unknown): candidate is QueryClientLike {
+  return isObject(candidate) && typeof candidate.getQueryCache === 'function'
+}
+
+function clientFromFiber(fiber: Fiber): QueryClientLike | null {
+  const props: unknown = fiber.memoizedProps
+  if (!isObject(props)) return null
+  if (isQueryClient(props.client)) return props.client
+  if (isQueryClient(props.value)) return props.value
+  return null
+}
+
+function findQueryClient(tree: ReactTree): QueryClientLike | null {
+  return findInFibers(tree, clientFromFiber)
+}
+
+function requireQueryClient(tree: ReactTree): QueryClientLike {
+  const client = findQueryClient(tree)
+  if (!client) throw new Error('TanStack QueryClient not found on page')
+  return client
+}
+
+function callBoolean(host: Record<string, unknown>, method: string): boolean {
+  const fn = host[method]
+  return typeof fn === 'function' && fn.call(host) === true
+}
+
+function callNumber(host: Record<string, unknown>, method: string): number | null {
+  const fn = host[method]
+  if (typeof fn !== 'function') return null
+  const value = fn.call(host)
+  return typeof value === 'number' ? value : null
+}
+
+function stateFrom(host: Record<string, unknown>): Record<string, unknown> {
+  return isObject(host.state) ? host.state : {}
+}
+
+function errorMessage(value: unknown): string | null {
+  if (!value) return null
+  if (isObject(value) && typeof value.message === 'string') return value.message
+  return String(value)
+}
+
+function queryState(host: Record<string, unknown>, state: Record<string, unknown>): CacheEntryState {
+  if (state.fetchStatus === 'fetching') return 'fetching'
+  if (state.status === 'error') return 'error'
+  if (callBoolean(host, 'isStale')) return 'stale'
+  return 'fresh'
+}
+
+function readStatus(state: Record<string, unknown>): string | null {
+  return typeof state.status === 'string' ? state.status : null
+}
+
+function readUpdatedAt(state: Record<string, unknown>, key: string): number | null {
+  const value = state[key]
+  return typeof value === 'number' ? value : null
+}
+
+function queryToEntry(tree: ReactTree, query: unknown): CacheEntry {
+  if (!isObject(query))
+    return {key: '', state: 'fresh', status: null, value: null, updatedAt: null, error: null, observers: null}
+  const state = stateFrom(query)
+  return {
+    key: JSON.stringify(query.queryKey),
+    state: queryState(query, state),
+    status: readStatus(state),
+    value: tree.dehydrate(state.data),
+    updatedAt: readUpdatedAt(state, 'dataUpdatedAt'),
+    error: errorMessage(state.error),
+    observers: callNumber(query, 'getObserversCount'),
+  }
+}
+
+function mutationKey(mutation: Record<string, unknown>): string {
+  const options = isObject(mutation.options) ? mutation.options : {}
+  if (options.mutationKey !== undefined) return JSON.stringify(options.mutationKey)
+  return JSON.stringify(mutation.mutationId ?? null)
+}
+
+function mutationState(state: Record<string, unknown>): CacheEntryState {
+  if (state.status === 'pending') return 'fetching'
+  if (state.status === 'error') return 'error'
+  return 'fresh'
+}
+
+function mutationToEntry(tree: ReactTree, mutation: unknown): CacheEntry {
+  if (!isObject(mutation))
+    return {key: '', state: 'fresh', status: null, value: null, updatedAt: null, error: null, observers: null}
+  const state = stateFrom(mutation)
+  return {
+    key: mutationKey(mutation),
+    state: mutationState(state),
+    status: readStatus(state),
+    value: tree.dehydrate(state.data),
+    updatedAt: readUpdatedAt(state, 'submittedAt'),
+    error: errorMessage(state.error),
+    observers: callNumber(mutation, 'getObserversCount'),
+  }
+}
+
+export function readQueryCache(tree: ReactTree): CacheEntry[] {
+  const client = requireQueryClient(tree)
+  return client
+    .getQueryCache()
+    .getAll()
+    .map((query) => queryToEntry(tree, query))
+}
+
+export function readMutations(tree: ReactTree): CacheEntry[] {
+  const client = requireQueryClient(tree)
+  return client
+    .getMutationCache()
+    .getAll()
+    .map((mutation) => mutationToEntry(tree, mutation))
+}
+
+function matchingQuery(client: QueryClientLike, key: string): Record<string, unknown> | null {
+  const match = client
+    .getQueryCache()
+    .getAll()
+    .find((query) => isObject(query) && JSON.stringify(query.queryKey) === key)
+  return isObject(match) ? match : null
+}
+
+export async function invalidateQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
+  const client = requireQueryClient(tree)
+  const query = matchingQuery(client, key)
+  if (query) await client.invalidateQueries({queryKey: query.queryKey})
+  return {ok: true}
+}
+
+export async function refetchQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
+  const client = requireQueryClient(tree)
+  const query = matchingQuery(client, key)
+  if (query) await client.refetchQueries({queryKey: query.queryKey})
+  return {ok: true}
+}
