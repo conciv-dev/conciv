@@ -43,6 +43,7 @@ import {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
   createTextAttachmentAdapter,
+  type AttachmentAdapter,
   type CompleteAttachment,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
@@ -271,8 +272,13 @@ describe('attachment image viewer', () => {
     return <></>
   }
 
-  function mountComposer(files: File[]): void {
-    const adapter = composeAttachmentAdapters([createSimpleImageAttachmentAdapter(), createTextAttachmentAdapter()])
+  function mountComposer(
+    files: File[],
+    adapter: AttachmentAdapter = composeAttachmentAdapters([
+      createSimpleImageAttachmentAdapter(),
+      createTextAttachmentAdapter(),
+    ]),
+  ): void {
     render(() => {
       const chat = createChat({threadId: 'attachment-viewer', connection: storyConnection(untrack(() => undefined))})
       return (
@@ -367,6 +373,28 @@ describe('attachment image viewer', () => {
     await expect.element(refused).toHaveFocus()
     await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
     await expect.element(refused).toHaveAccessibleDescription(reason)
+  })
+
+  it('a refusal with an empty message still says why, by the file name', async () => {
+    const silentRefusal: AttachmentAdapter = {
+      accept: 'image/*',
+      add: async ({file}) => ({
+        id: 'silent',
+        type: 'image',
+        name: file.name,
+        file,
+        status: {type: 'incomplete', reason: 'error', message: ''},
+      }),
+      remove: async () => {},
+      send: async () => {
+        throw new Error('a refused attachment is never sent')
+      },
+    }
+    mountComposer([], silentRefusal)
+
+    await userEvent.upload(page.getByRole('button', {name: 'Choose File'}), [imageFile()])
+
+    await expect.element(page.getByRole('button', {name: `${IMAGE} could not be attached`})).toBeVisible()
   })
 
   it('a sent image tile opens the viewer too', async () => {
