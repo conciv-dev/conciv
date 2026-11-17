@@ -8200,6 +8200,35 @@ module.exports = {default: {setup(ctx) {
       .element(card('the carried comment'), {timeout: 8000})
       .toHaveTextContent('the carried commentFixture note')
     await expect.element(editor()).toBeVisible()
+
+    const brokenId = await createSession(rpc)
+    const sendButton = () => page.getByRole('button', {name: 'Send message'})
+    await rpc.drafts.set({
+      sessionId: brokenId,
+      text: '',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+      items: [
+        {key: 'note:broken', value: {type: 'note', comment: 'a note with no origin'}},
+        {key: 'note:fixture:c=kept', value: {...carriedNote, commentId: 'kept', comment: 'the kept comment'}},
+      ],
+    })
+    harness.dispose()
+    harness.mountShell(`/panel/${brokenId}?open=true`)
+    await expect.element(card('the kept comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(sendButton()).toBeEnabled()
+    await card('the kept comment').getByRole('button', {name: 'Remove the kept comment'}).click()
+    await expect.element(card('the kept comment')).not.toBeInTheDocument()
+    await expect.element(notes()).not.toBeInTheDocument()
+    await expect.element(sendButton()).toBeDisabled()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('after the broken note{Enter}')
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    const brokenAsked = await readAsked(brokenId)
+    expect(brokenAsked).toHaveLength(1)
+    expect(brokenAsked[0]).toMatchObject({parts: [{type: 'text', content: 'after the broken note'}]})
   }, 60_000)
 
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
