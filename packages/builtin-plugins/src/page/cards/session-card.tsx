@@ -27,7 +27,13 @@ import {
   toolIconRender,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
-import {builtinToolMeta, PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageVerbGerund} from './page-tool-names.js'
+import {
+  builtinToolMeta,
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_PREFIX,
+  pageOperationOutput,
+  pageVerbGerund,
+} from './page-tool-names.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
@@ -93,7 +99,7 @@ const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text
 const ROW_TARGET_ACTIVE = `flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] ${SHIMMER}`
 const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo min-w-0 leading-none'
 
-const RoutePayload = z.looseObject({href: z.string()})
+const RoutePayload = pageOperationOutput('route').pick({href: true})
 
 function actionsLabel(count: number): string {
   return `${ACTION_FORMAT.format(count)} ${ACTION_PLURAL.select(count) === 'one' ? 'action' : 'actions'}`

@@ -1,7 +1,8 @@
-import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
+import {clip} from '@conciv/ui-kit-chat/tools'
 import {pageVerbOfTool} from './page-tool-names.js'
+import {toolInput} from './shared.js'
 
 export type PageSessionStep = {
   verb: string
@@ -11,8 +12,6 @@ export type PageSessionStep = {
   state: 'streaming' | 'complete' | 'error' | 'aborted'
 }
 
-const StepInput = z.record(z.string(), z.unknown())
-
 const FIXED_TARGETS: Record<string, string> = {css: 'stylesheet', eval: 'script', effect: 'effect'}
 
 const SCRIPT_VERBS = new Set(['eval', 'css', 'effect'])
@@ -20,12 +19,6 @@ const SCRIPT_VERBS = new Set(['eval', 'css', 'effect'])
 const CODE_TARGET_KEYS: Record<string, string> = {eval: 'code'}
 
 const CODE_INPUT_KEYS: Record<string, string> = {css: 'text'}
-
-const CHIP_BUDGET = 64
-
-function clipLine(value: string): string {
-  return value.length > CHIP_BUDGET ? `${value.slice(0, CHIP_BUDGET - 1)}…` : value
-}
 
 function firstMeaningfulLine(text: string): string | undefined {
   for (const line of text.split('\n')) {
@@ -37,18 +30,6 @@ function firstMeaningfulLine(text: string): string | undefined {
 
 export function pageSessionScripted(steps: ReadonlyArray<PageSessionStep>): boolean {
   return steps.length > 0 && steps.every((step) => SCRIPT_VERBS.has(step.verb))
-}
-
-function stepInput(part: ToolCallPart): Record<string, unknown> {
-  const direct = StepInput.safeParse(part.input)
-  if (direct.success) return direct.data
-  if (typeof part.arguments !== 'string' || part.arguments.length === 0) return {}
-  try {
-    const parsed = StepInput.safeParse(JSON.parse(part.arguments))
-    return parsed.success ? parsed.data : {}
-  } catch {
-    return {}
-  }
 }
 
 function nonEmpty(value: unknown): string | undefined {
@@ -65,7 +46,7 @@ function codeTargetLine(verb: string, input: Record<string, unknown>): string | 
   const source = nonEmpty(input[codeKey])
   if (source === undefined) return undefined
   const line = firstMeaningfulLine(source)
-  return line === undefined ? undefined : clipLine(line)
+  return line === undefined ? undefined : clip(line)
 }
 
 function stepTarget(
@@ -95,7 +76,7 @@ function stepValue(
   if (codeKey !== undefined) {
     const source = nonEmpty(input[codeKey])
     if (source === undefined) return undefined
-    return clipLine(firstMeaningfulLine(source) ?? source)
+    return clip(firstMeaningfulLine(source) ?? source)
   }
   return nonEmpty(input.value) ?? descriptorField(capture, 'value')
 }
@@ -117,7 +98,7 @@ export function pageSessionSteps(
     .filter((part) => actNames.has(part.name))
     .map((part) => {
       const verb = pageVerbOfTool(part.name)
-      const input = stepInput(part)
+      const input = toolInput(part)
       const capture = captureFor(part.id)
       return {
         verb,

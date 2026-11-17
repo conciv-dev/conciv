@@ -1,5 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
+import type {trackReport} from '@conciv/page'
+import {RawFrameSchema} from '@conciv/protocol/page-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {
@@ -12,17 +14,14 @@ import {
   hasPayloadOrError,
   mutatingBadge,
 } from './shared.js'
+import {pageOperationOutput} from './page-tool-names.js'
 
-const SourcePayload = z.looseObject({
-  component: z.string().nullish(),
-  source: z.looseObject({file: z.string(), line: z.number().optional()}).nullish(),
-  frames: z
-    .array(z.looseObject({fileName: z.string().optional(), line: z.number().optional(), fn: z.string().optional()}))
-    .optional(),
-})
+const SourcePayload = pageOperationOutput('locate').extend({frames: z.array(RawFrameSchema).optional()})
 
-const TrackPayload = z.looseObject({
-  components: z.array(z.looseObject({component: z.string(), renders: z.number(), lastReason: z.string().optional()})),
+type TrackReport = ReturnType<typeof trackReport>
+
+const TrackPayload: z.ZodType<Pick<TrackReport, 'components' | 'note'>> = z.looseObject({
+  components: z.array(z.object({component: z.string(), renders: z.number(), lastReason: z.string()})),
   note: z.string().optional(),
 })
 

@@ -3,11 +3,10 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from './page-result-views.js'
+import {pageOperationOutput} from './page-tool-names.js'
 import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError} from './shared.js'
 
-const ConsolePayload = z.looseObject({
-  entries: z.array(z.looseObject({level: z.string(), ts: z.number(), text: z.string()})),
-})
+const ConsolePayload = pageOperationOutput('console')
 
 const LINE_FORMAT = new Intl.NumberFormat()
 const LINE_PLURAL = new Intl.PluralRules('en')
@@ -26,7 +25,7 @@ const TEXT_DANGER = `${DANGER_TEXT_CLASS} flex-1 min-w-0 [overflow-wrap:anywhere
 
 const ERROR_LEVELS: ReadonlySet<string> = new Set(['error', 'uncaught', 'unhandled'])
 
-type ConsoleLine = {level: string; ts: number; text: string}
+type ConsoleLine = z.output<typeof ConsolePayload>['entries'][number]
 
 function readLines(payload: unknown): readonly ConsoleLine[] | undefined {
   const parsed = ConsolePayload.safeParse(payload)
