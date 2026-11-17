@@ -26,6 +26,7 @@ type TanstackRouter = {
   history?: {back?: () => unknown}
   routeTree?: unknown
   routesById?: unknown
+  options?: {stringifySearch?: (search: Record<string, unknown>) => string}
 }
 
 const MAX_FIBER_NODES = 50_000
@@ -128,7 +129,7 @@ function mapMatch(tree: ReactTree, match: unknown): RouteMatch {
     id: stringValue(match.id),
     routeId: stringValue(match.routeId),
     path: stringValue(match.fullPath),
-    params: stringRecord(match.params),
+    params: stringRecord(tree.dehydrate(match.params)),
     search: unknownRecord(tree.dehydrate(match.search)),
     status: toStatus(match.status),
     error: errorMessage(match.error),
@@ -138,18 +139,24 @@ function mapMatch(tree: ReactTree, match: unknown): RouteMatch {
   }
 }
 
-function readLocation(router: TanstackRouter): RouterLocation {
+function redactedSearchString(tree: ReactTree, router: TanstackRouter, search: unknown): string {
+  const stringify = router.options?.stringifySearch
+  if (typeof stringify !== 'function') return ''
+  return stringValue(stringify(unknownRecord(tree.dehydrate(search))))
+}
+
+function readLocation(tree: ReactTree, router: TanstackRouter): RouterLocation {
   const location = unknownRecord(router.state.location)
   return {
     pathname: stringValue(location.pathname),
-    search: stringValue(location.searchStr),
+    search: redactedSearchString(tree, router, location.search),
     hash: stringValue(location.hash),
   }
 }
 
 export function readRouterState(tree: ReactTree): RouterCurrent {
   const router = requireRouter(tree)
-  return {location: readLocation(router), matches: router.state.matches.map((match) => mapMatch(tree, match))}
+  return {location: readLocation(tree, router), matches: router.state.matches.map((match) => mapMatch(tree, match))}
 }
 
 export function readDetect(tree: ReactTree): FrameworkInfo {
