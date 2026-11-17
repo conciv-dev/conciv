@@ -270,7 +270,14 @@ describe('webpack and rspack', () => {
     onTestFinished(close)
     const run = () =>
       new Promise<string[]>((resolve, reject) =>
-        compiler.run((error, stats) => (error ? reject(error) : resolve(builtFiles(stats)))),
+        compiler.run((error, stats) => {
+          if (error) return reject(error)
+          try {
+            resolve(builtFiles(stats))
+          } catch (failure) {
+            reject(failure)
+          }
+        }),
       )
     const watch = (): Watch => {
       const builds: Array<PromiseWithResolvers<string[]>> = []
