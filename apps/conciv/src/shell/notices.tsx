@@ -95,7 +95,12 @@ function NoticeIconSlot(props: {type: string | undefined; icon: NoticeIcon | und
   )
 }
 
-export function StandingNotice(props: {message: string; action?: NoticeAction; tone?: 'warn' | 'danger'}): JSX.Element {
+export function StandingNotice(props: {
+  message: string
+  action?: NoticeAction
+  tone?: 'warn' | 'danger'
+  actionRef?: (button: HTMLButtonElement) => void
+}): JSX.Element {
   const warn = (): boolean => props.tone === 'warn'
   return (
     <div class="p-2.5">
@@ -103,7 +108,13 @@ export function StandingNotice(props: {message: string; action?: NoticeAction; t
         <p class="flex-1 min-w-0 m-0">{props.message}</p>
         <Show when={props.action}>
           {(action) => (
-            <Button variant="link" size="bare" class={ACTION} onClick={() => action().run()}>
+            <Button
+              variant="link"
+              size="bare"
+              class={ACTION}
+              ref={(button: HTMLButtonElement) => props.actionRef?.(button)}
+              onClick={() => action().run()}
+            >
               {action().label}
             </Button>
           )}

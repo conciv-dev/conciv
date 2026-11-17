@@ -7,6 +7,7 @@ export type SelectionOffsets = {start: number; end: number}
 
 export type ComposerInputHandle = {
   focus: () => void
+  focused: () => boolean
   insert: (text: string) => void
   append: (text: string) => void
   select: (offsets: SelectionOffsets) => void
@@ -82,6 +83,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onReady={(handle) => {
           props.onReady?.({
             focus: () => handle.focus(),
+            focused: () => wrapper?.matches(':focus-within') === true,
             insert: (text) => handle.insertText(text),
             append: (text) => handle.appendText(composer.text() === '' ? text : `\n${text}`),
             select: (offsets) => handle.select(offsets),
