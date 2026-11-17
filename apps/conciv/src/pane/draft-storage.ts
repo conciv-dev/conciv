@@ -162,7 +162,7 @@ function sameAsRow(draft: LocalDraft, row: DraftRow | null | undefined): boolean
 
 type LocalDraftWriter = {
   writer: ComposerDraftWriter
-  typed: () => {text: string; attachments: readonly unknown[]} | null
+  typed: () => DraftContent | null
   feed: () => void
   read: () => Promise<LocalDraft | null>
   settle: (verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null) => void
@@ -173,7 +173,7 @@ function makeLocalDraftWriter(
   drafts: DraftStore,
   sessionId: string,
   selection: () => SelectionOffsets | null,
-  writable: () => boolean,
+  sendable: () => boolean,
 ): LocalDraftWriter {
   const [document, setDocument] = createStore<{draft: LocalDraft | null; files: PendingDraftAttachment[]}>({
     draft: null,
@@ -181,7 +181,7 @@ function makeLocalDraftWriter(
   })
   const feed = () => {
     const draft = document.draft
-    if (!draft || !writable() || sameAsRow(draft, appData.cachedDraft(sessionId))) return
+    if (!draft || !sendable() || sameAsRow(draft, appData.cachedDraft(sessionId))) return
     const updatedAt = Date.now()
     void appData
       .saveDraft({
@@ -275,9 +275,33 @@ async function readRestoredDraft(
 
 type DraftPlace = 'first' | 'last'
 
+type RestorePhase = {kind: 'reading'} | {kind: 'unread'; shown: LocalDraft | null} | {kind: 'read'}
+
+type DraftContent = {text: string; attachments: readonly {id: string}[]}
+
+function sameContent(draft: DraftContent, other: DraftContent): boolean {
+  return (
+    draft.text === other.text &&
+    isEqual(
+      draft.attachments.map((attachment) => attachment.id),
+      other.attachments.map((attachment) => attachment.id),
+    )
+  )
+}
+
+function typedSince(typed: DraftContent | null, shown: DraftContent | null): boolean {
+  if (!typed) return false
+  return !shown || !sameContent(typed, shown)
+}
+
+function maySend(phase: RestorePhase, typed: DraftContent | null): boolean {
+  if (phase.kind === 'unread') return typedSince(typed, phase.shown)
+  return phase.kind === 'read'
+}
+
 const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: []}
 
-function isEmptied(typed: {text: string; attachments: readonly unknown[]}): boolean {
+function isEmptied(typed: DraftContent): boolean {
   return typed.text === '' && typed.attachments.length === 0
 }
 
@@ -392,7 +416,7 @@ export function draftCacheSink(
 export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraftStorage {
   let cache: string | null = null
   let selection: SelectionOffsets | null = null
-  let writable = false
+  let phase: RestorePhase = {kind: 'reading'}
   const draftRow = (draft: PersistedDraft) => {
     const offsets = clampSelection(selection, draft.text)
     return {
@@ -424,10 +448,11 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         appData.drafts,
         sessionId,
         () => selection,
-        () => writable,
+        () => mayPersist(),
       )
     : undefined
-  const typedDraft = () => (local ? local.typed() : cached())
+  const typedDraft = (): DraftContent | null => (local ? local.typed() : cached())
+  const mayPersist = (): boolean => maySend(phase, typedDraft())
   const readStored = () => (local ? local.read() : Promise.resolve(null))
   const land = (
     settle: () => void,
@@ -441,15 +466,35 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
       settle()
       if (restored && !cleared) apply(restored, typed !== null)
     } finally {
-      writable = true
+      phase = {kind: 'read'}
       if (typed && (row || !cleared)) persistTyped()
     }
   }
-  const readRow = (signal: AbortSignal) =>
-    appData.readDraft(sessionId).catch((error: unknown) => {
-      if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
-      return null
-    })
+  const keepUnread = async (
+    stored: LocalDraft | null,
+    apply: (restored: RestoredDraft, edited: boolean) => void,
+    signal: AbortSignal,
+  ) => {
+    const restored = await readRestoredDraft({kind: 'local', saveToEngine: false}, stored, null)
+    if (signal.aborted) return
+    const typed = typedDraft()
+    try {
+      local?.settle({kind: 'local', saveToEngine: false}, stored, null)
+      if (restored && !(typed && isEmptied(typed))) apply(restored, typed !== null)
+    } finally {
+      phase = {kind: 'unread', shown: stored}
+      const latest = typedDraft()
+      if (latest && !isEmptied(latest) && mayPersist()) persistTyped()
+    }
+  }
+  const readRow = (signal: AbortSignal): Promise<{row: DraftRow | null} | undefined> =>
+    appData.readDraft(sessionId).then(
+      (row) => ({row}),
+      (error: unknown) => {
+        if (!signal.aborted) console.error('[conciv] could not read the saved draft, the local draft stays', error)
+        return undefined
+      },
+    )
   return {
     writer: local?.writer,
     storage: {
@@ -461,7 +506,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         const stored = cached()
         cache = value
         const parsed = parseDraft(value)
-        if (!parsed || !writable) return
+        if (!parsed || !mayPersist()) return
         if (isCleared(parsed) && stored && isCleared(stored)) return
         if (savedAlready(parsed)) return
         persist(parsed)
@@ -471,8 +516,10 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
       selection = offsets
     },
     restore: async (apply, signal) => {
-      const [row, stored] = await Promise.all([readRow(signal), readStored()])
+      const [read, stored] = await Promise.all([readRow(signal), readStored()])
       if (signal.aborted) return
+      if (!read) return keepUnread(stored, apply, signal)
+      const row = read.row
       const verdict = reconcileDraft(stored, row, sameAsRow)
       const restored = await readRestoredDraft(verdict, stored, row)
       if (signal.aborted) return
