@@ -72,7 +72,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-export function Island(props: {doc: Document; room: string; theme: 'light' | 'dark'}): JSX.Element {
+export function Island(props: {doc: Document; room: string; theme: 'light' | 'dark'; visible: boolean}): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
   let root: Root | undefined
@@ -273,7 +273,15 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
 
   return (
     <Portal mount={props.doc.body}>
-      <div ref={(element) => (container = element)} style={{position: 'fixed', inset: '0', 'z-index': '2147482000'}} />
+      <div
+        ref={(element) => (container = element)}
+        style={{
+          position: 'fixed',
+          inset: '0',
+          'z-index': '2147482000',
+          visibility: props.visible ? 'visible' : 'hidden',
+        }}
+      />
     </Portal>
   )
 }

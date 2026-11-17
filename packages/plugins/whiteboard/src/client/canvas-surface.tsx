@@ -21,6 +21,7 @@ const insideExcalidraw = (event: KeyboardEvent): boolean => {
 export default function CanvasSurface(props: {
   client: Context['client']
   room: string
+  visible: boolean
   close: () => void
 }): JSX.Element {
   injectExcalidrawCss(document)
@@ -29,14 +30,14 @@ export default function CanvasSurface(props: {
       window,
       'keydown',
       (event) => {
-        if (event.key === 'Escape' && !insideExcalidraw(event)) props.close()
+        if (event.key === 'Escape' && props.visible && !insideExcalidraw(event)) props.close()
       },
       true,
     ),
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room}>
-      <Island doc={document} room={props.room} theme="dark" />
+      <Island doc={document} room={props.room} theme="dark" visible={props.visible} />
     </WhiteboardDbProvider>
   )
 }

@@ -23,7 +23,8 @@ What enabling it gives today:
   reconnect.
 
 What it does not give yet: comments, pins, threads, the inbox, cursors and the "Comment on an element" pill in the
-widget. With no canvas open, drawing answers `NO_CANVAS` after 8 seconds and a PNG export answers `EXPORT_TIMEOUT`.
+widget. Once opened, the canvas stays mounted and hidden after Escape, so the agent keeps drawing into it. In a tab
+where the canvas was never opened, drawing answers `NO_CANVAS` after 8 seconds and a PNG export answers `EXPORT_TIMEOUT`.
 Excalidraw loads its fonts from esm.sh, as the old whiteboard does.
 
 ```ts
