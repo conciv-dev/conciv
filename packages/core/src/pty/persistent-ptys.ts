@@ -17,6 +17,8 @@ type PersistentPtyInfo = {id: string; sessionId: SessionId; size: PtySize; busy:
 
 type TtyLauncher = NonNullable<ServerHarness['ttyCommand']>
 
+type TicketScope = {ptyId: string; origin: string | null}
+
 type CreateInput = {sessionId: SessionId; size?: PtySize; model?: string}
 
 type PersistentPtyDeps = {
@@ -40,21 +42,23 @@ function describePty(session: TtySession, sessionId: SessionId): PersistentPtyIn
 export function createPersistentPtys(deps: PersistentPtyDeps) {
   const ttys = createTtySessions()
   const tickets = Effect.runSync(
-    Cache.make<string, string>({
+    Cache.make<string, TicketScope>({
       capacity: TICKET_CAPACITY,
       timeToLive: TICKET_TTL,
       lookup: () => Effect.die(new Error('conciv: terminal tickets are set and consumed, never looked up')),
     }),
   )
 
-  const issueTicket = (ptyId: string): {ticket: string; expiresIn: number} => {
+  const issueTicket = (scope: TicketScope): {ticket: string; expiresIn: number} => {
     const ticket = randomUUID()
-    Effect.runSync(Cache.set(tickets, ticket, ptyId))
+    Effect.runSync(Cache.set(tickets, ticket, scope))
     return {ticket, expiresIn: Duration.toSeconds(TICKET_TTL)}
   }
 
-  const consumeTicket = (ticket: string, ptyId: string): boolean =>
-    Effect.runSync(Cache.invalidateWhen(tickets, ticket, (bound) => bound === ptyId))
+  const consumeTicket = (ticket: string, scope: TicketScope): boolean =>
+    Effect.runSync(
+      Cache.invalidateWhen(tickets, ticket, (bound) => bound.ptyId === scope.ptyId && bound.origin === scope.origin),
+    )
 
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
     const owner = ownerKey(deps.harness(sessionId).id, await deps.sessions.resumeToken(sessionId))

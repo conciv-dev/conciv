@@ -542,15 +542,15 @@ export const contract = {
   experimental: {
     persistentPty: {
       create: oc
-        .errors(noTty)
+        .errors({...noTty, ...approvalDenied})
         .input(z.object({sessionId: SessionId, size: PtySizeSchema.optional(), model: z.string().min(1).optional()}))
         .output(PersistentPtyInfoSchema),
       remove: oc
-        .errors({...ptyNotFound, ...ptyBusy})
+        .errors({...ptyNotFound, ...ptyBusy, ...approvalDenied})
         .input(PtyIdInput)
         .output(Ok),
       connectToken: oc
-        .errors(ptyNotFound)
+        .errors({...ptyNotFound, ...approvalDenied})
         .input(PtyIdInput)
         .output(z.object({ticket: z.string(), expiresIn: z.number().int().positive()})),
     },

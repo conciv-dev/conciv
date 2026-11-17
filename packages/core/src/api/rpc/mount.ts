@@ -167,6 +167,14 @@ const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experim
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 
+const PTY_PROCEDURES = new Set([
+  'experimental.persistentPty.create',
+  'experimental.persistentPty.remove',
+  'experimental.persistentPty.connectToken',
+])
+
+const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"
+
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const hub = callTrace((header) => rpcHeader(context, header)).hub
@@ -185,6 +193,7 @@ function refuseOutside(deps: RpcDeps, client: string | null, procedure: string):
   if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
   if (EVENT_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_EVENT_REFUSAL})
   if (PLUGIN_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PLUGIN_REFUSAL})
+  if (PTY_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_PTY_REFUSAL})
 }
 
 async function admitHubCaller(

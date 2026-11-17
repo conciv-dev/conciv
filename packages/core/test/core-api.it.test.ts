@@ -7421,8 +7421,9 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
     await until(() => terminal.text().includes(text))
   }
 
-  const connectUrl = async (base: string, ptyId: string, query = ''): Promise<string> => {
-    const {ticket, expiresIn} = await makeRpcClient(base).experimental.persistentPty.connectToken({ptyId})
+  const connectUrl = async (base: string, ptyId: string, query = '', origin?: string): Promise<string> => {
+    const client = makeRpcClient(base, origin === undefined ? {} : {headers: {origin}})
+    const {ticket, expiresIn} = await client.experimental.persistentPty.connectToken({ptyId})
     expect(expiresIn).toBe(60)
     return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
   }
@@ -7537,7 +7538,7 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
   )
 
   it(
-    'a ticketed socket carries the terminal both ways and replays to a late attacher, and a socket with a missing, used, foreign or disallowed ticket is refused',
+    'a ticketed socket carries the terminal both ways and replays to a late attacher, a socket with a missing, used, foreign, disallowed or other-origin ticket is refused, and outside agents cannot use the terminal',
     {timeout: 20_000},
     async () => {
       const root = tempDir('conciv-terminal-socket-')
@@ -7586,6 +7587,21 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
       expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
       expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
       await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const widget = 'http://localhost:5173'
+      const sameOrigin = await openTerminalSocket(await connectUrl(base, pty.id, '', widget), widget)
+      await shows(sameOrigin, 'ws-roundtrip-42')
+      sameOrigin.socket.close()
+      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget), 'http://127.0.0.1:5173')).toBe(403)
+      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget))).toBe(403)
+
+      const outside = makeRpcClient(base, {
+        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+      }).experimental.persistentPty
+      await expect(outside.create({sessionId})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(outside.connectToken({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      expect((await terminal.create({sessionId})).id).toBe(pty.id)
 
       const gone = await connectUrl(base, pty.id)
       expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})

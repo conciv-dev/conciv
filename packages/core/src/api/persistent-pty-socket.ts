@@ -53,7 +53,8 @@ export function persistentPtySocketRoutes(ptys: PersistentPtys, upgrade: Upgrade
       const params = ConnectParamsSchema.safeParse(c.req.param())
       const query = ConnectQuerySchema.safeParse(c.req.query())
       if (!params.success || !query.success) return c.text('forbidden', 403)
-      if (!ptys.consumeTicket(query.data.ticket, params.data.ptyId)) return c.text('forbidden', 403)
+      const scope = {ptyId: params.data.ptyId, origin: c.req.header('origin') ?? null}
+      if (!ptys.consumeTicket(query.data.ticket, scope)) return c.text('forbidden', 403)
       await next()
     },
     upgrade((c) => {
