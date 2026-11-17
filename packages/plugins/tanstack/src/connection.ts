@@ -131,7 +131,13 @@ export const make = Effect.fn('TanstackConnection.make')(function* (
             .pipe(
               Effect.catch((error) =>
                 refusalReason(input.sessionId, error).pipe(
-                  Effect.flatMap((reason) => Effect.fail(call.error('unavailable', reason, {}))),
+                  Effect.flatMap((reason) =>
+                    Effect.fail(
+                      SessionNotFound.safeParse(error).success
+                        ? call.error('missing', reason, {})
+                        : call.error('unavailable', reason, {}),
+                    ),
+                  ),
                 ),
               ),
             )
