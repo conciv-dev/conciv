@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer'
 import {z} from 'zod'
 import {Tool, type Plugin, type ToolContext} from '@conciv/plugin'
+import {PageRaisedErrorSchema, RawFrameSchema, SourceLocSchema} from '@conciv/protocol/page-types'
 import {raise, type Connection} from './connection.js'
 import * as Files from './files.js'
 import {CliTools, Operations, PAGE_NAMESPACE, type Action, type File, type Operation, type Result} from './rpc.js'
@@ -24,18 +25,13 @@ const JsonObject = z.record(z.string(), z.json())
 const DECLARED: Partial<Record<string, Record<string, string>>> = {
   effect: {UNKNOWN_EFFECT: 'no effect is registered under that name'},
 }
-const Raised = z.object({error: z.looseObject({code: z.string(), message: z.string()})})
+const Raised = z.object({error: PageRaisedErrorSchema.loose()})
 const Targeted = z.looseObject({type: z.string(), ref: z.string().optional(), selector: z.string().optional()})
 const Located = z.looseObject({
-  source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
+  source: SourceLocSchema.nullish(),
   frames: z.array(z.unknown()).optional(),
 })
-const Frame = z.object({
-  fileName: z.string(),
-  line: z.number(),
-  column: z.number().optional(),
-  fn: z.string().optional(),
-})
+const Frame = RawFrameSchema.required({fileName: true, line: true})
 
 export async function register(
   ctx: Pick<Plugin.Context, 'tool' | 'skill' | 'location' | 'permission'>,
