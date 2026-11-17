@@ -30,11 +30,15 @@ type PersistedDraft = z.infer<typeof PersistedDraftSchema>
 
 export type RestoredDraft = {snapshot: WebStorage; selection: SelectionOffsets; attachments: AttachmentState[]}
 
+export type DraftApplyMode = 'fill' | 'merge' | 'replace'
+
+export type DraftApply = (restored: RestoredDraft, mode: DraftApplyMode) => void
+
 export type PaneDraftStorage = {
   storage: WebStorage
   writer: ComposerDraftWriter | undefined
   noteSelection: (offsets: SelectionOffsets) => void
-  restore: (apply: (restored: RestoredDraft, edited: boolean) => void, signal: AbortSignal) => Promise<void>
+  restore: (apply: DraftApply, signal: AbortSignal) => Promise<void>
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -103,12 +107,6 @@ function readLocalDraft(drafts: DraftStore, sessionId: string): Promise<LocalDra
     })
 }
 
-function chosenDraft(verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null): LocalDraft | null {
-  if (verdict.kind === 'local') return stored
-  if (verdict.kind === 'engine' && row) return rowLocalDraft(row)
-  return null
-}
-
 async function readLocalFile(attachment: LocalAttachment): Promise<AttachmentState[]> {
   const blob = attachment.blob
   if (!blob) return []
@@ -165,7 +163,8 @@ type LocalDraftWriter = {
   typed: () => DraftContent | null
   feed: () => void
   read: () => Promise<LocalDraft | null>
-  settle: (verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null) => void
+  takeStored: (stored: LocalDraft) => void
+  settle: (verdict: DraftReconcile, row: DraftRow | null, edited: boolean) => void
 }
 
 function makeLocalDraftWriter(
@@ -181,7 +180,8 @@ function makeLocalDraftWriter(
   })
   const feed = () => {
     const draft = document.draft
-    if (!draft || !sendable() || sameAsRow(draft, appData.cachedDraft(sessionId))) return
+    const row = appData.cachedDraft(sessionId)
+    if (!draft || !sendable() || sameAsRow(draft, row) || (row === null && isEmptied(draft))) return
     const updatedAt = Date.now()
     void appData
       .saveDraft({
@@ -221,19 +221,18 @@ function makeLocalDraftWriter(
     })
   }
   const read = () => readLocalDraft(drafts, sessionId)
-  const settle = (verdict: DraftReconcile, stored: LocalDraft | null, row: DraftRow | null) => {
-    if (verdict.kind === 'cleared' && !document.draft) {
-      void drafts.removeItem(sessionId).catch((error: unknown) => {
-        console.error('[conciv] could not clear the local draft the engine dropped', error)
-      })
-      return
-    }
-    const base = chosenDraft(verdict, stored, row)
-    if (!base) return
-    if (document.draft) return persisted.setStore('draft', 'syncedAt', base.syncedAt)
-    persisted.setStore('draft', base)
+  const takeStored = (stored: LocalDraft) => {
+    if (document.draft) return persisted.setStore('draft', 'syncedAt', stored.syncedAt)
+    persisted.setStore('draft', structuredClone(stored))
   }
-  return {writer, typed: () => document.draft, feed, read, settle}
+  const settle = (verdict: DraftReconcile, row: DraftRow | null, edited: boolean) => {
+    if (!edited && verdict.kind === 'cleared') return persisted.setStore('draft', structuredClone(EMPTY_LOCAL_DRAFT))
+    if (!edited && verdict.kind === 'engine' && row) return persisted.setStore('draft', rowLocalDraft(row))
+    if (!document.draft) return
+    if (verdict.kind === 'cleared') return persisted.setStore('draft', 'syncedAt', undefined)
+    if (row) persisted.setStore('draft', 'syncedAt', row.updatedAt)
+  }
+  return {writer, typed: () => document.draft, feed, read, takeStored, settle}
 }
 
 function serializeDraft(text: string, attachments: DraftRow['attachments']): string {
@@ -258,19 +257,37 @@ function restoredDraft(
   }
 }
 
-async function readRestoredDraft(
-  verdict: DraftReconcile,
-  stored: LocalDraft | null,
-  row: DraftRow | null,
-): Promise<RestoredDraft | null> {
-  if (verdict.kind === 'engine' && row) {
-    return restoredDraft(row.text, {start: row.selectionStart, end: row.selectionEnd}, row.attachments, [])
-  }
-  if (verdict.kind !== 'local' || !stored) return null
-  const kept = (await Promise.all(stored.attachments.map(readLocalFiles))).flat()
+async function readKeptFiles(stored: LocalDraft | null): Promise<AttachmentState[]> {
+  if (!stored) return []
+  return (await Promise.all(stored.attachments.map(readLocalFiles))).flat()
+}
+
+function localRestored(stored: LocalDraft, kept: AttachmentState[], row: DraftRow | null): RestoredDraft {
   const missing = differenceBy(stored.attachments, kept, (attachment) => attachment.id)
   const fromRow = intersectionBy(row?.attachments ?? [], missing, (attachment) => attachment.id)
   return restoredDraft(stored.text, {start: stored.selectionStart, end: stored.selectionEnd}, fromRow, kept)
+}
+
+const CLEARED_DRAFT = restoredDraft('', {start: 0, end: 0}, [], [])
+
+function rowRestored(
+  verdict: DraftReconcile,
+  stored: LocalDraft | null,
+  kept: AttachmentState[],
+  row: DraftRow | null,
+): RestoredDraft | null {
+  if (verdict.kind === 'engine' && row) {
+    return restoredDraft(row.text, {start: row.selectionStart, end: row.selectionEnd}, row.attachments, [])
+  }
+  if (verdict.kind === 'cleared') return CLEARED_DRAFT
+  if (verdict.kind === 'local' && stored) return localRestored(stored, kept, row)
+  return null
+}
+
+function applyMode(verdict: DraftReconcile, edited: boolean, shown: LocalDraft | null): DraftApplyMode {
+  if (edited) return 'merge'
+  if (shown && (verdict.kind === 'engine' || verdict.kind === 'cleared')) return 'replace'
+  return 'fill'
 }
 
 type DraftPlace = 'first' | 'last'
@@ -454,37 +471,36 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
   const typedDraft = (): DraftContent | null => (local ? local.typed() : cached())
   const mayPersist = (): boolean => maySend(phase, typedDraft())
   const readStored = () => (local ? local.read() : Promise.resolve(null))
-  const land = (
-    settle: () => void,
-    restored: RestoredDraft | null,
-    row: DraftRow | null,
-    apply: (restored: RestoredDraft, edited: boolean) => void,
-  ) => {
+  const show = (stored: LocalDraft | null, kept: AttachmentState[], apply: DraftApply): LocalDraft | null => {
+    if (!stored || !local) return null
     const typed = typedDraft()
-    const cleared = typed !== null && isEmptied(typed)
+    local.takeStored(stored)
+    if (!(typed && isEmptied(typed))) apply(localRestored(stored, kept, null), typed ? 'merge' : 'fill')
+    return stored
+  }
+  const keepUnread = (shown: LocalDraft | null) => {
+    phase = {kind: 'unread', shown}
+    const typed = typedDraft()
+    if (typed && !isEmptied(typed) && mayPersist()) persistTyped()
+  }
+  const reconcileRow = (
+    stored: LocalDraft | null,
+    kept: AttachmentState[],
+    shown: LocalDraft | null,
+    row: DraftRow | null,
+    apply: DraftApply,
+  ) => {
+    const verdict = reconcileDraft(stored, row, sameAsRow)
+    const typed = typedDraft()
+    const edited = typedSince(typed, shown)
     try {
-      settle()
-      if (restored && !cleared) apply(restored, typed !== null)
+      local?.settle(verdict, row, edited)
+      const restored = rowRestored(verdict, stored, kept, row)
+      if (restored && !(edited && typed && isEmptied(typed))) apply(restored, applyMode(verdict, edited, shown))
     } finally {
       phase = {kind: 'read'}
-      if (typed && (row || !cleared)) persistTyped()
-    }
-  }
-  const keepUnread = async (
-    stored: LocalDraft | null,
-    apply: (restored: RestoredDraft, edited: boolean) => void,
-    signal: AbortSignal,
-  ) => {
-    const restored = await readRestoredDraft({kind: 'local', saveToEngine: false}, stored, null)
-    if (signal.aborted) return
-    const typed = typedDraft()
-    try {
-      local?.settle({kind: 'local', saveToEngine: false}, stored, null)
-      if (restored && !(typed && isEmptied(typed))) apply(restored, typed !== null)
-    } finally {
-      phase = {kind: 'unread', shown: stored}
-      const latest = typedDraft()
-      if (latest && !isEmptied(latest) && mayPersist()) persistTyped()
+      if (local) local.feed()
+      else if (typed && (row || !isEmptied(typed))) persistTyped()
     }
   }
   const readRow = (signal: AbortSignal): Promise<{row: DraftRow | null} | undefined> =>
@@ -516,14 +532,15 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
       selection = offsets
     },
     restore: async (apply, signal) => {
-      const [read, stored] = await Promise.all([readRow(signal), readStored()])
+      const reading = readRow(signal)
+      const stored = await readStored()
+      const kept = await readKeptFiles(stored)
       if (signal.aborted) return
-      if (!read) return keepUnread(stored, apply, signal)
-      const row = read.row
-      const verdict = reconcileDraft(stored, row, sameAsRow)
-      const restored = await readRestoredDraft(verdict, stored, row)
+      const shown = show(stored, kept, apply)
+      const read = await reading
       if (signal.aborted) return
-      land(() => local?.settle(verdict, stored, row), restored, row, apply)
+      if (!read) return keepUnread(shown)
+      reconcileRow(stored, kept, shown, read.row, apply)
     },
   }
 }

@@ -136,10 +136,11 @@ function DraftRestore(props: {
   onMount(() => {
     const input = props.input
     const draftKey = props.draftKey
-    const restoring = props.storage.restore((restored, edited) => {
+    const restoring = props.storage.restore((restored, mode) => {
       const draft = readComposerDraft(restored.snapshot, draftKey)
       if (!draft) return
-      const untouched = !edited && context.snapshotDraft().draft === ''
+      if (mode === 'replace') context.clearDraft()
+      const untouched = mode !== 'merge' && context.snapshotDraft().draft === ''
       context.restoreDraft({...draft, attachments: [...restored.attachments, ...draft.attachments]})
       if (untouched) input()?.select(restored.selection)
     }, controller.signal)
