@@ -697,12 +697,12 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByRole('button', {name: /^AI comment, open/})).toHaveCount(0)
       await observer.completed({
         path: WHITEBOARD_CALL,
-        input: {rpcId: 'whiteboard', method: 'comments.delete'},
+        input: {rpcId: 'whiteboard', method: 'comments.remove'},
         since: deleted,
       })
       await observer.completed({
         path: WHITEBOARD_CALL,
-        input: {rpcId: 'whiteboard', method: 'pins.delete'},
+        input: {rpcId: 'whiteboard', method: 'pins.remove'},
         since: deleted,
       })
       const left = CommentList.parse(await widget.kit.callTool('whiteboard_comment_list', {scope: 'session'}))
