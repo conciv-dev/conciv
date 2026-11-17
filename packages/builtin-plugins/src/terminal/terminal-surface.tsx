@@ -101,17 +101,14 @@ export default function TerminalSurface(props: {
         untrack(() => ctx.appearance.mode()),
       ),
   })
+  model.terminal.options.fontFamily = readTerminalFont(
+    untrack(() => props.themeHost()),
+    ctx.appearance.font('mono'),
+  )
   createKeyed(
     () => ctx.appearance.mode(),
     (scheme) => {
       model.terminal.options.theme = readTerminalTheme(props.themeHost(), scheme)
-    },
-  )
-  createKeyed(
-    () => ctx.appearance.font('mono'),
-    (font) => {
-      model.terminal.options.fontFamily = readTerminalFont(props.themeHost(), font)
-      model.fit()
     },
   )
   onCleanup(() => props.terminal.closed(terminalKey))
