@@ -1,4 +1,4 @@
-import {expect, test, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
+import {expect, test, type Browser, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
 import {
   bootEmbedKit,
   type EmbedKit,
@@ -44,6 +44,7 @@ import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/elem
 import {CHAT_WS_PATH, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
+import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
@@ -1537,6 +1538,87 @@ test.describe('page dispatch parity', () => {
       expect(attached.sessions).not.toContain(deleted)
       const {sessions} = await kit.rpc.sessions.list({includeHidden: true})
       expect(sessions.map((session) => session.id)).not.toContain(deleted)
+    })
+  })
+
+  test.describe('conciv tools page eval in a headless run, with nobody at the tab', () => {
+    const conciv = fileURLToPath(import.meta.resolve('@conciv/cli/bin'))
+    const EVAL = "document.getElementById('probe').textContent = 'evaluated'"
+    type HeadlessTab = {kit: EmbedKit; host: {base: string; close: () => Promise<void>}; page: Page}
+    let refused: HeadlessTab
+    let allowed: HeadlessTab
+
+    const openTab = async (browser: Browser, options: Parameters<typeof bootEmbedKit>[0]): Promise<HeadlessTab> => {
+      const kit = await bootEmbedKit(options)
+      const host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      const page = await browser.newPage()
+      await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      const title = `headless eval ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+      return {kit, host, page}
+    }
+
+    const closeTab = async ({kit, host, page}: HeadlessTab) => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    }
+
+    const toolsPage = async (kit: EmbedKit, args: string[]) => {
+      const {port, pathname} = new URL(kit.base)
+      const env = {
+        CONCIV_HOME: kit.home,
+        CONCIV_SESSION_ID: await kit.session(),
+        CONCIV_PORT: port,
+        CONCIV_TOKEN: pathname.replace(/^\/t\//, ''),
+      }
+      return new Promise<{code: unknown; document: unknown}>((resolve) =>
+        execFile(process.execPath, [conciv, 'tools', 'page', ...args], {cwd: kit.stateRoot, env}, (error, stdout) =>
+          resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
+        ),
+      )
+    }
+
+    test.beforeAll(async ({browser}) => {
+      refused = await openTab(browser, {})
+      allowed = await openTab(browser, {permission: {page_eval: 'allow'}})
+    })
+
+    test.afterAll(async () => {
+      await closeTab(refused)
+      await closeTab(allowed)
+    })
+
+    test('with no rule in the project config, eval fails at once asking for approval and the page is untouched', async () => {
+      const {kit, page} = refused
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
+        code: 1,
+        document: {
+          ok: false,
+          error: {
+            kind: 'user',
+            code: 'APPROVAL_DENIED',
+            message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+          },
+        },
+      })
+      await expect(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+    })
+
+    test('with page_eval allowed in the host config, eval runs with no click and the page shows its effect', async () => {
+      const {kit, page} = allowed
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
+        code: 0,
+        document: {ok: true, data: {result: 'evaluated'}},
+      })
+      await expect(page.getByText('evaluated', {exact: true})).toBeVisible()
     })
   })
 })

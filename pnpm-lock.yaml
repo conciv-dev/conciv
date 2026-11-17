@@ -2909,6 +2909,9 @@ importers:
       '@conciv/browser-fixture':
         specifier: workspace:*
         version: link:../browser-fixture
+      '@conciv/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
