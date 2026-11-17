@@ -1230,6 +1230,9 @@ importers:
       '@conciv/brand':
         specifier: workspace:*
         version: link:../../packages/brand
+      '@conciv/builtin-plugins':
+        specifier: workspace:*
+        version: link:../../packages/builtin-plugins
       '@conciv/mascot':
         specifier: workspace:*
         version: link:../../packages/mascot

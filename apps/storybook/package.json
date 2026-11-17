@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@conciv/brand": "workspace:*",
+    "@conciv/builtin-plugins": "workspace:*",
     "@conciv/mascot": "workspace:*",
     "@conciv/solid-diffs": "workspace:*",
     "@conciv/solid-streamdown": "workspace:*",
