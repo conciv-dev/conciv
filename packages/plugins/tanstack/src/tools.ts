@@ -4,7 +4,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {Connection} from './connection.js'
 import {UNTRUSTED_NOTE} from './failures.js'
-import {Action, Definition, Operations, type Operation} from './rpc.js'
+import {Action, Definition, Operations, type AppError, type Operation} from './rpc.js'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {readRouteManifest} from './server/route-manifest.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
@@ -37,14 +37,10 @@ function makeCapabilities(bundler: Context['bundler'], directory: string) {
     serverFnRing.observe(diagnostic)
   })
   return {
-    buildErrors: () =>
-      Effect.try({
-        try: () => {
-          if (!bundlerAvailable) throw new Error('bundler bridge unavailable')
-          return ring.list()
-        },
-        catch: toFailure('BUNDLER_UNAVAILABLE'),
-      }),
+    buildErrors: (): Effect.Effect<AppError[], Failure> =>
+      bundlerAvailable
+        ? Effect.sync(() => ring.list())
+        : Effect.fail(toFailure('BUNDLER_UNAVAILABLE')(new Error('bundler bridge unavailable'))),
     routeManifest: () => readRouteManifest(directory).pipe(Effect.mapError(toFailure('MANIFEST_UNREADABLE'))),
     serverFnTrace: (count: number | undefined) => ({
       traces: serverFnRing.traces(count ?? Number.MAX_SAFE_INTEGER),
