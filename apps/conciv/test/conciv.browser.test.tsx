@@ -2063,14 +2063,8 @@ describe('chat history paging', () => {
     await userEvent.wheel(thread(), {delta: {y: -1000}})
     await expect.element(loadingOlder()).toBeInTheDocument()
     await expectInViewOnly([87, 88], [86, 91])
-    await expect.element(exchange(83)).toBeInTheDocument()
-    await expect.element(exchange(82)).not.toBeInTheDocument()
-    const replyTo88 = thread()
-      .getByText('Hello from conciv', {exact: true})
-      .nth(88 - 83)
-    const copyReplyTo88 = thread()
-      .getByRole('button', {name: 'Copy'})
-      .nth(88 - 83)
+    const replyTo88 = thread().getByRole('article', {name: 'Reply to: seeded exchange 88', exact: true})
+    const copyReplyTo88 = replyTo88.getByRole('button', {name: 'Copy'})
     await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
     await userEvent.hover(replyTo88)
     await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
@@ -2937,7 +2931,6 @@ describe('launcher drag', () => {
   const minimize = () => page.getByRole('button', {name: 'Minimize conciv chat'})
   const edgeTab = () => page.getByRole('button', {name: 'Show conciv launcher'})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const capture = (name: string) => page.screenshot({path: `__screenshots__/launcher-drag/${name}.png`})
 
   test('a drag off the right edge tucks the launcher into a tab without opening the chat, and the tab brings it back', async () => {
     await page.viewport(1000, 700)
@@ -2947,12 +2940,10 @@ describe('launcher drag', () => {
     await expect.element(edgeTab()).toBeVisible()
     await expect.element(launcher()).not.toBeInTheDocument()
     await expect.element(editor()).not.toBeInTheDocument()
-    await capture('tucked-right')
     await edgeTab().click()
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
     await expect.element(launcher()).toHaveFocus()
-    await capture('restored-right')
   })
 
   test('a tucked launcher stays tucked after a reload, and Enter on the focused tab restores it', async () => {
@@ -2969,7 +2960,6 @@ describe('launcher drag', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(launcher()).toHaveFocus()
     await expect.element(edgeTab()).not.toBeInTheDocument()
-    await capture('restored-left-keyboard')
   })
 
   test('Escape mid-drag drops the gesture, so a release past the edge leaves the launcher where it was', async () => {
@@ -2978,7 +2968,6 @@ describe('launcher drag', () => {
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}], escape: true})
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
-    await capture('escape-cancelled')
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}]})
     await expect.element(edgeTab()).toBeVisible()
   })
@@ -2991,10 +2980,8 @@ describe('launcher drag', () => {
       moves: [{deltaX: -844, deltaY: -544, steps: 20}],
       settleMs: 300,
     })
-    await capture('pinned-top-left')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await capture('pinned-top-left-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -90, deltaY: 0, steps: 6}]})
@@ -3009,10 +2996,8 @@ describe('launcher drag', () => {
       moves: [{deltaX: -454, deltaY: -304, steps: 20}],
       settleMs: 300,
     })
-    await capture('free-centre')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await capture('free-centre-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -520, deltaY: 0, steps: 12}]})
@@ -3034,15 +3019,12 @@ describe('launcher drag', () => {
     await userEvent.tab()
     await expect.element(launcher()).toHaveFocus()
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowUp}')
-    await capture('keyboard-nudged')
     await userEvent.keyboard('{Shift>}{ArrowUp}{ArrowLeft}{/Shift}')
-    await capture('keyboard-top-left')
     await expect.element(launcher()).toHaveFocus()
     await expect.element(editor()).not.toBeInTheDocument()
     harness.dispose()
     harness.mountShell('/')
     await expect.element(launcher()).toBeVisible()
-    await capture('keyboard-top-left-reloaded')
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -150, deltaY: 0, steps: 8}]})
     await expect.element(edgeTab()).toBeVisible()
   })
@@ -3062,7 +3044,6 @@ describe('launcher drag', () => {
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 70, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
-    await capture('locked-right-of-middle-open')
     await leaveLocked()
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
@@ -3073,11 +3054,9 @@ describe('launcher drag', () => {
     await page.viewport(1000, 700)
     mountLocked()
     await expect.element(locked()).toBeVisible()
-    await capture('locked-bottom-right-closed')
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
-    await capture('locked-bottom-right-open')
   })
 
   test('the locked launcher dropped near the right edge without room for its pill grows it to the left and its robot stays put', async () => {
@@ -3090,7 +3069,6 @@ describe('launcher drag', () => {
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -120, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
-    await capture('locked-near-right-edge-open')
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 50, deltaY: 0}]})
@@ -4236,7 +4214,6 @@ describe('panel view tabs', () => {
 
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
-      await page.screenshot({path: '__screenshots__/extension-boundary/tab-fallback.png'})
       expect(crashReports('crash-tab')).toBe(1)
 
       await retry().click()
@@ -4569,6 +4546,215 @@ describe('quick refresh', () => {
 
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await expect.element(refresh()).toBeVisible()
+  }, 30_000)
+})
+
+describe('a deleted session', () => {
+  const core = bootedCore('deleted-session')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const NOT_SENT = 'This session was deleted, so your message was not sent.'
+  const START_FAILED = 'Could not start a new session. Check that the engine is running, then try again.'
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const deletedTitle = () => page.getByText('This session was deleted.', {exact: true})
+  const movesLine = () => page.getByText('Your text moves to the new session.', {exact: true})
+  const newSessionButton = () => page.getByRole('button', {name: 'New session', exact: true})
+  const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
+  const notifications = () => page.getByRole('region', {name: /Notifications/})
+
+  test('a session opened after it was deleted shows the deleted panel in place of the chat, and New session opens a fresh one', async () => {
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(newSessionButton()).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).not.toBeInTheDocument()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+
+    harness.dispose()
+    harness.mountShell(`/quick?panes=${deletedId}&focus=0`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a delete arriving while the session is open turns the pane into the deleted panel', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    await rpc.sessions.delete({sessionId})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a delete made before the event stream is subscribed turns the open pane into the deleted panel once it subscribes', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(subscribe, 1)
+
+    await rpc.sessions.delete({sessionId})
+    await coreControl.releaseFault(subscribe)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a message sent as its session is deleted says it was not sent, offers no Retry, and the text moves to a new session', async () => {
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    const rowRead = await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+    await userEvent.click(editor())
+    await userEvent.keyboard('keep this text')
+    await userEvent.keyboard('{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await coreControl.releaseFault(frame)
+
+    const errorRow = page.getByRole('log').getByRole('alert')
+    await expect.element(errorRow.getByText(NOT_SENT, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(errorRow.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+    await expect.element(notifications().getByText(NOT_SENT, {exact: true})).toBeVisible()
+    await expect.element(editor().getByText('keep this text')).toBeVisible()
+
+    await coreControl.releaseFault(rowRead)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(movesLine()).toBeVisible()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText('keep this text'), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 40_000)
+
+  test('a session that cannot be started says so, keeps the text with the deleted session, and the next press carries it', async () => {
+    const rpc = coreRpc(core())
+    const liveId = await createSession(rpc)
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'words worth keeping'})
+    harness.mountShell(`/quick?panes=${liveId}&focus=0`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    const refused = await faults.install({kind: 'fail', path: ['sessions', 'create'], status: 500})
+
+    await userEvent.click(page.getByRole('button', {name: 'Split pane', exact: true}))
+
+    await expect.element(notifications().getByText(START_FAILED, {exact: true}), {timeout: 8000}).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(notifications().getByText(START_FAILED, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+
+    await coreControl.releaseFault(refused)
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText('words worth keeping'), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+  }, 40_000)
+
+  test('with no pane open a failed pane start shows only the add pane failure and its Retry', async () => {
+    await faults.install({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
+    harness.mountShell('/quick')
+    const paneFailed = () => page.getByText('conciv could not start a pane. Check the engine connection and retry.')
+    const retry = () => page.getByRole('button', {name: 'Retry', exact: true})
+    await expect.element(paneFailed(), {timeout: 8000}).toBeVisible()
+
+    const held = await faults.install({kind: 'cut-on-release', path: ['sessions', 'create']})
+    await userEvent.click(page.getByRole('button', {name: 'Split pane', exact: true}))
+    await coreControl.awaitFaultPending(held, 1)
+    await expect.element(page.getByText('Starting a pane…', {exact: true})).toBeVisible()
+    await faults.install({kind: 'fail', path: ['sessions', 'create'], status: 500})
+    await coreControl.releaseFault(held)
+
+    await expect.element(paneFailed(), {timeout: 8000}).toBeVisible()
+    await expect.element(retry()).toBeVisible()
+    await expect.element(notifications().getByText(START_FAILED, {exact: true})).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('in the quick terminal New session replaces the deleted pane in place and carries its text', async () => {
+    const rpc = coreRpc(core())
+    const liveId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: liveId, title: 'Live pane'})
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'quick words to carry'})
+    harness.mountShell(`/quick?panes=${liveId},${deletedId}&focus=0`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().nth(1).getByText('quick words to carry'), {timeout: 8000}).toBeVisible()
+    await expect.element(deletedTitle()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Close pane'}).nth(2)).not.toBeInTheDocument()
+    await expect.element(sessionTrigger().nth(0)).toHaveAccessibleName('Session: Live pane')
+    expect(harness.pathname()).toBe('/quick')
+    expect(harness.href()).not.toContain(deletedId)
+  }, 40_000)
+
+  test('compacting a session deleted elsewhere and compacting an id no session ever had both say the session no longer exists', async () => {
+    const NO_LONGER_EXISTS = 'This session no longer exists.'
+    const OLD_DELETED_SENTENCE = 'This session was deleted, so it cannot be compacted.'
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await faults.install({kind: 'gate', path: ['sessions', 'get']})
+    await rpc.sessions.delete({sessionId})
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    await expect.element(notifications().getByText(NO_LONGER_EXISTS, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(notifications().getByText(OLD_DELETED_SENTENCE, {exact: true})).not.toBeInTheDocument()
+
+    harness.dispose()
+    await faults.releaseAll()
+    harness.mountShell(`/panel/conciv_${crypto.randomUUID()}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    await expect.element(notifications().getByText(NO_LONGER_EXISTS, {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(notifications().getByText(OLD_DELETED_SENTENCE, {exact: true})).not.toBeInTheDocument()
   }, 30_000)
 })
 
@@ -5836,7 +6022,6 @@ describe('run errors', () => {
     await expect.element(alert.getByText(OVERFLOW_TEXT)).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', {name: 'Compact conversation'}))
     expect(compacted.count).toBe(1)
-    await page.screenshot({path: '__screenshots__/run-errors/context-overflow.png'})
   })
 
   it('the Compact action is disabled while a compaction is already running', async () => {
@@ -5850,7 +6035,6 @@ describe('run errors', () => {
 
     const compact = page.getByRole('button', {name: 'Compact conversation'})
     await expect.element(compact).toBeVisible()
-    await page.screenshot({path: '__screenshots__/run-errors/context-overflow-compacting.png'})
     await expect.element(compact).toBeDisabled()
   })
 
@@ -5922,7 +6106,6 @@ describe('run errors', () => {
       await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
 
       await expect.element(runError('upstream is overloaded')).not.toBeInTheDocument()
-      await page.screenshot({path: '__screenshots__/run-errors/compacted-clears-error.png'})
 
       await coreControl.scriptError('the model went away')
       await typeTurn('second turn')
@@ -5933,7 +6116,6 @@ describe('run errors', () => {
       await expect.element(page.getByRole('separator', {name: 'Context compacted'})).toBeVisible()
       await expect.element(runError('the model went away')).toBeVisible()
       expect(alerts().all()).toHaveLength(1)
-      await page.screenshot({path: '__screenshots__/run-errors/failed-after-reload.png'})
 
       await heldTurn('third turn')
       await expect.element(page.getByText('third turn')).toBeVisible()
@@ -5945,7 +6127,6 @@ describe('run errors', () => {
       await expect.element(idleError()).toBeVisible()
       await expect.element(idleError().getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
       expect(alerts().all()).toHaveLength(1)
-      await page.screenshot({path: '__screenshots__/run-errors/idle-failed.png'})
 
       reloaded.dispose()
       mountChatPane(sessionId)
@@ -6104,7 +6285,6 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-denied.png'})
   })
 
   it('a cancelled tool reads as cancelled, not as a failure', async () => {
@@ -6112,7 +6292,6 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'cancelled'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-cancelled.png'})
   })
 
   for (const [outcome, name] of [
@@ -6123,7 +6302,6 @@ describe('tool outcomes', () => {
       render(() => stoppedTool(outcome, name, {pattern: 'TODO'}))
 
       await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
       await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
       await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
       await expect.element(page.getByText(STOPPED_REASON[outcome])).toBeVisible()
@@ -6907,12 +7085,10 @@ module.exports = {default: {setup(ctx) {
     await expect
       .element(page.getByRole('button', {name: 'running probe draw mode=draw'}), {timeout: 15_000})
       .toBeVisible()
-    await page.screenshot({path: '__screenshots__/plugin-tool-cards/running.png'})
     await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
 
     await coreControl.releaseResults()
     await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/plugin-tool-cards/finished.png'})
     await expect.element(probeRow('mode=draw')).toBeVisible()
     await expect.element(probeRow('mode=decline')).toBeVisible()
     await expect.element(probeRow('mode=throw')).toBeVisible()
@@ -7282,8 +7458,10 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
+    builtinTestRunnerCard,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
@@ -7437,7 +7615,7 @@ describe('installed plugins in settings', () => {
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
 
-  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+  test("the engine's own built-in plugins have no row a user could reload or switch off", async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.writeProjectFile(
@@ -7448,6 +7626,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
     await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('test-runner-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {

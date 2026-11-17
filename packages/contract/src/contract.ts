@@ -347,6 +347,21 @@ export const PluginExperimentalChunksSchema = z.object({
   chunks: z.array(PluginChunkSchema).min(1),
 })
 
+const PtyIdSchema = z.string().regex(/^pty_[0-9a-f-]{36}$/)
+const PtySizeSchema = z.object({cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500)})
+const PersistentPtyInfoSchema = z.object({
+  id: PtyIdSchema,
+  sessionId: SessionId,
+  size: PtySizeSchema,
+  busy: z.boolean(),
+})
+const PtyIdInput = z.object({ptyId: PtyIdSchema})
+const ptyNotFound = {
+  PTY_NOT_FOUND: {status: 404, message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
+}
+const noTty = {NO_TTY: {message: "the session's harness has no terminal command"}}
+const ptyBusy = {BUSY: {message: 'the terminal CLI is busy'}}
+
 export const contract = {
   auth: {
     trust: oc
@@ -393,7 +408,10 @@ export const contract = {
       })
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
-    compact: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
+    compact: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(Ok),
     switchHarness: oc
       .errors({
         ...notFound,
@@ -523,6 +541,22 @@ export const contract = {
       .errors({...pluginNotFound, ...pluginChunkNotFound, ...approvalDenied})
       .input(z.object({id: PluginIdSchema, file: PluginChunkFileSchema}))
       .output(locationResponse(PluginExperimentalChunksSchema)),
+  },
+  experimental: {
+    persistentPty: {
+      create: oc
+        .errors({...noTty, ...approvalDenied})
+        .input(z.object({sessionId: SessionId, size: PtySizeSchema.optional(), model: z.string().min(1).optional()}))
+        .output(PersistentPtyInfoSchema),
+      remove: oc
+        .errors({...ptyNotFound, ...ptyBusy, ...approvalDenied})
+        .input(PtyIdInput)
+        .output(Ok),
+      connectToken: oc
+        .errors({...ptyNotFound, ...approvalDenied})
+        .input(PtyIdInput)
+        .output(z.object({ticket: z.string(), expiresIn: z.number().int().positive()})),
+    },
   },
   event: {
     subscribe: oc

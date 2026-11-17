@@ -23,13 +23,16 @@
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
+    "@conciv/plugin-test-runner": "workspace:^",
     "@zumer/snapdom": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
     "vite": "catalog:"
   }
 }

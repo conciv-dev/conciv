@@ -65,6 +65,7 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
 
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
+  'packages/core/src/pty/pty-sessions.ts',
   'packages/extensions/terminal/src/server/pty-sessions.ts',
   'packages/page/src/react-bridge.ts',
   'packages/try/src/cli.ts',
@@ -88,12 +89,7 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'manager',
-    paths: [
-      'packages/extensions/test-runner/src/',
-      'packages/extensions/test-runner/vitest.config.ts',
-      'packages/plugins/test-runner/src/',
-      'packages/cli/src/init/',
-    ],
+    paths: ['packages/plugins/test-runner/src/', 'packages/cli/src/init/'],
   },
   {
     term: 'pipeline',

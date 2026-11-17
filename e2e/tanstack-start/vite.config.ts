@@ -8,7 +8,7 @@ import tailwindcss from '@tailwindcss/vite'
 import {nitro} from 'nitro/vite'
 import conciv from '@conciv/it/plugin/vite'
 import tanstack from '@conciv/extension-tanstack'
-import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
+import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 
 const config = defineConfig({
   resolve: {tsconfigPaths: true},
@@ -18,7 +18,7 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
-    conciv({devEndpointDir: E2E_DEV_ENDPOINT_DIR, extensions: [tanstack()]}),
+    conciv({devEndpointDir: e2eDevEndpointDir(import.meta.dirname), extensions: [tanstack()]}),
   ],
 })
 

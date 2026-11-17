@@ -270,13 +270,20 @@ function isAttachmentPart(part: Part): part is AttachmentPart {
   return part.type === 'image' || part.type === 'document' || part.type === 'audio' || part.type === 'video'
 }
 
+export function shownAttachmentParts(parts: readonly Part[]): AttachmentPart[] {
+  return parts.filter((part): part is AttachmentPart => isAttachmentPart(part) && !partIsModelOnly(part))
+}
+
+function urlFileName(value: string): string | undefined {
+  const url = URL.parse(value)
+  if (url?.protocol !== 'http:' && url?.protocol !== 'https:') return undefined
+  return url.pathname.split('/').pop() || undefined
+}
+
 function attachmentName(part: AttachmentPart, index: number): string {
   const source = part.source
-  if (source.type === 'url') {
-    const tail = source.value.split('/').pop()
-    if (tail) return tail
-  }
-  return `${part.type}-${index + 1}`
+  if (source.type !== 'url') return `${part.type}-${index + 1}`
+  return urlFileName(source.value) ?? part.type
 }
 
 function partToAttachment(part: AttachmentPart, index: number): CompleteAttachment {
@@ -305,10 +312,7 @@ function attachmentComponent(part: AttachmentPart, components: AttachmentsCompon
 function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
   const message = useMessage()
   const attachments = createMemo(() =>
-    message
-      .message()
-      .parts.filter((part): part is AttachmentPart => isAttachmentPart(part) && !partIsModelOnly(part))
-      .map((part, index) => partToEntry(part, index)),
+    shownAttachmentParts(message.message().parts).map((part, index) => partToEntry(part, index)),
   )
   return (
     <Index each={attachments()}>
@@ -328,10 +332,7 @@ function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
 function AttachmentByIndex(props: {index: number; components: AttachmentsComponents}): JSX.Element {
   const message = useMessage()
   const entry = () => {
-    const parts = message
-      .message()
-      .parts.filter((part): part is AttachmentPart => isAttachmentPart(part) && !partIsModelOnly(part))
-    const part = parts[props.index]
+    const part = shownAttachmentParts(message.message().parts)[props.index]
     return part ? partToEntry(part, props.index) : undefined
   }
   return (

@@ -56,7 +56,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
-    "@lydell/node-pty": "^1.1.0",
+    "@lydell/node-pty": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@solid-primitives/event-listener": "catalog:",

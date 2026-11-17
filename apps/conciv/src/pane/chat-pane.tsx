@@ -65,7 +65,8 @@ import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
-import {RunErrorRow} from './run-error-row.js'
+import {RunErrorRow, sessionDeleted} from './run-error-row.js'
+import {DeletedSessionPanel} from './deleted-session-panel.js'
 import {PaneAlert} from './pane-alert.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 import {QueueStrip} from './queue-strip.js'
@@ -201,14 +202,19 @@ type OpenedChat = {chat: ChatSession; reopened: boolean}
 
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const pane = usePane()
+  const appData = useAppData()
+  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
+  const deleted = () => session.isSuccess && session.data.hidden
   const opened = createMemo<OpenedChat | undefined>(
     (previous) => ({chat: pane.chat(), reopened: previous !== undefined}),
     undefined,
     {equals: (previous, next) => previous?.chat === next?.chat},
   )
   return (
-    <Show when={opened()} keyed>
-      {(current) => <OpenedChatPane opened={current} sessionId={props.sessionId} viewTab={props.viewTab} />}
+    <Show when={!deleted()} fallback={<DeletedSessionPanel sessionId={props.sessionId} />}>
+      <Show when={opened()} keyed>
+        {(current) => <OpenedChatPane opened={current} sessionId={props.sessionId} viewTab={props.viewTab} />}
+      </Show>
     </Show>
   )
 }
@@ -441,7 +447,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={messaging.visibleError()}>
                       {(error) => (
                         <Show
-                          when={!chat.loadFailed()}
+                          when={!chat.loadFailed() || sessionDeleted(error())}
                           fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
                         >
                           <RunErrorRow

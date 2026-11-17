@@ -25,7 +25,7 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 
 ## Side Effects
 
-- `app-data.ts:invalidateSessions`: invalidates the `sessions.list`, `sessions.search` and every `sessions.get` query in the TanStack QueryClient; a fetch already running is cancelled and replaced, so each ends on data read after the invalidation
+- `app-data.ts:invalidateSessions`: invalidates the `sessions.list`, `sessions.search` and every `sessions.get` query in the TanStack QueryClient; a fetch already running is cancelled and replaced, so each ends on data read after the invalidation; the plugin root (`runtime/plugin/root.tsx`) runs it on every `server.connected` the event stream sends (`bundle-source.ts` `onSessionsChanged`), so a delete made while the widget had no live subscription is seen once it subscribes, and runs `invalidateSession` on each `session.deleted`
 - `app-data.ts:invalidateSession`: the same for one session: `sessions.list`, `sessions.search` and that session's `sessions.get`; every action that changes one session (rename, model, effort, compact, create, delete, a run that ends) calls it
 - `app-data.ts:seedSession`: writes a row the caller already holds (the picker's list or search row) into that session's `sessions.get` cache only when the cache has none, then invalidates that `sessions.get`, so the panel draws at once and still ends on the real row
 - `app-data.ts:createSession`: the one way to start a session (panel header, extension view, pane provider, quick terminal): calls `rpc.sessions.create`, seeds the returned row into `sessions.get` and runs `invalidateSession`

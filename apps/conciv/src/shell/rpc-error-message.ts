@@ -1,5 +1,7 @@
 import {isReachabilityError} from '@conciv/client'
 
+export const SESSION_NOT_FOUND_MESSAGE = 'This session no longer exists.'
+
 export type RpcErrorClassification = {
   message: string
   transportFailure: boolean
