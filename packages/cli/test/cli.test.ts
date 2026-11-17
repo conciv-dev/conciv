@@ -568,10 +568,23 @@ describe('cli', () => {
       })
 
       it('takes the positional the declaration names and leaves its other fields as flags', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'large'}})
+        const actions: Array<Parameters<PageAnswer>[0]['action']> = []
+        const held = await engineWithTab(tempDir('conciv-home-'), {
+          answer: (command) => {
+            actions.push(command.action)
+            return {type: 'success', result: {value: {ok: true, value: 'large'}, files: []}}
+          },
+        })
+        cleanups.push(async () => {
+          delete process.env.CONCIV_TOKEN
+          delete process.env.CONCIV_SESSION_ID
+          await held.engine.stop()
+        })
+        process.env.CONCIV_PORT = String(held.engine.port)
+        process.env.CONCIV_TOKEN = held.engine.agentToken
+        process.env.CONCIV_SESSION_ID = held.sessionId
         expect(await runCli(cliMain, ['tools', 'page', 'select', '#size', '--value', 'large'])).toBe(0)
-        expect(answer.seen()).toMatchObject({name: 'page_select', input: {selector: '#size', value: 'large'}})
+        expect(actions).toContainEqual({type: 'select', selector: '#size', value: 'large'})
       })
     })
   })
