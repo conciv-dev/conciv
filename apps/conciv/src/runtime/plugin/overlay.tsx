@@ -17,16 +17,16 @@ export function mountOverlay(
   theme: Accessor<HostTheme>,
   styles: readonly string[] | undefined,
 ): {readonly element: HTMLElement; dispose(): void} {
-  const host = document.createElement('div')
-  placeHost(host)
-  const root = host.attachShadow({mode: 'open'})
-  const shared = widgetSheet()
-  root.adoptedStyleSheets = styles === undefined ? [shared] : [shared, createStyleSheet(styles.join('\n'))]
-
   return createRoot((disposeRoot) => {
+    const host = <div class={themeClasses(theme())} />
     const element = <div class={`font-chat text-chat-text ${themeClasses(theme())}`} />
 
+    if (!(host instanceof HTMLElement)) throw new Error('The overlay host did not render')
     if (!(element instanceof HTMLElement)) throw new Error('The overlay element did not render')
+    placeHost(host)
+    const root = host.attachShadow({mode: 'open'})
+    const shared = widgetSheet()
+    root.adoptedStyleSheets = styles === undefined ? [shared] : [shared, createStyleSheet(styles.join('\n'))]
     root.append(element)
     document.body.append(host)
 
