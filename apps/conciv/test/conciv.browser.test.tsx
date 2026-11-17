@@ -5874,6 +5874,29 @@ describe('engine login', () => {
     expect(await createBrowserDraftStore().getItem(sessionId)).toContain(LOCAL_ONLY)
   }
 
+  test('a revoke while the panel is open empties this browser draft store, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    await typeEngineAndLocalDrafts()
+    await coreControl.awaitPushSocketLive()
+
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    expect(await keptDrafts()).toEqual([])
+    await expect.element(editor()).toHaveTextContent(LOCAL_ONLY)
+
+    await userEvent.click(editor())
+    await userEvent.keyboard('{End} and typed while locked out')
+    await expect.element(editor()).toHaveTextContent(`${LOCAL_ONLY} and typed while locked out`)
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    expect(await keptDrafts()).toEqual([])
+
+    await locked().click()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(editor(), {timeout: 8000}).toHaveTextContent(new RegExp(`^${ENGINE_HELD}$`))
+  }, 40_000)
+
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
