@@ -10,6 +10,10 @@ export function widgetStarterPath(): string {
   return join(dirname(manifest), 'dist', 'core', 'widget-start.js')
 }
 
+export function noAppExtensionsPath(): string {
+  return join(dirname(widgetStarterPath()), 'no-app-extensions.js')
+}
+
 export function writeWidgetClient(root: string, port: number): string {
   if (!isEnginePort(port)) {
     throw new Error(`conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}`)
@@ -18,7 +22,6 @@ export function writeWidgetClient(root: string, port: number): string {
   mkdirSync(dirname(path), {recursive: true})
   const source = [
     `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
-    'export const entries = []',
     `startConcivWidget(${String(port)})`,
     '',
   ].join('\n')

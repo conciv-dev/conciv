@@ -4,7 +4,7 @@ import type {Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {makeEngineBooter} from './core/boot.js'
-import {widgetStarterPath, writeWidgetClient} from './core/bundler-widget.js'
+import {noAppExtensionsPath, widgetStarterPath, writeWidgetClient} from './core/bundler-widget.js'
 import {APP_EXTENSIONS_SPECIFIER, CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
 
@@ -97,7 +97,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
       if (options.widget === false) return
       const client = writeWidgetClient(compiler.context, bundlerOptions.port)
       compiler.options.resolve.alias = withAlias(
-        withAlias(compiler.options.resolve.alias, APP_EXTENSIONS_SPECIFIER, client),
+        withAlias(compiler.options.resolve.alias, APP_EXTENSIONS_SPECIFIER, noAppExtensionsPath()),
         WIDGET_START_SPECIFIER,
         widgetStarterPath(),
       )
