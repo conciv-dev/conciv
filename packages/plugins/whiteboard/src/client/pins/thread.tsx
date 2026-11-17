@@ -14,40 +14,6 @@ const ToolPart = z.object({
   output: z.unknown().optional(),
 })
 
-const AVATAR =
-  'inline-grid size-6 shrink-0 place-items-center rounded-chat-pill bg-chat-fill text-chat-xs font-semibold uppercase leading-none text-chat-text-2'
-
-const SECOND = 1_000
-const MINUTE = 60 * SECOND
-const HOUR = 60 * MINUTE
-const DAY = 24 * HOUR
-const relativeTime = new Intl.RelativeTimeFormat(undefined, {numeric: 'auto'})
-
-const timeAgo = (date: number, now: number): string => {
-  const elapsed = date - now
-  const size = Math.abs(elapsed)
-  if (size < MINUTE) return relativeTime.format(Math.round(elapsed / SECOND), 'second')
-  if (size < HOUR) return relativeTime.format(Math.round(elapsed / MINUTE), 'minute')
-  if (size < DAY) return relativeTime.format(Math.round(elapsed / HOUR), 'hour')
-  return relativeTime.format(Math.round(elapsed / DAY), 'day')
-}
-
-const initials = (name: string): string =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0] ?? '')
-    .join('') || '?'
-
-function Avatar(props: {name: string}): JSX.Element {
-  return (
-    <span class={AVATAR} aria-hidden="true">
-      {initials(props.name)}
-    </span>
-  )
-}
-
 function Part(props: {part: unknown}): JSX.Element {
   const ui = usePlugin().ui
   const text = (): string | undefined => {
@@ -87,11 +53,11 @@ function CommentEntry(props: {comment: CommentRow}): JSX.Element {
   return (
     <article class="px-3 py-2 border-t border-chat-line-soft flex flex-col gap-1 first:border-t-0">
       <div class="flex gap-2 items-center">
-        <Avatar name={model.displayName(props.comment)} />
+        <ui.Avatar name={model.displayName(props.comment)} src={props.comment.authorAvatar ?? undefined} />
         <span class="text-chat-sm text-chat-text font-medium truncate">{model.displayName(props.comment)}</span>
-        <time class="text-chat-xs text-chat-text-3 shrink-0" datetime={new Date(props.comment.createdAt).toISOString()}>
-          {timeAgo(props.comment.createdAt, Date.now())}
-        </time>
+        <span class="text-chat-xs text-chat-text-3 shrink-0">
+          <ui.RelativeTime value={new Date(props.comment.createdAt)} />
+        </span>
         <Show when={model.ownedBySelf(props.comment)}>
           <span class="ms-auto">
             <ui.Menu
@@ -184,7 +150,7 @@ function ThreadReply(): JSX.Element {
   }
   return (
     <div class="p-2 border-t border-chat-line-soft flex gap-2 items-center">
-      <Avatar name="You" />
+      <ui.Avatar name="You" />
       <ui.TextInput
         class="flex-1"
         label="Reply"
