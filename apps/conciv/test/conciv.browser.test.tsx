@@ -7653,7 +7653,7 @@ describe('terminal panel', () => {
 })
 
 describe('plugin composer pills', () => {
-  const pillsBundle = `const {ComposerPill, Slot} = require('@conciv/plugin/experimental')
+  const pillsBundle = `const {Command, ComposerPill, Slot} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createSignal} = require('solid-js')
 module.exports = {default: {setup(ctx) {
@@ -7664,6 +7664,30 @@ module.exports = {default: {setup(ctx) {
     render: () => createComponent(ctx.ui.Button, {onClick: () => setShown(true), children: 'Show the pills'}),
   })
   ctx.add(ComposerPill, {id: 'never', order: 0, show: () => undefined})
+  ctx.add(Command, {
+    id: 'tally',
+    title: 'Tally',
+    description: 'Count one more tally',
+    slash: {name: 'tally'},
+    run: () => ctx.toast.show({title: 'Tallied from the slash list'}),
+  })
+  ctx.add(Command, {
+    id: 'broken',
+    title: 'Broken',
+    description: 'A command that throws',
+    slash: {name: 'broken'},
+    run: () => {
+      throw new Error('the broken command broke')
+    },
+  })
+  ctx.add(Command, {
+    id: 'recount',
+    title: 'Recount',
+    description: 'Count the tallies again',
+    slash: {name: 'recount', after: 'tally'},
+    run: () => ctx.toast.show({title: 'Recounted from the slash list'}),
+  })
+  ctx.add(Command, {id: 'unslashed', title: 'Unslashed', run: () => undefined})
   ctx.add(ComposerPill, {
     id: 'ping',
     order: 2,
@@ -7774,6 +7798,37 @@ module.exports = {default: {setup(ctx) {
     await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeInViewport({ratio: 1})
     await notes.getByRole('button', {name: 'Done with the notes', exact: true}).click()
     await expect.element(notes).not.toBeInTheDocument()
+  }, 45_000)
+
+  test("a plugin command with a slash name joins the composer's slash list after /model in plugin order, honouring after, and runs from the keyboard while a throwing one leaves the composer working", async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const option = (name: string) => page.getByRole('option', {name: new RegExp(`^/${name}`)})
+
+    await expect
+      .element(page.getByRole('button', {name: 'Show the pills', exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    await composer.click()
+    await userEvent.keyboard('/')
+    await expect.element(option('tally')).toHaveTextContent('/tallyCount one more tally')
+    await expect.element(page.getByRole('option').nth(0)).toHaveTextContent('/modelSwitch the model')
+    await expect.element(page.getByRole('option').nth(1)).toHaveTextContent('/tallyCount one more tally')
+    await expect.element(page.getByRole('option').nth(2)).toHaveTextContent('/recountCount the tallies again')
+    await expect.element(page.getByRole('option').nth(3)).toHaveTextContent('/brokenA command that throws')
+    await expect.element(option('unslashed')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('broken')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/brokenA command that throws')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(composer).not.toHaveTextContent()
+
+    await userEvent.keyboard('/tally')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/tallyCount one more tally')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(notifications().getByText('Tallied from the slash list', {exact: true})).toBeVisible()
+    await expect.element(composer).not.toHaveTextContent()
   }, 45_000)
 })
 
