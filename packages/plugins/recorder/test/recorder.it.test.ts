@@ -1,3 +1,4 @@
+import {mkdir, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe} from 'vitest'
@@ -265,6 +266,16 @@ describe('sending a recording to the agent', () => {
       })
       await page.getByRole('button', {name: 'Press me', exact: true}).click()
       await expect(replayed(page, 'Pressed by the user')).toBeAttached({timeout: 30_000})
+
+      const recordingsFolder = path.join(widget.kit.stateRoot, '.conciv', 'recorder', 'recordings')
+      await mkdir(path.dirname(recordingsFolder), {recursive: true})
+      await writeFile(recordingsFolder, 'a file where the recordings folder belongs', 'utf8')
+      await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
+      await expect(
+        page.getByText('Could not write the recording to the project folder. Try again.', {exact: true}),
+      ).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: true})).toBeVisible()
+      await rm(recordingsFolder)
 
       await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
       await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible({timeout: 30_000})
