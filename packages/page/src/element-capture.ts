@@ -1,5 +1,5 @@
 import type {createMirror, Mirror, serializeNodeWithId, stringifyStylesheet} from 'rrweb-snapshot'
-import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {collectPendingCss, type PendingCssText} from './css-bundle.js'

@@ -26,7 +26,8 @@ import {
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
-import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
+import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
+import {requireHarness} from './lib/require-harness.js'
 import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
@@ -90,13 +91,8 @@ import {openSourceFromFrames} from './editor/open-source.js'
 import {makePagePlugin} from './page/page-plugin.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
-import {
-  makeCompositeRpcRouter,
-  RPC_PREFIX,
-  rpcFetchMiddleware,
-  rpcWebsocketRoute,
-  type UpgradeWebSocket,
-} from '@conciv/extension/rpc-mount'
+import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
+import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
@@ -185,12 +181,6 @@ function assertUniqueExtensionSlugs(extensions: readonly AnyExtension[]): void {
     }
     owners.set(extensionSlug, extension.name)
   }
-}
-
-function requireHarness(id: string): HarnessAdapter {
-  const found = getHarness(id) ?? getHarness('claude')
-  if (!found) throw new Error('no harness registered (built-in claude missing)')
-  return found
 }
 
 function executable(file: string): boolean {

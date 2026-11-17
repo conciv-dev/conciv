@@ -13,6 +13,8 @@ export default defineConfig({
     'src/nextjs-widget.ts',
     'src/core/boot.ts',
     'src/core/extensions-watch.ts',
+    'src/core/widget-start.ts',
+    'src/core/no-app-extensions.ts',
   ],
   format: 'esm',
   fixedExtension: false,
