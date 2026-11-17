@@ -1,0 +1,1 @@
+ALTER TABLE `canvas_pending` ADD `claimed_until` integer;

@@ -28,6 +28,7 @@ export const HubAccessSchema = z.enum(['open', 'session', 'project'])
 export type HubAccess = z.infer<typeof HubAccessSchema>
 
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
+export const CODE_MODE_EXTERNAL_PREFIX = 'external_'
 
 export const CODE_MODE_TIMEOUT_MS = 150_000
 

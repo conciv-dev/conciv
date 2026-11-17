@@ -8,12 +8,16 @@ import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {observeRpc} from '../src/rpc-observer.js'
 import {rpcSocketFor} from '../src/rpc-socket.js'
-import {gateRpcCalls} from '../src/rpc-fault.js'
+import {failRpcCalls, gateRpcCalls} from '../src/rpc-fault.js'
 import {os} from '@orpc/server'
 import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
 import {encodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {test as browserTest} from '@conciv/browser-fixture'
+import {createHash} from 'node:crypto'
+import type {Duplex} from 'node:stream'
+import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {watchPushWire} from '../src/push-wire.js'
 
 describe('core kit seams', () => {
   const STALENESS: EngineStaleness = {
@@ -174,6 +178,59 @@ describe('rpc socket routing', () => {
   )
 })
 
+describe('rpc gate input pattern', () => {
+  async function requestFrame(id: string, input: unknown): Promise<string> {
+    const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize(input)
+    const frame = await encodeRequestMessage(id, MessageType.REQUEST, {
+      url: new URL('http://orpc/echo'),
+      method: 'POST',
+      headers: {},
+      body,
+    })
+    if (typeof frame !== 'string') throw new Error('the rpc request frame encoded to binary')
+    return frame
+  }
+
+  browserTest(
+    'a gate with an input pattern holds only the matching call, while the driver calls on the same path pass',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const observer = observeRpc(page)
+        const gate = await gateRpcCalls(page, {path: ['echo'], input: {kind: 'held'}})
+        const frames = [await requestFrame('1', {kind: 'held'}), await requestFrame('2', {kind: 'driver'})]
+        await page.evaluate(
+          ({url, requestFrames}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('open', () => {
+                for (const frame of requestFrames) socket.send(frame)
+                resolve()
+              })
+            }),
+          {url: served.wsUrl, requestFrames: frames},
+        )
+        await gate.awaitCaptured(1)
+        await observer.completed({path: ['echo'], input: {kind: 'driver'}, status: 200})
+        expect(gate.pending()).toBe(1)
+        expect(observer.completedCount({path: ['echo'], input: {kind: 'held'}})).toBe(0)
+        await gate.release()
+        await observer.completed({path: ['echo'], input: {kind: 'held'}, status: 200})
+        expect(gate.pending()).toBe(0)
+        await gate.dispose()
+        observer.dispose()
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+})
+
 describe('rpc observer dispose', () => {
   const NATURAL_TIMEOUT_MS = 300
 
@@ -272,6 +329,157 @@ describe('rpc gate abandoned calls', () => {
       } finally {
         await page.close()
         await served.close()
+      }
+    },
+    15_000,
+  )
+})
+
+describe('rpc faults by input', () => {
+  browserTest(
+    'a gate given an input holds only the calls whose input matches, and the others pass',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const gate = await gateRpcCalls(page, {path: ['echo'], input: {value: 'held'}})
+        const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+        const request = (id: string, value: string) =>
+          encodeRequestMessage(id, MessageType.REQUEST, {
+            url: new URL('http://orpc/echo'),
+            method: 'POST',
+            headers: {},
+            body: serializer.serialize({value}),
+          })
+        const held = await request('1', 'held')
+        const passed = await request('2', 'passed')
+        if (typeof held !== 'string' || typeof passed !== 'string') throw new Error('an rpc frame encoded to binary')
+        const firstAnswer = page.evaluate(
+          ({url, heldFrame, passedFrame}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('message', () => resolve(), {once: true})
+              socket.addEventListener('open', () => {
+                socket.send(heldFrame)
+                socket.send(passedFrame)
+              })
+            }),
+          {url: served.wsUrl, heldFrame: held, passedFrame: passed},
+        )
+        await firstAnswer
+        expect(gate.pending()).toBe(1)
+        await gate.release()
+        await expect(gate.answered()).resolves.toEqual({value: 'held'})
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+
+  browserTest(
+    'a failure given an input fails only the calls whose input matches, and the others are answered',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const observer = observeRpc(page)
+        const fault = await failRpcCalls(page, {path: ['echo'], input: {value: 'failed'}})
+        const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+        const request = (id: string, value: string) =>
+          encodeRequestMessage(id, MessageType.REQUEST, {
+            url: new URL('http://orpc/echo'),
+            method: 'POST',
+            headers: {},
+            body: serializer.serialize({value}),
+          })
+        const failed = await request('1', 'failed')
+        const passed = await request('2', 'passed')
+        if (typeof failed !== 'string' || typeof passed !== 'string') throw new Error('an rpc frame encoded to binary')
+        await page.evaluate(
+          ({url, failedFrame, passedFrame}) => {
+            const socket = new WebSocket(url)
+            socket.addEventListener('open', () => {
+              socket.send(failedFrame)
+              socket.send(passedFrame)
+            })
+          },
+          {url: served.wsUrl, failedFrame: failed, passedFrame: passed},
+        )
+        await expect(observer.completed({path: ['echo'], input: {value: 'failed'}})).resolves.toMatchObject({
+          status: 500,
+        })
+        await expect(observer.completed({path: ['echo'], input: {value: 'passed'}})).resolves.toMatchObject({
+          status: 200,
+          output: {value: 'passed'},
+        })
+        await fault.dispose()
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+})
+
+describe('push wire', () => {
+  const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+
+  const handshakeAnswer = (key: string): string =>
+    [
+      'HTTP/1.1 101 Switching Protocols',
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      `Sec-WebSocket-Accept: ${createHash('sha1').update(`${key}${WEBSOCKET_GUID}`).digest('base64')}`,
+      '',
+      '',
+    ].join('\r\n')
+
+  browserTest(
+    'a push socket counts as live once it opens, not when its handshake is sent',
+    async ({browser}) => {
+      const upgraded = Promise.withResolvers<() => void>()
+      const upgrades: Duplex[] = []
+      const server = createServer((_request, response) => response.end('<!doctype html><meta charset="utf-8">'))
+      server.on('upgrade', (request, socket) => {
+        const key = request.headers['sec-websocket-key'] ?? ''
+        upgrades.push(socket)
+        upgraded.resolve(() => socket.write(handshakeAnswer(key)))
+      })
+      const bound = await listenLocal(server)
+      const page = await browser.newPage()
+      try {
+        await page.goto(bound.base)
+        const watch = watchPushWire(page)
+        const order: string[] = []
+        const live = watch.awaitLive().then(() => order.push('live'))
+        const requested = page.waitForEvent('websocket')
+        await page.evaluate(
+          (url) => {
+            const socket = new WebSocket(url)
+            socket.addEventListener('open', () => socket.send('{}'))
+          },
+          `${bound.base.replace('http:', 'ws:')}${PUSH_WS_PATH}`,
+        )
+        const answer = await upgraded.promise
+        await requested
+        expect(watch.opened()).toBe(1)
+        expect(watch.liveSockets()).toBe(0)
+        order.push('answered')
+        answer()
+        await live
+        expect(order).toEqual(['answered', 'live'])
+        expect(watch.liveSockets()).toBe(1)
+      } finally {
+        await page.close()
+        for (const socket of upgrades) socket.destroy()
+        await bound.close()
       }
     },
     15_000,

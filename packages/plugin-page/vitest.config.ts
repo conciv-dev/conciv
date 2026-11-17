@@ -5,5 +5,6 @@ export default defineConfig({
   test: {
     ...ciTest(),
     environment: 'node',
+    include: ['test/plugin-page.test.ts'],
   },
 })

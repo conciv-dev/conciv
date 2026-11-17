@@ -110,6 +110,7 @@ async function sessionPage(
   const listed = await listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
+    publishCreated: chat.rows.publishCreated,
     nativePages: await loadNativePages(page),
     page,
     search,
@@ -169,7 +170,7 @@ const sameEffort = (effort: ReasoningEffort | null) =>
   effort === null ? isNull(sessions.effort) : eq(sessions.effort, effort)
 
 async function ensuredRow(chat: ChatContext, sessionId: SessionId): Promise<SessionRecord | null> {
-  await ensureRow(chat.db, sessionId, chat.defaultHarness.id, chat.cwd)
+  await ensureRow(chat.rows, sessionId)
   return rowById(chat.db, sessionId)
 }
 
@@ -239,7 +240,7 @@ export function searchedSessionPage(
 export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
   const chat = deps.chat
   const db = chat.db
-  const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
+  const scope = chat.rows
   const search = deps.search
   return {
     list: os.sessions.list.handler(({input}) => listedSessionPage(chat, search, input)),
@@ -266,7 +267,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return page
     }),
     create: os.sessions.create.handler(async () => {
-      const {sessionId} = await createChatSession(db, scope)
+      const {sessionId} = await createChatSession(scope)
       const session = await rpcSessionMeta(chat, sessionId)
       if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
       return {sessionId, session}

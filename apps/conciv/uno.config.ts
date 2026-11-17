@@ -18,6 +18,7 @@ export default defineConfig({
       '../../packages/extensions/terminal/src/**/*.{ts,tsx}',
       '../../packages/extensions/whiteboard/src/**/*.{ts,tsx}',
       '../../packages/plugins/test-runner/src/**/*.{ts,tsx}',
+      '../../packages/plugins/whiteboard/src/**/*.{ts,tsx}',
     ],
   },
 

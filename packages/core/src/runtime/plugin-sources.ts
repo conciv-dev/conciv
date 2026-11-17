@@ -2,8 +2,9 @@ import type {ServerHarness, ServerSessions} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {ResolvedConcivConfig} from '../config.js'
 import {join} from 'node:path'
-import {App, ConfigPolicy, Global, ManagedPolicy, PluginHost} from '@conciv/plugin-host'
+import {App, ConfigAgentPlugin, ConfigPolicy, Global, ManagedPolicy, PluginHost} from '@conciv/plugin-host'
 import {Effect, Layer, Schema} from 'effect'
 import corePackage from '../../package.json' with {type: 'json'}
 
@@ -49,6 +50,10 @@ export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
     ManagedPolicy.ConfiguredPolicies,
     Schema.decodeUnknownEffect(Schema.Array(ConfigPolicy.Info))(policies ?? []).pipe(Effect.orDie),
   )
+}
+
+export function provideConfiguredPermissions(permissions: ResolvedConcivConfig['permissions']) {
+  return Layer.succeed(ConfigAgentPlugin.ConfiguredPermissions, permissions)
 }
 
 export function provideGlobalRoots(home: string) {

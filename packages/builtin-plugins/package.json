@@ -16,20 +16,28 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox"
   },
   "dependencies": {
     "@conciv/contract": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-test-runner": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
     "@orpc/client": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/map": "catalog:",
+    "@tanstack/hotkeys": "catalog:",
+    "@tanstack/solid-pacer": "catalog:",
+    "@unocss/reset": "catalog:",
     "@zumer/snapdom": "catalog:",
+    "ai-motion": "catalog:",
     "lucide-solid": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
@@ -37,9 +45,24 @@
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "catalog:",
+    "@tiptap/core": "catalog:",
+    "@tiptap/extension-document": "catalog:",
+    "@tiptap/extension-paragraph": "catalog:",
+    "@tiptap/extension-text": "catalog:",
+    "@tiptap/pm": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "playwright": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
   }
 }

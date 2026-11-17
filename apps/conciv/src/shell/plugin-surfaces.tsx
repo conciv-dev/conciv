@@ -205,14 +205,16 @@ export function PluginOverlay() {
   const host = usePluginHost()
   const layers = useLayers()
   const overlays = createMemo(() =>
-    host.items(Slot).flatMap((item) => (item.value.at === 'page.overlay' ? [item.value] : [])),
+    host
+      .items(Slot)
+      .flatMap((item) => (item.value.at === 'page.overlay' && item.value.hides !== false ? [item.value] : [])),
   )
 
   return (
     <Show when={host.ready()}>
       <For each={overlays()}>
-        {(overlay) => {
-          onCleanup(layers.register(() => true, overlay.hides))
+        {() => {
+          onCleanup(layers.register(() => true))
 
           return null
         }}

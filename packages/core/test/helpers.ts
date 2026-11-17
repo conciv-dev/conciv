@@ -22,7 +22,6 @@ import {
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {HarnessSessionId, type HubAccess, SessionId} from '@conciv/protocol/chat-types'
-import {type PageOutcome} from '@conciv/protocol/page-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {z} from 'zod'
@@ -182,6 +181,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     hubAccess: overrides.hubAccess ?? 'session',
     plugins: overrides.configPlugins ?? [],
     policies: [],
+    permissions: [],
   }
   const made = await makeApp({
     print: env.print,
@@ -227,6 +227,7 @@ export type ChatFixture = {
   stateRoot: string
   runtime: MadeApp['runtime']
   pluginHost: MadeApp['pluginHost']
+  rows: MadeApp['chat']['rows']
   dispose: () => Promise<void>
 }
 
@@ -235,7 +236,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const stateRoot = tempDir('conciv-fixture-')
   const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
   const sessionId = SessionId.parse('conciv_fixture')
-  if (opts.seedSession !== false) await ensureRow(made.chat.db, sessionId, harness.id, stateRoot)
+  if (opts.seedSession !== false) await ensureRow(made.chat.rows, sessionId)
   return {
     plane: made.plane,
     db: made.chat.db,
@@ -244,6 +245,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     stateRoot,
     runtime: made.runtime,
     pluginHost: made.pluginHost,
+    rows: made.chat.rows,
     dispose: made.dispose,
   }
 }
@@ -251,27 +253,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
 export async function hydratedSnapshot(kit: Kit, sessionId: string): Promise<SnapshotView> {
   const hydration = await kit.hydrate(sessionId)
   return asSnapshot(aguiSnapshotFor(hydration.messages))
-}
-
-export type FakeWidget = {end: () => void; seen: () => string[]}
-
-export async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<FakeWidget> {
-  const ctrl = new AbortController()
-  const seen: string[] = []
-  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
-  void (async () => {
-    try {
-      for await (const {requestId, query} of iterator) {
-        const name =
-          typeof query === 'object' && query !== null && 'name' in query && typeof query.name === 'string'
-            ? query.name
-            : ''
-        seen.push(name)
-        void kit.rpc.page.reply({requestId, outcome: answerFor(name)}).catch(() => {})
-      }
-    } catch {}
-  })()
-  return {end: () => ctrl.abort(), seen: () => [...seen]}
 }
 
 export type ResumeScenarioOpts = {
