@@ -2543,6 +2543,21 @@ describe('the tanstack cards', () => {
       cleanup()
     }
 
+    const markers = {
+      items: {__conciv: 'array', size: 3, preview: 'Array(3)'},
+      lookup: {__conciv: 'Map', size: 2, preview: 'Map(2)'},
+    }
+    mountCard(
+      'tanstack_loader_data',
+      {},
+      resultPart('tanstack_loader_data', JSON.stringify({routeId: '/about', data: markers}), 'complete'),
+    )
+    await header('Read the loader data').click()
+    await expect.element(exactText('Array(3)')).toBeVisible()
+    await expect.element(exactText('Map(2)')).toBeVisible()
+    await expect.element(page.getByText(/__conciv/)).not.toBeInTheDocument()
+    cleanup()
+
     const backPart: ToolCallPart = {
       type: 'tool-call',
       id: 'call-tanstack_back',
