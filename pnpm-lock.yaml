@@ -4972,6 +4972,12 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/browser-fixture':
+        specifier: workspace:*
+        version: link:../../browser-fixture
+      '@conciv/embed':
+        specifier: workspace:*
+        version: link:../../embed
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
@@ -4987,15 +4993,48 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@excalidraw/excalidraw':
+        specifier: ^0.18.1
+        version: 0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(immer@11.1.8)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@excalidraw/mermaid-to-excalidraw':
+        specifier: 3.0.0
+        version: 3.0.0
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.1
+      '@solid-primitives/event-listener':
+        specifier: 'catalog:'
+        version: 2.4.6(solid-js@1.9.17)
+      '@tanstack/pacer':
+        specifier: 'catalog:'
+        version: 0.23.1
+      '@tanstack/solid-db':
+        specifier: ^0.2.28
+        version: 0.2.28(solid-js@1.9.17)(typescript@7.0.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11(drizzle-orm@0.45.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1))
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
