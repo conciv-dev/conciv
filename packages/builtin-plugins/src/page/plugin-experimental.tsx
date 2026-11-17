@@ -1,10 +1,11 @@
-import {createEffect, onCleanup, type Accessor} from 'solid-js'
-import {createKeyed, Plugin, type MountedSession} from '@conciv/plugin/experimental'
+import {createComponent, onCleanup, type Accessor, type JSX} from 'solid-js'
+import {Portal} from 'solid-js/web'
+import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition, type Tab} from '@conciv/plugin-page/rpc'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import {openAttachment} from './attachment.js'
-import {mountHighlight, type OpenedSource} from './highlight.js'
+import {makeHighlight, type OpenedSource} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
@@ -28,17 +29,20 @@ function woken(signal: AbortSignal) {
   })
 }
 
-function mountShadowHost(mode: Accessor<'light' | 'dark'>) {
-  const host = document.createElement('div')
-
-  host.setAttribute('data-conciv-root', '')
-  document.body.append(host)
-  createEffect(() => {
-    host.classList.toggle('dark', mode() === 'dark')
-    host.classList.toggle('light', mode() === 'light')
-  })
-
-  return {root: host.attachShadow({mode: 'open'}), remove: () => host.remove()}
+function HighlightHost(props: {
+  mode: Accessor<'light' | 'dark'>
+  mount: (root: ShadowRoot) => () => void
+}): JSX.Element {
+  return (
+    <Portal mount={document.body}>
+      <div
+        data-conciv-effects
+        classList={{light: props.mode() === 'light', dark: props.mode() === 'dark'}}
+        style={{position: 'fixed', 'z-index': '2147483000'}}
+        ref={(element) => onCleanup(props.mount(element.attachShadow({mode: 'open'})))}
+      />
+    </Portal>
+  )
 }
 
 export default Plugin.define({
@@ -87,17 +91,28 @@ export default Plugin.define({
       },
     )
 
-    const shadow = mountShadowHost(() => ctx.appearance.mode())
-    const unmount = mountSimulator({
-      root: shadow.root,
-      session: () => routed()?.id ?? null,
-      running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
-      onStop: (sessionId) => {
-        const session = routed()
+    ctx.add(Slot, {
+      at: 'page.overlay',
+      hides: false,
+      render: () => (
+        <div
+          ref={(element) =>
+            onCleanup(
+              mountSimulator({
+                root: element,
+                session: () => routed()?.id ?? null,
+                running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
+                onStop: (sessionId) => {
+                  const session = routed()
 
-        if (session?.id === sessionId) void session.run.interrupt()
-        endTask()
-      },
+                  if (session?.id === sessionId) void session.run.interrupt()
+                  endTask()
+                },
+              }),
+            )
+          }
+        />
+      ),
     })
 
     createKeyed(
@@ -135,21 +150,16 @@ export default Plugin.define({
       }
     }
 
-    const highlight = mountHighlight({
-      root: shadow.root,
+    const highlight = makeHighlight({
       open: openSource,
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
     ctx.add(PageEffect, highlight.effect)
+    createComponent(HighlightHost, {mode: () => ctx.appearance.mode(), mount: highlight.mount})
 
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 
-    return () => {
-      unmount()
-      highlight.dispose()
-      shadow.remove()
-      operations.dispose()
-    }
+    return () => operations.dispose()
   },
 })

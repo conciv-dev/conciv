@@ -14,7 +14,6 @@ import utilities from 'virtual:uno.css?inline'
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 
 export type HighlightOptions = {
-  root: ShadowRoot
   open: (located: LocateResult) => Promise<OpenedSource>
   toast: (title: string, variant: 'success' | 'error') => void
 }
@@ -44,7 +43,7 @@ function elementAt(x: number, y: number): Element | null {
   )
 }
 
-function HighlightInspector(props: Omit<HighlightOptions, 'root'> & {onExit: () => void}): JSX.Element {
+function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX.Element {
   const refs: Refs = {map: new Map(), n: 0}
   const [state, setState] = createStore<{hovered: Hovered | null}>({hovered: null})
   const last = {x: -1, y: -1}
@@ -127,20 +126,33 @@ function HighlightInspector(props: Omit<HighlightOptions, 'root'> & {onExit: () 
   )
 }
 
-export function mountHighlight(options: HighlightOptions): {effect: PageEffect; dispose: () => void} {
+export function makeHighlight(options: HighlightOptions): {
+  effect: PageEffect
+  mount: (root: ShadowRoot) => () => void
+} {
   const [state, setState] = createStore({driven: false})
-  const style = document.createElement('style')
-  style.textContent = `${reset}${tokens}${hostSheet}${utilities}`
-  const layer = document.createElement('div')
-  options.root.append(style, layer)
-  const unmount = render(
-    () => (
-      <Show when={state.driven}>
-        <HighlightInspector open={options.open} toast={options.toast} onExit={() => setState('driven', false)} />
-      </Show>
-    ),
-    layer,
-  )
+
+  const mount = (root: ShadowRoot) => {
+    const style = document.createElement('style')
+    style.textContent = `${reset}${tokens}${hostSheet}${utilities}`
+    const layer = document.createElement('div')
+    root.append(style, layer)
+    const unmount = render(
+      () => (
+        <Show when={state.driven}>
+          <HighlightInspector open={options.open} toast={options.toast} onExit={() => setState('driven', false)} />
+        </Show>
+      ),
+      layer,
+    )
+
+    return () => {
+      unmount()
+      layer.remove()
+      style.remove()
+    }
+  }
+
   return {
     effect: {
       name: 'highlight',
@@ -148,10 +160,6 @@ export function mountHighlight(options: HighlightOptions): {effect: PageEffect; 
       set: (enabled) => setState('driven', enabled),
       enabled: () => state.driven,
     },
-    dispose: () => {
-      unmount()
-      layer.remove()
-      style.remove()
-    },
+    mount,
   }
 }

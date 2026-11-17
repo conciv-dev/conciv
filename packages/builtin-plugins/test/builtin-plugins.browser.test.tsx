@@ -1038,6 +1038,7 @@ describe.skipIf(inFirefox)('the agent acts on the page like a person', () => {
     ))
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
     const unmountSimulator = mountSimulator({
@@ -1097,6 +1098,7 @@ describe.skipIf(inFirefox)('the agent acts on the page like a person', () => {
     host.remove()
     const remounted = document.createElement('div')
     remounted.setAttribute('data-conciv-root', '')
+    remounted.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(remounted)
     onTestFinished(() => remounted.remove())
     onTestFinished(
@@ -1113,6 +1115,7 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
   function mountedAgent(): void {
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
     const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
@@ -1197,6 +1200,7 @@ describe.skipIf(inFirefox)('page action queue', () => {
     render(() => <QueueForm heard={(event) => heard.push(event)} drafting={drafting} />)
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
     const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})

@@ -41,6 +41,7 @@ export const SIMULATOR_CSS = `
 .${MASK_CLASS} {
   position: fixed;
   inset: 0;
+  z-index: -1;
   cursor: default;
   overflow: hidden;
   pointer-events: auto;
