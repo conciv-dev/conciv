@@ -58,7 +58,7 @@ import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
 import {openPipTarget} from '../shell/pip.js'
 import {createMountedSession} from '../runtime/plugin/mounted-session.js'
-import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
+import {createPluginTabs, PluginPanelEnd, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -519,6 +519,7 @@ function PanelSession(): JSX.Element {
         activeView={activeView()}
         onSelectView={switchView}
         disabled={viewLocked()}
+        end={<Show when={mounted.view()}>{(view) => <PluginPanelEnd view={view} screen={mounted.screen} />}</Show>}
       />
       <PluginWindowBottom />
     </PaneContext.Provider>

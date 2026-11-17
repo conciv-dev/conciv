@@ -6915,6 +6915,36 @@ module.exports = {default: {setup(ctx) {
   }, 45_000)
 })
 
+describe('the session panel end slot', () => {
+  const coreBase = bootedCore('plugin-panel-end', {
+    plugins: ['./panel-end'],
+    files: {
+      'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
+`,
+      'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {
+    at: 'session.panel.end',
+    render: (input) => Object.assign(document.createElement('span'), {textContent: 'Panel end of ' + input.session.id}),
+  })
+}}}
+`,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin slot at session.panel.end draws in the status bar beside the view tabs, for the routed session', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const bar = page.getByRole('toolbar', {name: 'Session status'})
+    await expect.element(bar.getByRole('tab', {name: 'Chat'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(bar.getByText(`Panel end of ${sessionId}`, {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 45_000)
+})
+
 describe('plugin composer pills', () => {
   const pillsBundle = `const {ComposerPill, Slot} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
