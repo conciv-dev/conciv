@@ -30,6 +30,7 @@
     "@solid-primitives/map": "catalog:",
     "@tanstack/hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
+    "@unocss/reset": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
     "solid-js": "catalog:",

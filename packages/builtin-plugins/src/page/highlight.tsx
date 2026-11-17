@@ -6,7 +6,9 @@ import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
 import type {PageEffect} from '@conciv/plugin/experimental/page'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import reset from '@unocss/reset/tailwind.css?inline'
 import tokens from '@conciv/ui-kit-system/tokens.css?inline'
+import hostSheet from '@conciv/ui-kit-system/host.css?inline'
 import utilities from 'virtual:uno.css?inline'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
@@ -128,7 +130,7 @@ function HighlightInspector(props: Omit<HighlightOptions, 'root'> & {onExit: () 
 export function mountHighlight(options: HighlightOptions): {effect: PageEffect; dispose: () => void} {
   const [state, setState] = createStore({driven: false})
   const style = document.createElement('style')
-  style.textContent = `${tokens}${utilities}`
+  style.textContent = `${reset}${tokens}${hostSheet}${utilities}`
   const layer = document.createElement('div')
   options.root.append(style, layer)
   const unmount = render(

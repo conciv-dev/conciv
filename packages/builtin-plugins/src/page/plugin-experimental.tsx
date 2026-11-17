@@ -1,4 +1,4 @@
-import {onCleanup} from 'solid-js'
+import {createEffect, onCleanup, type Accessor} from 'solid-js'
 import {createKeyed, Plugin, type MountedSession} from '@conciv/plugin/experimental'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition, type Tab} from '@conciv/plugin-page/rpc'
@@ -28,11 +28,15 @@ function woken(signal: AbortSignal) {
   })
 }
 
-function mountShadowHost() {
+function mountShadowHost(mode: Accessor<'light' | 'dark'>) {
   const host = document.createElement('div')
 
   host.setAttribute('data-conciv-root', '')
   document.body.append(host)
+  createEffect(() => {
+    host.classList.toggle('dark', mode() === 'dark')
+    host.classList.toggle('light', mode() === 'light')
+  })
 
   return {root: host.attachShadow({mode: 'open'}), remove: () => host.remove()}
 }
@@ -83,7 +87,7 @@ export default Plugin.define({
       },
     )
 
-    const shadow = mountShadowHost()
+    const shadow = mountShadowHost(() => ctx.appearance.mode())
     const unmount = mountSimulator({
       root: shadow.root,
       session: () => routed()?.id ?? null,
