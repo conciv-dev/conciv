@@ -38,6 +38,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - the static `options` segment outranks `$view`, so no extension view can use the id `options`
 - `panel.$sessionId.$view.tsx:PanelView`: a locked view blocks leaving it, but not opening or closing its session menu
 - `quick.tsx:Route.beforeLoad`: redirects to `/` when `settings.quickTerminal.enabled` is false
+- `quick.tsx`: each pane's `PaneProvider` gets `onReplaceSession`, so a deleted pane's `New session` swaps that pane's id in `panes` at the same index (order kept, focus on it) instead of leaving for `/panel`; every new session (Split pane, `Mod+D`, the session menu, the panel and view routes) starts through `useStartSession`, so a failed create shows its danger notice; in the empty quick state that notice and the `Retry` status both show
 - `panel.$sessionId.tsx:SessionTitle`: no rename when the trimmed title is empty or unchanged
 - `pip.$sessionId.tsx:PipSession`: if the popup cannot open, returns inline with `popOut: 'lost'`; closing the popup (`pagehide`) returns inline
 - `routeTree.gen.ts` (in `../`) is regenerated from these files by `pnpm generate-routes`
