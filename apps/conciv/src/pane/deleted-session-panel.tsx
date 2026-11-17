@@ -15,11 +15,11 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const startSession = useStartSession()
   const pane = usePane()
   const draft = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
-  const carried = () => (draft.isSuccess ? (draft.data?.text ?? '') : '')
+  const carried = () => draft.isSuccess && ((draft.data?.text ?? '') !== '' || (draft.data?.items.length ?? 0) > 0)
 
   const clearDeletedDraft = () =>
     appData
-      .saveDraft({sessionId: props.sessionId, text: '', selectionStart: 0, selectionEnd: 0, attachments: []})
+      .saveDraft({sessionId: props.sessionId, text: '', selectionStart: 0, selectionEnd: 0, attachments: [], items: []})
       .catch(() => undefined)
 
   const logMoveFailure = <T,>(work: Promise<T>): Promise<T> =>
@@ -30,9 +30,11 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
 
   const move = useMutation(() => ({
     mutationFn: async () => {
-      const text = (await logMoveFailure(appData.readDraft(props.sessionId)))?.text ?? ''
+      const saved = await logMoveFailure(appData.readDraft(props.sessionId))
+      const text = saved?.text ?? ''
+      const items = saved?.items ?? []
       const {sessionId} = await startSession()
-      if (text !== '') await logMoveFailure(prependDraft(appData, sessionId, text))
+      if (text !== '' || items.length > 0) await logMoveFailure(prependDraft(appData, sessionId, text, items))
       await clearDeletedDraft()
       return sessionId
     },
@@ -47,7 +49,7 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
       <p class="font-semibold" role="status">
         This session was deleted.
       </p>
-      <Show when={carried() !== ''}>
+      <Show when={carried()}>
         <p class="text-chat-text-2">Your text moves to the new session.</p>
       </Show>
       <Button
