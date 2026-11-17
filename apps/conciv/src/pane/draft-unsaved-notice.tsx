@@ -2,6 +2,7 @@ import {Show, createMemo, type JSX} from 'solid-js'
 import {useMutationState} from '@conciv/client'
 import {DraftRowSchema} from '@conciv/contract'
 import {useAppData} from '../app/context.js'
+import {useEngineReachability} from '../app/reachability.js'
 import {StandingNotice} from '../shell/notices.js'
 import {sameContent, type DraftContent} from './draft-storage.js'
 
@@ -15,6 +16,7 @@ export function DraftUnsavedNotice(props: {
   keptHere: (draft: DraftContent) => boolean
 }): JSX.Element {
   const appData = useAppData()
+  const reachability = useEngineReachability()
   const saves = useMutationState(() => ({
     filters: {
       mutationKey: appData.utils.drafts.set.mutationKey(),
@@ -37,7 +39,7 @@ export function DraftUnsavedNotice(props: {
     return draft && props.keptHere(draft) ? KEPT_HERE_MESSAGE : ENGINE_ONLY_MESSAGE
   })
   return (
-    <Show when={unsavedDraft() !== null}>
+    <Show when={unsavedDraft() !== null && reachability.locked() === null}>
       <StandingNotice tone="warn" message={message()} action={{label: 'Retry', run: () => props.retry()}} />
     </Show>
   )
