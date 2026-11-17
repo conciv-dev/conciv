@@ -13,6 +13,7 @@ to the plugin host as a post built-in and asks it over that RPC whenever it need
   (`SourceLoc`, both from `@conciv/protocol/page-introspect-types`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page` with `symbolicate` alone
+- `CliTools` (`rpc.ts`, `./rpc`): per operation, the terminal shape and its `view` (icon and running/done label), the one source the engine catalog (`pluginSignatures`) and the pane's `builtinToolMeta` read
 - `attach` refuses a session that does not exist with the error type `missing` (`connection.ts`), every other refusal with `unavailable`
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it

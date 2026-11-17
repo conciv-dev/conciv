@@ -1,13 +1,14 @@
 import {children, createMemo, Show, untrack, type Accessor, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
-import {uniqBy} from 'es-toolkit'
+import {partition, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import {MetaToolCard, parseInput, parseResultPayload, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import type {MountedSession} from '@conciv/plugin/experimental'
 import {ToolCall, type ToolCallProps} from '@conciv/plugin/experimental/builtin'
+import {builtins} from '../runtime/plugin/builtins'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {toolFallbackCard} from './tool-fallback-card.js'
@@ -49,12 +50,16 @@ export function createPluginToolCards(session: Accessor<MountedSession | undefin
   const host = usePluginHost()
   const [declined, setDeclined] = createStore<Record<string, true>>({})
 
-  const claims = createMemo(() =>
-    uniqBy(
-      host.items(ToolCall).flatMap((item) => item.value.tools.map((tool) => ({tool, item}))),
+  const claims = createMemo(() => {
+    const [builtinItems, userItems] = partition(host.items(ToolCall), (item) =>
+      builtins.some((definition) => definition.id === item.plugin),
+    )
+
+    return uniqBy(
+      [...userItems, ...builtinItems].flatMap((item) => item.value.tools.map((tool) => ({tool, item}))),
       (claim) => claim.tool,
-    ),
-  )
+    )
+  })
   const bodyClaims = createMemo(() => claims().filter(drawsBody))
   const cardClaims = createMemo(() => claims().filter(drawsCard))
   const claimant = (tool: string) => bodyClaims().find((claim) => claim.tool === tool)?.item

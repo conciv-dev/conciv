@@ -1,7 +1,7 @@
 import {createEffect} from 'solid-js'
 import {clearDelegatedEvents, delegateEvents} from 'solid-js/web'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
-import {widgetStyles} from '../lib/widget-styles.js'
+import {createStyleSheet, widgetStyles} from '../lib/widget-styles.js'
 import {registerFonts, registerWind4Properties} from '../lib/shadow.js'
 import {applySchemeClass, applySkinClass, themeClasses, type HostTheme} from '../lib/color-scheme.js'
 
@@ -47,9 +47,7 @@ export function openPipWindow(opts: {title?: string; theme?: () => HostTheme} = 
   host.setAttribute('data-conciv-pip-host', '')
   win.document.body.appendChild(host)
   const root = host.attachShadow({mode: 'open'})
-  const style = win.document.createElement('style')
-  style.textContent = widgetStyles
-  root.appendChild(style)
+  root.adoptedStyleSheets = [createStyleSheet(widgetStyles, win.document)]
   const wrap = win.document.createElement('div')
   root.appendChild(wrap)
   createEffect(() => {
