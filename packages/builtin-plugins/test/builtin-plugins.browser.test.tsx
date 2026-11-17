@@ -28,7 +28,7 @@ import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {makePageOperations, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, PAGE_NAMESPACE, type Outcome} from '@conciv/plugin-page/rpc'
+import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX} from '@conciv/plugin-page/rpc'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
@@ -369,6 +369,16 @@ describe.skipIf(inFirefox)('page tools', () => {
           'Browser result exceeds 512000 JSON characters. Request fewer entries, reduce snapshot depth, or return only selected fields from the evaluation script. Repeating the same request will not reduce its output.',
       })
       expect(await runForResult('snapshot', {selector: '#prose'})).toMatchObject({nodes: expect.any(Array)})
+    })
+
+    it('clamps a long handler error to the reply bound so the reply still parses', async () => {
+      const long = `validation failed: ${'x'.repeat(SHORT_MAX * 2)}`
+      const outcome = await driver.execute(command('eval', {code: `throw new Error(${JSON.stringify(long)})`}))
+      expect(Outcome.safeParse(outcome).success).toBe(true)
+      const {code, message} = readFailure(outcome, 'eval')
+      expect(code).toBe('handler-error')
+      expect(message).toHaveLength(SHORT_MAX)
+      expect(long.startsWith(message)).toBe(true)
     })
 
     it('injects css stylesheets', async () => {

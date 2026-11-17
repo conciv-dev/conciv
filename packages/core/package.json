@@ -110,7 +110,6 @@
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "get-port": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",

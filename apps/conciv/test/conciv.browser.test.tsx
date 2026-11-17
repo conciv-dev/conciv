@@ -7934,6 +7934,22 @@ module.exports = {default: {stores: {
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
   const first = () => dialog('Fixture dialog', () => button('Open the second dialog', second))
+  const shownOverlay = {current: undefined}
+  const showOverlay = () => {
+    shownOverlay.current?.dispose()
+    const overlay = ctx.overlay({styles: ['.fixture-overlay-own{display:none}']})
+    const label = Object.assign(document.createElement('p'), {className: 'bg-chat-panel text-chat-text', textContent: 'Fixture overlay label'})
+    const hiddenByWidget = Object.assign(document.createElement('p'), {className: 'hidden', textContent: 'Fixture overlay widget-hidden note'})
+    const hiddenByOwn = Object.assign(document.createElement('p'), {className: 'fixture-overlay-own', textContent: 'Fixture overlay own-hidden note'})
+    const [overlayClicks, setOverlayClicks] = createSignal(0)
+    const clickable = Object.assign(document.createElement('div'), {className: 'pointer-events-auto'})
+    clickable.append(createComponent(ctx.ui.Button, {
+      onClick: () => setOverlayClicks(overlayClicks() + 1),
+      get children() { return overlayClicks() === 0 ? 'Count overlay clicks' : 'Overlay clicks: ' + overlayClicks() },
+    }))
+    overlay.element.append(label, clickable, line(() => 'Overlay colors: ' + ctx.appearance.mode()), hiddenByWidget, hiddenByOwn)
+    shownOverlay.current = overlay
+  }
   const [interruptAnswer, setInterruptAnswer] = createSignal('none')
   const tools = {id: 'tools', title: 'Fixture tools', pinned: true}
   const opened = {id: 'opened', title: 'Opened tab'}
@@ -7966,6 +7982,8 @@ module.exports = {default: {stores: {
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
       button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
       button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
+      button('Show the fixture overlay', showOverlay),
+      button('Hide the fixture overlay', () => shownOverlay.current?.dispose()),
     ],
   })
   ctx.add(Panel, {
@@ -8166,6 +8184,54 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('The fixture prefs page', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})).toBeVisible()
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
+  }, 60_000)
+
+  test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const label = () => page.getByText('Fixture overlay label', {exact: true})
+    const colors = (scheme: string) => page.getByText(`Overlay colors: ${scheme}`, {exact: true})
+    const widgetHidden = () => page.getByText('Fixture overlay widget-hidden note', {exact: true})
+    const ownHidden = () => page.getByText('Fixture overlay own-hidden note', {exact: true})
+    const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Show the fixture overlay').click()
+    await expect.element(label()).toBeVisible()
+    await expect.element(colors('light')).toBeVisible()
+    await control('Count overlay clicks').click()
+    await expect.element(control('Overlay clicks: 1')).toBeVisible()
+    await expect.element(widgetHidden()).toBeInTheDocument()
+    await expect.element(widgetHidden()).not.toBeVisible()
+    await expect.element(ownHidden()).toBeInTheDocument()
+    await expect.element(ownHidden()).not.toBeVisible()
+
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('General').click()
+    await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
+    await colorMode().getByText('Dark', {exact: true}).click()
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
+    await expect.element(colors('dark')).toBeVisible()
+    await expect.element(label()).toBeVisible()
+    await colorMode().getByText('Auto', {exact: true}).click()
+    await expect.element(colors('light')).toBeVisible()
+    await page.getByRole('button', {name: 'Back to chat'}).click()
+
+    await tab('Fixture tools').click()
+    await control('Hide the fixture overlay').click()
+    await expect.element(label()).not.toBeInTheDocument()
+    await expect.element(colors('light')).not.toBeInTheDocument()
+
+    await control('Show the fixture overlay').click()
+    await expect.element(label()).toBeVisible()
+    const elsewhere = bundleSource(coreBase())
+    onTestFinished(elsewhere.dispose)
+    await elsewhere.pluginExperimentals()
+    await elsewhere.manager.disable('fixture')
+    await expect.element(label(), {timeout: 15_000}).not.toBeInTheDocument()
+    await elsewhere.manager.enable('fixture')
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(label()).not.toBeInTheDocument()
   }, 60_000)
 
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
