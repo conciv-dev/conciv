@@ -28,6 +28,8 @@ export type PendingDraftAttachment = z.infer<typeof PendingAttachmentSchema>
 
 const DraftSessionSchema = z.object({sessionId: z.string()})
 
+const DraftStampSchema = DraftSessionSchema.extend({updatedAt: z.number()})
+
 type SessionPage = Awaited<ReturnType<RpcClient['sessions']['list']>>
 
 function withoutSessionOnPage<Page extends {sessions: readonly {id: string}[]}>(page: Page, sessionId: string): Page {
@@ -62,6 +64,7 @@ export type AppData = {
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (save: DraftSave) => Promise<boolean>
+  savingDraft: (sessionId: string, stamps: readonly number[]) => boolean
   dispose: () => void
 }
 
@@ -185,6 +188,14 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,
+    savingDraft: (sessionId, stamps) =>
+      queryClient.isMutating({
+        mutationKey: utils.drafts.set.mutationKey(),
+        predicate: (mutation) => {
+          const save = DraftStampSchema.safeParse(mutation.state.variables).data
+          return save?.sessionId === sessionId && stamps.includes(save.updatedAt)
+        },
+      }) > 0,
     dispose: () => reading.abort(),
   }
 }

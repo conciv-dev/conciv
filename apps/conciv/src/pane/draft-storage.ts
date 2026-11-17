@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {differenceBy, intersectionBy, isEqual, union} from 'es-toolkit'
+import {differenceBy, intersectionBy, isEqual, union, without} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
@@ -147,7 +147,11 @@ function localAttachment(attachment: AttachmentState): LocalAttachment {
   return attachment.blob ? {...kept, blob: {id: attachment.blob.id}} : kept
 }
 
-function sameAsRow(draft: LocalDraft, row: DraftRow | null | undefined): boolean {
+type DraftRowContent = Pick<DraftRow, 'text' | 'selectionStart' | 'selectionEnd'> & {
+  attachments: readonly {id: string}[]
+}
+
+function sameAsRow(draft: DraftRowContent, row: DraftRow | null | undefined): boolean {
   if (!row) return false
   return (
     row.text === draft.text &&
@@ -180,29 +184,34 @@ function makeLocalDraftWriter(
     draft: null,
     files: [],
   })
-  const feed = () => {
-    const draft = document.draft
+  const inFlight = (draft: LocalDraft | null): boolean => draft !== null && appData.savingDraft(sessionId, draft.sent)
+  const send = (recorded: LocalDraft, attachments: DraftRow['attachments']) => {
     const row = appData.cachedDraft(sessionId)
-    if (!draft || !sendable() || sameAsRow(draft, row) || (row === null && isEmptied(draft))) return
+    const current = document.draft
+    if (!current || inFlight(current) || sameAsRow({...recorded, attachments}, row)) return
+    if (row === null && isEmptied(recorded)) return
     const updatedAt = Date.now()
-    setDocument('draft', 'sent', (sent) => union(sent, [updatedAt]))
-    const recorded = structuredClone(unwrap(draft))
-    const pending = [...unwrap(document.files)]
-    void keepLocally(drafts, sessionId, recorded)
+    persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
+    void keepLocally(drafts, sessionId, structuredClone(unwrap(current)))
       .then(() =>
         appData.saveDraft({
           sessionId,
           text: recorded.text,
           selectionStart: recorded.selectionStart,
           selectionEnd: recorded.selectionEnd,
-          attachments: [],
-          pending,
+          attachments,
           updatedAt,
         }),
       )
       .then((saved) => {
-        if (saved) persisted.setStore('draft', (current) => current && ackedDraft(current, updatedAt))
+        persisted.setStore('draft', (latest) => latest && settledDraft(latest, updatedAt, saved))
       })
+  }
+  const feed = () => {
+    const draft = document.draft
+    if (!draft || !sendable() || inFlight(draft)) return
+    const recorded = structuredClone(unwrap(draft))
+    void encodeAttachments([...unwrap(document.files)]).then((attachments) => send(recorded, attachments))
   }
   const persisted = persistStore({
     store: document,
@@ -326,7 +335,8 @@ function maySend(phase: RestorePhase, typed: DraftContent | null): boolean {
 
 const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: [], sent: []}
 
-function ackedDraft(draft: LocalDraft, updatedAt: number): LocalDraft {
+function settledDraft(draft: LocalDraft, updatedAt: number, saved: boolean): LocalDraft {
+  if (!saved) return {...draft, sent: without(draft.sent, updatedAt)}
   return {...draft, syncedAt: updatedAt, sent: draft.sent.slice(draft.sent.indexOf(updatedAt) + 1)}
 }
 
