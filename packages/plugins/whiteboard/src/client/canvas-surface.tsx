@@ -1,4 +1,4 @@
-import {onMount, type JSX} from 'solid-js'
+import {onMount, Show, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
@@ -67,7 +67,9 @@ function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visib
     <>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
       <Portal mount={props.layer}>
-        <PinsLayer ui={props.ui} />
+        <Show when={props.visible}>
+          <PinsLayer ui={props.ui} />
+        </Show>
         <ThreadPopover ui={props.ui} dialogs={props.dialogs} visible={props.visible} />
       </Portal>
     </>
