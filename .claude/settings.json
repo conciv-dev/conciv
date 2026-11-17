@@ -18,7 +18,8 @@
     ]
   },
   "env": {
-    "FALLOW_AUDIT_BASE": "origin/main"
+    "FALLOW_AUDIT_BASE": "origin/main",
+    "NODE_DISABLE_COMPILE_CACHE": "1"
   },
   "enabledPlugins": {
     "fallow@fallow-skills": true
