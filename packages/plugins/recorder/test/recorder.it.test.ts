@@ -281,6 +281,10 @@ describe('sending a recording to the agent', () => {
       const replayDialog = page.getByRole('dialog', {name: 'Screen recording replay', exact: true})
       await expect(replayDialog.getByText(/Screen recording · \d+ actions? · \d+s/)).toBeVisible({timeout: 30_000})
       await expect(replayDialog.getByRole('button', {name: 'Export video', exact: true})).toBeVisible()
+      const playback = replayDialog.getByRole('button', {name: 'Toggle playback', exact: true})
+      await expect(playback).toBeInViewport({ratio: 1, timeout: 30_000})
+      await expect(replayDialog.getByRole('slider', {name: 'Timeline', exact: true})).toBeInViewport({ratio: 1})
+      await playback.click()
       await expect(
         replayDialog.frameLocator('iframe').getByRole('button', {name: 'Pressed by the user', exact: true}),
       ).toBeAttached({timeout: 30_000})
