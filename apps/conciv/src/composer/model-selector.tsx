@@ -30,7 +30,7 @@ import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {useRefetchSessionHarness, useSessionModels} from '../data/harness-meta.js'
 import {useNotices} from '../shell/notice-context.js'
-import {rpcErrorCode} from '../shell/rpc-error-message.js'
+import {rpcErrorCode, SESSION_NOT_FOUND_MESSAGE} from '../shell/rpc-error-message.js'
 
 const MODELS_UNAVAILABLE = 'Couldn’t load models'
 const MODELS_LOADING = 'Loading models'
@@ -212,7 +212,7 @@ function switchFailure(error: unknown, target: SwitchTarget): string {
   if (code === 'SESSION_RUNNING') return `Wait for the reply to finish, then switch to ${target.harness.name}.`
   if (code === 'UNKNOWN_HARNESS') return `${target.harness.name} is no longer available.`
   if (code === 'UNKNOWN_MODEL') return `${target.label} is no longer available.`
-  if (code === 'NOT_FOUND') return 'This session no longer exists.'
+  if (code === 'NOT_FOUND') return SESSION_NOT_FOUND_MESSAGE
   return `Couldn’t switch to ${target.label}.`
 }
 

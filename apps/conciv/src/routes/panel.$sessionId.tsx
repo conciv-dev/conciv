@@ -56,6 +56,7 @@ import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
+import {useStartSession} from '../app/start-session.js'
 import {openPipTarget} from '../shell/pip.js'
 import {createMountedSession} from '../runtime/plugin/mounted-session.js'
 import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
@@ -289,6 +290,7 @@ function PanelSession(): JSX.Element {
   const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
+  const navigate = Route.useNavigate()
   const sessionMenu = useSessionMenu(() => params().sessionId)
   const search = Route.useSearch()
   const popOut = () => {
@@ -346,11 +348,14 @@ function PanelSession(): JSX.Element {
   })
 
   const activate = sessionMenu.activate
-  const newSession = async () => {
-    const {sessionId} = await appData.createSession()
-    activate(sessionId)
-    announce('Started a new session')
-  }
+  const startSession = useStartSession()
+  const newSession = () =>
+    startSession()
+      .then(({sessionId}) => {
+        activate(sessionId)
+        announce('Started a new session')
+      })
+      .catch(() => undefined)
 
   const grabStaging = makeGrabStaging({
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
@@ -413,6 +418,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
+    replaceSession: (sessionId) => void navigate({to: '/panel/$sessionId', params: {sessionId}}),
     chat,
     refresh: coordinator.refresh,
     isRefreshing: coordinator.isRefreshing,
