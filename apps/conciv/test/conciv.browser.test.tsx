@@ -7814,6 +7814,47 @@ module.exports = {default: {stores: {
       button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
     ],
   })
+  const popover = (label, content, initialFocus) => {
+    const [open, setOpen] = createSignal(false)
+    const anchor = Object.assign(document.createElement('button'), {type: 'button', textContent: 'Open the ' + label.toLowerCase()})
+    anchor.addEventListener('click', () => setOpen(!open()))
+    return [
+      anchor,
+      createComponent(ctx.ui.Popover, {
+        anchor: () => anchor,
+        get open() {
+          return open()
+        },
+        onOpenChange: setOpen,
+        label,
+        initialFocus,
+        get children() {
+          return content()
+        },
+      }),
+    ]
+  }
+  ctx.add(Panel, {
+    id: 'popovers',
+    region: 'pane',
+    list: () => [{id: 'popovers', title: 'Fixture popovers', pinned: true}],
+    render: () => {
+      const [pageNote, setPageNote] = createSignal('')
+      const reply = Object.assign(document.createElement('input'), {type: 'text'})
+      reply.setAttribute('aria-label', 'Popover reply')
+      return [
+        createComponent(ctx.ui.TextInput, {
+          label: 'Fixture page note',
+          get value() {
+            return pageNote()
+          },
+          onInput: setPageNote,
+        }),
+        ...popover('Fixture popover', () => Object.assign(document.createElement('p'), {textContent: 'The fixture popover body'})),
+        ...popover('Fixture focused popover', () => [button('A popover action', () => undefined), reply], () => reply),
+      ]
+    },
+  })
   ctx.add(Panel, {
     id: 'opened',
     region: 'pane',
@@ -8013,6 +8054,38 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})).toBeVisible()
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
+
+  describe('its ctx.ui.Popover', () => {
+    const textbox = (name: string) => page.getByRole('textbox', {name, exact: true})
+
+    test('opens beside its anchor and leaves the page usable, closes on Escape with focus back on the anchor and on a click outside, and focuses the field it names', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}?open=true`)
+      await expect.element(tab('Fixture popovers'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture popovers').click()
+
+      await control('Open the fixture popover').click()
+      await expect.element(dialog('Fixture popover')).toBeVisible()
+      await expect.element(dialog('Fixture popover').getByText('The fixture popover body', {exact: true})).toBeVisible()
+
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Fixture popover')).not.toBeInTheDocument()
+      await expect.element(control('Open the fixture popover')).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+      await expect.element(dialog('Fixture popover')).toBeVisible()
+
+      await textbox('Fixture page note').click()
+      await expect.element(dialog('Fixture popover')).not.toBeInTheDocument()
+      await userEvent.keyboard('typed on the page')
+      await expect.element(textbox('Fixture page note')).toHaveValue('typed on the page')
+
+      await control('Open the fixture focused popover').click()
+      await expect.element(dialog('Fixture focused popover')).toBeVisible()
+      await expect.element(textbox('Popover reply')).toHaveFocus()
+      await userEvent.keyboard('a reply')
+      await expect.element(textbox('Popover reply')).toHaveValue('a reply')
+    })
+  })
 
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
