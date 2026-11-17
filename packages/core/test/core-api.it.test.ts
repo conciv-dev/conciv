@@ -7605,7 +7605,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen or deleted id gets a new empty session', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id gets a new empty session while one on a deleted id is refused and nothing comes back', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -8051,8 +8051,11 @@ export default {
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
-    expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({attached: true})
-    expect((await rpc.chat.hydrate({sessionId: session})).messages).toEqual([])
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
+      error: expect.stringContaining(`Session ${session} could not be opened`),
+    })
+    expect(await page('sessions.attached')).not.toContain(session)
+    expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(session)
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     await expect(page('queue.wait', {queueId: strandedId, waitMs: 0})).rejects.toMatchObject({
       cause: expect.objectContaining({message: expect.stringContaining(`no queue ${strandedId}`)}),
