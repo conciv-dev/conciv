@@ -491,8 +491,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db,
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
-    bundler: () => opts.bridge,
-    hotUpdate: (sessionId: SessionId, timeout: number) => pagePlugin.hmrWait({sessionId, timeout}),
     listTabs: outsideTabs.list,
     pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
     queuedActionTimeoutMs: opts.queuedActionTimeoutMs,

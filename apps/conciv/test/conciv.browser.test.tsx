@@ -115,7 +115,6 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
-import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {Conciv} from '@conciv/plugin'
@@ -672,6 +671,8 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent(typed)
     await expect.element(input()).not.toMatchTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
     expect(turns().elements()).toHaveLength(0)
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
     await coreControl.releaseFault(refused)
     await userEvent.click(input())
@@ -685,6 +686,46 @@ describe('chat pane', () => {
     await expect.element(replies()).toBeVisible()
     expect(turns().elements()).toHaveLength(1)
     expect(replies().elements()).toHaveLength(1)
+
+    const refusedAgain = await faults.install({kind: 'chat-refused', status: 500})
+    const later = 'a later message the server refuses'
+    await userEvent.click(input())
+    await userEvent.keyboard(`${later}{Enter}`)
+    await expect.element(input()).toHaveTextContent(later)
+    await expect
+      .element(
+        page
+          .getByRole('alert')
+          .filter({hasText: 'Internal Server Error', has: page.getByRole('button', {name: 'Retry'})}),
+      )
+      .toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    await coreControl.releaseFault(refusedAgain)
+  })
+
+  test('a turn the engine started that fails before any reply keeps the message and shows its error, not a failed load', async () => {
+    const {sessionId} = await newSession()
+    mountChatPane(sessionId)
+    const typed = 'a turn the agent never answers'
+    const failure = 'unexpected status 401 Unauthorized'
+    const runError = () =>
+      page.getByRole('alert').filter({hasText: failure, has: page.getByRole('button', {name: 'Retry'})})
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    const refresh = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await coreControl.scriptTurn({toolCalls: [], text: ''})
+    await coreControl.scriptError(failure)
+
+    await userEvent.click(input())
+    await userEvent.keyboard(`${typed}{Enter}`)
+    await coreControl.awaitFaultPending(refresh, 1)
+    await expect.element(notifications()).toMatchTextContent(new RegExp(failure))
+    await expect.element(stopButton()).not.toBeInTheDocument()
+
+    await expect.element(page.getByRole('log').getByText(typed, {exact: true})).toBeVisible()
+    await expect.element(runError()).toBeVisible()
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(input()).not.toHaveTextContent(typed)
+    await coreControl.releaseFault(refresh)
   })
 
   test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {
@@ -5907,12 +5948,6 @@ describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
-    for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {
-        owner: 'a built-in server tool',
-        context: {bundler: () => undefined, hotUpdate: async () => ({applied: false, waitedMs: 0})},
-      })
-    }
     return registry
   }
 
@@ -7741,13 +7776,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'server_reload'],
+    tools: ['fixture_probe', 'page_route'],
     render(props) {
-      if (props.tool === 'server_reload') {
+      if (props.tool === 'page_route') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture reloaded ' + props.input.file})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture read the route for ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -8283,19 +8318,20 @@ module.exports = {default: {setup(ctx) {
   }, 90_000)
 
   test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
+    const routeResult = {pathname: '/', search: '', href: 'http://localhost/', title: 'home', state: 'visible'}
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
       toolCalls: [
         {
-          name: 'server_reload',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'draw'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: routeResult,
         },
         {
-          name: 'server_reload',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'decline'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: routeResult,
         },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
@@ -8312,11 +8348,13 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
-    await expect.element(shown('force a hot update of one module')).toBeVisible()
-    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    const routeHeader = () => page.getByRole('button', {name: 'succeeded route src/a.ts'})
+    await expect.element(routeHeader().nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(routeHeader().first()).toBeVisible()
+    await expect.element(shown('report the current url of the live page')).toBeVisible()
+    await expect.element(shown('Called page_route')).not.toBeInTheDocument()
     await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
+    await expect.element(shown('Fixture read the route for src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
     await expect.element(shown('mode=draw')).toBeVisible()

@@ -34,7 +34,6 @@ export type BundlerBridge = {
   moduleGraph(file: string): ModuleNode[]
   transform(url: string): Promise<{code: string | null}>
   urls(): {local: string[]; network: string[]}
-  reload(file: string): Promise<void>
   restart(force?: boolean): Promise<void>
   subscribe?(listener: (diagnostic: BundlerDiagnostic) => void): () => void
 }

@@ -1898,6 +1898,24 @@ describe('rpc registry catalog cosmetics', () => {
   })
 })
 
+describe('rpc registry without a dev-server reload', () => {
+  it('the catalog has no server_reload and calling it answers unknown tool', async () => {
+    const kit = await bootKit()
+    try {
+      expect((await kit.rpc.registry.catalog(undefined)).map((signature) => signature.name)).not.toContain(
+        'server_reload',
+      )
+      const {sessionId} = await kit.rpc.sessions.create(undefined)
+      const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      await expect(sessionRpc.registry.call({name: 'server_reload', input: {file: 'src/a.ts'}})).rejects.toMatchObject({
+        code: 'UNKNOWN_TOOL',
+      })
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+})
+
 describe('rpc symbolicate', () => {
   const root = realpathSync(tempDir('conciv-symbolicate-'))
 
@@ -2082,7 +2100,6 @@ describe('rpc wire', () => {
     })
 
     it('server.* round-trips a real bundler bridge', async () => {
-      const reloaded: string[] = []
       const restarted: boolean[] = []
       const bridge = defineBundlerBridge({
         id: 'wire-test',
@@ -2097,9 +2114,6 @@ describe('rpc wire', () => {
         moduleGraph: (file) => [{url: file, importers: ['entry.ts'], importedModules: ['dep.ts']}],
         transform: async (url) => ({code: `transformed:${url}`}),
         urls: () => ({local: ['http://localhost:3000'], network: []}),
-        reload: async (file) => {
-          reloaded.push(file)
-        },
         restart: async (force) => {
           restarted.push(force ?? false)
         },
@@ -2114,10 +2128,6 @@ describe('rpc wire', () => {
       ])
       expect(await server('transform', {url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
       expect(await server('urls')).toEqual({local: ['http://localhost:3000'], network: []})
-      const {sessionId} = await kit.rpc.sessions.create(undefined)
-      const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      expect(reloaded).toEqual([])
       await expect(server('restart', {force: true})).rejects.toMatchObject({
         status: 400,
         code: 'PLUGIN_RPC',
@@ -2125,9 +2135,6 @@ describe('rpc wire', () => {
         data: {type: 'rpc.method_not_found', message: 'Unknown RPC method: server.restart'},
       })
       expect(restarted).toEqual([])
-      await approvePending(kit.base, sessionId)
-      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(reloaded).toEqual(['src/hot.ts'])
     })
   })
 
@@ -2601,7 +2608,6 @@ describe('rpc wire', () => {
         await expect(browserRpc.registry.call({name: 'fixture_ask', input: {target: 'w'}})).resolves.toEqual({
           done: 'w',
         })
-        await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
         await expect(browserRpc.plugin.call({rpcId: 'server', method: 'config'})).rejects.toMatchObject({
           code: 'PLUGIN_RPC',
           data: {type: 'BUNDLER_UNAVAILABLE'},
@@ -4766,16 +4772,22 @@ describe('outside agent consent', () => {
 
   const SCREENSHOT = {image: ONE_PIXEL_WEBP, width: 1, height: 1}
 
+  const EVALUATED = {result: 'evaluated'}
+
   const pageAnswer = (command: Page.Command): PageReply =>
-    command.action.type === 'screenshot'
-      ? {
-          type: 'success',
-          result: {
-            value: {width: SCREENSHOT.width, height: SCREENSHOT.height},
-            files: [{id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: SCREENSHOT.image}],
-          },
-        }
-      : pageSuccess(ROUTE)
+    command.action.type === 'eval'
+      ? {type: 'success', result: {value: EVALUATED, files: []}}
+      : command.action.type === 'screenshot'
+        ? {
+            type: 'success',
+            result: {
+              value: {width: SCREENSHOT.width, height: SCREENSHOT.height},
+              files: [
+                {id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: SCREENSHOT.image},
+              ],
+            },
+          }
+        : pageSuccess(ROUTE)
 
   const createSessionRpc = (base: string, sessionId: string) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -4832,12 +4844,7 @@ describe('outside agent consent', () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
-    expect((await lister.tools()).map((tool) => tool.name)).toEqual([
-      'discover_tools',
-      'server_reload',
-      'skill',
-      'execute_typescript',
-    ])
+    expect((await lister.tools()).map((tool) => tool.name)).toEqual(['discover_tools', 'skill', 'execute_typescript'])
     await lister.close()
     expect(await loadPending(base, first)).toEqual([])
     const waiting = [hubCall(base, first), hubCall(base, first)]
@@ -5326,7 +5333,7 @@ export default {
     await decideOutside(base, sessionId, true)
     expect(await allowed).toMatch(RAN)
     const own = createSessionRpc(base, sessionId)
-    const waiting = own.registry.call({name: 'server_reload', input: {file: 'a.ts'}}).then(String, String)
+    const waiting = own.registry.call({name: 'page_eval', input: {code: '1'}}).then(String, String)
     const raised = await askRaised(base, sessionId)
     const [card] = await loadPending(base, sessionId)
     expect(card?.approvalId).toBe(raised?.approvalId)
@@ -5371,7 +5378,7 @@ export default {
     leaving.abort()
     await expect(left).rejects.toThrow()
     expect(await loadPending(base, sessionId)).toHaveLength(1)
-    const starts = await toolStarts(base, sessionId, 2)
+    const starts = await toolStarts(base, sessionId)
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({
@@ -5380,14 +5387,20 @@ export default {
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
-    await expect(namedHubRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    await expect(namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    })
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'tabs',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
-      expect.objectContaining({toolCallName: 'server_reload'}),
     ])
+    const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
+      message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
+    )
+    expect(saved).toEqual(['tabs'])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
@@ -5410,39 +5423,46 @@ export default {
     expect(await loadPending(base, first)).toEqual([])
   })
 
-  it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
+  it('an outside page_eval is asked whether or not it names its tab, like a plain rpc call, and the asks share the one card', async () => {
     const base = await boot('open')
-    const sessionId = await newSession(base)
-    const reload = {name: 'server_reload', input: {file: 'a.ts'}}
-    const overMcp = async (headers: Record<string, string>) => {
-      const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
-      try {
-        const tool = (await mcp.tools()).find((entry) => entry.name === reload.name)
-        return String(await tool?.execute(reload.input).then(JSON.stringify, String))
-      } finally {
-        await mcp.close()
-      }
-    }
+    const sessionId = await openTab(base)
+    const evaluate = {name: 'page_eval', input: {code: '1'}}
     const overRpc = (headers: Record<string, string>) =>
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
-        .registry.call(reload)
-        .then(String, String)
-    const outsideCalls = [
-      await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
-      await overMcp({[CONCIV_SESSION_HEADER]: sessionId, ...HUB}),
-      await overMcp({[CONCIV_CLAUDE_SESSION_HEADER]: 'plugin-bridge-native'}),
-    ]
-    const ran = expect.stringMatching(/no dev server is attached to conciv/)
-    expect(outsideCalls).toEqual([ran, ran, ran])
-    expect(await loadPending(base, sessionId)).toEqual([])
+        .registry.call(evaluate)
+        .then(JSON.stringify, String)
+    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toMatch(/needs the user/)
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
-    const insideCalls = [
-      await createSessionRpc(base, sessionId).registry.call(reload).then(String, String),
-      await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),
-    ]
-    expect(insideCalls).toEqual([expect.stringMatching(/needs the user/), expect.stringMatching(/needs the user/)])
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
+    expect(await overRpc({})).toMatch(/needs the user/)
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
+  })
+
+  it('an outside agent over MCP calling page_eval in code mode is asked: it runs only once approved, and a denial refuses it', async () => {
+    const base = await boot('open')
+    const heard: string[] = []
+    const sessionId = await openTab(base, undefined, heard)
+    const headers = {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}
+    const evaluate = 'return await external_page_eval({code: "1"})'
+    const decideCard = async (approved: boolean) => {
+      expect(await askRaised(base, sessionId)).not.toBeNull()
+      expect(heard).not.toContain('page_eval')
+      const pending = await loadPending(base, sessionId)
+      expect(pending).toHaveLength(1)
+      const [card] = pending
+      await createSessionRpc(base, sessionId).chat.permissionDecision({approvalId: card?.approvalId ?? '', approved})
+    }
+    const allowed = executeOverMcp(base, headers, evaluate).then(String, String)
+    await decideCard(true)
+    expect(await allowed).toContain(EVALUATED.result)
+    expect(heard).toContain('page_eval')
+    heard.length = 0
+    const refused = executeOverMcp(base, headers, evaluate).then(String, String)
+    await decideCard(false)
+    expect(await refused).not.toContain(EVALUATED.result)
+    expect(heard).not.toContain('page_eval')
+    expect(await loadPending(base, sessionId)).toEqual([])
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {

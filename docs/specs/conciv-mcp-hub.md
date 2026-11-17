@@ -57,7 +57,7 @@ Omri, 2026-11-07:
 - The hub is the `conciv mcp` subcommand of `@conciv/cli`, started by the harness over stdio, with no arguments.
   Chosen over a fixed-port URL: no listener, no shared key, nothing to impersonate; `home.db` file permissions are
   the only check it needs.
-- v1 limit: the three `approval: 'ask'` tools (`page_eval`, `server_reload`, `server_restart`) are not reachable
+- v1 limit: the two `approval: 'ask'` tools (`page_eval`, `server_restart`) are not reachable
   from outside agents. They are top-level MCP tools that carry no tab, and the hub's tool list must stay fixed
   because harnesses do not reliably act on `tools/list_changed`.
 - New tests go in as `describe` blocks in existing files; in files already over 1000 lines each addition is paid
