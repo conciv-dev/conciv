@@ -12,9 +12,9 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `EngineStaleNotice`, `EngineUnreachableNotice` (`engine-notice.tsx`): standing danger notices driven by `meta.engine` and reachability
 - `lockedMessage(locked)` (`engine-lock-messages.ts`): the locked notice's sentence for an `EngineLock` (`null` when not locked), also the pane's send refusal and disabled Send label while locked; `EngineLockedNotice` shows while `useEngineReachability().locked()` is not `null`
 - `EngineOutdatedNotice` (`engine-notice.tsx`, mounted in the panel): fetches `${apiBase}/health` once and shows a standing notice naming the widget version and asking to update the @conciv packages to it when the `x-conciv-version` response header is missing or semver-older than the `@conciv/app` version; a newer engine shows nothing; the query (`engineVersionQueryOptions`) and the version check (`engineOlderThanWidget`) are exported so the plugin host's engine server reads the same cached health response
-- `openPipWindow(opts)`, `openPipTarget()`, `PipWindow` (`pip.ts`): popup window `conciv-pip` with a shadow root and the app styles
+- `openPipWindow(opts)`, `openPipTarget()`, `PipWindow` (`pip.ts`): popup window `conciv-pip` with a shadow root that adopts a widget sheet made for the popup's document with `createStyleSheet(widgetStyles, win.document)` and held only by that window
 - `makeLayerStack()`, `LayerStack` (`dialogs.ts`): tracks open dialogs and whether any hides the page
-- `EffectsSurface({instances})` (`effects-surface.tsx`): portals extension effects into a fixed shadow host on `document.body`
+- `EffectsSurface({instances})` (`effects-surface.tsx`): portals extension effects into a fixed shadow host on `document.body` that adopts the shared widget sheet
 - `createPluginTabs`, `PluginPanelKeys`, `PluginOverlay`, `PluginWindowBottom`, `PluginSession`, `PluginRegion`, `PluginTabContent` (`plugin-surfaces.tsx`): where the routes draw the plugin host: route-backed panel tabs and their status bar entries, the `$view` guard's panel key lookup, the `page.overlay` and `window.bottom` slots, the mounted session of the quick and picture-in-picture panes, and the pane region with its tab content
 - `ErrorScreen`, `defaultErrorComponent`, `EmptyStateSlot`, `RefreshButton` (`error-screen.tsx`, `default-error-component.tsx`, `empty-state.tsx`, `refresh-button.tsx`)
 - `PendingPane`, `SessionPillPending`, `UsagePending`, `ComposerActionsPending` (`pending.tsx`)
@@ -42,7 +42,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `pip.ts:openPipWindow`: `window.open('', 'conciv-pip', 'width=480,height=620,popup')`, writes the popup document, attaches a shadow root and delegates events to it
 - `engine-notice.tsx:EngineStaleNotice`: reads `meta.engine` while connected and again on window refocus and on every reconnect of the engine socket (`refetchOnReconnect: 'always'`), never on a timer; reachability itself comes from the socket's open and close
 - `engine-notice.tsx:EngineUnreachableNotice`: Retry re-runs the login check and resets the browser rpc connection
-- `effects-surface.tsx:EffectsSurface`: portals a shadow host into `document.body`
+- `effects-surface.tsx:EffectsSurface`: portals a shadow host into `document.body` and sets its `adoptedStyleSheets` to the shared widget sheet
 
 ## Verification
 
