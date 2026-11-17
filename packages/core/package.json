@@ -83,6 +83,7 @@
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@effect/platform-node": "catalog:",
+    "@lydell/node-pty": "^1.1.0",
     "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
