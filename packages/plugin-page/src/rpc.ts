@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {keyBy, mapValues} from 'es-toolkit'
 import {Rpc} from '@conciv/plugin/rpc'
 import {SessionId} from '@conciv/protocol/chat-types'
+import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import {
   PageCaptureBundleSchema,
   SessionCapturesSchema,
@@ -611,11 +612,61 @@ const TERMINAL_LEFT_OUT: readonly string[] = ['tabs.list', 'fill_form']
 
 export const CLI_HIDDEN_FIELDS: readonly string[] = ['tabId']
 
+export type ToolView = {readonly icon: ToolIconKey; readonly label: ToolLabel}
+
+const TOOL_VIEWS: Readonly<Record<Method, ToolView>> = {
+  'tabs.list': {icon: 'read', label: {running: 'Listing the tabs', done: 'Listed the tabs'}},
+  route: {icon: 'read', label: {running: 'Reading the route', done: 'Read the route'}},
+  dom: {icon: 'read', label: {running: 'Reading the DOM', done: 'Read the DOM'}},
+  query: {icon: 'read', label: {running: 'Querying the page', done: 'Queried the page'}},
+  console: {icon: 'read', label: {running: 'Reading the console', done: 'Read the console'}},
+  text: {icon: 'read', label: {running: 'Reading text', done: 'Read the text'}},
+  value: {icon: 'read', label: {running: 'Reading a value', done: 'Read a value'}},
+  attr: {icon: 'read', label: {running: 'Reading an attribute', done: 'Read an attribute'}},
+  exists: {icon: 'read', label: {running: 'Checking existence', done: 'Checked existence'}},
+  snapshot: {icon: 'read', label: {running: 'Capturing a snapshot', done: 'Captured a snapshot'}},
+  screenshot: {icon: 'read', label: {running: 'Taking a screenshot', done: 'Took a screenshot'}},
+  hmr: {icon: 'wait', label: {running: 'Waiting for the hot update', done: 'Waited for the hot update'}},
+  locate: {icon: 'react', label: {running: 'Locating the source', done: 'Located the source'}},
+  tree: {icon: 'react', label: {running: 'Reading the page tree', done: 'Read the page tree'}},
+  inspect: {icon: 'react', label: {running: 'Inspecting a component', done: 'Inspected a component'}},
+  override: {icon: 'edit', label: {running: 'Overriding a value', done: 'Overrode a value'}},
+  find: {icon: 'react', label: {running: 'Finding components', done: 'Found components'}},
+  track: {icon: 'react', label: {running: 'Tracking renders', done: 'Tracked renders'}},
+  effect: {icon: 'edit', label: {running: 'Driving an effect', done: 'Drove an effect'}},
+  wait: {icon: 'wait', label: {running: 'Waiting for the page', done: 'Waited for the page'}},
+  reload: {icon: 'wait', label: {running: 'Reloading the page', done: 'Reloaded the page'}},
+  click: {icon: 'pointer', label: {running: 'Clicking', done: 'Clicked'}},
+  fill: {icon: 'keyboard', label: {running: 'Typing', done: 'Typed'}},
+  fill_form: {icon: 'keyboard', label: {running: 'Filling the form', done: 'Filled the form'}},
+  select: {icon: 'pointer', label: {running: 'Selecting an option', done: 'Selected'}},
+  check: {icon: 'pointer', label: {running: 'Checking a box', done: 'Checked a box'}},
+  uncheck: {icon: 'pointer', label: {running: 'Unchecking a box', done: 'Unchecked a box'}},
+  press: {icon: 'keyboard', label: {running: 'Pressing a key', done: 'Pressed'}},
+  hover: {icon: 'pointer', label: {running: 'Hovering', done: 'Hovered'}},
+  scroll: {icon: 'pointer', label: {running: 'Scrolling', done: 'Scrolled'}},
+  submit: {icon: 'pointer', label: {running: 'Submitting the form', done: 'Submitted the form'}},
+  queue: {icon: 'pointer', label: {running: 'Playing page actions', done: 'Played page actions'}},
+  queue_async: {icon: 'pointer', label: {running: 'Queueing page actions', done: 'Queued page actions'}},
+  setattr: {icon: 'edit', label: {running: 'Setting an attribute', done: 'Set an attribute'}},
+  removeattr: {icon: 'edit', label: {running: 'Removing an attribute', done: 'Removed an attribute'}},
+  addclass: {icon: 'edit', label: {running: 'Adding a class', done: 'Added a class'}},
+  removeclass: {icon: 'edit', label: {running: 'Removing a class', done: 'Removed a class'}},
+  setstyle: {icon: 'edit', label: {running: 'Styling an element', done: 'Styled an element'}},
+  settext: {icon: 'edit', label: {running: 'Setting text', done: 'Set the text'}},
+  sethtml: {icon: 'edit', label: {running: 'Setting HTML', done: 'Set the HTML'}},
+  remove: {icon: 'edit', label: {running: 'Removing an element', done: 'Removed an element'}},
+  insert: {icon: 'edit', label: {running: 'Inserting content', done: 'Inserted content'}},
+  css: {icon: 'edit', label: {running: 'Injecting CSS', done: 'Injected CSS'}},
+  eval: {icon: 'script', label: {running: 'Running a script', done: 'Ran a script'}},
+}
+
 export type CliEntry = {
   readonly positional: 'selector' | undefined
   readonly category: 'react' | undefined
   readonly asks: ((input: unknown) => AskedPermission) | undefined
   readonly terminal: boolean
+  readonly view: ToolView
 }
 
 export type AskedPermission = {readonly action: string; readonly resources: readonly string[]}
@@ -630,5 +681,6 @@ export const CliTools: Readonly<Record<string, CliEntry>> = mapValues(
         ? (input: unknown): AskedPermission => ({action: 'page_eval', resources: [entry.input.parse(input).code]})
         : undefined,
     terminal: !TERMINAL_LEFT_OUT.includes(entry.name),
+    view: TOOL_VIEWS[entry.name],
   }),
 )
