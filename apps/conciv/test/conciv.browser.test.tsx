@@ -4812,7 +4812,7 @@ describe('panel view tabs', () => {
       expect(await rpc.drafts.get({sessionId})).toBeNull()
     }, 30_000)
 
-    test('a session deleted while its panel is open keeps no local draft, even after more typing and closing the panel, and gets no row', async () => {
+    test('a session deleted while its panel is open keeps its local draft as it was, even after more typing and closing the panel, and gets no row', async () => {
       const TYPED = 'typed before the delete'
       const rpc = coreRpc(coreBase())
       const sessionId = await openNewPanel()
@@ -4822,7 +4822,8 @@ describe('panel view tabs', () => {
       await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: TYPED})
 
       await rpc.sessions.delete({sessionId})
-      await expect.poll(() => readLocalCopy(sessionId)).toBeNull()
+      await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TYPED})
       vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
       onTestFinished(() => {
         vi.useRealTimers()
@@ -4833,7 +4834,7 @@ describe('panel view tabs', () => {
       harness.dispose()
       vi.useRealTimers()
 
-      expect(await readLocalCopy(sessionId)).toBeNull()
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TYPED})
       expect(await rpc.drafts.get({sessionId})).toBeNull()
     }, 30_000)
   })
@@ -5401,6 +5402,29 @@ describe('a deleted session', () => {
     await expect.element(sessionTrigger().nth(0)).toHaveAccessibleName('Session: Live pane')
     expect(harness.pathname()).toBe('/quick')
     expect(harness.href()).not.toContain(deletedId)
+  }, 40_000)
+
+  test('text kept only in this browser stays through a delete heard while its pane is open, moves with New session, and only then leaves this browser', async () => {
+    const KEPT = 'kept only in this browser while the pane is open'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    const refusal = await faults.install({kind: 'fail', path: ['drafts', 'set']})
+    await editor().fill(KEPT)
+    await coreControl.awaitFaultAnswered(refusal)
+    expect(await readLocalCopy(deletedId)).toContain(KEPT)
+
+    await rpc.sessions.delete({sessionId: deletedId})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    expect(await readLocalCopy(deletedId)).toEqual(expect.stringContaining(KEPT))
+    await expect.element(movesLine()).toBeVisible()
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText(KEPT), {timeout: 8000}).toBeVisible()
+    expect(await readLocalCopy(deletedId)).toBeNull()
   }, 40_000)
 
   test('text kept only in this browser moves with New session, and the deleted session keeps no local copy', async () => {
