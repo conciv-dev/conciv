@@ -81,10 +81,10 @@ import '@conciv/it/plugin/nextjs/widget'
 
 ```js title="webpack.config.js"
 const conciv = require('@conciv/it/plugin/webpack')
-module.exports = {plugins: [conciv.default()]}
+module.exports = {mode: 'development', plugins: [conciv.default()]}
 ```
 
-In a development build (`mode` is not `production`) the plugin adds a generated client entry,
+In a development build (`mode: 'development'`; an unset `mode` counts as production) the plugin adds a generated client entry,
 `.conciv/widget-client.gen.js`, to every chunk entry and starts the engine on the first watch run. A
 production build gets no entry and no engine (`packages/unplugin/src/index.ts`). The engine port is
 exact and defaults to 41700, because the client entry is built with it; pass `port` to move both.
