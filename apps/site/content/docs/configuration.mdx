@@ -23,19 +23,14 @@ conciv({
     harness: {type: 'string', default: '"claude"', description: 'Harness adapter id, such as claude or codex.'},
     harnessBin: {type: 'string', default: 'adapter default', description: 'Override the harness binary on PATH.'},
     testRunner: {type: 'string', default: '"vitest"', description: 'Test runner adapter id.'},
-    widgetUrl: {
-      type: 'string',
-      default: 'CONCIV_WIDGET_URL',
-      description: 'Script src for the injected widget. Omit to skip injection.',
-    },
     systemPrompt: {type: 'string', default: 'built-in', description: 'Appended to each agent turn.'},
     previewId: {type: 'string', default: '"local"', description: 'Correlates a resumable session.'},
     sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
     port: {
       type: 'number',
-      default: 'auto',
+      default: 'auto; 41700 on Next.js, webpack and Rspack',
       description:
-        'Engine port. The Vite dev server treats it as a preference and falls back to a free port when it is taken, so a second dev server still boots; the Next.js integration and the generic webpack/rspack plugin need it exactly, because both hand the client a port that is fixed before the engine boots, and fail when it is taken.',
+        'Engine port. The Vite dev server treats it as a preference and falls back to a free port when it is taken, so a second dev server still boots; the Next.js integration and the webpack/Rspack plugin need it exactly, because both build the port into the widget before the engine boots, and fail when it is taken.',
     },
     stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
     devEndpointDir: {
@@ -95,13 +90,4 @@ conciv({harnessBin: '/usr/local/bin/claude'})
 
 ```ts
 conciv({systemPrompt: 'Prefer Tailwind classes over inline styles.'})
-```
-
-### widgetUrl
-
-On webpack and Rspack the plugin does not inject the widget. Set `widgetUrl` to the served widget
-bundle so the script lands on your page.
-
-```ts
-conciv({widgetUrl: '/conciv-widget.js'})
 ```

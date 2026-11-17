@@ -3,8 +3,8 @@ title: Rspack
 description: Add conciv to an Rspack app.
 ---
 
-Rspack works like webpack. The entry boots the engine, and you inject the widget yourself with
-`widgetUrl`.
+In a development build the Rspack plugin starts the engine and puts the widget on every page of your
+app. You add nothing else. A production build carries neither.
 
 <Tabs items={['init', 'Manual']}>
 
@@ -15,8 +15,7 @@ npx @conciv/cli@latest init
 ```
 
 init detects Rspack from your package.json, installs `@conciv/it` with your package manager, and
-adds the `@conciv/it/plugin/rspack` plugin to your Rspack config. Widget injection stays manual:
-init prints a card telling you to serve `@conciv/widget/global` and set `widgetUrl`.
+adds the `@conciv/it/plugin/rspack` plugin to your Rspack config.
 
 init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
 `--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
@@ -48,14 +47,6 @@ module.exports = {
 ```
 
 </Step>
-<Step>
-
-### Inject the widget
-
-The widget bundle ships as `@conciv/widget/global`. Serve it and set `widgetUrl` so the script is
-added to your page. See [Configuration](/docs/configuration#widgeturl).
-
-</Step>
 </Steps>
 
 </Tab>
@@ -64,5 +55,9 @@ added to your page. See [Configuration](/docs/configuration#widgeturl).
 
 <Callout>
   Rspack is less complete than [Vite](/docs/quick-start/vite). The live page bridge is Vite only. Chat, tests, and
-  approvals work once the engine is booted and the widget is on the page.
+  approvals work in the widget your dev build serves.
 </Callout>
+
+The engine listens on port 41700 unless you pass `port`. The widget is built with that port, so the
+port must be free: when it is taken, the engine does not start and the plugin says so. Pass another
+port to `conciv({port})` to move both.

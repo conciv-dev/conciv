@@ -11,10 +11,9 @@ metadata:
 
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on the running
 app. Two install paths exist and picking the wrong one is the recurring failure: `@conciv/it` is a
-bundler plugin that boots the engine process AND injects the widget script for you, but it only has a
-real implementation for Vite and Next.js — its webpack/Rspack entries boot the engine but do **not**
-inject the widget, and its Rollup/esbuild entries are build-only no-ops today
-(`packages/it/README.md:9-27`, `apps/site/content/docs/quick-start/webpack.mdx:6-7`,
+bundler plugin that boots the engine process AND puts the widget on the page for you on Vite, Next.js,
+webpack and Rspack; its Rollup/esbuild entries are build-only no-ops today
+(`packages/it/README.md`, `apps/site/content/docs/quick-start/webpack.mdx`,
 `apps/site/content/docs/quick-start/rollup.mdx:21-23`). Reach for `@conciv/embed`'s
 `createConciv`/`mountConciv` directly whenever there is no bundler plugin to boot the engine for you
 (a custom framework, a webview, a React/Preact host) or whenever the widget itself needs to be
@@ -28,15 +27,15 @@ production bundle. Every quick-start gates it: `conciv({enabled: process.env.NOD
 
 ## Decision: plugin vs manual mount
 
-| Setup                                                        | Path                                                 | Injects widget?                 | Boots engine?                                  |
-| ------------------------------------------------------------ | ---------------------------------------------------- | ------------------------------- | ---------------------------------------------- |
-| Vite                                                         | `@conciv/it/plugin/vite`                             | yes (`transformIndexHtml`)      | yes                                            |
-| Next.js                                                      | `@conciv/it/plugin/nextjs` + `/plugin/nextjs/widget` | yes (client entry)              | yes                                            |
-| webpack                                                      | `@conciv/it/plugin/webpack`                          | no — you inject via `widgetUrl` | yes                                            |
-| Rspack                                                       | `@conciv/it/plugin/rspack`                           | no — you inject via `widgetUrl` | yes                                            |
-| Rollup                                                       | `@conciv/it/plugin/rollup`                           | no-op today                     | no-op today                                    |
-| esbuild                                                      | `@conciv/it/plugin/esbuild`                          | no-op today                     | no-op today                                    |
-| Anything else (custom host, React/Preact wrapper, no plugin) | `@conciv/embed` `createConciv`/`mountConciv`         | you call `.mount(el)`           | you point it at a running engine via `apiBase` |
+| Setup                                                        | Path                                                 | Injects widget?            | Boots engine?                                  |
+| ------------------------------------------------------------ | ---------------------------------------------------- | -------------------------- | ---------------------------------------------- |
+| Vite                                                         | `@conciv/it/plugin/vite`                             | yes (`transformIndexHtml`) | yes                                            |
+| Next.js                                                      | `@conciv/it/plugin/nextjs` + `/plugin/nextjs/widget` | yes (client entry)         | yes                                            |
+| webpack                                                      | `@conciv/it/plugin/webpack`                          | yes (dev entry)            | yes                                            |
+| Rspack                                                       | `@conciv/it/plugin/rspack`                           | yes (dev entry)            | yes                                            |
+| Rollup                                                       | `@conciv/it/plugin/rollup`                           | no-op today                | no-op today                                    |
+| esbuild                                                      | `@conciv/it/plugin/esbuild`                          | no-op today                | no-op today                                    |
+| Anything else (custom host, React/Preact wrapper, no plugin) | `@conciv/embed` `createConciv`/`mountConciv`         | you call `.mount(el)`      | you point it at a running engine via `apiBase` |
 
 (`packages/it/package.json:23-46` lists the `./plugin/*` export map this table is built from;
 `apps/site/content/docs/quick-start/index.mdx:34-70` is the framework picker these come from.)
@@ -78,33 +77,20 @@ import '@conciv/it/plugin/nextjs/widget'
 
 (`apps/site/content/docs/quick-start/nextjs.mdx:64-88`.)
 
-## webpack / Rspack: plugin boots the engine, you inject the widget
+## webpack / Rspack: plugin boots the engine and adds the widget
 
 ```js title="webpack.config.js"
 const conciv = require('@conciv/it/plugin/webpack')
-module.exports = {plugins: [conciv.default({enabled: process.env.NODE_ENV !== 'production'})]}
+module.exports = {plugins: [conciv.default()]}
 ```
 
-Gate it like every other integration: the webpack/Rspack `unplugin` hooks boot the engine whenever
-`options.enabled !== false`, with no build-mode check of their own (`packages/unplugin/src/index.ts:19-24`)
-— unlike Vite, where the plugin only runs in `serve` mode, a webpack/Rspack production build DOES
-run this hook, so an unguarded `enabled` really does boot the engine in prod.
-
-The plugin does not add a `<script>` tag either way. There is no published `@conciv/widget/global`
-package — the CLI's own webpack/Rspack init card names one, but that's a known upstream docs bug; the
-widget bundle you need to serve is `conciv-widget.global.js`, built as part of `@conciv/embed`'s
-`dist/` (published in its npm tarball, `packages/embed/package.json`'s `files` field is `["dist"]`).
-Copy or proxy `node_modules/@conciv/embed/dist/conciv-widget.global.js` together with the
-`dist/widget/` chunk directory beside it (the file is a small loader that imports its chunks from
-`widget/` next to its own URL) to a static path on the same origin, and point `widgetUrl` at it (`apps/site/content/docs/quick-start/webpack.mdx:53-57`,
-`packages/cli/src/init/steps/framework/webpack-family.ts:35`):
-
-```ts
-conciv({enabled: process.env.NODE_ENV !== 'production', widgetUrl: '/conciv-widget.js'})
-```
+In a development build (`mode` is not `production`) the plugin adds a generated client entry,
+`.conciv/widget-client.gen.js`, to every chunk entry and starts the engine on the first watch run. A
+production build gets no entry and no engine (`packages/unplugin/src/index.ts`). The engine port is
+exact and defaults to 41700, because the client entry is built with it; pass `port` to move both.
 
 Rspack is the same shape, swap `@conciv/it/plugin/rspack`
-(`apps/site/content/docs/quick-start/rspack.mdx:40-57`). Rollup and esbuild plugin entries exist in
+(`apps/site/content/docs/quick-start/rspack.mdx`). Rollup and esbuild plugin entries exist in
 `packages/it/package.json` but are documented as build-only no-ops — use Vite for the real
 integration instead (`apps/site/content/docs/quick-start/rollup.mdx:21-23`,
 `apps/site/content/docs/quick-start/esbuild.mdx:21-23`).
@@ -192,7 +178,6 @@ values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/c
 | `enabled`      | `true`          | gate to dev: `enabled: process.env.NODE_ENV !== 'production'`                 |
 | `harness`      | `'claude'`      | pick the agent CLI                                                            |
 | `harnessBin`   | adapter default | non-`PATH` binary location                                                    |
-| `widgetUrl`    | unset           | webpack/Rspack manual injection target                                        |
 | `port`         | auto            | fix the engine port (required, not just preferred, on Next.js/webpack/Rspack) |
 | `systemPrompt` | built-in        | a string here REPLACES the built-in prompt, it does not append to it          |
 | `widget`       | both layouts on | `{modal, quickTerminal}` — position/hotkey or disable a layout                |
@@ -225,8 +210,6 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
   production by default.
 - `@conciv/it/plugin/rollup` or `/plugin/esbuild` added expecting the engine to boot — both are
   documented no-ops; use Vite or a manual `@conciv/embed` mount instead.
-- webpack/Rspack setup with the plugin added but no `widgetUrl` — the engine boots but nothing ever
-  appears on the page.
 - `createConciv(...).mount(el)` called without ever calling `unmount()` in teardown (component
   unmount, page navigation) — leaks the mounted app and its subscriptions.
 - `mountConciv` called expecting a return value/handle to unmount later — it is fire-and-forget by
@@ -234,8 +217,8 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `harness: 'pi'` picked for real use — its `chatConfig` is a stub that always errors
   (`packages/harness/src/pi/index.ts:20`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
   real `chatConfig`.
-- Hand-rolling a `<script src=...>` injection for Vite/Next.js — both already inject the widget
-  through the plugin; a second manual mount double-mounts.
+- Hand-rolling a `<script src=...>` injection for Vite, Next.js, webpack or Rspack — the plugin
+  already puts the widget on the page; a second manual mount double-mounts.
 
 ## Sources
 

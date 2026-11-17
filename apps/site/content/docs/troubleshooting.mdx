@@ -14,9 +14,6 @@ The widget probes the engine on load and only shows when the dev routes are live
 - `enabled` is not set to `false`
 - the engine port is reachable (set a fixed `port` if something else grabbed it)
 
-On webpack and Rspack the widget is not injected for you. Set `widgetUrl`. See
-[Configuration](/docs/configuration#widgeturl).
-
 </Accordion>
 
 <Accordion title="The chat does not answer, claude not found">
@@ -45,8 +42,8 @@ the engine logs `port 7378 is already in use, the engine is listening on http://
 instead` and the page is stamped with the port it actually bound, so two dev servers can run side
 by side. The Next.js integration and the generic webpack/rspack plugin are the exception: their
 clients learn the port before the engine ever boots (Next inlines it into `next.config`'s env, and
-the webpack/rspack plugin does not inject the widget at all — you set `widgetUrl` yourself), so a
-taken port fails the boot instead of silently pointing the widget at another project's engine.
+the webpack/Rspack plugin builds it into the widget it adds to your dev build), so a taken port
+fails the boot instead of silently pointing the widget at another project's engine.
 
 </Accordion>
 

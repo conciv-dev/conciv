@@ -17,6 +17,8 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `bin-shim.ts:installConcivBinShim(stateDir)` - returns a `PATH` with `<stateDir>/bin` first.
 - `open-editor.ts:makeOpenInEditor(root)` - opens `file:line` or `file:line:column` with `launch-editor`.
 - `app-extensions.d.ts` - declares the `@conciv/app-extensions` module.
+- `widget-start.ts:startConcivWidget(apiBase)` - the browser starter shared by the Next.js widget entry and the webpack/rspack client entry; a build entry of its own (`dist/core/widget-start.js`).
+- `bundler-widget.ts:writeWidgetClient(root, port)` - writes `.conciv/widget-client.gen.js`: it imports `dist/core/widget-start.js` by absolute path, exports an empty `entries` (the `@conciv/app-extensions` the starter imports) and starts the widget on `http://127.0.0.1:<port>`.
 
 ## Invariants
 
@@ -34,6 +36,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `boot.ts:makeEngineBooter` - starts the engine with a child env of `process.env` plus the shimmed `PATH` and `CONCIV_PORT`.
 - `bin-shim.ts:installConcivBinShim` - creates `<stateDir>/bin` and symlinks `conciv` to `@conciv/cli/bin`.
 - `extensions-entry.ts:writeExtensionsEntry` - creates `.conciv/` and writes `extensions-client.gen.tsx`.
+- `bundler-widget.ts:writeWidgetClient` - creates `.conciv/` and writes `widget-client.gen.js`.
 - `extensions-watch.ts:watchExtensionsDir` - a `chokidar` `watch` on `<root>/conciv`; logs watcher errors.
 - `vite.ts` - `configureServer` boots the engine, mounts the widget middleware and passes the engine the `makeViteBridge` bundler bridge from `@conciv/extension/vite`; Vite's `closeServer` hook stops the engine that server booted, so `server.close()` (and a restart) settles only once the engine has stopped. A failed stop is logged, never thrown into Vite.
 - `nextjs.ts:withConciv` - writes missing keys into `process.env`.
