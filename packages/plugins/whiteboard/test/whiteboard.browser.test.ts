@@ -476,3 +476,39 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
     }
   }, 240_000)
 })
+
+describe('the comments of the whiteboard plugin', () => {
+  test('an agent comment becomes a pin on the open canvas, and clicking the pin opens its thread with the text', async ({
+    browser,
+  }) => {
+    const widget = await openPluginWidget(browser, {
+      id: 'fake',
+      plugins: [[PACKAGE_DIR, {catchUpRetryMs: CATCH_UP_RETRY_MS}]],
+      widgetBundle: WIDGET_BUNDLE,
+      stateRoot: realpathSync(tempDir('conciv-whiteboard-comments-')),
+    })
+    try {
+      const page = widget.page
+      await page.setViewportSize({width: 1280, height: 800})
+      await openChat(page)
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'agent-first',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'the header overlaps the logo'}],
+        x: 640,
+        y: 360,
+        authorKind: 'ai',
+      })
+      const pin = page.getByRole('button', {name: 'AI comment, open, unread'})
+      await expect(pin).toBeVisible({timeout: 30_000})
+      await pin.click()
+      const thread = page.getByRole('dialog', {name: 'Comment thread'})
+      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+    } finally {
+      await widget.close()
+    }
+  }, 120_000)
+})
