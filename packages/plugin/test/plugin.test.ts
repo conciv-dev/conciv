@@ -563,7 +563,9 @@ describe('experimental', () => {
         entries: [{id: 'ios', name: 'iOS', state: 'starting', reconnect: async () => ({url})}],
       })
     }
-    expectTypeOf<Experimental.NoteCardProps['note']>().toEqualTypeOf<Experimental.ComposerNote>()
+    expectTypeOf<Experimental.NoteCardProps['note']>().toEqualTypeOf<
+      Omit<Experimental.ComposerNote, 'commentId'> & {readonly commentId?: string}
+    >()
     expectTypeOf<Experimental.NoteCardProps['session']>().toEqualTypeOf<Experimental.MountedSession | undefined>()
     expectTypeOf<Experimental.ComposerNote['origin']>().toEqualTypeOf<string>()
     expect(typeof codeBlocks).toBe('function')

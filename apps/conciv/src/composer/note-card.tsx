@@ -5,7 +5,7 @@ import {Key} from '@solid-primitives/keyed'
 import XIcon from 'lucide-solid/icons/x'
 import {Button, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
 import {useComposerContext} from '@conciv/ui-kit-chat'
-import {NoteCard, type ComposerNote, type IconName, type MountedSession} from '@conciv/plugin/experimental'
+import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
 import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {icons} from '../runtime/plugin/icons'
@@ -51,7 +51,11 @@ function NoteChip(props: {note: NoteComment; wide?: boolean}): JSX.Element {
   )
 }
 
-function PluginNoteCard(props: {note: ComposerNote; session: MountedSession | undefined}): JSX.Element {
+function PluginNoteCard(props: {
+  note: NoteCardProps['note']
+  session: MountedSession | undefined
+  wide?: boolean
+}): JSX.Element {
   const host = usePluginHost()
   const [state, setState] = createStore({declined: false})
   const decline = () => setState('declined', true)
@@ -60,7 +64,7 @@ function PluginNoteCard(props: {note: ComposerNote; session: MountedSession | un
   )
 
   return (
-    <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
+    <Show when={claimant()} keyed fallback={<NoteChip note={props.note} wide={props.wide} />}>
       {(item) => (
         <Contribution plugin={item.plugin} failed={decline}>
           {() => {
@@ -74,7 +78,10 @@ function PluginNoteCard(props: {note: ComposerNote; session: MountedSession | un
             })
 
             return (
-              <Show when={drawn !== undefined && drawn !== null} fallback={<NoteChip note={props.note} />}>
+              <Show
+                when={drawn !== undefined && drawn !== null}
+                fallback={<NoteChip note={props.note} wide={props.wide} />}
+              >
                 {drawn}
               </Show>
             )
@@ -117,7 +124,11 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
   )
 }
 
-export function SentNotes(props: {messages: Accessor<readonly ChatMessage[]>; bounded: boolean}): JSX.Element {
+export function SentNotes(props: {
+  messages: Accessor<readonly ChatMessage[]>
+  session: Accessor<MountedSession | undefined>
+  bounded: boolean
+}): JSX.Element {
   const [state, setState] = createStore({expanded: false})
   const notes = createMemo(() =>
     props.messages().flatMap((message) => readPromptPresentation(message.metadata)?.comments ?? []),
@@ -130,11 +141,15 @@ export function SentNotes(props: {messages: Accessor<readonly ChatMessage[]>; bo
       <div class="flex flex-col items-start gap-2 w-full max-w-80">
         <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full list-none p-0">
           <For each={shown()}>
-            {(note) => (
-              <li>
-                <NoteChip note={note} wide />
-              </li>
-            )}
+            {(note) => {
+              const shownNote = {...note, icon: noteIcon(note.icon)}
+
+              return (
+                <li>
+                  <PluginNoteCard note={shownNote} session={props.session()} wide />
+                </li>
+              )
+            }}
           </For>
         </ul>
         <Show when={collapsed() && notes().length > SENT_NOTE_BOUND}>
