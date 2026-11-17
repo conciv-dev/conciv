@@ -99,7 +99,7 @@ export default defineConfig({
 Make sure the [Claude Code CLI](https://claude.ai/code) (`claude`) is on your `PATH`, start your
 dev server, and click the conciv button in the corner of your app.
 
-Override defaults via `conciv({harness, plugins, widgetUrl, …})`. Other bundlers are one import
+Override defaults via `conciv({harness, plugins, port, …})`. Other bundlers are one import
 away: `@conciv/it/plugin/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`.
 
 ## Extensions

@@ -5,8 +5,10 @@ import {writeExtensionsEntry} from './extensions-entry.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
 
-const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+export const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+export const WIDGET_START_SPECIFIER = '@conciv/widget-start'
 const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
+const WIDGET_PORT_KEY = 'NEXT_PUBLIC_CONCIV_PORT'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
 type WebpackEntry = () => Promise<Record<string, unknown>>
@@ -57,10 +59,13 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
   const port = options.port ?? CONCIV_DEFAULT_PORT
   const resolved: ConcivConfig = {...options, port}
-  const concivEnv = {
-    NEXT_PUBLIC_CONCIV_PORT: String(port),
-    CONCIV_OPTIONS: JSON.stringify(resolved),
-  }
+  const widgetOff = options.widget === false
+  const widgetEnv = widgetOff ? {} : {[WIDGET_PORT_KEY]: String(port)}
+  const concivEnv = {...widgetEnv, CONCIV_OPTIONS: JSON.stringify(resolved)}
+  const userEnv = widgetOff
+    ? Object.fromEntries(Object.entries(baseEnv).filter(([key]) => key !== WIDGET_PORT_KEY))
+    : baseEnv
+  if (widgetOff) Reflect.deleteProperty(process.env, WIDGET_PORT_KEY)
   for (const [key, value] of Object.entries(concivEnv)) {
     if (process.env[key] === undefined) process.env[key] = value
   }
@@ -82,7 +87,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
   return {
     ...nextConfig,
-    env: {...baseEnv, ...concivEnv},
+    env: {...userEnv, ...concivEnv},
     serverExternalPackages,
     turbopack,
     webpack,

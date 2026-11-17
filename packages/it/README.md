@@ -15,6 +15,7 @@ not the host lets a plugin edit the served HTML:
 | Vite (classic `index.html`) | `transformIndexHtml` injects the loader `<script>` + `conciv-api-base` meta. |
 | TanStack Start (± nitro)    | The extensions module is imported from the client entry (module graph).      |
 | Next.js                     | `plugin/nextjs/widget` client entry + fixed `port`.                          |
+| webpack, Rspack             | The plugin adds a generated client entry in dev builds + fixed `port`.       |
 
 For SSR hosts like TanStack Start (with or without the nitro server layer), the
 rendered document never passes through vite's HTML seam; no static `index.html`
