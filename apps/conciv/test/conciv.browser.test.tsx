@@ -7439,7 +7439,7 @@ describe('installed plugins in settings', () => {
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
 
-  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+  test("the engine's own built-in plugins have no row a user could reload or switch off", async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.writeProjectFile(
@@ -7450,6 +7450,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
     await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('test-runner-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
