@@ -1592,7 +1592,7 @@ test.describe('page dispatch parity', () => {
       const since = wire.mark()
       await page.getByText('page-bus-ok').click()
       const refused = await wire.completed({...attach, since})
-      expect(refused.output).toMatchObject({type: 'missing', message: `session "${deleted}" does not exist`})
+      expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`, data: {type: 'missing'}})
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(page.getByRole('region', {name: 'Deleted session'}).getByRole('status')).toHaveText(
         'This session was deleted.',
@@ -1682,7 +1682,7 @@ test.describe('page dispatch parity', () => {
         path: ['plugin', 'call'],
         input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: draft}},
       })
-      expect(refused.output).toMatchObject({type: 'missing', message: `session "${draft}" does not exist`})
+      expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`, data: {type: 'missing'}})
       expect((await kit.rpc.sessions.list(undefined)).sessions.map((session) => session.id)).not.toContain(draft)
       expect(await attachedNow()).not.toContain(draft)
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
