@@ -1632,7 +1632,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('is refused and makes no session, then attaches once the first send makes it, and a page tool in that first run reads the page', async () => {
+    test('is refused and makes no session, then attaches once the first send makes it, and a page tool in the next run reads the page', async () => {
       const attachedNow = () =>
         kit.rpc.plugin
           .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
@@ -1644,22 +1644,31 @@ test.describe('page dispatch parity', () => {
       expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`})
       expect((await kit.rpc.sessions.list(undefined)).sessions.map((session) => session.id)).not.toContain(draft)
       expect(await attachedNow()).not.toContain(draft)
-      kit.harness.script.holdTools()
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      const firstRunFinished = async () => {
+        const {activeRun, lastRun} = await kit.rpc.chat.hydrate({sessionId: draft})
+        return activeRun === null && lastRun !== null && lastRun.finishedAt !== null
+      }
+      await composer.fill('start the session')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expect.poll(attachedNow).toContain(draft)
+      await expect.poll(firstRunFinished, {timeout: 30_000}).toBe(true)
       const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "return await external_page_text({selector: '#probe'})",
       })
-      await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('read the probe')
+      await composer.fill('read the probe')
       await page.getByRole('button', {name: 'Send message'}).click()
-      await expect.poll(attachedNow).toContain(draft)
-      kit.harness.script.releaseTools()
-      await expect(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
-      const {messages} = await kit.rpc.chat.hydrate({sessionId: draft})
-      const results = messages.flatMap((message) =>
-        message.parts.flatMap((part) =>
-          part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
-        ),
-      )
-      expect(results.join('\n')).toContain('page-bus-ok')
+      const toolResults = async () => {
+        const {messages} = await kit.rpc.chat.hydrate({sessionId: draft})
+        return messages
+          .flatMap((message) =>
+            message.parts.flatMap((part) =>
+              part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+            ),
+          )
+          .join('\n')
+      }
+      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
     })
   })
 

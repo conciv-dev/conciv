@@ -4,7 +4,7 @@ import {open} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
-import {describe, expect, it, onTestFinished} from 'vitest'
+import {describe, expect, it, onTestFinished, vi} from 'vitest'
 import {z} from 'zod'
 import {makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
 import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
@@ -334,7 +334,7 @@ describe('the whiteboard plugin', () => {
 })
 
 describe('the whiteboard store and its rpc', () => {
-  it('keeps rows per room named by the input, refuses foreign or empty updates and gates element versions', async () => {
+  it('keeps rows per room named by the input, reads one row by id, refuses foreign or empty updates and gates element versions', async () => {
     const {kit, room} = await boot()
 
     const pin = {...pinRow('c1'), room}
@@ -342,6 +342,8 @@ describe('the whiteboard store and its rpc', () => {
     expect(PinSchema.parse(await call(kit, 'pins.insert', {room, row: pinInsert}))).toEqual(pin)
     expect(await call(kit, 'pins.list', {room})).toEqual([pin])
     expect(await call(kit, 'pins.list', {room: OTHER_ROOM})).toEqual([])
+    expect(await call(kit, 'pins.get', {room, id: pin.id})).toEqual(pin)
+    expect(await failureType(call(kit, 'pins.get', {room: OTHER_ROOM, id: pin.id}))).toBe('NOT_FOUND')
     expect(PinSchema.parse(await call(kit, 'pins.update', {room, id: pin.id, patch: {x: 9}})).x).toBe(9)
     expect(await failureType(call(kit, 'pins.update', {room: OTHER_ROOM, id: pin.id, patch: {x: 999}}))).toBe(
       'NOT_FOUND',
@@ -365,9 +367,31 @@ describe('the whiteboard store and its rpc', () => {
         .map((row) => row.cid),
     ).toEqual(['cc1'])
     expect(await call(kit, 'comments.list', {room: OTHER_ROOM})).toEqual([])
+    const [stored] = z.array(CommentSchema).parse(await call(kit, 'comments.list', {room}))
+    expect(CommentSchema.parse(await call(kit, 'comments.get', {room, id: stored?.id})).cid).toBe('cc1')
+    expect(await failureType(call(kit, 'comments.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'reads.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'canvasPending.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'canvasReplies.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    await call(kit, 'reads.insert', {room, row: {id: 'r1', threadId: 't1', accountId: 'a1', lastReadAt: 1}})
+    await call(kit, 'canvasPending.insert', {room, row: {id: 'p1', kind: 'export', stage: 'live', payload: {}}})
+    await call(kit, 'canvasReplies.insert', {room, row: {id: 'y1', requestId: 'q1', kind: 'export', payload: {}}})
+    const roomRows = [
+      {method: 'comments.get', id: stored?.id},
+      {method: 'reads.get', id: 'r1'},
+      {method: 'canvasPending.get', id: 'p1'},
+      {method: 'canvasReplies.get', id: 'y1'},
+    ]
+    for (const {method, id} of roomRows) {
+      expect(await call(kit, method, {room, id})).toMatchObject({id})
+      expect(await failureType(call(kit, method, {room: OTHER_ROOM, id}))).toBe('NOT_FOUND')
+    }
 
     const element = {elementId: 'e1', data: {type: 'rectangle'}, version: 2}
     expect(await call(kit, 'elements.upsert', {room, scope: 'live', row: element})).toEqual({...element, room})
+    expect(await call(kit, 'elements.get', {room, scope: 'live', id: 'e1'})).toEqual({...element, room})
+    expect(await failureType(call(kit, 'elements.get', {room, scope: 'draft', id: 'e1'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'elements.get', {room: OTHER_ROOM, scope: 'live', id: 'e1'}))).toBe('NOT_FOUND')
     const conflict = await call(kit, 'elements.upsert', {room, scope: 'live', row: {...element, version: 1}}).then(
       () => new Error('the stale upsert answered'),
       (error: unknown) => error,
@@ -392,6 +416,25 @@ describe('the whiteboard store and its rpc', () => {
       deleted: 2,
     })
     expect(await listElements(kit, room, 'live')).toEqual([])
+  })
+
+  it('lets one tab at a time claim a pending row, and lets a claim that outlived its lease be taken again', async () => {
+    const {kit, room} = await boot()
+    await call(kit, 'canvasPending.insert', {room, row: {id: 'claimed', kind: 'export', stage: 'live', payload: {}}})
+
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: true})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: false})
+    expect(await call(kit, 'canvasPending.claim', {room: OTHER_ROOM, id: 'claimed'})).toEqual({claimed: false})
+
+    onTestFinished(() => void vi.useRealTimers())
+    vi.useFakeTimers({toFake: ['Date'], now: Date.now() + 60_000})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: true})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: false})
+    vi.useRealTimers()
+
+    await call(kit, 'canvasPending.remove', {room, id: 'claimed'})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: false})
+    expect(await listPending(kit, room)).toEqual([])
   })
 
   it('keeps its database in the project folder, where a second engine on that folder reads the board back', async () => {

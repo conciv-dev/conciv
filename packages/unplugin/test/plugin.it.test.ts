@@ -72,6 +72,17 @@ describe('bin shim', () => {
       const manifest = readFileSync(join(dirname(dirname(target)), 'package.json'), 'utf8')
       expect(manifest).toContain('"name": "@conciv/cli"')
     })
+
+    it('leaves only .conciv/.gitignore visible to git in a fresh project', () => {
+      const root = tempDir('conciv-bin-shim-git-')
+      execFileSync('git', ['init', '--quiet'], {cwd: root})
+      installConcivBinShim(concivStateDir(root))
+      const untracked = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+        cwd: root,
+        encoding: 'utf8',
+      })
+      expect(untracked).toBe('?? .conciv/.gitignore\n')
+    })
   })
 })
 
