@@ -64,6 +64,7 @@ declare module 'vitest/internal/browser' {
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
     writeProjectFile: (path: string, content: string) => Promise<void>
+    projectFileExists: (path: string) => Promise<boolean>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
     rpcSocketsOpened: () => Promise<number>

@@ -6945,6 +6945,56 @@ module.exports = {default: {setup(ctx) {
   }, 45_000)
 })
 
+describe('terminal panel', () => {
+  const coreBase = bootedCore('terminal-panel', {tty: true, alternates: [{id: 'plain', displayName: 'Plain'}]})
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
+  const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
+  const output = (text: string) => page.getByText(text, {exact: true})
+  const terminalRoute = (sessionId: string) =>
+    `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
+
+  const typeLine = async (line: string) => {
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    await userEvent.keyboard(line)
+    await userEvent.keyboard('{Enter}')
+  }
+
+  test('a session whose harness has a terminal lists a Terminal tab that starts the CLI only once opened, replays it after a reload, and a session without one lists none', async () => {
+    const rpc = coreRpc(coreBase())
+    const plain = await createSession(rpc)
+    await rpc.sessions.switchHarness({sessionId: plain, harnessId: 'plain'})
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    expect(await coreControl.projectFileExists('terminal-started')).toBe(false)
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((7*8))')
+    await expect.element(output('56'), {timeout: 15_000}).toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${plain}?open=true`)
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(terminalTab()).not.toBeInTheDocument()
+  }, 60_000)
+})
+
 describe('plugin composer pills', () => {
   const pillsBundle = `const {ComposerPill, Slot} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')

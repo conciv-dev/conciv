@@ -13,7 +13,8 @@ import {
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
-import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
@@ -36,6 +37,22 @@ export type BootCoreInput = {
   allowedOrigins?: string[]
   plugins?: NonNullable<ConcivConfig['plugins']>
   files?: Record<string, string>
+  tty?: boolean
+}
+
+const TERMINAL_STARTED_FILE = 'terminal-started'
+const BUSY_TERMINAL_MODEL = 'busy-model'
+
+function fakeTerminal(context: HarnessConnectContext): TtyCommand {
+  const busy = context.model === BUSY_TERMINAL_MODEL ? `printf '\\033]9;4;1\\007'; ` : ''
+  return {
+    bin: 'bash',
+    args: [
+      '-c',
+      `echo started >> ${TERMINAL_STARTED_FILE}; echo "model $CLI_MODEL"; export PS1='P> '; ${busy}exec bash --noprofile --norc -i`,
+    ],
+    env: {TERM: 'xterm-256color', BASH_SILENCE_DEPRECATION_WARNING: '1', CLI_MODEL: context.model ?? 'none'},
+  }
 }
 
 export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
@@ -159,6 +176,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     resumeBin: input.resumeBin,
     plugins: input.plugins,
     files: input.files,
+    tty: input.tty ? {command: fakeTerminal} : undefined,
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
@@ -190,6 +208,9 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
 const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content): void => {
   requireKit(ctx).writeProjectFile(path, content)
 }
+
+const projectFileExists: BrowserCommand<[string]> = (ctx, path): boolean =>
+  existsSync(join(requireKit(ctx).stateRoot, path))
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).opened()
 
@@ -801,6 +822,7 @@ export const coreCommands = {
   bootCore,
   closeCore,
   writeProjectFile,
+  projectFileExists,
   pushSocketsOpened,
   pushSocketsLive,
   rpcSocketsOpened,

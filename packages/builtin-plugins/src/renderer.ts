@@ -16,4 +16,11 @@ export const builtins = compose({
         return {default: setup}
       }),
   },
+  terminal: {
+    windowEntry: () =>
+      import('./terminal/plugin-experimental.js').then(({default: terminal}) => {
+        const setup: Plugin.Setup<typeof terminal> = (ctx) => terminal.setup?.(ctx)
+        return {default: setup}
+      }),
+  },
 })

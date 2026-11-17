@@ -19,12 +19,16 @@
     "lint": "oxlint"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-test-runner": "workspace:^",
+    "@conciv/ui-kit-terminal": "workspace:^",
+    "@solid-primitives/event-listener": "catalog:",
     "@zumer/snapdom": "catalog:",
+    "lucide-solid": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {
