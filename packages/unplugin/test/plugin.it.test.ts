@@ -394,31 +394,36 @@ describe('webpack and rspack', () => {
     )
 
     it.each(bundlers)(
-      `%s without a port bakes the default engine port ${CONCIV_DEFAULT_PORT} into the page`,
+      `%s without a port bakes the default engine port ${CONCIV_DEFAULT_PORT} into the widget client`,
       async (bundler) => {
         const root = testTempDir(`conciv-${bundler}-default-port-`)
-        const publicDir = writeFixtureApp(root)
+        writeFixtureApp(root)
         const compiler = testCompiler(bundler, root, 'development', {stateRoot: root})
         expect(await compiler.run()).toContain(join(root, GENERATED_CLIENT))
         const generated = await readFile(join(root, GENERATED_CLIENT), 'utf8')
         expect(generated).not.toContain(fileURLToPath(new URL('..', import.meta.url)))
         expect(generated).not.toContain('/dist/')
         expect(generated).toContain(`startConcivWidget(${CONCIV_DEFAULT_PORT})`)
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s with a port opens the widget socket at that port',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-socket-port-`)
+        const publicDir = writeFixtureApp(root)
+        const port = await getPort()
+        const compiler = testCompiler(bundler, root, 'development', {port, stateRoot: root})
+        await compiler.run()
         const site = await serveDirectory(publicDir)
         onTestFinished(site.close)
 
         const page = await openPage()
-        const defaultHost = `127.0.0.1:${CONCIV_DEFAULT_PORT}`
         const engineSocket = Promise.withResolvers<string>()
-        await page.routeWebSocket(
-          (url) => url.host === defaultHost,
-          (socket) => {
-            engineSocket.resolve(socket.url())
-            void socket.close()
-          },
-        )
+        page.on('websocket', (socket) => engineSocket.resolve(socket.url()))
         await page.goto(site.url, {waitUntil: 'domcontentloaded'})
-        expect(new URL(await engineSocket.promise).host).toBe(defaultHost)
+        expect(new URL(await engineSocket.promise).host).toBe(`127.0.0.1:${port}`)
       },
       60_000,
     )
