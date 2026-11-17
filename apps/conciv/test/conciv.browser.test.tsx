@@ -7981,7 +7981,7 @@ module.exports = {default: {stores: {
       const [actionsOpen, setActionsOpen] = createSignal(false)
       const actionsPin = createComponent(ctx.ui.IconButton, {icon: 'ellipsis', label: 'Comment actions', variant: 'neutral', onClick: () => setActionsOpen(!actionsOpen())})
       const actions = document.createElement('div')
-      actions.className = 'flex flex-col gap-1 p-1'
+      actions.className = 'flex flex-col gap-1'
       insert(actions, [
         createComponent(ctx.ui.Button, {variant: 'neutral', size: 'small', onClick: () => setActionsOpen(false), children: 'Resolve'}),
         createComponent(ctx.ui.Button, {variant: 'danger', size: 'small', onClick: () => setActionsOpen(false), children: 'Delete'}),
@@ -7996,7 +7996,7 @@ module.exports = {default: {stores: {
         onSubmit: sendReply,
       })
       const thread = document.createElement('div')
-      thread.className = 'flex w-64 flex-col gap-2 p-1'
+      thread.className = 'flex w-64 flex-col gap-2'
       const header = document.createElement('div')
       header.className = 'flex items-center justify-between gap-2'
       header.append(
