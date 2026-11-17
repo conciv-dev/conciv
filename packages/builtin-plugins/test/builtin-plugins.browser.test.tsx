@@ -5,6 +5,7 @@ import {createSignal, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {ActCard} from '../src/page/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
 import {ReactCard} from '../src/page/cards/react-card.js'
@@ -1085,7 +1086,7 @@ describe('page effects', () => {
       layer.remove()
       field.remove()
     })
-    const hint = page.getByText('Inspecting')
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
 
     expect(document.activeElement).toBe(document.body)
     await userEvent.keyboard('{Alt>}')
@@ -1103,6 +1104,38 @@ describe('page effects', () => {
     await userEvent.keyboard('{Alt>}')
     await expect.element(hint).not.toBeInTheDocument()
     await userEvent.keyboard('{/Alt}')
+  })
+
+  it('holding Alt over conciv’s own interface picks nothing there, while a page element under the pointer is picked', async () => {
+    const highlight = makeHighlight({open: async () => 'no-source', toast: () => {}})
+    const layer = document.createElement('div')
+    layer.setAttribute(PLUGIN_OVERLAY_ATTR, '')
+    const surface = document.createElement('div')
+    surface.setAttribute(EFFECTS_SURFACE_ATTR, '')
+    surface.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483000'
+    const effect = document.createElement('strong')
+    effect.textContent = 'conciv effect'
+    surface.append(effect)
+    const heading = document.createElement('h1')
+    heading.textContent = 'Page heading'
+    document.body.append(layer, heading, surface)
+    const dispose = highlight.mount(layer)
+    onTestFinished(() => {
+      dispose()
+      layer.remove()
+      heading.remove()
+      surface.remove()
+    })
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.hover(page.getByText('conciv effect'), {force: true})
+    await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
+    await userEvent.hover(page.getByRole('heading', {name: 'Page heading'}), {force: true})
+    await expect.element(page.getByText('<h1>', {exact: true})).toBeVisible()
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
   })
 })
 
