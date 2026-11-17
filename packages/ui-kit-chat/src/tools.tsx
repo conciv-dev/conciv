@@ -24,6 +24,7 @@ export {schemaFields, schemaParams, type SchemaField} from './tools/primitives/s
 export {humanToolName, nowTitle} from './tools/primitives/now-title.js'
 export {
   DANGER_TEXT_CLASS,
+  FILE_HEADER_CSS,
   MUTATING_BADGE,
   QUIET_TEXT_CLASS,
   displayValue,
