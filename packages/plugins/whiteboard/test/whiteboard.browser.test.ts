@@ -31,6 +31,8 @@ const Exported = z.tuple([
 const CanvasRead = z.object({elements: z.array(z.object({id: z.string(), type: z.string()}).loose())})
 const ShownElement = z.object({version: z.number(), index: z.string()}).loose()
 const SAVED_BEFORE_POSITION = 'saved-before-position'
+const CATCH_UP_RETRY_MS = 20
+const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 
 const SCRIPT_MARKER = 'svg markup ran as script'
 const HOSTILE_SVG = `<svg viewBox='0 0 100 50' onload="document.title='${SCRIPT_MARKER}'"><image href='missing.png' onerror="document.title='${SCRIPT_MARKER}'"/><rect x='0' y='0' width='100' height='50' fill='#e03131'/></svg>`
@@ -64,7 +66,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
   }) => {
     const widget = await openPluginWidget(browser, {
       id: 'fake',
-      plugins: [PACKAGE_DIR],
+      plugins: [[PACKAGE_DIR, {catchUpRetryMs: CATCH_UP_RETRY_MS}]],
       widgetBundle: WIDGET_BUNDLE,
       stateRoot: realpathSync(tempDir('conciv-whiteboard-canvas-')),
     })
@@ -246,14 +248,28 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
           elements: [{id: 'drawn-while-away', type: 'diamond', x: 640, y: 160, width: 100, height: 100}],
         })
         expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
+        const missedRead = await failRpcCalls(second, {
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'since'},
+        })
         const reconnected = secondObserver.mark()
         secondSocket.release()
         await secondObserver.completed({
           path: WHITEBOARD_CALL,
           input: {rpcId: 'whiteboard', method: 'since'},
           since: reconnected,
+          status: 500,
           timeout: 30_000,
         })
+        await missedRead.dispose()
+        const missedAgain = await secondObserver.completed({
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'since'},
+          since: reconnected,
+          served: true,
+          timeout: 20_000,
+        })
+        expect(SinceRead.parse(missedAgain.output).changes.map((change) => change.key)).toContain('drawn-while-away')
         await secondObserver.completed({
           path: WHITEBOARD_CALL,
           input: {rpcId: 'whiteboard', method: 'elements.get', input: {id: 'drawn-while-away'}},
