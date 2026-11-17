@@ -2402,7 +2402,7 @@ describe('cli', () => {
         const undiscovered = await discoverErrors('page_route')
         const [listing, ...notes] = undiscovered.errors
         expect(undiscovered.tools).toEqual([])
-        expect(listing).toMatch(/^Unknown tool: 'page_route'\. Discoverable tools: \[external_server_config/)
+        expect(listing).toMatch(/^Unknown tool: 'page_route'\. Discoverable tools: \[external_tabs /)
         expect(listing).not.toContain('external_page_')
         expect(notes).toEqual([PAGE_TOOLS_NOTE])
         expect((await discoverErrors('external_page_route')).errors.at(-1)).toBe(PAGE_TOOLS_NOTE)
