@@ -68,7 +68,6 @@ import {
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
   TURN_FRAME_CLASS,
-  TURN_INDENT_CLASS,
   USER_ROOT_CLASS,
   TURN_LEAD_CLASS,
 } from './turn-classes.js'
@@ -465,39 +464,30 @@ function UserTurn(): JSX.Element {
               <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
             </div>
           </Message.If>
-          <Show
-            when={promptText()}
-            fallback={
-              <Show
-                when={noteCount() > 0}
-                fallback={
-                  <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
-                    <PromptSuffix besideText={false} />
-                  </div>
-                }
-              >
-                <div class={PROMPT_NOTES_ROW_CLASS}>
-                  <div class={PROMPT_BODY_CLASS}>
-                    <PromptSuffix besideText={false} />
-                  </div>
-                  <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
-                </div>
-              </Show>
-            }
-          >
-            <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
-              <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
-                ❯
-              </span>
-              <div class={PROMPT_BODY_CLASS}>
-                <span class={PROMPT_TEXT_CLASS}>
-                  <HighlightedText text={promptText()} />
+          <Switch>
+            <Match when={promptText()}>
+              <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
+                <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
+                  ❯
                 </span>
-                <PromptSuffix besideText />
+                <div class={PROMPT_BODY_CLASS}>
+                  <span class={PROMPT_TEXT_CLASS}>
+                    <HighlightedText text={promptText()} />
+                  </span>
+                  <PromptSuffix besideText />
+                </div>
+                <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
               </div>
-              <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
-            </div>
-          </Show>
+            </Match>
+            <Match when={noteCount() > 0}>
+              <div class={PROMPT_NOTES_ROW_CLASS}>
+                <div class={PROMPT_BODY_CLASS}>
+                  <PromptSuffix besideText={false} />
+                </div>
+                <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+              </div>
+            </Match>
+          </Switch>
         </Message.Root>
       </Show>
     </TurnFrame>
