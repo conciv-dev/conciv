@@ -73,8 +73,8 @@ catalog:
   '@parcel/watcher-win32-x64': 2.5.1
   '@playwright/test': '^1.64.1'
   '@rrweb/rrweb-plugin-console-record': 2.2.0
-  '@rspack/core': 2.3.2
   '@rrweb/types': '^2.2.0'
+  '@rspack/core': 2.3.2
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'
   '@silvia-odwyer/photon-node': 0.3.4
