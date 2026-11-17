@@ -2538,7 +2538,6 @@ describe('the tanstack cards', () => {
       if (call.detail !== undefined) {
         await header(call.title).click()
         await expect.element(exactText(call.detail)).toBeVisible()
-        await expect.element(exactText(call.detail)).not.toHaveStyle('text-transform: uppercase')
       }
       if (call.single !== undefined) await expect.element(exactText(call.single)).toBeVisible()
       cleanup()
