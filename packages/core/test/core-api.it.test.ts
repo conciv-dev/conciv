@@ -389,7 +389,7 @@ describe('api engine staleness di', () => {
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(description).toContain('## Code Mode tools (call only inside `execute_typescript`)')
       expect(description).toContain('The catalog is partial.')
-      expect(description).toContain('- server (5 tools')
+      expect(description).toContain('- server (6 tools')
       expect(sandboxNames).toContain('external_server_transform')
       expect(sandboxNames.filter((name) => name.startsWith('external_page_'))).toEqual([])
       expect(
