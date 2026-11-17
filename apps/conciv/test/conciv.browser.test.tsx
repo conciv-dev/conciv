@@ -7291,6 +7291,48 @@ describe('terminal panel', () => {
     pageScheme.remove('dark')
     expect(await shot()).toBe(freshLight)
   }, 60_000)
+
+  test('Escape in the composer on the Chat view stops the chat turn and leaves a busy CLI in the terminal running', async () => {
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const stoppedLine = () => page.getByRole('separator', {name: 'Stopped'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    const pick = async (name: string) => {
+      await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+      await picker().click()
+      await page.getByRole('option', {name}).click()
+    }
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await pick('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+
+    await coreControl.holdTurn()
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    await composer().click()
+    await userEvent.keyboard('keep this turn running')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(stopButton(), {timeout: 15_000}).toBeVisible()
+    await expect.element(composer()).toHaveFocus()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(stoppedLine(), {timeout: 15_000}).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+    await expect.element(newTerminal()).toBeDisabled()
+    await expect.element(output('interrupted')).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('plugin composer pills', () => {
