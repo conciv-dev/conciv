@@ -312,6 +312,12 @@ describe('webpack and rspack', () => {
     return {watch, run, close}
   }
 
+  function readWidgetClient(files: string[]): Promise<string> {
+    const client = files.find((file) => file.includes('widget-client'))
+    if (client === undefined) throw new Error('the build carries no widget client')
+    return readFile(client, 'utf8')
+  }
+
   function serveDirectory(dir: string): Promise<{url: string; close: () => Promise<void>}> {
     const server = createHttpServer((request, response) => {
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
@@ -404,6 +410,23 @@ describe('webpack and rspack', () => {
         expect(generated).not.toContain(fileURLToPath(new URL('..', import.meta.url)))
         expect(generated).not.toContain('/dist/')
         expect(generated).toContain(`startConcivWidget(${CONCIV_DEFAULT_PORT})`)
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s compilers sharing a context with two ports each build a client with their own port',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-two-ports-`)
+        writeFixtureApp(root)
+        const firstPort = await getPort()
+        const secondPort = await getPort()
+        const first = testCompiler(bundler, root, 'development', {port: firstPort, stateRoot: root})
+        const second = testCompiler(bundler, root, 'development', {port: secondPort, stateRoot: root})
+        const firstFiles = await first.run()
+        const secondFiles = await second.run()
+        expect(await readWidgetClient(firstFiles)).toContain(`startConcivWidget(${String(firstPort)})`)
+        expect(await readWidgetClient(secondFiles)).toContain(`startConcivWidget(${String(secondPort)})`)
       },
       60_000,
     )
