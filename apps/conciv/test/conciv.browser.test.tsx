@@ -4812,7 +4812,7 @@ describe('panel view tabs', () => {
       expect(await rpc.drafts.get({sessionId})).toBeNull()
     }, 30_000)
 
-    test('a session deleted while its panel is open keeps its local draft as it was, even after more typing and closing the panel, and gets no row', async () => {
+    test('a session deleted while its panel is open keeps in its local draft the text on screen when its pane closed, and gets no row', async () => {
       const TYPED = 'typed before the delete'
       const rpc = coreRpc(coreBase())
       const sessionId = await openNewPanel()
@@ -5329,6 +5329,47 @@ describe('a deleted session', () => {
 
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(movesLine()).not.toBeInTheDocument()
+  }, 40_000)
+
+  test('text a refused send puts back on screen moves to a new session when the delete lands before the draft batch writes it', async () => {
+    const PUT_BACK = 'put back on screen'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    const subscribe = await faults.install({kind: 'gate', path: ['event', 'subscribe']})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await coreControl.awaitFaultPending(subscribe, 1)
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const shows = (locator: Locator) =>
+      vi.waitFor(() => expect.element(locator, {timeout: 1000}).toBeVisible(), {interval: 0, timeout: 8000})
+
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
+    await userEvent.click(editor())
+    await userEvent.keyboard(PUT_BACK)
+    await userEvent.keyboard('{Enter}')
+    await coreControl.awaitFaultPending(frame, 1)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await readLocalCopy(deletedId)).not.toContain(PUT_BACK)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await coreControl.releaseFault(frame)
+    await shows(page.getByRole('log').getByRole('alert').getByText(NOT_SENT, {exact: true}))
+    await shows(editor().getByText(PUT_BACK))
+
+    await coreControl.releaseFault(subscribe)
+
+    await shows(deletedTitle())
+    await shows(movesLine())
+    expect(await readLocalCopy(deletedId)).toEqual(expect.stringContaining(PUT_BACK))
+    vi.useRealTimers()
+
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText(PUT_BACK), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
   }, 40_000)
 
   test('a session that cannot be started says so, keeps the text with the deleted session, and the next press carries it', async () => {
