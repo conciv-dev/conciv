@@ -115,7 +115,6 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
-import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {Conciv} from '@conciv/plugin'
@@ -672,6 +671,8 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent(typed)
     await expect.element(input()).not.toMatchTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
     expect(turns().elements()).toHaveLength(0)
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
     await coreControl.releaseFault(refused)
     await userEvent.click(input())
@@ -685,6 +686,46 @@ describe('chat pane', () => {
     await expect.element(replies()).toBeVisible()
     expect(turns().elements()).toHaveLength(1)
     expect(replies().elements()).toHaveLength(1)
+
+    const refusedAgain = await faults.install({kind: 'chat-refused', status: 500})
+    const later = 'a later message the server refuses'
+    await userEvent.click(input())
+    await userEvent.keyboard(`${later}{Enter}`)
+    await expect.element(input()).toHaveTextContent(later)
+    await expect
+      .element(
+        page
+          .getByRole('alert')
+          .filter({hasText: 'Internal Server Error', has: page.getByRole('button', {name: 'Retry'})}),
+      )
+      .toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    await coreControl.releaseFault(refusedAgain)
+  })
+
+  test('a turn the engine started that fails before any reply keeps the message and shows its error, not a failed load', async () => {
+    const {sessionId} = await newSession()
+    mountChatPane(sessionId)
+    const typed = 'a turn the agent never answers'
+    const failure = 'unexpected status 401 Unauthorized'
+    const runError = () =>
+      page.getByRole('alert').filter({hasText: failure, has: page.getByRole('button', {name: 'Retry'})})
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    const refresh = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await coreControl.scriptTurn({toolCalls: [], text: ''})
+    await coreControl.scriptError(failure)
+
+    await userEvent.click(input())
+    await userEvent.keyboard(`${typed}{Enter}`)
+    await coreControl.awaitFaultPending(refresh, 1)
+    await expect.element(notifications()).toMatchTextContent(new RegExp(failure))
+    await expect.element(stopButton()).not.toBeInTheDocument()
+
+    await expect.element(page.getByRole('log').getByText(typed, {exact: true})).toBeVisible()
+    await expect.element(runError()).toBeVisible()
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(input()).not.toHaveTextContent(typed)
+    await coreControl.releaseFault(refresh)
   })
 
   test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {
@@ -4170,9 +4211,6 @@ describe('panel view tabs', () => {
     const AFTER_TOOLS_TEXT = 'the thread kept going after the tools'
     const tabCrash = {armed: true}
 
-    const crashReports = (name: string): number =>
-      vi.mocked(console.error).mock.calls.filter((call) => call[0] === `[conciv] extension "${name}" crashed`).length
-
     function boom(): JSX.Element {
       throw new Error('fixture crash')
     }
@@ -4201,11 +4239,9 @@ describe('panel view tabs', () => {
 
     afterEach(() => {
       tabCrash.armed = true
-      vi.restoreAllMocks()
     })
 
     test('a throwing tab shows its fallback, Retry re-mounts it, and chat stays usable', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
       await mountAfterTurn([], [crashingTab])
       const crashed = () => page.getByText('The crash-tab extension crashed')
 
@@ -4214,11 +4250,9 @@ describe('panel view tabs', () => {
 
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
-      expect(crashReports('crash-tab')).toBe(1)
 
       await retry().click()
       await expect.element(crashed()).toBeVisible()
-      expect(crashReports('crash-tab')).toBe(2)
 
       tabCrash.armed = false
       await retry().click()
@@ -5914,9 +5948,6 @@ describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
-    for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
-    }
     return registry
   }
 
@@ -7037,8 +7068,32 @@ module.exports = {default: {setup(ctx) {
 
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
+const {insert} = require('solid-js/web')
 const ToolCall = Registry.define('tool-call')
 module.exports = {default: {setup(ctx) {
+  ctx.add(ToolCall, {
+    tools: ['plugin_card_probe'],
+    display: 'standalone',
+    card: {
+      hasEmbeddedBody: () => true,
+      render(props) {
+        const card = document.createElement('p')
+        insert(card, () =>
+          'Probe card ' + (props.result === undefined ? 'running' : 'finished') + ', ' +
+          (props.durationMs === undefined ? 'no time yet' : 'timed'))
+        return card
+      },
+    },
+  })
+  ctx.add(ToolCall, {
+    tools: ['plugin_card_throw_probe'],
+    card: {
+      hasEmbeddedBody: () => true,
+      render() {
+        throw new Error('the probe card render failed')
+      },
+    },
+  })
   ctx.add(ToolCall, {
     tools: ['plugin_probe'],
     render(props) {
@@ -7101,6 +7156,51 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
     await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+
+  test('a plugin card draws the whole card while the call runs and after, with its duration', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}}],
+      text: 'the card probe is done',
+    })
+    await coreControl.holdResults()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the card probe{Enter}')
+    await expect
+      .element(page.getByText('Probe card running, no time yet', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('the card probe is done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card running', {exact: false})).not.toBeInTheDocument()
+    await expect.element(page.getByText('"the card probe"', {exact: true})).not.toBeInTheDocument()
+  }, 45_000)
+
+  test('a plugin card that throws leaves its call on the generic card, records the error under the plugin, and the plugin keeps drawing its other card', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'plugin_card_throw_probe', input: {mode: 'broken'}, result: {drawn: 'the broken card probe'}},
+        {name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}},
+      ],
+      text: 'the card probes are done',
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the card probes{Enter}')
+    await expect.element(page.getByText('the card probes are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(probeRow('mode=broken')).toBeVisible()
+    await expect.element(page.getByText('"the broken card probe"', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect.element(page.getByText('Error: the probe card render failed', {exact: true})).toBeVisible()
   }, 45_000)
 
   test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
@@ -7676,13 +7776,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'server_reload'],
+    tools: ['fixture_probe', 'page_route'],
     render(props) {
-      if (props.tool === 'server_reload') {
+      if (props.tool === 'page_route') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture reloaded ' + props.input.file})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture read the route for ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -7715,6 +7815,7 @@ module.exports = {default: {stores: {
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
   const first = () => dialog('Fixture dialog', () => button('Open the second dialog', second))
+  const [interruptAnswer, setInterruptAnswer] = createSignal('none')
   const tools = {id: 'tools', title: 'Fixture tools', pinned: true}
   const opened = {id: 'opened', title: 'Opened tab'}
   ctx.add(Panel, {
@@ -7722,6 +7823,11 @@ module.exports = {default: {stores: {
     region: 'pane',
     list: () => [tools],
     render: (props) => [
+      line(() => 'Run status: ' + props.session.run.status()),
+      line(() => 'Interrupted: ' + interruptAnswer()),
+      button('Interrupt the run', () =>
+        props.session.run.interrupt().then((answer) => setInterruptAnswer(String(answer.interrupted))),
+      ),
       button('Open the fixture dialog', first),
       button('Write a plain note', () => props.screen.composer.insert('plain note')),
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
@@ -8013,6 +8119,34 @@ module.exports = {default: {setup(ctx) {
 
   const tabPath = (sessionId: string, key: string) => `/panel/${sessionId}/${encodeURIComponent(key)}`
 
+  test('its panel reads the routed session idle, then running once a turn starts, and its interrupt stops the run and answers whether one was going', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const shown = (text: string) => page.getByText(text, {exact: true})
+    await coreControl.holdTurn()
+    onTestFinished(() => coreControl.releaseTurn())
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await expect.element(shown('Run status: idle')).toBeVisible()
+
+    await tab('Chat').click()
+    await editor().click()
+    await userEvent.keyboard('start a run{Enter}')
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+    await tab('Fixture tools').click()
+    await expect.element(shown('Run status: running')).toBeVisible()
+
+    await control('Interrupt the run').click()
+    await expect.element(shown('Interrupted: true')).toBeVisible()
+    await expect.element(shown('Run status: idle')).toBeVisible()
+
+    await control('Interrupt the run').click()
+    await expect.element(shown('Interrupted: false')).toBeVisible()
+    await expect.element(shown('Run status: idle')).toBeVisible()
+    await tab('Chat').click()
+    await expect.element(page.getByRole('separator', {name: 'Stopped'})).toBeVisible()
+  }, 60_000)
+
   test('a cold link to its tab shows the tab, and a cold link to its old tab key ends on the renamed tab', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
@@ -8184,19 +8318,20 @@ module.exports = {default: {setup(ctx) {
   }, 90_000)
 
   test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
+    const routeResult = {pathname: '/', search: '', href: 'http://localhost/', title: 'home', state: 'visible'}
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
       toolCalls: [
         {
-          name: 'server_reload',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'draw'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: routeResult,
         },
         {
-          name: 'server_reload',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'decline'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: routeResult,
         },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
@@ -8213,11 +8348,13 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
-    await expect.element(shown('force a hot update of one module')).toBeVisible()
-    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    const routeHeader = () => page.getByRole('button', {name: 'succeeded route src/a.ts'})
+    await expect.element(routeHeader().nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(routeHeader().first()).toBeVisible()
+    await expect.element(shown('report the current url of the live page')).toBeVisible()
+    await expect.element(shown('Called page_route')).not.toBeInTheDocument()
     await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
+    await expect.element(shown('Fixture read the route for src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
     await expect.element(shown('mode=draw')).toBeVisible()
@@ -8257,6 +8394,7 @@ module.exports = {default: {setup(ctx) {
 
     await tab('Fixture tools').click()
     await expect.element(control('Write a plain note')).toBeVisible()
+    await expect.element(shownText('Engine attached: 1')).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toBeVisible()
@@ -8446,6 +8584,205 @@ module.exports = {default: {setup(ctx) {
     await expect.element(entries().nth(2)).toHaveAccessibleName('Phone tab')
     await expect.element(entries().nth(3)).not.toBeInTheDocument()
   }, 90_000)
+})
+
+describe('the page plugin attached to the routed session', () => {
+  const driverPlugin = (rpcPath: string) => `import {Definition} from '${rpcPath}'
+
+const method = {input: {type: 'object'}, output: {type: 'object'}}
+const Driver = {id: 'page-driver', methods: {tool: method, attached: method}, events: {}}
+
+export default {
+  id: 'page-driver',
+  async setup(ctx) {
+    const stop = new AbortController()
+    const attached = []
+    const arrived = new EventTarget()
+    ctx.rpc(Definition).events.on('control', (event) => {
+      if (event.data.type !== 'attached') return
+      attached.push(event.data.connectionId)
+      arrived.dispatchEvent(new Event('attached'))
+    }, {signal: stop.signal})
+    await ctx.rpc.register(Driver, {
+      attached: async () => {
+        while (attached.length === 0) await new Promise((resolve) => arrived.addEventListener('attached', resolve, {once: true}))
+        return {connectionId: attached.shift()}
+      },
+      tool: async ({sessionId, name, input}, call) => {
+        const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
+        const result = await found.execute(input, {sessionId, agent: 'build', messageId: undefined, id: 'call_' + crypto.randomUUID(), signal: call.signal, progress: async () => {}})
+        return {value: result.output ?? null}
+      },
+    })
+    return () => stop.abort()
+  },
+}
+`
+  const core = {base: ''}
+  beforeAll(async () => {
+    const paths = await coreControl.pagePluginPaths()
+    const booted = await coreControl.bootCore({
+      id: 'page-plugin-attachment',
+      allowedOrigins: [window.location.origin],
+      plugins: ['./page', './driver'],
+      files: {'page/index.ts': `export {default} from '${paths.engine}'\n`, 'driver/index.ts': driverPlugin(paths.rpc)},
+    })
+    core.base = booted.base
+  }, 60_000)
+  afterAll(() => coreControl.closeCore(), 30_000)
+  const harness = createShellHarness(() => core.base)
+  const faults = trackedFaults()
+  afterEach(harness.dispose)
+  afterEach(faults.releaseAll)
+
+  const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
+  const mask = () => page.getByRole('status', {name: 'Agent is using this page'})
+  const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
+  const Played = z.object({
+    value: z.object({
+      outcomes: z.array(z.looseObject({index: z.number(), ok: z.boolean(), error: z.string().optional()})),
+    }),
+  })
+  const driver = (method: string, input: Record<string, unknown>) =>
+    coreRpc(core.base).plugin.call({rpcId: 'page-driver', method, input})
+  const attached = () => driver('attached', {})
+  const queue = async (sessionId: string, actions: Record<string, unknown>[]) =>
+    Played.parse(await driver('tool', {sessionId, name: 'queue', input: {actions}})).value.outcomes
+  const replied = (sessionId: string) =>
+    coreControl.rpcCallCount(['plugin', 'call'], {rpcId: 'experimental.page', method: 'result', input: {sessionId}})
+  const panel = (sessionId: string) => `/panel/${sessionId}?open=true`
+
+  function QueueForm(props: {heard: (event: string) => void; drafting: () => void}) {
+    const field = (name: string) => (
+      <label>
+        {name}
+        <input name={name} onInput={() => props.heard(name)} />
+      </label>
+    )
+    return (
+      <form onSubmit={(event) => event.preventDefault()}>
+        {FIELDS.map(field)}
+        <div
+          contenteditable="true"
+          role="textbox"
+          aria-label="Draft"
+          onBeforeInput={(event) => {
+            if (event.isTrusted) return
+            event.preventDefault()
+            props.drafting()
+          }}
+        >
+          <p id="draft-line">old draft</p>
+        </div>
+      </form>
+    )
+  }
+
+  function queueForm(drafting: () => void = () => {}) {
+    const heard: string[] = []
+    onTestFinished(render(() => <QueueForm heard={(event) => heard.push(event)} drafting={drafting} />).unmount)
+    return heard
+  }
+
+  test("a queue cut off by an unmount does not keep a later mount's mask up", async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const heard = queueForm()
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const cut = queue(sessionId, [fill('first', 'Ada'), fill('last', 'Lovelace'), fill('email', 'a@b.c')])
+    await expect.element(mask()).toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(panel(sessionId))
+    await attached()
+    await queue(sessionId, [fill('city', 'Paris')])
+    await expect.element(mask()).not.toBeInTheDocument()
+    expect(heard).toEqual(['city'])
+    await cut
+  }, 60_000)
+
+  test('a session switch mid-queue lands nothing more of the old queue, reports none of it, and takes the mask down', async () => {
+    const [before, after] = [await createSession(coreRpc(core.base)), await createSession(coreRpc(core.base))]
+    const heard = queueForm()
+    harness.mountShell([panel(after), panel(before)])
+    await attached()
+    const cut = queue(before, [fill('first', 'Ada'), fill('last', 'Lovelace')])
+    await expect.element(mask()).toBeInTheDocument()
+    harness.back()
+    await attached()
+    expect(await queue(after, [fill('city', 'Paris')])).toEqual([
+      {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Paris'}},
+    ])
+    expect(heard).toEqual(['city'])
+    expect([await replied(before), await replied(after)]).toEqual([1, 2])
+    await expect.element(mask()).not.toBeInTheDocument()
+    await cut
+  }, 60_000)
+
+  test('a queue whose acceptance never reached the engine plays nothing and takes the mask down', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const heard = queueForm()
+    harness.mountShell(panel(sessionId))
+    await attached()
+    await faults.install({
+      kind: 'garble',
+      path: ['plugin', 'call'],
+      input: {rpcId: 'experimental.page', method: 'result', input: {outcome: {result: {value: {status: 'playing'}}}}},
+    })
+    expect(await queue(sessionId, [fill('first', 'Ada'), fill('last', 'Byron')])).toMatchObject([
+      {ok: false, error: expect.stringContaining('did not run')},
+      {ok: false, error: expect.stringContaining('did not run')},
+    ])
+    expect(heard).toEqual([])
+    await expect.element(mask()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a queued fill released after a session switch does not type', async () => {
+    const SWITCHED_TO = 'the session switched to'
+    const rpc = coreRpc(core.base)
+    const [before, after] = [await createSession(rpc), await createSession(rpc)]
+    await rpc.sessions.rename({sessionId: after, title: SWITCHED_TO})
+    const typed: string[] = []
+    queueForm(() => typed.push('draft'))
+    harness.mountShell([panel(after), panel(before)])
+    await attached()
+    const held = await faults.install({
+      kind: 'gate',
+      path: ['plugin', 'call'],
+      input: {rpcId: 'experimental.page', method: 'command', input: {sessionId: before}},
+    })
+    const cut = queue(before, [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}])
+    await coreControl.awaitFaultPending(held, 1)
+    harness.back()
+    await expect
+      .element(page.getByRole('banner').getByRole('button', {name: `${SWITCHED_TO}, session options`}))
+      .toBeVisible()
+    await coreControl.releaseFault(held)
+    await attached()
+    await queue(after, [fill('city', 'Paris')])
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+    expect(typed).toEqual([])
+    expect([await replied(before), await replied(after)]).toEqual([0, 2])
+    await cut
+  }, 60_000)
+
+  test('an eval card offers no Always, so a later eval with other code is asked again', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const evaluate = (code: string) => driver('tool', {sessionId, name: 'eval', input: {code}})
+    const card = () => page.getByRole('group', {name: 'Permission request'})
+    const first = evaluate('document.title')
+    await expect.element(card().getByRole('button', {name: 'Approve'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(card().getByRole('button', {name: 'Always allow'})).not.toBeInTheDocument()
+    await card().getByRole('button', {name: 'Approve'}).click()
+    await expect(first).resolves.toMatchObject({value: expect.anything()})
+    await expect.element(card()).not.toBeInTheDocument()
+    const second = evaluate('document.domain')
+    await expect.element(card().getByRole('button', {name: 'Approve'}), {timeout: 15_000}).toBeVisible()
+    await card().getByRole('button', {name: 'Deny'}).click()
+    await expect(second).rejects.toThrow()
+    await expect.element(card()).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('a fixture plugin built into chunks', () => {

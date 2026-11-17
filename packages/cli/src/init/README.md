@@ -37,7 +37,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 
 ## Side Effects
 
-- `runInit` (`pipeline.ts`): `writeConsent` writes .conciv/harnesses.json after a backup
+- `runInit` (`pipeline.ts`): `writeConsent` writes .conciv/.gitignore and .conciv/harnesses.json after backing up both
 - `defaultRuntime` (`pipeline.ts`): reads PATH, HOME and the conciv home (`concivHome`, CONCIV_HOME or the platform data folder); calls process.exit(130) on interrupt
 - `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit' and SIGINT listeners and rewrite or delete backed-up files
 - `execFileOutcome` (`exec.ts`): spawns child processes

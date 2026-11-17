@@ -1,10 +1,10 @@
 {
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
   "globalDependencies": ["pnpm-workspace.yaml", ".oxlintrc.json"],
-  "globalPassThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH"],
+  "globalPassThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH", "NODE_DISABLE_COMPILE_CACHE"],
   "concurrency": "50%",
   "cacheMaxAge": "7d",
-  "cacheMaxSize": "10GB",
+  "cacheMaxSize": "5GB",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

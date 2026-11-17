@@ -8,6 +8,7 @@ import {
   type Kit,
 } from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
+import {resolveConfig} from '@conciv/core/config'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -35,25 +36,27 @@ export type AlternateHarness = {
   commands?: HarnessCommand[]
 }
 
-export async function bootCoreKit(opts: {
-  id: string
-  text?: string
-  resume?: boolean
-  displayName?: string
-  extensions?: AnyExtension[]
-  models?: HarnessModel[]
-  commands?: HarnessCommand[]
-  history?: FixtureSession[]
-  resumeBin?: string
-  alternates?: AlternateHarness[]
-  allowedOrigins?: string[]
-  staleness?: () => EngineStaleness
-  nativePageDir?: string
-  plugins?: NonNullable<ConcivConfig['plugins']>
-  files?: Readonly<Record<string, string>>
-  stateRoot?: string
-  bundler?: BundlerBridge
-}): Promise<CoreKit> {
+export async function bootCoreKit(
+  opts: Pick<ConcivConfig, 'permission' | 'permissions'> & {
+    id: string
+    text?: string
+    resume?: boolean
+    displayName?: string
+    extensions?: AnyExtension[]
+    models?: HarnessModel[]
+    commands?: HarnessCommand[]
+    history?: FixtureSession[]
+    resumeBin?: string
+    alternates?: AlternateHarness[]
+    allowedOrigins?: string[]
+    staleness?: () => EngineStaleness
+    nativePageDir?: string
+    plugins?: NonNullable<ConcivConfig['plugins']>
+    files?: Readonly<Record<string, string>>
+    stateRoot?: string
+    bundler?: BundlerBridge
+  },
+): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
     text: opts.text ?? 'Hello from conciv',
@@ -83,6 +86,7 @@ export async function bootCoreKit(opts: {
           hubAccess: 'session',
           plugins: opts.plugins ?? [],
           policies: [],
+          permissions: resolveConfig({permission: opts.permission, permissions: opts.permissions}, env.cwd).permissions,
         },
         cwd: env.cwd,
         openInEditor: (file, line, column) => {

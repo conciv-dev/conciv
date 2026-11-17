@@ -2,7 +2,21 @@ import {describe, expect} from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {setTimeout} from 'node:timers/promises'
-import {Cause, Deferred, Duration, Effect, Exit, Fiber, Layer, LayerMap, Logger, Queue, Schedule} from 'effect'
+import {
+  Cause,
+  Deferred,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  LayerMap,
+  Logger,
+  Option,
+  Queue,
+  Schedule,
+  Stream,
+} from 'effect'
 import {z} from 'zod'
 import {TestClock} from 'effect/testing'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
@@ -94,6 +108,58 @@ const failed = (plugins: Plugin.Interface) =>
   )
 
 describe('PluginSupervisor reload', () => {
+  it.live(
+    'a host plugin activated last reaches an agent a project plugin adds, also after that plugin reloads',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const file = path.join(directory.path, 'external/reviewer/index.ts')
+        const reviewer = (version: number) => `export default {
+  id: "reviewer",
+  async setup(ctx) {
+    await ctx.agent.transform((editor) => editor.update("reviewer", (agent) => { agent.description = "v${version}" }))
+  },
+}`
+        const ask = {action: 'page_eval', resource: '*', effect: 'ask'} as const
+        const everyAgentAsks = define({
+          id: 'every-agent-asks',
+          effect: (ctx) =>
+            ctx.agent
+              .transform((editor) => editor.list().forEach((agent) => agent.permissions.push(ask)))
+              .pipe(Effect.asVoid),
+        })
+        yield* Effect.promise(() => write(file, reviewer(1)))
+        const watcher = yield* Watcher.Test
+        const locations = yield* LayerMap.make(
+          (location: string) =>
+            supervisorLayer(location, {configured: [path.dirname(file)], builtin: {post: [everyAgentAsks]}}),
+          {idleTimeToLive: Duration.infinity},
+        )
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const agents = yield* Agent.Service
+          const bus = yield* Bus.Service
+          const reviewerId = Agent.Id.make('reviewer')
+          yield* plugins.awaitActivation
+          expect(yield* agents.get(reviewerId)).toMatchObject({description: 'v1'})
+          expect((yield* agents.get(reviewerId))?.permissions).toContainEqual(ask)
+
+          const reloaded = yield* bus.subscribe(Agent.Event.Updated).pipe(
+            Stream.mapEffect(() => agents.get(reviewerId)),
+            Stream.filter((agent) => agent?.description === 'v2'),
+            Stream.runHead,
+            Effect.forkScoped({startImmediately: true}),
+          )
+          yield* Effect.promise(async () => {
+            await write(file, reviewer(2))
+            await fs.utimes(file, new Date(), new Date(Date.now() + 1000))
+          })
+          yield* watcher.emit({path: file, type: 'update'})
+          expect(Option.getOrUndefined(yield* Fiber.join(reloaded))?.permissions).toContainEqual(ask)
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
   ;(
     [
       {name: 'on a helper-only save', helper: 'nested/helper.ts', touchEntry: false},

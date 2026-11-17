@@ -30,7 +30,6 @@ as soon as the server mounts it; the CLI itself ships no extension code.
 - `conciv tools page` - read and drive the live page; `--help` lists every capability
 - `conciv tools react` - inspect and edit live React components
 - `conciv tools design` - match the live page to a design image (when the design extension is mounted)
-- `conciv tools server reload <file>` - force a hot update of one module
 - `conciv plugin call server <method>` - inspect the dev server (`config`, `urls`, `resolve`, `graph`, `transform`) or open a file in the user's editor (`open`); pass the input with `--data '<json>'`
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
 
@@ -39,7 +38,7 @@ server holds it.
 
 ## Who is asked
 
-Some tools ask first: running code in the page, reloading the dev server (`conciv tools server reload`),
+Some tools ask first: running code in the page,
 clearing or deleting on the whiteboard, resolving or deleting comments, building or running the iOS app.
 Restarting the dev server is the agent's `server_restart` tool and it asks too; the terminal has no restart
 command, so restart your own dev server in your terminal. Who is asked depends on how the CLI found the dev
@@ -75,6 +74,26 @@ These commands, and their `--help`, need the dev server running; without one the
 "No conciv dev server" error with how to start it. Every command prints one JSON document on stdout
 (`{"ok":true,"data":...}` or `{"ok":false,"error":...}`); `--help` prints usage instead and
 `conciv --version` (or `-v`) prints the CLI version.
+
+## Headless and CI
+
+With nobody at the tab to answer an Approve card, decide ahead of time in the options of the conciv
+plugin in your bundler config:
+
+```ts
+conciv({permission: {page_eval: 'allow'}})
+```
+
+`permission` takes three short forms: one effect for every tool (`permission: 'allow'`), one effect
+per tool (`permission: {page_eval: 'deny'}`), or one effect per tool and resource
+(`permission: {page_eval: {'document.title': 'allow'}}`). `permissions` takes the full rules,
+`[{action, resource, effect}]`, with `allow`, `deny` or `ask` as the effect. The short forms come
+first and `permissions` after them; when two rules match, the later one wins.
+
+These rules are a project default for every agent. Approvals given in the tab come after them, and
+the page's own guard comes after both: a rule in these options never opens the page tools to a chat whose tab
+has not connected. A blanket allow (`permission: 'allow'`, or a rule whose action is `*`) does not
+switch a tool's own ask off: the rule must name the action, `permission: {page_eval: 'allow'}`.
 
 ## Call a plugin method
 

@@ -178,6 +178,59 @@ describe('rpc socket routing', () => {
   )
 })
 
+describe('rpc gate input pattern', () => {
+  async function requestFrame(id: string, input: unknown): Promise<string> {
+    const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize(input)
+    const frame = await encodeRequestMessage(id, MessageType.REQUEST, {
+      url: new URL('http://orpc/echo'),
+      method: 'POST',
+      headers: {},
+      body,
+    })
+    if (typeof frame !== 'string') throw new Error('the rpc request frame encoded to binary')
+    return frame
+  }
+
+  browserTest(
+    'a gate with an input pattern holds only the matching call, while the driver calls on the same path pass',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const observer = observeRpc(page)
+        const gate = await gateRpcCalls(page, {path: ['echo'], input: {kind: 'held'}})
+        const frames = [await requestFrame('1', {kind: 'held'}), await requestFrame('2', {kind: 'driver'})]
+        await page.evaluate(
+          ({url, requestFrames}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('open', () => {
+                for (const frame of requestFrames) socket.send(frame)
+                resolve()
+              })
+            }),
+          {url: served.wsUrl, requestFrames: frames},
+        )
+        await gate.awaitCaptured(1)
+        await observer.completed({path: ['echo'], input: {kind: 'driver'}, status: 200})
+        expect(gate.pending()).toBe(1)
+        expect(observer.completedCount({path: ['echo'], input: {kind: 'held'}})).toBe(0)
+        await gate.release()
+        await observer.completed({path: ['echo'], input: {kind: 'held'}, status: 200})
+        expect(gate.pending()).toBe(0)
+        await gate.dispose()
+        observer.dispose()
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+})
+
 describe('rpc observer dispose', () => {
   const NATURAL_TIMEOUT_MS = 300
 

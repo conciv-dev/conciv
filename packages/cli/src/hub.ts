@@ -6,7 +6,7 @@ import {command, description, name, option, schema} from '@bomb.sh/router'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
-import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
+import {concivHome, type EngineRow} from '@conciv/db'
 import {
   cappedText,
   codeDiscoverReply,
@@ -15,12 +15,20 @@ import {
   makeRpcClient,
   queueNotice,
   type CodeDescriptions,
+  type CodeDiscoverResult,
   type CodeReply,
   type RpcClient,
 } from '@conciv/contract'
-import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId, type TabOpen} from '@conciv/protocol/chat-types'
+import {
+  CODE_MODE_EXTERNAL_PREFIX,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  SessionId,
+  type TabOpen,
+} from '@conciv/protocol/chat-types'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
+import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
@@ -30,8 +38,14 @@ import {
   askTab,
   askTabs,
   ENGINE_READ_MS,
+  errorText,
+  homeRead,
+  listTabs,
+  liveEngines,
+  PROBE_MS,
+  runningEngines,
   silence,
-  type Checked,
+  TOO_OLD,
   type Silent,
   type TabAsk,
 } from './engine-read.js'
@@ -40,7 +54,7 @@ const EXECUTE_TOOL_NAME = 'execute_typescript'
 
 const DISCOVER_TOOL_NAME = 'discover_tools'
 
-const PROBE_MS = 300
+const LIST_TABS_TOOL_NAME = 'list_tabs'
 
 const TASKS_EXTENSION = 'io.modelcontextprotocol/tasks'
 
@@ -52,10 +66,8 @@ const TASK_TTL_MS = 60 * 60_000
 
 const UNKNOWN_TASK = -32602
 
-const TOO_OLD = 'engine too old; upgrade its @conciv packages'
-
 const TabInputSchema = SessionId.optional().describe(
-  "The conciv tab this call acts on. List the open tabs with external_tabs({}) in a call without tab, match the user's words against project, branch, root, href, pageTitle and sessionTitle, then pass that tab's id as tab on every execute_typescript and discover_tools call. Leave it out only to call external_tabs({}).",
+  "The conciv tab this call acts on. List the open tabs with list_tabs, match the user's words against project, branch, root, href, pageTitle and sessionTitle, then pass that tab's id as tab on every execute_typescript and discover_tools call.",
 )
 
 const ExecuteInputSchema = z.object({
@@ -69,6 +81,11 @@ const ExecuteInputSchema = z.object({
 
 const DiscoverInputSchema = z.object({toolNames: z.array(z.string()), tab: TabInputSchema})
 
+const ListTabsInputSchema = z.object({})
+
+const LIST_TABS_DESCRIPTION =
+  'List the open conciv tabs of every running conciv dev server on this machine. conciv tabs are live web pages running the conciv widget. When the user refers to a conciv tab, session or page in words, call list_tabs and match their words against project, branch, root, href, pageTitle and sessionTitle. If exactly one tab matches, use it and tell the user which one you picked (project, branch, URL). If more than one matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose state is visible only when the user says "this one" or "the one I have open". If none match, say so and list what is open. Then pass the id of that tab as tab on every execute_typescript and discover_tools call; the first reply for a tab starts with its instructions, follow them. When a session has more than one browser tab (browserTabs lists each with its href), calls go to the one focused last, which is the first listed; tell the user which one (href). If a call says you are waiting for the user to allow it, tell the user to click Approve in that conciv tab, then retry; if it says the user denied you access, stop and tell the user, do not retry. If a call says the tab is not open, call list_tabs again. Dev servers that did not answer are listed under unreachable.'
+
 const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
 
 const TasksCapableSchema = z.object({
@@ -79,9 +96,14 @@ const TaskIdParamsSchema = z.object({taskId: z.string().min(1)})
 
 const TaskRequestSchema = z.object({params: TaskIdParamsSchema})
 
+const PAGE_TOOL_PREFIX = `${PAGE_NAMESPACE}_`
+
+const PAGE_TOOLS_NOTE = `Page tools (${CODE_MODE_EXTERNAL_PREFIX}${PAGE_TOOL_PREFIX}*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.`
+
+const DiscoverErrorsSchema = z.looseObject({errors: z.array(z.string()).min(1)})
+
 const FALLBACK_DESCRIPTIONS = {
-  [EXECUTE_TOOL_NAME]:
-    'Run TypeScript in the sandbox of a running conciv dev server. Every capability is an async external_* function. external_tabs({}) lists the open conciv tabs (live pages running the conciv widget); pick the one the user means and pass its id as tab on every execute_typescript and discover_tools call. Return a value to pass results back.',
+  [EXECUTE_TOOL_NAME]: `Run TypeScript in the sandbox of a running conciv dev server. Every capability is an async external_* function. list_tabs lists the open conciv tabs (live pages running the conciv widget); pick the one the user means and pass its id as tab on every execute_typescript and discover_tools call. Return a value to pass results back. ${PAGE_TOOLS_NOTE}`,
   [DISCOVER_TOOL_NAME]:
     'Typed signatures for the named external_* capabilities of execute_typescript; pass the same tab as on execute_typescript.',
 }
@@ -337,7 +359,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const discovered = await routed(
       tab,
       (rpc, aborted) => rpc.code.discover({...buildSessionInput(tab), toolNames}, {signal: aborted}),
-      codeDiscoverReply,
+      (value) => codeDiscoverReply(notePageTools(value, toolNames)),
       signal,
     )
     settleDelivered(discovered.value?.finished ?? [])
@@ -354,6 +376,11 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       DISCOVER_TOOL_NAME,
       {description: descriptions[DISCOVER_TOOL_NAME], inputSchema: DiscoverInputSchema},
       async (input, ctx) => discoverCall(input, ctx.mcpReq.signal),
+    )
+    server.registerTool(
+      LIST_TABS_TOOL_NAME,
+      {description: LIST_TABS_DESCRIPTION, inputSchema: ListTabsInputSchema},
+      async () => listTabsCall(home),
     )
     server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, queueTask)
   }
@@ -388,10 +415,7 @@ export const serveCommand = command(
 )
 
 async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
-  const first = await liveEngines(home)
-  if (first.live.length === 0 && first.unreachable.length === 0) {
-    throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
-  }
+  const first = await runningEngines(home)
   const picked = await firstUsable(first.live, headers, [])
   if (picked.runner !== null) return picked.runner
   const second = await homeRead(home, askAgain(home, first.unreachable))
@@ -434,7 +458,7 @@ async function runnerAt(row: EngineRow, headers: Record<string, string>): Promis
 function toolDescriptions(described: CodeDescriptions | null): Record<ToolName, string> {
   if (described === null) return FALLBACK_DESCRIPTIONS
   return {
-    [EXECUTE_TOOL_NAME]: described.execute,
+    [EXECUTE_TOOL_NAME]: `${described.execute}\n\n${PAGE_TOOLS_NOTE}`,
     [DISCOVER_TOOL_NAME]: described.discover ?? FALLBACK_DESCRIPTIONS[DISCOVER_TOOL_NAME],
   }
 }
@@ -489,21 +513,18 @@ function ownerAmong(tab: SessionId, probes: TabAsk[], silent: Silent, headers: R
 }
 
 function notOpen(tab: SessionId, failures: unknown[]): Error {
-  if (failures.length === 0) return new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call external_tabs({})`)
+  if (failures.length === 0) return new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call list_tabs`)
   return new Error(
     `cannot tell whether tab ${tab} is open: no engine that answered has it, and ${failures.map(errorText).join('; ')}; nothing ran`,
     {cause: new AggregateError(failures, 'the tab probes failed')},
   )
 }
 
-function liveEngines(home: string): Promise<Checked> {
-  return homeRead(home, checkEngines(home, {timeoutMs: PROBE_MS}))
-}
-
-function homeRead(home: string, reading: Promise<Checked>): Promise<Checked> {
-  return reading.catch((error: unknown) => {
-    throw new Error(`cannot read the conciv home folder ${home}: ${errorText(error)}`, {cause: error})
-  })
+async function listTabsCall(home: string): Promise<Reply> {
+  return listTabs(home).then(
+    (listing): Reply => ({content: [{type: 'text', text: JSON.stringify(listing)}]}),
+    (error: unknown) => failed(errorText(error)),
+  )
 }
 
 function failedProbe(root: string, failure: unknown): Error {
@@ -602,6 +623,11 @@ function logHub(message: string, error: unknown): void {
   process.stderr.write(`conciv mcp: ${message}: ${errorText(error)}\n`)
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function notePageTools(discovered: CodeDiscoverResult, toolNames: string[]): CodeDiscoverResult {
+  const refused = DiscoverErrorsSchema.safeParse(discovered.tools)
+  const askedPage = toolNames.some((toolName) =>
+    [PAGE_TOOL_PREFIX, `${CODE_MODE_EXTERNAL_PREFIX}${PAGE_TOOL_PREFIX}`].some((prefix) => toolName.startsWith(prefix)),
+  )
+  if (!refused.success || !askedPage) return discovered
+  return {...discovered, tools: {...refused.data, errors: [...refused.data.errors, PAGE_TOOLS_NOTE]}}
 }

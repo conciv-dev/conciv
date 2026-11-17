@@ -28,10 +28,6 @@
       "types": "./dist/defs.d.ts",
       "import": "./dist/defs.js"
     },
-    "./builtins": {
-      "types": "./dist/builtins.d.ts",
-      "import": "./dist/builtins.js"
-    },
     "./cards": {
       "browser": {
         "types": "./dist/cards.d.ts",
@@ -57,7 +53,6 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
-    "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

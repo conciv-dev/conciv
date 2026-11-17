@@ -1,15 +1,11 @@
 import {toolError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {z} from 'zod'
 import {unreadableMessage} from '../../server/adapters/image.js'
 import {captureDef, ViewportResultSchema, type TargetInput, type TargetResult} from '../../shared/defs.js'
 import type {Enricher, Raster, ServerStep, TargetNode, TextReader} from '../../shared/types.js'
 
-const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
-
 export async function liveRoute(page: ServerToolPageAccess): Promise<string> {
-  const {pathname, search} = PageRouteSchema.parse(await page.call('page_route', {}))
-  return `${pathname}${search}`
+  return ViewportResultSchema.parse(await page.call(captureDef.name, {probe: true})).route
 }
 
 async function enrich(input: {node: TargetNode; raster: Raster; enrichers: Enricher[]}): Promise<TargetNode> {

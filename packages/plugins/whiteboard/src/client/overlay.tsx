@@ -6,7 +6,7 @@ import {z} from 'zod'
 export type SurfaceModule = typeof import('./canvas-surface.js')
 
 const NOTICE =
-  'fixed inset-x-0 bottom-4 mx-auto w-fit max-w-[calc(100vw-2rem)] pointer-events-none text-chat-sm text-chat-text-2 bg-chat-panel border border-chat-line rounded-chat-surface-lg shadow-chat-lg px-3 py-2'
+  'fixed inset-x-4 bottom-4 mx-auto w-fit pointer-events-none text-chat-sm text-chat-text-2 bg-chat-panel border border-chat-line rounded-chat-surface-lg shadow-chat-lg px-3 py-2'
 
 function Notice(props: {children: string}): JSX.Element {
   return (

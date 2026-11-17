@@ -163,7 +163,7 @@ export const CaptureResultSchema = z.object({
   components: z.array(LiveComponentSchema),
 })
 
-export const ViewportResultSchema = z.object({width: z.number(), height: z.number()})
+export const ViewportResultSchema = z.object({width: z.number(), height: z.number(), route: z.string()})
 
 export const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
 
@@ -190,7 +190,7 @@ export const StatusInputSchema = z.object({route: z.string().optional().describe
 export const CaptureInputSchema = z.object({
   width: Width.optional().describe('viewport width in px; defaults to the live tab width'),
   height: Width.optional().describe('viewport height in px'),
-  probe: z.boolean().optional().describe('only report the live viewport size'),
+  probe: z.boolean().optional().describe('only report the live viewport size and route'),
   clear: z.boolean().optional().describe('remove the hidden capture frame'),
   timeout: z.number().int().positive().optional().describe('how long the page may take to answer, in ms'),
 })
