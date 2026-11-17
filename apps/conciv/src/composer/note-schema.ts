@@ -1,6 +1,7 @@
-import {omit} from 'es-toolkit'
+import {isUndefined, omit, omitBy} from 'es-toolkit'
 import {z} from 'zod'
 import {NoteCommentSchema, type NoteComment} from '@conciv/protocol/chat-message-types'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 
 export const NoteContextItem = NoteCommentSchema.extend({commentId: z.string()})
 
@@ -14,8 +15,8 @@ export function contextItemKey(item: NoteContextItem) {
   return `note:${item.origin}:c=${item.commentId}`
 }
 
-export function noteValue(note: NoteComment) {
-  return z.json().parse(JSON.parse(JSON.stringify(note)))
+export function noteValue(note: NoteComment): DraftItem['value'] {
+  return omitBy({...note, live: note.live && omitBy(note.live, isUndefined)}, isUndefined)
 }
 
 export function noteItem(note: NoteContextItem) {
