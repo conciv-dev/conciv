@@ -137,6 +137,29 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(rectangleTool).not.toBeChecked()
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
 
+      const chatLayers = [
+        {
+          opener: page.getByRole('button', {name: 'More composer actions'}),
+          layer: page.getByRole('menu', {name: 'More composer actions'}),
+        },
+        {
+          opener: page.getByRole('button', {name: /, session options$/}),
+          layer: page.getByRole('dialog', {name: 'Session options'}),
+        },
+        {
+          opener: page.getByRole('button', {name: /^Model: /}),
+          layer: page.getByRole('textbox', {name: 'Search models'}),
+        },
+      ]
+      for (const {opener, layer} of chatLayers) {
+        await opener.click()
+        await expect(layer).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(layer).toBeHidden()
+        await expect(rectangleTool).toBeVisible()
+        await expect(composer).toBeVisible()
+      }
+
       expect(
         Pending.parse(
           await widget.kit.callTool('whiteboard_canvas_draw', {
