@@ -69,10 +69,11 @@ async function brokenWhile(
 
 export function failRpcCalls(
   page: Page,
-  options: {path: readonly string[]; status?: number},
+  options: {path: readonly string[]; input?: RpcInputPattern; status?: number},
 ): Promise<RpcFaultInjector> {
   const status = options.status ?? 500
-  return brokenWhile(page, pathMatcher(options.path), answeredBy(page, options.path, status), (call) => {
+  const answered = answeredBy(page, options.path, status, options.input)
+  return brokenWhile(page, callMatcher(options.path, options.input), answered, (call) => {
     call
       .reply(status)
       .catch((error: unknown) => console.error('[extension-testkit] the rpc failure reply failed', error))

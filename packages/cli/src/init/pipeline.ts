@@ -19,7 +19,7 @@ import {viteStep} from './steps/framework/vite.js'
 import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
 import {connectAgentStep} from './steps/harness/connect-agent.js'
-import {consentFile, writeConsent} from './steps/harness/consent.js'
+import {consentFiles, writeConsent} from './steps/harness/consent.js'
 import {harnessInitStep} from './steps/harness/install-harness.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
 import {
@@ -232,7 +232,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return {outcome: 'planned', plan: approved.plan}
   }
   const backups = guardBackups()
-  backups.remember(captureFile(consentFile(options.cwd)))
+  for (const file of consentFiles(options.cwd)) backups.remember(captureFile(file))
   writeConsent(options.cwd, approved.selections.harnesses)
   const settings: RunSettings = {
     cwd: options.cwd,

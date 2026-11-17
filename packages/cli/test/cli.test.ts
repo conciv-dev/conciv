@@ -1475,6 +1475,7 @@ describe('cli', () => {
     it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
       const home = tempDir('conciv-home-')
       const first = await engineWithTab(home)
+      await first.page.sessions.rename({sessionId: first.sessionId, title: 'held by two servers'})
       const second = await engineWithTab(home, {shared: first})
       try {
         expect(await conciv(tmpdir(), home, ['tools', 'tabs', '--tab', first.sessionId])).toMatchObject({
@@ -1921,7 +1922,9 @@ describe('cli', () => {
             error: {
               kind: 'user',
               code: 'NO_PAGE_CLIENT',
-              message: expect.stringContaining('page_snapshot: no widget connected to session'),
+              message: expect.stringContaining(
+                'page_snapshot: the page is showing another session; switch back to this session to use page tools',
+              ),
             },
           },
         })
@@ -2831,6 +2834,7 @@ describe('cli', () => {
         try {
           const task = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
           expect(await client.poll(task.taskId)).toMatchObject({taskId: task.taskId, status: 'working'})
+          await engine.page.sessions.rename({sessionId: engine.sessionId, title: 'outlives the restart'})
           await engine.engine.stop()
           restarted.engine = await engineWithTab(home, {
             hubAccess: 'open',

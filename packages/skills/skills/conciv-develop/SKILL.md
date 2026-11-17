@@ -12,11 +12,7 @@ metadata:
 You are a developer (or an agent working in a developer's app) adding a `conciv/extensions/*.tsx`
 file to teach the conciv agent widget a new capability, or publishing a package that does the same
 for other people's apps. Everything here is the public contract of `@conciv/extension`, installed
-as a normal dependency. If you are instead working **inside the conciv monorepo itself** — editing
-the built-in whiteboard/terminal/recorder extensions, or the extension package's own source — the
-conciv repo has its own internal equivalent of this skill for contributors
-(https://github.com/conciv-dev/conciv, `packages/harness/plugins/claude/skills/conciv-extensions/`),
-which may describe internal scaffolding tools this skill does not cover.
+as a normal dependency.
 
 ## The shape: one file, two runtimes
 
@@ -415,4 +411,3 @@ non-installed extensions).
 - `apps/site/content/docs/extending/index.mdx`
 - `apps/site/content/docs/extending/your-first-extension.mdx`
 - `apps/site/content/docs/extending/install-first-party.mdx`
-- `packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md`
