@@ -18,6 +18,7 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - engine entry, app composition, page bus, tool registry
   - `test/rpc/`: type test for the page error map (`page-error-map.test-d.ts`)
+  - `test/core-api.it.test.ts`: `ONE_PIXEL_WEBP` is a real 1x1 WebP (base64), encoded once by headless Chromium's `canvas.toDataURL('image/webp')`, the page screenshots' fixture
 
 ## Invariants
 

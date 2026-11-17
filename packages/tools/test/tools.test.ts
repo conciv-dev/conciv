@@ -17,7 +17,10 @@ describe('builtins', () => {
   function registryWith(bundler: BundlerBridge | undefined) {
     const registry = createToolRegistry()
     for (const tool of BUILTIN_SERVER_TOOLS)
-      registry.register(tool, {owner: 'a test registrant', context: {bundler: () => bundler}})
+      registry.register(tool, {
+        owner: 'a test registrant',
+        context: {bundler: () => bundler, hotUpdate: () => Promise.reject(new Error('no page is connected'))},
+      })
     registry.register(BUILTIN_TABS_TOOL, {
       owner: 'a test registrant',
       context: {listTabs: async () => ({tabs: [], unreachable: []})},
@@ -61,20 +64,19 @@ describe('builtins', () => {
 
     it('waits for the page to apply the hot update after a reload', async () => {
       const asked: unknown[] = []
-      const registry = createToolRegistry({
-        pageCaller: async (tool, input) => {
-          asked.push({name: tool.name, input})
-          return {supported: true, applied: true, waitedMs: 42, error: null}
-        },
-      })
+      const registry = createToolRegistry()
+      const hotUpdate = async (sessionId: string, timeout: number) => {
+        asked.push({sessionId, timeout})
+        return {applied: true, waitedMs: 42}
+      }
       for (const tool of BUILTIN_SERVER_TOOLS)
-        registry.register(tool, {owner: 'a test registrant', context: {bundler: () => fakeBundler()}})
+        registry.register(tool, {owner: 'a test registrant', context: {bundler: () => fakeBundler(), hotUpdate}})
       await expect(registry.call('server_reload', {file: 'src/a.ts'}, {request: testRequest})).resolves.toEqual({
         ok: true,
         applied: true,
         waitedMs: 42,
       })
-      expect(asked).toEqual([{name: 'page_hmr', input: {timeout: 5000}}])
+      expect(asked).toEqual([{sessionId: testRequest.sessionId, timeout: 5000}])
     })
 
     it('still reloads when no page is connected to wait on', async () => {

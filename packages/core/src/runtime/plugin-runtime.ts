@@ -41,6 +41,7 @@ import {permissionSessions} from './permission-cards.js'
 import {
   provideApp,
   provideBundlerSource,
+  provideConfiguredPermissions,
   provideConfiguredPolicies,
   provideEditorSource,
   provideExtensionSlugs,
@@ -57,7 +58,7 @@ export type PluginRuntimeInput = {
   home: string
   fallbackRoots: string
   engineId: string
-  config: Pick<ResolvedConcivConfig, 'plugins' | 'policies'>
+  config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
   post: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
@@ -125,6 +126,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideEditorSource(input.openInEditor),
         provideExtensionSlugs(input.extensionSlugs),
         provideConfiguredPolicies(input.config.policies),
+        provideConfiguredPermissions(input.config.permissions),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),
         provideHarnessModels(input.harness, input.signal),
         provideSessions(input.sessions),

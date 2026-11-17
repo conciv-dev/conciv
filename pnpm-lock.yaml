@@ -42,6 +42,9 @@ catalogs:
     '@jridgewell/gen-mapping':
       specifier: ^0.3.13
       version: 0.3.13
+    '@jridgewell/trace-mapping':
+      specifier: 0.3.31
+      version: 0.3.31
     '@libsql/client':
       specifier: ^0.18.0
       version: 0.18.0
@@ -809,6 +812,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../packages/harness-testkit
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../../packages/plugin-page
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../packages/plugin-testkit
@@ -2274,6 +2280,9 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/page':
         specifier: workspace:^
         version: link:../page
@@ -2289,22 +2298,88 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../ui-kit-system
+      '@solid-primitives/event-listener':
+        specifier: 'catalog:'
+        version: 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/map':
+        specifier: 'catalog:'
+        version: 0.7.4(solid-js@1.9.17)
+      '@tanstack/hotkeys':
+        specifier: 'catalog:'
+        version: 0.18.0
+      '@tanstack/solid-pacer':
+        specifier: 'catalog:'
+        version: 0.24.0(solid-js@1.9.17)
+      '@unocss/reset':
+        specifier: 'catalog:'
+        version: 66.12.0
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
+      ai-motion:
+        specifier: 'catalog:'
+        version: 0.4.8
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../ui-kit-chat
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: 'catalog:'
+        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tiptap/core':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/pm@3.32.1)
+      '@tiptap/extension-document':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/extension-paragraph':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/extension-text':
+        specifier: 'catalog:'
+        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
+      '@tiptap/pm':
+        specifier: 'catalog:'
+        version: 3.32.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2314,6 +2389,12 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/bundle-size:
     devDependencies:
@@ -2426,6 +2507,9 @@ importers:
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugin-page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2460,6 +2544,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/plugin-page-testkit':
+        specifier: workspace:*
+        version: link:../plugin-page-testkit
       '@conciv/serve':
         specifier: workspace:^
         version: link:../serve
@@ -2530,6 +2617,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/plugin-page-testkit':
+        specifier: workspace:^
+        version: link:../plugin-page-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -2697,6 +2787,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/plugin-page-testkit':
+        specifier: workspace:*
+        version: link:../plugin-page-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -2882,6 +2975,9 @@ importers:
       '@conciv/browser-fixture':
         specifier: workspace:*
         version: link:../browser-fixture
+      '@conciv/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
@@ -4602,6 +4698,9 @@ importers:
 
   packages/plugin-page:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
@@ -4609,12 +4708,18 @@ importers:
         specifier: workspace:^
         version: link:../protocol
       '@jridgewell/trace-mapping':
-        specifier: 0.3.31
+        specifier: 'catalog:'
         version: 0.3.31
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/extension-page':
+        specifier: workspace:^
+        version: link:../extensions/page
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -4636,6 +4741,31 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
+  packages/plugin-page-testkit:
+    dependencies:
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../plugin-page
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   packages/plugin-testkit:
     dependencies:
@@ -5457,9 +5587,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -20736,7 +20863,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.11.3
       '@emnapi/runtime': 1.11.3
-      '@napi-rs/wasm-runtime': 1.2.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
+      '@napi-rs/wasm-runtime': 1.2.7(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
     optional: true
 
   '@astrojs/compiler-binding-win32-arm64-msvc@0.5.2':
@@ -22715,13 +22842,6 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)':
-    dependencies:
-      '@emnapi/core': 1.11.0
-      '@emnapi/runtime': 1.11.0
-      '@tybys/wasm-util': 0.10.3
-    optional: true
-
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
       '@emnapi/core': 1.11.1
@@ -22743,13 +22863,6 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)':
-    dependencies:
-      '@emnapi/core': 1.9.2
-      '@emnapi/runtime': 1.9.2
-      '@tybys/wasm-util': 0.10.3
-    optional: true
-
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@1.11.3)':
     dependencies:
       '@emnapi/core': 2.0.0-beta.3
@@ -22761,6 +22874,27 @@ snapshots:
     dependencies:
       '@emnapi/core': 2.0.0-beta.3
       '@emnapi/runtime': 2.0.0-beta.3
+      '@tybys/wasm-util': 0.10.3
+    optional: true
+
+  '@napi-rs/wasm-runtime@1.2.7(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)':
+    dependencies:
+      '@emnapi/core': 1.11.0
+      '@emnapi/runtime': 1.11.0
+      '@tybys/wasm-util': 0.10.3
+    optional: true
+
+  '@napi-rs/wasm-runtime@1.2.7(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
+    dependencies:
+      '@emnapi/core': 1.11.3
+      '@emnapi/runtime': 1.11.3
+      '@tybys/wasm-util': 0.10.3
+    optional: true
+
+  '@napi-rs/wasm-runtime@1.2.7(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)':
+    dependencies:
+      '@emnapi/core': 1.9.2
+      '@emnapi/runtime': 1.9.2
       '@tybys/wasm-util': 0.10.3
     optional: true
 
@@ -23493,7 +23627,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.9.2
       '@emnapi/runtime': 1.9.2
-      '@napi-rs/wasm-runtime': 1.2.6(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
+      '@napi-rs/wasm-runtime': 1.2.7(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
     optional: true
 
   '@oxc-parser/binding-wasm32-wasi@0.141.0':
@@ -23612,7 +23746,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.11.0
       '@emnapi/runtime': 1.11.0
-      '@napi-rs/wasm-runtime': 1.2.6(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)
+      '@napi-rs/wasm-runtime': 1.2.7(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)
     optional: true
 
   '@oxc-resolver/binding-win32-arm64-msvc@11.21.2':

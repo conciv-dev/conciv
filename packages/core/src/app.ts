@@ -32,10 +32,17 @@ import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import {OUTSIDE_SESSION_TARGET, type ChatTool, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
+import {
+  OUTSIDE_SESSION_TARGET,
+  type ChatTool,
+  type HarnessSessionId,
+  type SessionId,
+  type SessionRecord,
+} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
+  isDeletedRow,
   ensureAgentRow,
   ensureRow,
   nativeIdFor,
@@ -55,9 +62,9 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {memoize} from 'es-toolkit'
+import {isNotNil, memoize, pickBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
-import {PluginHooks, SessionSchema} from '@conciv/plugin-host'
+import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
@@ -74,6 +81,7 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
+import {makePagePlugin} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
@@ -88,7 +96,6 @@ import {
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
-import {makePagePlugin} from './page/page-plugin.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
@@ -286,7 +293,7 @@ function sessionPort(
             deletedAt: row.deletedAt,
           }
     },
-    ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
+    ensure: (sessionId) => ensureRow(rows, sessionId),
     recordNativeId: (sessionId, harnessId, nativeId) => recordNativeId(db, sessionId, harnessId, nativeId),
     recordUsage: (sessionId, usage) => recordSessionUsage(db, sessionId, usage),
     recordContextTokens: async (sessionId, contextTokens) => {
@@ -420,6 +427,13 @@ function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness 
   }
 }
 
+function publishCreated(born: SessionRecord) {
+  const sessionID = SessionSchema.Id.make(born.id)
+  return Bus.Service.use((bus) =>
+    bus.publish(SessionEvent.Created, born.title === null ? {sessionID} : {sessionID, title: born.title}),
+  ).pipe(Effect.asVoid)
+}
+
 async function mcpSessionId(
   rows: RowScope,
   header: SessionId | null,
@@ -477,12 +491,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
+    hotUpdate: (sessionId: SessionId, timeout: number) => pagePlugin.hmrWait({sessionId, timeout}),
     listTabs: outsideTabs.list,
     pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
     queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
   const {registry, stream} = primitives
-  const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
+  const rows: RowScope = {
+    db,
+    harnessKind: harness.id,
+    cwd: opts.cwd,
+    publishCreated: (born) => pluginHost.runPromise(publishCreated(born)),
+  }
   const harnessFor = (sessionId: SessionId): HarnessAdapter => {
     const kind = currentRow(db, sessionId)?.harnessKind
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
@@ -495,7 +515,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
-      await ensureRow(db, sessionId, harness.id, opts.cwd)
+      await ensureRow(rows, sessionId)
       await recordNativeId(db, sessionId, harnessFor(sessionId).id, token)
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
@@ -572,7 +592,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
-    if (run.phase === 'completed' && !owesFollowUp(primitives.page.queues, sessionId)) {
+    if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
       const idled = await pluginHost
         .runPromiseExit(
           FiberMap.run(
@@ -592,11 +612,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         await idleFailed(sessionId, run.runId, Cause.squash(idled.cause))
     }
     if (run.phase === 'aborted') {
-      holdForNextReply(primitives.page.queues, sessionId)
+      await holdForNextReply(pagePlugin.delivery, sessionId).catch((error: unknown) =>
+        logError(`[core] the page queue results of ${sessionId} could not wait for the next reply: ${String(error)}`),
+      )
       return
     }
     followUpOwedQueues(sessionId)
   }
+  const owedFollowUp = (sessionId: SessionId): Promise<boolean> =>
+    owesFollowUp(pagePlugin.delivery, sessionId).catch((error: unknown) => {
+      logError(`[core] the page queue results owed to ${sessionId} could not be read: ${String(error)}`)
+      return false
+    })
   const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
@@ -623,7 +650,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     engineId,
     config: opts.cfg,
     plugins: opts.plugins ?? [],
-    post: [concivPage],
+    post: [
+      {
+        ...concivPage,
+        setup: (context) =>
+          concivPage.setup({
+            ...context,
+            options: pickBy(
+              {pageReplyTimeoutMs: opts.pageReplyTimeoutMs, queuedActionTimeoutMs: opts.queuedActionTimeoutMs},
+              isNotNil,
+            ),
+          }),
+      },
+    ],
     harness,
     signal: engineLife.signal,
     harnessSource: {
@@ -634,7 +673,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: opts.bridge,
     openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
-    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: primitives.page.queues}),
+    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
   })
   const pluginHost: PluginHost = plugins.runtime
   const startFailed =
@@ -753,6 +792,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     cwd: opts.cwd,
     basePath,
     db,
+    rows,
     plane,
     signal: engineLife.signal,
   }
@@ -769,21 +809,22 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
-    void startQueueFollowUp(primitives.page.queues, planeRef.current, sessionId).catch((error: unknown) =>
-      logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
+    void startQueueFollowUp(pagePlugin.delivery, planeRef.current, sessionId, (id) => isDeletedRow(db, id)).catch(
+      (error: unknown) =>
+        logError(`[core] the page queue follow-up turn for ${sessionId} could not start: ${String(error)}`),
     )
   }
 
-  primitives.page.queues.finished((record) => {
-    const result = record.result
-    if (result === null) return
-    const scope = runtime.forSession(record.sessionId)
-    const chunks = pageQueueChunks({result, record, live: plane.driving(record.sessionId)})
+  await pagePlugin.followFinished((finished) => {
+    const {result, sessionId} = finished
+    if (isDeletedRow(db, sessionId)) return
+    const scope = runtime.forSession(sessionId)
+    const chunks = pageQueueChunks({result, record: finished, live: plane.driving(sessionId)})
     chunks.forEach((chunk) => scope.stream.publish(chunk))
     void scope.run
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
-    if (!primitives.page.queues.fromHub(record)) followUpOwedQueues(record.sessionId)
+    if (!pagePlugin.fromHub(sessionId, finished.toolCallId)) followUpOwedQueues(sessionId)
   })
 
   const admitOutside = async (
@@ -801,16 +842,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       until: AbortSignal.any([signal, AbortSignal.timeout(OUTSIDE_DECISION_WAIT_MS)]),
     })
     if (refusal === null) return null
-    return refusal.reason === 'missing' ? refusal.message : outsideRefusal(scope, client, refusal.reason)
+    return refusal.reason === 'missing'
+      ? refusal.message
+      : outsideRefusal(pagePlugin.tabs, scope, client, refusal.reason)
   }
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const mcp: McpVars['mcp'] = {
     codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-    hubCall: (sessionId, callId) => primitives.page.queues.hubCall(sessionId, callId),
-    hubReplied: (sessionId, callIds) => primitives.page.queues.hubReplied(sessionId, callIds),
-    finishedQueues: (sessionId, fromHub) => primitives.page.queues.undelivered(sessionId, fromHub),
-    startedQueues: (sessionId, toolCallIds) => primitives.page.queues.startedBy(sessionId, toolCallIds),
+    hubCall: pagePlugin.hubCall,
+    hubReplied: pagePlugin.hubReplied,
+    finishedQueues: pagePlugin.undelivered,
+    startedQueues: pagePlugin.startedBy,
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     driving: (sessionId) => plane.driving(sessionId),
     outsideCapabilities: async (sessionId) =>
@@ -839,12 +882,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ptys,
     code: mcp,
     tabs: createTabs({
-      bus: primitives.page.bus,
+      attachedSessions: pagePlugin.attachedSessions,
+      pageTabs: pagePlugin.tabs,
       session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
       root: opts.cwd,
       instructions: systemPromptText,
     }),
-    queues: primitives.page.queues,
+    queues: pagePlugin,
+    queueWait: pagePlugin.queueWait,
     pluginHost,
     eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,
@@ -977,7 +1022,7 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
     })
   }
   if (sessionId !== undefined) {
-    await ensureRow(rows.db, sessionId, rows.harnessKind, rows.cwd).catch((error: unknown) => {
+    await ensureRow(rows, sessionId).catch((error: unknown) => {
       throw new Error(`conciv: the configured conciv session "${sessionId}" could not be ensured`, {cause: error})
     })
   }

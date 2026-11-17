@@ -17,6 +17,16 @@ const options = {
   },
 } as const
 
+export const Created = Event.durable({
+  type: 'session.created',
+  ...options,
+  schema: {
+    ...Base,
+    title: Schema.String.pipe(optional),
+  },
+})
+export type Created = typeof Created.Type
+
 export const Renamed = Event.durable({
   type: 'session.renamed',
   ...options,
@@ -103,6 +113,7 @@ export const Synthetic = Event.durable({
 export type Synthetic = typeof Synthetic.Type
 
 export const Definitions = Event.inventory(
+  Created,
   Renamed,
   Viewed,
   Archived,
