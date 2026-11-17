@@ -348,13 +348,13 @@ describe('the tanstack plugin with a page attached', () => {
     const defaulted = useTool(kit, 'router_invalidate')
     expect(await nextControl()).toMatchObject({type: 'command', connectionId: again.connectionId})
     unfocused.detach()
-    expect(await toolFailure(routed)).toContain('[tanstack.disconnected] The page connection closed')
+    expect(await toolFailure(routed)).toContain('[tanstack.disconnected_after_dispatch] The page connection closed')
 
     const replacing = new AbortController()
     onTestFinished(() => replacing.abort())
     const replacement = {sessionId: session, connectionId: again.connectionId, version: 1}
     pluginCall(kit, 'attach', replacement, replacing.signal).catch(() => undefined)
-    expect(await toolFailure(defaulted)).toContain('[tanstack.disconnected] The page connection closed')
+    expect(await toolFailure(defaulted)).toContain('[tanstack.disconnected_after_dispatch] The page connection closed')
     expect(await again.attached).toBe('replaced')
     expect(await nextControl()).toEqual({type: 'attached', connectionId: again.connectionId, version: 1})
     expect(await useTool(kit, 'tabs_list')).toEqual({tabs: [page.tab], focusedTabId: null})
