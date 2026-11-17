@@ -50,7 +50,6 @@ export default Plugin.define({
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
     const operations = makePageOperations(ctx)
-    const unsupported = new Set<string>()
     const routed = () => ctx.sessions.current()
 
     const tab = (): Tab => ({
@@ -69,10 +68,7 @@ export default Plugin.define({
 
         if (end.outcome === 'born') continue
 
-        if (end.outcome === 'unsupported' || end.outcome === 'unavailable')
-          return void unsupported.add(session.server.id)
-
-        if (end.outcome === 'replaced' || !end.attached) return
+        if (end.outcome !== 'closed' || !end.attached) return
         await woken(signal)
 
         if (signal.aborted) return
@@ -83,7 +79,7 @@ export default Plugin.define({
       () => {
         const session = routed()
 
-        return session?.server.compatible && !unsupported.has(session.server.id) ? session : undefined
+        return session?.server.compatible && session.server.connected ? session : undefined
       },
       (session) => {
         const controller = new AbortController()
