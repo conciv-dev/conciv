@@ -393,6 +393,10 @@ describe('webpack and rspack', () => {
         const publicDir = writeFixtureApp(root)
         const compiler = testCompiler(bundler, root, 'development', {stateRoot: root})
         expect(await compiler.run()).toContain(join(root, GENERATED_CLIENT))
+        const generated = await readFile(join(root, GENERATED_CLIENT), 'utf8')
+        expect(generated).not.toContain(fileURLToPath(new URL('..', import.meta.url)))
+        expect(generated).not.toContain('/dist/')
+        expect(generated).toContain(`startConcivWidget(${CONCIV_DEFAULT_PORT})`)
         const site = await serveDirectory(publicDir)
         onTestFinished(site.close)
 
