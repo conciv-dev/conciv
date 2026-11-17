@@ -221,4 +221,67 @@ describe('the test card of the test-runner plugin', () => {
       await widget.close()
     }
   }, 240_000)
+
+  test('prefills a fix that names the project-relative file when two failing files share their last two segments', async ({
+    browser,
+  }) => {
+    const stateRoot = realpathSync(tempDir('conciv-test-runner-card-paths-'))
+    const failureIn = (area: string) => ({
+      file: join(stateRoot, area, 'src', 'check.test.ts'),
+      name: `the ${area} check fails`,
+      message: `expected ${area} to pass`,
+      stack: 'at check.test.ts:3:9',
+      line: 3,
+    })
+    const web = failureIn('web')
+    const api = failureIn('api')
+    const result = {
+      summary: {passed: 0, failed: 2, skipped: 0, durationMs: 120},
+      failures: [web, api],
+      tests: [
+        {id: 'web-1', file: web.file, name: web.name, state: 'fail', durationMs: 3, error: web},
+        {id: 'api-1', file: api.file, name: api.name, state: 'fail', durationMs: 3, error: api},
+      ],
+    }
+    const widget = await openPluginWidget(browser, {
+      id: 'fake',
+      plugins: [PACKAGE_DIR],
+      widgetBundle: WIDGET_BUNDLE,
+      files: fixtureFiles(),
+      stateRoot,
+    })
+    try {
+      const page = widget.page
+      await rpcSocketFor(page).installed
+      await page.reload({waitUntil: 'domcontentloaded'})
+      widget.kit.harness.script.scriptTurn({
+        toolCalls: [{name: 'test_runner_run', input: {}, result}],
+        text: 'Two checks fail',
+      })
+
+      await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click()
+      await composer.pressSequentially('run the tests')
+      await composer.press('Enter')
+      await expect(page.getByText('Two checks fail', {exact: true})).toBeVisible({timeout: 30_000})
+
+      const webTest = page.getByRole('group', {name: web.name, exact: true})
+      await webTest.getByText(web.name, {exact: true}).click()
+      await webTest.getByRole('button', {name: 'Fix this', exact: true}).click()
+      await expect(composer).toContainText(`The test "${web.name}" in web/src/check.test.ts is failing`)
+
+      await composer.click()
+      await composer.press('ControlOrMeta+a')
+      await composer.press('Delete')
+      await expect(composer).not.toContainText(web.name)
+
+      const apiTest = page.getByRole('group', {name: api.name, exact: true})
+      await apiTest.getByText(api.name, {exact: true}).click()
+      await apiTest.getByRole('button', {name: 'Fix this', exact: true}).click()
+      await expect(composer).toContainText(`The test "${api.name}" in api/src/check.test.ts is failing`)
+    } finally {
+      await widget.close()
+    }
+  }, 240_000)
 })
