@@ -3290,9 +3290,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@conciv/page':
-        specifier: workspace:^
-        version: link:../../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
@@ -4339,9 +4336,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@zumer/snapdom':
-        specifier: 'catalog:'
-        version: 3.3.3
       bippy:
         specifier: 'catalog:'
         version: 0.6.1(react@19.3.1)
