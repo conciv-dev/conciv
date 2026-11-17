@@ -191,6 +191,12 @@ export interface MountedSession extends SessionRef {
   readonly directory: string
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly local: boolean | undefined
+  readonly run: SessionRun
+}
+
+export interface SessionRun {
+  status(): 'idle' | 'running'
+  interrupt(): Promise<{interrupted: boolean}>
 }
 
 export interface SessionScreen {

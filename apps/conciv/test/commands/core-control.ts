@@ -1,6 +1,7 @@
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {createServer, type Socket} from 'node:net'
 import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -12,6 +13,7 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -52,10 +54,11 @@ export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
   | {kind: 'garble'; path: string[]; input?: unknown}
-  | {kind: 'gate'; path?: string[]}
+  | {kind: 'gate'; path?: string[]; input?: unknown}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
   | {kind: 'handshake-hold'}
+  | {kind: 'push-handshake-hold'}
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
@@ -186,6 +189,11 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
     await kit.cleanup()
   }
 }
+
+const pagePluginPaths: BrowserCommand<[]> = (): {engine: string; rpc: string} => ({
+  engine: fileURLToPath(import.meta.resolve('@conciv/plugin-page')),
+  rpc: fileURLToPath(import.meta.resolve('@conciv/plugin-page/rpc')),
+})
 
 const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content): void => {
   requireKit(ctx).writeProjectFile(path, content)
@@ -447,6 +455,42 @@ async function holdEngineHandshakes(ctx: BrowserCommandContext): Promise<Fault> 
   }
 }
 
+async function holdPushHandshakes(ctx: BrowserCommandContext): Promise<Fault> {
+  const host = new URL(requireKit(ctx).origin).host
+  const held: {open: boolean; handshakes: (() => void)[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    handshakes: [],
+    waiters: [],
+  }
+  await ctx.page.routeWebSocket(
+    (url) => url.host === host && url.pathname.endsWith(PUSH_WS_PATH),
+    async (socket) => {
+      if (!held.open) {
+        await new Promise<void>((resolve) => {
+          held.handshakes.push(resolve)
+          for (const waiter of held.waiters.filter((entry) => held.handshakes.length >= entry.count)) waiter.deliver()
+        })
+      }
+      socket.connectToServer()
+    },
+  )
+  const open = (): Promise<void> => {
+    held.open = true
+    for (const handshake of held.handshakes.splice(0)) handshake()
+    return Promise.resolve()
+  }
+  return {
+    pending: () => held.handshakes.length,
+    awaitCaptured: (count) =>
+      held.handshakes.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () => Promise.reject(new Error('a held push handshake fault has no single call to await')),
+    release: open,
+    dispose: open,
+  }
+}
+
 async function holdEngineCloses(ctx: BrowserCommandContext): Promise<Injector> {
   const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
   await rpcSocket.installed
@@ -671,13 +715,14 @@ function brokenRpcCalls(
 
 async function createFault(ctx: BrowserCommandContext, handle: string, spec: FaultSpec): Promise<Fault> {
   const testkit = await importTestkit(ctx)
-  if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, {...pathOptions(spec.path), input: spec.input})
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
   if (spec.kind === 'chat-frame-gate') return gateChatFrames(ctx, spec.onRelease)
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
+  if (spec.kind === 'push-handshake-hold') return holdPushHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
@@ -704,30 +749,37 @@ const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<unkn
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => requireFault(ctx, handle).pending()
 
-const awaitFaultPending: BrowserCommand<[string, number, number?]> = async (
-  ctx,
-  handle,
-  count,
-  timeoutMs = AWAIT_RPC_TIMEOUT_MS,
-): Promise<void> => {
+async function withinDeadline(waiting: Promise<void>, timeoutMs: number, missed: () => string): Promise<void> {
   const timer: {value: ReturnType<typeof setTimeout> | null} = {value: null}
   const deadline = new Promise<never>((_, reject) => {
-    timer.value = setTimeout(
-      () =>
-        reject(
-          new Error(
-            `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
-          ),
-        ),
-      timeoutMs,
-    )
+    timer.value = setTimeout(() => reject(new Error(missed())), timeoutMs)
   })
   try {
-    await Promise.race([requireFault(ctx, handle).awaitCaptured(count), deadline])
+    await Promise.race([waiting, deadline])
   } finally {
     if (timer.value) clearTimeout(timer.value)
   }
 }
+
+const awaitFaultPending: BrowserCommand<[string, number, number?]> = (
+  ctx,
+  handle,
+  count,
+  timeoutMs = AWAIT_RPC_TIMEOUT_MS,
+): Promise<void> =>
+  withinDeadline(
+    requireFault(ctx, handle).awaitCaptured(count),
+    timeoutMs,
+    () =>
+      `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
+  )
+
+const awaitPushSocketLive: BrowserCommand<[]> = (ctx): Promise<void> =>
+  withinDeadline(
+    requirePush(ctx).awaitLive(),
+    AWAIT_RPC_TIMEOUT_MS,
+    () => `no push socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+  )
 
 const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
   const box = await ctx.iframe.getByRole('button', {name, exact: true}).boundingBox()
@@ -800,9 +852,11 @@ export const coreCommands = {
   hoverButton,
   bootCore,
   closeCore,
+  pagePluginPaths,
   writeProjectFile,
   pushSocketsOpened,
   pushSocketsLive,
+  awaitPushSocketLive,
   rpcSocketsOpened,
   printedCode,
   requestCode,

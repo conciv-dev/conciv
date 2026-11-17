@@ -63,9 +63,11 @@ declare module 'vitest/internal/browser' {
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
+    pagePluginPaths: () => Promise<{engine: string; rpc: string}>
     writeProjectFile: (path: string, content: string) => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
+    awaitPushSocketLive: () => Promise<void>
     rpcSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>

@@ -1,6 +1,7 @@
-import {mkdirSync, writeFileSync} from 'node:fs'
+import {writeFileSync} from 'node:fs'
 import {findPackageJSON} from 'node:module'
 import {dirname, join} from 'node:path'
+import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import {WIDGET_START_SPECIFIER} from './nextjs.js'
 import {isEnginePort} from './widget-start.js'
 
@@ -21,14 +22,15 @@ export function writeWidgetClient(root: string, port: number): string | undefine
     )
     return undefined
   }
-  const path = join(root, '.conciv', `widget-client.${String(port)}.gen.js`)
+  const stateDir = concivStateDir(root)
+  const path = join(stateDir, `widget-client.${String(port)}.gen.js`)
   const source = [
     `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
     `startConcivWidget(${String(port)})`,
     '',
   ].join('\n')
   try {
-    mkdirSync(dirname(path), {recursive: true})
+    createConcivStateDir(stateDir)
     writeFileSync(path, source, 'utf8')
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error)

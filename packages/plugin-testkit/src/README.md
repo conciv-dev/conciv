@@ -12,7 +12,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 
 - `bootCoreKit` / `CoreKit` (`core-kit.ts`): builds a fake harness plus `makeApp` through `@conciv/harness-testkit` `createTestkit`, returning Kit & {harness, forSession, home}; `home` is the kit's own conciv home folder (`home` under the kit's state folder, passed to `makeApp`, so the global settings file and the home db never touch `CONCIV_HOME` and go away with `cleanup()`); `resumeBin` names the bin of the fake's resume command (default the harness id)
 - `listenLocal` (`listen-local.ts`): listens on 127.0.0.1 (port 0 by default) and returns {base, port, close}
-- `completeConnectHandshake` (`connect-handshake.ts`): waits for the 'connect pane ready' status, dispatches `embedtest:connect`, waits for the page-plane subscription, then calls RPC `registry.call` with page_text
+- `completeConnectHandshake` (`connect-handshake.ts`): waits for the 'connect pane ready' status, dispatches `embedtest:connect`, waits for the page-plane subscription, then polls page's Definition (`plugin.call` `experimental.page` `sessions.attached`) until it lists the session
 - `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once any push socket on PUSH_WS_PATH sends a 'ready' frame (sent when the socket starts serving page queries)
 - `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records the page's oRPC calls on its `/rpc-ws` socket by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
 - `rpcCallCursor` / `rpcCallMark` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark: `startedSince` counts calls the page sent, `servedSince` counts calls the engine answered (a reply a fault injected is not served)
@@ -22,7 +22,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 - `garbleRpcReplies` (`rpc-fault.ts`): answers each call on the path (and, given an `input` pattern, only the calls whose input matches it, as `rpcCallCount` matches) with a reply the client cannot decode, so that one call rejects with a plain `Error` (not an `ORPCError`) while the socket stays open; `abortRpcCalls` instead closes the whole socket
 - `failChatTurns` / `dropChatTurns` / `ChatTurnFault` (`chat-fault.ts`): makes POSTs to CHAT_SSE_PATH return an error status (default 500) or abort them
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
-- `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames
+- `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames; `opened` counts handshakes the page sent, `liveSockets` and `awaitLive` count a socket from its first sent frame (the trust frame every engine socket sends on open) until it closes, since Playwright's 'websocket' event fires before the handshake is answered
 - `samePath` (`rpc-payload.ts`, internal, no export subpath): compares two procedure paths
 - `currentHref` (`navigation-state.ts`): reads the persisted navigation entry href through kit.rpc.navigation.get, '' if none
 - `widgetComponentSuite` / `serveStaticDir` / `ServedDir` (`widget-suite.ts`): registers file-scoped vitest browser fixtures and three ConcivWidget tests (mounts one widget, toggle removes and restores it, settings prop remount)
@@ -43,7 +43,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 ## Side Effects
 
 - `serveStaticDir` (`widget-suite.ts`), `listenLocal` (`listen-local.ts`): bind HTTP servers on 127.0.0.1 and read files from disk
-- `completeConnectHandshake` (`connect-handshake.ts`): dispatches the window CustomEvent 'embedtest:connect' and calls RPC registry.call
+- `completeConnectHandshake` (`connect-handshake.ts`): dispatches the window CustomEvent 'embedtest:connect' and polls page's Definition (`experimental.page` `sessions.attached`) until the session is attached
 - `failRpcCalls`/`abortRpcCalls`/`holdRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`) and `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): install socket rules or page.route interceptors (the socket route is never unrouted)
 - `observeRpc` (`rpc-observer.ts`), `pagePlaneWatchFor` (`page-plane.ts`), `watchChatWire` (`chat-wire.ts`), `watchPushWire` (`push-wire.ts`): attach Playwright page listeners; chat-wire and push-wire never detach them
 - `makeHostGrab` (`host/grab.ts`): capture-phase document click listener

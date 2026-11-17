@@ -20,7 +20,7 @@ import {
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
 import {ChatContentPartSchema, type ChatContentPart} from '@conciv/protocol/chat-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
-import {CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
+import {CODE_MODE_EXTERNAL_PREFIX, CODE_MODE_TIMEOUT_MS} from '@conciv/protocol/chat-types'
 import {quickJSThreadDriver, type CodeDriver} from './quickjs-thread.js'
 
 const QUICKJS_MEMORY_LIMIT_MB = 256
@@ -184,7 +184,7 @@ function childCall(
       run.push(files)
       context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
       try {
-        const parameter = secrets.get(`external_${tool.name}`)
+        const parameter = secrets.get(`${CODE_MODE_EXTERNAL_PREFIX}${tool.name}`)
         if (parameter !== undefined) {
           throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
         }

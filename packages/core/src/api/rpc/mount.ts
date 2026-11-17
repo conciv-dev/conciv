@@ -12,6 +12,7 @@ import type {ConcivServerTool} from '@conciv/tools'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
+import type {RowScope} from '../../sessions/session-rows.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import {callTrace} from '../call-trace.js'
 import type {makeRpcRouter} from './router.js'
@@ -21,7 +22,7 @@ import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {createTabs} from '../tabs.js'
-import type {PageQueues} from '../../page/page-queue.js'
+import type {PagePlugin} from '../../page/page-plugin.js'
 import type {ManagedRuntime} from 'effect'
 import type {
   Agent,
@@ -70,6 +71,7 @@ export type ChatContext = {
   cwd: string
   basePath: string
   db: ConcivDb
+  rows: RowScope
   plane: ChatPlane
   signal: AbortSignal
 }
@@ -89,7 +91,8 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
   code: McpVars['mcp']
   tabs: ReturnType<typeof createTabs>
-  queues: Pick<PageQueues, 'wait' | 'cancelSession'>
+  queues: Pick<PagePlugin, 'cancelSession' | 'changes' | 'clearChanges' | 'attachedSessions'>
+  queueWait: PagePlugin['queueWait']
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer

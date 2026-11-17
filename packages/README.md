@@ -21,7 +21,7 @@ Engine and plugin:
 - harness: [harness/README.md](./harness/README.md) - Coding-agent adapters (`claude`, `codex`, `gemini-cli`, `opencode`, `pi`) behind the `HarnessAdapter` contract.
 - harness-init: [harness-init/README.md](./harness-init/README.md) - Per-harness `conciv init` contributions: detection, AGENTS.md text, generated install files.
 - harness-testkit: [harness-testkit/README.md](./harness-testkit/README.md) - Test helpers that boot an app against a scripted or real harness.
-- tools: [tools/README.md](./tools/README.md) - Agent tools `conciv_ui`, `conciv_extensions`, `server_*` and `open`, with their Solid cards.
+- tools: [tools/README.md](./tools/README.md) - Agent tools `conciv_ui`, `server_*` and `open`, with their Solid cards.
 - skills: [skills/README.md](./skills/README.md) - Agent skill markdown discovered through `@tanstack/intent`, plus a citation checker.
 
 Contracts:
