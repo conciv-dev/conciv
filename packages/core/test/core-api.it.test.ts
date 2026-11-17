@@ -132,7 +132,13 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
+import {
+  type HarnessChatDeps,
+  type HarnessConnectContext,
+  type HarnessListCursor,
+  type HarnessModel,
+} from '@conciv/protocol/harness-types'
+import {type TtyCommand} from '@conciv/protocol/terminal-types'
 import {
   type PageOutcome,
   PageQuerySchema,
@@ -7358,4 +7364,132 @@ describe('prefixed serving', () => {
       ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
     })
   })
+})
+
+describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', () => {
+  const SHELL = ['--noprofile', '--norc', '-i']
+  const BUSY_MODEL = 'busy-model'
+  const terminalHarness = (id: string, pidFile: string) => {
+    const connects: HarnessConnectContext[] = []
+    const command = (context: HarnessConnectContext): TtyCommand => {
+      connects.push(context)
+      const env = {TERM: 'xterm-256color', PS1: 'P> ', PID_FILE: pidFile}
+      const busy = context.model === BUSY_MODEL ? `printf '\\033]9;4;1\\007'; ` : ''
+      return {bin: 'bash', args: ['-c', `echo $$ > "$PID_FILE"; ${busy}exec bash ${SHELL.join(' ')}`], env}
+    }
+    return {connects, harness: createFakeHarness({id, history: [], tty: {command}})}
+  }
+  const processAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
+
+  it(
+    'creates one terminal per session running its harness CLI, reuses it, refuses removing it while busy, resumes a known transcript, and dies with the engine',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-')
+      const transcripts = join(root, 'transcripts')
+      mkdirSync(transcripts)
+      const pidFile = join(root, 'pid')
+      const fake = terminalHarness('fake-terminal', pidFile)
+      if (fake.harness.history === undefined) throw new Error('the fake harness has no history')
+      const harness: HarnessAdapter = {
+        ...fake.harness,
+        history: {
+          ...fake.harness.history,
+          transcriptRoot: () => transcripts,
+          transcriptPath: (_cwd: string, token: HarnessSessionId) => join(transcripts, `${token}.jsonl`),
+        },
+      }
+      const engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal'},
+        root,
+        harness,
+        launchEditor: () => {},
+        homeDir: tempDir('conciv-home-'),
+      })
+      const stopped = {current: false}
+      onTestFinished(async () => {
+        if (!stopped.current) await engine.stop()
+      })
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const rpc = makeRpcClient(base)
+      const terminal = rpc.experimental.persistentPty
+      const {sessionId} = await rpc.sessions.create(undefined)
+
+      const created = await terminal.create({sessionId, size: {cols: 100, rows: 30}, model: 'claude-x'})
+      expect(created).toEqual({id: expect.stringMatching(/^pty_/), sessionId, size: {cols: 100, rows: 30}, busy: false})
+      expect(fake.connects).toHaveLength(1)
+      const first = fake.connects[0]
+      expect(first).toMatchObject({cwd: root, concivSessionId: sessionId, model: 'claude-x', resume: false})
+      expect(first?.mcpUrl).toBe(`${base}/api/mcp`)
+      expect(first?.harnessSessionId).toEqual(expect.any(String))
+
+      expect(await terminal.create({sessionId, size: {cols: 90, rows: 20}})).toEqual({
+        ...created,
+        size: {cols: 90, rows: 20},
+      })
+      expect(fake.connects).toHaveLength(1)
+
+      expect(await terminal.remove({ptyId: created.id})).toEqual({ok: true})
+      await expect(terminal.remove({ptyId: created.id})).rejects.toMatchObject({
+        code: 'PTY_NOT_FOUND',
+        status: 404,
+        data: {ptyId: created.id},
+      })
+
+      writeFileSync(join(transcripts, `${first?.harnessSessionId}.jsonl`), '')
+      const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
+      expect(resumed.id).not.toBe(created.id)
+      expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
+
+      await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
+      await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
+      expect((await terminal.create({sessionId})).id).toBe(resumed.id)
+
+      const pid = readPid(pidFile)
+      expect(processAlive(pid)).toBe(true)
+      stopped.current = true
+      await engine.stop()
+      await until(() => !processAlive(pid))
+    },
+  )
+
+  it(
+    'a session switched to another harness never gets the old terminal back, and one with no terminal command is refused NO_TTY',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-switch-')
+      const first = terminalHarness('fake-terminal-a', join(root, 'pid-a'))
+      const second = terminalHarness('fake-terminal-b', join(root, 'pid-b'))
+      const bare = createFakeHarness({id: 'fake-no-terminal'})
+      const kit = await bootKit({cwd: root, harnesses: [second.harness, bare]}, first.harness)
+      onTestFinished(() => kit.cleanup())
+      const terminal = kit.rpc.experimental.persistentPty
+      const {sessionId} = await kit.rpc.sessions.create(undefined)
+
+      const onFirst = await terminal.create({sessionId})
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-b'})
+      const onSecond = await terminal.create({sessionId})
+      expect(onSecond.id).not.toBe(onFirst.id)
+      expect(first.connects).toHaveLength(1)
+      expect(second.connects).toHaveLength(1)
+      await expect(terminal.remove({ptyId: onFirst.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-a'})
+      const back = await terminal.create({sessionId})
+      expect(back.id).not.toBe(onFirst.id)
+      expect(first.connects).toHaveLength(2)
+      await expect(terminal.remove({ptyId: onSecond.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-no-terminal'})
+      await expect(terminal.create({sessionId})).rejects.toMatchObject({code: 'NO_TTY'})
+    },
+  )
 })

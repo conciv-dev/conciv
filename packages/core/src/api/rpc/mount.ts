@@ -41,6 +41,7 @@ import type {
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
 import type {EventFeed} from '../../event-feed.js'
+import type {PersistentPtys} from '../../pty/persistent-ptys.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Tool.Interface
@@ -92,6 +93,7 @@ export type RpcDeps = {
   pluginHost: PluginHost
   eventHeartbeatIntervalMs?: number
   answerPermission: PermissionAnswer
+  ptys: PersistentPtys
 }
 
 export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()

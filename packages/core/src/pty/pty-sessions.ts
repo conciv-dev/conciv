@@ -1,4 +1,6 @@
-import {spawn, type IPty} from '@lydell/node-pty'
+import {randomUUID} from 'node:crypto'
+import type {IPty} from '@lydell/node-pty'
+import {once} from 'es-toolkit'
 import type {TtyCommand, TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createOscBusyTracker, type OscBusyTracker} from './osc-busy.js'
 import {createFrameInjector, type FrameInjector} from './frame-injector.js'
@@ -11,14 +13,28 @@ const REPLAY_CAP = 4 * 1024 * 1024
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
 
+type Spawn = typeof import('@lydell/node-pty').spawn
+
+const loadSpawn = once((): Promise<Spawn> =>
+  import('@lydell/node-pty').then(
+    (module) => module.spawn,
+    (error: unknown) => () => {
+      throw error
+    },
+  ),
+)
+
 export type TtySink = {data(chunk: string): void; control(frame: TtyServerControl): void}
 
 export type TtySession = {
+  id: string
+  sessionId: string
   owner: string
   write(data: string): void
   interrupt(): void
   inject(text: string): void
   resize(cols: number, rows: number): void
+  size(): {cols: number; rows: number}
   attach(sink: TtySink): () => void
   busy(): boolean
   kill(): void
@@ -26,8 +42,9 @@ export type TtySession = {
 }
 
 export type TtySessions = {
-  open(sessionId: string, command: TtyCommand, cwd: string, owner: string): TtySession
+  open(sessionId: string, command: TtyCommand, cwd: string, owner: string): Promise<TtySession>
   get(sessionId: string): TtySession | undefined
+  find(id: string): TtySession | undefined
   close(sessionId: string): void
   shutdown(): void
 }
@@ -88,9 +105,9 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     return {...Object.fromEntries(kept), ...command.env}
   }
 
-  const spawnPty = (entry: Entry, command: TtyCommand, cwd: string): void => {
-    ensureSpawnHelperExecutable()
+  const spawnPty = (entry: Entry, spawn: Spawn, command: TtyCommand, cwd: string): void => {
     try {
+      ensureSpawnHelperExecutable()
       entry.pty = spawn(command.bin, command.args, {
         name: 'xterm-256color',
         cols: DEFAULT_COLS,
@@ -113,9 +130,12 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     })
   }
 
-  const open = (sessionId: string, command: TtyCommand, cwd: string, owner: string): TtySession => {
+  const open = async (sessionId: string, command: TtyCommand, cwd: string, owner: string): Promise<TtySession> => {
+    const spawn = await loadSpawn()
     drop(sessionId)
     const session: TtySession = {
+      id: `pty_${randomUUID()}`,
+      sessionId,
       owner,
       write: (data) => {
         const entry = entries.get(sessionId)
@@ -136,6 +156,10 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       resize: (cols, rows) => {
         const entry = entries.get(sessionId)
         if (entry && !entry.exit) entry.pty?.resize(cols, rows)
+      },
+      size: () => {
+        const pty = entries.get(sessionId)?.pty
+        return {cols: pty?.cols ?? DEFAULT_COLS, rows: pty?.rows ?? DEFAULT_ROWS}
       },
       attach: (sink) => {
         const entry = entries.get(sessionId)
@@ -176,13 +200,14 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     }
     entry.tracker.onChange((busy) => broadcast(entry, {type: 'busy', busy}))
     entries.set(sessionId, entry)
-    spawnPty(entry, command, cwd)
+    spawnPty(entry, spawn, command, cwd)
     return session
   }
 
   return {
     open,
     get: (sessionId) => entries.get(sessionId)?.session,
+    find: (id) => [...entries.values()].find((entry) => entry.session.id === id)?.session,
     close: drop,
     shutdown: () => {
       for (const id of entries.keys()) drop(id)

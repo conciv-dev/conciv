@@ -341,6 +341,22 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         throw errors.PLUGIN_NOT_FOUND(missingPlugin(input.id))
       }),
     },
+    experimental: {
+      persistentPty: {
+        create: os.experimental.persistentPty.create.handler(async ({input, errors}) => {
+          const created = await deps.ptys.create(input)
+          if (created === null) throw errors.NO_TTY()
+          return created
+        }),
+        remove: os.experimental.persistentPty.remove.handler(({input, errors}) => {
+          const pty = deps.ptys.find(input.ptyId)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          if (pty.busy()) throw errors.BUSY()
+          pty.kill()
+          return {ok: true as const}
+        }),
+      },
+    },
     event: {
       subscribe: os.event.subscribe.handler(({input, signal}) =>
         eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
