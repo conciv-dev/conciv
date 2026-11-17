@@ -478,7 +478,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes a pin on the open canvas, and clicking the pin opens its thread with the text', async ({
+  test('an agent comment becomes an unread pin on the open canvas, and clicking the pin marks its thread read', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -505,8 +505,7 @@ describe('the comments of the whiteboard plugin', () => {
       const pin = page.getByRole('button', {name: 'AI comment, open, unread'})
       await expect(pin).toBeVisible({timeout: 30_000})
       await pin.click()
-      const thread = page.getByRole('dialog', {name: 'Comment thread'})
-      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+      await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toBeVisible()
     } finally {
       await widget.close()
     }
