@@ -373,6 +373,19 @@ describe('the whiteboard store and its rpc', () => {
     expect(await failureType(call(kit, 'reads.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
     expect(await failureType(call(kit, 'canvasPending.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
     expect(await failureType(call(kit, 'canvasReplies.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    await call(kit, 'reads.insert', {room, row: {id: 'r1', threadId: 't1', accountId: 'a1', lastReadAt: 1}})
+    await call(kit, 'canvasPending.insert', {room, row: {id: 'p1', kind: 'export', stage: 'live', payload: {}}})
+    await call(kit, 'canvasReplies.insert', {room, row: {id: 'y1', requestId: 'q1', kind: 'export', payload: {}}})
+    const roomRows = [
+      {method: 'comments.get', id: stored?.id},
+      {method: 'reads.get', id: 'r1'},
+      {method: 'canvasPending.get', id: 'p1'},
+      {method: 'canvasReplies.get', id: 'y1'},
+    ]
+    for (const {method, id} of roomRows) {
+      expect(await call(kit, method, {room, id})).toMatchObject({id})
+      expect(await failureType(call(kit, method, {room: OTHER_ROOM, id}))).toBe('NOT_FOUND')
+    }
 
     const element = {elementId: 'e1', data: {type: 'rectangle'}, version: 2}
     expect(await call(kit, 'elements.upsert', {room, scope: 'live', row: element})).toEqual({...element, room})
