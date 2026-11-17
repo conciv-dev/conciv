@@ -75,9 +75,13 @@ applied it.
 An alias from tsconfig `paths` (`@/...`) resolves only with `--importer`; a package import (`#/...`) does not
 need one.
 
-### `open`
+### Open a file in your editor
 
-Open a file in your editor, straight from a source location.
+The same plugin's `open` method opens a file in your editor, at a line and column when you pass them.
+
+```bash
+conciv plugin call server open --data '{"file":"src/routes/index.tsx","line":12,"column":4}'
+```
 
 Interactive questions need no CLI: the agent calls its built-in `conciv_ui` tool, which renders
 choices/confirm/diff/form in the chat thread and blocks until you answer. The cards are described
