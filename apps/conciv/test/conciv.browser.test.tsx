@@ -7876,6 +7876,15 @@ module.exports = {default: {setup(ctx) {
   const dialog = (name: string) => page.getByRole('dialog', {name, exact: true})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const openedContent = () => page.getByText('The opened tab content', {exact: true})
+  const notes = () => page.getByRole('list', {name: 'Notes'})
+  const card = (text: string) => notes().getByRole('listitem').filter({hasText: text})
+  const sentLists = () => page.getByRole('list', {name: 'Notes on this message'})
+  const sentCard = (text: string) => sentLists().getByRole('listitem').filter({hasText: text}).first()
+  const sentence = () => page.getByText(/The user made the following comment/)
+  const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
+  const typed = (text: string) => chatPanel().getByText(text, {exact: true}).first()
+  const readAsked = async (sessionId: string) =>
+    (await coreRpc(coreBase()).chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
 
   test('its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -8005,13 +8014,6 @@ module.exports = {default: {setup(ctx) {
       await coreControl.awaitFaultAnswered(write)
       return rpc.drafts.get({sessionId})
     }
-    const notes = () => page.getByRole('list', {name: 'Notes'})
-    const card = (text: string) => notes().getByRole('listitem').filter({hasText: text})
-    const sentLists = () => page.getByRole('list', {name: 'Notes on this message'})
-    const sentCard = (text: string) => sentLists().getByRole('listitem').filter({hasText: text}).first()
-    const sentence = () => page.getByText(/The user made the following comment/)
-    const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
-    const typed = (text: string) => chatPanel().getByText(text, {exact: true}).first()
     const title = () => page.getByLabelText('Session: noted', {exact: true})
     const refused = await faults.install({kind: 'chat-refused', status: 500})
     harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
@@ -8124,6 +8126,50 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentCard('alone note 6')).toBeVisible()
     await expect.element(control('Show more')).toBeVisible()
   }, 90_000)
+
+  test('its notes come back to the composer as notes, with the typed text, whenever a draft is put back', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const queued = () => page.getByRole('button', {name: 'Remove from queue'})
+    const firstSentence = 'The user made the following comment regarding the fixture subject: the first comment'
+    const otherSentence = 'The user made the following comment regarding the fixture subject: the other comment'
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.holdTurn()
+    await tab('Chat').click()
+    await userEvent.click(editor())
+    await userEvent.keyboard('first turn{Enter}')
+    await expect.element(stopButton()).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(queued()).toBeVisible()
+    await expect.element(notes()).not.toBeInTheDocument()
+    await stopButton().click()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(editor()).not.toMatchTextContent(/The user made/)
+    await expect.element(card('the first comment')).toHaveTextContent('the first commentFixture note')
+    await expect.element(card('the other comment')).toHaveTextContent('the other commentFixture note')
+    await expect.element(queued()).not.toBeInTheDocument()
+
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(stopButton()).toBeVisible()
+    await coreControl.releaseTurn()
+    await expect.element(sentCard('the other comment')).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    const asked = await readAsked(sessionId)
+    expect(asked).toHaveLength(2)
+    expect(asked[1]).toMatchObject({
+      parts: [{type: 'text', content: ['noted', firstSentence, otherSentence].join('\n')}],
+      metadata: {displayText: 'noted'},
+    })
+  }, 60_000)
 
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
