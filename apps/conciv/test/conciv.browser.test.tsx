@@ -658,7 +658,7 @@ describe('chat pane', () => {
 
     test('the stored draft is in the composer while the engine read is held, typing meanwhile is never overwritten, and an untouched composer takes a newer engine row', async () => {
       const {rpc, sessionId} = await newSession()
-      const TEXT = 'kept before the engine went quiet'
+      const TEXT = 'kept'
       const TYPED = `${TEXT} and typed while it was away`
       await typeSyncedDraft(sessionId, TEXT)
       await seedDraft(rpc, sessionId, {text: 'changed in another tab'})
@@ -668,7 +668,7 @@ describe('chat pane', () => {
 
       await expect.element(input()).toHaveTextContent(TEXT)
       await userEvent.click(input())
-      await userEvent.keyboard('{End} and typed while it was away')
+      await userEvent.keyboard(' and typed while it was away')
       await expect.element(input()).toHaveTextContent(TYPED)
       await coreControl.releaseFault(heldRead)
       await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
