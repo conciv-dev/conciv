@@ -60,16 +60,13 @@ export type NoteComment = z.infer<typeof NoteCommentSchema>
 const PromptAttachmentReferenceSchema = z.object({name: z.string(), mime: z.string(), path: z.string()})
 
 function decodedList<Item extends z.ZodType>(item: Item) {
-  return z
-    .array(item.nullable().catch(null))
-    .catch([])
-    .transform((items) => items.filter((entry) => entry !== null))
+  return z.array(item.nullable().catch(null)).transform((items) => items.filter((entry) => entry !== null))
 }
 
 export const PromptPresentationSchema = z.object({
   displayText: z.string(),
   comments: decodedList(NoteCommentSchema),
-  attachments: decodedList(PromptAttachmentReferenceSchema),
+  attachments: decodedList(PromptAttachmentReferenceSchema).catch([]),
 })
 
 export type PromptPresentation = z.infer<typeof PromptPresentationSchema>
