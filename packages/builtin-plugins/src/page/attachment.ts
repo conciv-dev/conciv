@@ -3,7 +3,7 @@ import type {MountedSession} from '@conciv/plugin/experimental'
 import {Command, Control, Definition, Outcome, type Tab} from '@conciv/plugin-page/rpc'
 import type {PageOperations} from './operations.js'
 
-export type AttachmentOutcome = 'born' | 'closed' | 'refused' | 'replaced' | 'unavailable' | 'unsupported'
+export type AttachmentOutcome = 'born' | 'closed' | 'missing' | 'refused' | 'replaced' | 'unavailable' | 'unsupported'
 
 export type AttachmentEnd = {readonly outcome: AttachmentOutcome; readonly attached: boolean}
 
@@ -26,6 +26,8 @@ const UNSUPPORTED: Outcome = {
 
 function attachmentFailure(cause: unknown): AttachmentOutcome {
   const type = RpcFailure.safeParse(cause).data?.type
+
+  if (type === 'missing') return 'missing'
 
   if (type === 'unavailable') return 'refused'
 
@@ -178,6 +180,8 @@ export async function openAttachment(input: {
         result === 'replaced' || result === 'unsupported' || result === 'born' ? result : 'closed',
       attachmentFailure,
     )
+
+    if (outcome === 'missing') return {outcome: await reading, attached: false}
 
     if (outcome === 'refused' && status.attached) return {outcome: 'closed', attached: true}
 

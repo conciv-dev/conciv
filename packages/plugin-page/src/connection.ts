@@ -177,10 +177,15 @@ export async function make(
   const registration: RpcRegistration<typeof Definition> = await ctx.rpc.register(Definition, {
     attach: async (input, call) => {
       const opened = await ctx.session.get({sessionId: input.sessionId}).then(
-        (session) => ({session, reason: ''}),
-        (error: unknown) => ({session: undefined, reason: refusalReason(input.sessionId, error)}),
+        (session) => ({session, missing: false, reason: ''}),
+        (error: unknown) => ({
+          session: undefined,
+          missing: SessionNotFound.safeParse(error).success,
+          reason: refusalReason(input.sessionId, error),
+        }),
       )
       const session = opened.session
+      if (!session && opened.missing) return call.error('missing', opened.reason, {})
       if (!session) return call.error('unavailable', opened.reason, {})
       if (session.location.directory !== ctx.location.directory)
         return call.error('unavailable', 'Session belongs to another location.', {})
