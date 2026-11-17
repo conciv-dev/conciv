@@ -41,6 +41,7 @@ const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 const PinRows = z.array(z.object({cid: z.string(), x: z.number(), y: z.number()}).loose())
+const ReadRows = z.array(z.object({threadId: z.string(), accountId: z.string()}).loose())
 
 const MALFORMED_SVG = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10'></svg>"
 const UNDRAWABLE_SVG = "<svg viewBox='0 0 10 10'><g></g></svg>"
@@ -479,7 +480,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, and a dragged pin lands on the engine', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, a dragged pin lands on the engine, and only comments from others make a thread unread again', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -531,6 +532,69 @@ describe('the comments of the whiteboard plugin', () => {
         ),
       )
       expect(pins.find((row) => row.cid === 'agent-first')).toMatchObject({x: 740, y: 410})
+
+      const unread = page.getByRole('button', {name: 'AI comment, open, unread'})
+      await widget.kit.callTool('whiteboard_comment_reply', {
+        cid: 'agent-first',
+        parts: [{type: 'text', text: 'and the footer too'}],
+      })
+      await expect(unread).toBeVisible()
+      await expect(readPin).toBeHidden()
+      await page.mouse.click(740, 410)
+      await expect(readPin).toBeVisible()
+      await expect(unread).toBeHidden()
+
+      const [read] = ReadRows.parse(
+        await widget.kit.rpc.plugin.call(
+          {rpcId: 'whiteboard', method: 'reads.list', input: {room}},
+          {signal: AbortSignal.timeout(30_000)},
+        ),
+      )
+      const now = Date.now()
+      await widget.kit.rpc.plugin.call(
+        {
+          rpcId: 'whiteboard',
+          method: 'comments.insert',
+          input: {
+            room,
+            row: {
+              id: 'own-reply',
+              cid: 'own-reply',
+              threadId: 'agent-first',
+              parentId: 'agent-first',
+              parts: [{type: 'text', text: 'on it'}],
+              authorKind: 'human',
+              authorModel: null,
+              authorId: read?.accountId ?? null,
+              authorName: null,
+              authorAvatar: null,
+              status: 'open',
+              kind: 'floating',
+              anchor: null,
+              anchorFile: null,
+              anchorComponent: null,
+              anchorHash: null,
+              createdAt: now,
+              updatedAt: now,
+              resolvedAt: null,
+            },
+          },
+        },
+        {signal: AbortSignal.timeout(30_000)},
+      )
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'agent-second',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'the button has no focus ring'}],
+        x: 400,
+        y: 200,
+        authorKind: 'ai',
+      })
+      await expect(unread).toBeVisible()
+      await expect(readPin).toBeVisible()
+      await page.mouse.click(400, 200)
+      await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
+      await expect(unread).toHaveCount(0)
     } finally {
       await widget.close()
     }
