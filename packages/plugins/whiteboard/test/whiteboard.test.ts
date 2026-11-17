@@ -334,7 +334,7 @@ describe('the whiteboard plugin', () => {
 })
 
 describe('the whiteboard store and its rpc', () => {
-  it('keeps rows per room named by the input, refuses foreign or empty updates and gates element versions', async () => {
+  it('keeps rows per room named by the input, reads one row by id, refuses foreign or empty updates and gates element versions', async () => {
     const {kit, room} = await boot()
 
     const pin = {...pinRow('c1'), room}
@@ -342,6 +342,8 @@ describe('the whiteboard store and its rpc', () => {
     expect(PinSchema.parse(await call(kit, 'pins.insert', {room, row: pinInsert}))).toEqual(pin)
     expect(await call(kit, 'pins.list', {room})).toEqual([pin])
     expect(await call(kit, 'pins.list', {room: OTHER_ROOM})).toEqual([])
+    expect(await call(kit, 'pins.get', {room, id: pin.id})).toEqual(pin)
+    expect(await failureType(call(kit, 'pins.get', {room: OTHER_ROOM, id: pin.id}))).toBe('NOT_FOUND')
     expect(PinSchema.parse(await call(kit, 'pins.update', {room, id: pin.id, patch: {x: 9}})).x).toBe(9)
     expect(await failureType(call(kit, 'pins.update', {room: OTHER_ROOM, id: pin.id, patch: {x: 999}}))).toBe(
       'NOT_FOUND',
@@ -365,9 +367,18 @@ describe('the whiteboard store and its rpc', () => {
         .map((row) => row.cid),
     ).toEqual(['cc1'])
     expect(await call(kit, 'comments.list', {room: OTHER_ROOM})).toEqual([])
+    const [stored] = z.array(CommentSchema).parse(await call(kit, 'comments.list', {room}))
+    expect(CommentSchema.parse(await call(kit, 'comments.get', {room, id: stored?.id})).cid).toBe('cc1')
+    expect(await failureType(call(kit, 'comments.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'reads.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'canvasPending.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'canvasReplies.get', {room, id: 'missing'}))).toBe('NOT_FOUND')
 
     const element = {elementId: 'e1', data: {type: 'rectangle'}, version: 2}
     expect(await call(kit, 'elements.upsert', {room, scope: 'live', row: element})).toEqual({...element, room})
+    expect(await call(kit, 'elements.get', {room, scope: 'live', id: 'e1'})).toEqual({...element, room})
+    expect(await failureType(call(kit, 'elements.get', {room, scope: 'draft', id: 'e1'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'elements.get', {room: OTHER_ROOM, scope: 'live', id: 'e1'}))).toBe('NOT_FOUND')
     const conflict = await call(kit, 'elements.upsert', {room, scope: 'live', row: {...element, version: 1}}).then(
       () => new Error('the stale upsert answered'),
       (error: unknown) => error,
