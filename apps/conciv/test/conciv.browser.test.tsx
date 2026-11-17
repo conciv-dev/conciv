@@ -3255,7 +3255,8 @@ describe('page session card', () => {
     await expect.element(page.getByText('Edited the page'), {timeout: 5000}).toBeVisible()
     await expect.element(page.getByText('The profile form is filled in.')).toBeVisible()
     expect(page.getByText('Edited the page').elements()).toHaveLength(1)
-    await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('listitem').getByText('Typed', {exact: true}).nth(1)).toBeVisible()
+    expect(page.getByText('Typed', {exact: true}).elements()).toHaveLength(2)
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
   })
 
@@ -3283,7 +3284,7 @@ describe('page session card', () => {
     keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
     const turn = await sendTurn(core(), sessionId, 'save the form')
     try {
-      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByRole('status').getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
     } finally {
       await coreControl.releaseResults()
       await turn.awaitTurnEnd()
@@ -3305,7 +3306,7 @@ describe('page session card', () => {
       await coreControl.awaitFaultPending(resolving, 1)
       await userEvent.click(page.getByRole('textbox', {name: 'Message the conciv agent'}))
       await faults.releaseAll()
-      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByRole('status').getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
       await userEvent.click(page.getByText('save the form', {exact: true}))
       await expect.element(page.getByText('save the form', {exact: true})).toBeVisible()
     } finally {
