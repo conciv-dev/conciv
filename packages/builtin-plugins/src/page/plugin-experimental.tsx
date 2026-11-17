@@ -14,6 +14,10 @@ const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
+const RETRY_BASE_MS = 1000
+
+const RETRY_MAX_MS = 30_000
+
 function reportChanges(report: () => void, signal: AbortSignal) {
   TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
   document.addEventListener('visibilitychange', report, {signal})
@@ -61,12 +65,23 @@ export default Plugin.define({
     })
 
     const keep = async (session: MountedSession, signal: AbortSignal) => {
-      for (;;) {
-        const end = await openAttachment({session, connectionId, tab, changed: reportChanges, operations, signal})
+      for (let refusals = 0; ;) {
+        const retryMs = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** refusals)
+        const end = await openAttachment({
+          session,
+          connectionId,
+          tab,
+          changed: reportChanges,
+          operations,
+          signal,
+          retryMs,
+        })
 
         if (signal.aborted) return
 
-        if (end.outcome === 'born') continue
+        refusals = end.outcome === 'refused' ? refusals + 1 : 0
+
+        if (end.outcome === 'born' || end.outcome === 'refused') continue
 
         if (end.outcome !== 'closed' || !end.attached) return
         await woken(signal)

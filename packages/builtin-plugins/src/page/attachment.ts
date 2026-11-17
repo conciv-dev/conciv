@@ -3,7 +3,7 @@ import type {MountedSession} from '@conciv/plugin/experimental'
 import {Command, Control, Definition, Outcome, type Tab} from '@conciv/plugin-page/rpc'
 import type {PageOperations} from './operations.js'
 
-export type AttachmentOutcome = 'born' | 'closed' | 'replaced' | 'unavailable' | 'unsupported'
+export type AttachmentOutcome = 'born' | 'closed' | 'refused' | 'replaced' | 'unavailable' | 'unsupported'
 
 export type AttachmentEnd = {readonly outcome: AttachmentOutcome; readonly attached: boolean}
 
@@ -24,7 +24,7 @@ const UNSUPPORTED: Outcome = {
     'This page does not support the requested page operation. Ask the user to reload the page so it runs the same conciv version as the engine, or use another operation.',
 }
 
-function attachmentFailure(cause: unknown): AttachmentOutcome | 'refused' {
+function attachmentFailure(cause: unknown): AttachmentOutcome {
   const type = RpcFailure.safeParse(cause).data?.type
 
   if (type === 'unavailable') return 'refused'
@@ -64,6 +64,7 @@ export async function openAttachment(input: {
   readonly changed: (report: () => void, signal: AbortSignal) => void
   readonly operations: PageOperations
   readonly signal: AbortSignal
+  readonly retryMs: number
 }): Promise<AttachmentEnd> {
   const client = input.session.server.client
   const rpc = client.rpc(Definition)
@@ -173,12 +174,17 @@ export async function openAttachment(input: {
     const reading = read(connected)
     const attached = connected.promise.then(() => rpc.attach({...attachment, version: 1}, options))
     const outcome = await Promise.race([attached, reading]).then(
-      (result): AttachmentOutcome | 'refused' =>
+      (result): AttachmentOutcome =>
         result === 'replaced' || result === 'unsupported' || result === 'born' ? result : 'closed',
       attachmentFailure,
     )
 
-    if (outcome === 'refused') return {outcome: status.attached ? 'closed' : await reading, attached: status.attached}
+    if (outcome === 'refused' && status.attached) return {outcome: 'closed', attached: true}
+
+    if (outcome === 'refused') {
+      const retried = pause(input.retryMs, ended).then((): AttachmentOutcome => 'refused')
+      return {outcome: await Promise.race([reading, retried]), attached: false}
+    }
 
     return {outcome, attached: status.attached}
   } finally {

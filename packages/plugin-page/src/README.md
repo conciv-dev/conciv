@@ -15,6 +15,7 @@ to the plugin host as a post built-in and asks it over that RPC whenever it need
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page` with `symbolicate` alone
 - option `pageReplyTimeoutMs` (`connection.ts`, milliseconds, default 5 000): how long a tab has to answer an action that declares no timeout of its own, and to accept a queue
 - option `queuedActionTimeoutMs` (`connection.ts`, milliseconds, default 7 000): how long each queued action has to confirm once the tab reaches it
+- option `permissionSyncTimeoutMs` (`connection.ts`, milliseconds, default 10 000): how long granting or revoking a tab's page permissions on its session may take before the attach is refused (the tab retries on its back-off)
 
 ## Invariants
 

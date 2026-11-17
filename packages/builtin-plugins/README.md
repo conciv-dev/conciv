@@ -16,7 +16,10 @@ here the stream reopens under its reader, so its reconnect is the cue. An `unsup
 attaching until the server reconnects or the panel routes another session, as the source's unsupported server is
 watched until `server.connected` (`model.ts:382-409`, `machine.ts:386-395`), not until a reload. An attachment the
 engine ends while the stream stays up waits for the user to focus, click or type in the tab (`woken`), as the source's
-suspended pane waits for those edges (`machine.ts:739-748`, `model.ts:513-528`).
+suspended pane waits for those edges (`machine.ts:739-748`, `model.ts:513-528`). An attach the engine refuses before it attached
+(the session does not exist yet, or its page permissions could not be granted in time) tries again on the source's
+registration-closed back-off, 1 s doubling to 30 s (`RETRY_BASE_MS`, `RETRY_MAX_MS` in `plugin-experimental.tsx`), and
+at once when the session is created.
 
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'

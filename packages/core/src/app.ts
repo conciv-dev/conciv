@@ -155,6 +155,7 @@ export type MakeAppOpts = {
   pageReplyTimeoutMs?: number
 
   queuedActionTimeoutMs?: number
+  permissionSyncTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -657,7 +658,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           concivPage.setup({
             ...context,
             options: pickBy(
-              {pageReplyTimeoutMs: opts.pageReplyTimeoutMs, queuedActionTimeoutMs: opts.queuedActionTimeoutMs},
+              {
+                pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+                queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+                permissionSyncTimeoutMs: opts.permissionSyncTimeoutMs,
+              },
               isNotNil,
             ),
           }),
