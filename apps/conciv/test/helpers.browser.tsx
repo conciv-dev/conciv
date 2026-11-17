@@ -90,6 +90,8 @@ declare module 'vitest/internal/browser' {
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>
     rpcStartedOnceServed: (served: string[], count: number, started: string[][], input?: unknown) => Promise<number[]>
+    rpcMark: () => Promise<number>
+    awaitRpcFailedCount: (path: string[], status: number, count: number, since: number) => Promise<void>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>

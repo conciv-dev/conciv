@@ -2265,8 +2265,19 @@ describe('chat history paging', () => {
     await faults.install({kind: 'gate', path: HYDRATE_PATH})
     await userEvent.wheel(thread(), {delta: {y: -1000}})
     await expect.element(loadingOlder()).toBeInTheDocument()
-    await userEvent.hover(thread().getByText('Hello from conciv', {exact: true}).first())
-    await userEvent.click(thread().getByRole('button', {name: 'Copy'}).first())
+    await expectInViewOnly([87, 88], [86, 91])
+    await expect.element(exchange(83)).toBeInTheDocument()
+    await expect.element(exchange(82)).not.toBeInTheDocument()
+    const replyTo88 = thread()
+      .getByText('Hello from conciv', {exact: true})
+      .nth(88 - 83)
+    const copyReplyTo88 = thread()
+      .getByRole('button', {name: 'Copy'})
+      .nth(88 - 83)
+    await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
+    await userEvent.hover(replyTo88)
+    await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
+    await userEvent.click(copyReplyTo88)
     const copyOutcome = thread()
       .getByRole('status')
       .filter({hasText: /^(Copied the message|Could not copy the message)$/})
@@ -3070,10 +3081,15 @@ describe('launcher activity', () => {
     expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
   }, 30_000)
 
+  const SESSION_ROW_PATH = ['sessions', 'get']
+  const ROW_FAILURE_STATUS = 500
+  const QUERY_CORE_BROWSER_DEFAULT_RETRIES = 3
+  const ROW_REFETCH_ATTEMPTS = 1 + QUERY_CORE_BROWSER_DEFAULT_RETRIES
+
   test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
     await page.viewport(1000, 900)
     const sessionId = await sessionThatRan('a row that failed to load')
-    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+    const broken = await faults.install({kind: 'fail', path: SESSION_ROW_PATH, status: ROW_FAILURE_STATUS})
 
     harness.mountShell(`/panel/${sessionId}?open=true`)
     const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
@@ -3092,12 +3108,17 @@ describe('launcher activity', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
 
+    const beforeTheRunEnds = await coreControl.rpcMark()
     await userEvent.click(composer())
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
     await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
+    await expect
+      .element(page.getByRole('status').filter({hasText: 'conciv replied.'}), {timeout: 8000})
+      .toBeInTheDocument()
+    await coreControl.awaitRpcFailedCount(SESSION_ROW_PATH, ROW_FAILURE_STATUS, ROW_REFETCH_ATTEMPTS, beforeTheRunEnds)
     await expect.element(rowAlert).toBeVisible()
-
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
     await coreControl.releaseFault(broken)
     await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
     await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
@@ -3119,7 +3140,6 @@ describe('launcher drag', () => {
   const minimize = () => page.getByRole('button', {name: 'Minimize conciv chat'})
   const edgeTab = () => page.getByRole('button', {name: 'Show conciv launcher'})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const capture = (name: string) => page.screenshot({path: `__screenshots__/launcher-drag/${name}.png`})
 
   test('a drag off the right edge tucks the launcher into a tab without opening the chat, and the tab brings it back', async () => {
     await page.viewport(1000, 700)
@@ -3129,12 +3149,10 @@ describe('launcher drag', () => {
     await expect.element(edgeTab()).toBeVisible()
     await expect.element(launcher()).not.toBeInTheDocument()
     await expect.element(editor()).not.toBeInTheDocument()
-    await capture('tucked-right')
     await edgeTab().click()
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
     await expect.element(launcher()).toHaveFocus()
-    await capture('restored-right')
   })
 
   test('a tucked launcher stays tucked after a reload, and Enter on the focused tab restores it', async () => {
@@ -3151,7 +3169,6 @@ describe('launcher drag', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(launcher()).toHaveFocus()
     await expect.element(edgeTab()).not.toBeInTheDocument()
-    await capture('restored-left-keyboard')
   })
 
   test('Escape mid-drag drops the gesture, so a release past the edge leaves the launcher where it was', async () => {
@@ -3160,7 +3177,6 @@ describe('launcher drag', () => {
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}], escape: true})
     await expect.element(launcher()).toBeVisible()
     await expect.element(edgeTab()).not.toBeInTheDocument()
-    await capture('escape-cancelled')
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}]})
     await expect.element(edgeTab()).toBeVisible()
   })
@@ -3173,10 +3189,8 @@ describe('launcher drag', () => {
       moves: [{deltaX: -844, deltaY: -544, steps: 20}],
       settleMs: 300,
     })
-    await capture('pinned-top-left')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await capture('pinned-top-left-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -90, deltaY: 0, steps: 6}]})
@@ -3191,10 +3205,8 @@ describe('launcher drag', () => {
       moves: [{deltaX: -454, deltaY: -304, steps: 20}],
       settleMs: 300,
     })
-    await capture('free-centre')
     await launcher().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
-    await capture('free-centre-panel')
     await minimize().click()
     await expect.element(launcher()).toBeVisible()
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -520, deltaY: 0, steps: 12}]})
@@ -3216,15 +3228,12 @@ describe('launcher drag', () => {
     await userEvent.tab()
     await expect.element(launcher()).toHaveFocus()
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowUp}')
-    await capture('keyboard-nudged')
     await userEvent.keyboard('{Shift>}{ArrowUp}{ArrowLeft}{/Shift}')
-    await capture('keyboard-top-left')
     await expect.element(launcher()).toHaveFocus()
     await expect.element(editor()).not.toBeInTheDocument()
     harness.dispose()
     harness.mountShell('/')
     await expect.element(launcher()).toBeVisible()
-    await capture('keyboard-top-left-reloaded')
     await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -150, deltaY: 0, steps: 8}]})
     await expect.element(edgeTab()).toBeVisible()
   })
@@ -3244,7 +3253,6 @@ describe('launcher drag', () => {
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 70, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
-    await capture('locked-right-of-middle-open')
     await leaveLocked()
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
@@ -3255,11 +3263,9 @@ describe('launcher drag', () => {
     await page.viewport(1000, 700)
     mountLocked()
     await expect.element(locked()).toBeVisible()
-    await capture('locked-bottom-right-closed')
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
-    await capture('locked-bottom-right-open')
   })
 
   test('the locked launcher dropped near the right edge without room for its pill grows it to the left and its robot stays put', async () => {
@@ -3272,7 +3278,6 @@ describe('launcher drag', () => {
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -120, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
-    await capture('locked-near-right-edge-open')
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
     await expect.element(unauthorized()).not.toBeVisible()
     await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 50, deltaY: 0}]})
@@ -4555,7 +4560,6 @@ describe('panel view tabs', () => {
 
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
-      await page.screenshot({path: '__screenshots__/extension-boundary/tab-fallback.png'})
       expect(crashReports('crash-tab')).toBe(1)
 
       await retry().click()
@@ -6036,7 +6040,7 @@ describe('tool card dispatch', () => {
 
     await browserPage.getByRole('button').click()
     await expect.element(browserPage.getByText('#cta')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Used tool:')
+    expect(document.body.textContent).not.toContain('Called page_click')
   })
 
   it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
@@ -6110,15 +6114,12 @@ describe('wire name coverage', () => {
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
-  it('every model-reachable tool name resolves to a card entry or catalog meta, except the server plugin dev-server tools', () => {
+  it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
-    const unresolved = modelReachableNames.filter(
-      (name) =>
-        !cardNames.has(name) &&
-        !DEV_SERVER_TOOL_NAMES.includes(name) &&
-        registry.catalog.list().every((entry) => entry.name !== name),
+    const drawnByGenericCard = modelReachableNames.filter(
+      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
     )
-    expect(unresolved).toEqual([])
+    expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })
 
   it('no conciv-owned card is registered for a name the model can never put on the wire', () => {
@@ -6173,7 +6174,6 @@ describe('run errors', () => {
     await expect.element(alert.getByText(OVERFLOW_TEXT)).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', {name: 'Compact conversation'}))
     expect(compacted.count).toBe(1)
-    await page.screenshot({path: '__screenshots__/run-errors/context-overflow.png'})
   })
 
   it('the Compact action is disabled while a compaction is already running', async () => {
@@ -6187,7 +6187,6 @@ describe('run errors', () => {
 
     const compact = page.getByRole('button', {name: 'Compact conversation'})
     await expect.element(compact).toBeVisible()
-    await page.screenshot({path: '__screenshots__/run-errors/context-overflow-compacting.png'})
     await expect.element(compact).toBeDisabled()
   })
 
@@ -6259,7 +6258,6 @@ describe('run errors', () => {
       await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
 
       await expect.element(runError('upstream is overloaded')).not.toBeInTheDocument()
-      await page.screenshot({path: '__screenshots__/run-errors/compacted-clears-error.png'})
 
       await coreControl.scriptError('the model went away')
       await typeTurn('second turn')
@@ -6270,7 +6268,6 @@ describe('run errors', () => {
       await expect.element(page.getByRole('separator', {name: 'Context compacted'})).toBeVisible()
       await expect.element(runError('the model went away')).toBeVisible()
       expect(alerts().all()).toHaveLength(1)
-      await page.screenshot({path: '__screenshots__/run-errors/failed-after-reload.png'})
 
       await heldTurn('third turn')
       await expect.element(page.getByText('third turn')).toBeVisible()
@@ -6282,7 +6279,6 @@ describe('run errors', () => {
       await expect.element(idleError()).toBeVisible()
       await expect.element(idleError().getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
       expect(alerts().all()).toHaveLength(1)
-      await page.screenshot({path: '__screenshots__/run-errors/idle-failed.png'})
 
       reloaded.dispose()
       mountChatPane(sessionId)
@@ -6441,7 +6437,6 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-denied.png'})
   })
 
   it('a cancelled tool reads as cancelled, not as a failure', async () => {
@@ -6449,7 +6444,6 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'cancelled'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
-    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-cancelled.png'})
   })
 
   for (const [outcome, name] of [
@@ -6460,7 +6454,6 @@ describe('tool outcomes', () => {
       render(() => stoppedTool(outcome, name, {pattern: 'TODO'}))
 
       await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
       await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
       await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
       await expect.element(page.getByText(STOPPED_REASON[outcome])).toBeVisible()
@@ -7224,7 +7217,7 @@ module.exports = {default: {setup(ctx) {
   })
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const probeCards = () => page.getByText('Tool: plugin_probe', {exact: true})
+  const probeRow = (meta: string) => page.getByText(meta, {exact: true})
 
   test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -7242,21 +7235,44 @@ module.exports = {default: {setup(ctx) {
     await editor().click()
     await userEvent.keyboard('run the probes{Enter}')
     await expect
-      .element(page.getByRole('button', {name: 'running probe Tool: plugin_probe'}), {timeout: 15_000})
+      .element(page.getByRole('button', {name: 'running probe draw mode=draw'}), {timeout: 15_000})
       .toBeVisible()
-    await page.screenshot({path: '__screenshots__/plugin-tool-cards/running.png'})
     await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
 
     await coreControl.releaseResults()
     await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
-    await page.screenshot({path: '__screenshots__/plugin-tool-cards/finished.png'})
-    await expect.element(probeCards().nth(2)).toBeVisible()
+    await expect.element(probeRow('mode=draw')).toBeVisible()
+    await expect.element(probeRow('mode=decline')).toBeVisible()
+    await expect.element(probeRow('mode=throw')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the drawn probe')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the declined probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('Plugin drew the thrown probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
     await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+
+  test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'server_resolve', input: {spec: 'solid-js'}, result: {resolved: '/node_modules/solid-js'}},
+        {name: 'note_open', input: {path: 'src/a.ts', line: 3, force: true}, result: {opened: true}},
+        {name: 'server_urls', input: {}, result: {urls: []}},
+      ],
+      text: 'the generic calls are done',
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the generic calls{Enter}')
+    await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('solid-js', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('spec=solid-js', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called server_resolve', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('line=3 force=true', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called server_urls', {exact: true})).toBeVisible()
   }, 45_000)
 })
 
@@ -8344,11 +8360,13 @@ module.exports = {default: {setup(ctx) {
     await coreControl.releaseFault(catalogHeld)
     await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
     await expect.element(shown('force a hot update of one module')).toBeVisible()
-    await expect.element(shown('Tool: server_reload')).not.toBeInTheDocument()
+    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
     await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
-    await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()
+    await expect.element(shown('mode=draw')).toBeVisible()
+    await expect.element(shown('mode=decline')).toBeVisible()
   }, 60_000)
 
   test('its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen', async () => {

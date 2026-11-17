@@ -1,7 +1,7 @@
 import type {record} from 'rrweb'
 import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
-import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
+import type {RecorderConfig, RrwebEvent} from '../protocol.js'
 
 const CHECKOUT_MS = 60_000
 

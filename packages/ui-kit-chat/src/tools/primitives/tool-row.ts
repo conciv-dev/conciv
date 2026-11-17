@@ -130,7 +130,7 @@ function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
-function clipTarget(value: string): string {
+export function clipTarget(value: string): string {
   const collapsed = collapseWhitespace(value)
   return collapsed.length <= MAX_TARGET_LENGTH ? collapsed : `${collapsed.slice(0, MAX_TARGET_LENGTH - 1)}…`
 }
@@ -140,7 +140,7 @@ function stringField(input: Record<string, unknown>, key: string): string | unde
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
 }
 
-function argumentRecord(part: ToolCallPart): Record<string, unknown> {
+export function argumentRecord(part: ToolCallPart): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(part.arguments || '{}')
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}

@@ -201,13 +201,13 @@ describe('a generic card given a body', () => {
     await expect.element(catalogBodied.getByText('saved to drafts')).not.toBeInTheDocument()
 
     const fallback = region('fallback card')
-    await expect.element(fallback.getByRole('button', {name: /Used tool: ping/})).toBeVisible()
-    await userEvent.click(fallback.getByRole('button', {name: /Used tool: ping/}))
+    await expect.element(fallback.getByRole('button', {name: /Called ping/})).toBeVisible()
+    await userEvent.click(fallback.getByRole('button', {name: /Called ping/}))
     await expect.element(fallback.getByText('pong from example.org')).toBeVisible()
 
     const fallbackBodied = region('fallback card with a body')
-    await expect.element(fallbackBodied.getByRole('button', {name: /Used tool: ping/})).toBeVisible()
-    await userEvent.click(fallbackBodied.getByRole('button', {name: /Used tool: ping/}))
+    await expect.element(fallbackBodied.getByRole('button', {name: /Called ping/})).toBeVisible()
+    await userEvent.click(fallbackBodied.getByRole('button', {name: /Called ping/}))
     await expect.element(fallbackBodied.getByText('Plugin drew the ping')).toBeVisible()
     await expect.element(fallbackBodied.getByText('pong from example.org')).not.toBeInTheDocument()
   })
@@ -477,7 +477,6 @@ describe('meta tool card error', () => {
       ))
 
       await expect.element(page.getByText(`The tool call was ${outcome}.`)).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/catalog-${outcome}.png`})
       await expect.element(page.getByText(label, {exact: true})).toBeVisible()
       await expect.element(page.getByText('Error', {exact: true})).not.toBeInTheDocument()
     })
@@ -620,7 +619,7 @@ describe('tool call card dispatch', () => {
     ))
 
     await expect.element(page.getByText('Shipped the page')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Used tool:')
+    expect(document.body.textContent).not.toContain('Called page_ship')
   })
 
   it('a tool the catalog knows nothing about still reaches the raw fallback', async () => {
@@ -634,7 +633,7 @@ describe('tool call card dispatch', () => {
     ))
 
     await expect.element(page.getByText('mcp__weather__forecast')).toBeVisible()
-    expect(document.body.textContent).toContain('Used tool:')
+    expect(document.body.textContent).toContain('Called mcp__weather__forecast')
   })
 
   it('a tool that only reaches the meta-driven default still renders its inline approval prompt', async () => {
@@ -668,7 +667,7 @@ describe('tool call card dispatch', () => {
       render: cardSaying('the second card'),
       hasEmbeddedBody: () => true,
     }
-    const fallbackRow = page.getByRole('button', {name: /Used tool: mcp__weather__forecast/})
+    const fallbackRow = page.getByRole('button', {name: /Called mcp__weather__forecast/})
     const [tools, setTools] = createSignal<ToolCardEntry[]>([pluginEntry, catalogEntry])
     const [result, setResult] = createSignal<ToolResultPart | undefined>(undefined)
     mountView(() => (
@@ -889,7 +888,6 @@ describe('tool trace row', () => {
     await expect.element(page.getByText('clear skies over the bay')).toBeVisible()
     await expect.element(page.getByText('location', {exact: true})).toBeVisible()
     expect(container.querySelectorAll('diffs-container').length).toBe(1)
-    await page.screenshot({path: '__screenshots__/tool-trace-row/generic-body-shiki.png'})
   })
 
   it('folds a mounted body away and back from the row control', async () => {
