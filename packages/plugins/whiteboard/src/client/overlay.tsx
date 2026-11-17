@@ -22,7 +22,7 @@ function OverlayError(props: {toast: Context['toast']; error: unknown}): JSX.Ele
   return <Notice>The whiteboard is unavailable.</Notice>
 }
 
-export function WhiteboardOverlay(props: {ctx: Context}): JSX.Element {
+export function WhiteboardOverlay(props: {ctx: Context; close: () => void}): JSX.Element {
   const room = () => {
     const session = props.ctx.sessions.current()
     return session && !session.pending ? session.id : undefined
@@ -32,7 +32,7 @@ export function WhiteboardOverlay(props: {ctx: Context}): JSX.Element {
       <ErrorBoundary fallback={(error) => <OverlayError toast={props.ctx.toast} error={error} />}>
         <Suspense fallback={<Notice>Loading the whiteboard…</Notice>}>
           <Show when={room()} keyed fallback={<Notice>Start a chat session to open the whiteboard.</Notice>}>
-            {(current) => <CanvasSurface client={props.ctx.client} room={current} />}
+            {(current) => <CanvasSurface client={props.ctx.client} room={current} close={props.close} />}
           </Show>
         </Suspense>
       </ErrorBoundary>

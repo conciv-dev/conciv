@@ -7,7 +7,8 @@ export default Plugin.define({
     const [open, setOpen] = createSignal(false)
     const overlay: Slot = {
       at: 'page.overlay',
-      render: () => <WhiteboardOverlay ctx={ctx} />,
+      hides: false,
+      render: () => <WhiteboardOverlay ctx={ctx} close={() => setOpen(false)} />,
     }
     const pill: ComposerPill = {
       id: 'whiteboard-open',

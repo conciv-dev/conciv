@@ -1,4 +1,5 @@
-import type {JSX} from 'solid-js'
+import {onMount, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import type {Context} from '@conciv/plugin/experimental'
 import {Island} from '../canvas/island.js'
@@ -12,8 +13,27 @@ function injectExcalidrawCss(doc: Document): void {
   doc.head.appendChild(style)
 }
 
-export default function CanvasSurface(props: {client: Context['client']; room: string}): JSX.Element {
+const insideExcalidraw = (event: KeyboardEvent): boolean => {
+  const target = event.target
+  return target instanceof Element && target.closest('.excalidraw') !== null
+}
+
+export default function CanvasSurface(props: {
+  client: Context['client']
+  room: string
+  close: () => void
+}): JSX.Element {
   injectExcalidrawCss(document)
+  onMount(() =>
+    makeEventListener(
+      window,
+      'keydown',
+      (event) => {
+        if (event.key === 'Escape' && !insideExcalidraw(event)) props.close()
+      },
+      true,
+    ),
+  )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room}>
       <Island doc={document} room={props.room} theme="dark" />
