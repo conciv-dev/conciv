@@ -244,9 +244,7 @@ export const ui: Ui = {
         <OpenLayer />
       </Show>
       <Popover.Positioner>
-        <Popover.Content class="max-w-[calc(100vw-2rem)]" aria-label={props.label}>
-          {props.children}
-        </Popover.Content>
+        <Popover.Content aria-label={props.label}>{props.children}</Popover.Content>
       </Popover.Positioner>
     </Popover.Root>
   ),
