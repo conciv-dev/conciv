@@ -2,7 +2,7 @@ import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import {Effect} from 'effect'
-import type {ServerRouteInfo, ServerRouteKind} from '@conciv/protocol/framework-types'
+import type {RouteInfo, RouteInfoKind} from '../rpc.js'
 
 const FILE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const
 
@@ -34,13 +34,13 @@ function resolveFile(baseDir: string, spec: string | undefined): string | null {
   return resolved
 }
 
-function classify(id: string, path: string | null): ServerRouteKind {
+function classify(id: string, path: string | null): RouteInfoKind {
   if (id === '__root__') return 'layout'
   if (path === null || path === '') return 'layout'
   return 'page'
 }
 
-function rootFrom(imports: ImportMap, baseDir: string): ServerRouteInfo | null {
+function rootFrom(imports: ImportMap, baseDir: string): RouteInfo | null {
   for (const [name, spec] of imports) {
     if (spec.endsWith('__root') || name === 'rootRouteImport') {
       return {path: '/', kind: 'layout', dynamic: false, file: resolveFile(baseDir, spec)}
@@ -54,7 +54,7 @@ function updateBlockToRoute(
   body: string,
   imports: ImportMap,
   baseDir: string,
-): ServerRouteInfo | null {
+): RouteInfo | null {
   const id = ID_RE.exec(body)?.[1]
   if (id === undefined) return null
   const path = PATH_RE.exec(body)?.[1] ?? null
@@ -68,10 +68,10 @@ function updateBlockToRoute(
   }
 }
 
-function parseRouteManifest(source: string, baseDir: string): ServerRouteInfo[] {
+function parseRouteManifest(source: string, baseDir: string): RouteInfo[] {
   const imports = collectImports(source)
   const root = rootFrom(imports, baseDir)
-  const routes: ServerRouteInfo[] = root ? [root] : []
+  const routes: RouteInfo[] = root ? [root] : []
   for (const match of source.matchAll(UPDATE_RE)) {
     const route = updateBlockToRoute(match[1], match[2] ?? '', imports, baseDir)
     if (route) routes.push(route)

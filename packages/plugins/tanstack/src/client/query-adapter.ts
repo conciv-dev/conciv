@@ -1,5 +1,5 @@
 import type {ReactTree} from '@conciv/plugin/experimental/page'
-import type {CacheEntry, CacheEntryState} from '@conciv/protocol/framework-types'
+import type {CacheEntry, CacheEntryState} from '../rpc.js'
 import {findInFibers, type Fiber} from './router-adapter.js'
 
 type QueryClientLike = {

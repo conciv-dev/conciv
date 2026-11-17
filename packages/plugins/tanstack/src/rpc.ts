@@ -9,7 +9,7 @@ export const FrameworkInfo = z.object({
 })
 export type FrameworkInfo = z.infer<typeof FrameworkInfo>
 
-const RouteMatch = z.object({
+export const RouteMatch = z.object({
   id: z.string(),
   routeId: z.string(),
   path: z.string(),
@@ -21,34 +21,30 @@ const RouteMatch = z.object({
   updatedAt: z.number().nullable(),
   isFetching: z.boolean(),
 })
+export type RouteMatch = z.infer<typeof RouteMatch>
+export type RouteStatus = RouteMatch['status']
 
 export const RouterCurrent = z.object({
   location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
   matches: z.array(RouteMatch),
 })
 export type RouterCurrent = z.infer<typeof RouterCurrent>
+export type RouterLocation = RouterCurrent['location']
 
 const RouteKind = z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index', 'group'])
+export type RouteNodeKind = z.infer<typeof RouteKind>
 
-export type RouteNode = {
-  id: string
-  path: string
-  kind: z.infer<typeof RouteKind>
-  hasLoader: boolean
-  children: RouteNode[]
-  truncated?: number | undefined
-}
-
-export const RouteNode: z.ZodType<RouteNode> = z.lazy(() =>
-  z.object({
-    id: z.string(),
-    path: z.string(),
-    kind: RouteKind,
-    hasLoader: z.boolean(),
-    children: z.array(RouteNode),
-    truncated: z.number().optional(),
-  }),
-)
+export const RouteNode = z.object({
+  id: z.string(),
+  path: z.string(),
+  kind: RouteKind,
+  hasLoader: z.boolean(),
+  get children(): z.ZodArray<typeof RouteNode> {
+    return z.array(RouteNode)
+  },
+  truncated: z.number().optional(),
+})
+export type RouteNode = z.infer<typeof RouteNode>
 
 export const CacheEntry = z.object({
   key: z.string(),
@@ -60,6 +56,7 @@ export const CacheEntry = z.object({
   observers: z.number().nullable(),
 })
 export type CacheEntry = z.infer<typeof CacheEntry>
+export type CacheEntryState = CacheEntry['state']
 
 export const AppError = z.object({
   id: z.string(),
@@ -78,6 +75,8 @@ const RouteInfo = z.object({
   dynamic: z.boolean(),
   file: z.string().nullable(),
 })
+export type RouteInfo = z.infer<typeof RouteInfo>
+export type RouteInfoKind = RouteInfo['kind']
 
 const ServerFnTraces = z.object({
   traces: z.array(
@@ -93,6 +92,9 @@ const ServerFnTraces = z.object({
     z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
   ),
 })
+export type ServerFnTraces = z.infer<typeof ServerFnTraces>
+export type ServerFnTrace = ServerFnTraces['traces'][number]
+export type ServerFnInfo = ServerFnTraces['functions'][number]
 
 const SessionId = z
   .string()
