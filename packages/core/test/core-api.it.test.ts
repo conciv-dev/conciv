@@ -354,6 +354,8 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
+    const staleNotice = 'WARNING: this engine is running outdated code'
+
     async function executeTool(base: string) {
       const mcp = await connectMcpClient(`${base}/api/mcp`)
       try {
@@ -392,7 +394,7 @@ describe('api engine staleness di', () => {
       const liveness = {ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}, id: expect.any(String)}
       expect(health).toEqual([liveness, liveness])
       expect(engine).toEqual(INJECTED)
-      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description.slice(0, staleNotice.length)).toBe(staleNotice)
       expect(description).toContain('@conciv/injected-probe')
       expect(description).toContain('Rules of the sandbox:')
       expect(description.length).toBeLessThanOrEqual(4096)
@@ -416,7 +418,7 @@ describe('api engine staleness di', () => {
 
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(sandboxNames.filter((name) => !description.includes(name)).length).toBeGreaterThan(0)
-      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description.slice(0, staleNotice.length)).toBe(staleNotice)
       expect(description).toContain('@conciv/changed-package-0')
       expect(description).toMatch(/, and \d+ more\)\. Restart the dev server/)
       expect(description).toContain('Run TypeScript in a secure sandbox wired to this project.')
@@ -428,7 +430,7 @@ describe('api engine staleness di', () => {
       const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
       const {description} = await executeTool(served.base)
       expect(description).toContain('Rules of the sandbox:')
-      expect(description).not.toMatch(/outdated|restart the dev server/i)
+      expect(description).not.toContain(staleNotice)
     }, 20_000)
   })
 })
