@@ -28,6 +28,12 @@ export function liveEngines(home: string): Promise<Checked> {
   return homeRead(home, checkEngines(home, {timeoutMs: PROBE_MS}))
 }
 
+export async function runningEngines(home: string): Promise<Checked> {
+  const checked = await liveEngines(home)
+  if (checked.live.length > 0 || checked.unreachable.length > 0) return checked
+  throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
+}
+
 export function homeRead(home: string, reading: Promise<Checked>): Promise<Checked> {
   return reading.catch((error: unknown) => {
     throw new Error(`cannot read the conciv home folder ${home}: ${errorText(error)}`, {cause: error})
@@ -52,7 +58,7 @@ export function askTabs(rows: EngineRow[], tab: SessionId, timeoutMs: number): P
 }
 
 export async function listTabs(home: string): Promise<TabsListing> {
-  const checked = await liveEngines(home)
+  const checked = await runningEngines(home)
   const listings = await Promise.all(checked.live.map(engineTabs))
   return {
     tabs: listings.flatMap((listing) => listing.tabs),

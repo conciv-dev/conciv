@@ -43,6 +43,7 @@ import {
   listTabs,
   liveEngines,
   PROBE_MS,
+  runningEngines,
   silence,
   TOO_OLD,
   type Silent,
@@ -414,10 +415,7 @@ export const serveCommand = command(
 )
 
 async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
-  const first = await liveEngines(home)
-  if (first.live.length === 0 && first.unreachable.length === 0) {
-    throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
-  }
+  const first = await runningEngines(home)
   const picked = await firstUsable(first.live, headers, [])
   if (picked.runner !== null) return picked.runner
   const second = await homeRead(home, askAgain(home, first.unreachable))
