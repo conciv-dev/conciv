@@ -131,7 +131,7 @@ kit's `ToolCardView`, with the call's duration and page capture).
 ### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
 
 What the built-in page plugin offers other plugins' browser parts, shaped as opencode's `gui/browser.ts` (interface and
-const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own `SnapdomPlugin` type, so `@zumer/snapdom` is a dependency), the `ReactTree` contract
+const of one name): the `Page` contract (`symbolicate`, `toast`, `capture` with `exclude` and `plugins`, snapdom's own `SnapdomPlugin` type, so `@zumer/snapdom` is a dependency, and `pick`, which lets the user pick an element in grab's quiet comment mode and resolves its `source` and `rect`, or `null` when the user cancels; a second `pick` cancels the one in flight), the `ReactTree` contract
 (`page.react`: `rootFibers`, `dehydrate`, `describe`, `locate`, `frames`) and the `PageEffect` registry
 (`page.effect`), with `PageToastTone`, `PageCapture`, `DehydrateOptions`, `ReactFiber` and `ReactComponentInfo`.
 
