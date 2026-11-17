@@ -12,6 +12,7 @@ import {
 } from 'solid-js'
 import {useQuery, type ChatSession} from '@conciv/client'
 import {z} from 'zod'
+import {compact, uniq} from 'es-toolkit'
 import {
   activeToolCall,
   AttachmentByMime,
@@ -177,8 +178,8 @@ function turnHarnessNames(
   const harnesses = useHarnesses()
   const mixed = createMemo(() => {
     const harnessId = current()
-    if (harnessId === undefined) return false
-    return turns().some((turn) => turn.role === 'assistant' && (chat.readHarness(turn.key) ?? harnessId) !== harnessId)
+    const replies = turns().filter((turn) => turn.role === 'assistant')
+    return uniq(compact([harnessId, ...replies.map((turn) => chat.readHarness(turn.key) ?? harnessId)])).length > 1
   })
   return (turn) => {
     if (!mixed() || turn.role !== 'assistant') return undefined
