@@ -23,7 +23,7 @@ export function RecordingCard(props: NoteCardProps & {clientId: string}): JSX.El
   return (
     <div class="flex gap-2 min-w-0 items-center">
       <ctx.ui.Icon name="clapperboard" size="small" class="text-chat-text-3 shrink-0" />
-      <span class="text-chat-sm text-chat-text-hi font-chat min-w-0 truncate">{poster()}</span>
+      <span class="text-chat-sm text-chat-text-hi font-chat flex-1 min-w-0 break-words text-balance">{poster()}</span>
       <Show when={props.note.href}>
         {(recordingId) => (
           <ctx.ui.Button variant="neutral" size="small" onClick={() => play(recordingId())}>
