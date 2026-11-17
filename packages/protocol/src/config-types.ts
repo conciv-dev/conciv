@@ -85,7 +85,6 @@ export const ConcivConfigSchema = z.object({
   policies: z.array(PolicyStatementSchema).readonly().optional(),
   permission: PermissionShortSchema.optional(),
   permissions: z.array(PermissionRuleSchema).readonly().optional(),
-  widgetUrl: z.string().optional(),
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
   stateRoot: z.string().optional(),
   harness: z.string().optional(),

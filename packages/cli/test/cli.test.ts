@@ -5413,19 +5413,12 @@ export default defineConfig({plugins: [conciv()]})`
       ]
 
       describe('webpackFamilyStep', () => {
-        it('wires a CJS webpack config with a require line and conciv.default(), carding that the widget is not added', async () => {
+        it('wires a CJS webpack config with a require line and conciv.default(), with nothing left to do by hand', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
           const step = webpackFamilyStep(detected)
           expect(step.id).toBe('framework')
           expect(await step.detect(ctx)).toBe('missing')
-          const outcome = await step.apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual(['The widget is not added for you'])
-          const body = outcome.cards[0]?.body ?? ''
-          expect(body).toContain('does not add the widget to your page')
-          expect(body).toContain('https://conciv.dev/docs/quick-start/webpack')
-          expect(body).not.toContain('@conciv/widget')
-          expect(body).not.toContain('widgetUrl')
+          expect(await step.apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("const conciv = require('@conciv/it/plugin/webpack')")
           expect(written).toContain('plugins: [new DefinePlugin({DEV: true}), conciv.default()],')
@@ -5435,16 +5428,14 @@ export default defineConfig({plugins: [conciv()]})`
         it('reports already on the second pipeline run over a wired CJS config', async () => {
           const {detected, settings, output} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
           const first = await runSteps([webpackFamilyStep(detected)], settings, output)
-          expect(first.map((entry) => entry.status)).toEqual(['manual'])
+          expect(first.map((entry) => entry.status)).toEqual(['done'])
           const second = await runSteps([webpackFamilyStep(detected)], settings, output)
           expect(second.map((entry) => entry.status)).toEqual(['already'])
         })
 
         it('wires an ESM webpack config through the engine with a default import', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.esm.js')
-          const outcome = await webpackFamilyStep(detected).apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual(['The widget is not added for you'])
+          expect(await webpackFamilyStep(detected).apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
           expect(written).toContain('plugins: [new TerserPlugin(), conciv()],')
@@ -5456,7 +5447,9 @@ export default defineConfig({plugins: [conciv()]})`
             'webpack.config.js',
             'webpack.config.esm-mentions-module-exports.js',
           )
-          expect(await unwiredCardTitles(detected, ctx)).toEqual(['The widget is not added for you'])
+          const step = webpackFamilyStep(detected)
+          expect(await step.detect(ctx)).toBe('missing')
+          expect(await step.apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
           expect(written).toContain('conciv()')
@@ -5471,29 +5464,23 @@ export default defineConfig({plugins: [conciv()]})`
             'webpack.config.ambiguous-both-styles.js',
           )
           const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-          expect(await unwiredCardTitles(detected, ctx)).toEqual([
-            'Wire the conciv webpack plugin',
-            'The widget is not added for you',
-          ])
+          expect(await unwiredCardTitles(detected, ctx)).toEqual(['Wire the conciv webpack plugin'])
           expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
         })
 
         it('picks the rspack module path for rspack projects', async () => {
           const {cwd, detected, ctx} = project('rspack', 'rspack.config.js', 'rspack.config.esm.js')
-          const outcome = await webpackFamilyStep(detected).apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+          expect(await webpackFamilyStep(detected).apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'rspack.config.js'), 'utf8')
           expect(written).toContain("import conciv from '@conciv/it/plugin/rspack'")
           expect(written).toContain('plugins: [conciv()],')
-          expect(outcome.cards[0]?.body).toContain('https://conciv.dev/docs/quick-start/rspack')
         })
 
         it('treats a lone plugin require as unwired and lands the call', async () => {
           const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-require-only.js')
           const step = webpackFamilyStep(detected)
           expect(await step.detect(ctx)).toBe('missing')
-          const outcome = await step.apply(ctx)
-          if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+          expect(await step.apply(ctx)).toEqual({status: 'done'})
           const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           expect(written).toContain('plugins: [conciv.default()]')
           expect(await step.detect(ctx)).toBe('present')
@@ -5503,10 +5490,7 @@ export default defineConfig({plugins: [conciv()]})`
           it(`cards a CJS config that ${reason} and leaves the file byte-identical`, async () => {
             const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', fixtureName)
             const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-            expect(await unwiredCardTitles(detected, ctx)).toEqual([
-              'Wire the conciv webpack plugin',
-              'The widget is not added for you',
-            ])
+            expect(await unwiredCardTitles(detected, ctx)).toEqual(['Wire the conciv webpack plugin'])
             expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
           })
         }
@@ -5516,10 +5500,7 @@ export default defineConfig({plugins: [conciv()]})`
           const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
           const outcome = await webpackFamilyStep(detected).apply(ctx)
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual([
-            'Wire the conciv webpack plugin',
-            'The widget is not added for you',
-          ])
+          expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin'])
           expect(outcome.cards[0]?.snippet).toBe(`const conciv = require('@conciv/it/plugin/webpack')
 
 module.exports = {
@@ -5532,10 +5513,7 @@ module.exports = {
           const {detected, ctx} = project('rspack', null, null)
           const outcome = await webpackFamilyStep(detected).apply(ctx)
           if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-          expect(outcome.cards.map((card) => card.title)).toEqual([
-            'Wire the conciv rspack plugin',
-            'The widget is not added for you',
-          ])
+          expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv rspack plugin'])
           expect(outcome.cards[0]?.snippet).toContain("require('@conciv/it/plugin/rspack')")
         })
 
