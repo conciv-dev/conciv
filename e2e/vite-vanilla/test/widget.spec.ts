@@ -1,4 +1,4 @@
-import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
 import {e2eConfigDir, harnessHome} from '@conciv/e2e-utils/config'
@@ -8,6 +8,92 @@ test('widget boots from dist in a vanilla vite app', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
+})
+
+const OPTIMIZED_DEPENDENCY = /\/node_modules\/\.vite\/deps\/([^/]+\.js)$/
+
+const START_LIBRARIES = [
+  '@ark-ui/solid',
+  '@orpc/client',
+  '@orpc/contract',
+  '@orpc/standard-server-peer',
+  '@pierre/diffs',
+  '@tanstack/ai',
+  '@tanstack/ai-event-client',
+  '@tanstack/history',
+  '@tanstack/hotkeys',
+  '@tanstack/pacer',
+  '@tanstack/solid-hotkeys',
+  '@tanstack/solid-pacer',
+  '@tanstack/solid-virtual',
+  '@tanstack/store',
+  '@tiptap/core',
+  '@tiptap/extension-document',
+  '@tiptap/extension-hard-break',
+  '@tiptap/extension-mention',
+  '@tiptap/extension-paragraph',
+  '@tiptap/extension-text',
+  '@tiptap/extensions',
+  '@tiptap/pm',
+  '@tiptap/suggestion',
+  'bippy',
+  'defu',
+  'effect',
+  'es-toolkit',
+  'gsap',
+  'lru_map',
+  'lucide-solid',
+  'p-queue',
+  'partysocket',
+  'shiki',
+  'solid-js',
+  'vite',
+  'zod',
+]
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+function libraryInPath(path: string): string | undefined {
+  const parts = path.split('/node_modules/')
+  const tail = parts.at(-1)
+  if (parts.length < 2 || tail === undefined) return undefined
+  const [scope, name] = tail.split('/')
+  return scope?.startsWith('@') ? `${scope}/${name}` : scope
+}
+
+function optimizedSources(configDir: string): Map<string, string> {
+  const metadata: unknown = JSON.parse(
+    readFileSync(join(configDir, 'node_modules', '.vite', 'deps', '_metadata.json'), 'utf8'),
+  )
+  const optimized = isRecord(metadata) && isRecord(metadata.optimized) ? Object.values(metadata.optimized) : []
+  return new Map(
+    optimized.flatMap((entry): [string, string][] =>
+      isRecord(entry) && typeof entry.file === 'string' && typeof entry.src === 'string'
+        ? [[entry.file, entry.src]]
+        : [],
+    ),
+  )
+}
+
+function requestedLibraries(paths: readonly string[], sources: Map<string, string>): string[] {
+  const libraries = paths.flatMap((path) => {
+    const optimized = OPTIMIZED_DEPENDENCY.exec(path)?.[1]
+    const source = optimized === undefined ? path : sources.get(optimized)
+    const library = source === undefined ? undefined : libraryInPath(source)
+    return library === undefined ? [] : [library]
+  })
+  return [...new Set(libraries)].toSorted()
+}
+
+test('the widget start requests only the libraries every session needs', async ({page}) => {
+  const paths: string[] = []
+  page.on('request', (request) => paths.push(new URL(request.url()).pathname))
+  const failures = collectFailures(page)
+  await loginWidget(page)
+  await expectWidgetBoots(page, failures)
+  await expect(page.getByRole('tab', {name: 'Terminal'})).toBeVisible()
+  const sources = optimizedSources(e2eConfigDir(test.info().config.configFile))
+  expect(requestedLibraries(paths, sources)).toEqual(START_LIBRARIES)
 })
 
 test('files a harness writes into its e2e home do not reload the page', async ({page}) => {
