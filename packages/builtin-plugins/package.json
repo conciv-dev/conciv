@@ -36,7 +36,6 @@
     "@solid-primitives/map": "catalog:",
     "@tanstack/hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
-    "@unocss/reset": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
     "js-beautify": "^2.0.3",
