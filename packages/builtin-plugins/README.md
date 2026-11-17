@@ -81,3 +81,14 @@ The card the thread draws for a finished `test_runner_run` or `test_runner_statu
 last two path segments, a failing test closed until opened, and its failure with Open (the desktop editor, at the
 failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
 streams the live rows.
+
+## tanstack-card
+
+The cards the thread draws for the TanStack plugin's calls (built-in id `tanstack-card`, one `ToolCall` card claim
+per tool): `tanstack_router_state`, `tanstack_route_tree`, `tanstack_loader_data`, `tanstack_query_cache`,
+`tanstack_query_invalidate`, `tanstack_query_refetch`, `tanstack_navigate`, `tanstack_router_invalidate`,
+`tanstack_back`, `tanstack_build_errors`, `tanstack_route_manifest` and `tanstack_server_fn_trace` (`tanstack/cards.ts`).
+Each claim gives the whole card, so it draws while the call runs (the title and a running dot, no body) and after it
+finishes (a summary in the header; the rows, the JSON or the error in the body). The cards are built from
+`@conciv/ui-kit-chat/tools` and `@conciv/ui-kit-system`, which the widget already bundles, so the embed keeps one copy
+of each. They moved here from the old TanStack extension, whose own copy stays until that extension is deleted.
