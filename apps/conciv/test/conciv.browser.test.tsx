@@ -844,7 +844,8 @@ describe('chat pane', () => {
         await expect.poll(readLocalCopy).toMatchObject({text: 'refused at first', syncedAt: taken?.updatedAt, sent: []})
 
         const refusedAgain = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
-        await tabIntoComposer(5)
+        await userEvent.click(input())
+        await expect.element(input()).toHaveFocus()
         await userEvent.keyboard('{End} and more')
         await runClockPastDraftSaveRetries(unsaved)
         await expect.element(unsaved.getByText(KEPT_HERE)).toBeVisible()
