@@ -17,8 +17,9 @@ function resolvedColor(probe: HTMLElement, token: string): string | undefined {
   return color === '' ? undefined : color
 }
 
-function readTerminalTheme(element: Element): TerminalTheme {
+function readTerminalTheme(element: Element, scheme: 'light' | 'dark'): TerminalTheme {
   const probe = document.createElement('span')
+  probe.style.colorScheme = scheme
   element.append(probe)
   const text = resolvedColor(probe, '--chat-text-hi')
   const theme = {
@@ -85,12 +86,16 @@ export default function TerminalSurface(props: {
       connection.url = pty.url
       props.terminal.opened({key: terminalKey, ptyId: pty.ptyId, busy: model.busy})
     },
-    theme: () => readTerminalTheme(props.themeHost()),
+    theme: () =>
+      readTerminalTheme(
+        props.themeHost(),
+        untrack(() => ctx.appearance.mode()),
+      ),
   })
   createKeyed(
     () => ctx.appearance.mode(),
-    () => {
-      model.terminal.options.theme = readTerminalTheme(props.themeHost())
+    (scheme) => {
+      model.terminal.options.theme = readTerminalTheme(props.themeHost(), scheme)
     },
   )
   onCleanup(() => props.terminal.closed(terminalKey))

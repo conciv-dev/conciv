@@ -7374,6 +7374,10 @@ describe('terminal panel', () => {
     pageScheme.add('dark')
     const flippedToDark = await shot()
     expect(flippedToDark).not.toBe(freshLight)
+    pageScheme.remove('dark')
+    expect(await shot()).toBe(freshLight)
+    pageScheme.add('dark')
+    expect(await shot()).toBe(flippedToDark)
 
     await mountSettled()
     expect(await shot()).toBe(flippedToDark)
