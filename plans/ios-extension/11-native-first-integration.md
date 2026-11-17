@@ -64,7 +64,7 @@ existing.
 - **The simulator-to-host file transport is proven** (spike, 2026-07-26, Xcode 17F113 / iOS 26.5 sim).
   The Swift SDK (`native/swift/ConcivWidget/Sources/ConcivWidget/Discovery.swift`) reads
   `SIMULATOR_HOST_HOME/.conciv/dev-endpoint.json`, and the spike ran that path for real with zero env
-  injection: `SIMULATOR_HOST_HOME=/Users/omrikatz` is present in the app env under both `simctl launch`
+  injection: `SIMULATOR_HOST_HOME=~` is present in the app env under both `simctl launch`
   and a tap/SpringBoard launch (SpringBoard's own procinfo carries it, children inherit); sim apps run
   as the host user and share the host filesystem, so the sandboxed app read the file directly, parsed it,
   hit `/health` (200), and rendered the panel. The existing demo also passed the URL through

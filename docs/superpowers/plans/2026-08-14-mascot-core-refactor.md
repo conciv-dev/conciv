@@ -38,7 +38,7 @@
 
 ### Task 0: Branch, worktree, docs seed
 
-- [ ] **Step 1:** `git -C /Users/omrikatz/Public/web/aidx worktree add .claude/worktrees/mascot-component -b feat/mascot-component origin/main` (then `pnpm install` in the new worktree).
+- [ ] **Step 1:** `git -C ~/Public/web/aidx worktree add .claude/worktrees/mascot-component -b feat/mascot-component origin/main` (then `pnpm install` in the new worktree).
 - [ ] **Step 2:** Copy `docs/superpowers/specs/2026-08-14-mascot-componentization-design.md` and `docs/superpowers/plans/2026-08-14-mascot-core-refactor.md` from `feat/mascot-gaze` (e.g. `git show feat/mascot-gaze:docs/... > docs/...`) into the new worktree, commit: `docs(mascot): componentization spec and phase-1 plan`.
 - [ ] **Step 3:** Push and open draft PR titled `feat(mascot): componentized core (phase 1)`, body linking PR #486 as the prototype it replaces.
 
@@ -188,7 +188,7 @@ work   → {state: 'rest',  working: true,  follow: false}
 **Checks (supersets the donor's 15):** legacy trio via the adapter — closed gaze (eyes ±3px, antenna ±10° with falloff ratio ≈ 0.5 at half distance), work (throb maxScaleY 1.3, 5 digits, staged enter, drain exit, flap ×5 → one emitter, no runaway tweens), open pose values; PLUS new-surface checks driven through `createMascot` directly: awake+working (awake pose retained while throbbing, blink returns to 1.06), update-before-registerParts (no throw, config applied on registration), repeated registerParts (no duplicate listeners/wrappers — assert one lean wrapper, pointermove count via instrumented addEventListener), destroy-during-exit (no dangling element), reduced-motion (all static, no emitter).
 
 - [ ] **Step 1:** Build harness; run against `pnpm turbo run build --filter=@conciv/mascot` dist. All checks PASS.
-- [ ] **Step 2:** Donor-parity spot check: run the SAME harness's legacy-trio section against the donor worktree's built dist (`/Users/omrikatz/Public/web/aidx/.claude/worktrees/agent-a7c0a33a7e8995ce3/packages/mascot/dist`) — both green proves parity without file swapping.
+- [ ] **Step 2:** Donor-parity spot check: run the SAME harness's legacy-trio section against the donor worktree's built dist (`~/Public/web/aidx/.claude/worktrees/agent-a7c0a33a7e8995ce3/packages/mascot/dist`) — both green proves parity without file swapping.
 - [ ] **Step 3:** `pnpm turbo run build --filter=@conciv/embed`; grep bundle for `elastic.out(1, 0.5)` and `var(--pw-accent`; run widget typecheck trio again.
 - [ ] **Step 4:** Commit: `test(mascot): checked-in behavior harness`; push; report full harness output verbatim in the PR + changeset `.changeset/mascot-core.md` (patch, describing the internal restructuring + new core API).
 
