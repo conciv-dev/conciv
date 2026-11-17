@@ -9,6 +9,7 @@ import {useLiveSessions} from '../app/context.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, checkSendState, type SendState, type SendVerdict} from './send-checks.js'
 import {SESSION_DELETED_MESSAGE, sessionDeleted} from './run-error-row.js'
+import {rpcErrorCode} from '../shell/rpc-error-message.js'
 
 const SendRejectionSchema = z.object({
   rejected: z.literal(true),
@@ -20,6 +21,11 @@ type SendRejection = z.infer<typeof SendRejectionSchema>
 
 function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejection {
   return {rejected: true, message: verdict.message, tone: verdict.tone}
+}
+
+function compactFailureMessage(error: unknown): string {
+  if (rpcErrorCode(error) === 'NOT_FOUND') return 'This session was deleted, so it cannot be compacted.'
+  return 'Compaction failed. The session may be busy. Try again in a moment.'
 }
 
 const WITHDRAWN: SendRejection = {rejected: true, message: null, tone: 'info'}
@@ -88,9 +94,9 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const compact = useMutation(() => ({
     mutationFn: () => deps.rpc.sessions.compact({sessionId: deps.sessionId}),
     onMutate: (): CompactContext => ({resolving: runError()}),
-    onError: () =>
+    onError: (error) =>
       notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
-        deps.notices.notify('Compaction failed. The session may be busy. Try again in a moment.'),
+        deps.notices.notify(compactFailureMessage(error)),
       ),
     onSettled: () => {
       void deps.appData.invalidateSession(deps.sessionId)
