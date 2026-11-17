@@ -1,3 +1,3 @@
 export * as PluginPromise from './promise.js'
 
-export {fromPromise} from '../../plugin/promise/adapter.js'
+export {fromPromise} from '@conciv/plugin/promise/adapter'

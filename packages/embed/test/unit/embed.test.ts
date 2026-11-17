@@ -82,6 +82,23 @@ describe('mount externals', () => {
     })
   })
 
+  describe('embed mount build leaves effect to the one copy the app, @conciv/plugin and plugin bundles share', () => {
+    const effectCopies = (bundle: string) => bundle.split('effect/Effect/Yield').length - 1
+    const mountBuild = readdirSync(distDir)
+      .filter((name) => name.endsWith('.js') && !name.endsWith('.global.js'))
+      .map((name) => readFileSync(distDir + name, 'utf8'))
+      .join('\n')
+
+    it('carries no effect of its own and imports the one @conciv/plugin imports', () => {
+      expect(effectCopies(mountBuild)).toBe(0)
+      expect(mount).toMatch(/import\(\s*["']effect["']\s*\)/)
+    })
+
+    it('inlines exactly one effect copy into the self-contained global bundle', () => {
+      expect(effectCopies(globalBundle)).toBe(1)
+    })
+  })
+
   describe('embed mount build shares one Ark environment instance with extensions', () => {
     it('externalizes ui-kit-system so the root EnvironmentProvider and extension Combobox read the same context', () => {
       expect(externalized('@conciv/ui-kit-system')).toBe(true)

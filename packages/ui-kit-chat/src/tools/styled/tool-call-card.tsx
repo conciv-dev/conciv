@@ -19,6 +19,7 @@ import {
 } from '../primitives/tool-row.js'
 import {MetaToolCard, metaToolHasEmbeddedBody} from './meta-tool-card.js'
 import {toolFallbackHasEmbeddedBody} from './tool-fallback.js'
+import {genericToolRowProjection} from './generic-tool-headline.js'
 import {PermissionCard} from './permission-card.js'
 import {CardChromeProvider, ToolDurationProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
@@ -97,7 +98,9 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     (): ToolRowProjection => {
       const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
       const published = cardHeader()
-      return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
+      if (published) return headerRowProjection(published.read(), rowProps)
+      if (local.ctx.catalog.meta(local.part.name)) return genericRowProjection(rowProps)
+      return genericToolRowProjection(rowProps)
     },
     undefined,
     {equals: isEqual},

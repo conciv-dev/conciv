@@ -8,7 +8,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('global', () => {
   test('building layerWith creates service directories and preserves the given roots', async () => {
-    const root = tempDir('opencode-global-layer-')
+    const root = tempDir('conciv-global-layer-')
     const directories = {
       cache: path.join(root, 'cache'),
       config: path.join(root, 'config'),
@@ -24,7 +24,7 @@ describe('global', () => {
   })
 
   test('building layerWith points Flock locks without a directory at the state root', async () => {
-    const root = tempDir('opencode-global-flock-')
+    const root = tempDir('conciv-global-flock-')
     const directories = {
       cache: path.join(root, 'cache'),
       config: path.join(root, 'config'),

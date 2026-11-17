@@ -47,7 +47,11 @@ export async function openSource(
   const client = makeBrowserRpcClient(apiBase, {session})
   try {
     if (locateResult.source) {
-      await client.rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})
+      await client.rpc.plugin.call({
+        rpcId: 'server',
+        method: 'open',
+        input: {file: locateResult.source.file, line: locateResult.source.line},
+      })
       return 'opened'
     }
     if (locateResult.frames.length)

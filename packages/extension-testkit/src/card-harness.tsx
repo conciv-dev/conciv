@@ -7,7 +7,7 @@ const defaultCtx: ToolViewCtx = {
   apiBase: '',
   harnessId: 'claude',
   sendMessage: () => {},
-  addResult: () => {},
+  addResult: () => Promise.resolve(),
   catalog: INERT_TOOL_CATALOG,
 }
 
@@ -51,7 +51,7 @@ export function mountToolCard(
     part,
     result,
     ctx: options.ctx ?? defaultCtx,
-    addResult: options.addResult ?? (() => {}),
+    addResult: options.addResult ?? (() => Promise.resolve()),
   }
   disposers.push(render(() => <Card {...props} />, host))
 }

@@ -1,4 +1,4 @@
-import {describe, expect, it, beforeAll, afterAll, afterEach, test} from 'vitest'
+import {describe, expect, it, beforeAll, afterAll, afterEach, onTestFinished, test} from 'vitest'
 import type {
   HarnessChatDeps,
   HarnessConnectContext,
@@ -59,7 +59,7 @@ import {claudeTtyCommand} from '../src/claude/tty.js'
 import {codex} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
 import {codexRunAdapter} from '../src/codex/run-adapter.js'
-import {mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, open, readFile, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
 import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
@@ -83,6 +83,8 @@ const OPENCODE_TABLES = [
 ]
 
 const FIRST_PAGE: HarnessListPage = {after: null, limit: 30}
+
+const UNSTOPPED = {signal: new AbortController().signal}
 
 const PAGED_IDS = {newest: 'newest', tieHigh: 'tie-b', tieLow: 'tie-a', oldest: 'oldest'}
 
@@ -202,6 +204,24 @@ describe('capability matrix', () => {
   })
 })
 
+describe('harness models', () => {
+  it('a function-form models gets the caller signal and an array-form one answers as it is', async () => {
+    const stop = new AbortController()
+    const listing = resolveHarnessModels(
+      {
+        ...opencode,
+        models: ({signal}) =>
+          new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason))),
+      },
+      {signal: stop.signal},
+    )
+    stop.abort(new Error('the engine stopped'))
+    await expect(listing).rejects.toThrow('the engine stopped')
+    const listed = [{id: 'opus', name: 'Opus 5.5'}]
+    expect(await resolveHarnessModels({...opencode, models: listed}, {signal: stop.signal})).toEqual(listed)
+  })
+})
+
 describe('claude adapter', () => {
   describe('claude harness adapter', () => {
     it('is a single harness on the tanstack chatConfig path', () => {
@@ -228,12 +248,12 @@ describe('claude adapter', () => {
 
     it('is registered and resolves models', async () => {
       expect(getHarness('claude')).toBe(claude)
-      const models = await resolveHarnessModels(claude)
+      const models = await resolveHarnessModels(claude, UNSTOPPED)
       expect(models.map((model) => model.id)).toContain('sonnet')
     })
 
     it('lists the effort levels each model supports, and a model without effort carries none', async () => {
-      const models = await resolveHarnessModels(claude)
+      const models = await resolveHarnessModels(claude, UNSTOPPED)
       expect(models.find((model) => model.id === 'opus')?.efforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
       expect(models.every((model) => model.efforts === undefined || model.efforts.length > 0)).toBe(true)
     })
@@ -1607,7 +1627,7 @@ describe('opencode models', () => {
       ]),
     )
 
-    expect(await resolveHarnessModels(opencode)).toEqual([
+    expect(await resolveHarnessModels(opencode, UNSTOPPED)).toEqual([
       {
         id: 'anthropic/claude-opus-4-5',
         name: 'Claude Opus 4.5 · anthropic',
@@ -1684,7 +1704,7 @@ describe('opencode models', () => {
       ]),
     )
 
-    expect(await resolveHarnessModels(opencode)).toEqual([
+    expect(await resolveHarnessModels(opencode, UNSTOPPED)).toEqual([
       {
         id: 'amazon-bedrock/global.anthropic.claude-haiku-5-5',
         name: 'Claude Haiku 5.5 · amazon-bedrock',
@@ -1721,7 +1741,59 @@ describe('opencode models', () => {
   it('rejects when the opencode CLI fails, so the saved list stays in use', async () => {
     await fakeOpencode('', 1)
 
-    await expect(resolveHarnessModels(opencode)).rejects.toThrow()
+    await expect(resolveHarnessModels(opencode, UNSTOPPED)).rejects.toThrow()
+  })
+
+  it('ends the opencode CLI when the signal aborts and settles only once it has exited', async () => {
+    const bin = tempDir('conciv-fake-opencode-')
+    const pidPipe = join(bin, 'pid')
+    execFileSync('mkfifo', [pidPipe])
+    await writeFile(join(bin, 'opencode'), `#!/bin/sh\necho $$ > "${pidPipe}"\nexec cat\n`, {mode: 0o755})
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+    const stop = new AbortController()
+    const stopped = new Error('the engine stopped')
+    const listing = expect(resolveHarnessModels(opencode, {signal: stop.signal})).rejects.toMatchObject({
+      name: 'AbortError',
+      cause: stopped,
+    })
+    const pid = Number(await readFile(pidPipe, 'utf8'))
+    onTestFinished(() => {
+      try {
+        process.kill(pid)
+      } catch (error) {
+        expect(error).toMatchObject({code: 'ESRCH'})
+      }
+    })
+    stop.abort(stopped)
+    await listing
+    expect(() => process.kill(pid, 0)).toThrow('ESRCH')
+  })
+
+  it('ends an opencode CLI that ignores the stop: the aborted listing settles and its process group is gone', async () => {
+    const bin = tempDir('conciv-fake-opencode-')
+    const pidPipe = join(bin, 'pid')
+    execFileSync('mkfifo', [pidPipe])
+    await writeFile(join(bin, 'opencode'), `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidPipe}"\nexec cat\n`, {
+      mode: 0o755,
+    })
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+    const stop = new AbortController()
+    const stopped = new Error('the engine stopped')
+    const listing = expect(resolveHarnessModels(opencode, {signal: stop.signal})).rejects.toMatchObject({
+      name: 'AbortError',
+      cause: stopped,
+    })
+    const pid = Number(await readFile(pidPipe, 'utf8'))
+    onTestFinished(() => {
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch (error) {
+        expect(error).toMatchObject({code: 'ESRCH'})
+      }
+    })
+    stop.abort(stopped)
+    await listing
+    expect(() => process.kill(-pid, 0)).toThrow('ESRCH')
   })
 })
 

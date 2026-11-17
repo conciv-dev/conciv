@@ -355,7 +355,7 @@ describe('vocabulary', () => {
       expect(await lintFixture('of-suffix/allowed.ts', 'conciv(no-of-suffix)')).toEqual([])
     })
 
-    test('exempts the files copied from opencode', async () => {
+    test('exempts the ported files, which keep the names of the code they were ported from', async () => {
       expect(await lintFixture('of-suffix/packages/plugin-host/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       expect(await lintFixture('of-suffix/packages/plugin/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       for (const folder of ['plugin', 'persistence']) {

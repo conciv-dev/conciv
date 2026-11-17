@@ -14,9 +14,9 @@ import {Rpc} from '../../src/core/rpc.js'
 import {Session} from '../../src/core/session.js'
 import {Skill} from '../../src/core/skill.js'
 import {Tool} from '../../src/core/tool.js'
-import {fromPromise} from '../../src/plugin/promise/adapter.js'
-import {Session as SessionSchema} from '../../src/schema/session.js'
-import {Skill as SkillSchema} from '../../src/schema/skill.js'
+import {fromPromise} from '@conciv/plugin/promise/adapter'
+import {Session as SessionSchema} from '@conciv/plugin/schema/session'
+import {Skill as SkillSchema} from '@conciv/plugin/schema/skill'
 import {testEffect} from './lib/effect'
 import {PluginTestLayer} from './plugin/fixture'
 
@@ -119,7 +119,7 @@ it.live("serves a local plugin's experimental bundle, and reloads it alone when 
     const bus = yield* Bus.Service
     yield* plugins.awaitActivation
     const directory = yield* Effect.acquireRelease(
-      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-experimental-'))),
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'conciv-plugin-experimental-'))),
       (directory) => Effect.promise(() => rm(directory, {recursive: true, force: true})),
     )
     const starts = path.join(directory, 'starts')
@@ -178,7 +178,7 @@ it.live("serves a local plugin's built chunks, each answer pinned to the bytes r
     const plugins = yield* Plugin.Service
     yield* plugins.awaitActivation
     const directory = yield* Effect.acquireRelease(
-      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'opencode-plugin-chunks-'))),
+      Effect.promise(() => mkdtemp(path.join(tmpdir(), 'conciv-plugin-chunks-'))),
       (created) => Effect.promise(() => rm(created, {recursive: true, force: true})),
     )
     const shared = 'exports.shared = "shared"'

@@ -17,8 +17,11 @@ import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 
+export type EditorOpen = {file: string; line?: number; column?: number}
+
 export type CoreKit = Kit & {
   harness: FakeHarness
+  editorOpened: () => ReadonlyArray<EditorOpen>
   forSession: (id: SessionId) => SessionScope
   home: string
   writeProjectFile: (path: string, content: string) => void
@@ -62,11 +65,12 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
+  const editorOpens: EditorOpen[] = []
   const kit = await createTestkit(
     harness,
     async (env) => {
       for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
-      const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
+      const {fetch, dispose, runtime, agentToken, awaitActivation} = await makeApp({
         print: env.print,
         cfg: {
           enabled: true,
@@ -82,7 +86,9 @@ export async function bootCoreKit(opts: {
           policies: [],
         },
         cwd: env.cwd,
-        openInEditor: () => {},
+        openInEditor: (file, line, column) => {
+          editorOpens.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})})
+        },
         harness: env.harness,
         harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
         extensions: opts.extensions,
@@ -93,7 +99,7 @@ export async function bootCoreKit(opts: {
         bridge: opts.bundler,
       })
       captured.runtime = runtime
-      await startPlugins()
+      await awaitActivation()
       return {
         fetch,
         dispose,
@@ -107,6 +113,7 @@ export async function bootCoreKit(opts: {
   return {
     ...kit,
     harness,
+    editorOpened: () => editorOpens,
     forSession: runtime.forSession,
     home: kitHome(kit.stateRoot),
     writeProjectFile: (path, content) => writeInside(kit.stateRoot, path, content),

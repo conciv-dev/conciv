@@ -99,6 +99,7 @@ import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
@@ -114,7 +115,7 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
+import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {Conciv} from '@conciv/plugin'
@@ -774,6 +775,60 @@ describe('chat pane', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
     await expect.element(refusals).not.toBeInTheDocument()
+  })
+
+  test('a question card answered while the page cannot send says why and takes the answer again, and one the engine refuses stays sent', async () => {
+    const {sessionId} = await newSession()
+    const [connection, setConnection] = createStore<{online: boolean; locked: EngineLock}>({online: true, locked: null})
+    const reachability = {
+      online: () => connection.online,
+      sustainedOffline: () => false,
+      locked: () => connection.locked,
+    }
+    await coreControl.holdResults()
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'conciv_ui', input: {kind: 'choices', question: 'Ship it or hold?', options: ['ship', 'hold']}},
+      ],
+      text: 'Held until you answer.',
+    })
+    active.pane = mountPane({base: core(), sessionId}, () => (
+      <EngineReachabilityContext.Provider value={reachability}>
+        <ChatPane sessionId={sessionId} />
+      </EngineReachabilityContext.Provider>
+    ))
+    const ship = page.getByRole('button', {name: 'ship', exact: true})
+    const sending = page.getByRole('status').filter({hasText: 'Sending your answer'})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('ask me before shipping{Enter}')
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('locked', 'revoked')
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/no longer authorized to use conciv/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+    await expect.element(notifications()).not.toMatchTextContent(/no longer waiting for an answer/)
+
+    setConnection({locked: null, online: false})
+    await userEvent.click(ship)
+    await expect
+      .element(notifications())
+      .toMatchTextContent(/conciv lost connection to the engine\. Your answer was not sent\./)
+    await expect.element(notifications()).not.toMatchTextContent(/still in the composer/)
+    await expect.element(sending).not.toBeInTheDocument()
+    await expect.element(ship).toBeEnabled()
+
+    setConnection('online', true)
+    await faults.install({kind: 'fail', path: ['chat', 'uiReply']})
+    await userEvent.click(ship)
+    await expect.element(notifications()).toMatchTextContent(/That question is no longer waiting for an answer\./)
+    await expect.element(sending).toBeVisible()
+    await expect.element(ship).toBeDisabled()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('Held until you answer.')).toBeVisible()
   })
 
   test('sending announces the settled reply through the live region', async () => {
@@ -1802,6 +1857,41 @@ describe('engine version', () => {
   })
 })
 
+describe('a slow engine', () => {
+  const OLD_CONNECTION_TIMEOUT_MS = 2000
+  const MAX_RECONNECT_DELAY_MS = 2000
+  const MARGIN_MS = 2000
+  const SECOND_HANDSHAKE_WINDOW_MS = OLD_CONNECTION_TIMEOUT_MS + MAX_RECONNECT_DELAY_MS + MARGIN_MS
+  const core = bootedCore('slow-engine')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  test('a reconnect whose handshake is slow is waited on, not dropped, and clears the lost connection notice when it opens', async () => {
+    await page.viewport(1000, 900)
+    const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
+    const handshakes = await faults.install({kind: 'handshake-hold'})
+    await coreControl.releaseFault(offline)
+    await coreControl.awaitFaultPending(handshakes, 1)
+
+    await expect(coreControl.awaitFaultPending(handshakes, 2, SECOND_HANDSHAKE_WINDOW_MS)).rejects.toThrow(
+      'captured 1 of 2',
+    )
+    await expect.element(lostNotice()).toBeVisible()
+
+    await coreControl.releaseFault(handshakes)
+    await expect.element(lostNotice(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.faultPending(handshakes)).toBe(1)
+  }, 60_000)
+})
+
 describe('helper rpc clients', () => {
   const core = bootedCore('helper-rpc-clients')
 
@@ -1972,8 +2062,19 @@ describe('chat history paging', () => {
     await faults.install({kind: 'gate', path: HYDRATE_PATH})
     await userEvent.wheel(thread(), {delta: {y: -1000}})
     await expect.element(loadingOlder()).toBeInTheDocument()
-    await userEvent.hover(thread().getByText('Hello from conciv', {exact: true}).first())
-    await userEvent.click(thread().getByRole('button', {name: 'Copy'}).first())
+    await expectInViewOnly([87, 88], [86, 91])
+    await expect.element(exchange(83)).toBeInTheDocument()
+    await expect.element(exchange(82)).not.toBeInTheDocument()
+    const replyTo88 = thread()
+      .getByText('Hello from conciv', {exact: true})
+      .nth(88 - 83)
+    const copyReplyTo88 = thread()
+      .getByRole('button', {name: 'Copy'})
+      .nth(88 - 83)
+    await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
+    await userEvent.hover(replyTo88)
+    await expect.element(copyReplyTo88).toBeInViewport({ratio: 1})
+    await userEvent.click(copyReplyTo88)
     const copyOutcome = thread()
       .getByRole('status')
       .filter({hasText: /^(Copied the message|Could not copy the message)$/})
@@ -2777,10 +2878,15 @@ describe('launcher activity', () => {
     expect((await rpc.sessions.get({sessionId})).lastRunAt).toBe(lastRun?.startedAt)
   }, 30_000)
 
+  const SESSION_ROW_PATH = ['sessions', 'get']
+  const ROW_FAILURE_STATUS = 500
+  const QUERY_CORE_BROWSER_DEFAULT_RETRIES = 3
+  const ROW_REFETCH_ATTEMPTS = 1 + QUERY_CORE_BROWSER_DEFAULT_RETRIES
+
   test('a session whose row fails to load says so where the title is, keeps its menu and its chat, and Retry brings the title back', async () => {
     await page.viewport(1000, 900)
     const sessionId = await sessionThatRan('a row that failed to load')
-    const broken = await faults.install({kind: 'fail', path: ['sessions', 'get'], status: 500})
+    const broken = await faults.install({kind: 'fail', path: SESSION_ROW_PATH, status: ROW_FAILURE_STATUS})
 
     harness.mountShell(`/panel/${sessionId}?open=true`)
     const rowAlert = page.getByRole('alert').filter({hasText: 'Couldn’t load this session'})
@@ -2799,12 +2905,17 @@ describe('launcher activity', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog', {name: 'Session options'})).not.toBeInTheDocument()
 
+    const beforeTheRunEnds = await coreControl.rpcMark()
     await userEvent.click(composer())
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByRole('log').getByText('still talking while the row is failed')).toBeVisible()
     await expect.element(page.getByText('Hello from conciv').nth(1), {timeout: 8000}).toBeVisible()
+    await expect
+      .element(page.getByRole('status').filter({hasText: 'conciv replied.'}), {timeout: 8000})
+      .toBeInTheDocument()
+    await coreControl.awaitRpcFailedCount(SESSION_ROW_PATH, ROW_FAILURE_STATUS, ROW_REFETCH_ATTEMPTS, beforeTheRunEnds)
     await expect.element(rowAlert).toBeVisible()
-
+    await expect.element(rowAlert.getByRole('button', {name: 'Retry'})).toBeVisible()
     await coreControl.releaseFault(broken)
     await userEvent.click(rowAlert.getByRole('button', {name: 'Retry'}))
     await expect.element(titleButton('a row that failed to load'), {timeout: 8000}).toBeVisible()
@@ -4815,34 +4926,30 @@ describe('engine login', () => {
     }, 30_000)
 
     test('logging in while the trust ask the reopened socket sent is still unanswered keeps the page logged in once that ask is refused', async () => {
-      const watch = watchConnection()
-      try {
-        const offline = await faults.install({kind: 'offline'})
-        harness.mountShell('/', [], {login: {apiBase: origin()}})
-        await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
-        await opener().click()
-        await expect
-          .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
-          .toBeVisible()
-        const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
-        await coreControl.releaseFault(offline)
-        await coreControl.awaitFaultPending(trustAsk, 1)
-        const heldAsk = watch.trust.requestTrust()
-        await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
-        await loginNotice().getByRole('button', {name: 'Log in'}).click()
-        await userEvent.type(firstDigit(), await coreControl.requestCode())
-        await expect.element(dialog()).not.toBeInTheDocument()
-        await expect.poll(() => watch.status()).toBe('trusted')
-        await coreControl.releaseFault(trustAsk)
-        expect(await heldAsk).toBe(false)
-        await watch.trust.requestAuthCode()
-        expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
-        expect(watch.status()).toBe('trusted')
-        await expect.element(loginNotice()).not.toBeInTheDocument()
-        await expect.element(editor()).toBeVisible()
-      } finally {
-        watch.stop()
-      }
+      const offline = await faults.install({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await opener().click()
+      await expect
+        .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
+        .toBeVisible()
+      const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
+      await coreControl.releaseFault(offline)
+      await coreControl.awaitFaultPending(trustAsk, 1)
+      await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+      await loginNotice().getByRole('button', {name: 'Log in'}).click()
+      await userEvent.type(firstDigit(), await coreControl.requestCode())
+      await expect.element(dialog()).not.toBeInTheDocument()
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+
+      await coreControl.releaseFault(trustAsk)
+      expect(await coreControl.awaitFaultAnswered(trustAsk)).toEqual({trusted: false})
+      await coreControl.scriptTurn({toolCalls: [], text: 'answered after the stale refusal'})
+      await userEvent.click(editor())
+      for (const key of 'still logged in') await userEvent.keyboard(key)
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('answered after the stale refusal'), {timeout: 8000}).toBeVisible()
+      await expect.element(loginNotice()).not.toBeInTheDocument()
+      await expect.element(editor()).toBeVisible()
     }, 30_000)
 
     test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
@@ -5578,7 +5685,7 @@ describe('tool card dispatch', () => {
 
     await browserPage.getByRole('button').click()
     await expect.element(browserPage.getByText('#cta')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Used tool:')
+    expect(document.body.textContent).not.toContain('Called page_click')
   })
 
   it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
@@ -5603,7 +5710,6 @@ describe('wire name coverage', () => {
     for (const tool of BUILTIN_SERVER_TOOLS) {
       registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
     }
-    registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: () => {}}})
     return registry
   }
 
@@ -5611,12 +5717,24 @@ describe('wire name coverage', () => {
 
   const CATALOG_TOOL_NAME = 'catalog'
 
+  const DEV_SERVER_TOOL_NAMES = [
+    'server_config',
+    'server_urls',
+    'server_resolve',
+    'server_graph',
+    'server_transform',
+    'server_restart',
+  ]
+
+  const SERVER_PLUGIN_TOOL_NAMES = [...DEV_SERVER_TOOL_NAMES, 'open']
+
   const modelReachableNames = [
     EXECUTE_TOOL_NAME,
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
     concivExtensionsToolDef.name,
     ...registry.catalog.list().map((entry) => entry.name),
+    ...SERVER_PLUGIN_TOOL_NAMES,
   ]
 
   const HARNESS_NATIVE_CARD_NAMES = [
@@ -5641,12 +5759,12 @@ describe('wire name coverage', () => {
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
-  it('every model-reachable tool name resolves to a card entry or catalog meta', () => {
+  it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
-    const unresolved = modelReachableNames.filter(
+    const drawnByGenericCard = modelReachableNames.filter(
       (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
     )
-    expect(unresolved).toEqual([])
+    expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })
 
   it('no conciv-owned card is registered for a name the model can never put on the wire', () => {
@@ -6650,6 +6768,67 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the page contracts reach a plugin', () => {
+  const sourceMap = JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'})
+  const readerBundle = `const {Panel, createKeyed} = require('@conciv/plugin/experimental')
+const {Page, ReactTree} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const answer = document.createElement('p')
+  createKeyed(ctx.use(Page), (page) =>
+    createKeyed(ctx.use(ReactTree), (tree) => {
+      const button = document.createElement('button')
+      button.textContent = 'Read the contracts'
+      button.addEventListener('click', () => {
+        const fibers = Array.isArray(tree.rootFibers()) ? 'fibers listed' : 'no fibers'
+        page.symbolicate({frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}).then(
+          (source) => (answer.textContent = 'Page and ReactTree, ' + fibers + ', ' + source.file + ':' + source.line + ':' + source.column),
+          (error) => (answer.textContent = String(error)),
+        )
+      })
+      body.replaceChildren(button, answer)
+    }),
+  )
+  ctx.add(Panel, {
+    id: 'reader',
+    region: 'pane',
+    list: () => [{id: 'reader', title: 'Contract reader', pinned: true}],
+    render: () => body,
+  })
+}}}
+`
+  const coreBase = bootedCore('page-contracts', {
+    plugins: ['./reader'],
+    files: {
+      'reader/index.ts': `export default {id: 'reader', async setup() {}}
+`,
+      'reader/plugin-experimental.js': readerBundle,
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': sourceMap,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that reads Page and ReactTree gets both, and Page.symbolicate answers from the engine', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const reader = page.getByRole('tab', {name: 'Contract reader'})
+    await expect.element(reader, {timeout: 15_000}).toBeVisible()
+    await reader.click()
+    const read = page.getByRole('button', {name: 'Read the contracts', exact: true})
+    await expect.element(read).toBeVisible()
+    await read.click()
+
+    await expect
+      .element(page.getByText('Page and ReactTree, fibers listed, src/app.tsx:1:0', {exact: true}))
+      .toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const ToolCall = Registry.define('tool-call')
@@ -6683,7 +6862,7 @@ module.exports = {default: {setup(ctx) {
   })
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const probeCards = () => page.getByText('Tool: plugin_probe', {exact: true})
+  const probeRow = (meta: string) => page.getByText(meta, {exact: true})
 
   test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -6701,19 +6880,44 @@ module.exports = {default: {setup(ctx) {
     await editor().click()
     await userEvent.keyboard('run the probes{Enter}')
     await expect
-      .element(page.getByRole('button', {name: 'running probe Tool: plugin_probe'}), {timeout: 15_000})
+      .element(page.getByRole('button', {name: 'running probe draw mode=draw'}), {timeout: 15_000})
       .toBeVisible()
     await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
 
     await coreControl.releaseResults()
     await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
-    await expect.element(probeCards().nth(2)).toBeVisible()
+    await expect.element(probeRow('mode=draw')).toBeVisible()
+    await expect.element(probeRow('mode=decline')).toBeVisible()
+    await expect.element(probeRow('mode=throw')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the drawn probe')).toBeVisible()
     await expect.element(page.getByText('Plugin drew the declined probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('Plugin drew the thrown probe')).not.toBeInTheDocument()
     await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
     await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+
+  test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'server_resolve', input: {spec: 'solid-js'}, result: {resolved: '/node_modules/solid-js'}},
+        {name: 'note_open', input: {path: 'src/a.ts', line: 3, force: true}, result: {opened: true}},
+        {name: 'server_urls', input: {}, result: {urls: []}},
+      ],
+      text: 'the generic calls are done',
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the generic calls{Enter}')
+    await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('solid-js', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('spec=solid-js', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called server_resolve', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('line=3 force=true', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called server_urls', {exact: true})).toBeVisible()
   }, 45_000)
 })
 
@@ -7050,16 +7254,24 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   })
   const faults = trackedFaults()
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
-  const rows = (pane: boolean) => [row('pane', pane), {...row('broken', true), error: expect.stringMatching(/./)}]
+  const builtinPage = {id: 'page', builtin: true, enabled: true}
+  const rows = (pane: boolean) => [
+    builtinPage,
+    row('pane', pane),
+    {...row('broken', true), error: expect.stringMatching(/./)},
+  ]
   const notFound = {code: 'notFound', message: 'notFound'}
   const disabledPlugins = page.getByRole('status', {name: 'disabled plugins'})
 
   test('a plugin that never loaded is listed with its error, and disable, enable and reload act through the store', async () => {
     const base = coreBase()
     await faults.install({kind: 'garble', path: EXPERIMENTAL, input: {id: 'broken'}})
+    const listed = await faults.install({kind: 'gate', path: ['settings', 'changes']})
     const first = bundleSource(base)
     onTestFinished(first.dispose)
     const firstInstalled = recordInstalled(first.manager)
+    expect((await recordPushes(first).nth(1)).plugins.map((plugin) => plugin.id)).toEqual(['pane'])
+    await coreControl.releaseFault(listed)
 
     await firstInstalled.next(rows(true))
     expect(await first.manager.list()).toEqual(rows(true))
@@ -7197,9 +7409,40 @@ describe('installed plugins in settings', () => {
     await expect.element(lateRow(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
   }, 60_000)
+
+  test("the engine's own page plugin has no row a user could reload or switch off", async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.writeProjectFile(
+      'conciv/plugins/neighbour.ts',
+      "export default {id: 'neighbour', async setup() {}}\n",
+    )
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('each engine-only plugin a user adds one after another gets its own row', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+
+    await coreControl.writeProjectFile(
+      'conciv/plugins/earlier.ts',
+      "export default {id: 'earlier', async setup() {}}\n",
+    )
+    await expect.element(page.getByText('earlier', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.writeProjectFile('conciv/plugins/later.ts', "export default {id: 'later', async setup() {}}\n")
+    await expect.element(page.getByText('later', {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
 })
 
 describe('a fixture plugin driven like a user', () => {
+  const PLUGIN_CALL = ['plugin', 'call']
+
   const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
@@ -7223,13 +7466,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'server_resolve'],
+    tools: ['fixture_probe', 'server_reload'],
     render(props) {
-      if (props.tool === 'server_resolve') {
+      if (props.tool === 'server_reload') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture resolved ' + props.result.output.id})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture reloaded ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -7252,6 +7495,12 @@ module.exports = {default: {stores: {
     }},
   )
   ctx.add(Slot, {at: 'window.bottom', render: () => engineLine})
+  const readEngineEvents = async () => {
+    for await (const event of ctx.client.event.subscribe({signal: ctx.signal})) void event
+  }
+  readEngineEvents().catch((error) => {
+    if (!ctx.signal.aborted) console.error('[fixture] the engine event reader failed', error)
+  })
   const dialog = (title, body) =>
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
@@ -7281,6 +7530,7 @@ module.exports = {default: {stores: {
       })),
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
       button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
+      button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
     ],
   })
   ctx.add(Panel, {
@@ -7359,6 +7609,12 @@ module.exports = {default: {setup(ctx) {
   })
 }}}
 `
+  const fragileSecondRevision = fragileBundle.replace(
+    /}}}\n$/,
+    `  ctx.add(Slot, {at: 'window.bottom', render: () => Object.assign(document.createElement('p'), {textContent: 'The fragile second revision'})})
+}}}
+`,
+  )
   const coreBase = bootedCore('plugin-fixture-journey', {
     plugins: ['./fixture', './fragile'],
     files: {
@@ -7462,6 +7718,13 @@ module.exports = {default: {setup(ctx) {
     })
 
     expect(await coreControl.openedFrom('Open the engine health page')).toBe(new URL('/health', coreBase()).href)
+
+    const pluginCalls = await coreControl.rpcCallCount(PLUGIN_CALL)
+    await tab('Fixture tools').click()
+    await control('Open the fixture source').click()
+    await coreControl.rpcStartedOnceServed(PLUGIN_CALL, pluginCalls + 1, [])
+    expect(await coreControl.rpcCallCount(PLUGIN_CALL, {rpcId: 'server', method: 'open'})).toBe(1)
+    expect(await coreControl.editorOpened()).toEqual([{file: 'src/fixture.ts', line: 12, column: 3}])
 
     await tab('Fixture tools').click()
     await control('Open the fixture settings').click()
@@ -7570,6 +7833,42 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
+  test('its store load cut off by a lost engine waits for the engine and the plugin comes back, while an engine error on that load still fails it', async () => {
+    const CALL_DEADLINE_MS = 3000
+    const CONNECTION_LOSS_RETRY_DELAY_MS = 250
+    const MARGIN_MS = 750
+    const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
+    const STORE_READS = 2
+    const STORE_READ = ['settings', 'all']
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const failedRow = () => page.getByText('Failed', {exact: true})
+    const fixtureReload = () => page.getByRole('button', {name: 'Reload', exact: true}).first()
+
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(reads, STORE_READS)
+    const offline = await faults.install({kind: 'offline'})
+    const retries = await faults.install({kind: 'gate', path: STORE_READ})
+    await coreControl.releaseFault(reads)
+
+    await expect(coreControl.awaitFaultPending(retries, 1, OUTAGE_WINDOW_MS)).rejects.toThrow('captured 0 of 1')
+    await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
+
+    await coreControl.releaseFault(retries)
+    await coreControl.releaseFault(offline)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Write a held note')).toBeVisible()
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('Plugins').click()
+    await expect.element(fixtureReload()).toBeVisible()
+    await expect.element(failedRow()).not.toBeInTheDocument()
+
+    await faults.install({kind: 'fail', path: STORE_READ, status: 500})
+    await fixtureReload().click()
+    await expect.element(failedRow(), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
   test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`${tabPath(sessionId, 'fixture:missing')}?open=true`)
@@ -7674,13 +7973,21 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shown('Visits: 1')).toBeVisible()
   }, 90_000)
 
-  test('its tool cards read the headline of the normal card, and a catalog that arrives late does not ask it again', async () => {
+  test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
       toolCalls: [
-        {name: 'server_resolve', input: {spec: 'solid-js', mode: 'draw'}, result: {id: '/solid.js'}},
-        {name: 'server_resolve', input: {spec: 'solid-js', mode: 'decline'}, result: {id: '/solid.js'}},
+        {
+          name: 'server_reload',
+          input: {file: 'src/a.ts', mode: 'draw'},
+          result: {ok: true, applied: true, waitedMs: 1},
+        },
+        {
+          name: 'server_reload',
+          input: {file: 'src/a.ts', mode: 'decline'},
+          result: {ok: true, applied: true, waitedMs: 1},
+        },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
       ],
@@ -7696,17 +8003,18 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect
-      .element(shown('report where an import specifier resolves solid-js').nth(1), {timeout: 15_000})
-      .toBeVisible()
-    await expect.element(shown('Tool: server_resolve')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture resolved /solid.js')).toBeVisible()
+    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(shown('force a hot update of one module')).toBeVisible()
+    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
+    await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
-    await expect.element(shown('Tool: fixture_probe').nth(1)).toBeVisible()
+    await expect.element(shown('mode=draw')).toBeVisible()
+    await expect.element(shown('mode=decline')).toBeVisible()
   }, 60_000)
 
-  test('its tab appears once the engine trusts the page, stays through a revoke and a lost connection, and loads again after trust drops before its enable state arrived', async () => {
+  test('its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen', async () => {
     const origin = new URL(coreBase()).origin
     onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -7714,6 +8022,7 @@ module.exports = {default: {setup(ctx) {
     const reloginNotice = () =>
       page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
     const lostNotice = () => page.getByText('conciv lost connection to the engine.')
+    const shownText = (text: string) => page.getByText(text, {exact: true})
     const codeDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
     const logIn = async (notice: Locator) => {
       await notice.getByRole('button', {name: 'Log in'}).click()
@@ -7736,10 +8045,18 @@ module.exports = {default: {setup(ctx) {
     await logIn(reloginNotice())
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
 
+    await tab('Fixture tools').click()
+    await expect.element(control('Write a plain note')).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Fixture tools')).toBeVisible()
+    await expect.element(shownText('Engine detached after 1')).toBeVisible()
+    await coreControl.writeProjectFile('fragile/plugin-experimental.js', fragileSecondRevision)
     await logIn(reloginNotice())
+    await expect.element(shownText('The fragile second revision'), {timeout: 15_000}).toBeVisible()
+    await expect.element(shownText('Engine attached: 2')).toBeVisible()
+    await expect.element(control('Write a plain note')).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Fixture tools', exact: true, selected: true})).toBeVisible()
 
     const offline = await faults.install({kind: 'offline'})
     await expect.element(lostNotice(), {timeout: 15_000}).toBeVisible()
@@ -7751,6 +8068,28 @@ module.exports = {default: {setup(ctx) {
     await control('Write a plain note').click()
     await tab('Chat').click()
     await expect.element(editor()).toHaveTextContent('plain note')
+
+    await page.viewport(1000, 900)
+    const prefsBody = () => page.getByText('The fixture prefs page', {exact: true})
+    const selectedPrefs = () => page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('Fixture prefs').click()
+    await expect.element(prefsBody()).toBeVisible()
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 15_000}).toBeVisible()
+    await logIn(reloginNotice())
+    await expect.element(prefsBody(), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedPrefs()).toBeVisible()
+
+    harness.dispose()
+    await coreControl.revokeBrowsers()
+    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, [], {
+      login: {apiBase: origin},
+    })
+    await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
+    await logIn(loginNotice())
+    await expect.element(prefsBody(), {timeout: 15_000}).toBeVisible()
+    await expect.element(selectedPrefs()).toBeVisible()
   }, 90_000)
 
   test('turning it off in Settings removes its tab and slot, turning it on brings them back, and turning it off elsewhere closes its open tab', async () => {

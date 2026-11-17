@@ -3,13 +3,13 @@ import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 
-const EXTERNAL_PREFIXES = ['solid-js/', '@ark-ui/', '@conciv/']
+const EXTERNAL_PREFIXES = ['solid-js/', 'effect/', '@ark-ui/', '@conciv/']
 
-const INLINED_PREFIXES = ['@conciv/page', '@conciv/app', '@conciv/tools', '@conciv/core']
+const INLINED_PREFIXES = ['@conciv/page', '@conciv/app', '@conciv/builtin-plugins', '@conciv/tools', '@conciv/core']
 
 const isExternal = (id: string): boolean => {
   if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false
-  return id === 'solid-js' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
+  return id === 'solid-js' || id === 'effect' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
 }
 
 export default defineConfig({

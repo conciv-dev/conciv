@@ -59,6 +59,7 @@ catalog:
   '@effect/platform-node': 4.1.0
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
+  '@jridgewell/gen-mapping': ^0.3.13
   '@libsql/client': '^0.18.0'
   '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
@@ -71,6 +72,7 @@ catalog:
   '@parcel/watcher-win32-arm64': 2.5.1
   '@parcel/watcher-win32-x64': 2.5.1
   '@playwright/test': '^1.64.1'
+  '@rrweb/rrweb-plugin-console-record': 2.2.0
   '@rrweb/types': '^2.2.0'
   '@shikijs/langs-precompiled': 4.5.0
   '@shikijs/magic-move': '^4.5.0'

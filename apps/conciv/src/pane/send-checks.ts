@@ -16,16 +16,13 @@ function partCount(content: SendContent): number {
   return content.content.length
 }
 
-export function checkSendState(state: SendState): SendVerdict {
+const MESSAGE_KEPT = 'Your message is still in the composer.'
+
+export function checkSendState(state: SendState, unsent: string = MESSAGE_KEPT): SendVerdict {
   if (state.busy) return {ok: false, message: null, tone: 'info'}
   const locked = lockedMessage(state.locked)
   if (locked !== null) return {ok: false, message: locked, tone: 'warn'}
-  if (!state.reachable)
-    return {
-      ok: false,
-      message: 'conciv lost connection to the engine. Your message is still in the composer.',
-      tone: 'warn',
-    }
+  if (!state.reachable) return {ok: false, message: `conciv lost connection to the engine. ${unsent}`, tone: 'warn'}
   return {ok: true}
 }
 

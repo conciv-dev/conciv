@@ -225,7 +225,7 @@ describe('catalog cards', () => {
   }
 
   function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
+    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => Promise.resolve(), catalog}
   }
 
   function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -371,7 +371,7 @@ describe('new tool projection', () => {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: registryCatalogView(registryWith(shipTool)),
   }
 
@@ -431,7 +431,7 @@ describe('page tool cards', () => {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: registryCatalogView(builtinPageRegistry()),
   }
 
@@ -501,7 +501,13 @@ describe('page tool cards', () => {
 
 describe('registry card declarations', () => {
   const catalog = registryCatalogView(builtinPageRegistry())
-  const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
+  const ctx: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'test',
+    sendMessage: () => {},
+    addResult: () => Promise.resolve(),
+    catalog,
+  }
 
   function part(
     verb: string,

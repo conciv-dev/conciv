@@ -3,7 +3,6 @@ import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
 import {contract, ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
 import {envelopeFlag} from './envelope.js'
-import {openCommand} from './open.js'
 import {pageChangesCommand} from './page.js'
 import {runRpc, type CliTarget} from './request.js'
 import {callServerOperation} from './server.js'
@@ -16,8 +15,6 @@ const SERVER_GROUP = 'server'
 const PAGE_GROUP = 'page'
 
 const REACT_CATEGORY = 'react'
-
-const OPEN_TOOL = 'open'
 
 export const toolsRoute = route(
   name('tools'),
@@ -58,7 +55,6 @@ function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
 }
 
 function singleCommand(signature: ToolCommandSignature): AnyRoute {
-  if (signature.name === OPEN_TOOL) return openCommand(signature)
   return wireToolCommand(signature, {
     name: signature.name,
     run: (input, target) => callRegistry(signature, input, target),

@@ -3,7 +3,7 @@ import {Effect, Layer, Schema, SchemaTransformation} from 'effect'
 import {openDb} from '@conciv/db'
 import {Bus} from '../../src/core/bus.js'
 import {Database} from '../../src/core/database/database.js'
-import {Event} from '../../src/schema/event.js'
+import {Event} from '@conciv/plugin/schema/event'
 import {tmpdirScoped} from './fixture/tmpdir'
 import {testEffect} from './lib/effect'
 

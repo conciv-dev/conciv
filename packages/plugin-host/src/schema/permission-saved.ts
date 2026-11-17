@@ -1,9 +1,9 @@
 export * as PermissionSaved from './permission-saved.js'
 
 import {Schema} from 'effect'
-import {ascending} from './identifier.js'
-import {ProjectId} from './project-id.js'
-import {DateTimeUtcFromMillis, statics} from './schema.js'
+import {ascending} from '@conciv/plugin/schema/identifier'
+import {ProjectId} from '@conciv/plugin/schema/project-id'
+import {DateTimeUtcFromMillis, statics} from '@conciv/plugin/schema/schema'
 
 export const Id = Schema.String.pipe(
   Schema.brand('PermissionSaved.ID'),
