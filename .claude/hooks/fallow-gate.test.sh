@@ -11,6 +11,8 @@ WORK="$(cd "$WORK" && pwd -P)"
 mkdir -p "$WORK/bin" "$WORK/repo" "$WORK/other"
 git init -q "$WORK/repo"
 git init -q "$WORK/other"
+git -C "$WORK/repo" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+git -C "$WORK/repo" worktree add -q -b linked "$WORK/linked"
 AUDIT_LOG="$WORK/audited"
 
 cat >"$WORK/bin/fallow" <<'STUB'
@@ -28,6 +30,8 @@ chmod +x "$WORK/bin/fallow"
 
 REPO="$WORK/repo"
 OTHER="$WORK/other"
+LINKED="$WORK/linked"
+PUSH_SKIP="fallow-gate: git push is not audited; the commit gate and CI cover it."
 
 run_case() {
   local name="$1"
@@ -63,16 +67,16 @@ run_case() {
   fi
 }
 
-# --- every commit and push is audited ---
+# --- every commit is audited ---
 run_case "plain commit" "git commit -m 'x'" "$REPO"
-run_case "plain push" "git push origin HEAD" "$REPO"
 run_case "commit with 2 -c options" "git -c user.name=X -c user.email=Y commit -m x" "$REPO"
 run_case "commit with 4 -c options" "git -c a=1 -c b=2 -c c=3 -c d=4 commit -m x" "$REPO"
 run_case "commit with 6 -c options" "git -c a=1 -c b=2 -c c=3 -c d=4 -c e=5 -c f=6 commit -m x" "$REPO"
-run_case "push with long-form global options" "git --no-pager --git-dir .git --work-tree . --namespace=n push" "$REPO"
+run_case "commit with long-form global options" "git --no-pager --git-dir .git --work-tree . --namespace=n commit" "$REPO"
 run_case "env-prefixed commit" "FOO=bar BAZ=1 git commit -m x" "$REPO"
 run_case "commit chained after &&" "pnpm lint && git -c a=1 -c b=2 -c c=3 commit -m x" "$REPO"
-run_case "push chained after ;" "git add a; git push" "$REPO"
+run_case "commit chained after ;" "git add a; git commit -m x" "$REPO"
+run_case "commit then push is audited for the commit" "git commit -m x && git push" "$REPO"
 run_case "commit fed by a pipe" "printf x | git commit -F -" "$REPO"
 run_case "commit inside bash -c" "bash -c \"git -c a=1 -c b=2 -c c=3 commit -m x\"" "$REPO"
 run_case "commit inside eval" "eval \"git -c a=1 commit -m x\"" "$REPO"
@@ -87,6 +91,38 @@ run_case "-C between -c options audits session and target" "git -c a=1 -c b=2 -C
 run_case "subshell cd then commit audits session and target" "(cd ../other && git commit -m x)" "$REPO $OTHER"
 run_case "cd then many -c commit audits session and target" "cd '$OTHER' && git -c a=1 -c b=2 -c c=3 commit" "$REPO $OTHER"
 run_case "-C into a plain directory audits the session" "git -C '$WORK/bin' commit -m x" "$REPO"
+run_case "-C linked worktree commit audits only that worktree" "git -C ../linked commit -m x" "$LINKED"
+run_case "cd linked worktree then commit audits only that worktree" "cd '$LINKED' && git commit -m x" "$LINKED"
+
+# --- a push is not audited: the commit gate and CI cover it ---
+push_case() {
+  local name="$1"
+  local command="$2"
+  rm -f "$AUDIT_LOG"
+  local payload
+  payload="$(jq -n --arg cmd "$command" --arg cwd "$REPO" '{tool_input: {command: $cmd}, cwd: $cwd}')"
+  local output
+  output="$(cd / && printf '%s' "$payload" | PATH="$WORK/bin:$PATH" FALLOW_STUB_LOG="$AUDIT_LOG" FALLOW_STUB_VERDICT=fail bash "$HOOK" 2>&1)"
+  local actual_exit=$?
+  if [ "$actual_exit" = 0 ] && [ ! -f "$AUDIT_LOG" ] && [ "$output" = "$PUSH_SKIP" ]; then
+    PASS=$((PASS + 1))
+    echo "PASS: $name"
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: $name"
+    echo "  command:  $command"
+    echo "  expected: exit 0, no audit, output [$PUSH_SKIP]"
+    echo "  actual:   exit $actual_exit, audited [$( [ -f "$AUDIT_LOG" ] && paste -sd ' ' "$AUDIT_LOG" | sed "s|$WORK||g")], output [$output]"
+  fi
+}
+push_case "bare push" "git push"
+push_case "push with remote and ref" "git push origin HEAD"
+push_case "push with long-form global options" "git --no-pager --git-dir .git --work-tree . --namespace=n push"
+push_case "push chained after ;" "git add a; git push"
+push_case "-C push" "git -C ../other push"
+push_case "-C linked worktree push" "git -C '$LINKED' push -u origin linked"
+push_case "cd then push" "cd ../other && git push"
+push_case "push inside bash -c" "bash -c \"git push\""
 
 # --- not a commit or push ---
 run_case "git log --grep commit" "git log --grep commit" ""

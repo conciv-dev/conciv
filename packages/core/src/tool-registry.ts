@@ -1,19 +1,13 @@
 import {z} from 'zod'
 import {isPageFailure, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_TOOL} from '@conciv/protocol/page-types'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
-import {BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL, type ServerToolContext} from '@conciv/tools/builtins'
-import type {TabsListing} from '@conciv/protocol/chat-types'
 import type {PageAnswer, PageEnv} from './page/page-bus.js'
 import {session} from './runtime/session-context.js'
 import {logError} from './lib/debug.js'
 
 export type BuiltinRegistryDeps = {
   page: PageEnv
-  bundler: () => BundlerBridge | undefined
-  hotUpdate: ServerToolContext['hotUpdate']
-  listTabs: () => Promise<TabsListing>
 }
 
 export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
@@ -21,13 +15,6 @@ export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
     pageCaller: (tool, input, request) => runClientTool(deps.page, tool, input, request),
     isAnyPageConnected: () => deps.page.bus.anySubscriber(),
   })
-  for (const tool of BUILTIN_SERVER_TOOLS) {
-    registry.register(tool, {
-      owner: 'a built-in server tool',
-      context: {bundler: deps.bundler, hotUpdate: deps.hotUpdate},
-    })
-  }
-  registry.register(BUILTIN_TABS_TOOL, {owner: 'a built-in tabs tool', context: {listTabs: deps.listTabs}})
   return registry
 }
 

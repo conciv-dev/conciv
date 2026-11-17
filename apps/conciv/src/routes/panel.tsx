@@ -104,6 +104,8 @@ function PanelLayout(): JSX.Element {
             class={`${PANEL_BASE} ${sheet() ? PANEL_SHEET : PANEL_CARD} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
             data-conciv-panel
             data-conciv-suppressed={suppressed()}
+            inert={suppressed() !== undefined}
+            aria-hidden={suppressed() === undefined ? undefined : true}
             style={
               sheet()
                 ? undefined
