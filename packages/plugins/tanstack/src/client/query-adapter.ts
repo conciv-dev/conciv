@@ -5,8 +5,8 @@ import {findInFibers, type Fiber} from './router-adapter.js'
 type QueryClientLike = {
   getQueryCache: () => {getAll: () => unknown[]}
   getMutationCache: () => {getAll: () => unknown[]}
-  invalidateQueries: (filters: {queryKey: unknown}) => Promise<unknown>
-  refetchQueries: (filters: {queryKey: unknown}) => Promise<unknown>
+  invalidateQueries: (filters: {queryKey: unknown; exact: boolean}) => Promise<unknown>
+  refetchQueries: (filters: {queryKey: unknown; exact: boolean}) => Promise<unknown>
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -71,12 +71,16 @@ function readUpdatedAt(state: Record<string, unknown>, key: string): number | nu
   return typeof value === 'number' ? value : null
 }
 
+function redactedKey(tree: ReactTree, key: unknown): string {
+  return JSON.stringify(tree.dehydrate(key))
+}
+
 function queryToEntry(tree: ReactTree, query: unknown): CacheEntry {
   if (!isObject(query))
     return {key: '', state: 'fresh', status: null, value: null, updatedAt: null, error: null, observers: null}
   const state = stateFrom(query)
   return {
-    key: JSON.stringify(query.queryKey),
+    key: redactedKey(tree, query.queryKey),
     state: queryState(query, state),
     status: readStatus(state),
     value: tree.dehydrate(state.data),
@@ -86,9 +90,9 @@ function queryToEntry(tree: ReactTree, query: unknown): CacheEntry {
   }
 }
 
-function mutationKey(mutation: Record<string, unknown>): string {
+function mutationKey(tree: ReactTree, mutation: Record<string, unknown>): string {
   const options = isObject(mutation.options) ? mutation.options : {}
-  if (options.mutationKey !== undefined) return JSON.stringify(options.mutationKey)
+  if (options.mutationKey !== undefined) return redactedKey(tree, options.mutationKey)
   return JSON.stringify(mutation.mutationId ?? null)
 }
 
@@ -103,7 +107,7 @@ function mutationToEntry(tree: ReactTree, mutation: unknown): CacheEntry {
     return {key: '', state: 'fresh', status: null, value: null, updatedAt: null, error: null, observers: null}
   const state = stateFrom(mutation)
   return {
-    key: mutationKey(mutation),
+    key: mutationKey(tree, mutation),
     state: mutationState(state),
     status: readStatus(state),
     value: tree.dehydrate(state.data),
@@ -129,24 +133,24 @@ export function readMutations(tree: ReactTree): CacheEntry[] {
     .map((mutation) => mutationToEntry(tree, mutation))
 }
 
-function matchingQuery(client: QueryClientLike, key: string): Record<string, unknown> | null {
+function matchingQuery(tree: ReactTree, client: QueryClientLike, key: string): Record<string, unknown> | null {
   const match = client
     .getQueryCache()
     .getAll()
-    .find((query) => isObject(query) && JSON.stringify(query.queryKey) === key)
+    .find((query) => isObject(query) && redactedKey(tree, query.queryKey) === key)
   return isObject(match) ? match : null
 }
 
 export async function invalidateQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
   const client = requireQueryClient(tree)
-  const query = matchingQuery(client, key)
-  if (query) await client.invalidateQueries({queryKey: query.queryKey})
+  const query = matchingQuery(tree, client, key)
+  if (query) await client.invalidateQueries({queryKey: query.queryKey, exact: true})
   return {ok: true}
 }
 
 export async function refetchQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
   const client = requireQueryClient(tree)
-  const query = matchingQuery(client, key)
-  if (query) await client.refetchQueries({queryKey: query.queryKey})
+  const query = matchingQuery(tree, client, key)
+  if (query) await client.refetchQueries({queryKey: query.queryKey, exact: true})
   return {ok: true}
 }

@@ -165,12 +165,19 @@ function redactedSearchString(tree: ReactTree, router: TanstackRouter, search: u
   return stringValue(stringify(unknownRecord(tree.dehydrate(search))))
 }
 
+function redactedHash(tree: ReactTree, hash: string): string {
+  const pairs = [...new URLSearchParams(hash)]
+  const redacted = pairs.map(([key, value]) => [key, stringValue(unknownRecord(tree.dehydrate({[key]: value}))[key])])
+  if (redacted.every(([, value], index) => value === pairs[index]?.[1])) return hash
+  return new URLSearchParams(redacted).toString()
+}
+
 function readLocation(tree: ReactTree, router: TanstackRouter): RouterLocation {
   const location = unknownRecord(router.state.location)
   return {
     pathname: redactedPathname(tree, router, router.state.matches.at(-1), stringValue(location.pathname)),
     search: redactedSearchString(tree, router, location.search),
-    hash: stringValue(location.hash),
+    hash: redactedHash(tree, stringValue(location.hash)),
   }
 }
 
@@ -188,7 +195,7 @@ export function readDetect(tree: ReactTree): FrameworkInfo {
 }
 
 function matchCacheState(match: Record<string, unknown>): CacheEntryState {
-  if (match.isFetching === true) return 'fetching'
+  if (match.isFetching) return 'fetching'
   if (match.status === 'error') return 'error'
   return 'fresh'
 }
