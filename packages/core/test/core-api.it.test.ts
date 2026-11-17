@@ -5847,6 +5847,12 @@ describe('page action queue delivery', () => {
     await expect(
       typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
     ).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `session "${page.sessionId}" does not exist`,
+    })
+    await expect(
+      makeRpcClient(page.base).page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
+    ).rejects.toMatchObject({
       code: 'NO_QUEUE',
     })
     await expect(page.onTab.reply(requestId, pageSuccess({ok: true, checked: true}))).rejects.toMatchObject({
