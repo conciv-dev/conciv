@@ -1,26 +1,14 @@
 import {createEffect, createMemo, onCleanup, type JSX} from 'solid-js'
-import {isEqual} from 'es-toolkit'
 import {useMutationState} from '@conciv/client'
 import {useAppData} from '../app/context.js'
 import {DraftSaveSchema} from '../data/app-data.js'
 import {useNotices} from '../shell/notice-context.js'
+import {sameContent} from './draft-storage.js'
 
 const DRAFT_UNSAVED_KEY = 'draft-unsaved'
 const KEPT_HERE_MESSAGE =
   'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.'
 const ENGINE_ONLY_MESSAGE = 'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
-
-type DraftContent = {text: string; attachments: readonly {id: string}[]}
-
-function sameContent(draft: DraftContent, other: DraftContent): boolean {
-  return (
-    draft.text === other.text &&
-    isEqual(
-      draft.attachments.map((attachment) => attachment.id),
-      other.attachments.map((attachment) => attachment.id),
-    )
-  )
-}
 
 export function DraftUnsavedNotice(props: {sessionId: string; retry: () => void}): JSX.Element {
   const appData = useAppData()

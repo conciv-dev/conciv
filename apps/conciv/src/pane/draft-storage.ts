@@ -346,7 +346,7 @@ type RestorePhase = {kind: 'reading'} | {kind: 'unread'; shown: LocalDraft | nul
 
 type DraftContent = {text: string; attachments: readonly {id: string}[]}
 
-function sameContent(draft: DraftContent, other: DraftContent): boolean {
+export function sameContent(draft: DraftContent, other: DraftContent): boolean {
   return (
     draft.text === other.text &&
     isEqual(
