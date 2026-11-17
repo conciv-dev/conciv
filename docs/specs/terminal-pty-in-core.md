@@ -71,6 +71,10 @@ OSC 9;4 progress state), which the source has no counterpart for.
     created until the Terminal tab is opened.
 12. `session.panel.end` draws at the end of the status bar's view tab list (`apps/conciv/src/pane/status-bar.tsx`),
     conciv's counterpart of the source's side region tab strip.
+13. The panel's state is a Solid store with a per-session generation counter, not the source's attempt machine
+    (`gui-plugins/src/terminal/model.ts:166-230`, `machine.ts`). Conciv runs one CLI per session and has no terminal
+    list, so there is nothing for the machine to choose between. Moving it to an Effect model file is the planned
+    conversion once the shared command loop exists.
 
 ## Open
 
