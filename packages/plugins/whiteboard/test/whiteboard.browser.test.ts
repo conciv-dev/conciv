@@ -18,6 +18,8 @@ const WIDGET_BUNDLE = join(dirname(createRequire(import.meta.url).resolve('@conc
 
 const WHITEBOARD_CALL = ['plugin', 'call']
 
+const Pending = z.object({pending: z.string()})
+
 const CanvasRead = z.object({elements: z.array(z.object({type: z.string()}).loose())})
 
 async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Promise<string[]> {
@@ -39,7 +41,7 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape and reopens with the drawing kept', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, and converts what the agent draws', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -85,6 +87,28 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(rectangleTool).toBeVisible({timeout: 60_000})
       await expect(rectangleTool).not.toBeChecked()
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
+
+      expect(
+        Pending.parse(
+          await widget.kit.callTool('whiteboard_canvas_draw', {
+            elements: [{type: 'ellipse', x: 420, y: 160, width: 120, height: 80}],
+          }),
+        ),
+      ).toEqual({pending: expect.any(String)})
+      expect(
+        Pending.parse(
+          await widget.kit.callTool('whiteboard_canvas_svg', {
+            svg: "<svg viewBox='0 0 100 50'><rect x='0' y='0' width='100' height='50' fill='#1971c2'/></svg>",
+            x: 420,
+            y: 300,
+            width: 200,
+          }),
+        ),
+      ).toEqual({pending: expect.any(String)})
+      expect(
+        Pending.parse(await widget.kit.callTool('whiteboard_canvas_diagram', {mermaid: 'flowchart LR\n  A --> B'})),
+      ).toEqual({pending: expect.any(String)})
+      expect(await canvasTypes(widget.kit, 'draft')).toEqual(expect.arrayContaining(['ellipse', 'rectangle', 'arrow']))
     } finally {
       await widget.close()
     }
