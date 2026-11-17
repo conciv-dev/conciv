@@ -828,6 +828,31 @@ export interface UiDialogProps {
   readonly closable?: boolean
 }
 
+export interface UiPopoverProps {
+  /**
+   * The element the popover opens beside. Clicking it does not count as a click outside, and focus returns to it when
+   * the popover closes.
+   *
+   * @returns The element, or `undefined` while it is not rendered.
+   */
+  readonly anchor: () => HTMLElement | undefined
+  readonly open: boolean
+  /**
+   * Called when Escape or a click outside closes the popover.
+   *
+   * @param open - The open state the popover asks for: `false` when Escape or a click outside closes it.
+   */
+  readonly onOpenChange: (open: boolean) => void
+  readonly label: string
+  /**
+   * The element focused when the popover opens. Without it, focus goes to the first focusable element inside.
+   *
+   * @returns The element, or `undefined` to fall back to the first focusable one.
+   */
+  readonly initialFocus?: () => HTMLElement | undefined
+  readonly children: JSX.Element
+}
+
 export interface UiSwitchProps {
   readonly checked: boolean
   readonly onChange: (checked: boolean) => void
@@ -1041,6 +1066,21 @@ export interface Ui {
    * ```
    */
   Dialog(props: UiDialogProps): JSX.Element
+  /**
+   * A popover beside an element, as the app opens a thread beside its pin: non-modal, so the page behind stays usable.
+   * It opens to the right of the anchor and flips when there is no room. Escape and a click outside call
+   * `onOpenChange(false)`, and focus returns to the anchor.
+   *
+   * @param props - The anchor, the open state and its handler, the accessible name and the content.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.Popover anchor={pin} open={open()} onOpenChange={setOpen} label="Comment thread" initialFocus={reply}>
+   *   {thread()}
+   * </ctx.ui.Popover>
+   * ```
+   */
+  Popover(props: UiPopoverProps): JSX.Element
   /**
    * An on/off switch with a label.
    *

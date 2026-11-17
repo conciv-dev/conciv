@@ -7854,7 +7854,7 @@ describe('a fixture plugin driven like a user', () => {
   const PLUGIN_CALL = ['plugin', 'call']
 
   const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
-const {createComponent} = require('solid-js/web')
+const {createComponent, insert} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
 const ToolCall = Registry.define('tool-call')
@@ -7966,6 +7966,86 @@ module.exports = {default: {stores: {
       button('Show the fixture overlay', showOverlay),
       button('Hide the fixture overlay', () => shownOverlay.current?.dispose()),
     ],
+  })
+  ctx.add(Panel, {
+    id: 'popovers',
+    region: 'pane',
+    list: (input) => (input.open.includes('popovers') ? [{id: 'popovers', title: 'Fixture popovers'}] : []),
+    render: () => {
+      const [pageNote, setPageNote] = createSignal('')
+      const [open, setOpen] = createSignal(false)
+      const [draft, setDraft] = createSignal('')
+      const [replies, setReplies] = createSignal([])
+      const sendReply = () => {
+        if (!draft().trim()) return
+        setReplies([...replies(), draft().trim()])
+        setDraft('')
+      }
+      const pin = createComponent(ctx.ui.IconButton, {icon: 'message-square', label: 'Comment pin', variant: 'neutral', onClick: () => setOpen(!open())})
+      const [actionsOpen, setActionsOpen] = createSignal(false)
+      const actionsPin = createComponent(ctx.ui.IconButton, {icon: 'ellipsis', label: 'Comment actions', variant: 'neutral', onClick: () => setActionsOpen(!actionsOpen())})
+      const actions = document.createElement('div')
+      actions.className = 'flex flex-col gap-1'
+      insert(actions, [
+        createComponent(ctx.ui.Button, {variant: 'neutral', size: 'small', onClick: () => setActionsOpen(false), children: 'Resolve'}),
+        createComponent(ctx.ui.Button, {variant: 'danger', size: 'small', onClick: () => setActionsOpen(false), children: 'Delete'}),
+      ])
+      const field = createComponent(ctx.ui.TextInput, {
+        label: 'Reply to the comment',
+        placeholder: 'Reply',
+        get value() {
+          return draft()
+        },
+        onInput: setDraft,
+        onSubmit: sendReply,
+      })
+      const thread = document.createElement('div')
+      thread.className = 'flex w-64 flex-col gap-2'
+      const header = document.createElement('div')
+      header.className = 'flex items-center justify-between gap-2'
+      header.append(
+        Object.assign(document.createElement('p'), {className: 'text-chat-sm font-medium', textContent: 'Is this the right blue?'}),
+        createComponent(ctx.ui.IconButton, {icon: 'x', label: 'Close the comment', size: 'small', onClick: () => setOpen(false)}),
+      )
+      insert(thread, [
+        header,
+        Object.assign(line(() => replies().join(' / ')), {className: 'empty:hidden'}),
+        field,
+        createComponent(ctx.ui.Button, {variant: 'contrast', size: 'small', class: 'self-end', onClick: sendReply, children: 'Reply'}),
+      ])
+      const pinRow = document.createElement('div')
+      pinRow.className = 'flex gap-2 p-2'
+      pinRow.append(pin, actionsPin)
+      return [
+        createComponent(ctx.ui.TextInput, {
+          label: 'Fixture page note',
+          get value() {
+            return pageNote()
+          },
+          onInput: setPageNote,
+        }),
+        pinRow,
+        createComponent(ctx.ui.Popover, {
+          anchor: () => pin,
+          get open() {
+            return open()
+          },
+          onOpenChange: setOpen,
+          label: 'Comment thread',
+          initialFocus: () => thread.querySelector('input') ?? undefined,
+          children: thread,
+        }),
+        createComponent(ctx.ui.Popover, {
+          anchor: () => actionsPin,
+          get open() {
+            return actionsOpen()
+          },
+          onOpenChange: setActionsOpen,
+          label: 'Comment actions',
+          children: actions,
+        }),
+      ]
+    },
   })
   ctx.add(Panel, {
     id: 'opened',
@@ -8173,6 +8253,53 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})).toBeVisible()
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
+
+  describe('its ctx.ui.Popover', () => {
+    const textbox = (name: string) => page.getByRole('textbox', {name, exact: true})
+
+    test('opens beside its anchor and leaves the page usable, closes on Escape with focus back on the anchor and on a click outside, and focuses the field it names', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:popovers')}?open=true`)
+      await expect.element(tab('Fixture popovers'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture popovers').click()
+
+      await control('Comment pin').click()
+      await expect.element(dialog('Comment thread')).toBeVisible()
+      await expect
+        .element(dialog('Comment thread').getByText('Is this the right blue?', {exact: true}))
+        .toBeInViewport()
+      await expect.element(textbox('Reply to the comment')).toHaveFocus()
+
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+      await expect.element(control('Comment pin')).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+      await expect.element(dialog('Comment thread')).toBeVisible()
+
+      await textbox('Fixture page note').click()
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+      await userEvent.keyboard('typed on the page')
+      await expect.element(textbox('Fixture page note')).toHaveValue('typed on the page')
+
+      await control('Comment pin').click()
+      await expect.element(dialog('Comment thread')).toBeVisible()
+      await expect.element(textbox('Reply to the comment')).toHaveFocus()
+      await userEvent.keyboard('a reply')
+      await expect.element(textbox('Reply to the comment')).toHaveValue('a reply')
+      await dialog('Comment thread').getByRole('button', {name: 'Reply', exact: true}).click()
+      await expect.element(dialog('Comment thread').getByText('a reply', {exact: true})).toBeVisible()
+      await expect.element(textbox('Reply to the comment')).toHaveValue('')
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+
+      await control('Comment actions').click()
+      await expect.element(dialog('Comment actions')).toBeVisible()
+      await expect.element(dialog('Comment actions').getByRole('button', {name: 'Resolve', exact: true})).toHaveFocus()
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment actions')).not.toBeInTheDocument()
+      await expect.element(control('Comment actions')).toHaveFocus()
+    })
+  })
 
   test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
