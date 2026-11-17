@@ -9,7 +9,8 @@ import {REPLAY_MIN_EVENTS, recordingPoster, type RrwebEvent} from '../protocol.j
 import type {CaptureState} from './boot.js'
 import {readRecordingVideo, saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
-import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
+import {mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
+import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 
 const VIEWER_RENEW_MS = 7000
 
@@ -63,8 +64,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   )
   onCleanup(stopWatching)
 
-  const [playerKit] = createResource(loadPlayerKit)
-  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
+  const playerKit = usePlayerKit()
 
   const readSince = (cursor: number, signal: AbortSignal): Promise<ReplaySource | undefined> =>
     recorder()
@@ -193,16 +193,11 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
         <Match keyed when={recordingWithEnoughEvents(recording.latest)}>
           {(source) => (
             <>
-              <Switch fallback={<RecorderNotice text="Loading player…" />}>
-                <Match when={playerKit.error}>
-                  <RecorderErrorNotice retry={() => location.reload()} text="Could not load the player." />
-                </Match>
-                <Match keyed when={loadedPlayerKit()}>
-                  {(kit) => (
-                    <div ref={replayRef(kit, source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
-                  )}
-                </Match>
-              </Switch>
+              <PlayerKitSwitch kit={playerKit}>
+                {(kit) => (
+                  <div ref={replayRef(kit, source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
+                )}
+              </PlayerKitSwitch>
               <div class="flex gap-2 items-center">
                 <ctx.ui.Button
                   variant="contrast"

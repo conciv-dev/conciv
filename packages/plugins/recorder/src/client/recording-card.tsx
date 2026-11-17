@@ -6,7 +6,8 @@ import {Recorder} from '../rpc.js'
 import {REPLAY_MIN_EVENTS, RrwebEventSchema, type RrwebEvent} from '../protocol.js'
 import {readRecordingVideo, saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
-import {loadPlayerKit, mountPlayer, type PlayerKit} from './player.js'
+import {mountPlayer, type PlayerKit} from './player.js'
+import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 
 const SavedEvents = z.object({events: z.array(RrwebEventSchema)})
 
@@ -45,8 +46,7 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
   const events = createMemo((): RrwebEvent[] | undefined =>
     saved.state === 'ready' ? SavedEvents.safeParse(saved()).data?.events : undefined,
   )
-  const [playerKit] = createResource(loadPlayerKit)
-  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
+  const playerKit = usePlayerKit()
   const replayRef = (kit: PlayerKit, playable: RrwebEvent[]) => (container: HTMLDivElement) => {
     onCleanup(mountPlayer(kit, container, playable))
   }
@@ -80,7 +80,19 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
       }
     >
       <div class="flex flex-col gap-2 min-h-96 w-full">
-        <Switch fallback={<RecorderNotice text="Loading player…" />}>
+        <Switch
+          fallback={
+            <PlayerKitSwitch kit={playerKit}>
+              {(kit) => (
+                <Show keyed when={events()}>
+                  {(playable) => (
+                    <div ref={replayRef(kit, playable)} class="flex h-70vh w-full items-start justify-center" />
+                  )}
+                </Show>
+              )}
+            </PlayerKitSwitch>
+          }
+        >
           <Match when={saved.error}>
             <RecorderErrorNotice retry={() => void refetch()} />
           </Match>
@@ -92,18 +104,6 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
           </Match>
           <Match when={(events()?.length ?? 0) < REPLAY_MIN_EVENTS}>
             <RecorderNotice text="Nothing to replay in this recording." />
-          </Match>
-          <Match when={playerKit.error}>
-            <RecorderErrorNotice retry={() => location.reload()} text="Could not load the player." />
-          </Match>
-          <Match keyed when={loadedPlayerKit()}>
-            {(kit) => (
-              <Show keyed when={events()}>
-                {(playable) => (
-                  <div ref={replayRef(kit, playable)} class="flex h-70vh w-full items-start justify-center" />
-                )}
-              </Show>
-            )}
           </Match>
         </Switch>
       </div>
