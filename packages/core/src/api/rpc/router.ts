@@ -305,7 +305,8 @@ async function pluginCall(
   signal?: AbortSignal,
 ) {
   return host.runPromise(
-    Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input)).pipe(
+    Plugin.awaitActivation.pipe(
+      Effect.andThen(Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input))),
       Effect.catchDefect((defect) =>
         Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
           Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),
