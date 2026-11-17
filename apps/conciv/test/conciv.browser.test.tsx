@@ -5372,6 +5372,30 @@ describe('a deleted session', () => {
     expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
   }, 40_000)
 
+  test('typing in another pane reaches its local draft and the engine while New session waits on the engine', async () => {
+    const TYPED = 'typed beside a waiting move'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const liveId = await createSession(rpc)
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'words to carry'})
+    harness.mountShell(`/quick?panes=${liveId},${deletedId}&focus=0`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    const create = await faults.install({kind: 'gate', path: ['sessions', 'create']})
+
+    await userEvent.click(newSessionButton())
+    await coreControl.awaitFaultPending(create, 1)
+    await userEvent.click(editor())
+    await userEvent.keyboard(TYPED)
+
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: liveId, text: TYPED})
+    expect(await readLocalCopy(liveId)).toEqual(expect.stringContaining(TYPED))
+    await coreControl.releaseFault(create)
+    await expect.element(editor().nth(1).getByText('words to carry'), {timeout: 8000}).toBeVisible()
+  }, 40_000)
+
   test('a session that cannot be started says so, keeps the text with the deleted session, and the next press carries it', async () => {
     const rpc = coreRpc(core())
     const liveId = await createSession(rpc)
