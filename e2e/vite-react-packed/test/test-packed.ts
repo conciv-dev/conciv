@@ -1,7 +1,7 @@
 import {spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
+import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 import {WORKSPACE_ROOT, buildAndPack, installPacked, readManifest} from '@conciv/vitest-config/pack'
 import {PACKED_APP_DIR, PACKED_ROOT} from './packed-app-dir.ts'
 
@@ -10,7 +10,11 @@ const SCAFFOLD_ENTRIES = ['index.html', 'src', 'public']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
 const LOCK_PATH = join(import.meta.dirname, '..', 'fixture-lock.yaml')
-const DEV_ENDPOINT_IMPORT = `import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'`
+const DEV_ENDPOINT_IMPORT = `import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'`
+const PACKED_CONFIG_DIR = join(import.meta.dirname, '..')
+const DEV_ENDPOINT_ENV = 'CONCIV_E2E_DEV_ENDPOINT_DIR'
+const DEV_ENDPOINT_FROM_ENV =
+  'const e2eDevEndpointDir = () => { const folder = process.env.CONCIV_E2E_DEV_ENDPOINT_DIR; if (!folder) throw new Error("CONCIV_E2E_DEV_ENDPOINT_DIR is not set; run this app through test-packed.ts"); return folder }'
 
 async function timed<T>(label: string, step: () => Promise<T>): Promise<T> {
   const started = performance.now()
@@ -38,7 +42,7 @@ function viteConfigSource(): string {
   const source = readFileSync(join(SOURCE_APP, 'vite.config.ts'), 'utf8')
   if (!source.includes(DEV_ENDPOINT_IMPORT))
     throw new Error(`e2e/vite-react/vite.config.ts no longer imports ${DEV_ENDPOINT_IMPORT}`)
-  return source.replace(DEV_ENDPOINT_IMPORT, `const E2E_DEV_ENDPOINT_DIR = ${JSON.stringify(E2E_DEV_ENDPOINT_DIR)}`)
+  return source.replace(DEV_ENDPOINT_IMPORT, DEV_ENDPOINT_FROM_ENV)
 }
 
 function writeConsumer(): void {
@@ -67,7 +71,11 @@ await timed('install', () =>
 const playwright = spawnSync(
   join(import.meta.dirname, '..', 'node_modules/.bin/playwright'),
   ['test', '--config', join(import.meta.dirname, '..', 'playwright.config.ts'), ...process.argv.slice(2)],
-  {cwd: PACKED_APP_DIR, stdio: 'inherit'},
+  {
+    cwd: PACKED_APP_DIR,
+    stdio: 'inherit',
+    env: {...process.env, [DEV_ENDPOINT_ENV]: e2eDevEndpointDir(PACKED_CONFIG_DIR)},
+  },
 )
 if (playwright.error !== undefined) throw playwright.error
 process.exitCode = playwright.status ?? 1

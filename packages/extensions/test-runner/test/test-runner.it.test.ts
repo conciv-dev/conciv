@@ -1,5 +1,6 @@
+import {cpSync, symlinkSync} from 'node:fs'
 import {readdir, readFile, rm, watch} from 'node:fs/promises'
-import {dirname, join} from 'node:path'
+import {basename, dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
@@ -25,6 +26,13 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof testRunnerExtension> {}
+}
+
+function copyFixture(repoFixture: string): string {
+  const copy = tempDir(`conciv-${basename(repoFixture)}-`)
+  cpSync(repoFixture, copy, {recursive: true, filter: (source) => basename(source) !== 'node_modules'})
+  symlinkSync(fileURLToPath(new URL('../node_modules', import.meta.url)), join(copy, 'node_modules'), 'dir')
+  return copy
 }
 
 describe('extension', () => {
@@ -154,7 +162,8 @@ describe('extension', () => {
 })
 
 describe('playwright', () => {
-  const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/playwright-app')
+  const repoFixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/playwright-app')
+  const fixture = copyFixture(repoFixture)
   const childTs = new URL('../src/runners/playwright/child.ts', import.meta.url)
 
   const playwrightSpec = {
@@ -274,11 +283,22 @@ describe('playwright', () => {
       expect(runErr).toBeInstanceOf(Error)
       expect((runErr as Error).message).toContain('signal SIGKILL')
     })
+
+    it('leaves nothing in the repo fixture app that the runs wrote', async () => {
+      expect((await readdir(repoFixture)).toSorted()).toEqual([
+        'blocked.spec.ts',
+        'browser.spec.ts',
+        'fail.spec.ts',
+        'package.json',
+        'pass.spec.ts',
+        'playwright.config.ts',
+      ])
+    })
   })
 })
 
 describe('streaming', () => {
-  const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
+  const fixture = copyFixture(join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app'))
 
   describe('the test-runner rpc stream over a real vitest run (IT)', () => {
     it('delivers per-test events while the run is still in flight', async () => {
@@ -360,7 +380,8 @@ describe('tool catalog', () => {
 })
 
 describe('vitest', () => {
-  const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
+  const repoFixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
+  const fixture = copyFixture(repoFixture)
 
   describe('vitest adapter against a real fixture app (IT)', () => {
     expect(vitestAdapter.id).toBe('vitest')
@@ -411,6 +432,15 @@ describe('vitest', () => {
       expect(isRunnerUnavailable(runErr)).toBe(true)
       expect(runErr instanceof Error ? runErr.message : '').toContain('vitest unavailable')
       expect(mgr.emitSnapshot()).toMatchObject({type: 'snapshot', watching: false})
+    })
+
+    it('leaves nothing in the repo fixture app that the runs wrote', async () => {
+      expect((await readdir(repoFixture)).toSorted()).toEqual([
+        'fail.test.ts',
+        'package.json',
+        'pass.test.ts',
+        'vitest.config.ts',
+      ])
     })
   })
 })
