@@ -1,4 +1,4 @@
-import {createResource, onCleanup} from 'solid-js'
+import {createResource, getOwner, onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
@@ -39,6 +39,8 @@ export default Plugin.define({
       render(
         () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} layer={layer} close={close} />,
         document.createDocumentFragment(),
+        undefined,
+        {owner: getOwner()},
       ),
     )
     ctx.add(ComposerPill, pill)

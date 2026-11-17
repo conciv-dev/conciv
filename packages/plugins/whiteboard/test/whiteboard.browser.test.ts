@@ -42,6 +42,11 @@ const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 const PinRows = z.array(z.object({cid: z.string(), x: z.number(), y: z.number()}).loose())
 const ReadRows = z.array(z.object({threadId: z.string(), accountId: z.string()}).loose())
+const ThreadRead = z.object({
+  comment: z.object({status: z.string()}).loose(),
+  replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
+})
+const CommentList = z.object({comments: z.array(z.object({cid: z.string()}).loose())})
 
 const MALFORMED_SVG = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10'></svg>"
 const UNDRAWABLE_SVG = "<svg viewBox='0 0 10 10'><g></g></svg>"
@@ -616,6 +621,107 @@ describe('the comments of the whiteboard plugin', () => {
       await page.mouse.click(400, 200)
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
       await expect(unread).toHaveCount(0)
+    } finally {
+      await widget.close()
+    }
+  }, 120_000)
+
+  test('the thread beside a pin takes a reply the agent reads, steps to the next and previous thread, resolves, and deletes through its confirm', async ({
+    browser,
+  }) => {
+    const widget = await openPluginWidget(browser, {
+      id: 'fake',
+      plugins: [[PACKAGE_DIR, {catchUpRetryMs: CATCH_UP_RETRY_MS}]],
+      widgetBundle: WIDGET_BUNDLE,
+      stateRoot: realpathSync(tempDir('conciv-whiteboard-thread-')),
+    })
+    try {
+      const page = widget.page
+      const observer = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.setViewportSize({width: 1280, height: 800})
+      await openChat(page)
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'older',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'the header overlaps the logo'}],
+        x: 640,
+        y: 360,
+        authorKind: 'ai',
+      })
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'newer',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'the button has no focus ring'}],
+        x: 400,
+        y: 200,
+        authorKind: 'ai',
+      })
+      await expect(page.getByRole('button', {name: 'AI comment, open, unread'})).toHaveCount(2, {timeout: 30_000})
+
+      await page.mouse.click(640, 360)
+      const thread = page.getByRole('dialog', {name: 'Comment thread'})
+      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+      const reply = thread.getByRole('textbox', {name: 'Reply'})
+      await expect(reply).toBeFocused()
+
+      const replied = observer.mark()
+      await reply.pressSequentially('moving it left')
+      await page.keyboard.press('Enter')
+      await expect(thread.getByText('moving it left')).toBeVisible()
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'comments.insert'},
+        since: replied,
+      })
+      const read = ThreadRead.parse(await widget.kit.callTool('whiteboard_comment_read', {cid: 'older'}))
+      expect(read.replies).toMatchObject([{parts: [{type: 'text', text: 'moving it left'}]}])
+
+      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
+      await thread.getByRole('button', {name: 'Next thread'}).click()
+      await expect(thread.getByText('the button has no focus ring')).toBeVisible()
+      await expect(thread.getByText('the header overlaps the logo')).toBeHidden()
+      await expect(thread.getByRole('button', {name: 'Next thread'})).toBeDisabled()
+      await thread.getByRole('button', {name: 'Previous thread'}).click()
+      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+
+      const resolved = observer.mark()
+      await thread.getByRole('button', {name: 'Resolve thread'}).click()
+      await expect(thread).toBeHidden()
+      await expect(page.getByRole('button', {name: 'AI comment, resolved'})).toBeVisible()
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'comments.update'},
+        since: resolved,
+      })
+      const afterResolve = ThreadRead.parse(await widget.kit.callTool('whiteboard_comment_read', {cid: 'older'}))
+      expect(afterResolve.comment.status).toBe('resolved')
+
+      await page.mouse.click(400, 200)
+      await expect(thread.getByText('the button has no focus ring')).toBeVisible()
+      const deleted = observer.mark()
+      await thread.getByRole('button', {name: 'Delete thread'}).click()
+      const confirm = page.getByRole('dialog', {name: 'Delete this thread?'})
+      await confirm.getByRole('button', {name: 'Delete'}).click()
+      await expect(confirm).toBeHidden()
+      await expect(thread).toBeHidden()
+      await expect(page.getByRole('button', {name: /^AI comment, open/})).toHaveCount(0)
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'comments.delete'},
+        since: deleted,
+      })
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'pins.delete'},
+        since: deleted,
+      })
+      const left = CommentList.parse(await widget.kit.callTool('whiteboard_comment_list', {scope: 'session'}))
+      expect(left.comments.map((comment) => comment.cid)).toEqual(['older'])
     } finally {
       await widget.close()
     }

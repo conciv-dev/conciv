@@ -82,6 +82,7 @@ export function WhiteboardCanvas(props: {
                 component={loaded().default}
                 client={props.ctx.client}
                 ui={props.ctx.ui}
+                dialogs={props.ctx.dialogs}
                 toast={props.ctx.toast}
                 room={current}
                 catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}

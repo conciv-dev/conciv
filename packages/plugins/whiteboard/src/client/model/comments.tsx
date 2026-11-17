@@ -1,4 +1,4 @@
-import {createContext, untrack, useContext, type Accessor, type JSX} from 'solid-js'
+import {createContext, createMemo, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {screenToScene, type Viewport} from '../../canvas/coords.js'
@@ -32,14 +32,33 @@ export function createCommentsModel(
     openCid: string | null
     viewport: Viewport | undefined
     composeTarget: ComposeTarget | null
+    pinButtons: Partial<Record<string, HTMLButtonElement>>
   }>({
     openCid: null,
     viewport: undefined,
     composeTarget: null,
+    pinButtons: {},
   })
 
   const findRoot = (cid: string): Comment | undefined => comments().find((comment) => comment.cid === cid)
 
+  const collectThread = (cid: string): Comment[] => {
+    const threadId = findRoot(cid)?.threadId
+    if (!threadId) return []
+    return comments()
+      .filter((comment) => comment.threadId === threadId)
+      .toSorted((left, right) => left.createdAt - right.createdAt)
+  }
+  const orderedThreads = createMemo(() =>
+    comments()
+      .filter((comment) => !comment.parentId && comment.status !== 'resolved')
+      .toSorted((left, right) => right.createdAt - left.createdAt),
+  )
+  const aiLabel = (comment: Comment): string => comment.authorName ?? comment.authorModel ?? 'AI'
+  const humanLabel = (comment: Comment): string =>
+    comment.authorId && comment.authorId === accountId() ? 'You' : (comment.authorName ?? 'Human')
+  const displayName = (comment: Comment): string =>
+    comment.authorKind === 'ai' ? aiLabel(comment) : humanLabel(comment)
   const ownedBySelf = (comment: Comment): boolean =>
     comment.authorKind === 'human' && comment.authorId != null && comment.authorId === accountId()
 
@@ -69,6 +88,72 @@ export function createCommentsModel(
     markRead(cid)
   }
   const closeThread = (): void => void setState('openCid', null)
+  const toggleThread = (cid: string): void => (state.openCid === cid ? closeThread() : openThread(cid))
+  const registerPin = (cid: string, button: HTMLButtonElement | undefined): void =>
+    void setState('pinButtons', cid, button)
+  const openPinButton = (): HTMLButtonElement | undefined =>
+    state.openCid === null ? undefined : state.pinButtons[state.openCid]
+
+  const stepIndex = (): number => orderedThreads().findIndex((thread) => thread.cid === state.openCid)
+  const stepThread = (delta: number): void => {
+    const target = orderedThreads()[stepIndex() + delta]
+    if (stepIndex() >= 0 && target) openThread(target.cid)
+  }
+  const canStep = (delta: number): boolean => stepIndex() >= 0 && orderedThreads()[stepIndex() + delta] !== undefined
+  const openRoot = (): Comment | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
+
+  const reply = (text: string): void => {
+    const parent = openRoot()
+    if (!parent) return
+    const now = Date.now()
+    db.comments.insert({
+      id: crypto.randomUUID(),
+      sessionId: room(),
+      cid: crypto.randomUUID(),
+      threadId: parent.threadId,
+      parentId: parent.cid,
+      parts: [{type: 'text', text}],
+      authorKind: 'human',
+      authorModel: null,
+      authorId: accountId(),
+      authorName: null,
+      authorAvatar: null,
+      status: 'open',
+      kind: 'floating',
+      anchor: null,
+      anchorFile: null,
+      anchorComponent: null,
+      anchorHash: null,
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: null,
+    })
+  }
+  const resolve = (): void => {
+    const parent = openRoot()
+    if (!parent) return
+    const now = Date.now()
+    db.comments.update(parent.id, (draft) => {
+      draft.status = 'resolved'
+      draft.resolvedAt = now
+      draft.updatedAt = now
+    })
+    closeThread()
+  }
+  const deleteThread = (): void => {
+    const parent = openRoot()
+    if (!parent) return
+    comments()
+      .filter((comment) => comment.threadId === parent.threadId)
+      .forEach((comment) => db.comments.delete(comment.id))
+    const pin = pins().find((row) => row.cid === parent.cid)
+    if (pin) db.pins.delete(pin.id)
+    closeThread()
+  }
+  const removeComment = (comment: Comment): void => {
+    if (comment.cid === comment.threadId) return deleteThread()
+    db.comments.delete(comment.id)
+  }
 
   const movePin = (cid: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>): void => {
     const pin = pins().find((row) => row.cid === cid)
@@ -132,10 +217,23 @@ export function createCommentsModel(
     comments,
     pins,
     findRoot,
+    collectThread,
+    orderedThreads,
+    displayName,
     ownedBySelf,
+    openRoot,
+    stepThread,
+    canStep,
+    reply,
+    resolve,
+    deleteThread,
+    removeComment,
     openCid: () => state.openCid,
     openThread,
     closeThread,
+    toggleThread,
+    registerPin,
+    openPinButton,
     movePin,
     isUnread,
     markRead,

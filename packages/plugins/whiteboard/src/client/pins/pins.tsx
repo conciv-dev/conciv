@@ -1,4 +1,4 @@
-import {For, Show, type JSX} from 'solid-js'
+import {For, onCleanup, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import type {Context} from '@conciv/plugin/experimental'
 import {sceneToScreen, screenToScene, type Viewport} from '../../canvas/coords.js'
@@ -66,7 +66,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
     const drag = state.drag
     setState('drag', null)
     if (drag?.cid !== pin.cid) return
-    if (!movedPastThreshold(drag)) return model.openThread(pin.cid)
+    if (!movedPastThreshold(drag)) return model.toggleThread(pin.cid)
     if (comment?.kind !== 'source-linked') model.movePin(pin.cid, {x: drag.x, y: drag.y})
   }
 
@@ -82,6 +82,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
               const scene = scenePosition(pin)
               return sceneToScreen(view(), scene.x, scene.y)
             }
+            onCleanup(() => model.registerPin(pin.cid, undefined))
             return (
               <div
                 class="left-0 top-0 absolute"
@@ -90,13 +91,14 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
                 <props.ui.Tooltip value={label()}>
                   <button
                     type="button"
+                    ref={(button) => model.registerPin(pin.cid, button)}
                     aria-label={label()}
                     class={PIN}
                     onPointerDown={(event) => grab(view(), pin, event)}
                     onPointerMove={(event) => follow(view(), pin, event)}
                     onPointerUp={() => drop(pin, comment())}
                     onPointerCancel={() => setState('drag', null)}
-                    onClick={(event) => event.detail === 0 && model.openThread(pin.cid)}
+                    onClick={(event) => event.detail === 0 && model.toggleThread(pin.cid)}
                   >
                     <span class={`${PIN_MARK}  ${STATUS_FILL[status()]}`}>
                       <Show when={model.isUnread(pin.cid)}>

@@ -7,6 +7,7 @@ import {Island} from '../canvas/island.js'
 import {WhiteboardDbProvider} from './db.js'
 import {CommentsProvider, useComments} from './model/comments.js'
 import {PinsLayer} from './pins/pins.js'
+import {ThreadPopover} from './pins/thread.js'
 
 function injectExcalidrawCss(doc: Document): void {
   if (doc.head.querySelector('[data-whiteboard-style]')) return
@@ -36,6 +37,7 @@ const escapeLeftToOthers = (event: KeyboardEvent): boolean =>
 type SurfaceProps = {
   client: Context['client']
   ui: Context['ui']
+  dialogs: Context['dialogs']
   toast: Context['toast']
   room: string
   catchUpRetryMs: number
@@ -44,13 +46,14 @@ type SurfaceProps = {
   close: () => void
 }
 
-function CanvasView(props: Pick<SurfaceProps, 'ui' | 'room' | 'visible' | 'layer'>): JSX.Element {
+function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visible' | 'layer'>): JSX.Element {
   const model = useComments()
   return (
     <>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
       <Portal mount={props.layer}>
         <PinsLayer ui={props.ui} />
+        <ThreadPopover ui={props.ui} dialogs={props.dialogs} visible={props.visible} />
       </Portal>
     </>
   )
@@ -78,7 +81,13 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
       <CommentsProvider room={() => props.room} onComposeSettled={onComposeSettled}>
-        <CanvasView ui={props.ui} room={props.room} visible={props.visible} layer={props.layer} />
+        <CanvasView
+          ui={props.ui}
+          dialogs={props.dialogs}
+          room={props.room}
+          visible={props.visible}
+          layer={props.layer}
+        />
       </CommentsProvider>
     </WhiteboardDbProvider>
   )
