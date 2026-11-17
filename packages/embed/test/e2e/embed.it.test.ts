@@ -1592,7 +1592,10 @@ test.describe('page dispatch parity', () => {
       const refused = await wire.completed({...attach, since})
       expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`})
       await page.reload({waitUntil: 'domcontentloaded'})
-      await openPanel(page)
+      await expect(page.getByRole('region', {name: 'Deleted session'}).getByRole('status')).toHaveText(
+        'This session was deleted.',
+        {timeout: 30_000},
+      )
       const attached = AttachedSchema.parse(
         await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
       )
