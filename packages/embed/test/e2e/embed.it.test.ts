@@ -1893,7 +1893,7 @@ test.describe('recording attachment', () => {
 test.describe('reload continuity', () => {
   const ASSISTANT_TEXT = 'Continuity reply'
 
-  const suite = setupWidgetSuite({text: ASSISTANT_TEXT})
+  const suite = setupWidgetSuite({text: ASSISTANT_TEXT, imageInput: 'native'})
 
   test.describe('reload continuity through the db-backed navigation row', () => {
     test('restores the open panel route, the transcript, and the draft after a reload', async ({page}) => {
@@ -1973,6 +1973,94 @@ test.describe('reload continuity', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(launcher).toBeVisible()
       await expect(panel).toBeHidden()
+    })
+  })
+
+  test.describe('the draft is kept in this browser first and in the engine second', () => {
+    const PIXEL_PNG =
+      'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
+    const unsaved = (page: Page) => page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+
+    test('text typed and reloaded at once is back in the composer', async ({page}) => {
+      test.setTimeout(240_000)
+      await openPanelOnNewSession(page, suite)
+      const input = chatBox(page)
+
+      await input.click()
+      await input.pressSequentially('typed then reloaded at once')
+      await page.reload({waitUntil: 'domcontentloaded'})
+
+      await expect(chatBox(page)).toHaveText('typed then reloaded at once')
+    })
+
+    test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const chip = page.getByRole('button', {name: 'Remove pixel.png'})
+
+        const chooser = page.waitForEvent('filechooser')
+        await page.getByRole('button', {name: 'Add an attachment', exact: true}).click()
+        await (
+          await chooser
+        ).setFiles({name: 'pixel.png', mimeType: 'image/png', buffer: Buffer.from(PIXEL_PNG, 'base64')})
+        await expect(chip).toBeVisible()
+        await refused.answered()
+        await page.reload({waitUntil: 'domcontentloaded'})
+
+        await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+        await expect(chip).toBeVisible()
+        await expect(chip).toHaveCount(1)
+        expect(await suite.kit().rpc.drafts.get({sessionId})).toBeNull()
+      } finally {
+        await refused.dispose()
+      }
+    })
+
+    test('a page with no local copy, as in a fresh profile, gets the draft the engine holds', async ({
+      page,
+      browser,
+    }) => {
+      test.setTimeout(240_000)
+      const sessionId = await openPanelOnNewSession(page, suite)
+      const input = chatBox(page)
+      await input.click()
+      await input.pressSequentially('held by the engine')
+      await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === 'held by the engine')
+
+      const fresh = await browser.newPage()
+      try {
+        await openLoggedIn(fresh, suite.kit(), suite.host().base)
+        await openPanel(fresh)
+        await switchToSessionByTitle(fresh, `session under test ${sessionId.slice(-12)}`)
+        await expect(chatBox(fresh)).toHaveText('held by the engine')
+      } finally {
+        await fresh.close()
+      }
+    })
+
+    test('with the engine refusing every draft save, text typed and reloaded is back and the unsaved notice shows', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('kept while the engine refuses')
+        await page.reload({waitUntil: 'domcontentloaded'})
+
+        await expect(chatBox(page)).toHaveText('kept while the engine refuses')
+        await expect(unsaved(page)).toBeVisible()
+        await expect(chatBox(page)).toHaveText('kept while the engine refuses')
+        expect(await suite.kit().rpc.drafts.get({sessionId})).toBeNull()
+      } finally {
+        await refused.dispose()
+      }
     })
   })
 })
