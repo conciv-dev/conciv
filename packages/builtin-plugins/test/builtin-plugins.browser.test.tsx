@@ -354,7 +354,16 @@ describe.skipIf(inFirefox)('page tools', () => {
   })
 
   describe('react verbs through the dispatcher', () => {
-    it('inspects a component and navigates into its props by path', async () => {
+    it('finds, locates, walks and inspects a component and navigates into its props by path', async () => {
+      const found = await runForResult('find', {name: 'Leaf'})
+      expect(found).toEqual({matches: [{ref: expect.any(String), component: 'Leaf'}], total: 1})
+      const [match] = Array.isArray(found.matches) ? found.matches : []
+      const located = await runForResult('locate', {ref: match.ref})
+      expect(located).toMatchObject({component: 'Leaf', stack: expect.arrayContaining(['Leaf', 'Branch'])})
+      expect(await runForResult('tree', {selector: '[data-fixture="root"]'})).toMatchObject({
+        nodes: [{component: 'Branch', children: [{component: 'Leaf'}, {component: 'Counter'}]}],
+        truncated: 0,
+      })
       const full = await runForResult('inspect', {name: 'Leaf'})
       expect(full.component).toBe('Leaf')
       const byPath = await runForResult('inspect', {name: 'Leaf', path: 'props.label'})
