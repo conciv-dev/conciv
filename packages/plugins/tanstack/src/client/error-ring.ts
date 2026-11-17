@@ -24,8 +24,12 @@ function push(error: AppError): void {
   stored = [...stored, error].slice(-CAPACITY)
 }
 
-export function readRuntimeErrors(): {errors: AppError[]} {
-  return {errors: [...stored]}
+const EMPTY_LENGTH = JSON.stringify({errors: []}).length
+
+export function readRuntimeErrors(budget: number): {errors: AppError[]} {
+  const lengths = stored.map((error) => JSON.stringify(error).length + 1)
+  const totals = lengths.reduceRight<number[]>((sums, length) => [length + (sums[0] ?? EMPTY_LENGTH - 1), ...sums], [])
+  return {errors: stored.filter((_, index) => (totals[index] ?? 0) <= budget)}
 }
 
 function readMessage(value: unknown, fallback: string): string {
