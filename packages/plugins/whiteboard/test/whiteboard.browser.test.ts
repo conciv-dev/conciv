@@ -87,6 +87,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await composer.click()
       await page.keyboard.press('Escape')
       await expect(rectangleTool).toBeHidden()
+      await expect(page.getByRole('button', {name: 'Zoom in'})).toBeHidden()
       await expect(composer).toBeFocused()
       await page.keyboard.type('the canvas is closed')
       await expect(composer).toHaveText('the canvas is closed')
@@ -102,6 +103,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 
       await pill.click()
       await expect(rectangleTool).toBeVisible({timeout: 60_000})
+      await expect(page.getByRole('button', {name: 'Zoom in'})).toBeVisible()
       await expect(rectangleTool).not.toBeChecked()
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
 
