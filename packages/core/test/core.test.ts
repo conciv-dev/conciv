@@ -578,7 +578,6 @@ describe('chat plane', () => {
       db,
       root,
       storeCapture: () => Promise.resolve(),
-      listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
       primitives,
@@ -2394,7 +2393,6 @@ describe('page bus and the session scope', () => {
         db: fixture.db,
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
-        listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({
         name: 'fixture_click',
@@ -4650,7 +4648,6 @@ describe('direct tools on the MCP surface', () => {
       'external_server_restart',
       'external_server_transform',
       'external_server_urls',
-      'external_tabs',
       'external_unit_coded',
     ])
     expect(bound.result.filter((name) => name.startsWith('external_page_'))).toEqual([])

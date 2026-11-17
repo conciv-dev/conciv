@@ -76,7 +76,6 @@ import {os} from '@orpc/server'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
 import {createTabs} from './api/tabs.js'
-import {createOutsideTabs} from './api/outside-tabs.js'
 import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -481,7 +480,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
-  const outsideTabs = createOutsideTabs(opts.home)
   const pagePlugin = makePagePlugin(() => pluginHost)
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
@@ -490,7 +488,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db,
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
-    listTabs: outsideTabs.list,
     pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
     queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
@@ -628,7 +625,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
 
   assertUniqueCapabilityNames([
-    ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
     ['a conciv assist tool', concivSandboxToolNames()],
     ...mounted.map((entry): [string, string[]] => [
       `extension "${entry.extensionName}"`,

@@ -354,6 +354,8 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
+    const staleNotice = 'WARNING: this engine is running outdated code'
+
     async function executeTool(base: string) {
       const mcp = await connectMcpClient(`${base}/api/mcp`)
       try {
@@ -392,7 +394,7 @@ describe('api engine staleness di', () => {
       const liveness = {ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}, id: expect.any(String)}
       expect(health).toEqual([liveness, liveness])
       expect(engine).toEqual(INJECTED)
-      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description.slice(0, staleNotice.length)).toBe(staleNotice)
       expect(description).toContain('@conciv/injected-probe')
       expect(description).toContain('Rules of the sandbox:')
       expect(description.length).toBeLessThanOrEqual(4096)
@@ -416,7 +418,7 @@ describe('api engine staleness di', () => {
 
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(sandboxNames.filter((name) => !description.includes(name)).length).toBeGreaterThan(0)
-      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description.slice(0, staleNotice.length)).toBe(staleNotice)
       expect(description).toContain('@conciv/changed-package-0')
       expect(description).toMatch(/, and \d+ more\)\. Restart the dev server/)
       expect(description).toContain('Run TypeScript in a secure sandbox wired to this project.')
@@ -428,7 +430,7 @@ describe('api engine staleness di', () => {
       const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
       const {description} = await executeTool(served.base)
       expect(description).toContain('Rules of the sandbox:')
-      expect(description).not.toMatch(/outdated|restart the dev server/i)
+      expect(description).not.toContain(staleNotice)
     }, 20_000)
   })
 })
@@ -1807,9 +1809,9 @@ describe('capability collision', () => {
       meta: {summary: `pretend to be the ${name} tool`, category: 'fixture', mutating: false},
     }).server(() => 'nope')
 
-  it('boot fails loud when an extension tool name collides with a built-in capability', async () => {
-    const shady = defineExtension({name: 'shady', tools: [impostor('tabs')]})
-    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"tabs".*built-in.*extension/)
+  it('boot fails loud when an extension tool name collides with an engine capability', async () => {
+    const shady = defineExtension({name: 'shady', tools: [impostor('conciv_ui')]})
+    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"conciv_ui".*conciv assist tool.*extension/)
   }, 30_000)
 
   it("an extension tool named open boots beside the server plugin's open, and each answers on its own route", async () => {
@@ -4848,34 +4850,19 @@ describe('outside agent consent', () => {
     expect(await waiting).toMatch(RAN)
   })
 
-  it("an outside run lists every engine's tabs and refuses other capabilities with NO_TAB; a hub call naming the tab runs it after allow, marked in its chat", async () => {
+  it('an outside run has no tab listing and refuses other capabilities with NO_TAB naming list_tabs; a hub call naming the tab runs it after allow, marked in its chat', async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('session', home)]
     const [mine, theirs] = [await openTab(runner), await openTab(owner)]
-    const hung = createServer(() => {})
-    hung.listen(0, '127.0.0.1')
-    await once(hung, 'listening')
-    onTestFinished(() => {
-      hung.closeAllConnections()
-      hung.close()
-    })
-    const hungAddress = z.object({port: z.number()}).parse(hung.address())
-    const hungRoot = tempDir('conciv-hung-')
-    const hungBase = `http://127.0.0.1:${hungAddress.port}/t/${randomUUID()}`
-    withHomeDb(home, (db) =>
-      registerEngine(db, {id: randomUUID(), pid: process.pid, root: hungRoot, apiBase: hungBase}),
-    )
     const inPage = 'return [typeof external_tabs, typeof external_use_tab]'
     expect(String(await executeOverMcp(runner, {[CONCIV_SESSION_HEADER]: mine}, inPage))).toContain(
-      '["function","undefined"]',
+      '["undefined","undefined"]',
     )
-    const listed = await outside(runner, 'return await external_tabs({})')
-    expect(listed).toContain(`"tab":"${mine}"`)
-    expect(listed).toContain(`"tab":"${theirs}"`)
-    expect(listed).toContain(`"unreachable":[{"root":"${hungRoot}"`)
-    expect(listed).not.toMatch(new RegExp(`${new URL(runner).pathname}|${new URL(owner).pathname}`))
+    expect(await outside(runner, 'return [typeof external_tabs, typeof external_use_tab]')).toContain(
+      '["undefined","undefined"]',
+    )
     expect(await outside(runner, 'return await external_server_urls({})')).toContain(
-      'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
+      'NO_TAB: pass tab to execute_typescript; list_tabs lists the open tabs',
     )
     const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
     const routed = onTab('return await external_page_route({})').then(String)
@@ -5241,7 +5228,7 @@ export default {
     connectedHome(home)
     const tab = await openTab(base)
     const overRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: tab, ...HUB}})
-      .registry.call({name: 'tabs', input: {}})
+      .registry.call({name: 'page_route', input: {}})
       .then(String, String)
     await vi.waitFor(async () => expect(await loadPending(base, tab)).toHaveLength(1), {timeout: 3000})
     forget()
@@ -5317,26 +5304,21 @@ export default {
     await waiting
   })
 
-  it('a stopped engine leaves the listing, a page that never answers is listed with the href its tab reported, and a corrupt home db names the folder', async () => {
-    const home = tempDir('conciv-home-')
-    const [runner, owner] = [await boot('open', home), await boot('open', home)]
+  it('a page that never answers is listed by its engine with the href its tab reported', async () => {
+    const owner = await boot('open')
     const silent = await openTab(owner, () => {})
-    const listing = await outside(runner, 'return await external_tabs({})')
-    expect([listing.includes(`"tab":"${silent}"`), listing.includes(`"href":"${ROUTE.href}"`)]).toEqual([true, true])
-    await engines.at(-1)?.stop()
-    expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
-    writeFileSync(join(home, 'home.db'), 'garbage '.repeat(512))
-    expect(await outside(runner, 'return await external_tabs({})')).toContain(home)
+    const listing = await makeRpcClient(owner).tabs.list(undefined)
+    expect(listing.tabs).toEqual([
+      expect.objectContaining({sessionId: silent, page: expect.objectContaining({href: ROUTE.href})}),
+    ])
   })
 
   it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves stops waiting, a plain rpc call never asks, project policy allows every session', async () => {
     const base = await boot('project')
     const sessionId = await openTab(base)
-    const route = {name: 'tabs', input: {}}
+    const route = {name: 'page_route', input: {}}
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
-    expect(await createSessionRpc(base, sessionId).registry.call(route)).toMatchObject({
-      tabs: expect.arrayContaining([expect.objectContaining({tab: sessionId, href: ROUTE.href})]),
-    })
+    expect(await createSessionRpc(base, sessionId).registry.call(route)).toMatchObject({href: ROUTE.href})
     expect(await loadPending(base, sessionId)).toEqual([])
     const leaving = new AbortController()
     const left = hubRpc.registry.call(route, {signal: leaving.signal})
@@ -5347,9 +5329,7 @@ export default {
     const starts = await toolStarts(base, sessionId)
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
-    expect(await waiting).toMatchObject({
-      tabs: expect.arrayContaining([expect.objectContaining({tab: sessionId, href: ROUTE.href})]),
-    })
+    expect(await waiting).toMatchObject({href: ROUTE.href})
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
@@ -5359,14 +5339,14 @@ export default {
     })
     expect(await starts()).toEqual([
       expect.objectContaining({
-        toolCallName: 'tabs',
+        toolCallName: 'page_route',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
     ])
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
       message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
     )
-    expect(saved).toEqual(['tabs'])
+    expect(saved).toEqual(['page_route'])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
