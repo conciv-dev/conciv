@@ -65,10 +65,9 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
   const drop = (pin: Pin, comment: Comment | undefined): void => {
     const drag = state.drag
     setState('drag', null)
-    if (!drag || drag.cid !== pin.cid) return
+    if (drag?.cid !== pin.cid) return
     if (!movedPastThreshold(drag)) return model.openThread(pin.cid)
-    if (comment?.kind === 'source-linked') return
-    model.movePin(pin.cid, {x: drag.x, y: drag.y})
+    if (comment?.kind !== 'source-linked') model.movePin(pin.cid, {x: drag.x, y: drag.y})
   }
 
   return (

@@ -44,7 +44,7 @@ type SurfaceProps = {
   close: () => void
 }
 
-function CanvasView(props: SurfaceProps): JSX.Element {
+function CanvasView(props: Pick<SurfaceProps, 'ui' | 'toast' | 'room' | 'visible' | 'layer'>): JSX.Element {
   const model = useComments()
   const db = useWhiteboardDb()
   // oxlint-disable-next-line solid/reactivity -- a change subscription reads the canvas state when a change lands
@@ -82,7 +82,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
       <CommentsProvider room={() => props.room}>
-        <CanvasView {...props} />
+        <CanvasView ui={props.ui} toast={props.toast} room={props.room} visible={props.visible} layer={props.layer} />
       </CommentsProvider>
     </WhiteboardDbProvider>
   )
