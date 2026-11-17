@@ -626,7 +626,7 @@ describe('the comments of the whiteboard plugin', () => {
     }
   }, 120_000)
 
-  test('the thread beside a pin takes a reply the agent reads, steps to the next and previous thread, resolves, and deletes through its confirm', async ({
+  test('the thread beside a pin takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, and deletes through its confirm', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -680,6 +680,12 @@ describe('the comments of the whiteboard plugin', () => {
       })
       const read = ThreadRead.parse(await widget.kit.callTool('whiteboard_comment_read', {cid: 'older'}))
       expect(read.replies).toMatchObject([{parts: [{type: 'text', text: 'moving it left'}]}])
+
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
+      await page.mouse.click(640, 360)
+      await expect(thread.getByText('moving it left')).toBeVisible()
 
       await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
       await thread.getByRole('button', {name: 'Next thread'}).click()
