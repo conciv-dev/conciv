@@ -72,6 +72,10 @@ export function createTerminalState(ctx: TerminalContext) {
 
   return {
     supported: (sessionId: string) => meta(sessionId)?.harness.persistentPty,
+    ready: (sessionId: string) => {
+      const known = meta(sessionId)
+      return known ? known.harness.persistentPty === true : read.error !== undefined
+    },
     models,
     spawnModel,
     shownModel,

@@ -125,15 +125,17 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
       <Show
         when={failure()}
         fallback={
-          <Show keyed when={key()}>
-            {(current) => (
-              <TerminalSurface
-                session={props.session}
-                terminal={props.terminal}
-                terminalKey={current}
-                themeHost={themeHost}
-              />
-            )}
+          <Show when={props.terminal.ready(props.session.id)}>
+            <Show keyed when={key()}>
+              {(current) => (
+                <TerminalSurface
+                  session={props.session}
+                  terminal={props.terminal}
+                  terminalKey={current}
+                  themeHost={themeHost}
+                />
+              )}
+            </Show>
           </Show>
         }
       >

@@ -7165,6 +7165,7 @@ describe('terminal panel', () => {
     alternates: [{id: 'plain', displayName: 'Plain'}],
   })
   const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
 
   afterEach(harness.dispose)
 
@@ -7237,6 +7238,21 @@ describe('terminal panel', () => {
     await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
     await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
 
+    const otherSession = await createSession(coreRpc(coreBase()))
+    const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    harness.dispose()
+    harness.mountShell(terminalRoute(otherSession))
+    await expect.element(page.getByRole('tabpanel', {name: 'Terminal'}), {timeout: 15_000}).toBeVisible()
+    await coreControl.awaitFaultPending(modelsRead, 1)
+    await faults.releaseAll()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model none')).not.toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+
     await newTerminal().click()
     await expect.element(output('25'), {timeout: 15_000}).not.toBeInTheDocument()
     await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
@@ -7257,6 +7273,10 @@ describe('terminal panel', () => {
     await expect.element(picker()).toBeEnabled()
     await expect.element(newTerminal()).toBeEnabled()
 
+    await pick('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toHaveTextContent('First model')
+
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
     await expect.element(picker()).not.toBeInTheDocument()
@@ -7272,13 +7292,13 @@ describe('terminal panel', () => {
       harness.dispose()
       harness.mountShell(terminalRoute(sessionId))
       await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
-      await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
       await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
     }
     harness.mountShell(terminalRoute(sessionId))
     await typeLine('echo $((6*7))')
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
-    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
 
     await mountSettled()
     const freshLight = await shot()
