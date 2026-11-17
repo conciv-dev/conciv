@@ -100,7 +100,7 @@ function AppRoot() {
   const announce = (message: string, assertive = false) =>
     assertive ? setAssertiveMessage(message) : setPoliteMessage(message)
 
-  const layers = makeLayerStack()
+  const layers = makeLayerStack(app.environment.rootNode)
   const suppressed = (): '' | undefined => (layers.anyHiding() ? '' : undefined)
   const fab = createDraggablePosition({initial: app.settings.modal.position, storageKey: 'conciv-fab-position'})
 
