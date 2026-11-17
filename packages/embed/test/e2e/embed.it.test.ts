@@ -1590,7 +1590,7 @@ test.describe('page dispatch parity', () => {
       const since = wire.mark()
       await page.getByText('page-bus-ok').click()
       const refused = await wire.completed({...attach, since})
-      expect(refused.output).toMatchObject({message: `Session ${deleted} could not be opened: it was deleted`})
+      expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`})
       await page.reload({waitUntil: 'domcontentloaded'})
       await openPanel(page)
       const attached = AttachedSchema.parse(
@@ -1599,6 +1599,71 @@ test.describe('page dispatch parity', () => {
       expect(attached).not.toContain(deleted)
       const {sessions} = await kit.rpc.sessions.list(undefined)
       expect(sessions.map((session) => session.id)).not.toContain(deleted)
+    })
+  })
+
+  test.describe('a tab open on a new session before its first send', () => {
+    const AttachedSchema = z.array(z.string())
+    const AttachInput = z.object({input: z.object({sessionId: z.string()})})
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+    let wire: RpcObserver
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      wire = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await openPagePlaneHost(page, kit, host.base)
+      await openPanel(page)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('is refused and makes no session, then attaches once the first send makes it, and a page tool in that first run reads the page', async () => {
+      const shown = await kit.session()
+      const attach = {
+        path: ['plugin', 'call'],
+        input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: new RegExp(`^(?!${shown}$)`, 'u')}},
+      }
+      const since = wire.mark()
+      await page.getByRole('button', {name: 'Session options'}).click()
+      await page.getByRole('button', {name: /^Session: /}).click()
+      await page.getByRole('button', {name: 'New session', exact: true}).click()
+      const refused = await wire.completed({...attach, since})
+      const draft = AttachInput.parse(refused.input).input.sessionId
+      expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`})
+      expect((await kit.rpc.sessions.list(undefined)).sessions.map((session) => session.id)).not.toContain(draft)
+      kit.harness.script.holdTools()
+      const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: "return await external_page_text({selector: '#probe'})",
+      })
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('read the probe')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expect
+        .poll(async () =>
+          AttachedSchema.parse(
+            await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
+          ),
+        )
+        .toContain(draft)
+      kit.harness.script.releaseTools()
+      await expect(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
+      const {messages} = await kit.rpc.chat.hydrate({sessionId: SessionId.parse(draft)})
+      const results = messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+        ),
+      )
+      expect(results.join('\n')).toContain('page-bus-ok')
     })
   })
 
