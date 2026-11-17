@@ -14,6 +14,7 @@ import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
+import {useStartSession} from './start-session.js'
 
 export function PaneProvider(props: {
   sessionId: string
@@ -29,10 +30,12 @@ export function PaneProvider(props: {
   const running = () => session.data?.running ?? false
   const grabProvider = useGrabProvider()
 
-  const openNewSession = async () => {
-    const {sessionId} = await appData.createSession()
-    void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
-  }
+  const startSession = useStartSession()
+
+  const openNewSession = () =>
+    startSession()
+      .then(({sessionId}) => router.navigate({to: '/panel/$sessionId', params: {sessionId}}))
+      .catch(() => undefined)
 
   const chat = usePaneChat(() => props.sessionId)
   const coordinator = makeRefreshCoordinator({

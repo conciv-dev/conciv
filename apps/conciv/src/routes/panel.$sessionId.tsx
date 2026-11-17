@@ -56,6 +56,7 @@ import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
+import {useStartSession} from '../app/start-session.js'
 import {openPipTarget} from '../shell/pip.js'
 import {createMountedSession} from '../runtime/plugin/mounted-session.js'
 import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
@@ -346,11 +347,14 @@ function PanelSession(): JSX.Element {
   })
 
   const activate = sessionMenu.activate
-  const newSession = async () => {
-    const {sessionId} = await appData.createSession()
-    activate(sessionId)
-    announce('Started a new session')
-  }
+  const startSession = useStartSession()
+  const newSession = () =>
+    startSession()
+      .then(({sessionId}) => {
+        activate(sessionId)
+        announce('Started a new session')
+      })
+      .catch(() => undefined)
 
   const grabStaging = makeGrabStaging({
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),

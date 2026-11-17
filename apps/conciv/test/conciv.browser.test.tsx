@@ -4534,6 +4534,9 @@ describe('a deleted session', () => {
   test('a session that cannot be started says so, keeps the text with the deleted session, and the next press carries it', async () => {
     const rpc = coreRpc(core())
     const liveId = await createSession(rpc)
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: 'words worth keeping'})
     harness.mountShell(`/quick?panes=${liveId}&focus=0`)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     const refused = await faults.install({kind: 'fail', path: ['sessions', 'create'], status: 500})
@@ -4543,9 +4546,6 @@ describe('a deleted session', () => {
     await expect.element(notifications().getByText(START_FAILED, {exact: true}), {timeout: 8000}).toBeVisible()
 
     harness.dispose()
-    const deletedId = await createSession(rpc)
-    await rpc.sessions.delete({sessionId: deletedId})
-    await seedDraft(rpc, deletedId, {text: 'words worth keeping'})
     harness.mountShell(`/panel/${deletedId}?open=true`)
     await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
 

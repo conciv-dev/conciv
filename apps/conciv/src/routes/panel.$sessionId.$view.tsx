@@ -8,6 +8,7 @@ import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
+import {useStartSession} from '../app/start-session.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
 import {isPluginView} from '../runtime/plugin/panel-keys.js'
 import {PluginTabContent} from '../shell/plugin-surfaces.js'
@@ -50,15 +51,11 @@ function PanelView(): JSX.Element {
     },
   })
 
+  const startSession = useStartSession()
   const newSession = () => {
-    void appData
-      .createSession()
-      .then(({sessionId}) => {
-        void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
-      })
-      .catch((error: unknown) => {
-        console.error('[conciv] could not create a session', error)
-      })
+    void startSession()
+      .then(({sessionId}) => router.navigate({to: '/panel/$sessionId', params: {sessionId}}))
+      .catch(() => undefined)
   }
 
   const [content, setContent] = createSignal<HTMLDivElement>()

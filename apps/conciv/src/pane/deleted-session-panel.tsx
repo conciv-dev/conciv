@@ -4,6 +4,7 @@ import {useRouter} from '@tanstack/solid-router'
 import {Button} from '@conciv/ui-kit-system'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {prependDraft} from './draft-storage.js'
+import {useStartSession} from '../app/start-session.js'
 
 const PANEL =
   'flex flex-1 flex-col items-center justify-center gap-3 p-6 min-h-0 text-center text-chat-text text-chat-sm'
@@ -12,6 +13,7 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const router = useRouter()
   const announce = useAnnounce()
+  const startSession = useStartSession()
   const draft = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
   const carried = () => (draft.isSuccess ? (draft.data?.text ?? '') : '')
 
@@ -23,7 +25,7 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const move = useMutation(() => ({
     mutationFn: async () => {
       const text = (await appData.readDraft(props.sessionId))?.text ?? ''
-      const {sessionId} = await appData.createSession()
+      const {sessionId} = await startSession()
       if (text !== '') await prependDraft(appData, sessionId, text)
       await clearDeletedDraft()
       return sessionId
