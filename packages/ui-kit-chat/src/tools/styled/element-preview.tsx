@@ -217,6 +217,7 @@ function Frame(props: {class?: string}): JSX.Element {
     const cssText = ctx.css()
     const frame = frameElement()
     ctx.setStatus('loading')
+    frame?.style.removeProperty('height')
     replica = undefined
     if (replicaHost === undefined || !replicaHost.isConnected || !isSerializedNode(node)) {
       ctx.setStatus('failed')
