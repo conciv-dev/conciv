@@ -6334,7 +6334,7 @@ describe('page action queue delivery', () => {
     return {page, evals, asked}
   }
 
-  it('an in-chat page_eval the config allows runs with no ask, and one the config denies is refused (red until the tool own ask lands)', async () => {
+  it('an in-chat page_eval the config allows runs with no ask, and one the config denies is refused', async () => {
     const {page, evals, asked} = await configuredEvals({
       permission: {page_eval: {'document.cookie': 'deny'}},
       permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
