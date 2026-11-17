@@ -1197,7 +1197,11 @@ describe('cli', () => {
     it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
       const home = tempDir('conciv-home-')
       const elsewhere = tempDir('conciv-elsewhere-')
-      const {engine, sessionId, page} = await engineWithTab(home)
+      const evaluated = {result: 'evaluated'}
+      const {engine, sessionId, page} = await engineWithTab(home, {
+        answer: (command): PageReply | undefined =>
+          command.action.type === 'eval' ? {type: 'success', result: {value: evaluated, files: []}} : undefined,
+      })
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
         const viaTab = ['tools', 'tabs', '--tab', sessionId]
@@ -1214,7 +1218,7 @@ describe('cli', () => {
           await conciv(elsewhere, home, [...evaluate, '--tab', sessionId]),
           await conciv(elsewhere, home, evaluate),
         ]).toMatchObject([
-          {ok: true},
+          {ok: true, data: evaluated},
           {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
         ])
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
