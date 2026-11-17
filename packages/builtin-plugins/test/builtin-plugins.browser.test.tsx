@@ -287,7 +287,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(document.querySelector('#added')).toBeNull()
     })
 
-    it('reports route, existence, and query matches', async () => {
+    it('reports route, existence, query matches, markup and attributes', async () => {
       document.title = 'Settings'
       expect(await runForResult('route')).toMatchObject({
         pathname: location.pathname,
@@ -297,6 +297,11 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(await runForResult('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
       const query = await runForResult('query', {selector: 'input'})
       expect(query.count).toBe(8)
+      expect(await runForResult('dom', {selector: '#inner'})).toEqual({
+        html: '<button id="inner" type="button">inner</button>',
+      })
+      expect(await runForResult('attr', {selector: '#inner', attribute: 'type'})).toEqual({value: 'button'})
+      expect(await runForResult('attr', {selector: '#inner', attribute: 'data-missing'})).toEqual({value: null})
     })
 
     it('waits for visibility and times out with an explanation', async () => {
