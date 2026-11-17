@@ -4688,6 +4688,46 @@ describe('panel view tabs', () => {
         .toEqual([])
       await expect.element(composer()).toHaveTextContent('one two three four five')
     }, 40_000)
+
+    test('a message sent while a refused save waits for its retry leaves no row and no draft, also after a reload', async () => {
+      const SENT = 'sent while its save waits to be tried again'
+      const rpc = coreRpc(coreBase())
+      const sessionId = await openNewPanel()
+      const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+      const advanceUntil = async (check: () => Promise<boolean>, step: number): Promise<void> => {
+        await expect
+          .poll(
+            async () => {
+              await vi.advanceTimersByTimeAsync(step)
+              return check()
+            },
+            {timeout: 10_000},
+          )
+          .toBe(true)
+      }
+
+      await userEvent.click(composer())
+      await userEvent.keyboard(SENT)
+      await vi.advanceTimersByTimeAsync(400)
+      await coreControl.awaitFaultAnswered(refusal)
+      await coreControl.releaseFault(refusal)
+      await userEvent.keyboard('{Enter}')
+      await advanceUntil(async () => (await rpc.sessions.get({sessionId})).lastRunAt !== null, 10)
+      await advanceUntil(async () => (await readLocalCopy(sessionId))?.sent.length === 0, 1000)
+
+      expect(await rpc.drafts.get({sessionId})).toBeNull()
+      await expect.element(composer()).not.toHaveTextContent(SENT)
+      vi.useRealTimers()
+      harness.dispose()
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      await expect.element(composer()).not.toHaveTextContent(SENT)
+      expect(await rpc.drafts.get({sessionId})).toBeNull()
+    }, 30_000)
   })
 
   describe('a crashing extension', () => {
