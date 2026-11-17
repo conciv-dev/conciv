@@ -11,7 +11,7 @@ export async function bootClientKit(
 ): Promise<ClientKit> {
   const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
   const kit = await createTestkit(harness, async (env) => {
-    const {fetch, dispose, agentToken} = await makeApp({
+    const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
       print: env.print,
       cfg: {
         enabled: true,
@@ -32,6 +32,7 @@ export async function bootClientKit(
       extensions: opts.extensions,
       plugins: opts.plugins,
     })
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }).setup()
   return {...kit, harness, gate: {hold: harness.script.hold, release: harness.script.release}}
