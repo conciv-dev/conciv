@@ -4,7 +4,7 @@ import {open} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
-import {describe, expect, it, onTestFinished} from 'vitest'
+import {describe, expect, it, onTestFinished, vi} from 'vitest'
 import {z} from 'zod'
 import {makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
 import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
@@ -403,6 +403,25 @@ describe('the whiteboard store and its rpc', () => {
       deleted: 2,
     })
     expect(await listElements(kit, room, 'live')).toEqual([])
+  })
+
+  it('lets one tab at a time claim a pending row, and lets a claim that outlived its lease be taken again', async () => {
+    const {kit, room} = await boot()
+    await call(kit, 'canvasPending.insert', {room, row: {id: 'claimed', kind: 'export', stage: 'live', payload: {}}})
+
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: true})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: false})
+    expect(await call(kit, 'canvasPending.claim', {room: OTHER_ROOM, id: 'claimed'})).toEqual({claimed: false})
+
+    onTestFinished(() => void vi.useRealTimers())
+    vi.useFakeTimers({toFake: ['Date'], now: Date.now() + 60_000})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: true})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: false})
+    vi.useRealTimers()
+
+    await call(kit, 'canvasPending.remove', {room, id: 'claimed'})
+    expect(await call(kit, 'canvasPending.claim', {room, id: 'claimed'})).toEqual({claimed: false})
+    expect(await listPending(kit, room)).toEqual([])
   })
 
   it('keeps its database in the project folder, where a second engine on that folder reads the board back', async () => {

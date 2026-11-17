@@ -239,6 +239,34 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         expect(erasedElements.elements.filter((element) => element.type === 'rectangle')).not.toContainEqual(
           expect.objectContaining({isDeleted: false}),
         )
+
+        expect(await canvasTypes(widget.kit, 'draft')).toEqual([])
+        expect(
+          Pending.parse(
+            await widget.kit.callTool('whiteboard_canvas_draw', {
+              elements: [
+                {
+                  id: 'drawn-once',
+                  type: 'rectangle',
+                  x: 200,
+                  y: 520,
+                  width: 160,
+                  height: 80,
+                  label: {text: 'one copy'},
+                },
+              ],
+            }),
+          ),
+        ).toEqual({pending: expect.any(String)})
+        const [, sharedImage] = Exported.parse(await widget.kit.callTool('whiteboard_canvas_export', {format: 'png'}))
+        expect(sharedImage.source.value).toMatch(/^iVBORw0KGgo/)
+        expect((await canvasTypes(widget.kit, 'draft')).toSorted()).toEqual(['rectangle', 'text'])
+        expect(
+          await widget.kit.rpc.plugin.call(
+            {rpcId: 'whiteboard', method: 'canvasReplies.list', input: {room}},
+            {signal: AbortSignal.timeout(30_000)},
+          ),
+        ).toEqual([])
       } finally {
         await second.close()
       }
