@@ -2,7 +2,6 @@ import {Show, splitProps, Switch, Match, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isPlainObject} from 'es-toolkit'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {TruncatedText} from '@conciv/ui-kit-system'
 import {cardErrorMessage} from '../page/cards/shared.js'
 import {
   CardShell,
@@ -82,24 +81,6 @@ export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {
         />
       </Match>
     </Switch>
-  )
-}
-
-export function ErrorRecord(props: {heading?: string; body: string}): JSX.Element {
-  return (
-    <div class="px-2.5 py-1.75 border border-chat-frame-line-error rounded-[var(--chat-radius-sm)] bg-chat-frame-bg flex flex-col gap-1 min-w-0">
-      <Show when={props.heading}>
-        {(heading) => (
-          <TruncatedText
-            class="text-chat-xs text-chat-text-2 leading-[var(--chat-trace-gutter)] font-chat-mono m-0 min-w-0 block"
-            text={heading()}
-          />
-        )}
-      </Show>
-      <p class="text-chat-xs text-chat-frame-text-error leading-[var(--chat-trace-gutter)] font-chat-mono m-0">
-        {props.body}
-      </p>
-    </div>
   )
 }
 

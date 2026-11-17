@@ -1,18 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import {Chip, ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
-import {
-  CardNote,
-  CardRow,
-  CardRows,
-  ErrorRecord,
-  settledCardBody,
-  InspectionCard,
-  JsonValue,
-  countLabel,
-} from './card-shared.js'
+import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue, countLabel} from './card-shared.js'
 
 const EntrySchema = z
   .object({
@@ -51,7 +42,7 @@ function EntryRow(props: {entry: Entry}): JSX.Element {
           {(updatedAt) => <RelativeTime value={new Date(updatedAt())} class="text-chat-text-3 ms-auto shrink-0" />}
         </Show>
       </CardRow>
-      <Show when={props.entry.error}>{(error) => <ErrorRecord body={error()} />}</Show>
+      <Show when={props.entry.error}>{(error) => <ErrorBlock message={error()} />}</Show>
       <Show when={props.entry.value !== undefined && props.entry.value !== null}>
         <JsonValue value={props.entry.value} name={`${props.entry.key}.json`} />
       </Show>

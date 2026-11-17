@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {TruncatedText} from '@conciv/ui-kit-system'
+import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
@@ -50,10 +50,7 @@ function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
           <For each={traces()}>
             {(trace) => (
               <CardRow>
-                <span
-                  aria-hidden="true"
-                  class={`rounded-full shrink-0 h-1.5 w-1.5 ${trace.status === 'error' ? 'bg-chat-danger' : 'bg-chat-success'}`}
-                />
+                <StatusDot tone={trace.status === 'error' ? 'danger' : 'success'} />
                 <TruncatedText class="text-chat-text-2 min-w-0" text={trace.name} />
                 <Show when={trace.file}>
                   {(file) => <TruncatedText class="text-chat-text-3 min-w-0" text={file()} />}
