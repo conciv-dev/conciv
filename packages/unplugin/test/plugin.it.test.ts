@@ -203,6 +203,7 @@ describe('webpack and rspack', () => {
 
   const bundlers = ['webpack', 'rspack'] as const
   const GENERATED_CLIENT = join('.conciv', 'widget-client.gen.js')
+  const webpackCache = tempDir('conciv-webpack-cache-')
 
   function writeFixtureApp(root: string): string {
     const publicDir = join(root, 'public')
@@ -231,7 +232,13 @@ describe('webpack and rspack', () => {
       output: {path: join(root, 'public'), filename: 'main.js'},
       infrastructureLogging: {level: 'none'},
     }
-    if (bundler === 'webpack') return webpack({...config, plugins: [createConcivUnplugin().webpack(options)]})
+    if (bundler === 'webpack') {
+      return webpack({
+        ...config,
+        cache: {type: 'filesystem', cacheDirectory: webpackCache},
+        plugins: [createConcivUnplugin().webpack(options)],
+      })
+    }
     return rspack({...config, plugins: [createConcivUnplugin().rspack(options)]})
   }
 
@@ -384,11 +391,17 @@ describe('webpack and rspack', () => {
         onTestFinished(site.close)
 
         const page = await openPage()
-        const defaultOrigin = `http://127.0.0.1:${CONCIV_DEFAULT_PORT}`
-        await page.route(`${defaultOrigin}/**`, (route) => route.abort('connectionrefused'))
-        const engineCall = page.waitForRequest((request) => request.url().startsWith(`${defaultOrigin}/`))
+        const defaultHost = `127.0.0.1:${CONCIV_DEFAULT_PORT}`
+        const engineSocket = Promise.withResolvers<string>()
+        await page.routeWebSocket(
+          (url) => url.host === defaultHost,
+          (socket) => {
+            engineSocket.resolve(socket.url())
+            void socket.close()
+          },
+        )
         await page.goto(site.url, {waitUntil: 'domcontentloaded'})
-        expect(new URL((await engineCall).url()).origin).toBe(defaultOrigin)
+        expect(new URL(await engineSocket.promise).host).toBe(defaultHost)
       },
       90_000,
     )

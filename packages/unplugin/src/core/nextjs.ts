@@ -5,7 +5,7 @@ import {writeExtensionsEntry} from './extensions-entry.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
 
-const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+export const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
 const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}

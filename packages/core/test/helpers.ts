@@ -109,7 +109,6 @@ afterAll(async () => {
 export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promise<MadeApp> {
   const cfg: ResolvedConcivConfig = {
     enabled: true,
-    widgetUrl: undefined,
     stateRoot: env.stateRoot,
     harness: env.harness.id,
     harnessBin: undefined,
