@@ -95,8 +95,6 @@ These rules are a project default for every agent. Approvals given in the tab co
 the page's own guard comes after both: a rule in these options never opens the page tools to a chat whose tab
 has not connected. A blanket allow (`permission: 'allow'`, or a rule whose action is `*`) does not
 switch a tool's own ask off: the rule must name the action, `permission: {page_eval: 'allow'}`.
-For now a `page_eval` rule in these options is still overridden by the page's own
-ask, so running code in the page asks until that ask moves onto the tool itself.
 
 ## Call a plugin method
 

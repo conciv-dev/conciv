@@ -1644,7 +1644,7 @@ test.describe('page dispatch parity', () => {
       await closeTab(allowed)
     })
 
-    test('with no rule in the project config, eval fails at once asking for approval and the page is untouched', async () => {
+    test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
       const {kit, page} = refused
       await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
