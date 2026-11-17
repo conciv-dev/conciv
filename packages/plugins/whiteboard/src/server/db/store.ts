@@ -110,13 +110,18 @@ export const createStore = async (dataDir: string) => {
     return db.select().from(table).where(eq(table.room, room))
   }
 
-  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+  const getElement = (scope: ElementScope, room: string, elementId: string): Promise<ElementRow | undefined> => {
     const table = elementTable(scope)
-    const current = await db
+    return db
       .select()
       .from(table)
-      .where(and(eq(table.room, row.room), eq(table.elementId, row.elementId)))
+      .where(and(eq(table.room, room), eq(table.elementId, elementId)))
       .get()
+  }
+
+  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+    const table = elementTable(scope)
+    const current = await getElement(scope, row.room, row.elementId)
     if (current && current.version >= row.version) return {ok: false, current}
     const change = {table: elementTableName(scope), room: row.room, key: row.elementId, type: 'upsert'} as const
     const [, recorded] = await db.batch([
@@ -247,6 +252,7 @@ export const createStore = async (dataDir: string) => {
     cursor,
     since,
     listElements,
+    getElement,
     upsertElement,
     upsertElements,
     deleteElement,
