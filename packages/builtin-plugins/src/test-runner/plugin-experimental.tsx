@@ -102,13 +102,13 @@ function Failure(props: Actions & {error: TestError}): JSX.Element {
         <p class="text-chat-micro text-chat-danger leading-none tracking-widest font-chat-mono uppercase">
           {location()}
         </p>
-        <p class="text-chat-xs text-chat-danger font-chat-mono whitespace-pre-wrap break-anywhere">
+        <p class="text-chat-xs text-chat-danger leading-normal font-chat-mono whitespace-pre-wrap break-anywhere">
           {props.error.message}
         </p>
       </div>
       <Show when={stack()}>
         {(trace) => (
-          <p class="text-chat-xs text-chat-text font-chat-mono max-h-80 whitespace-pre-wrap break-anywhere overflow-auto">
+          <p class="text-chat-xs text-chat-text leading-normal font-chat-mono px-1.5 py-1 bg-chat-sunken max-h-80 whitespace-pre-wrap break-anywhere overflow-auto">
             {trace()}
           </p>
         )}
