@@ -162,19 +162,21 @@ describe('action bar inactive unreachable', () => {
     await expect.element(page.getByText('reply'), {timeout: 2000}).toBeVisible()
     await page.getByRole('button', {name: 'ask-two'}).click()
     await expect.element(page.getByText('reply').nth(1), {timeout: 2000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Copy'}).nth(1), {timeout: 2000}).toBeVisible()
   }
 
-  it('restores reachability once the hidden bar becomes active on hover', async () => {
+  it('restores reachability once the hidden bar becomes active on hover, and keeps focus when the pointer leaves', async () => {
     await mountWithTwoAssistantReplies()
+    const firstCopy = page.getByRole('button', {name: 'Copy'}).first()
 
-    const firstReplyText = page.getByText('reply').first()
-    await firstReplyText.hover({force: true})
-
-    await expect.element(page.getByRole('button', {name: 'Copy'}).first()).toBeVisible()
+    await page.getByText('reply').first().hover({force: true})
+    await expect.element(firstCopy).toBeVisible()
 
     await userEvent.tab()
+    await expect.element(firstCopy).toHaveFocus()
 
-    await expect.element(page.getByRole('button', {name: 'Copy'}).first()).toHaveFocus()
+    await page.getByText('one').hover()
+    await expect.element(firstCopy).toHaveFocus()
   })
 })
 
