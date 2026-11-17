@@ -383,7 +383,7 @@ function composeRoutes(
     })
     .route('/', deps.plane.routes(deps.upgrade))
     .route('/', pushRoutes(deps.push, deps.upgrade))
-    .route('/', persistentPtySocketRoutes(deps.ptys, upgradeWebSocket))
+    .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {

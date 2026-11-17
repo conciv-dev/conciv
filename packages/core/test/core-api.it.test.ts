@@ -45,6 +45,7 @@ import {
   codeExecuteReply,
   makeBrowserRpcClient,
   PluginExperimentalBundleSchema,
+  SOCKET_TRUST_FRAME,
   type EngineStaleness,
 } from '@conciv/contract'
 import {
@@ -139,6 +140,8 @@ import {
   type HarnessModel,
 } from '@conciv/protocol/harness-types'
 import {type TtyCommand} from '@conciv/protocol/terminal-types'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   type PageOutcome,
   PageQuerySchema,
@@ -7606,6 +7609,84 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
       const gone = await connectUrl(base, pty.id)
       expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
       expect(await closeCode(gone)).toBe(4404)
+    },
+  )
+
+  const trustedBrowserTerminal = async (prefix: string) => {
+    const root = tempDir(prefix)
+    const fake = terminalHarness('fake-terminal-revoke', join(root, 'pid'))
+    const engine = await start({
+      options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-revoke'},
+      root,
+      harness: fake.harness,
+      launchEditor: () => {},
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const origin = `http://127.0.0.1:${engine.port}`
+    const base = `${origin}/t/${engine.agentToken}`
+    const rpc = makeRpcClient(base)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    const pty = await rpc.experimental.persistentPty.create({sessionId})
+    const browserToken = engine.trustBrowser(
+      {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'},
+      Date.now(),
+    )
+    const browserTicketUrl = async (): Promise<string> => {
+      const url = new URL(await connectUrl(`${origin}/t/${browserToken}`, pty.id))
+      url.pathname = url.pathname.replace(`/t/${browserToken}`, '')
+      return url.toString()
+    }
+    const openAsBrowser = async (url: string) => {
+      const terminal = await openTerminalSocket(url)
+      const closes: number[] = []
+      terminal.socket.on('close', (code) => closes.push(code))
+      terminal.socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: browserToken}))
+      return {...terminal, closes}
+    }
+    const revoke = (): void => {
+      revokeBrowsers(concivStateDir(root), 'all')
+    }
+    const shownToEngine = async (proof: string): Promise<string> => {
+      const witness = await openTerminalSocket(await connectUrl(base, pty.id))
+      witness.socket.send(`\recho ${proof}-$((3+4))\r`)
+      await shows(witness, `${proof}-7`)
+      witness.socket.close()
+      return witness.text()
+    }
+    return {browserTicketUrl, openAsBrowser, revoke, shownToEngine}
+  }
+
+  it(
+    'revoking a browser closes its terminal socket with 1008, and nothing it writes afterwards reaches the terminal',
+    {timeout: 20_000},
+    async () => {
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-live-')
+      const kept = await browser.openAsBrowser(await browser.browserTicketUrl())
+      kept.socket.send('\recho kept-$((40+2))\r')
+      await shows(kept, 'kept-42')
+
+      browser.revoke()
+      await until(() => kept.closes.length > 0)
+      expect(kept.closes).toEqual([1008])
+      kept.socket.send('\recho late-$((5+6))\r')
+      expect(await browser.shownToEngine('after-late')).not.toContain('late-11')
+    },
+  )
+
+  it(
+    'a terminal ticket a browser was given before its revoke opens no terminal after it: the socket closes 1008',
+    {timeout: 20_000},
+    async () => {
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-ticket-')
+      const minted = await browser.browserTicketUrl()
+      browser.revoke()
+
+      const stale = await browser.openAsBrowser(minted)
+      stale.socket.send('\recho stale-$((2+3))\r')
+      await until(() => stale.closes.length > 0)
+      expect(stale.closes).toEqual([1008])
+      expect(await browser.shownToEngine('after-stale')).not.toContain('stale-5')
     },
   )
 })
