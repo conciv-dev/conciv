@@ -169,7 +169,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     rpc.sessions.get({sessionId}).then(
       (meta) => meta.hidden,
       (error: unknown) => {
-        if (error instanceof ORPCError && error.code === 'NOT_FOUND') return true
         console.error(`[conciv] could not check session ${sessionId}, so its local draft stays`, error)
         return false
       },
