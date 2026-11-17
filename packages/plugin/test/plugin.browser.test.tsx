@@ -234,6 +234,7 @@ describe('createVisitState', () => {
         visit: state.visit,
         directory: '/repo',
         local: undefined,
+        run: {status: () => 'idle', interrupt: () => Promise.resolve({interrupted: false})},
       }),
     }
 

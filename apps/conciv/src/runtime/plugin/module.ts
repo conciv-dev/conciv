@@ -18,6 +18,7 @@ const modules = {
   'solid-js/web': () => import('solid-js/web'),
   'solid-js/store': () => import('solid-js/store'),
   '@conciv/plugin/experimental/page': () => import('@conciv/plugin/experimental/page'),
+  '@conciv/plugin/experimental/grab': () => import('@conciv/plugin/experimental/grab'),
 } satisfies Record<PluginModule, () => Promise<object>>
 
 const chunkFile = /^\.\/([\w.-]+\.cjs)$/

@@ -34,6 +34,8 @@ import {
   type Transform,
 } from '../src/promise/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
+import type {ToolCall} from '../src/experimental/builtin.js'
+import type {ToolCardView} from '@conciv/protocol/tool-view-types'
 import type * as SessionMessage from '../src/schema/session-message.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
@@ -49,6 +51,7 @@ import {
 } from '../src/experimental/host.js'
 import {experimental} from '../src/experimental/vite.js'
 import * as PageModule from '../src/experimental/page.js'
+import * as GrabModule from '../src/experimental/grab.js'
 import * as RpcEntry from '../src/rpc.js'
 import * as Host from '../src/host.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
@@ -385,6 +388,18 @@ describe('experimental', () => {
   })
   const Fixture = App.define({})
 
+  it('a ToolCall either draws a finished call body or a whole tool card', () => {
+    expectTypeOf<{
+      readonly tools: readonly string[]
+      readonly card: ToolCardView
+      readonly streamTitle: string
+      readonly display: 'standalone'
+    }>().toExtend<ToolCall>()
+    expectTypeOf<{readonly tools: readonly string[]; readonly card: ToolCardView}>().toExtend<ToolCall>()
+    expectTypeOf<{readonly tools: readonly string[]; render(): undefined}>().toExtend<ToolCall>()
+    expectTypeOf<{readonly tools: readonly string[]}>().not.toExtend<ToolCall>()
+  })
+
   it('tokens carry their kind and id', () => {
     expect(Registry.define<{readonly label: string}>('details.badge')).toEqual({kind: 'registry', id: 'details.badge'})
     expect(Notes).toEqual({kind: 'contract', id: 'acme.notes'})
@@ -495,6 +510,8 @@ describe('experimental', () => {
   it('types panels, slots, tabs, live providers and icons', () => {
     expectTypeOf<Experimental.PanelProps['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
     expectTypeOf<Parameters<Experimental.Panel['list']>[0]['session']>().toEqualTypeOf<Experimental.MountedSession>()
+    expectTypeOf<ReturnType<Experimental.MountedSession['run']['status']>>().toEqualTypeOf<'idle' | 'running'>()
+    expectTypeOf<ReturnType<Experimental.SessionRun['interrupt']>>().toEqualTypeOf<Promise<{interrupted: boolean}>>()
     expectTypeOf<Parameters<Experimental.Panel['list']>[0]['screen']>().toEqualTypeOf<Experimental.SessionScreen>()
     expectTypeOf<Parameters<NonNullable<Experimental.Panel['focus']>>[0]['restored']>().toEqualTypeOf<boolean>()
     expectTypeOf<
@@ -927,6 +944,26 @@ describe('published declarations', () => {
   })
 })
 
+describe('page and grab contracts', () => {
+  it('page provides the page and React tree contracts, grab its own, and both open a registry', () => {
+    const tokens = [
+      PageModule.Page,
+      PageModule.ReactTree,
+      PageModule.PageEffect,
+      GrabModule.GrabApi,
+      GrabModule.GrabPicker,
+    ]
+    expect(tokens.map((token) => `${token.kind} ${token.id}`)).toEqual([
+      'contract page',
+      'contract page.react',
+      'registry page.effect',
+      'contract grab',
+      'registry grab.picker',
+    ])
+    expect(pluginIdAvailable('page.react', [{id: 'page'}])).toBe(false)
+  })
+})
+
 describe('experimental() build', () => {
   const dirs: string[] = []
 
@@ -956,6 +993,7 @@ describe('experimental() build', () => {
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
     '@conciv/plugin/experimental/page': PageModule,
+    '@conciv/plugin/experimental/grab': GrabModule,
   }
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 

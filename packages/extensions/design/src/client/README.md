@@ -6,7 +6,7 @@
 
 ## Interface
 
-- `captureStep(input: CaptureInput)` (`capture.ts`): returns the viewport size for `probe`/`clear`, otherwise `{image (base64 PNG), width, height, route, components}`
+- `captureStep(input: CaptureInput)` (`capture.ts`): returns the viewport size and the live route (`location.pathname + location.search`) for `probe`/`clear`, otherwise `{image (base64 PNG), width, height, route, components}`
 - `ClientCapture` type (`capture.ts`): `{image; width; height; route; components: LiveComponent[]}`
 - `collectComponents({root})` (`components.ts`): returns the `LiveComponent[]` tree of elements with `data-tsd-source` (format `file:line:column`)
 - `answerCaptureRequests()` (`frame-capture.ts`): inside a `data-conciv-capture` frame, answers `conciv-design:capture` requests with a snapdom PNG blob and posts `conciv-design:capture-ready` to the parent

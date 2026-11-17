@@ -36,7 +36,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `start-session.ts:useStartSession`: on a failed create, `console.error` and a danger notice
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
 - `warm-session.ts:createWarmSession`: queries the first `sessions.list` page with `limit: 1` (the newest session) and `sessions.resolve`
-- `live-sessions.ts:makeLiveSessions`: opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle (streamed, or hydrated for the watched run) invalidates `sessions.list`, `sessions.search` and, for that session only, `sessions.get`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
+- `live-sessions.ts:makeLiveSessions`: opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle (streamed, or hydrated for the watched run) invalidates `sessions.list`, `sessions.search` and, for that session only, `sessions.get`, `markers.list` and the page plugin's `captures.list` (`plugin.call` to `experimental.page`, `sessionCapturesCall` in `data/app-data.ts`) and, for `completed`, announces the reply, whichever tab or session is showing
 
 ## Verification
 

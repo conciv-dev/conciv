@@ -1,18 +1,15 @@
-import {setTimeout as delay} from 'node:timers/promises'
-import {z} from 'zod'
+import type {State} from '@conciv/plugin-page/rpc'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
 
-const TITLE_PROBE_MS = 1500
-
-const RouteTitleSchema = z.object({title: z.string().min(1)})
-
 export async function outsideRefusal(
+  pageTabs: (sessionId: SessionId) => Promise<State>,
   scope: SessionScope,
   client: string | null,
   reason: 'asked' | 'denied',
 ): Promise<string> {
   const who = client ?? 'An outside agent'
-  const title = await pageTitle(scope)
+  const title = await pageTitle(pageTabs, scope.id)
   const tab = title === null ? 'the conciv tab' : `the conciv tab "${title}"`
   if (reason === 'denied') {
     return `The user denied ${who} access to ${tab}; do not retry unless they allow outside agents again from that tab.`
@@ -20,10 +17,8 @@ export async function outsideRefusal(
   return `${who} is waiting for the user to allow it in ${tab}; retry after they click Approve.`
 }
 
-async function pageTitle(scope: SessionScope): Promise<string | null> {
-  const answered = scope.page.ask('page_route', {}).then(
-    (result) => RouteTitleSchema.safeParse(result).data?.title ?? null,
-    () => null,
-  )
-  return Promise.race([answered, delay(TITLE_PROBE_MS, null)])
+async function pageTitle(pageTabs: (sessionId: SessionId) => Promise<State>, sessionId: SessionId) {
+  const {tabs, focusedTabId} = await pageTabs(sessionId)
+  const focused = tabs.find((tab) => tab.id === focusedTabId) ?? tabs[0]
+  return focused === undefined || focused.title === '' ? null : focused.title
 }

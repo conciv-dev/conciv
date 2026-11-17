@@ -6,10 +6,11 @@ import {
   codeModeResultEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
+import {CODE_MODE_EXTERNAL_PREFIX} from '@conciv/protocol/chat-types'
 
 type ShapeResult = (value: unknown) => unknown
 
-const LIBRARY_CHILD_EVENT = /^code_mode:external_(call|result|error)$/
+const LIBRARY_CHILD_EVENT = new RegExp(`^code_mode:${CODE_MODE_EXTERNAL_PREFIX}(call|result|error)$`)
 
 const EXECUTE_TOOL_SUFFIX = 'execute_typescript'
 

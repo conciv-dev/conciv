@@ -1,5 +1,6 @@
 import {existsSync, mkdirSync, rmSync, symlinkSync} from 'node:fs'
 import {join, delimiter} from 'node:path'
+import {createConcivStateDir} from '@conciv/protocol/state-types'
 import {fileURLToPath} from 'node:url'
 
 function linkConcivBin(binDir: string): void {
@@ -13,6 +14,7 @@ function linkConcivBin(binDir: string): void {
 export function installConcivBinShim(stateDir: string): string {
   const binDir = join(stateDir, 'bin')
   try {
+    createConcivStateDir(stateDir)
     mkdirSync(binDir, {recursive: true})
     linkConcivBin(binDir)
   } catch (error) {

@@ -6,8 +6,8 @@ Each file exports one ServerStep that receives (input, ctx, request, page) and w
 
 ## Interface
 
-- `targetStep` (`target.ts`): handler for design_target; resolves width (input or probe), route (input or live page_route), adapter, enrichers, then `design.store.put`; returns id/route/width/height/scale
-- `liveRoute` (`target.ts`): calls page tool `page_route` and returns `pathname+search`
+- `targetStep` (`target.ts`): handler for design_target; resolves width (input or probe), route (input or the live route from the design_capture probe), adapter, enrichers, then `design.store.put`; returns id/route/width/height/scale
+- `liveRoute` (`target.ts`): asks design's own `design_capture` probe, which answers the page's `pathname+search`
 - `targetWidth` (`target.ts`): returns input width, or the probed viewport width via `page.call(captureDef.name, {probe: true})`
 - `diffStep` (`diff.ts`): handler for design_diff; finds the target, captures live, matches, ranks components, attributes provenance, writes the run and returns a DiffReport with xray url, mismatch, components and unmatched regions
 - `statusStep` (`status.ts`): handler for design_status; lists targets for a route and gives each its last mismatch, above-tolerance count and run time, plus a `done` flag
@@ -30,7 +30,7 @@ Each file exports one ServerStep that receives (input, ctx, request, page) and w
 
 ## Side Effects
 
-- Calls page tools through `page.call` ('page_route', design_capture, design_winner) in `liveRoute`/`targetWidth` (`target.ts`), `captureStep` (`capture.ts`), `diffStep` (`diff.ts`) and `winnerStep` (`winner.ts`)
+- Calls page tools through `page.call` (design_capture, design_winner) in `liveRoute`/`targetWidth` (`target.ts`), `captureStep` (`capture.ts`), `diffStep` (`diff.ts`) and `winnerStep` (`winner.ts`)
 - Writes a stored target via `design.store.put` in `targetStep` (`target.ts`)
 - Writes a capture PNG via `design.store.writeCapture` in `captureStep` (`capture.ts`)
 - Writes the live raster, the painted diff raster and the result via `design.store.writeRun` in `diffStep` (`diff.ts`)

@@ -6,6 +6,7 @@ import type {BundlerDomain, SessionInfo} from '@conciv/plugin'
 import {Agent} from '../../../src/core/agent.js'
 import {App} from '../../../src/core/app.js'
 import {Bus} from '../../../src/core/bus.js'
+import {ConfigAgentPlugin} from '../../../src/core/config/plugin/agent.js'
 import {ConfigPluginSource} from '../../../src/core/config/plugin/source.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
 import {KV} from '../../../src/core/kv.js'
@@ -201,6 +202,7 @@ const sourcesLayer = (bundler: BundlerDomain | undefined) =>
     Layer.succeed(ExtensionSlugs, []),
     Layer.succeed(EditorSource, () => {}),
     Layer.succeed(ManagedPolicy.ConfiguredPolicies, []),
+    Layer.succeed(ConfigAgentPlugin.ConfiguredPermissions, []),
     Layer.succeed(ConfigPluginSource.ConfiguredPlugins, []),
   )
 

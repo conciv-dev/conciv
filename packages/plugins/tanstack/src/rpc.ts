@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
+import {SessionId} from '@conciv/protocol/chat-types'
 
 export const FrameworkInfo = z.object({
   name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
@@ -94,9 +95,166 @@ const ServerFnTraces = z.object({
   ),
 })
 
+export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
+export type TabId = z.infer<typeof TabId>
+const short = z.string().max(2_048)
+const tab = {
+  tabId: TabId.optional().describe(
+    'Tab ID returned by tanstack.tabs.list. Omit it for the tab the user focused last, which serves the call.',
+  ),
+}
+
+export const Tab = z.object({
+  id: TabId,
+  url: z.string().max(16_384),
+  title: short,
+  focused: z.boolean(),
+  visible: z.boolean(),
+})
+export type Tab = z.infer<typeof Tab>
+export const State = z.object({tabs: z.array(Tab), focusedTabId: TabId.nullable()})
+export type State = z.infer<typeof State>
+
+const RouteNodeTransport = z.object({
+  id: z.string(),
+  path: z.string(),
+  kind: RouteKind,
+  hasLoader: z.boolean(),
+  children: z.array(z.unknown()),
+  truncated: z.number().optional(),
+})
+const OkResult = z.object({ok: z.literal(true)})
+const key = {key: z.string().describe('the serialized query key: JSON of the queryKey')}
+
+function operation<const Name extends string, const Fields extends z.ZodRawShape, Output extends z.ZodType>(
+  name: Name,
+  description: string,
+  fields: Fields,
+  output: Output,
+) {
+  return {name, description, input: z.object(fields), output, action: z.object({type: z.literal(name), ...fields})}
+}
+
+export const Operations = [
+  operation(
+    'tabs.list',
+    "List this session's browser tabs and the tab the user focused last. A call without a tabId goes to that tab.",
+    {},
+    State,
+  ),
+  operation(
+    'detect',
+    'Detect the TanStack app running on the page: framework name, version, and router style, read off the live React tree. Use it to confirm the page really is a TanStack app before reaching for the other tanstack tools.',
+    tab,
+    FrameworkInfo,
+  ),
+  operation(
+    'router_state',
+    "Read the running app's current TanStack Router state: matched routes, params, search, loader status. Use it to see what the user is looking at before acting.",
+    tab,
+    RouterCurrent,
+  ),
+  operation(
+    'route_tree',
+    "Read the running app's TanStack Router route tree: the nested route definitions, their paths, kinds, and which routes declare a loader. Use it to understand the app's routing structure.",
+    tab,
+    RouteNodeTransport,
+  ),
+  operation(
+    'data_entries',
+    'List one cache entry per matched TanStack route: its route id, freshness, and dehydrated loader data. Use it to see every piece of loader data behind the current screen at once.',
+    tab,
+    z.object({entries: z.array(CacheEntry)}),
+  ),
+  operation(
+    'loader_data',
+    'Read the dehydrated loader data for the current (or a named) TanStack route: the server/loader-fetched data the route is rendering. Use it to see the data behind what the user sees.',
+    {...tab, routeId: z.string().optional()},
+    z.object({routeId: z.string(), data: z.unknown()}),
+  ),
+  operation(
+    'data_invalidate',
+    'Invalidate the loader data of one TanStack route by its route id, so the router re-runs that loader. Nothing is deleted; the route refetches.',
+    {...tab, routeId: z.string()},
+    OkResult,
+  ),
+  operation(
+    'errors_snapshot',
+    'Read the runtime errors and unhandled rejections the page has buffered since it loaded. Use it when the app misbehaves in the browser rather than at build time.',
+    tab,
+    z.object({errors: z.array(AppError)}),
+  ),
+  operation(
+    'query_cache',
+    "Read the running app's TanStack Query cache: each query's key, status (fresh/stale/fetching/error), observer count, and dehydrated data. Use it to see what data the app has fetched and cached.",
+    tab,
+    z.object({queries: z.array(CacheEntry), mutations: z.array(CacheEntry)}),
+  ),
+  operation(
+    'query_invalidate',
+    'Invalidate a specific TanStack Query by its serialized key (JSON of the queryKey). Unknown keys are a no-op.',
+    {...tab, ...key},
+    OkResult,
+  ),
+  operation('query_refetch', 'Refetch a specific TanStack Query by its serialized key.', {...tab, ...key}, OkResult),
+  operation(
+    'navigate',
+    "Navigate the running app's TanStack Router to a path. This changes what the user is currently viewing but destroys nothing: no data is deleted and you can navigate back.",
+    {
+      ...tab,
+      to: z.string(),
+      params: z.record(z.string(), z.string()).optional(),
+      search: z.record(z.string(), z.unknown()).optional(),
+      replace: z.boolean().optional(),
+    },
+    z.object({ok: z.literal(true), to: z.string()}),
+  ),
+  operation('router_invalidate', 'Invalidate the TanStack Router (re-run active loaders).', tab, OkResult),
+  operation('back', "Navigate the running app's TanStack Router history back one entry. Navigational.", tab, OkResult),
+] as const
+
+export type Operation = (typeof Operations)[number]
+export type Method = Operation['name']
+const [firstOperation, ...otherOperations] = Operations
+export const Action = z.discriminatedUnion('type', [
+  firstOperation.action,
+  ...otherOperations.map((entry) => entry.action),
+])
+export type Action = z.infer<typeof Action>
+export const Command = z.object({
+  action: Action,
+  timeoutMs: z.number().int().positive().describe("the call's own timeout"),
+})
+export type Command = z.infer<typeof Command>
+export const Result = z.object({value: z.json()})
+export type Result = z.infer<typeof Result>
+export const Outcome = z.discriminatedUnion('type', [
+  z.object({type: z.literal('success'), result: Result}),
+  z.object({type: z.literal('failure'), code: short, message: short}),
+])
+export type Outcome = z.infer<typeof Outcome>
+export const Control = z.discriminatedUnion('type', [
+  z.object({type: z.literal('attached'), connectionId: z.string(), version: z.literal(1)}),
+  z.object({type: z.literal('command'), connectionId: z.string(), requestId: z.string()}),
+  z.object({type: z.literal('cancel'), connectionId: z.string(), requestId: z.string()}),
+])
+export type Control = z.infer<typeof Control>
+const attachment = {sessionId: SessionId, connectionId: z.string()}
+const request = {...attachment, requestId: z.string()}
+const unavailable = {unavailable: z.object({})}
+
 export const Definition = Rpc.define({
   id: 'experimental.tanstack',
   methods: {
+    attach: {
+      input: z.object({...attachment, version: z.literal(1)}),
+      output: z.enum(['closed', 'replaced']),
+      errors: unavailable,
+    },
+    state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors: unavailable},
+    command: {input: z.object(request), output: Command, errors: unavailable},
+    result: {input: z.object({...request, outcome: Outcome}), output: z.void(), errors: unavailable},
+    'tabs.list': {input: z.object({sessionId: SessionId}), output: State},
     buildErrors: {
       input: z.undefined(),
       output: z.array(AppError),
@@ -112,5 +270,5 @@ export const Definition = Rpc.define({
       output: ServerFnTraces,
     },
   },
-  events: {},
+  events: {control: {schema: Control}},
 })

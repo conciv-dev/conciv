@@ -1,0 +1,6 @@
+{
+  "extends": "@conciv/tsconfig/tsconfig.web.json",
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}

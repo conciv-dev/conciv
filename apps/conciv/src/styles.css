@@ -13,24 +13,7 @@
    every color token is one light-dark() pair, so the widget renders in whichever scheme its root
    wrap resolves from the host page (apps/conciv/src/lib/color-scheme.ts). */
 @import '@conciv/ui-kit-chat/theme/tokens.css';
-
-/* Reset only: every --chat-* token comes from the two token sheets imported above, the single
-   source of truth shared with the tool cards and their Storybook. */
-:host {
-  all: initial;
-}
-/* The resolved scheme rides the shadow HOST, not just the app's root wrap, so it reaches Ark content
-   portalled straight into the shadow root (menus, popovers, dialogs) as well. `all: initial` above
-   resets color-scheme on the host, so these have to sit after it. */
-:host(.light) {
-  color-scheme: light;
-}
-:host(.dark) {
-  color-scheme: dark;
-}
-* {
-  box-sizing: border-box;
-}
+@import '@conciv/ui-kit-system/host.css';
 
 /* Visually hidden but available to screen readers (e.g. the agent's "thinking" status). */
 

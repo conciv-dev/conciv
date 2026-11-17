@@ -32,6 +32,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       hubAccess: 'session',
       plugins: [],
       policies: [],
+      permissions: [],
     }
     const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
       print: env.print,

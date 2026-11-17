@@ -185,6 +185,169 @@ describe('the tanstack plugin without a bundler', () => {
   })
 })
 
+const ENGINE_TOOLS = ['tanstack_build_errors', 'tanstack_route_manifest', 'tanstack_server_fn_trace']
+const BROWSER_TOOLS = [
+  'tabs_list',
+  'detect',
+  'router_state',
+  'route_tree',
+  'data_entries',
+  'loader_data',
+  'data_invalidate',
+  'errors_snapshot',
+  'query_cache',
+  'query_invalidate',
+  'query_refetch',
+  'navigate',
+  'router_invalidate',
+  'back',
+].map((name) => `tanstack_${name}`)
+
+function pluginCall(kit: CoreKit, method: string, input: unknown, signal?: AbortSignal): Promise<unknown> {
+  return kit.rpc.plugin.call({rpcId: 'experimental.tanstack', method, input}, signal ? {signal} : {})
+}
+
+describe('the tanstack plugin before a page attaches', () => {
+  it('offers its 3 engine tools while the browser tools are denied and no tab is listed', async () => {
+    const kit = await bootProject({})
+    const session = await kit.session()
+
+    const discovered = await makeDiscoverTools(kit.base, session)([...ENGINE_TOOLS, ...BROWSER_TOOLS])
+    expect(discovered.tools.map((tool) => tool.name)).toEqual(ENGINE_TOOLS.map((name) => `external_${name}`))
+    expect(await pluginCall(kit, 'tabs.list', {sessionId: session})).toEqual({tabs: [], focusedTabId: null})
+  })
+})
+
+const ControlSchema = z.object({
+  type: z.string(),
+  connectionId: z.string(),
+  requestId: z.string().optional(),
+  version: z.literal(1).optional(),
+})
+
+async function followControls(kit: CoreKit): Promise<() => Promise<z.infer<typeof ControlSchema>>> {
+  const closing = new AbortController()
+  onTestFinished(() => closing.abort())
+  const stream = await kit.rpc.event.subscribe({types: ['rpc.experimental.tanstack.control']}, {signal: closing.signal})
+  expect(await stream.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+  const next = async (): Promise<z.infer<typeof ControlSchema>> => {
+    const frame = await stream.next()
+    if (frame.done) throw new Error('the control stream ended')
+    if (frame.value.type === 'server.heartbeat') return next()
+    return ControlSchema.strict().parse(frame.value.data)
+  }
+  return next
+}
+
+function pageTab(focused: boolean) {
+  return {id: `tab_${crypto.randomUUID()}`, url: 'http://127.0.0.1/posts', title: 'Posts', focused, visible: true}
+}
+
+async function attachPage(kit: CoreKit, sessionId: string, nextControl: () => Promise<unknown>, focused = true) {
+  const connectionId = crypto.randomUUID()
+  const detaching = new AbortController()
+  onTestFinished(() => detaching.abort())
+  const attached = pluginCall(kit, 'attach', {sessionId, connectionId, version: 1}, detaching.signal)
+  const ended = attached.then((outcome) => Promise.reject(new Error(`attach ended as ${String(outcome)}`)))
+  expect(await Promise.race([nextControl(), ended])).toEqual({type: 'attached', connectionId, version: 1})
+  const tab = pageTab(focused)
+  await pluginCall(kit, 'state', {sessionId, connectionId, state: tab})
+  return {connectionId, tab, attached, detach: () => detaching.abort()}
+}
+
+describe('the tanstack plugin with a page attached', () => {
+  it('grants the browser tools to that session only, carries each call to the focused tab as ids and answers with the page result', async () => {
+    const kit = await bootProject({})
+    const session = await kit.session()
+    const other = (await kit.rpc.sessions.create()).sessionId
+    const nextControl = await followControls(kit)
+
+    const page = await attachPage(kit, session, nextControl)
+    expect(await pluginCall(kit, 'tabs.list', {sessionId: session})).toEqual({
+      tabs: [page.tab],
+      focusedTabId: page.tab.id,
+    })
+    const offered = await makeDiscoverTools(kit.base, session)([...ENGINE_TOOLS, ...BROWSER_TOOLS])
+    expect(offered.tools.map((tool) => tool.name).toSorted()).toEqual(
+      [...ENGINE_TOOLS, ...BROWSER_TOOLS].map((name) => `external_${name}`).toSorted(),
+    )
+    const elsewhere = await makeDiscoverTools(kit.base, other)([...ENGINE_TOOLS, ...BROWSER_TOOLS])
+    expect(elsewhere.tools.map((tool) => tool.name)).toEqual(ENGINE_TOOLS.map((name) => `external_${name}`))
+    expect(await useTool(kit, 'tabs_list')).toEqual({tabs: [page.tab], focusedTabId: page.tab.id})
+
+    const navigating = useTool(kit, 'navigate', {to: '/posts/$postId', params: {postId: '1'}})
+    const command = await nextControl()
+    expect(command).toEqual({type: 'command', connectionId: page.connectionId, requestId: expect.any(String)})
+    const ids = {sessionId: session, connectionId: page.connectionId, requestId: command.requestId}
+    expect(await pluginCall(kit, 'command', ids)).toEqual({
+      action: {type: 'navigate', to: '/posts/$postId', params: {postId: '1'}},
+      timeoutMs: 5000,
+    })
+    await pluginCall(kit, 'result', {...ids, outcome: {type: 'success', result: {value: {ok: true, to: '/posts/1'}}}})
+    expect(await navigating).toEqual({ok: true, to: '/posts/1'})
+
+    const reading = toolFailure(useTool(kit, 'router_state'))
+    const readCommand = await nextControl()
+    await pluginCall(kit, 'result', {
+      sessionId: session,
+      connectionId: page.connectionId,
+      requestId: readCommand.requestId,
+      outcome: {type: 'failure', code: 'router_missing', message: 'TanStack router not found on page'},
+    })
+    expect(await reading).toBe('[tanstack.router_missing] TanStack router not found on page')
+
+    const mcp = await connectMcpClient(`${kit.base}/api/mcp`, {'conciv-session-id': session})
+    onTestFinished(() => mcp.close())
+    const execute = (await mcp.tools()).find((tool) => tool.name === 'execute_typescript')
+    if (!execute) throw new Error('execute_typescript is not on /api/mcp')
+    const aborting = new AbortController()
+    const aborted = Promise.resolve(
+      execute.execute({typescriptCode: 'return await external_tanstack_query_cache({})'}, {signal: aborting.signal}),
+    ).catch(() => 'aborted')
+    const abortedCommand = await nextControl()
+    aborting.abort()
+    expect(await nextControl()).toEqual({
+      type: 'cancel',
+      connectionId: page.connectionId,
+      requestId: abortedCommand.requestId,
+    })
+    expect(await aborted).toBe('aborted')
+
+    const again = await attachPage(kit, session, nextControl)
+    const unfocused = await attachPage(kit, session, nextControl, false)
+    const routed = useTool(kit, 'back', {tabId: unfocused.tab.id})
+    expect(await nextControl()).toMatchObject({type: 'command', connectionId: unfocused.connectionId})
+    const defaulted = useTool(kit, 'router_invalidate')
+    expect(await nextControl()).toMatchObject({type: 'command', connectionId: again.connectionId})
+    unfocused.detach()
+    expect(await toolFailure(routed)).toContain('[tanstack.disconnected] The page connection closed')
+
+    const replacing = new AbortController()
+    onTestFinished(() => replacing.abort())
+    const replacement = {sessionId: session, connectionId: again.connectionId, version: 1}
+    pluginCall(kit, 'attach', replacement, replacing.signal).catch(() => undefined)
+    expect(await toolFailure(defaulted)).toContain('[tanstack.disconnected] The page connection closed')
+    expect(await again.attached).toBe('replaced')
+    expect(await nextControl()).toEqual({type: 'attached', connectionId: again.connectionId, version: 1})
+    expect(await useTool(kit, 'tabs_list')).toEqual({tabs: [page.tab], focusedTabId: null})
+  })
+
+  it('times out a page that never answers and cancels the call on the page', async () => {
+    const kit = await bootCoreKit({id: 'fake', plugins: [[PACKAGE_DIR, {replyTimeoutMs: 50}]]})
+    onTestFinished(() => kit.cleanup())
+    const session = await kit.session()
+    const nextControl = await followControls(kit)
+    const page = await attachPage(kit, session, nextControl)
+
+    const reading = toolFailure(useTool(kit, 'router_state'))
+    const command = await nextControl()
+    expect(await nextControl()).toEqual({type: 'cancel', connectionId: page.connectionId, requestId: command.requestId})
+    expect(await reading).toBe(
+      '[tanstack.timeout] tanstack.router_state did not finish within 0.05 seconds; its outcome is unknown. Call tanstack.tabs.list({}) and read the router state before you repeat a changing action.',
+    )
+  })
+})
+
 describe('the tanstack plugin on a real Vite dev server', () => {
   it('reads a real transform error and decodes server-function requests, also under a basepath', async () => {
     const root = await realpath(tempDir('conciv-tanstack-vite-'))

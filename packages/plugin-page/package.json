@@ -1,7 +1,7 @@
 {
   "name": "@conciv/plugin-page",
   "version": "0.0.22",
-  "description": "conciv's page plugin, engine part: its RPC contract.",
+  "description": "conciv's page plugin, engine part: the connection to the page, its tools, skill and RPC contract.",
   "keywords": [
     "conciv",
     "page",
@@ -41,12 +41,15 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@jridgewell/trace-mapping": "0.3.31",
+    "@jridgewell/trace-mapping": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/extension-page": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@jridgewell/gen-mapping": "catalog:",

@@ -47,7 +47,14 @@ export type QueueStart = {
   toolCallId: string | undefined
 }
 
-export type PageQueues = {
+export type OwedQueue = {queueId: string; result: PageQueueResult; before: 'owed' | 'nextReply'}
+
+export type QueueDelivery = {
+  owed: (sessionId: SessionId, claim: boolean) => Promise<OwedQueue[]>
+  settle: (sessionId: SessionId, queueIds: string[], delivery: Exclude<Delivery, 'claimed'>) => Promise<void>
+}
+
+export type PageQueues = QueueDelivery & {
   start: (sessionId: SessionId, start: QueueStart) => Promise<{queueId: string; actions: number}>
   play: (sessionId: SessionId, start: QueueStart, signal?: AbortSignal) => Promise<PageQueueResult | PageQueueProgress>
   wait: (
@@ -66,13 +73,14 @@ export type PageQueues = {
   hubCall: (sessionId: SessionId, callId: string) => void
   hubReplied: (sessionId: SessionId, callIds: ReadonlySet<string>) => void
   fromHub: (record: QueueRecord) => boolean
-  holds: (record: QueueRecord) => boolean
-  cancelSession: (sessionId: SessionId) => void
+  cancelSession: (sessionId: SessionId) => Promise<void>
 }
 
 const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
+
+const DELIVERIES_BEFORE: ReadonlyArray<'owed' | 'nextReply'> = ['owed', 'nextReply']
 
 const FOLLOW_UP_ATTEMPTS = 3
 
@@ -368,6 +376,25 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     )
   }
 
+  const claimed = new Map<string, QueueRecord>()
+
+  async function owed(sessionId: SessionId, take: boolean): Promise<OwedQueue[]> {
+    return owedTurn(sessionId).flatMap((record) => {
+      const before: 'owed' | 'nextReply' = record.delivery === 'owed' ? 'owed' : 'nextReply'
+      if (record.result === null || (take && !claim(record))) return []
+      if (take) claimed.set(record.queueId, record)
+      return [{queueId: record.queueId, result: record.result, before}]
+    })
+  }
+
+  async function settle(_sessionId: SessionId, queueIds: string[], delivery: Exclude<Delivery, 'claimed'>) {
+    for (const queueId of queueIds) {
+      const record = claimed.get(queueId)
+      claimed.delete(queueId)
+      if (record !== undefined) confirm(record, delivery)
+    }
+  }
+
   return {
     start,
     play,
@@ -377,12 +404,13 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
     claim,
     confirm,
     owedTurn,
+    owed,
+    settle,
     finished: (listener) => void listeners.push(listener),
     hubCall: (sessionId, callId) => void sessionSet(inFlightHubCalls, sessionId).add(callId),
     hubReplied,
     fromHub: hubCalled,
-    holds,
-    cancelSession: (sessionId) => {
+    cancelSession: async (sessionId) => {
       for (const record of records.values()) {
         if (record.sessionId === sessionId) records.delete(record.queueId)
       }
@@ -392,32 +420,32 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal; syncMs?: n
   }
 }
 
-export function owesFollowUp(queues: PageQueues, sessionId: SessionId): boolean {
-  return queues.owedTurn(sessionId).some((record) => record.delivery === 'owed')
+export async function owesFollowUp(queues: QueueDelivery, sessionId: SessionId): Promise<boolean> {
+  return (await queues.owed(sessionId, false)).some((queue) => queue.before === 'owed')
 }
 
-export function holdForNextReply(queues: PageQueues, sessionId: SessionId): void {
-  for (const record of queues.owedTurn(sessionId)) {
-    if (record.delivery === 'owed' && queues.claim(record)) queues.confirm(record, 'nextReply')
-  }
+export async function holdForNextReply(queues: QueueDelivery, sessionId: SessionId): Promise<void> {
+  const held = await queues.owed(sessionId, true)
+  await queues.settle(
+    sessionId,
+    held.map((queue) => queue.queueId),
+    'nextReply',
+  )
 }
 
 export async function startQueueFollowUp(
-  queues: PageQueues,
+  queues: QueueDelivery,
   plane: Pick<ChatPlane, 'live' | 'followUp'>,
   sessionId: SessionId,
+  deleted: (sessionId: SessionId) => boolean,
 ): Promise<void> {
-  if (!owesFollowUp(queues, sessionId) || (await plane.live(sessionId))) return
-  const owed = queues.owedTurn(sessionId).flatMap((record) => {
-    const before: 'owed' | 'nextReply' = record.delivery === 'owed' ? 'owed' : 'nextReply'
-    return queues.claim(record) ? [{record, before}] : []
-  })
-  const results = owed.flatMap(({record}) => (record.result === null ? [] : [record.result]))
-  if (results.length === 0) return
-  const notices = results.map(queueNotice).join('\n\n')
+  if (!(await owesFollowUp(queues, sessionId)) || (await plane.live(sessionId))) return
+  const owed = await queues.owed(sessionId, true)
+  if (owed.length === 0) return
+  const notices = owed.map((queue) => queueNotice(queue.result)).join('\n\n')
   const followUp = asyncRetry(
     async (): Promise<FollowUpOutcome> => {
-      if (!owed.every(({record}) => queues.holds(record))) return {kind: 'stopped'}
+      if (deleted(sessionId)) return {kind: 'stopped'}
       const attempt = await plane.followUp(sessionId, notices)
       if (attempt.kind === 'failed') throw new Error(attempt.error)
       return attempt
@@ -427,14 +455,17 @@ export async function startQueueFollowUp(
   const outcome = await followUp().then(
     (attempt): FollowUpOutcome => attempt ?? {kind: 'failed', error: 'the follow-up retryer did not run'},
     (error: unknown): FollowUpOutcome => {
-      const queueIds = owed.map(({record}) => record.queueId).join(', ')
+      const queueIds = owed.map((queue) => queue.queueId).join(', ')
       logError(
         `[core] the follow-up turns for queues ${queueIds} failed; they wait for the next reply: ${String(error)}`,
       )
       return {kind: 'failed', error: String(error)}
     },
   )
-  for (const {record, before} of owed) queues.confirm(record, deliveryAfter(outcome, before))
+  for (const before of DELIVERIES_BEFORE) {
+    const settled = owed.filter((queue) => queue.before === before).map((queue) => queue.queueId)
+    if (settled.length > 0) await queues.settle(sessionId, settled, deliveryAfter(outcome, before))
+  }
 }
 
 function deliveryAfter(outcome: FollowUpOutcome, before: 'owed' | 'nextReply'): Exclude<Delivery, 'claimed'> {
@@ -443,7 +474,11 @@ function deliveryAfter(outcome: FollowUpOutcome, before: 'owed' | 'nextReply'): 
   return before
 }
 
-export function pageQueueChunks(options: {result: PageQueueResult; record: QueueRecord; live: boolean}): ChatEvent[] {
+export function pageQueueChunks(options: {
+  result: PageQueueResult
+  record: {sessionId: SessionId; toolCallId: string | undefined}
+  live: boolean
+}): ChatEvent[] {
   const {result, record, live} = options
   const toolCallId = `page-queue-${result.queueId}`
   const runId = `mirror-${toolCallId}`
