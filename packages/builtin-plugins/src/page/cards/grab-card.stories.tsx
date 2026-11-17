@@ -5,7 +5,8 @@ import type {CompleteAttachment} from '@conciv/ui-kit-chat'
 import type {GrabPayload} from '@conciv/grab/grab-attachment'
 import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {GrabCard} from './grab-card.js'
-import {STORY_FRAME_CLASS} from './story.fixtures.js'
+
+const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
 const meta: Meta = {title: 'Extensions/Page/tool/GrabCard'}
 export default meta

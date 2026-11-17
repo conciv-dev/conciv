@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {CHIP, CodeBlock, SUNKEN_SURFACE} from '@conciv/ui-kit-chat/tools'
-import {LIST_ROW_CLASS} from './cards/shared.js'
+import {LIST_ROW_CLASS} from './shared.js'
 import {formatHtml} from './page-format.js'
 
 const HTML_CLASS = 'max-h-80 max-w-full block'

@@ -93,7 +93,6 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > shiki/core',
   '@conciv/ui-kit-chat > @chenglou/pretext',
   '@conciv/ui-kit-tap > @tiptap/suggestion',
-  '@conciv/extension-page > @zumer/snapdom',
   '@conciv/solid-streamdown > marked',
   '@conciv/solid-streamdown > rehype-harden',
   '@conciv/solid-streamdown > rehype-raw',
