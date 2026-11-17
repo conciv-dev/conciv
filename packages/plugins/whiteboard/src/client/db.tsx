@@ -1,6 +1,6 @@
 import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import {createCollection} from '@tanstack/solid-db'
-import type {Context} from '@conciv/plugin/experimental'
+import {usePlugin, type Context} from '@conciv/plugin/experimental'
 import {Whiteboard} from '../rpc.js'
 import {
   elementRowToInsert,
@@ -12,30 +12,19 @@ import {
   type ReplyRow,
 } from '../shared/rows.js'
 import {createChangeFeed} from './change-feed.js'
+import {whiteboardStores} from './stores.js'
 import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'
 
 const withoutRoom = <Row extends {room: string}>({room: _room, ...row}: Row): Omit<Row, 'room'> => row
 const withoutSession = <Row extends {sessionId: string}>({sessionId: _session, ...row}: Row): Omit<Row, 'sessionId'> =>
   row
 
-const ACCOUNT_KEY = 'conciv-whiteboard-account-id'
-
-const readAccountId = (): string => {
-  const fresh = crypto.randomUUID()
-  try {
-    const existing = localStorage.getItem(ACCOUNT_KEY)
-    if (existing) return existing
-    localStorage.setItem(ACCOUNT_KEY, fresh)
-  } catch (error) {
-    console.error('[whiteboard] the account id could not be kept; this tab gets its own', error)
-  }
-  return fresh
-}
-
 export function createWhiteboardDb(client: Context['client'], room: string, catchUpRetryMs: number) {
   const whiteboard = client.rpc(Whiteboard)
   const feed = createChangeFeed(client, room, {retryMs: catchUpRetryMs})
-  const account = readAccountId()
+  const account = usePlugin<{stores: typeof whiteboardStores}>().stores.account
+  const fresh = account.value.id ?? crypto.randomUUID()
+  if (account.value.id === null) account.set({id: fresh})
 
   const comments = createCollection(
     whiteboardCollectionOptions<CommentRow, Omit<CommentRow, 'sessionId'>>({
@@ -139,7 +128,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
     claimPending: (id: string) => whiteboard['canvasPending.claim']({room, id}),
     listElements: (scope: 'live' | 'draft') => elementOps(scope).list(),
     bulkDeleteElements: (scope: 'live' | 'draft', elementIds: string[]) => elementOps(scope).bulkDelete(elementIds),
-    accountId: () => account,
+    accountId: (): string => account.value.id ?? fresh,
     room,
     dispose: () => {
       canvasElements.utils.cleanupStrategy()

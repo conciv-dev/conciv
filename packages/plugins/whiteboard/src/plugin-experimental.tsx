@@ -3,8 +3,10 @@ import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
+import {whiteboardStores} from './client/stores.js'
 
 export default Plugin.define({
+  stores: whiteboardStores,
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false, threadOpen: false})
     const [surface, {refetch}] = createResource(
