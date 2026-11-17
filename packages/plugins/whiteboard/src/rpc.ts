@@ -93,7 +93,7 @@ export const Whiteboard = Rpc.define({
     'canvasReplies.update': update(replyRow, replyPatch),
     'canvasReplies.remove': remove,
     'elements.list': {input: ScopeInput, output: z.array(elementRow)},
-    'elements.get': {input: ScopeInput.extend({id: z.string()}), output: elementRow, errors: notFound},
+    'elements.get': {input: ScopeInput.extend({elementId: z.string()}), output: elementRow, errors: notFound},
     'elements.upsert': {input: ScopeInput.extend({row: elementRowInsert}), output: elementRow, errors: conflict},
     'elements.bulkUpsert': {
       input: ScopeInput.extend({rows: z.array(elementRowInsert)}),
