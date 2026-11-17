@@ -4,6 +4,7 @@ import {ChatClient} from '@conciv/ai/testkit'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
+import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {createServer, type IncomingMessage, type Server} from 'node:http'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {
@@ -13,7 +14,7 @@ import {
   runLifecycleEvent,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
-import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
+import {acquirePushChannel, livePushChannelCount} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeQueryUtils} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
@@ -583,49 +584,64 @@ describe('push channel', () => {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function nextQuery(source: AsyncIterator<PageQueryFrame>): Promise<PageQueryFrame> {
+  function textReply(text: string): PageReply {
+    return {type: 'success', result: {value: {text}, files: []}}
+  }
+
+  async function nextEvent(source: AsyncIterator<ChatEvent>): Promise<ChatEvent> {
     const next = await source.next()
-    if (next.done) throw new Error('the push channel closed before a page query arrived')
+    if (next.done) throw new Error('the push channel closed before a session event arrived')
     return next.value
+  }
+
+  function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
+    return connection.send(
+      [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}],
+      undefined,
+      undefined,
+      {
+        threadId: sessionId,
+        runId,
+      },
+    )
   }
 
   describe('the per-tab push socket', () => {
     it('carries a page query to the tab and the reply resolves the caller', async () => {
-      const {booted, channel, abort} = await bootWithChannel()
-      const arriving = nextQuery(channel.queries(abort.signal))
-      await settled(SETTLE_MS)
+      const tabs = pageTabs()
+      const booted = await bootClientKit({plugins: [tabs.plugin]})
+      kit = booted
+      const tab = await tabs.open(await booted.session(), () => undefined)
       const calling = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
 
-      const frame = await arriving
-      await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'body text'}}})
+      await tab.reply(await tab.requested(), textReply('body text'))
 
       expect(await calling).toEqual({text: 'body text'})
-      abort.abort()
-      channel.dispose()
+      tab.end()
     })
 
-    it('reopens itself after the engine restarts and serves page queries again', async () => {
-      const {booted, channel, abort} = await bootWithChannel()
-      const warming = nextQuery(channel.queries(abort.signal))
+    it('reopens itself after the engine restarts and serves the session events again', async () => {
+      const {booted, sessionId, channel, abort} = await bootWithChannel()
+      const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
+      const warming = nextEvent(channel.events(abort.signal))
       await settled(SETTLE_MS)
-      const warmup = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
-      const warmupFrame = await warming
-      await booted.rpc.page.reply({requestId: warmupFrame.requestId, outcome: {ok: true, result: {text: 'before'}}})
-      expect(await warmup).toEqual({text: 'before'})
+      await sendTurn(connection, sessionId, 'push-before')
+      const before = await warming
+      if (before.type !== ChatEventType.CUSTOM)
+        throw new Error(`the push channel served ${before.type}, not a session event`)
 
       await booted.restartServer()
-      const seen: PageQueryFrame[] = []
+      const seen: ChatEvent[] = []
       const collecting = (async () => {
-        for await (const frame of channel.queries(abort.signal)) seen.push(frame)
+        for await (const chunk of channel.events(abort.signal)) seen.push(chunk)
       })()
       await settled(RECONNECT_MS)
-      const calling = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
+      await sendTurn(connection, sessionId, 'push-after')
       await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
       const frame = seen[0]
-      if (!frame) throw new Error('the reconnected channel served no page query')
-      await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'after'}}})
+      if (!frame) throw new Error('the reconnected channel served no session event')
 
-      expect(await calling).toEqual({text: 'after'})
+      expect(frame).toMatchObject({type: ChatEventType.CUSTOM, name: before.name})
       expect(seen).toHaveLength(1)
       abort.abort()
       await collecting
@@ -658,24 +674,17 @@ describe('push channel', () => {
       }))
     }
 
-    async function answerEvery(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
-      for await (const frame of source) {
-        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
-      }
-    }
-
-    async function answerOnce(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
-      for await (const frame of source) {
-        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
-        return
-      }
+    async function bootWithTabs() {
+      const tabs = pageTabs()
+      const booted = await bootClientKit({plugins: [tabs.plugin]})
+      kit = booted
+      return {booted, tabs, sessionId: await booted.session()}
     }
 
     it('refuses its page tools at once, and serves them again once the page shows it', async () => {
-      const {booted, sessionId: background, channel: backgroundChannel, abort} = await bootWithChannel()
+      const {booted, tabs, sessionId: background} = await bootWithTabs()
       const {sessionId: shown} = await booted.rpc.sessions.create(undefined)
-      const shownChannel = acquirePushChannel({apiBase: booted.base, sessionId: shown})
-      void shownChannel.queries(abort.signal)
+      const shownTab = await tabs.open(shown, () => textReply('shown'))
       const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
 
       await expect
@@ -687,24 +696,24 @@ describe('push channel', () => {
           ),
         })
 
-      const serving = answerEvery(backgroundChannel.queries(abort.signal), backgroundRpc, 'shown again')
+      const backgroundTab = await tabs.open(background, () => textReply('shown again'))
       await expect
         .poll(() => captureOutcome(backgroundRpc.registry.call(pageText)), POLL)
         .toEqual({text: 'shown again'})
 
-      abort.abort()
-      await serving
-      shownChannel.dispose()
-      backgroundChannel.dispose()
+      backgroundTab.end()
+      shownTab.end()
     }, 15_000)
 
-    it('stops serving page queries once its query loop exits, while the chat stream keeps the socket', async () => {
-      const {booted, channel, abort} = await bootWithChannel()
+    it('stops serving page tools once its tab ends, while the chat stream keeps the socket', async () => {
+      const {booted, tabs, sessionId} = await bootWithTabs()
+      const abort = new AbortController()
+      const channel = acquirePushChannel({apiBase: booted.base, sessionId})
       void channel.events(abort.signal)
-      const servedOnce = answerOnce(channel.queries(), booted.rpc, 'once')
+      const tab = await tabs.open(sessionId, () => textReply('once'))
 
       await expect.poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
-      await servedOnce
+      tab.end()
       await expect
         .poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL)
         .toMatchObject({rejected: 'NO_PAGE_CLIENT'})

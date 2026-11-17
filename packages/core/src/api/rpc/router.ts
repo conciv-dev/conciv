@@ -83,13 +83,26 @@ function pluginToolError(name: string, cause: Cause.Cause<unknown>, errors: Regi
   return registryCallError(failure.value, errors)
 }
 
+async function requireAttachedPage(
+  deps: RpcDeps,
+  call: {sessionId: SessionId; name: string},
+  errors: RegistryErrors,
+): Promise<void> {
+  const attached = await deps.queues.attachedSessions()
+  if (attached.includes(call.sessionId)) return
+  const reason =
+    attached.length > 0
+      ? 'the page is showing another session; switch back to this session to use page tools'
+      : 'no widget connected to session'
+  throw errors.NO_PAGE_CLIENT({message: `${call.name}: ${reason}`, cause: undefined})
+}
+
 async function runPluginTool(
   deps: RpcDeps,
   call: {sessionId: SessionId; name: string; input: unknown; callId: string; signal?: AbortSignal},
   errors: RegistryErrors,
 ): Promise<unknown> {
-  if (isPageTool(call.name) && !(await deps.queues.attachedSessions()).includes(call.sessionId))
-    throw errors.NO_PAGE_CLIENT({message: `${call.name}: no widget connected to session`, cause: undefined})
+  if (isPageTool(call.name)) await requireAttachedPage(deps, call, errors)
   const exit = await deps.pluginHost.runPromiseExit(
     callPluginTool(call.sessionId, call.name, call.input, call.callId),
     {signal: call.signal},
@@ -132,12 +145,12 @@ async function callTool<Output extends z.ZodType>(
 
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
   if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
-  if (callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
+  const asked = askedPagePermission(name, input)
+  if (asked === undefined && callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
   const catalog = [...deps.runtime.engine.catalog(), ...(await deps.pluginHost.runPromise(pluginSignatures))]
   const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
   if (!asks) return
   const scope = call.context.session
-  const asked = askedPagePermission(name, input)
   const allowed =
     asked !== undefined &&
     (await deps.pluginHost.runPromise(

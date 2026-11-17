@@ -29,9 +29,10 @@ import {symbolicateFrames} from './symbolicate.js'
 
 const SessionNotFound = z.object({_tag: z.literal('Session.NotFoundError')})
 
-function refusalReason(error: unknown): string {
-  if (SessionNotFound.safeParse(error).success) return 'it was deleted'
-  return error instanceof Error ? error.message : String(error)
+function refusalReason(sessionId: SessionId, error: unknown): string {
+  if (SessionNotFound.safeParse(error).success) return `session "${sessionId}" does not exist`
+  console.warn(`Page could not open session ${sessionId}`, error)
+  return `Session ${sessionId} could not be opened: ${error instanceof Error ? error.message : String(error)}`
 }
 
 const TAB_RETURN_MS = 5000
@@ -175,21 +176,12 @@ export async function make(
   }
   const registration: RpcRegistration<typeof Definition> = await ctx.rpc.register(Definition, {
     attach: async (input, call) => {
-      const opened = await ctx.session
-        .get({sessionId: input.sessionId})
-        .catch((error: unknown) => {
-          if (SessionNotFound.safeParse(error).success) return ctx.session.create({id: input.sessionId})
-          throw error
-        })
-        .then(
-          (session) => ({session, reason: ''}),
-          (error: unknown) => ({session: undefined, reason: refusalReason(error)}),
-        )
+      const opened = await ctx.session.get({sessionId: input.sessionId}).then(
+        (session) => ({session, reason: ''}),
+        (error: unknown) => ({session: undefined, reason: refusalReason(input.sessionId, error)}),
+      )
       const session = opened.session
-      if (!session) {
-        console.warn(`Page could not open session ${input.sessionId}`, opened.reason)
-        return call.error('unavailable', `Session ${input.sessionId} could not be opened: ${opened.reason}`, {})
-      }
+      if (!session) return call.error('unavailable', opened.reason, {})
       if (session.location.directory !== ctx.location.directory)
         return call.error('unavailable', 'Session belongs to another location.', {})
       const started = await begin(input.sessionId, input.connectionId)

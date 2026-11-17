@@ -1590,15 +1590,85 @@ test.describe('page dispatch parity', () => {
       const since = wire.mark()
       await page.getByText('page-bus-ok').click()
       const refused = await wire.completed({...attach, since})
-      expect(refused.output).toMatchObject({message: `Session ${deleted} could not be opened: it was deleted`})
+      expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`})
       await page.reload({waitUntil: 'domcontentloaded'})
-      await openPanel(page)
+      await expect(page.getByRole('region', {name: 'Deleted session'}).getByRole('status')).toHaveText(
+        'This session was deleted.',
+        {timeout: 30_000},
+      )
       const attached = AttachedSchema.parse(
         await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
       )
       expect(attached).not.toContain(deleted)
       const {sessions} = await kit.rpc.sessions.list(undefined)
       expect(sessions.map((session) => session.id)).not.toContain(deleted)
+    })
+  })
+
+  test.describe('a tab open on a new session before its first send', () => {
+    const AttachedSchema = z.array(z.string())
+    const draft = SessionId.parse(`conciv_${crypto.randomUUID()}`)
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+    let wire: RpcObserver
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      await kit.rpc.navigation.set({entries: [{href: `/panel/${draft}?open=true`}], index: 0, updatedAt: Date.now()})
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      wire = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await openPagePlaneHost(page, kit, host.base)
+      await openPanel(page)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('is refused and makes no session, then attaches once the first send makes it, and a page tool in the next run reads the page', async () => {
+      const attachedNow = () =>
+        kit.rpc.plugin
+          .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
+          .then((attached) => AttachedSchema.parse(attached))
+      const refused = await wire.completed({
+        path: ['plugin', 'call'],
+        input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: draft}},
+      })
+      expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`})
+      expect((await kit.rpc.sessions.list(undefined)).sessions.map((session) => session.id)).not.toContain(draft)
+      expect(await attachedNow()).not.toContain(draft)
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      const firstRunFinished = async () => {
+        const {activeRun, lastRun} = await kit.rpc.chat.hydrate({sessionId: draft})
+        return activeRun === null && lastRun !== null && lastRun.finishedAt !== null
+      }
+      await composer.fill('start the session')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expect.poll(attachedNow).toContain(draft)
+      await expect.poll(firstRunFinished, {timeout: 30_000}).toBe(true)
+      const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: "return await external_page_text({selector: '#probe'})",
+      })
+      await composer.fill('read the probe')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      const toolResults = async () => {
+        const {messages} = await kit.rpc.chat.hydrate({sessionId: draft})
+        return messages
+          .flatMap((message) =>
+            message.parts.flatMap((part) =>
+              part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+            ),
+          )
+          .join('\n')
+      }
+      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
     })
   })
 
@@ -1718,7 +1788,11 @@ test.describe('page dispatch parity', () => {
         code: 1,
         document: {
           ok: false,
-          error: {kind: 'user', code: 'NO_PAGE_CLIENT', message: 'page_eval: no widget connected to session'},
+          error: {
+            kind: 'user',
+            code: 'NO_PAGE_CLIENT',
+            message: 'page_eval: the page is showing another session; switch back to this session to use page tools',
+          },
         },
       })
     })
