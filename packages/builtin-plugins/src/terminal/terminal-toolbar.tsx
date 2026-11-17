@@ -29,10 +29,10 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
           </ModelSelector.Content>
         </ModelSelector.Root>
       </Show>
-      <ctx.ui.Tooltip value="New session">
+      <ctx.ui.Tooltip value="New terminal">
         <ctx.ui.IconButton
           icon="plus"
-          label="New session"
+          label="New terminal"
           variant="ghost"
           size="small"
           disabled={locked()}

@@ -7004,7 +7004,7 @@ describe('terminal panel', () => {
 
   test('the toolbar picks the CLI model and keeps it across a reload, starts a new terminal, locks while the CLI is busy, and shows only on the Terminal tab', async () => {
     const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New session'})
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
     const pick = async (name: string) => {
       await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
       await picker().click()
@@ -7029,10 +7029,10 @@ describe('terminal panel', () => {
     await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
 
     await newTerminal().click()
+    await expect.element(output('25'), {timeout: 15_000}).not.toBeInTheDocument()
     await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
     await typeLine('echo $((4*4))')
     await expect.element(output('16'), {timeout: 15_000}).toBeInTheDocument()
-    await expect.element(output('25')).not.toBeInTheDocument()
 
     await pick('Busy model')
     await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
