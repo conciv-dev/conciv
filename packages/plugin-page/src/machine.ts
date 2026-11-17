@@ -758,10 +758,8 @@ function disconnectedAfterDispatch() {
 }
 
 function dispatchFailed(action: Method, error: unknown) {
-  return Tool.toolError({
-    message: `Could not dispatch page.${action}. Check that the page is open and call page.tabs.list({}) before deciding whether to retry.`,
-    error,
-  })
+  const message = `[page.not_dispatched] Could not dispatch page.${action}; it did not run. Check that the page is open and call page.tabs.list({}) before deciding whether to retry.`
+  return Tool.toolError({message, metadata: {code: 'not_dispatched', message}, error})
 }
 
 function timedOut(action: Method, timeoutMs: number) {
