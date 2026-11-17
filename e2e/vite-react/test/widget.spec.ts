@@ -3,8 +3,11 @@ import {z} from 'zod'
 import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
 
 const CreatedSchema = z.object({json: z.object({sessionId: z.string()})})
+const ModelsSchema = z.object({json: z.object({harness: z.object({persistentPty: z.boolean()})})})
 
-test('widget boots from dist in a react vite app with the terminal extension its config installs', async ({page}) => {
+test('widget boots from dist in a react vite app with the built-in Terminal tab and the engine terminal for a session', async ({
+  page,
+}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
@@ -20,5 +23,5 @@ test('widget boots from dist in a react vite app with the terminal extension its
       })
     ).json()
   const {sessionId} = CreatedSchema.parse(await post('sessions/create', undefined)).json
-  expect(await post('ext/terminal/state', {sessionId})).toEqual({json: {alive: false, busy: false}})
+  expect(ModelsSchema.parse(await post('meta/models', {sessionId})).json.harness.persistentPty).toBe(true)
 })

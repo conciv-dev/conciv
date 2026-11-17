@@ -19,15 +19,16 @@ import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, run} from '@conciv/vitest-config/pa
 import {stopNext, waitFor, type NextHandle} from '../packed/harness.js'
 
 const CreatedSchema = z.object({json: z.object({sessionId: z.string()})})
+const ModelsSchema = z.object({json: z.object({harness: z.object({persistentPty: z.boolean()})})})
 
-test('widget boots from dist in a nextjs app with the terminal extension tab its config installs', async ({page}) => {
+test('widget boots from dist in a nextjs app with the built-in Terminal tab', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
   await expect(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('tab', {name: 'Terminal'})).toBeVisible()
 })
 
-test('the terminal server extension installed in next.config loaded and answers for a session', async ({page}) => {
+test('the engine started by next.config offers its built-in terminal for a session', async ({page}) => {
   const base = await trustedEngineBase(page)
   const post = async (path: string, json: unknown): Promise<unknown> =>
     (
@@ -38,7 +39,7 @@ test('the terminal server extension installed in next.config loaded and answers 
       })
     ).json()
   const {sessionId} = CreatedSchema.parse(await post('sessions/create', undefined)).json
-  expect(await post('ext/terminal/state', {sessionId})).toEqual({json: {alive: false, busy: false}})
+  expect(ModelsSchema.parse(await post('meta/models', {sessionId})).json.harness.persistentPty).toBe(true)
 })
 
 function writeLinkedApp(appDir: string, enginePort: number): void {
