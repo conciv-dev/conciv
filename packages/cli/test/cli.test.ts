@@ -707,7 +707,6 @@ describe('cli', () => {
         moduleGraph: (file) => [{url: file, importers: [], importedModules: []}],
         transform: async () => ({code: null}),
         urls: () => ({local: [], network: []}),
-        reload: async () => {},
         restart: async () => {},
       })
     }
@@ -1997,7 +1996,6 @@ describe('cli', () => {
           return {code: `export const served = ${JSON.stringify(url)}`}
         },
         urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
-        reload: async () => {},
         restart: async (force) => {
           restarts.push(force ?? false)
         },

@@ -2080,7 +2080,6 @@ describe('rpc wire', () => {
         moduleGraph: (file) => [{url: file, importers: ['entry.ts'], importedModules: ['dep.ts']}],
         transform: async (url) => ({code: `transformed:${url}`}),
         urls: () => ({local: ['http://localhost:3000'], network: []}),
-        reload: async () => {},
         restart: async (force) => {
           restarted.push(force ?? false)
         },

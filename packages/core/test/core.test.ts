@@ -4576,7 +4576,6 @@ describe('direct tools on the MCP surface', () => {
       moduleGraph: () => [],
       transform: async () => ({code: null}),
       urls: () => ({local: [], network: []}),
-      reload: async () => undefined,
       restart: async (force) => {
         restarts.push(force ?? false)
       },
@@ -4788,7 +4787,6 @@ describe('plugin context keys provided by core', () => {
       moduleGraph: () => [],
       transform: async () => ({code: null}),
       urls: () => ({local: [], network: []}),
-      reload: async () => undefined,
       restart: async () => undefined,
     })
     const host = ManagedRuntime.make(
