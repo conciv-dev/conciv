@@ -47,10 +47,6 @@
     "./rpc-mount": {
       "types": "./dist/rpc-mount.d.ts",
       "import": "./dist/rpc-mount.js"
-    },
-    "./vite": {
-      "types": "./dist/vite-bridge.d.ts",
-      "import": "./dist/vite-bridge.js"
     }
   },
   "publishConfig": {
