@@ -4,8 +4,9 @@ import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
 import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
+import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import {persistStore} from '../runtime/persistence/persist.js'
-import {resolveBlobUrl, type DraftStore} from '../runtime/persistence/drafts.js'
+import {resolveBlobUrl, type BlobReference, type DraftStore} from '../runtime/persistence/drafts.js'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData, PendingDraftAttachment} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
@@ -136,6 +137,8 @@ function readLocalFiles(attachment: LocalAttachment): Promise<AttachmentState[]>
     return []
   })
 }
+
+const MAX_INLINE_BYTES = 20 * 1024 * 1024
 
 const NoLocalHydration = {getItem: () => null, setItem: () => {}, removeItem: () => {}}
 
@@ -319,6 +322,40 @@ async function keepInDraft(appData: AppData, sessionId: string, text: string, pl
   if (!drafts) await saving
 }
 
+export async function keepDraftImage(drafts: DraftStore, file: File): Promise<BlobReference | undefined> {
+  if (file.size > MAX_INLINE_BYTES) {
+    console.warn(`[conciv] ${file.name} is over ${MAX_INLINE_BYTES} bytes, so the local draft keeps no copy of it`)
+    return undefined
+  }
+  return drafts.putBlob(file).catch((error: unknown) => {
+    console.error('[conciv] could not keep the attached image in the local draft store', error)
+    return undefined
+  })
+}
+
+async function keepImageInDraft(appData: AppData, sessionId: string, file: File): Promise<void> {
+  const drafts = appData.drafts
+  const {base, encoded} = await readKeptBase(appData, sessionId)
+  const attachment = {id: crypto.randomUUID(), type: 'image', name: file.name}
+  if (drafts) {
+    const blob = await keepDraftImage(drafts, file)
+    const local = {...attachment, contentType: file.type}
+    const kept = blob ? {...local, blob: {id: blob.id}} : local
+    await keepLocally(drafts, sessionId, {...base, attachments: [...base.attachments, kept]})
+  }
+  const {text, selectionStart, selectionEnd} = base
+  const added = await encodeAttachments([{...attachment, file}])
+  const saving = appData.saveDraft({
+    sessionId,
+    text,
+    selectionStart,
+    selectionEnd,
+    attachments: [...encoded, ...added],
+    updatedAt: Date.now(),
+  })
+  if (!drafts) await saving
+}
+
 export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
   return keepInDraft(appData, sessionId, text, 'last')
 }
@@ -348,7 +385,7 @@ export function draftCacheSink(
 ): DraftSink {
   return {
     insert: (text) => keep(() => write(appData, sessionId, text)),
-    addFile: () => {},
+    addFile: (file) => keep(() => keepImageInDraft(appData, sessionId, file)),
   }
 }
 

@@ -12,10 +12,10 @@ import {
 } from '@conciv/ui-kit-chat'
 import {guardedAttachmentCards} from '../extension/extension-boundary.js'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
+import {keepDraftImage} from './draft-storage.js'
 
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 const TEXT_ATTACHMENT_ADAPTER = createTextAttachmentAdapter()
-const MAX_INLINE_BYTES = 20 * 1024 * 1024
 
 function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
   if (!drafts) return IMAGE_ATTACHMENT_ADAPTER
@@ -26,16 +26,7 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
       if (!(added instanceof Promise)) return added
       return added.then(async (pending) => {
         if (pending.status.type === 'incomplete') return pending
-        if (state.file.size > MAX_INLINE_BYTES) {
-          console.warn(
-            `[conciv] ${state.file.name} is over ${MAX_INLINE_BYTES} bytes, so the local draft keeps no copy of it`,
-          )
-          return pending
-        }
-        const blob = await drafts.putBlob(state.file).catch((error: unknown) => {
-          console.error('[conciv] could not keep the attached image in the local draft store', error)
-          return undefined
-        })
+        const blob = await keepDraftImage(drafts, state.file)
         return blob ? {...pending, blob} : pending
       })
     },
