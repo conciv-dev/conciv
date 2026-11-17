@@ -3,7 +3,7 @@ import {keyBy, Mutex, TimeoutError, withTimeout} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {PAGE_QUEUE_REFUSED} from '@conciv/protocol/page-types'
-import {Tool, type Plugin, type Rule, type RpcRegistration} from '@conciv/plugin'
+import {Tool, type Plugin, type RpcRegistration} from '@conciv/plugin'
 import {
   ACCESS,
   PERMISSION_SYNC_TIMEOUT_MS,
@@ -34,8 +34,6 @@ const DEFAULT_TIMEOUT_MS = 5000
 const TAB_RETURN_MS = 5000
 
 const QUEUED_ACTION_MS = 7000
-
-const EVAL_ASK: Rule = {action: 'page_eval', resource: '*', effect: 'ask'}
 
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
 
@@ -71,9 +69,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
   await ctx.agent.transform((editor) =>
     editor
       .list()
-      .forEach((agent) =>
-        agent.permissions.push(...ACCESS.map((rule) => ({...rule, effect: 'deny' as const})), EVAL_ASK),
-      ),
+      .forEach((agent) => agent.permissions.push(...ACCESS.map((rule) => ({...rule, effect: 'deny' as const})))),
   )
   const machine = {state: createConnectionState()}
   const records = Records.fromStorage(ctx.storage)

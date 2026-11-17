@@ -56,6 +56,7 @@ export async function register(
         action: 'page_eval',
         resources: [action.code],
         save: ['*'],
+        fallback: 'ask',
         metadata: action,
         sessionId: tool.sessionId,
         agent: tool.agent,
