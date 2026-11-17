@@ -115,7 +115,6 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
-import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {Conciv} from '@conciv/plugin'
@@ -5903,12 +5902,6 @@ describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
-    for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {
-        owner: 'a built-in server tool',
-        context: {bundler: () => undefined, hotUpdate: async () => ({applied: false, waitedMs: 0})},
-      })
-    }
     return registry
   }
 
@@ -7669,13 +7662,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'server_reload'],
+    tools: ['fixture_probe', 'tabs'],
     render(props) {
-      if (props.tool === 'server_reload') {
+      if (props.tool === 'tabs') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture reloaded ' + props.input.file})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture listed the tabs for ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -8216,14 +8209,14 @@ module.exports = {default: {setup(ctx) {
     await coreControl.scriptTurn({
       toolCalls: [
         {
-          name: 'server_reload',
+          name: 'tabs',
           input: {file: 'src/a.ts', mode: 'draw'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: {tabs: [], unreachable: []},
         },
         {
-          name: 'server_reload',
+          name: 'tabs',
           input: {file: 'src/a.ts', mode: 'decline'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: {tabs: [], unreachable: []},
         },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
@@ -8241,10 +8234,12 @@ module.exports = {default: {setup(ctx) {
 
     await coreControl.releaseFault(catalogHeld)
     await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
-    await expect.element(shown('force a hot update of one module')).toBeVisible()
-    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    await expect
+      .element(shown('list the open conciv tabs of every running conciv engine on this machine'))
+      .toBeVisible()
+    await expect.element(shown('Called tabs')).not.toBeInTheDocument()
     await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
+    await expect.element(shown('Fixture listed the tabs for src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
     await expect.element(shown('mode=draw')).toBeVisible()

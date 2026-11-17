@@ -11,7 +11,7 @@ any repo with conciv installed, so everything the agent can do, you can script.
 ```bash
 conciv tools page snapshot        # accessibility snapshot of the live page
 conciv tools page click --name SubmitButton
-conciv tools server urls          # where the dev server listens
+conciv plugin call server urls    # where the dev server listens
 ```
 
 `tools` talks to the running app. Interactive cards in the chat thread are not a command: see the
@@ -59,15 +59,18 @@ conciv tools react override --name PricingCard --target props --path plan --json
 (the default) lists them, `--name` narrows the report to one component, and `--action stop` ends
 recording.
 
-### `server`
+### The dev server
 
-Ask the dev server about itself: `config`, `urls`, `resolve`, `graph`, `transform`, `reload`,
-`restart`.
+Ask the dev server about itself through its plugin: `config`, `urls`, `resolve`, `graph`, `transform`.
+The input goes in `--data` as JSON.
 
 ```bash
-conciv tools server resolve @/components/Header --importer src/routes/index.tsx
-conciv tools server graph src/routes/index.tsx
+conciv plugin call server resolve --data '{"spec":"@/components/Header","importer":"src/routes/index.tsx"}'
+conciv plugin call server graph --data '{"file":"src/routes/index.tsx"}'
 ```
+
+There is no command to force a hot update: save the file, and `conciv tools page hmr` waits until the page
+applied it.
 
 An alias from tsconfig `paths` (`@/...`) resolves only with `--importer`; a package import (`#/...`) does not
 need one.

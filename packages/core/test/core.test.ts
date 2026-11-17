@@ -581,8 +581,6 @@ describe('chat plane', () => {
       db,
       root,
       storeCapture: () => Promise.resolve(),
-      bundler: () => undefined,
-      hotUpdate: async () => ({applied: false, waitedMs: 0}),
       listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
@@ -2366,8 +2364,6 @@ describe('page bus and the session scope', () => {
         db: fixture.db,
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
-        bundler: () => undefined,
-        hotUpdate: async () => ({applied: false, waitedMs: 0}),
         listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({

@@ -2066,7 +2066,6 @@ describe('rpc wire', () => {
     })
 
     it('server.* round-trips a real bundler bridge', async () => {
-      const reloaded: string[] = []
       const restarted: boolean[] = []
       const bridge = defineBundlerBridge({
         id: 'wire-test',
@@ -2081,9 +2080,7 @@ describe('rpc wire', () => {
         moduleGraph: (file) => [{url: file, importers: ['entry.ts'], importedModules: ['dep.ts']}],
         transform: async (url) => ({code: `transformed:${url}`}),
         urls: () => ({local: ['http://localhost:3000'], network: []}),
-        reload: async (file) => {
-          reloaded.push(file)
-        },
+        reload: async () => {},
         restart: async (force) => {
           restarted.push(force ?? false)
         },
@@ -2098,10 +2095,6 @@ describe('rpc wire', () => {
       ])
       expect(await server('transform', {url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
       expect(await server('urls')).toEqual({local: ['http://localhost:3000'], network: []})
-      const {sessionId} = await kit.rpc.sessions.create(undefined)
-      const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      expect(reloaded).toEqual([])
       await expect(server('restart', {force: true})).rejects.toMatchObject({
         status: 400,
         code: 'PLUGIN_RPC',
@@ -2109,9 +2102,6 @@ describe('rpc wire', () => {
         data: {type: 'rpc.method_not_found', message: 'Unknown RPC method: server.restart'},
       })
       expect(restarted).toEqual([])
-      await approvePending(kit.base, sessionId)
-      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(reloaded).toEqual(['src/hot.ts'])
     })
   })
 
@@ -2585,7 +2575,6 @@ describe('rpc wire', () => {
         await expect(browserRpc.registry.call({name: 'fixture_ask', input: {target: 'w'}})).resolves.toEqual({
           done: 'w',
         })
-        await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
         await expect(browserRpc.plugin.call({rpcId: 'server', method: 'config'})).rejects.toMatchObject({
           code: 'PLUGIN_RPC',
           data: {type: 'BUNDLER_UNAVAILABLE'},
@@ -4816,12 +4805,7 @@ describe('outside agent consent', () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
-    expect((await lister.tools()).map((tool) => tool.name)).toEqual([
-      'discover_tools',
-      'server_reload',
-      'skill',
-      'execute_typescript',
-    ])
+    expect((await lister.tools()).map((tool) => tool.name)).toEqual(['discover_tools', 'skill', 'execute_typescript'])
     await lister.close()
     expect(await loadPending(base, first)).toEqual([])
     const waiting = [hubCall(base, first), hubCall(base, first)]
@@ -5310,7 +5294,7 @@ export default {
     await decideOutside(base, sessionId, true)
     expect(await allowed).toMatch(RAN)
     const own = createSessionRpc(base, sessionId)
-    const waiting = own.registry.call({name: 'server_reload', input: {file: 'a.ts'}}).then(String, String)
+    const waiting = own.registry.call({name: 'page_eval', input: {code: '1'}}).then(String, String)
     const raised = await askRaised(base, sessionId)
     const [card] = await loadPending(base, sessionId)
     expect(card?.approvalId).toBe(raised?.approvalId)
@@ -5364,13 +5348,13 @@ export default {
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
-    await expect(namedHubRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    expect(await namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).toEqual(ROUTE)
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'tabs',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
-      expect.objectContaining({toolCallName: 'server_reload'}),
+      expect.objectContaining({toolCallName: 'page_eval'}),
     ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
@@ -5396,37 +5380,18 @@ export default {
 
   it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
     const base = await boot('open')
-    const sessionId = await newSession(base)
-    const reload = {name: 'server_reload', input: {file: 'a.ts'}}
-    const overMcp = async (headers: Record<string, string>) => {
-      const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
-      try {
-        const tool = (await mcp.tools()).find((entry) => entry.name === reload.name)
-        return String(await tool?.execute(reload.input).then(JSON.stringify, String))
-      } finally {
-        await mcp.close()
-      }
-    }
+    const sessionId = await openTab(base)
+    const evaluate = {name: 'page_eval', input: {code: '1'}}
     const overRpc = (headers: Record<string, string>) =>
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
-        .registry.call(reload)
-        .then(String, String)
-    const outsideCalls = [
-      await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
-      await overMcp({[CONCIV_SESSION_HEADER]: sessionId, ...HUB}),
-      await overMcp({[CONCIV_CLAUDE_SESSION_HEADER]: 'plugin-bridge-native'}),
-    ]
-    const ran = expect.stringMatching(/no dev server is attached to conciv/)
-    expect(outsideCalls).toEqual([ran, ran, ran])
+        .registry.call(evaluate)
+        .then(JSON.stringify, String)
+    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toContain(ROUTE.href)
     expect(await loadPending(base, sessionId)).toEqual([])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
-    const insideCalls = [
-      await createSessionRpc(base, sessionId).registry.call(reload).then(String, String),
-      await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),
-    ]
-    expect(insideCalls).toEqual([expect.stringMatching(/needs the user/), expect.stringMatching(/needs the user/)])
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
+    expect(await overRpc({})).toMatch(/needs the user/)
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
