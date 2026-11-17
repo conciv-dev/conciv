@@ -9,7 +9,6 @@ import {
   type QueryKey,
 } from '@conciv/client'
 import {Conciv, type ConcivClient} from '@conciv/plugin'
-import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
@@ -21,9 +20,7 @@ const PendingAttachmentSchema = z.object({
   file: z.instanceof(File),
 })
 
-export const DraftSaveSchema = DraftRowSchema.extend({pending: z.array(PendingAttachmentSchema).default([])})
-
-export type DraftSave = z.input<typeof DraftSaveSchema>
+export type DraftSave = z.input<typeof DraftRowSchema>
 
 export type PendingDraftAttachment = z.infer<typeof PendingAttachmentSchema>
 
@@ -98,26 +95,18 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     retry: retriableDraftSave,
     gcTime: Infinity,
     mutationFn: async (input) => {
-      const {pending, ...row} = DraftSaveSchema.parse(input)
+      const row = DraftRowSchema.parse(input)
       const held = queryClient.getQueryData(draftQuery(row.sessionId).queryKey)
       if (!held || held.updatedAt > row.updatedAt) return null
-      const encoded = DraftRowSchema.parse({
-        ...row,
-        attachments: [...row.attachments, ...(await encodeAttachments(pending))],
-      })
-      queryClient.setQueryData(draftQuery(encoded.sessionId).queryKey, encoded)
-      return rpc.drafts.set(encoded)
+      queryClient.setQueryData(draftQuery(row.sessionId).queryKey, row)
+      return rpc.drafts.set(row)
     },
     onMutate: async (input) => {
-      const {pending, ...row} = DraftSaveSchema.parse(input)
+      const row = DraftRowSchema.parse(input)
       forgetDraftSaves(row.sessionId, ['error'])
       const {queryKey} = draftQuery(row.sessionId)
       await queryClient.cancelQueries({queryKey})
-      const cached = queryClient.getQueryData(queryKey)
-      queryClient.setQueryData(
-        queryKey,
-        pending.length === 0 ? row : {...row, attachments: cached?.attachments ?? row.attachments},
-      )
+      queryClient.setQueryData(queryKey, row)
     },
     onError: (error, input) => {
       console.error('[conciv] could not save the draft', error)
