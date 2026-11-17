@@ -7,7 +7,7 @@ import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 export default Plugin.define({
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
-    const [surface] = createResource(
+    const [surface, {refetch}] = createResource(
       () => canvas.engaged,
       () => import('./client/canvas-surface.js'),
     )
@@ -25,7 +25,12 @@ export default Plugin.define({
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
         run: () => {
-          setCanvas({engaged: true, open: !canvas.open})
+          if (surface.error === undefined) {
+            setCanvas({engaged: true, open: !canvas.open})
+            return
+          }
+          setCanvas('open', true)
+          void refetch()
         },
       }),
     }
