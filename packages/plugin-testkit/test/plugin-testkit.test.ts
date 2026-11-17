@@ -8,7 +8,7 @@ import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {observeRpc} from '../src/rpc-observer.js'
 import {rpcSocketFor} from '../src/rpc-socket.js'
-import {gateRpcCalls} from '../src/rpc-fault.js'
+import {failRpcCalls, gateRpcCalls} from '../src/rpc-fault.js'
 import {os} from '@orpc/server'
 import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
 import {encodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
@@ -273,6 +273,99 @@ describe('rpc gate abandoned calls', () => {
         await gate.release()
         expect(await exchange).toBe(2)
         await expect(gate.answered()).rejects.toThrow('the page gave up on this call before it was answered')
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+})
+
+describe('rpc faults by input', () => {
+  browserTest(
+    'a gate given an input holds only the calls whose input matches, and the others pass',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const gate = await gateRpcCalls(page, {path: ['echo'], input: {value: 'held'}})
+        const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+        const request = (id: string, value: string) =>
+          encodeRequestMessage(id, MessageType.REQUEST, {
+            url: new URL('http://orpc/echo'),
+            method: 'POST',
+            headers: {},
+            body: serializer.serialize({value}),
+          })
+        const held = await request('1', 'held')
+        const passed = await request('2', 'passed')
+        if (typeof held !== 'string' || typeof passed !== 'string') throw new Error('an rpc frame encoded to binary')
+        const firstAnswer = page.evaluate(
+          ({url, heldFrame, passedFrame}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('message', () => resolve(), {once: true})
+              socket.addEventListener('open', () => {
+                socket.send(heldFrame)
+                socket.send(passedFrame)
+              })
+            }),
+          {url: served.wsUrl, heldFrame: held, passedFrame: passed},
+        )
+        await firstAnswer
+        expect(gate.pending()).toBe(1)
+        await gate.release()
+        await expect(gate.answered()).resolves.toEqual({value: 'held'})
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
+
+  browserTest(
+    'a failure given an input fails only the calls whose input matches, and the others are answered',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const observer = observeRpc(page)
+        const fault = await failRpcCalls(page, {path: ['echo'], input: {value: 'failed'}})
+        const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+        const request = (id: string, value: string) =>
+          encodeRequestMessage(id, MessageType.REQUEST, {
+            url: new URL('http://orpc/echo'),
+            method: 'POST',
+            headers: {},
+            body: serializer.serialize({value}),
+          })
+        const failed = await request('1', 'failed')
+        const passed = await request('2', 'passed')
+        if (typeof failed !== 'string' || typeof passed !== 'string') throw new Error('an rpc frame encoded to binary')
+        await page.evaluate(
+          ({url, failedFrame, passedFrame}) => {
+            const socket = new WebSocket(url)
+            socket.addEventListener('open', () => {
+              socket.send(failedFrame)
+              socket.send(passedFrame)
+            })
+          },
+          {url: served.wsUrl, failedFrame: failed, passedFrame: passed},
+        )
+        await expect(observer.completed({path: ['echo'], input: {value: 'failed'}})).resolves.toMatchObject({
+          status: 500,
+        })
+        await expect(observer.completed({path: ['echo'], input: {value: 'passed'}})).resolves.toMatchObject({
+          status: 200,
+          output: {value: 'passed'},
+        })
+        await fault.dispose()
       } finally {
         await page.close()
         await served.close()

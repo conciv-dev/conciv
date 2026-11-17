@@ -10,14 +10,19 @@ type CallMatcher = (call: RpcSocketCall) => boolean
 
 export type RpcFaultInjector = {repair: () => void; dispose: () => Promise<void>; answered: () => Promise<unknown>}
 
-function answeredBy(page: Page, path: readonly string[] | undefined, status: number): () => Promise<unknown> {
+function answeredBy(
+  page: Page,
+  path: readonly string[] | undefined,
+  status: number,
+  input?: RpcInputPattern,
+): () => Promise<unknown> {
   const since = rpcObserverFor(page).mark()
   return () => {
     if (!path) {
       return Promise.reject(new Error('this fault matches every rpc path, so it has no single call to await'))
     }
     return rpcObserverFor(page)
-      .completed({path, status, since, timeout: ANSWER_TIMEOUT_MS})
+      .completed({path, input, status, since, timeout: ANSWER_TIMEOUT_MS})
       .then((record) => {
         if (record.abandoned) throw new Error('the page gave up on this call before it was answered')
         return record.output
@@ -30,7 +35,7 @@ function pathMatcher(path: readonly string[] | undefined): CallMatcher {
   return (call) => samePath(call.path, path)
 }
 
-function callMatcher(path: readonly string[], input: RpcInputPattern | undefined): CallMatcher {
+function callMatcher(path: readonly string[] | undefined, input: RpcInputPattern | undefined): CallMatcher {
   const onPath = pathMatcher(path)
   if (input === undefined) return onPath
   return (call) => onPath(call) && matchesPattern(call.input, input)
@@ -64,10 +69,11 @@ async function brokenWhile(
 
 export function failRpcCalls(
   page: Page,
-  options: {path: readonly string[]; status?: number},
+  options: {path: readonly string[]; input?: RpcInputPattern; status?: number},
 ): Promise<RpcFaultInjector> {
   const status = options.status ?? 500
-  return brokenWhile(page, pathMatcher(options.path), answeredBy(page, options.path, status), (call) => {
+  const answered = answeredBy(page, options.path, status, options.input)
+  return brokenWhile(page, callMatcher(options.path, options.input), answered, (call) => {
     call
       .reply(status)
       .catch((error: unknown) => console.error('[extension-testkit] the rpc failure reply failed', error))
@@ -111,12 +117,12 @@ type CaptureWaiter = {count: number; deliver: () => void}
 
 export async function gateRpcCalls(
   page: Page,
-  options: {path?: readonly string[]; onRelease?: 'forward' | 'cut'} = {},
+  options: {path?: readonly string[]; input?: RpcInputPattern; onRelease?: 'forward' | 'cut'} = {},
 ): Promise<RpcGate> {
   const socket = rpcSocketFor(page)
   await socket.installed
-  const matches = pathMatcher(options.path)
-  const answered = answeredBy(page, options.path, RELEASED_GATE_STATUS)
+  const matches = callMatcher(options.path, options.input)
+  const answered = answeredBy(page, options.path, RELEASED_GATE_STATUS, options.input)
   const open = {value: false}
   const captured: RpcSocketCall[] = []
   const waiters = new Set<CaptureWaiter>()
