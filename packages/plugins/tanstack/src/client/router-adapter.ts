@@ -1,17 +1,16 @@
-import type {AnyRouter} from '@tanstack/react-router'
+import type {AnyRoute, AnyRouteMatch, AnyRouter} from '@tanstack/react-router'
 import type {ReactFiber, ReactTree} from '@conciv/plugin/experimental/page'
 import {Predicate} from 'effect'
 import {mapValues} from 'es-toolkit'
-import {
+import type {
+  CacheEntry,
+  CacheEntryState,
+  FrameworkInfo,
   RouteMatch,
-  type CacheEntry,
-  type CacheEntryState,
-  type FrameworkInfo,
-  type RouteNode,
-  type RouteNodeKind,
-  type RouterCurrent,
-  type RouterLocation,
-  type RouteStatus,
+  RouteNode,
+  RouteNodeKind,
+  RouterCurrent,
+  RouterLocation,
 } from '../rpc.js'
 
 const MAX_FIBER_NODES = 50_000
@@ -77,12 +76,7 @@ function stringRecord(value: unknown): Record<string, string> {
 }
 
 function unknownRecord(value: unknown): Record<string, unknown> {
-  if (!Predicate.isObject(value)) return {}
-  return mapValues(value, (entry) => entry)
-}
-
-function toStatus(value: unknown): RouteStatus {
-  return RouteMatch.shape.status.catch('pending').parse(value)
+  return Predicate.isObject(value) ? value : {}
 }
 
 export function errorMessage(value: unknown): string | null {
@@ -91,44 +85,37 @@ export function errorMessage(value: unknown): string | null {
   return String(value)
 }
 
-function redactedPathname(tree: ReactTree, router: AnyRouter, match: unknown, pathname: string): string {
-  if (!Predicate.isObject(match)) return pathname
+function redactedPathname(
+  tree: ReactTree,
+  router: AnyRouter,
+  match: AnyRouteMatch | undefined,
+  pathname: string,
+): string {
+  if (!match) return pathname
   const params = unknownRecord(match.params)
   const redacted = unknownRecord(tree.dehydrate(params))
   if (JSON.stringify(redacted) === JSON.stringify(params)) return pathname
-  return router.buildLocation({to: stringValue(match.fullPath), params: redacted}).pathname
+  const to: string = match.fullPath
+  return router.buildLocation({to, params: redacted}).pathname
 }
 
-function redactedMatchId(tree: ReactTree, router: AnyRouter, match: Record<string, unknown>): string {
-  const pathname = redactedPathname(tree, router, match, stringValue(match.pathname))
+function redactedMatchId(tree: ReactTree, router: AnyRouter, match: AnyRouteMatch): string {
+  const pathname = redactedPathname(tree, router, match, match.pathname)
   const deps = match.loaderDeps ? (JSON.stringify(tree.dehydrate(match.loaderDeps)) ?? '') : ''
-  return stringValue(match.routeId) + pathname + deps
+  return match.routeId + pathname + deps
 }
 
-function mapMatch(tree: ReactTree, router: AnyRouter, match: unknown): RouteMatch {
-  if (!Predicate.isObject(match))
-    return {
-      id: '',
-      routeId: '',
-      path: '',
-      params: {},
-      search: {},
-      status: 'pending',
-      error: null,
-      loaderData: null,
-      updatedAt: null,
-      isFetching: false,
-    }
+function mapMatch(tree: ReactTree, router: AnyRouter, match: AnyRouteMatch): RouteMatch {
   return {
     id: redactedMatchId(tree, router, match),
-    routeId: stringValue(match.routeId),
-    path: stringValue(match.fullPath),
+    routeId: match.routeId,
+    path: match.fullPath,
     params: stringRecord(tree.dehydrate(match.params)),
     search: unknownRecord(tree.dehydrate(match.search)),
-    status: toStatus(match.status),
+    status: match.status,
     error: errorMessage(match.error),
     loaderData: tree.dehydrate(match.loaderData),
-    updatedAt: typeof match.updatedAt === 'number' ? match.updatedAt : null,
+    updatedAt: match.updatedAt,
     isFetching: Boolean(match.isFetching),
   }
 }
@@ -136,7 +123,7 @@ function mapMatch(tree: ReactTree, router: AnyRouter, match: unknown): RouteMatc
 function redactedSearchString(tree: ReactTree, router: AnyRouter, search: unknown): string {
   const stringify = router.options?.stringifySearch
   if (!Predicate.isFunction(stringify)) return ''
-  return stringValue(stringify(unknownRecord(tree.dehydrate(search))))
+  return stringify(unknownRecord(tree.dehydrate(search)))
 }
 
 function redactedHash(tree: ReactTree, hash: string): string {
@@ -147,11 +134,11 @@ function redactedHash(tree: ReactTree, hash: string): string {
 }
 
 function readLocation(tree: ReactTree, router: AnyRouter): RouterLocation {
-  const location = unknownRecord(router.state.location)
+  const location = router.state.location
   return {
-    pathname: redactedPathname(tree, router, router.state.matches.at(-1), stringValue(location.pathname)),
+    pathname: redactedPathname(tree, router, router.state.matches.at(-1), location.pathname),
     search: redactedSearchString(tree, router, location.search),
-    hash: redactedHash(tree, stringValue(location.hash)),
+    hash: redactedHash(tree, location.hash),
   }
 }
 
@@ -168,21 +155,19 @@ export function readDetect(tree: ReactTree): FrameworkInfo {
   return {name: 'tanstack-start', version: null, router: 'file-based', dev: true}
 }
 
-function matchCacheState(match: Record<string, unknown>): CacheEntryState {
+function matchCacheState(match: AnyRouteMatch): CacheEntryState {
   if (match.isFetching) return 'fetching'
   if (match.status === 'error') return 'error'
   return 'fresh'
 }
 
-function matchToCacheEntry(tree: ReactTree, match: unknown): CacheEntry {
-  if (!Predicate.isObject(match))
-    return {key: '', state: 'fresh', status: null, value: null, updatedAt: null, error: null, observers: null}
+function matchToCacheEntry(tree: ReactTree, match: AnyRouteMatch): CacheEntry {
   return {
-    key: stringValue(match.routeId),
+    key: match.routeId,
     state: matchCacheState(match),
-    status: typeof match.status === 'string' ? match.status : null,
+    status: match.status,
     value: tree.dehydrate(match.loaderData),
-    updatedAt: typeof match.updatedAt === 'number' ? match.updatedAt : null,
+    updatedAt: match.updatedAt,
     error: errorMessage(match.error),
     observers: null,
   }
@@ -193,9 +178,9 @@ export function readDataEntries(tree: ReactTree): {entries: CacheEntry[]} {
   return {entries: router.state.matches.map((match) => matchToCacheEntry(tree, match))}
 }
 
-function listChildren(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value
-  if (Predicate.isObject(value)) return Object.values(value)
+function listChildren(children: AnyRoute['children']): AnyRoute[] {
+  if (Array.isArray(children)) return children
+  if (Predicate.isObjectKeyword(children)) return Object.values(children)
   return []
 }
 
@@ -205,7 +190,7 @@ function lastSegment(path: string): string {
   return last ?? path
 }
 
-function routeKind(path: string, isRoot: unknown): RouteNodeKind {
+function routeKind(path: string, isRoot: boolean): RouteNodeKind {
   if (isRoot) return 'layout'
   if (path === '' || path === '/') return 'index'
   const segment = lastSegment(path)
@@ -214,14 +199,13 @@ function routeKind(path: string, isRoot: unknown): RouteNodeKind {
   return 'static'
 }
 
-function mapRoute(route: unknown, depth: number): RouteNode {
-  if (!Predicate.isObject(route)) return {id: '', path: '', kind: 'static', hasLoader: false, children: []}
-  const options = unknownRecord(route.options)
+function mapRoute(route: AnyRoute, depth: number): RouteNode {
+  const path = stringValue(route.path)
   const node: RouteNode = {
-    id: stringValue(route.id),
-    path: stringValue(route.path),
-    kind: routeKind(stringValue(route.path), route.isRoot),
-    hasLoader: Boolean(options.loader),
+    id: route.id,
+    path,
+    kind: routeKind(path, route.isRoot),
+    hasLoader: Boolean(route.options.loader),
     children: [],
   }
   const children = listChildren(route.children)
@@ -233,11 +217,8 @@ function mapRoute(route: unknown, depth: number): RouteNode {
   return node
 }
 
-function findRootRoute(router: AnyRouter): unknown {
-  if (Predicate.isObject(router.routeTree)) return router.routeTree
-  const byId = router.routesById
-  const rootNode = Predicate.isObject(byId) ? byId['__root__'] : undefined
-  return Predicate.isObject(rootNode) ? rootNode : null
+function findRootRoute(router: AnyRouter): AnyRoute | null {
+  return router.routeTree ?? router.routesById?.['__root__'] ?? null
 }
 
 export function readRouteTree(tree: ReactTree): RouteNode {
@@ -247,20 +228,16 @@ export function readRouteTree(tree: ReactTree): RouteNode {
   return mapRoute(root, 0)
 }
 
-function pickMatch(matches: unknown[], routeId?: string): Record<string, unknown> | null {
-  if (routeId !== undefined) {
-    const named = matches.find((match) => Predicate.isObject(match) && match.routeId === routeId)
-    return Predicate.isObject(named) ? named : null
-  }
-  const leaf = matches[matches.length - 1]
-  return Predicate.isObject(leaf) ? leaf : null
+function pickMatch(matches: AnyRouteMatch[], routeId?: string): AnyRouteMatch | null {
+  if (routeId !== undefined) return matches.find((match) => match.routeId === routeId) ?? null
+  return matches.at(-1) ?? null
 }
 
 export function readLoaderData(tree: ReactTree, routeId?: string): {routeId: string; data: unknown} {
   const router = requireRouter(tree)
   const match = pickMatch(router.state.matches, routeId)
   if (!match) return {routeId: routeId ?? '', data: null}
-  return {routeId: stringValue(match.routeId), data: tree.dehydrate(match.loaderData)}
+  return {routeId: match.routeId, data: tree.dehydrate(match.loaderData)}
 }
 
 export async function navigateTo(
@@ -291,7 +268,7 @@ export async function invalidateRouter(tree: ReactTree): Promise<{ok: true}> {
 export async function invalidateRouterMatch(tree: ReactTree, routeId: string): Promise<{ok: true}> {
   const router = requireRouter(tree)
   if (!Predicate.isFunction(router.invalidate)) throw new Error('TanStack router invalidate is not available')
-  await router.invalidate({filter: (match) => Predicate.isObject(match) && match.routeId === routeId})
+  await router.invalidate({filter: (match) => match.routeId === routeId})
   return {ok: true}
 }
 
