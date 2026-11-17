@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 
 export function selectDeep(selector: string): Element[] {
   return [document, ...openShadowRoots(document)].flatMap((root) => Array.from(root.querySelectorAll(selector)))

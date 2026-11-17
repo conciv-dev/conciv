@@ -136,7 +136,7 @@ import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
-import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
@@ -1059,6 +1059,12 @@ describe('local state files', () => {
     writeFileSync(tools, 'export const b = 2')
     expect(probe()).toMatchObject({stale: true, changed: ['@conciv/tools']})
     expect(probe().fingerprint).not.toBe(fresh.fingerprint)
+    expect(loadedModules()).toEqual(
+      expect.arrayContaining([
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve'))},
+        {label: '@conciv/serve', path: fileURLToPath(import.meta.resolve('@conciv/serve/rpc'))},
+      ]),
+    )
   })
 
   describe('home db reads', () => {
