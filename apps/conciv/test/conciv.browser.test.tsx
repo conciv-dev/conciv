@@ -7038,6 +7038,7 @@ describe('terminal panel', () => {
     await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(picker()).toBeDisabled()
     await expect.element(newTerminal()).toBeDisabled()
+    await expect.element(output('model busy-model')).toBeInTheDocument()
 
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
