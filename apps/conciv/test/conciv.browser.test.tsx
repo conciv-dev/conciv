@@ -8248,6 +8248,20 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
     await expect.element(sentCard('alone note 6')).toBeVisible()
     await expect.element(control('Show more')).toBeVisible()
+
+    const aloneId = await createSession(rpc)
+    harness.dispose()
+    harness.mountShell(`${tabPath(aloneId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach six notes alone'), {timeout: 15_000}).toBeVisible()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(sentCard('alone note 6')).toBeVisible()
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    await expect.element(page.getByLabelText('Session: Fixture note', {exact: true})).toBeInTheDocument()
+    await expect.element(page.getByLabelText(/^Session: The user referenced/)).not.toBeInTheDocument()
   }, 90_000)
 
   test('its notes come back to the composer as notes, with the typed text, whenever a draft is put back', async () => {
