@@ -1458,7 +1458,7 @@ describe('the page contracts another plugin reads', () => {
       await userEvent.click(leaf(), {force: true})
       const result = await picked
       expect(result?.source?.componentName).toBe(leafFrame?.fn)
-      expect(leafFrame?.fileName.endsWith(`/${result?.source?.filePath}`)).toBe(true)
+      expect(leafFrame?.fileName?.endsWith(`/${result?.source?.filePath}`)).toBe(true)
       expect(Number.isInteger(result?.source?.lineNumber)).toBe(true)
       expect(result?.source?.lineNumber).toBeGreaterThan(0)
       expect(result?.rect).toEqual({x, y, width, height})
