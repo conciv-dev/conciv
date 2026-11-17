@@ -14,6 +14,12 @@ import {
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
 
+const OkResult = z.looseObject({ok: z.literal(true)})
+
+export function resultOk(result: ToolCardProps['result']): boolean {
+  return OkResult.safeParse(parseResultPayload(result)).success
+}
+
 const ErrorPayloadSchema = z.object({message: z.string()}).loose()
 
 function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {
