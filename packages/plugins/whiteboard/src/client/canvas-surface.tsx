@@ -36,8 +36,6 @@ const escapeLeftToOthers = (event: KeyboardEvent): boolean =>
 
 type SurfaceProps = {
   client: Context['client']
-  ui: Context['ui']
-  dialogs: Context['dialogs']
   room: string
   catchUpRetryMs: number
   visible: boolean
@@ -46,16 +44,16 @@ type SurfaceProps = {
   onThreadChange: (open: boolean) => void
 }
 
-function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visible' | 'layer'>): JSX.Element {
+function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'>): JSX.Element {
   const model = useComments()
   return (
     <>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
       <Portal mount={props.layer}>
         <Show when={props.visible}>
-          <PinsLayer ui={props.ui} />
+          <PinsLayer />
         </Show>
-        <ThreadPopover ui={props.ui} dialogs={props.dialogs} visible={props.visible} />
+        <ThreadPopover visible={props.visible} />
       </Portal>
     </>
   )
@@ -79,13 +77,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
       <CommentsProvider room={() => props.room} onThreadChange={props.onThreadChange}>
-        <CanvasView
-          ui={props.ui}
-          dialogs={props.dialogs}
-          room={props.room}
-          visible={props.visible}
-          layer={props.layer}
-        />
+        <CanvasView room={props.room} visible={props.visible} layer={props.layer} />
       </CommentsProvider>
     </WhiteboardDbProvider>
   )

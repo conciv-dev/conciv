@@ -1,8 +1,7 @@
 import {type JSX} from 'solid-js'
-import type {Context} from '@conciv/plugin/experimental'
+import {usePlugin} from '@conciv/plugin/experimental'
 
 type DragPromptProps = {
-  ui: Context['ui']
   anchor: () => HTMLElement | undefined
   open: boolean
   onDisconnect: () => void
@@ -11,24 +10,25 @@ type DragPromptProps = {
 }
 
 export function DragPrompt(props: DragPromptProps): JSX.Element {
+  const ui = usePlugin().ui
   return (
-    <props.ui.Popover
+    <ui.Popover
       anchor={props.anchor}
       open={props.open}
       onOpenChange={(open) => open || props.onCancel()}
       label="Pin drift"
     >
       <div class="p-1 flex flex-col min-w-45 pointer-events-auto">
-        <props.ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onDisconnect()}>
+        <ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onDisconnect()}>
           Disconnect from source
-        </props.ui.Button>
-        <props.ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onKeep()}>
+        </ui.Button>
+        <ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onKeep()}>
           Keep link, accept drift
-        </props.ui.Button>
-        <props.ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onCancel()}>
+        </ui.Button>
+        <ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onCancel()}>
           Cancel
-        </props.ui.Button>
+        </ui.Button>
       </div>
-    </props.ui.Popover>
+    </ui.Popover>
   )
 }

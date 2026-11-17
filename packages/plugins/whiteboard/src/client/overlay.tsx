@@ -82,8 +82,6 @@ export function WhiteboardCanvas(props: {
               <Dynamic
                 component={loaded().default}
                 client={props.ctx.client}
-                ui={props.ctx.ui}
-                dialogs={props.ctx.dialogs}
                 room={current}
                 catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}
                 visible={props.visible}

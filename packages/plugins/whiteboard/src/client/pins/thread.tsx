@@ -1,10 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
-import type {Context} from '@conciv/plugin/experimental'
-import {useComments, type Comment} from '../model/comments.js'
-
-type Kit = {ui: Context['ui']; dialogs: Context['dialogs']}
+import {usePlugin} from '@conciv/plugin/experimental'
+import type {CommentRow} from '../../shared/rows.js'
+import {useComments} from '../model/comments.js'
 
 const TextPart = z.object({type: z.literal('text'), text: z.string()})
 const MentionPart = z.object({type: z.literal('mention'), id: z.string(), label: z.string()})
@@ -49,7 +48,8 @@ function Avatar(props: {name: string}): JSX.Element {
   )
 }
 
-function Part(props: {part: unknown; ui: Context['ui']}): JSX.Element {
+function Part(props: {part: unknown}): JSX.Element {
+  const ui = usePlugin().ui
   const text = (): string | undefined => {
     const parsed = TextPart.safeParse(props.part)
     return parsed.success ? parsed.data.text : undefined
@@ -66,7 +66,7 @@ function Part(props: {part: unknown; ui: Context['ui']}): JSX.Element {
     <Show
       when={text()}
       fallback={
-        <Show when={mention()} fallback={<props.ui.Code content={code()} language="json" />}>
+        <Show when={mention()} fallback={<ui.Code content={code()} language="json" />}>
           {(label) => (
             <span class="text-chat-sm text-chat-accent-hi px-1 rounded-chat-surface-sm bg-chat-accent-08 inline-flex items-center">
               @{label()}
@@ -80,7 +80,8 @@ function Part(props: {part: unknown; ui: Context['ui']}): JSX.Element {
   )
 }
 
-function CommentEntry(props: {comment: Comment; ui: Context['ui']}): JSX.Element {
+function CommentEntry(props: {comment: CommentRow}): JSX.Element {
+  const ui = usePlugin().ui
   const model = useComments()
   const parts = (): unknown[] => (Array.isArray(props.comment.parts) ? props.comment.parts : [])
   return (
@@ -93,7 +94,7 @@ function CommentEntry(props: {comment: Comment; ui: Context['ui']}): JSX.Element
         </time>
         <Show when={model.ownedBySelf(props.comment)}>
           <span class="ms-auto">
-            <props.ui.Menu
+            <ui.Menu
               label="Comment actions"
               icon="ellipsis"
               items={[{label: 'Remove', icon: 'trash', onSelect: () => model.removeComment(props.comment)}]}
@@ -102,26 +103,28 @@ function CommentEntry(props: {comment: Comment; ui: Context['ui']}): JSX.Element
         </Show>
       </div>
       <div class="ps-8 flex flex-col gap-1">
-        <For each={parts()}>{(part) => <Part part={part} ui={props.ui} />}</For>
+        <For each={parts()}>{(part) => <Part part={part} />}</For>
       </div>
     </article>
   )
 }
 
-function ThreadHeader(props: Kit & {root: Comment}): JSX.Element {
+function ThreadHeader(props: {root: CommentRow}): JSX.Element {
+  const ctx = usePlugin()
+  const ui = ctx.ui
   const model = useComments()
   const confirmDelete = (): void => {
     const root = props.root
-    props.dialogs.open((dialog) => (
-      <props.ui.Dialog
+    ctx.dialogs.open((dialog) => (
+      <ui.Dialog
         title="Delete this thread?"
         description="This removes the comment, all its replies, and its pin."
         footer={
           <>
-            <props.ui.Button variant="ghost" onClick={() => dialog.close()}>
+            <ui.Button variant="ghost" onClick={() => dialog.close()}>
               Cancel
-            </props.ui.Button>
-            <props.ui.Button
+            </ui.Button>
+            <ui.Button
               variant="danger"
               onClick={() => {
                 model.deleteThread(root)
@@ -129,7 +132,7 @@ function ThreadHeader(props: Kit & {root: Comment}): JSX.Element {
               }}
             >
               Delete
-            </props.ui.Button>
+            </ui.Button>
           </>
         }
       />
@@ -137,44 +140,40 @@ function ThreadHeader(props: Kit & {root: Comment}): JSX.Element {
   }
   return (
     <header class="px-2 py-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
-      <props.ui.Tooltip value="Previous thread" placement="bottom">
-        <props.ui.IconButton
+      <ui.Tooltip value="Previous thread" placement="bottom">
+        <ui.IconButton
           icon="chevron-left"
           label="Previous thread"
           variant="ghost-muted"
           disabled={!model.canStep(1)}
           onClick={() => model.stepThread(1)}
         />
-      </props.ui.Tooltip>
-      <props.ui.Tooltip value="Next thread" placement="bottom">
-        <props.ui.IconButton
+      </ui.Tooltip>
+      <ui.Tooltip value="Next thread" placement="bottom">
+        <ui.IconButton
           icon="chevron-right"
           label="Next thread"
           variant="ghost-muted"
           disabled={!model.canStep(-1)}
           onClick={() => model.stepThread(-1)}
         />
-      </props.ui.Tooltip>
+      </ui.Tooltip>
       <span class="flex-1" />
-      <props.ui.Tooltip value="Resolve thread" placement="bottom">
-        <props.ui.IconButton
-          icon="check"
-          label="Resolve thread"
-          variant="ghost-muted"
-          onClick={() => model.resolve()}
-        />
-      </props.ui.Tooltip>
-      <props.ui.Tooltip value="Delete thread" placement="bottom">
-        <props.ui.IconButton icon="trash" label="Delete thread" variant="ghost-muted" onClick={confirmDelete} />
-      </props.ui.Tooltip>
-      <props.ui.Tooltip value="Close thread" placement="bottom">
-        <props.ui.IconButton icon="x" label="Close thread" variant="ghost-muted" onClick={() => model.closeThread()} />
-      </props.ui.Tooltip>
+      <ui.Tooltip value="Resolve thread" placement="bottom">
+        <ui.IconButton icon="check" label="Resolve thread" variant="ghost-muted" onClick={() => model.resolve()} />
+      </ui.Tooltip>
+      <ui.Tooltip value="Delete thread" placement="bottom">
+        <ui.IconButton icon="trash" label="Delete thread" variant="ghost-muted" onClick={confirmDelete} />
+      </ui.Tooltip>
+      <ui.Tooltip value="Close thread" placement="bottom">
+        <ui.IconButton icon="x" label="Close thread" variant="ghost-muted" onClick={() => model.closeThread()} />
+      </ui.Tooltip>
     </header>
   )
 }
 
-function ThreadReply(props: {ui: Context['ui']}): JSX.Element {
+function ThreadReply(): JSX.Element {
+  const ui = usePlugin().ui
   const model = useComments()
   const [draft, setDraft] = createStore({text: ''})
   const send = (): void => {
@@ -186,7 +185,7 @@ function ThreadReply(props: {ui: Context['ui']}): JSX.Element {
   return (
     <div class="p-2 border-t border-chat-line-soft flex gap-2 items-center">
       <Avatar name="You" />
-      <props.ui.TextInput
+      <ui.TextInput
         class="flex-1"
         label="Reply"
         placeholder="Reply"
@@ -194,27 +193,25 @@ function ThreadReply(props: {ui: Context['ui']}): JSX.Element {
         onInput={(value) => setDraft('text', value)}
         onSubmit={send}
       />
-      <props.ui.Tooltip value="Send reply">
-        <props.ui.IconButton icon="arrow-up" label="Send reply" disabled={!draft.text.trim()} onClick={send} />
-      </props.ui.Tooltip>
+      <ui.Tooltip value="Send reply">
+        <ui.IconButton icon="arrow-up" label="Send reply" disabled={!draft.text.trim()} onClick={send} />
+      </ui.Tooltip>
     </div>
   )
 }
 
-function ThreadContent(props: Kit): JSX.Element {
+function ThreadContent(): JSX.Element {
   const model = useComments()
   return (
     <Show when={model.openRoot()}>
       {(root) => (
         <div class="flex flex-col max-h-full min-h-0">
-          <ThreadHeader ui={props.ui} dialogs={props.dialogs} root={root()} />
+          <ThreadHeader root={root()} />
           <div class="overscroll-contain flex-1 min-h-0 overflow-y-auto">
-            <For each={model.collectThread(root().cid)}>
-              {(comment) => <CommentEntry comment={comment} ui={props.ui} />}
-            </For>
+            <For each={model.collectThread(root().cid)}>{(comment) => <CommentEntry comment={comment} />}</For>
           </div>
           <Show when={root().cid} keyed>
-            <ThreadReply ui={props.ui} />
+            <ThreadReply />
           </Show>
         </div>
       )}
@@ -222,23 +219,24 @@ function ThreadContent(props: Kit): JSX.Element {
   )
 }
 
-export function ThreadPopover(props: Kit & {visible: boolean}): JSX.Element {
+export function ThreadPopover(props: {visible: boolean}): JSX.Element {
+  const ui = usePlugin().ui
   const model = useComments()
-  const [refs, setRefs] = createStore<{content?: HTMLDivElement}>({})
+  let content: HTMLDivElement | undefined
   return (
-    <props.ui.Popover
+    <ui.Popover
       anchor={model.openPinButton}
       open={props.visible && model.openRoot() !== undefined}
       onOpenChange={(open) => open || model.closeThread()}
       label="Comment thread"
-      initialFocus={() => refs.content?.querySelector('input') ?? undefined}
+      initialFocus={() => content?.querySelector('input') ?? undefined}
     >
       <div
-        ref={(element) => setRefs('content', element)}
+        ref={(element) => (content = element)}
         class="flex flex-col max-h-120 w-85 pointer-events-auto overflow-hidden"
       >
-        <ThreadContent ui={props.ui} dialogs={props.dialogs} />
+        <ThreadContent />
       </div>
-    </props.ui.Popover>
+    </ui.Popover>
   )
 }

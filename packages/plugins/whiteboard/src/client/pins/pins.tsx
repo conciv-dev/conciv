@@ -1,11 +1,12 @@
 import {For, onCleanup, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import type {Context} from '@conciv/plugin/experimental'
+import {usePlugin} from '@conciv/plugin/experimental'
 import {sceneToScreen, screenToScene, type Viewport} from '../../canvas/coords.js'
-import {useComments, type Comment, type Pin} from '../model/comments.js'
+import type {CommentRow, PinRow} from '../../shared/rows.js'
+import {useComments} from '../model/comments.js'
 import {DragPrompt} from './drag-prompt.js'
 
-type CommentStatus = Comment['status']
+type CommentStatus = CommentRow['status']
 
 const STATUS_FILL: Record<CommentStatus, string> = {
   open: 'bg-chat-accent',
@@ -23,20 +24,21 @@ const DRAG_THRESHOLD = 4
 type Drag = {cid: string; grabX: number; grabY: number; originX: number; originY: number; x: number; y: number}
 type Prompt = {cid: string; x: number; y: number; originX: number; originY: number}
 
-const authorLabel = (kind: Comment['authorKind'] | undefined): string =>
+const authorLabel = (kind: CommentRow['authorKind'] | undefined): string =>
   kind === 'ai' ? 'AI' : kind === 'human' ? 'Human' : 'Unknown'
 
-const pinLabel = (comment: Comment | undefined, status: CommentStatus, unread: boolean): string =>
+const pinLabel = (comment: CommentRow | undefined, status: CommentStatus, unread: boolean): string =>
   `${authorLabel(comment?.authorKind)} comment, ${status}${unread ? ', unread' : ''}`
 
 const movedPastThreshold = (drag: Drag): boolean =>
   Math.abs(drag.x - drag.originX) > DRAG_THRESHOLD || Math.abs(drag.y - drag.originY) > DRAG_THRESHOLD
 
-export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
+export function PinsLayer(): JSX.Element {
+  const ui = usePlugin().ui
   const model = useComments()
   const [state, setState] = createStore<{drag: Drag | null; prompt: Prompt | null}>({drag: null, prompt: null})
 
-  const scenePosition = (pin: Pin): {x: number; y: number} => {
+  const scenePosition = (pin: PinRow): {x: number; y: number} => {
     const held = [state.drag, state.prompt].find((entry) => entry?.cid === pin.cid)
     return held ? {x: held.x, y: held.y} : {x: pin.x, y: pin.y}
   }
@@ -59,7 +61,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
   const promptAnchor = (): HTMLButtonElement | undefined =>
     state.prompt ? model.pinButton(state.prompt.cid) : undefined
 
-  const grab = (view: Viewport, pin: Pin, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
+  const grab = (view: Viewport, pin: PinRow, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
     event.preventDefault()
     const down = screenToScene(view, event.clientX, event.clientY)
     setState('drag', {
@@ -74,7 +76,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  const follow = (view: Viewport, pin: Pin, event: PointerEvent): void => {
+  const follow = (view: Viewport, pin: PinRow, event: PointerEvent): void => {
     const drag = state.drag
     if (!drag || drag.cid !== pin.cid) return
     const scene = screenToScene(view, event.clientX, event.clientY)
@@ -82,13 +84,15 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
     if (movedPastThreshold(drag)) model.closeThread()
   }
 
-  const drop = (pin: Pin, comment: Comment | undefined): void => {
+  const release = (drag: Drag, comment: CommentRow | undefined): void => {
+    if (!movedPastThreshold(drag)) return model.toggleThread(drag.cid)
+    if (comment?.kind !== 'source-linked') return model.movePin(drag.cid, {x: drag.x, y: drag.y})
+    setState('prompt', {cid: drag.cid, x: drag.x, y: drag.y, originX: drag.originX, originY: drag.originY})
+  }
+  const drop = (pin: PinRow, comment: CommentRow | undefined): void => {
     const drag = state.drag
     setState('drag', null)
-    if (drag?.cid !== pin.cid) return
-    if (!movedPastThreshold(drag)) return model.toggleThread(pin.cid)
-    if (comment?.kind !== 'source-linked') return model.movePin(pin.cid, {x: drag.x, y: drag.y})
-    setState('prompt', {cid: pin.cid, x: drag.x, y: drag.y, originX: drag.originX, originY: drag.originY})
+    if (drag?.cid === pin.cid) release(drag, comment)
   }
 
   return (
@@ -97,7 +101,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
         {(view) => (
           <For each={model.pins()}>
             {(pin) => {
-              const comment = (): Comment | undefined => model.findRoot(pin.cid)
+              const comment = (): CommentRow | undefined => model.findRoot(pin.cid)
               const status = (): CommentStatus => comment()?.status ?? 'open'
               const label = (): string => pinLabel(comment(), status(), model.isUnread(pin.cid))
               const position = (): {x: number; y: number} => {
@@ -110,7 +114,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
                   class="left-0 top-0 absolute"
                   style={{transform: `translate(calc(${position().x}px - 50%), calc(${position().y}px - 50%))`}}
                 >
-                  <props.ui.Tooltip value={label()}>
+                  <ui.Tooltip value={label()}>
                     <button
                       type="button"
                       ref={(button) => model.registerPin(pin.cid, button)}
@@ -128,7 +132,7 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
                         </Show>
                       </span>
                     </button>
-                  </props.ui.Tooltip>
+                  </ui.Tooltip>
                 </div>
               )
             }}
@@ -136,7 +140,6 @@ export function PinsLayer(props: {ui: Context['ui']}): JSX.Element {
         )}
       </Show>
       <DragPrompt
-        ui={props.ui}
         anchor={promptAnchor}
         open={state.prompt !== null}
         onDisconnect={() => state.prompt && disconnect(state.prompt)}

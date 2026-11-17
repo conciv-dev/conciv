@@ -17,10 +17,11 @@ export default Plugin.define({
     const layer = document.createElement('div')
     const overlay: Slot = {
       at: 'page.overlay',
-      hides: false,
+      get hides() {
+        return canvas.threadOpen
+      },
       render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }
-    const threadHidesChat: Slot = {at: 'page.overlay', hides: true, render: () => undefined}
     const onThreadChange = (open: boolean): void => void setCanvas('threadOpen', open)
     const pill: ComposerPill = {
       id: 'whiteboard-open',
@@ -59,7 +60,5 @@ export default Plugin.define({
     ctx.add(ComposerPill, pill)
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (canvas.open ? overlay : undefined))
-    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
-    ctx.add(Slot, () => (canvas.open && canvas.threadOpen ? threadHidesChat : undefined))
   },
 })

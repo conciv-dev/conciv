@@ -1,16 +1,12 @@
 import {createContext, createMemo, onCleanup, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
+import {maxBy} from 'es-toolkit'
 import type {Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
 import {useWhiteboardDb} from '../db.js'
 
-export type Comment = CommentRow
-export type Pin = PinRow
-
 export type CommentsModel = ReturnType<typeof createCommentsModel>
-
-const newest = (dates: number[]): number | undefined => (dates.length === 0 ? undefined : Math.max(...dates))
 
 export function createCommentsModel(room: Accessor<string>, onThreadChange: (open: boolean) => void) {
   const db = useWhiteboardDb()
@@ -33,9 +29,9 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
     pinButtons: {},
   })
 
-  const findRoot = (cid: string): Comment | undefined => comments().find((comment) => comment.cid === cid)
+  const findRoot = (cid: string): CommentRow | undefined => comments().find((comment) => comment.cid === cid)
 
-  const collectThread = (cid: string): Comment[] => {
+  const collectThread = (cid: string): CommentRow[] => {
     const threadId = findRoot(cid)?.threadId
     if (!threadId) return []
     return comments()
@@ -47,22 +43,21 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
       .filter((comment) => !comment.parentId && comment.status !== 'resolved')
       .toSorted((left, right) => right.createdAt - left.createdAt),
   )
-  const aiLabel = (comment: Comment): string => comment.authorName ?? comment.authorModel ?? 'AI'
-  const humanLabel = (comment: Comment): string =>
+  const aiLabel = (comment: CommentRow): string => comment.authorName ?? comment.authorModel ?? 'AI'
+  const humanLabel = (comment: CommentRow): string =>
     comment.authorId && comment.authorId === accountId() ? 'You' : (comment.authorName ?? 'Human')
-  const displayName = (comment: Comment): string =>
+  const displayName = (comment: CommentRow): string =>
     comment.authorKind === 'ai' ? aiLabel(comment) : humanLabel(comment)
-  const ownedBySelf = (comment: Comment): boolean =>
+  const ownedBySelf = (comment: CommentRow): boolean =>
     comment.authorKind === 'human' && comment.authorId != null && comment.authorId === accountId()
 
   const readAt = (threadId: string): number | undefined =>
     reads().find((row) => row.threadId === threadId && row.accountId === accountId())?.lastReadAt
   const newestForeign = (threadId: string): number | undefined =>
-    newest(
-      comments()
-        .filter((comment) => comment.threadId === threadId && !ownedBySelf(comment))
-        .map((comment) => comment.createdAt),
-    )
+    maxBy(
+      comments().filter((comment) => comment.threadId === threadId && !ownedBySelf(comment)),
+      (comment) => comment.createdAt,
+    )?.createdAt
   const isUnread = (threadId: string): boolean => {
     const foreign = newestForeign(threadId)
     if (foreign === undefined) return false
@@ -98,7 +93,7 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
     if (stepIndex() >= 0 && target) openThread(target.cid)
   }
   const canStep = (delta: number): boolean => stepIndex() >= 0 && orderedThreads()[stepIndex() + delta] !== undefined
-  const openRoot = (): Comment | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
+  const openRoot = (): CommentRow | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
 
   const reply = (text: string): void => {
     const parent = openRoot()
@@ -138,7 +133,7 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
     })
     closeThread()
   }
-  const deleteThread = (parent: Comment): void => {
+  const deleteThread = (parent: CommentRow): void => {
     comments()
       .filter((comment) => comment.threadId === parent.threadId)
       .forEach((comment) => db.comments.delete(comment.id))
@@ -146,12 +141,12 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
     if (pin) db.pins.delete(pin.id)
     if (state.openCid === parent.cid) closeThread()
   }
-  const removeComment = (comment: Comment): void => {
+  const removeComment = (comment: CommentRow): void => {
     if (comment.cid === comment.threadId) return deleteThread(comment)
     db.comments.delete(comment.id)
   }
 
-  const movePin = (cid: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>): void => {
+  const movePin = (cid: string, patch: Partial<Pick<PinRow, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>): void => {
     const pin = pins().find((row) => row.cid === cid)
     if (pin) db.pins.update(pin.id, (draft) => void Object.assign(draft, patch))
   }
