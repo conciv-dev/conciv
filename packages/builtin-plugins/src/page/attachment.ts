@@ -24,8 +24,10 @@ const UNSUPPORTED: Outcome = {
     'This page does not support the requested page operation. Ask the user to reload the page so it runs the same conciv version as the engine, or use another operation.',
 }
 
-function attachmentFailure(cause: unknown): AttachmentOutcome {
+function attachmentFailure(cause: unknown): AttachmentOutcome | 'refused' {
   const type = RpcFailure.safeParse(cause).data?.type
+
+  if (type === 'unavailable') return 'refused'
 
   if (type === 'rpc.unavailable') return 'unavailable'
 
@@ -171,12 +173,12 @@ export async function openAttachment(input: {
     const reading = read(connected)
     const attached = connected.promise.then(() => rpc.attach({...attachment, version: 1}, options))
     const outcome = await Promise.race([attached, reading]).then(
-      (result): AttachmentOutcome =>
+      (result): AttachmentOutcome | 'refused' =>
         result === 'replaced' || result === 'unsupported' || result === 'born' ? result : 'closed',
       attachmentFailure,
     )
 
-    if (outcome === 'unavailable' && !status.attached) return {outcome: await reading, attached: false}
+    if (outcome === 'refused') return {outcome: status.attached ? 'closed' : await reading, attached: status.attached}
 
     return {outcome, attached: status.attached}
   } finally {
