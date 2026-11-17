@@ -1,4 +1,4 @@
-import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
+import {ErrorBoundary, Match, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
 import {z} from 'zod'
@@ -44,11 +44,10 @@ function readRoom(ctx: Context): string | undefined {
 export function WhiteboardNotices(props: {
   ctx: Context
   surface: Resource<SurfaceModule>
-  layer: (element: HTMLElement | undefined) => void
+  layer: HTMLElement
 }): JSX.Element {
-  onCleanup(() => props.layer(undefined))
   return (
-    <div ref={(element) => props.layer(element)} class="text-chat-text font-chat pointer-events-none inset-0 fixed">
+    <div class="text-chat-text font-chat pointer-events-none inset-0 fixed">
       <Switch>
         <Match when={props.surface.error} keyed>
           {(error) => <OverlayError toast={props.ctx.toast} error={error} />}
@@ -60,6 +59,7 @@ export function WhiteboardNotices(props: {
           <Notice>Start a chat session to open the whiteboard.</Notice>
         </Match>
       </Switch>
+      {props.layer}
     </div>
   )
 }
@@ -68,7 +68,7 @@ export function WhiteboardCanvas(props: {
   ctx: Context
   surface: Resource<SurfaceModule>
   visible: boolean
-  layer: HTMLElement | undefined
+  layer: HTMLElement
   close: () => void
 }): JSX.Element {
   const module = (): SurfaceModule | undefined => (props.surface.state === 'ready' ? props.surface() : undefined)

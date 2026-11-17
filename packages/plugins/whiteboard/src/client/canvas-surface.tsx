@@ -1,4 +1,4 @@
-import {onMount, Show, type JSX} from 'solid-js'
+import {onMount, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
@@ -39,7 +39,7 @@ type SurfaceProps = {
   room: string
   catchUpRetryMs: number
   visible: boolean
-  layer: HTMLElement | undefined
+  layer: HTMLElement
   close: () => void
 }
 
@@ -48,13 +48,9 @@ function CanvasView(props: SurfaceProps): JSX.Element {
   return (
     <>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
-      <Show when={props.layer}>
-        {(layer) => (
-          <Portal mount={layer()}>
-            <PinsLayer ui={props.ui} />
-          </Portal>
-        )}
-      </Show>
+      <Portal mount={props.layer}>
+        <PinsLayer ui={props.ui} />
+      </Portal>
     </>
   )
 }

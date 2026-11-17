@@ -489,6 +489,8 @@ describe('the comments of the whiteboard plugin', () => {
     })
     try {
       const page = widget.page
+      await rpcSocketFor(page).installed
+      await page.reload({waitUntil: 'domcontentloaded'})
       await page.setViewportSize({width: 1280, height: 800})
       await openChat(page)
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
