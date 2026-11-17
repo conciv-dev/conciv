@@ -67,8 +67,9 @@ export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard>
       (await store.updateReply(id, room, patch)) ?? error('NOT_FOUND', `no reply ${id} in this room`, notFound(id)),
     'canvasReplies.remove': async ({room, id}) => ({deleted: await store.deleteReply(id, room)}),
     'elements.list': ({room, scope}) => store.listElements(scope, room),
-    'elements.get': async ({room, scope, id}, {error}) =>
-      (await store.getElement(scope, room, id)) ?? error('NOT_FOUND', `no element ${id} in this room`, notFound(id)),
+    'elements.get': async ({room, scope, elementId}, {error}) =>
+      (await store.getElement(scope, room, elementId)) ??
+      error('NOT_FOUND', `no element ${elementId} in this room`, notFound(elementId)),
     'elements.upsert': async ({room, scope, row}, {error}) => {
       const outcome = await store.upsertElement(scope, {...row, room})
       if (outcome.ok) return outcome.row

@@ -671,6 +671,8 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent(typed)
     await expect.element(input()).not.toMatchTextContent(new RegExp(`${typed}[\\s\\S]*${typed}`))
     expect(turns().elements()).toHaveLength(0)
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
     await coreControl.releaseFault(refused)
     await userEvent.click(input())
@@ -684,6 +686,46 @@ describe('chat pane', () => {
     await expect.element(replies()).toBeVisible()
     expect(turns().elements()).toHaveLength(1)
     expect(replies().elements()).toHaveLength(1)
+
+    const refusedAgain = await faults.install({kind: 'chat-refused', status: 500})
+    const later = 'a later message the server refuses'
+    await userEvent.click(input())
+    await userEvent.keyboard(`${later}{Enter}`)
+    await expect.element(input()).toHaveTextContent(later)
+    await expect
+      .element(
+        page
+          .getByRole('alert')
+          .filter({hasText: 'Internal Server Error', has: page.getByRole('button', {name: 'Retry'})}),
+      )
+      .toBeVisible()
+    expect(turns().elements()).toHaveLength(1)
+    await coreControl.releaseFault(refusedAgain)
+  })
+
+  test('a turn the engine started that fails before any reply keeps the message and shows its error, not a failed load', async () => {
+    const {sessionId} = await newSession()
+    mountChatPane(sessionId)
+    const typed = 'a turn the agent never answers'
+    const failure = 'unexpected status 401 Unauthorized'
+    const runError = () =>
+      page.getByRole('alert').filter({hasText: failure, has: page.getByRole('button', {name: 'Retry'})})
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    const refresh = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
+    await coreControl.scriptTurn({toolCalls: [], text: ''})
+    await coreControl.scriptError(failure)
+
+    await userEvent.click(input())
+    await userEvent.keyboard(`${typed}{Enter}`)
+    await coreControl.awaitFaultPending(refresh, 1)
+    await expect.element(notifications()).toMatchTextContent(new RegExp(failure))
+    await expect.element(stopButton()).not.toBeInTheDocument()
+
+    await expect.element(page.getByRole('log').getByText(typed, {exact: true})).toBeVisible()
+    await expect.element(runError()).toBeVisible()
+    await expect.element(page.getByText('Couldn’t load this conversation')).not.toBeInTheDocument()
+    await expect.element(input()).not.toHaveTextContent(typed)
+    await coreControl.releaseFault(refresh)
   })
 
   test('a refused steer puts its text back first in the composer, leaves no turn, and a resend makes one', async () => {

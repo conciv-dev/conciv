@@ -80,7 +80,10 @@ test('full app boots with the configured harness and exposes its real model cata
   await expect(stop).toBeHidden({timeout: 90_000})
   const errorAlert = page.getByRole('alert').filter({has: page.getByRole('button', {name: 'Retry'})})
   const reply = page.locator('[data-role="assistant"]').last()
-  const outcome = ((await errorAlert.count()) > 0 ? await errorAlert.innerText() : await reply.innerText()).trim()
+  const readOutcome = async (): Promise<string> =>
+    ((await errorAlert.count()) > 0 ? await errorAlert.innerText() : await reply.innerText()).trim()
+  await expect.poll(readOutcome).toMatch(outcomePattern[projectName])
+  const outcome = await readOutcome()
   testInfo.annotations.push({type: 'turn-outcome', description: `${projectName}: ${outcome}`})
   expect(outcome).not.toBe('')
   expect(outcome).toMatch(outcomePattern[projectName])
