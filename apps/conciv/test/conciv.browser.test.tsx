@@ -5897,21 +5897,21 @@ describe('engine login', () => {
     expect(await createBrowserDraftStore().keys()).toEqual([])
   }, 30_000)
 
-  test('a draft save the engine refuses because this browser was revoked locks the panel and raises no unsaved notice, neither while locked out nor after the new code', async () => {
+  test('a draft save on the wire when a revoke locks the panel, refused once it reaches the engine, raises no unsaved notice, neither while locked out nor after the new code', async () => {
+    const UNAUTHORIZED_STATUS = 401
     const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
-    await faults.install({kind: 'detached-sockets'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
-
+    const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
     await userEvent.click(editor())
-    await userEvent.keyboard('typed as the revoke lands')
-    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
-    await userEvent.click(reloginNotice().getByRole('button', {name: 'Log in'}))
-    await expect.element(dialog()).toBeVisible()
-    await userEvent.keyboard('{Escape}')
-    await expect.element(dialog()).not.toBeInTheDocument()
+    await userEvent.keyboard('typed before the revoke')
+    await coreControl.awaitFaultPending(held, 1)
 
+    expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    const refusedSince = await coreControl.rpcMark()
+    await coreControl.releaseFault(held)
+    await coreControl.awaitRpcFailedCount(DRAFT_SET_PATH, UNAUTHORIZED_STATUS, 1, refusedSince)
     await expect.element(reloginNotice()).toBeVisible()
     await expect.element(unsaved).not.toBeInTheDocument()
 
