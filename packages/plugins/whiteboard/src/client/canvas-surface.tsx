@@ -31,7 +31,10 @@ export default function CanvasSurface(props: {
       window,
       'keydown',
       (event) => {
-        if (event.key === 'Escape' && props.visible && !insideExcalidraw(event)) props.close()
+        if (event.key !== 'Escape' || !props.visible || insideExcalidraw(event)) return
+        event.preventDefault()
+        event.stopPropagation()
+        props.close()
       },
       true,
     ),
