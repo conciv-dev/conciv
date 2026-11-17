@@ -53,6 +53,12 @@ async function pendingStays(store: Store, room: string, id: string): Promise<boo
   return row !== undefined
 }
 
+async function commitAnswer(store: Store, room: string, elements: number) {
+  if ((await store.listElements('draft', room)).length)
+    return {output: {committed: false as const, reason: COMMIT_NOT_SAVED}}
+  return {output: {committed: true as const, elements}}
+}
+
 function pngContent(dataBase64: string) {
   return [
     {type: 'text' as const, text: UNTRUSTED},
@@ -256,11 +262,7 @@ export function registerCanvas(tool: ToolDomain, store: Store, permission: Confi
         await store.insertPending({id, room: sessionId, kind: 'commit', stage: 'live', payload: {}})
         const deadline = Date.now() + COMMIT_DEADLINE_MS
         while (Date.now() < deadline) {
-          if (!(await pendingStays(store, sessionId, id))) {
-            if (!(await store.listElements('draft', sessionId)).length)
-              return {output: {committed: true as const, elements: drafts.length}}
-            return {output: {committed: false as const, reason: COMMIT_NOT_SAVED}}
-          }
+          if (!(await pendingStays(store, sessionId, id))) return commitAnswer(store, sessionId, drafts.length)
           await pause()
         }
         return fail({code: 'COMMIT_TIMEOUT', message: 'commit timed out: no canvas tab is connected to perform it'})
