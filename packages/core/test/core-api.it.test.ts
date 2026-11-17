@@ -8303,7 +8303,7 @@ describe('prefixed serving', () => {
   })
 })
 
-describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', () => {
+describe('session terminal', () => {
   const SHELL = ['--noprofile', '--norc', '-i']
   const BUSY_MODEL = 'busy-model'
   const terminalHarness = (id: string, pidFile: string) => {
