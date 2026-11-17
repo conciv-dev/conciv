@@ -5,7 +5,7 @@ import {createStore, unwrap} from 'solid-js/store'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {QueuedMessage} from '@conciv/protocol/chat-message-types'
-import type {AppData} from '../data/app-data.js'
+import {sessionCapturesCall, type AppData} from '../data/app-data.js'
 import {putBackInDraft, returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
 import {
   appendDraft,
@@ -41,7 +41,6 @@ export type LiveSessionsDeps = {
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
-  onRunEnd?: (sessionId: string) => void
 }
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>; dispose: () => void}
@@ -92,10 +91,11 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     const run = readRun(sessionId)
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
-    deps.onRunEnd?.(sessionId)
     void deps.appData.invalidateSession(sessionId)
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
-    void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
+    void deps.queryClient.invalidateQueries({
+      queryKey: deps.appData.utils.plugin.call.key({input: sessionCapturesCall(sessionId)}),
+    })
     if (lifecycle.phase === 'completed') deps.announce('conciv replied.')
   }
 

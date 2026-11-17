@@ -13,6 +13,7 @@ import {agentPath} from './engine-login.js'
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
+import {createConcivStateDir} from '@conciv/protocol/state-types'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
 import {requireHarness} from './lib/require-harness.js'
@@ -177,6 +178,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   if (!opts.harness) requireHarness(cfg.harness)
   const paths = statePaths(cfg.stateRoot)
+  createConcivStateDir(paths.dir)
 
   const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {
     cwd: opts.root,

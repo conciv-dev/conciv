@@ -6,6 +6,7 @@ import type {
   HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -23,7 +24,7 @@ import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 export type EmbedKit = CoreKit
 
 export async function bootEmbedKit(
-  opts: {
+  opts: Pick<ConcivConfig, 'permission' | 'permissions'> & {
     text?: string
     extensions?: AnyExtension[]
     models?: HarnessModel[]
@@ -40,6 +41,8 @@ export async function bootEmbedKit(
     commands: opts.commands,
     history: opts.history,
     imageInput: opts.imageInput,
+    permission: opts.permission,
+    permissions: opts.permissions,
   })
   return {
     ...kit,

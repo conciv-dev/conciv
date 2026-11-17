@@ -90,7 +90,7 @@ function needsFrame(input: {requested: CaptureInput; viewport: Size}): boolean {
 export async function captureStep(input: CaptureInput): Promise<ClientCapture | ViewportResult> {
   const viewport = {width: innerWidth, height: innerHeight}
   if (input.clear === true) removeCaptureFrame()
-  if (input.probe === true || input.clear === true) return viewport
+  if (input.probe === true || input.clear === true) return {...viewport, route: locationRoute(location)}
   if (needsFrame({requested: input, viewport})) {
     return captureInFrame({width: input.width ?? viewport.width, height: input.height ?? viewport.height})
   }

@@ -19,14 +19,14 @@ import {createChatSession, deleteSession, newSessionId, renameSession} from '../
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
-import type {PageQueues} from '../page/page-queue.js'
+import type {PagePlugin} from '../page/page-plugin.js'
 
 type SessionKeyDeps = {
   chat: ChatContext
   runtime: Pick<CoreRuntime, 'forSession'>
   search: Pick<ReturnType<typeof createSessionSearch>, 'retitle' | 'pages' | 'listed'>
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
-  queues: Pick<PageQueues, 'cancelSession'>
+  queues: Pick<PagePlugin, 'cancelSession'>
 }
 
 type SessionInfo = Effect.Success<ReturnType<Session.Interface['get']>>
@@ -178,8 +178,7 @@ export function provideSessions(started: () => SessionKeyDeps) {
           if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
           const sessionId = supplied ?? newSessionId()
           const choice = yield* createdModel(chat, input, sessionId)
-          const scope = {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
-          yield* Effect.promise(() => createChatSession(chat.db, scope, sessionId))
+          yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
           yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))

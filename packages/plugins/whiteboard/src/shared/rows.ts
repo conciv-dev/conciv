@@ -25,7 +25,7 @@ export const replyRow = z.object({
   id: z.string(),
   room: z.string(),
   requestId: z.string(),
-  kind: z.enum(['export']),
+  kind: z.enum(['export', 'draw']),
   payload: json,
 })
 

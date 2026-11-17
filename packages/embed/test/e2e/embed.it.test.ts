@@ -1,4 +1,4 @@
-import {expect, test, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
+import {expect, test, type Browser, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
 import {
   bootEmbedKit,
   type EmbedKit,
@@ -40,15 +40,18 @@ import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
-import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
+import {CHAT_WS_PATH, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
+import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
-import type {DraftRow} from '@conciv/contract'
+import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
+import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
+import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
@@ -569,11 +572,9 @@ test.describe('element capture', () => {
 
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
-  let sessionId: string
 
   test.beforeAll(async () => {
     kit = await bootEmbedKit()
-    sessionId = await kit.session()
     host = await serveWidgetHost(() =>
       hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
     )
@@ -590,6 +591,39 @@ test.describe('element capture', () => {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
   }
 
+  async function storedCaptures(capturesSessionId: string): Promise<SessionCaptures> {
+    return SessionCapturesSchema.parse(
+      await kit.rpc.plugin.call({
+        rpcId: 'experimental.page',
+        method: 'captures.list',
+        input: {sessionId: capturesSessionId},
+      }),
+    )
+  }
+
+  async function openSessionPanel(page: Page, label: string): Promise<string> {
+    const fresh = await kit.rpc.sessions.create()
+    const title = `${label} ${fresh.sessionId.slice(-12)}`
+    await kit.rpc.sessions.rename({sessionId: fresh.sessionId, title})
+    await openHostPage(page)
+    await openPanel(page)
+    await switchToSessionByTitle(page, title)
+    return fresh.sessionId
+  }
+
+  async function runInChat(page: Page, chatSessionId: string, typescriptCode: string): Promise<string> {
+    const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {typescriptCode})
+    await sendAndSettle(page, 'run the page tool')
+    const {messages} = await kit.rpc.chat.hydrate({sessionId: chatSessionId})
+    return messages
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+        ),
+      )
+      .join('\n')
+  }
+
   async function sendAndSettle(page: Page, message: string): Promise<void> {
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -599,9 +633,13 @@ test.describe('element capture', () => {
   test.describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
     test('never lets a password value reach the stored capture or the tool result', async ({page}) => {
       test.setTimeout(90_000)
-      await openHostPage(page)
-      const result = await kit.callTool('page_fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
-      const stored: SessionCaptures = await kit.rpc.captures.list({sessionId})
+      const chatSessionId = await openSessionPanel(page, 'password fill')
+      const result = await runInChat(
+        page,
+        chatSessionId,
+        "return await external_page_fill({selector: '#secret', value: 'typed by the agent'})",
+      )
+      const stored = await storedCaptures(chatSessionId)
       const secretCaptures = stored.captures.filter((row) => row.capture.descriptor.selectorPath.includes('secret'))
       expect(secretCaptures.map((row) => row.kind).toSorted()).toEqual(['after'])
       for (const row of secretCaptures) expect(JSON.stringify(row.capture)).not.toContain(PASSWORD)
@@ -611,8 +649,9 @@ test.describe('element capture', () => {
 
     test('hands the harness a result with no capture in it', async ({page}) => {
       test.setTimeout(90_000)
-      await openHostPage(page)
-      const result = await kit.callTool('page_click', {selector: '#cta'}, sessionId)
+      const chatSessionId = await openSessionPanel(page, 'harness result')
+      const result = await runInChat(page, chatSessionId, "return await external_page_click({selector: '#cta'})")
+      expect(result).toContain('"success":true')
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -620,10 +659,11 @@ test.describe('element capture', () => {
 
     test('takes no capture for a read verb', async ({page}) => {
       test.setTimeout(90_000)
-      await openHostPage(page)
-      const before: SessionCaptures = await kit.rpc.captures.list({sessionId})
-      await kit.callTool('page_text', {selector: '#cta'}, sessionId)
-      const after: SessionCaptures = await kit.rpc.captures.list({sessionId})
+      const chatSessionId = await openSessionPanel(page, 'read verb')
+      const before = await storedCaptures(chatSessionId)
+      const result = await runInChat(page, chatSessionId, "return await external_page_text({selector: '#cta'})")
+      expect(result).toContain('"success":true')
+      const after = await storedCaptures(chatSessionId)
       expect(rowIdentities(after)).toEqual(rowIdentities(before))
     })
 
@@ -650,6 +690,75 @@ test.describe('element capture', () => {
       await expect(stepTarget).toBeVisible({timeout: 30_000})
       await dialog.getByRole('button', {name: 'Script'}).click()
       await expect(dialog.getByText(/external_page_settext/).first()).toBeVisible({timeout: 30_000})
+    })
+
+    test('names the element a click through real code mode touched in its session card step, not its selector', async ({
+      page,
+    }) => {
+      test.setTimeout(180_000)
+      const fresh = await kit.rpc.sessions.create()
+      const title = `code mode click ${fresh.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: fresh.sessionId, title})
+      await openHostPage(page)
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+      kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: "await external_page_click({selector: '#cta'})",
+      })
+      await sendAndSettle(page, 'click the button through code mode')
+      const dialog = page.getByRole('dialog', {name: 'conciv chat agent'})
+      await expect(dialog.getByText('Send it', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(dialog.getByText('#cta', {exact: true})).toHaveCount(0)
+    })
+  })
+
+  test.describe('the agent mask while a page action runs', () => {
+    test('shows once, under the panel: Stop and the composer take clicks, Tab and Escape keep their panel meaning', async ({
+      page,
+    }) => {
+      await openSessionPanel(page, 'agent mask')
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const mask = page.getByRole('status', {name: 'Agent is using this page'})
+      const firstStop = panel.getByRole('separator', {name: 'Resize chat height'})
+      const lastStop = panel.getByRole('tab', {name: 'Chat'})
+      kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: "await external_page_click({selector: '#cta'})",
+      })
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially('click the button')
+        await page.keyboard.press('Enter')
+        await expect(mask).toBeVisible()
+        await expect(mask).toHaveCount(1)
+        await expect(stop).toBeVisible()
+
+        await stop.click({trial: true})
+        await composer.click()
+        await expect(composer).toBeFocused()
+        await page.keyboard.press('Tab')
+        await expect(composer).not.toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(composer).toBeFocused()
+
+        await lastStop.click()
+        await expect(lastStop).toBeFocused()
+        await page.keyboard.press('Tab')
+        await expect(firstStop).toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(lastStop).toBeFocused()
+        await composer.click()
+        await expect(composer).toBeFocused()
+
+        await page.keyboard.press('Escape')
+        await expect(stop).toBeHidden()
+        await expect(mask).toBeHidden()
+        await expect(panel).toBeVisible()
+      } finally {
+        kit.harness.script.release()
+      }
     })
   })
 })
@@ -1300,14 +1409,22 @@ test.describe('page dispatch parity', () => {
 
   const ChangesSchema = z.array(z.object({verb: z.string()}).loose())
 
-  async function expectClickDispatched(kit: EmbedKit, page: Page): Promise<void> {
-    await expect(kit.rpc.registry.call({name: 'page_click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
-      ok: true,
+  async function pageCall(kit: EmbedKit, method: string, input: Record<string, unknown> = {}): Promise<unknown> {
+    return kit.rpc.plugin.call({rpcId: 'experimental.page', method, input: {sessionId: await kit.session(), ...input}})
+  }
+
+  async function pageRun(kit: EmbedKit, {type, ...input}: {type: string} & Record<string, unknown>): Promise<unknown> {
+    const sessionId = await kit.session()
+    return makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call({
+      name: `page_${type}`,
+      input,
     })
-    await expect(kit.rpc.registry.call({name: 'page_text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
-      {text: 'clicked'},
-    )
-    const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+  }
+
+  async function expectClickDispatched(kit: EmbedKit, page: Page): Promise<void> {
+    await expect(pageRun(kit, {type: 'click', selector: '#press-btn'})).resolves.toMatchObject({ok: true})
+    await expect(pageRun(kit, {type: 'text', selector: '#clicked-flag'})).resolves.toMatchObject({text: 'clicked'})
+    const changes = ChangesSchema.parse(await pageCall(kit, 'changes'))
     expect(changes.map((entry) => entry.verb)).toContain('page_click')
     await expect(page.getByRole('img', {name: "Agent's cursor"})).toHaveCount(1, {timeout: 10_000})
   }
@@ -1324,6 +1441,11 @@ test.describe('page dispatch parity', () => {
       )
       page = await browser.newPage()
       await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      const title = `page dispatch ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
     })
 
     test.afterAll(async () => {
@@ -1332,8 +1454,37 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor, and two clicks on the page stop the agent', async () => {
       await expectClickDispatched(kit, page)
+      const agentMask = page.getByRole('status', {name: 'Agent is using this page'})
+      await agentMask.click()
+      await agentMask.click()
+      await expect(agentMask).toBeHidden()
+    })
+
+    test('page reload: a page_reload run from the chat resolves on initiation and the page really reloads', async () => {
+      const sessionId = await kit.session()
+      await page.getByRole('button', {name: 'Press target'}).click()
+      await expect(page.getByText('clicked', {exact: true})).toBeVisible()
+      const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: 'return await external_page_reload({})',
+      })
+      await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('reload the page')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expect(page.getByText('clicked', {exact: true})).toBeHidden()
+      await expect(page.getByRole('button', {name: 'Press target'})).toBeVisible()
+      await expect
+        .poll(async () => {
+          const {messages} = await kit.rpc.chat.hydrate({sessionId})
+          return messages
+            .flatMap((message) =>
+              message.parts.flatMap((part) =>
+                part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+              ),
+            )
+            .join('\n')
+        })
+        .toContain('"initiated":true')
     })
   })
 
@@ -1353,7 +1504,10 @@ test.describe('page dispatch parity', () => {
         window.concivTestHandle = window.ConcivHandle.makeConnectHandle()
         void window.concivTestHandle.mount(el)
       })
-      await completeConnectHandshake(page, kit.base, await kit.session())
+      const shown = await kit.session()
+      const title = `page dispatch ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await completeConnectHandshake(page, kit.base, shown, () => switchToSessionByTitle(page, title))
     })
 
     test.afterAll(async () => {
@@ -1367,25 +1521,280 @@ test.describe('page dispatch parity', () => {
     })
 
     test('page_effect enable shows the highlight inspector the widget registers, disable reverts, toggle flips', async () => {
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'enable', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expect(pageRun(kit, {type: 'effect', action: 'enable', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: true,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'disable', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expect(pageRun(kit, {type: 'effect', action: 'disable', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: false,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'toggle', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expect(pageRun(kit, {type: 'effect', action: 'toggle', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: true,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page_effect', input: {action: 'toggle', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expect(pageRun(kit, {type: 'effect', action: 'toggle', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: false,
+      })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
+    })
+  })
+
+  test.describe('a tab open on a session when it is deleted', () => {
+    const AttachedSchema = z.array(z.string())
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+    let title: string
+    let wire: RpcObserver
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      wire = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      title = `deleted while open ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('a click after the delete is refused on the wire, and after a reload the id is in no list', async () => {
+      const deleted = await kit.session()
+      const attach = {
+        path: ['plugin', 'call'],
+        input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: deleted}},
+      }
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      const ended = wire.completed(attach)
+      await kit.rpc.sessions.delete({sessionId: deleted})
+      await ended
+      const since = wire.mark()
+      await page.getByText('page-bus-ok').click()
+      const refused = await wire.completed({...attach, since})
+      expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`})
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(page.getByRole('region', {name: 'Deleted session'}).getByRole('status')).toHaveText(
+        'This session was deleted.',
+        {timeout: 30_000},
+      )
+      const attached = AttachedSchema.parse(
+        await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
+      )
+      expect(attached).not.toContain(deleted)
+      const {sessions} = await kit.rpc.sessions.list(undefined)
+      expect(sessions.map((session) => session.id)).not.toContain(deleted)
+    })
+  })
+
+  test.describe('a tab open on a new session before its first send', () => {
+    const AttachedSchema = z.array(z.string())
+    const draft = SessionId.parse(`conciv_${crypto.randomUUID()}`)
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+    let wire: RpcObserver
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      await kit.rpc.navigation.set({entries: [{href: `/panel/${draft}?open=true`}], index: 0, updatedAt: Date.now()})
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      wire = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await openPagePlaneHost(page, kit, host.base)
+      await openPanel(page)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('is refused and makes no session, then attaches once the first send makes it, and a page tool in the next run reads the page', async () => {
+      const attachedNow = () =>
+        kit.rpc.plugin
+          .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
+          .then((attached) => AttachedSchema.parse(attached))
+      const refused = await wire.completed({
+        path: ['plugin', 'call'],
+        input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: draft}},
+      })
+      expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`})
+      expect((await kit.rpc.sessions.list(undefined)).sessions.map((session) => session.id)).not.toContain(draft)
+      expect(await attachedNow()).not.toContain(draft)
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      const firstRunFinished = async () => {
+        const {activeRun, lastRun} = await kit.rpc.chat.hydrate({sessionId: draft})
+        return activeRun === null && lastRun !== null && lastRun.finishedAt !== null
+      }
+      await composer.fill('start the session')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expect.poll(attachedNow).toContain(draft)
+      await expect.poll(firstRunFinished, {timeout: 30_000}).toBe(true)
+      const toolCallId = kit.harness.script.scriptToolCall('execute_typescript', {
+        typescriptCode: "return await external_page_text({selector: '#probe'})",
+      })
+      await composer.fill('read the probe')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      const toolResults = async () => {
+        const {messages} = await kit.rpc.chat.hydrate({sessionId: draft})
+        return messages
+          .flatMap((message) =>
+            message.parts.flatMap((part) =>
+              part.type === 'tool-result' && part.toolCallId === toolCallId ? [part.content] : [],
+            ),
+          )
+          .join('\n')
+      }
+      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
+    })
+  })
+
+  test.describe('conciv tools page eval in a headless run, with nobody at the tab', () => {
+    const conciv = fileURLToPath(import.meta.resolve('@conciv/cli/bin'))
+    const EVAL = "document.getElementById('probe').textContent = 'evaluated'"
+    type HeadlessTab = {kit: EmbedKit; host: {base: string; close: () => Promise<void>}; page: Page}
+    let refused: HeadlessTab
+    let allowed: HeadlessTab
+
+    const openTab = async (browser: Browser, options: Parameters<typeof bootEmbedKit>[0]): Promise<HeadlessTab> => {
+      const kit = await bootEmbedKit(options)
+      const host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      const page = await browser.newPage()
+      await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      const title = `headless eval ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+      return {kit, host, page}
+    }
+
+    const closeTab = async ({kit, host, page}: HeadlessTab) => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    }
+
+    const toolsPage = async (kit: EmbedKit, args: string[], sessionId?: string) => {
+      const {port, pathname} = new URL(kit.base)
+      const env = {
+        CONCIV_HOME: kit.home,
+        CONCIV_SESSION_ID: sessionId ?? (await kit.session()),
+        CONCIV_PORT: port,
+        CONCIV_TOKEN: pathname.replace(/^\/t\//, ''),
+      }
+      return new Promise<{code: unknown; document: unknown}>((resolve) =>
+        execFile(process.execPath, [conciv, 'tools', 'page', ...args], {cwd: kit.stateRoot, env}, (error, stdout) =>
+          resolve({code: error === null ? 0 : error.code, document: JSON.parse(stdout)}),
+        ),
+      )
+    }
+
+    const askRefusal = {
+      code: 1,
+      document: {
+        ok: false,
+        error: {
+          kind: 'user',
+          code: 'APPROVAL_DENIED',
+          message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+        },
+      },
+    }
+    let denied: EmbedKit
+    let blanket: EmbedKit
+    let otherAction: EmbedKit
+
+    test.beforeAll(async ({browser}) => {
+      refused = await openTab(browser, {})
+      allowed = await openTab(browser, {permission: {page_eval: 'allow'}})
+      denied = await bootEmbedKit({permission: {page_eval: 'deny'}})
+      blanket = await bootEmbedKit({permission: 'allow'})
+      otherAction = await bootEmbedKit({permission: {page_click: 'allow'}})
+    })
+
+    test.afterAll(async () => {
+      await closeTab(refused)
+      await closeTab(allowed)
+      await denied.cleanup()
+      await blanket.cleanup()
+      await otherAction.cleanup()
+    })
+
+    test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
+      const {kit, page} = refused
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
+        code: 1,
+        document: {
+          ok: false,
+          error: {
+            kind: 'user',
+            code: 'APPROVAL_DENIED',
+            message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+          },
+        },
+      })
+      await expect(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+    })
+
+    test('with page_eval allowed in the host config, eval runs with no click and the page shows its effect', async () => {
+      const {kit, page} = allowed
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
+        code: 0,
+        document: {ok: true, data: {result: 'evaluated'}},
+      })
+      await expect(page.getByText('evaluated', {exact: true})).toBeVisible()
+    })
+
+    test('only a page_eval rule decides eval, and an allowed eval still needs an attached tab', async () => {
+      expect.soft(await toolsPage(denied, ['eval', '--code', EVAL])).toEqual({
+        code: 1,
+        document: {
+          ok: false,
+          error: {kind: 'user', code: 'APPROVAL_DENIED', message: 'Permission denied: page_eval'},
+        },
+      })
+      expect.soft(await toolsPage(blanket, ['eval', '--code', EVAL])).toEqual(askRefusal)
+      expect.soft(await toolsPage(otherAction, ['eval', '--code', EVAL])).toEqual(askRefusal)
+      const {sessionId} = await allowed.kit.rpc.sessions.create()
+      expect.soft(await toolsPage(allowed.kit, ['eval', '--code', EVAL], sessionId)).toEqual({
+        code: 1,
+        document: {
+          ok: false,
+          error: {
+            kind: 'user',
+            code: 'NO_PAGE_CLIENT',
+            message: 'page_eval: the page is showing another session; switch back to this session to use page tools',
+          },
+        },
+      })
     })
   })
 })

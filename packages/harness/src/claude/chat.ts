@@ -3,7 +3,7 @@ import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {claudeCode} from '@conciv/ai/server'
-import {concivStateDir} from '@conciv/protocol/state-types'
+import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import {FILE_REF_PREFIX, type HarnessChatDeps, type HarnessImage} from '@conciv/protocol/harness-types'
 import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
@@ -23,7 +23,7 @@ const IMAGE_EXT: Record<string, string> = {
 }
 
 export function imageRefs(images: HarnessImage[], cwd: string): string {
-  const tmpDir = join(concivStateDir(cwd), 'tmp')
+  const tmpDir = join(createConcivStateDir(concivStateDir(cwd)), 'tmp')
   mkdirSync(tmpDir, {recursive: true})
   return images
     .map((img) => {

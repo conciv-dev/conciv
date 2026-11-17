@@ -57,7 +57,6 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
-    "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

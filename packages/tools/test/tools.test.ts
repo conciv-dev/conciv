@@ -4,8 +4,7 @@ import {createToolRegistry} from '@conciv/extension/registry'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL, builtinToolNames} from '../src/builtins.js'
-import {concivExtensionsToolDef} from '../src/extensions-tool.js'
-import {concivSandboxTools} from '../src/tools.js'
+import {concivSandboxToolNames, concivSandboxTools} from '../src/tools.js'
 
 describe('builtins', () => {
   const testRequest = {sessionId: SessionId.parse('conciv_test'), agentId: 'conciv_test', model: null}
@@ -18,7 +17,10 @@ describe('builtins', () => {
   function registryWith(bundler: BundlerBridge | undefined) {
     const registry = createToolRegistry()
     for (const tool of BUILTIN_SERVER_TOOLS)
-      registry.register(tool, {owner: 'a test registrant', context: {bundler: () => bundler}})
+      registry.register(tool, {
+        owner: 'a test registrant',
+        context: {bundler: () => bundler, hotUpdate: () => Promise.reject(new Error('no page is connected'))},
+      })
     registry.register(BUILTIN_TABS_TOOL, {
       owner: 'a test registrant',
       context: {listTabs: async () => ({tabs: [], unreachable: []})},
@@ -62,20 +64,19 @@ describe('builtins', () => {
 
     it('waits for the page to apply the hot update after a reload', async () => {
       const asked: unknown[] = []
-      const registry = createToolRegistry({
-        pageCaller: async (tool, input) => {
-          asked.push({name: tool.name, input})
-          return {supported: true, applied: true, waitedMs: 42, error: null}
-        },
-      })
+      const registry = createToolRegistry()
+      const hotUpdate = async (sessionId: string, timeout: number) => {
+        asked.push({sessionId, timeout})
+        return {applied: true, waitedMs: 42}
+      }
       for (const tool of BUILTIN_SERVER_TOOLS)
-        registry.register(tool, {owner: 'a test registrant', context: {bundler: () => fakeBundler()}})
+        registry.register(tool, {owner: 'a test registrant', context: {bundler: () => fakeBundler(), hotUpdate}})
       await expect(registry.call('server_reload', {file: 'src/a.ts'}, {request: testRequest})).resolves.toEqual({
         ok: true,
         applied: true,
         waitedMs: 42,
       })
-      expect(asked).toEqual([{name: 'page_hmr', input: {timeout: 5000}}])
+      expect(asked).toEqual([{sessionId: testRequest.sessionId, timeout: 5000}])
     })
 
     it('still reloads when no page is connected to wait on', async () => {
@@ -98,12 +99,12 @@ describe('builtins', () => {
   })
 })
 
-describe('extensions tool', () => {
-  describe('conciv_extensions tool description', () => {
-    it('tells the authoring agent to add @conciv/ui-kit-chat to package.json for composer scaffolds', () => {
-      expect(concivExtensionsToolDef.description).toContain('@conciv/ui-kit-chat')
-      expect(concivExtensionsToolDef.description).toContain('package.json')
-    })
+describe('sandbox tools', () => {
+  it('offers conciv_ui as the only conciv sandbox tool', () => {
+    expect(concivSandboxToolNames()).toEqual(['conciv_ui'])
+    expect(concivSandboxTools({askUi: async () => ({answered: true, value: 'dark'})}).map((tool) => tool.name)).toEqual(
+      ['conciv_ui'],
+    )
   })
 })
 

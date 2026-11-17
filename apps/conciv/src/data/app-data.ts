@@ -11,6 +11,7 @@ import {
 import {Conciv, type ConcivClient} from '@conciv/plugin'
 import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
+import {Definition as PageDefinition} from '@conciv/plugin-page/rpc'
 import {DraftRowSchema, SessionMetaSchema, type DraftRow, type RpcClient, type SessionMeta} from '@conciv/contract'
 
 const PendingAttachmentSchema = z.object({
@@ -50,6 +51,10 @@ const SETTLED: readonly string[] = ['error', 'success']
 function retriableDraftSave(failureCount: number, error: unknown): boolean {
   if (failureCount >= DRAFT_SAVE_RETRIES) return false
   return isReachabilityError(error) || (error instanceof ORPCError && error.code === 'INTERNAL_SERVER_ERROR')
+}
+
+export function sessionCapturesCall(sessionId: string) {
+  return {rpcId: PageDefinition.id, method: 'captures.list', input: {sessionId}}
 }
 
 export type AppData = {
