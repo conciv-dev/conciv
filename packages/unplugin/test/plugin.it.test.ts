@@ -208,7 +208,7 @@ describe('webpack and rspack', () => {
   type TestCompiler = {watch: () => Watch; run: () => Promise<string[]>; close: () => Promise<void>}
 
   const bundlers = ['webpack', 'rspack'] as const
-  const GENERATED_CLIENT = join('.conciv', 'widget-client.gen.js')
+  const generatedClient = (port: number) => join('.conciv', `widget-client.${String(port)}.gen.js`)
   const webpackCache = tempDir('conciv-webpack-cache-')
 
   function writeFixtureApp(root: string): string {
@@ -405,8 +405,8 @@ describe('webpack and rspack', () => {
         const root = testTempDir(`conciv-${bundler}-default-port-`)
         writeFixtureApp(root)
         const compiler = testCompiler(bundler, root, 'development', {stateRoot: root})
-        expect(await compiler.run()).toContain(join(root, GENERATED_CLIENT))
-        const generated = await readFile(join(root, GENERATED_CLIENT), 'utf8')
+        expect(await compiler.run()).toContain(join(root, generatedClient(CONCIV_DEFAULT_PORT)))
+        const generated = await readFile(join(root, generatedClient(CONCIV_DEFAULT_PORT)), 'utf8')
         expect(generated).not.toContain(fileURLToPath(new URL('..', import.meta.url)))
         expect(generated).not.toContain('/dist/')
         expect(generated).toContain(`startConcivWidget(${CONCIV_DEFAULT_PORT})`)
@@ -464,7 +464,7 @@ describe('webpack and rspack', () => {
         const files = await watch.next()
         expect(files).toContain(join(root, 'index.js'))
         expect(files.some((file) => file.includes('widget-client'))).toBe(false)
-        expect(existsSync(join(root, GENERATED_CLIENT))).toBe(false)
+        expect(existsSync(join(root, generatedClient(port)))).toBe(false)
         expect(await health(port)).toBe(false)
         expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
         await watch.close()
@@ -522,7 +522,7 @@ describe('webpack and rspack', () => {
         const files = await watch.next()
         expect(files).toContain(join(root, 'index.js'))
         expect(files.some((file) => file.includes('widget-client'))).toBe(false)
-        expect(existsSync(join(root, GENERATED_CLIENT))).toBe(false)
+        expect(existsSync(join(root, generatedClient(port)))).toBe(false)
         expect(await health(port)).toBe(true)
         expect(JSON.parse(readFileSync(join(concivStateDir(root), 'server.json'), 'utf8'))).toMatchObject({port})
         await watch.close()

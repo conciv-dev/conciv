@@ -19,7 +19,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `app-extensions.d.ts` - declares the `@conciv/app-extensions` module.
 - `widget-start.ts:isEnginePort(port)` - true for an integer from 1 to 65535; the starter and `writeWidgetClient` both check the port with it.
 - `widget-start.ts:startConcivWidget(port)` - the browser starter shared by the Next.js widget entry and the webpack/rspack client entry; a build entry of its own (`dist/core/widget-start.js`).
-- `bundler-widget.ts:writeWidgetClient(root, port)` - throws a `conciv:` error unless `port` is an integer in 1..65535, then writes `.conciv/widget-client.gen.js`, whose text is constant except the port: it imports the starter by the fixed specifier `@conciv/widget-start` (`nextjs.ts:WIDGET_START_SPECIFIER`, aliased by the webpack and rspack hooks), exports an empty `entries` (the `@conciv/app-extensions` the starter imports) and calls `startConcivWidget(<port>)` with the port as an integer literal. `widgetStarterPath()` returns the `dist/core/widget-start.js` path the alias points at.
+- `bundler-widget.ts:writeWidgetClient(root, port)` - throws a `conciv:` error unless `port` is an integer in 1..65535, then writes `.conciv/widget-client.<port>.gen.js` (named for the port, so compilers that share a context with different ports each keep their own client), whose text is constant except the port: it imports the starter by the fixed specifier `@conciv/widget-start` (`nextjs.ts:WIDGET_START_SPECIFIER`, aliased by the webpack and rspack hooks), exports an empty `entries` (the `@conciv/app-extensions` the starter imports) and calls `startConcivWidget(<port>)` with the port as an integer literal. `widgetStarterPath()` returns the `dist/core/widget-start.js` path the alias points at.
 
 ## Invariants
 
@@ -37,7 +37,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `boot.ts:makeEngineBooter` - starts the engine with a child env of `process.env` plus the shimmed `PATH` and `CONCIV_PORT`.
 - `bin-shim.ts:installConcivBinShim` - creates `<stateDir>/bin` and symlinks `conciv` to `@conciv/cli/bin`.
 - `extensions-entry.ts:writeExtensionsEntry` - creates `.conciv/` and writes `extensions-client.gen.tsx`.
-- `bundler-widget.ts:writeWidgetClient` - creates `.conciv/` and writes `widget-client.gen.js`.
+- `bundler-widget.ts:writeWidgetClient` - creates `.conciv/` and writes `widget-client.<port>.gen.js`.
 - `extensions-watch.ts:watchExtensionsDir` - a `chokidar` `watch` on `<root>/conciv`; logs watcher errors.
 - `vite.ts` - `configureServer` boots the engine, mounts the widget middleware and passes the engine the `makeViteBridge` bundler bridge from `@conciv/extension/vite`; Vite's `closeServer` hook stops the engine that server booted, so `server.close()` (and a restart) settles only once the engine has stopped. A failed stop is logged, never thrown into Vite.
 - `nextjs.ts:withConciv` - writes missing keys into `process.env`.
