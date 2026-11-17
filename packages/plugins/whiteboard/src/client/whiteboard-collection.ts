@@ -37,7 +37,15 @@ const buildSync = <Row extends object>(deps: {
         if (row) params.write({type: params.collection.has(key) ? 'update' : 'insert', value: row})
         params.commit()
       }
+      const load = async (replace: boolean): Promise<void> => {
+        const loaded = await loadRows()
+        params.begin()
+        if (replace) params.truncate()
+        loaded.forEach((row) => params.write({type: 'insert', value: row}))
+        params.commit()
+      }
       const apply = async (message: ChangeMessage): Promise<void> => {
+        if (message.type === 'reload') return load(true)
         if (message.type === 'delete') return write(message.key, undefined)
         write(message.key, await readMissing(readRow(message.key)))
       }
@@ -49,10 +57,7 @@ const buildSync = <Row extends object>(deps: {
       const off = feed.subscribe(table, (message) => void queue.addItem(message))
       const start = async (): Promise<void> => {
         await feed.opened()
-        const loaded = await loadRows()
-        params.begin()
-        loaded.forEach((row) => params.write({type: 'insert', value: row}))
-        params.commit()
+        await load(false)
       }
       void start()
         .catch((error: unknown) =>

@@ -21,6 +21,7 @@ const insideExcalidraw = (event: KeyboardEvent): boolean => {
 export default function CanvasSurface(props: {
   client: Context['client']
   room: string
+  catchUpRetryMs: number
   visible: boolean
   close: () => void
 }): JSX.Element {
@@ -36,7 +37,7 @@ export default function CanvasSurface(props: {
     ),
   )
   return (
-    <WhiteboardDbProvider client={props.client} room={props.room}>
+    <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} />
     </WhiteboardDbProvider>
   )

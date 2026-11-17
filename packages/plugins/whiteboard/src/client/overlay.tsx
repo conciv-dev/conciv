@@ -1,6 +1,7 @@
 import {ErrorBoundary, Match, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
+import {z} from 'zod'
 
 export type SurfaceModule = typeof import('./canvas-surface.js')
 
@@ -29,6 +30,11 @@ function CanvasFailed(props: {toast: Context['toast']; error: unknown}): JSX.Ele
   onMount(() => reportFailure(props.toast, props.error))
   return undefined
 }
+
+const CATCH_UP_RETRY_MS = 1_000
+const CanvasOptions = z.object({
+  catchUpRetryMs: z.number().positive().default(CATCH_UP_RETRY_MS).catch(CATCH_UP_RETRY_MS),
+})
 
 function readRoom(ctx: Context): string | undefined {
   const session = ctx.sessions.current()
@@ -70,6 +76,7 @@ export function WhiteboardCanvas(props: {
                 component={loaded().default}
                 client={props.ctx.client}
                 room={current}
+                catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}
                 visible={props.visible}
                 close={props.close}
               />

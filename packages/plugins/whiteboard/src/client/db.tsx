@@ -8,9 +8,9 @@ import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboar
 
 const withoutRoom = <Row extends {room: string}>({room: _room, ...row}: Row): Omit<Row, 'room'> => row
 
-export function createWhiteboardDb(client: Context['client'], room: string) {
+export function createWhiteboardDb(client: Context['client'], room: string, catchUpRetryMs: number) {
   const whiteboard = client.rpc(Whiteboard)
-  const feed = createChangeFeed(client, room)
+  const feed = createChangeFeed(client, room, {retryMs: catchUpRetryMs})
 
   const canvasPending = createCollection(
     whiteboardCollectionOptions<PendingRow, Omit<PendingRow, 'room'>>({
@@ -80,9 +80,10 @@ const WhiteboardDbContext = createContext<WhiteboardDb>()
 export function WhiteboardDbProvider(props: {
   client: Context['client']
   room: string
+  catchUpRetryMs: number
   children: JSX.Element
 }): JSX.Element {
-  const db = untrack(() => createWhiteboardDb(props.client, props.room))
+  const db = untrack(() => createWhiteboardDb(props.client, props.room, props.catchUpRetryMs))
   onCleanup(() => db.dispose())
   return <WhiteboardDbContext.Provider value={db}>{props.children}</WhiteboardDbContext.Provider>
 }

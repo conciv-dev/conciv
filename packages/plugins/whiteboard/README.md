@@ -20,7 +20,9 @@ What enabling it gives today:
   closes it. The open canvas converts what the agent draws (`canvas_draw`, `canvas_svg`, `canvas_diagram`,
   `canvas_connect`), replays a commit onto the shared canvas and renders PNG exports. Every open tab follows the
   board through the `changed` event, fetching each changed row by id, and catches up through `since` after a
-  reconnect.
+  reconnect. It reads its position before it lists the rows, a failed `since` is read again with an exponential
+  wait that starts at the `catchUpRetryMs` option (1000 ms by default), and when the event stream itself fails the
+  tab reads its position and lists every table again.
 
 What it does not give yet: comments, pins, threads, the inbox, cursors and the "Comment on an element" pill in the
 widget. Once opened, the canvas stays mounted and hidden after Escape, so the agent keeps drawing into it. In a tab
@@ -29,6 +31,10 @@ Excalidraw loads its fonts from esm.sh, as the old whiteboard does.
 
 ```ts
 plugins: ['@conciv/plugin-whiteboard']
+```
+
+```ts
+plugins: [['@conciv/plugin-whiteboard', {catchUpRetryMs: 500}]]
 ```
 
 The database lives in the project the engine runs in, at `.conciv/whiteboard/whiteboard.db`. The `stateRoot` option
