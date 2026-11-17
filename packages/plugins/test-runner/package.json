@@ -1,7 +1,7 @@
 {
   "name": "@conciv/plugin-test-runner",
   "version": "0.0.22",
-  "description": "The conciv test-runner plugin: runs the project's tests (vitest, playwright) from code mode and streams live results over plugin RPC.",
+  "description": "The conciv test-runner plugin: runs the project's tests (vitest, playwright), streams each run live in the Tests tab and shows the finished run as a card in the thread.",
   "keywords": [
     "conciv",
     "conciv-plugin",
