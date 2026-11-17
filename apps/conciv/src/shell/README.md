@@ -7,6 +7,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 ## Interface
 
 - `ShellFab`, `FabRobot` (`fab.tsx`, `fab-robot.tsx`): launcher button controlling `#conciv-chat-panel`; the robot's binary digits avoid the open panel's frame (`avoid`), going around its nearer free side
+- `StandingNotice({message, action, tone})` (`notices.tsx`): a notice rendered in place, not a toast; danger-toned with `role="alert"` by default, warn-toned with `role="status"` when `tone` is `'warn'`; the locked and outdated-engine notices (`engine-notice.tsx`) and the pane's unsaved draft notice (`pane/draft-unsaved-notice.tsx`) use it
 - `createNoticeStore()`, `NoticeStore`, `Notify`, `NoticeOptions`, `NoticeHandle`, `NoticeIcon`, `NoticeTone` (`notices.tsx`): toaster with `notify` (message, optional description, lucide icon, duration, loading state, one `action` or several `actions`; returns a handle whose `dismiss` removes that notice), `remove`, `Toaster`
 - `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`): one store, provided in `routes/__root.tsx`; the panel, quick terminal and picture-in-picture layouts each draw the surface, and a standing notice a layout raises is removed when that layout unmounts
 - `EngineStaleNotice`, `EngineUnreachableNotice` (`engine-notice.tsx`): standing danger notices driven by `meta.engine` and reachability

@@ -95,10 +95,11 @@ function NoticeIconSlot(props: {type: string | undefined; icon: NoticeIcon | und
   )
 }
 
-export function StandingNotice(props: {message: string; action?: NoticeAction}): JSX.Element {
+export function StandingNotice(props: {message: string; action?: NoticeAction; tone?: 'warn' | 'danger'}): JSX.Element {
+  const warn = (): boolean => props.tone === 'warn'
   return (
     <div class="p-2.5">
-      <div class={`${NOTICE} ${TONE_DANGER}`} role="alert">
+      <div class={`${NOTICE} ${warn() ? TONE_WARN : TONE_DANGER}`} role={warn() ? 'status' : 'alert'}>
         <p class="flex-1 min-w-0 m-0">{props.message}</p>
         <Show when={props.action}>
           {(action) => (

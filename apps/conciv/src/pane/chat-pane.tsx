@@ -460,6 +460,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                         </Show>
                       )}
                     </Show>
+                    <DraftUnsavedNotice
+                      sessionId={sessionId}
+                      retry={draftStorage.retry}
+                      keptHere={draftStorage.keptHere}
+                    />
                   </Show>
                 </Suspense>
               </Thread.Viewport>
@@ -473,7 +478,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <SessionComposerPills pane={pluginSession} />
                   <ExtensionSurface name="footer" instances={instances} />
                 </div>
-                <DraftUnsavedNotice sessionId={sessionId} retry={draftStorage.retry} keptHere={draftStorage.keptHere} />
                 <QueueStrip queue={chat.queue()} />
                 <Suspense>
                   <PaneComposer
