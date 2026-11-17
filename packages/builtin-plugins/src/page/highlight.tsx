@@ -98,37 +98,39 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
   const glide = matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : GLIDE
 
   return (
-    <div aria-hidden="true" class="contents">
-      <div data-conciv-capture class="cursor-crosshair pointer-events-auto inset-0 fixed" />
-      <div class={HINT}>
+    <>
+      <div aria-hidden="true" data-conciv-capture class="cursor-crosshair pointer-events-auto inset-0 fixed" />
+      <div role="status" class={HINT}>
         Inspecting · click to open source · <Kbd>Esc</Kbd> to exit
       </div>
-      <Show when={state.hovered}>
-        {(hovered) => (
-          <>
-            <div
-              class={`${BOX}  ${glide}`}
-              style={{
-                transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px)`,
-                width: `${hovered().rect.width}px`,
-                height: `${hovered().rect.height}px`,
-              }}
-            />
-            <div
-              class={`${LABEL}  ${glide}`}
-              style={{transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px) translateY(-100%)`}}
-            >
-              <span class="text-[0.6875rem] text-chat-accent font-chat-mono font-semibold">{`<${hovered().tag}>`}</span>
-              <Show when={hovered().file}>
-                <span class="text-[0.6875rem] text-chat-text-2 font-chat-mono text-ellipsis overflow-hidden">
-                  {hovered().file}
-                </span>
-              </Show>
-            </div>
-          </>
-        )}
-      </Show>
-    </div>
+      <div aria-hidden="true" class="contents">
+        <Show when={state.hovered}>
+          {(hovered) => (
+            <>
+              <div
+                class={`${BOX}  ${glide}`}
+                style={{
+                  transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px)`,
+                  width: `${hovered().rect.width}px`,
+                  height: `${hovered().rect.height}px`,
+                }}
+              />
+              <div
+                class={`${LABEL}  ${glide}`}
+                style={{transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px) translateY(-100%)`}}
+              >
+                <span class="text-[0.6875rem] text-chat-accent font-chat-mono font-semibold">{`<${hovered().tag}>`}</span>
+                <Show when={hovered().file}>
+                  <span class="text-[0.6875rem] text-chat-text-2 font-chat-mono text-ellipsis overflow-hidden">
+                    {hovered().file}
+                  </span>
+                </Show>
+              </div>
+            </>
+          )}
+        </Show>
+      </div>
+    </>
   )
 }
 
