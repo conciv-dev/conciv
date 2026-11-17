@@ -8,6 +8,12 @@ Private. The browser parts of conciv's built-in plugins, given to the widget fro
 The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
 
+The `highlight` page effect (`src/page/highlight.tsx`) draws in the plugin's `ctx.overlay` layer, under the widget: the
+overlay brings the widget sheet (reset, tokens, host rules) and the color scheme, and the plugin adds this package's own
+utilities (`virtual:uno.css?inline`) as the overlay's `styles`, since the widget sheet does not scan this package. The
+capture layer opts back into pointer events, and `elementAt` skips the widget root and every `[data-conciv-overlay]`
+host. The layer sits under the widget, so the box is not drawn over the open panel.
+
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
 says. Inside a chat turn the `eval` tool asks the user first.

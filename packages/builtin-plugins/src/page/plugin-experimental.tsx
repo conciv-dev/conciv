@@ -1,5 +1,5 @@
-import {createComponent, onCleanup, type Accessor, type JSX} from 'solid-js'
-import {Portal} from 'solid-js/web'
+import {onCleanup} from 'solid-js'
+import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition, type Tab} from '@conciv/plugin-page/rpc'
@@ -27,22 +27,6 @@ function woken(signal: AbortSignal) {
     document.addEventListener('visibilitychange', () => resolve(), options)
     signal.addEventListener('abort', () => resolve(), {once: true})
   })
-}
-
-function HighlightHost(props: {
-  mode: Accessor<'light' | 'dark'>
-  mount: (root: ShadowRoot) => () => void
-}): JSX.Element {
-  return (
-    <Portal mount={document.body}>
-      <div
-        data-conciv-effects
-        classList={{light: props.mode() === 'light', dark: props.mode() === 'dark'}}
-        style={{position: 'fixed', 'z-index': '2147483000'}}
-        ref={(element) => onCleanup(props.mount(element.attachShadow({mode: 'open'})))}
-      />
-    </Portal>
-  )
 }
 
 export default Plugin.define({
@@ -157,7 +141,7 @@ export default Plugin.define({
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
     ctx.add(PageEffect, highlight.effect)
-    createComponent(HighlightHost, {mode: () => ctx.appearance.mode(), mount: highlight.mount})
+    onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
 
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
