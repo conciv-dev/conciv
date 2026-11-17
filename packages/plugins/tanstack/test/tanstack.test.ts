@@ -216,6 +216,19 @@ describe('the tanstack plugin before a page attaches', () => {
     expect(discovered.tools.map((tool) => tool.name)).toEqual(ENGINE_TOOLS.map((name) => `external_${name}`))
     expect(await pluginCall(kit, 'tabs.list', {sessionId: session})).toEqual({tabs: [], focusedTabId: null})
   })
+
+  it('refuses an attach to a session that was never created or was deleted, in the words page uses', async () => {
+    const kit = await bootProject({})
+    const attach = (sessionId: string) =>
+      pluginCall(kit, 'attach', {sessionId, connectionId: crypto.randomUUID(), version: 1})
+
+    const never = 'conciv_never_created'
+    await expect(attach(never)).rejects.toThrow(`session "${never}" does not exist`)
+
+    const deleted = (await kit.rpc.sessions.create()).sessionId
+    await kit.rpc.sessions.delete({sessionId: deleted})
+    await expect(attach(deleted)).rejects.toThrow(`session "${deleted}" does not exist`)
+  })
 })
 
 const ControlSchema = z.object({
