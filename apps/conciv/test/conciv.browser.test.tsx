@@ -5933,7 +5933,7 @@ describe('engine login', () => {
 
     await locked().click()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
-    await expect.element(editor(), {timeout: 8000}).toHaveTextContent(new RegExp(`^${ENGINE_HELD}$`))
+    await expect.element(editor(), {timeout: 8000}).toMatchTextContent(new RegExp(`^${ENGINE_HELD}$`))
   }, 40_000)
 
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
@@ -5977,7 +5977,7 @@ describe('engine login', () => {
     await locked().click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
-    await expect.element(editor(), {timeout: 8000}).toHaveTextContent(new RegExp(`^${ENGINE_HELD}$`))
+    await expect.element(editor(), {timeout: 8000}).toMatchTextContent(new RegExp(`^${ENGINE_HELD}$`))
   }, 40_000)
 
   test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
