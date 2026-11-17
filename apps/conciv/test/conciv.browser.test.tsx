@@ -4728,6 +4728,31 @@ describe('panel view tabs', () => {
       await expect.element(composer()).not.toHaveTextContent(SENT)
       expect(await rpc.drafts.get({sessionId})).toBeNull()
     }, 30_000)
+
+    test('a session deleted while its panel is open keeps no local draft, even after more typing and closing the panel, and gets no row', async () => {
+      const TYPED = 'typed before the delete'
+      const rpc = coreRpc(coreBase())
+      const sessionId = await openNewPanel()
+      await userEvent.click(composer())
+      await userEvent.keyboard(TYPED)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: TYPED})
+
+      await rpc.sessions.delete({sessionId})
+      await expect.poll(() => readLocalCopy(sessionId)).toBeNull()
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+      onTestFinished(() => {
+        vi.useRealTimers()
+      })
+      await userEvent.keyboard(' and after it')
+      await vi.advanceTimersByTimeAsync(1000)
+      await userEvent.keyboard('!')
+      harness.dispose()
+      vi.useRealTimers()
+
+      expect(await readLocalCopy(sessionId)).toBeNull()
+      expect(await rpc.drafts.get({sessionId})).toBeNull()
+    }, 30_000)
   })
 
   describe('a crashing extension', () => {
