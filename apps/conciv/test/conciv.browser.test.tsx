@@ -912,6 +912,28 @@ describe('chat pane', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
   })
 
+  test('a first send while the marker rows still load keeps the conversation, the composer and the prompt on screen', async () => {
+    const {sessionId} = await newSession()
+    const markersHeld = await faults.install({kind: 'gate', path: ['markers', 'list']})
+    mountChatPane(sessionId)
+    await coreControl.awaitFaultPending(markersHeld, 1)
+
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('the first words')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('the first words', {exact: true})).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
+
+    await coreControl.releaseFault(markersHeld)
+    await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    await expect.element(page.getByText('the first words', {exact: true})).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+  })
+
   test('clicking stop with a queue stops the run and puts the queued messages, in order, back in the composer unsent', async () => {
     const {rpc, sessionId} = await startStreamingRun()
 
@@ -3255,7 +3277,8 @@ describe('page session card', () => {
     await expect.element(page.getByText('Edited the page'), {timeout: 5000}).toBeVisible()
     await expect.element(page.getByText('The profile form is filled in.')).toBeVisible()
     expect(page.getByText('Edited the page').elements()).toHaveLength(1)
-    await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('listitem').getByText('Typed', {exact: true}).nth(1)).toBeVisible()
+    expect(page.getByText('Typed', {exact: true}).elements()).toHaveLength(2)
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
   })
 
@@ -3283,7 +3306,7 @@ describe('page session card', () => {
     keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
     const turn = await sendTurn(core(), sessionId, 'save the form')
     try {
-      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByRole('status').getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
     } finally {
       await coreControl.releaseResults()
       await turn.awaitTurnEnd()
@@ -3305,7 +3328,7 @@ describe('page session card', () => {
       await coreControl.awaitFaultPending(resolving, 1)
       await userEvent.click(page.getByRole('textbox', {name: 'Message the conciv agent'}))
       await faults.releaseAll()
-      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByRole('status').getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
       await userEvent.click(page.getByText('save the form', {exact: true}))
       await expect.element(page.getByText('save the form', {exact: true})).toBeVisible()
     } finally {
@@ -8352,6 +8375,15 @@ module.exports = {default: {stores: {
     },
   })
   ctx.add(Panel, {
+    id: 'people',
+    region: 'pane',
+    list: (input) => (input.open.includes('people') ? [{id: 'people', title: 'Fixture people'}] : []),
+    render: () => [
+      createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
+      createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
+    ],
+  })
+  ctx.add(Panel, {
     id: 'opened',
     region: 'pane',
     list: (input) => (input.open.includes('opened') ? [opened] : []),
@@ -8602,6 +8634,19 @@ module.exports = {default: {setup(ctx) {
       await userEvent.keyboard('{Escape}')
       await expect.element(dialog('Comment actions')).not.toBeInTheDocument()
       await expect.element(control('Comment actions')).toHaveFocus()
+    })
+  })
+
+  describe('its ctx.ui.RelativeTime and ctx.ui.Avatar', () => {
+    test('show how long ago a time was and a person by name with their initials when there is no image', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
+      await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture people').click()
+
+      await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
+      await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
+      await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
     })
   })
 

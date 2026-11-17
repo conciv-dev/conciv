@@ -185,9 +185,9 @@ export const BornOpen: Story = {
     await expect(canvas.getByText('Accept the terms of service')).toBeVisible()
     await expect(canvas.getByText('localhost:3000/form')).toBeVisible()
     await expect(canvas.getAllByRole('listitem')).toHaveLength(4)
-    await expect(canvas.getAllByText('fill')).toHaveLength(2)
-    await expect(canvas.getByText('select')).toBeVisible()
-    await expect(canvas.getByText('check')).toBeVisible()
+    await expect(canvas.getAllByText('Typed')).toHaveLength(2)
+    await expect(canvas.getByText('Selected')).toBeVisible()
+    await expect(canvas.getByText('Checked a box')).toBeVisible()
     await expect(canvas.getByText('“Ada Lovelace”')).toBeVisible()
     await expect(canvas.getByText('“ada@example.com”')).toBeVisible()
   },
