@@ -100,7 +100,7 @@ import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
-import pageServerExtension from '@conciv/extension-page/server'
+import {grabExpander} from './page/grab-expander.js'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
@@ -444,12 +444,8 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
-export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
-  return [pageServerExtension, ...(extensions ?? [])]
-}
-
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
-  const extensions = withBuiltinExtensions(opts.extensions)
+  const extensions = opts.extensions ?? []
 
   assertUniqueExtensionSlugs(extensions)
 
@@ -565,7 +561,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const mountResults = await Promise.all(extensions.map((extension) => mountExtension(extension)))
   const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
-  const attachmentExpanders: AttachmentExpanders = {}
+  const attachmentExpanders: AttachmentExpanders = {...grabExpander}
   for (const entry of mounted)
     for (const [mime, expand] of entry.attachmentExpanders) attachmentExpanders[mime] ??= expand
   const extensionContexts: Record<string, unknown> = Object.fromEntries(
