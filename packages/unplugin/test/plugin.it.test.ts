@@ -1,5 +1,5 @@
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {execFileSync} from 'node:child_process'
+import {execFile, execFileSync} from 'node:child_process'
 import {cp, readdir, readFile, realpath, writeFile} from 'node:fs/promises'
 import {
   appendFileSync,
@@ -17,8 +17,10 @@ import {createServer as createHttpServer, type Server, type ServerResponse} from
 import {createServer as createNetServer} from 'node:net'
 import {dirname, isAbsolute, join, relative} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {promisify} from 'node:util'
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest'
 import getPort from 'get-port'
+import {z} from 'zod'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import webpack from 'webpack'
@@ -707,6 +709,92 @@ describe('webpack and rspack', () => {
         expect(await health(port)).toBe(false)
         await expect(watch.close()).resolves.toBeUndefined()
         await expect(compiler.close()).resolves.toBeUndefined()
+      },
+      60_000,
+    )
+  })
+
+  describe('a development watch that cannot add the widget', () => {
+    const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+    const RESULT_PREFIX = 'watch-once '
+    const WATCH_ONCE = `
+const [bundler, root, port, stateRoot] = process.argv.slice(1)
+const plugin = (await import('@conciv/unplugin/' + bundler)).default
+const config = {
+  context: root,
+  mode: 'development',
+  entry: './index.js',
+  devtool: false,
+  output: {path: root + '/public', filename: 'main.js'},
+  infrastructureLogging: {level: 'none'},
+  plugins: [plugin({port: Number(port), stateRoot})],
+}
+const compiler = bundler === 'webpack' ? (await import('webpack')).default(config) : (await import('@rspack/core')).rspack(config)
+const watching = compiler.watch({}, async (error, stats) => {
+  const engine = await fetch('http://127.0.0.1:' + port + '/health').then((response) => response.ok, () => false)
+  const result = {
+    error: error ? error.message : null,
+    failed: stats ? stats.hasErrors() : true,
+    files: stats ? Array.from(stats.compilation.fileDependencies) : [],
+    engine,
+  }
+  watching.close(() => compiler.close(() => console.log('${RESULT_PREFIX}' + JSON.stringify(result))))
+})
+`
+    const WatchOnceSchema = z.object({
+      error: z.string().nullable(),
+      failed: z.boolean(),
+      files: z.array(z.string()),
+      engine: z.boolean(),
+    })
+    const runNode = promisify(execFile)
+
+    async function watchOnce(bundler: Bundler, root: string, port: number, stateRoot: string) {
+      const {stdout, stderr} = await runNode(
+        process.execPath,
+        ['--input-type=module', '-e', WATCH_ONCE, bundler, root, String(port), stateRoot],
+        {cwd: PACKAGE_ROOT, encoding: 'utf8', timeout: 50_000},
+      )
+      const line = stdout.split('\n').find((entry) => entry.startsWith(RESULT_PREFIX))
+      if (line === undefined) throw new Error(`the watch printed no result\n${stdout}\n${stderr}`)
+      const logged = stderr.split('\n').filter((entry) => entry.startsWith('conciv:'))
+      return {...WatchOnceSchema.parse(JSON.parse(line.slice(RESULT_PREFIX.length))), logged}
+    }
+
+    it.each(bundlers)(
+      '%s builds without the widget and still starts the engine when .conciv is a file',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-conciv-file-`)
+        writeFixtureApp(root)
+        writeFileSync(join(root, '.conciv'), '')
+        const stateRoot = testTempDir(`conciv-${bundler}-conciv-file-state-`)
+        const port = await getPort()
+        const run = await watchOnce(bundler, root, port, stateRoot)
+        expect(run.error).toBeNull()
+        expect(run.failed).toBe(false)
+        expect(run.files).toContain(join(root, 'index.js'))
+        expect(run.files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(run.engine).toBe(true)
+        const clientLine = run.logged.find((entry) => entry.includes(join(root, generatedClient(port))))
+        expect(clientLine).toContain('EEXIST')
+      },
+      60_000,
+    )
+
+    it.each(bundlers)(
+      '%s builds without the widget when the port is not an engine port',
+      async (bundler) => {
+        const root = testTempDir(`conciv-${bundler}-bad-port-`)
+        writeFixtureApp(root)
+        const run = await watchOnce(bundler, root, 70_000, root)
+        expect(run.error).toBeNull()
+        expect(run.failed).toBe(false)
+        expect(run.files).toContain(join(root, 'index.js'))
+        expect(run.files.some((file) => file.includes('widget-client'))).toBe(false)
+        expect(existsSync(join(root, generatedClient(70_000)))).toBe(false)
+        expect(run.logged).toContain(
+          'conciv: the engine port must be an integer from 1 to 65535, got 70000, so the page gets no widget',
+        )
       },
       60_000,
     )
