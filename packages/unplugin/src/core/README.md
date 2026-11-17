@@ -25,7 +25,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `boot.ts:makeEngineBooter` - the engine boots once; later calls return the same promise.
 - `nextjs.ts:registerWith` - returns early in production or unless `NEXT_RUNTIME === 'nodejs'`.
 - `nextjs.ts:registerWith` - known limit: conciv never stops the engine that `register()` boots, since neither Next.js instrumentation nor the `withConciv` config wrapper offers a close hook; the engine ends with the process.
-- `nextjs.ts:withConciv` - with `enabled: false` returns the config with only `env` and `serverExternalPackages`; existing `process.env` keys are not overwritten.
+- `nextjs.ts:withConciv` - with `enabled: false` returns the config with only `env` and `serverExternalPackages`; existing `process.env` keys are not overwritten. With `widget: false` it sets no `NEXT_PUBLIC_CONCIV_PORT`, so `nextjs-widget.ts` mounts nothing; `CONCIV_OPTIONS` still reaches `register()` and the engine boots.
 - `extensions-entry.ts` - throws when two extension files resolve to the same extensionless specifier.
 - `open-editor.ts:makeOpenInEditor` - a relative path is opened only when it resolves inside `root`.
 - `vite.ts:makeViteHook` - when the resolved config is not `enabled`, `configureServer` boots nothing, `transformIndexHtml` adds no tags and `transform` returns null.
