@@ -61,7 +61,12 @@ function ResetPage() {
   return createElement('h1', null, 'Reset password')
 }
 
-const resetRoute = createRoute({getParentRoute: () => rootRoute, path: '/reset/$token', component: ResetPage})
+const resetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reset/$token',
+  loaderDeps: ({search}) => search,
+  component: ResetPage,
+})
 
 const refusingRoute = createRoute({
   getParentRoute: () => rootRoute,

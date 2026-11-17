@@ -149,6 +149,7 @@ describe('the tanstack plugin in the page', () => {
       search: {token: '[redacted]'},
     })
     expect(reset.location.search).toContain('redacted')
+    expect(reset.location.pathname).toBe('/reset/[redacted]')
     expect(JSON.stringify(reset)).not.toMatch(/param-secret-value|search-secret-value/)
 
     expect(await toolFailure(call('tanstack_navigate', {to: '/refusing', search: {refuse: true}}))).toMatch(
