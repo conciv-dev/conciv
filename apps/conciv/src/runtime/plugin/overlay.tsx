@@ -24,11 +24,11 @@ export function mountOverlay(
     if (!(host instanceof HTMLElement)) throw new Error('The overlay host did not render')
     if (!(element instanceof HTMLElement)) throw new Error('The overlay element did not render')
     placeHost(host)
+    document.body.append(host)
     const root = host.attachShadow({mode: 'open'})
     const shared = widgetSheet()
     root.adoptedStyleSheets = styles === undefined ? [shared] : [shared, createStyleSheet(styles.join('\n'))]
     root.append(element)
-    document.body.append(host)
 
     return {
       element,
