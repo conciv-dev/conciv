@@ -5727,12 +5727,15 @@ describe('engine login', () => {
     await rpc.sessions.delete({sessionId: deleted})
     await rpc.sessions.delete({sessionId: unchecked})
     const failedCheck = await faults.install({kind: 'garble', path: ['sessions', 'get'], input: {sessionId: unchecked}})
+    const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+    if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+    localStorage.setItem(storageKey(), minted.token)
+    const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
 
     harness.mountShell('/', [], {login: {apiBase: origin()}})
-    await expect.element(locked()).toBeVisible()
+    await coreControl.awaitFaultPending(trustAsk, 1)
     expect(await readKept(deleted)).toBe('left by a deleted session')
-    await locked().click()
-    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await coreControl.releaseFault(trustAsk)
 
     await expect.poll(() => readKept(deleted), {timeout: 8000}).toBeNull()
     await coreControl.releaseFault(failedCheck)
@@ -5793,11 +5796,18 @@ describe('engine login', () => {
     expect(minted.count).toBe(2)
   }, 30_000)
 
-  test('a stored token the engine no longer trusts locks the launcher and is forgotten', async () => {
+  test('a stored token the engine no longer trusts locks the launcher, is forgotten, and empties this browser draft store', async () => {
     localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
+    await createBrowserDraftStore().setDocument('conciv_-kept-before-the-revoke', {
+      text: 'kept before the revoke',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+    })
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
+    expect(await createBrowserDraftStore().keys()).toEqual([])
   })
 
   const unlock = async (): Promise<void> => {
@@ -5810,12 +5820,19 @@ describe('engine login', () => {
     await faults.install({kind: 'detached-sockets'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
+    await createBrowserDraftStore().setDocument('conciv_-kept-before-the-revoke', {
+      text: 'kept before the revoke',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+    })
     expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
     await page.getByRole('button', {name: /session options$/}).click()
     await page.getByRole('button', {name: 'Refresh the conversation'}).click()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
+    expect(await createBrowserDraftStore().keys()).toEqual([])
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
@@ -5842,6 +5859,21 @@ describe('engine login', () => {
     await expect.element(page.getByText('Back in after the new code.')).toBeVisible()
   }, 30_000)
 
+  const DRAFT_SET_PATH = ['drafts', 'set']
+  const ENGINE_HELD = 'held by the engine'
+  const LOCAL_ONLY = 'held by the engine and kept only in this browser'
+  const keptDrafts = (): Promise<string[]> => createBrowserDraftStore().keys()
+
+  const typeEngineAndLocalDrafts = async (): Promise<void> => {
+    const {sessionId} = await coreRpc(core()).sessions.resolve({})
+    await editor().fill(ENGINE_HELD)
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: ENGINE_HELD})
+    const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+    await editor().fill(LOCAL_ONLY)
+    await coreControl.awaitFaultAnswered(refusal)
+    expect(await createBrowserDraftStore().getItem(sessionId)).toContain(LOCAL_ONLY)
+  }
+
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
@@ -5867,17 +5899,24 @@ describe('engine login', () => {
     await expect.element(earlierAnswer()).toBeVisible()
   }, 30_000)
 
-  test('revoking a browser while its panel is closed locks the launcher', async () => {
+  test('revoking a browser while its panel is closed locks the launcher and empties this browser draft store, and after a reload the panel shows only what the engine holds', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
+    await typeEngineAndLocalDrafts()
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect.element(opener()).toBeVisible()
     await coreControl.revokeBrowsers()
     await expect.element(locked(), {timeout: 8000}).toBeVisible()
     await expect.element(reloginNotice()).not.toBeInTheDocument()
+    expect(await keptDrafts()).toEqual([])
+
+    harness.dispose()
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(dialog()).toBeVisible()
-  }, 30_000)
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(editor(), {timeout: 8000}).toHaveTextContent(new RegExp(`^${ENGINE_HELD}$`))
+  }, 40_000)
 
   test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
     const retryWhileOffline = async (): Promise<void> => {
