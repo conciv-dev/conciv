@@ -48,7 +48,7 @@ export function pagePermissionAllows(
           ...asked,
           sessionId: SessionSchema.Id.make(sessionId),
           agent,
-          save: ['*'],
+          save: [],
           fallback: 'ask',
         }
         return permission.assertNotDenied(input).pipe(Effect.andThen(permission.allows(input)))

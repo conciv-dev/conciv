@@ -47,7 +47,7 @@ export async function register(
     if (permission !== undefined)
       await ctx.permission.assert({
         ...permission,
-        save: ['*'],
+        save: [],
         fallback: 'ask',
         metadata: action,
         sessionId: tool.sessionId,

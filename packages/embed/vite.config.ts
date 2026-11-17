@@ -15,6 +15,7 @@ const INLINED_PREFIXES = [
 ]
 
 const isExternal = (id: string): boolean => {
+  if (id.endsWith('?inline')) return false
   if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false
   return id === 'solid-js' || id === 'effect' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
 }
