@@ -59,20 +59,14 @@ import {
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {
-  defineAttachment,
-  defineExtension,
-  collectToolRenderers,
-  getExtensionApi,
-  type RegisterExtension,
-} from '@conciv/extension'
+import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import pageExtensionEntry from '@conciv/extension-page'
-import pageExtension from '@conciv/extension-page/client'
+import {PAGE_TOOL_PREFIX, builtinToolMeta} from '@conciv/builtin-plugins/renderer'
+import {createPluginToolCards} from '../src/pane/plugin-tool-cards.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -116,7 +110,7 @@ import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-type
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {Operations} from '@conciv/plugin-page/rpc'
 import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
@@ -493,8 +487,8 @@ describe('chat pane', () => {
     return {rpc, sessionId: await createSession(rpc)}
   }
 
-  function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 'extensions'> {
-    return {grabProvider: grabProviderFor(...grabs), extensions: [pageExtension]}
+  function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider'> {
+    return {grabProvider: grabProviderFor(...grabs)}
   }
 
   function mountChatPane(
@@ -1961,9 +1955,7 @@ describe('grab staging', () => {
 
   test('the grab api an extension receives can stage, read and clear, as the terminal does', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const mount = mountPane({base: core(), sessionId, extensions: [pageExtension]}, () => (
-      <ChatPane sessionId={sessionId} />
-    ))
+    const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
     keep(mount)
     await expect.element(input()).toBeVisible()
     const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)
@@ -1978,6 +1970,24 @@ describe('grab staging', () => {
 
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
+  })
+
+  test('a grabbed element in a sent message shows its grab card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
+    keep(mount)
+    await expect.element(input()).toBeVisible()
+    makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider).stage(HERO_GRAB)
+    await expect.element(removeGrab()).toBeVisible()
+
+    await input().fill('what is this element')
+    await userEvent.keyboard('{Enter}')
+
+    const thread = page.getByRole('log')
+    await expect.element(thread.getByText('what is this element')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await expect.element(thread.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(thread.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   })
 })
 
@@ -3192,6 +3202,37 @@ describe('notices', () => {
 describe('page session card', () => {
   const core = bootedCore('page-session-card')
   const keep = keptPane()
+  const faults = trackedFaults()
+
+  test('a built-in page card wins over builtinToolCards for the same tool', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const click: ToolCallPart = {
+      type: 'tool-call',
+      id: 'd1',
+      name: 'page_click',
+      arguments: JSON.stringify({selector: '#cta'}),
+      input: {selector: '#cta'},
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={click}
+            result={undefined}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await page.getByRole('button', {name: /^page_click/}).click()
+    await expect.element(page.getByText('#cta')).toBeVisible()
+    expect(document.body.textContent).not.toContain('Called page_click')
+  })
 
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
     const rpc = coreRpc(core())
@@ -3216,6 +3257,86 @@ describe('page session card', () => {
     expect(page.getByText('Edited the page').elements()).toHaveLength(1)
     await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
+  })
+
+  test('every page tool reads a label and an icon from the catalog the pane reads, the engine catalog first', async () => {
+    const catalog = await coreRpc(core()).registry.catalog()
+    const pageNames = Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`)
+    const listed = catalog.filter((signature) => pageNames.includes(signature.name))
+    expect(listed.map((signature) => signature.name)).toContain(`${PAGE_TOOL_PREFIX}click`)
+    expect(listed.filter((signature) => signature.label === undefined || signature.icon === undefined)).toEqual([])
+    const unlabelled = pageNames.filter((name) => {
+      const meta = listed.find((signature) => signature.name === name) ?? builtinToolMeta(name)
+      return meta?.label === undefined || meta.icon === undefined
+    })
+    expect(unlabelled).toEqual([])
+  })
+
+  test('while a page click runs, the now line says Clicking', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_click', input: {selector: '#save'}, result: {ok: true}}],
+      text: 'Saved.',
+    })
+    await coreControl.holdResults()
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'save the form')
+    try {
+      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
+
+  test('a first send that lands while the session still resolves keeps the prompt clear of the session card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_click', input: {selector: '#save'}, result: {ok: true}}],
+      text: 'Saved.',
+    })
+    await coreControl.holdResults()
+    const resolving = await faults.install({kind: 'gate', path: ['sessions', 'resolve']})
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'save the form')
+    try {
+      await coreControl.awaitFaultPending(resolving, 1)
+      await userEvent.click(page.getByRole('textbox', {name: 'Message the conciv agent'}))
+      await faults.releaseAll()
+      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await userEvent.click(page.getByText('save the form', {exact: true}))
+      await expect.element(page.getByText('save the form', {exact: true})).toBeVisible()
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
+
+  test('while a page route read runs, the folded trace line says Reading the route', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_route', input: {}, result: {url: 'http://localhost/form'}}],
+      text: 'On the form.',
+    })
+    await coreControl.holdResults()
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'where am I')
+    try {
+      const hide = page.getByRole('button', {name: /Hide trace/})
+      await expect.element(hide, {timeout: 8000}).toBeVisible()
+      await hide.click()
+      const folded = page.getByRole('button', {name: /Show trace/})
+      await expect.element(folded).toBeVisible()
+      await expect.element(folded).toHaveAccessibleName(/^Reading the route/)
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
   })
 })
 
@@ -5889,10 +6010,6 @@ describe('tool card dispatch', () => {
     render(child)
   }
 
-  function part(name: string, input: Record<string, unknown> = {}): ToolCallPart {
-    return {type: 'tool-call', id: 'd1', name, arguments: JSON.stringify(input), input, state: 'complete'}
-  }
-
   function askingPart(input: Record<string, unknown>): ToolCallPart {
     return {
       type: 'tool-call',
@@ -5909,25 +6026,6 @@ describe('tool card dispatch', () => {
   }
 
   const allTools = () => [...concivToolCards, ...builtinToolCards]
-
-  const realPageRenderers = collectToolRenderers([pageExtensionEntry])
-
-  it('an extension-supplied .render() card wins over builtinToolCards for the same tool', async () => {
-    const tools = [...realPageRenderers, ...builtinToolCards]
-
-    mount(() => (
-      <ToolCallCard
-        part={part('page_click', {selector: '#cta'})}
-        result={undefined}
-        ctx={INERT_TOOL_CTX}
-        tools={() => tools}
-      />
-    ))
-
-    await browserPage.getByRole('button').click()
-    await expect.element(browserPage.getByText('#cta')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Called page_click')
-  })
 
   it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
     mount(() => (
@@ -5947,7 +6045,6 @@ describe('tool card dispatch', () => {
 describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
     return registry
   }
 
@@ -5970,6 +6067,7 @@ describe('wire name coverage', () => {
     EXECUTE_TOOL_NAME,
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
+    ...Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
     ...registry.catalog.list().map((entry) => entry.name),
     ...SERVER_PLUGIN_TOOL_NAMES,
   ]
@@ -5987,19 +6085,17 @@ describe('wire name coverage', () => {
     'ToolSearch',
   ]
 
-  const concivOwnedCards: ToolCardEntry[] = [
-    ...collectToolRenderers([pageExtensionEntry]),
-    ...concivToolCards,
-    ...coreToolCards,
-    ...builtinToolCards,
-  ]
+  const concivOwnedCards: ToolCardEntry[] = [...concivToolCards, ...coreToolCards, ...builtinToolCards]
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
   it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const drawnByGenericCard = modelReachableNames.filter(
-      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
+      (name) =>
+        !cardNames.has(name) &&
+        builtinToolMeta(name) === undefined &&
+        registry.catalog.list().every((entry) => entry.name !== name),
     )
     expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })

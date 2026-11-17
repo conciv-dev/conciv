@@ -10,7 +10,7 @@ const config: StorybookConfig = {
     '../../../../packages/mascot/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/ui-kit-chat/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/ui-kit-chat-tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
-    '../../../../packages/extensions/page/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../../packages/builtin-plugins/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/extensions/tanstack/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/extensions/recorder/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/extensions/whiteboard/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
