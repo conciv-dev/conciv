@@ -477,6 +477,7 @@ export function createBrowserDraftStore(): DraftStore {
 
       const publish = () => {
         if (!strict || missing.length === 0) transaction.objectStore('documents').put(value, key)
+        transaction.commit()
       }
 
       let remaining = ids.length
