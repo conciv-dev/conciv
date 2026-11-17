@@ -11,7 +11,7 @@ import {
   type AttachmentCardSlot,
 } from '@conciv/ui-kit-chat'
 import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
-import {guardedAttachmentCards} from '../extension/extension-boundary.js'
+import {guardedAttachmentCard, guardedAttachmentCards} from '../extension/extension-boundary.js'
 
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 const TEXT_ATTACHMENT_ADAPTER = createTextAttachmentAdapter()
@@ -20,7 +20,7 @@ function attachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'):
   const extensionCards = guardedAttachmentCards(extensions, fallback).filter(
     (entry) => !pageAttachmentCards.some((card) => card.mime === entry.mime),
   )
-  return [...pageAttachmentCards, ...extensionCards]
+  return [...pageAttachmentCards.map((card) => guardedAttachmentCard('page', fallback, card)), ...extensionCards]
 }
 
 export function paneAttachments(
