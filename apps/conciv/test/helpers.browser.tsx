@@ -22,6 +22,7 @@ import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types
 import {QueryClient, QueryClientProvider, type ChatTransportPreference} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
+import type {DraftWriteChain} from '../src/pane/draft-storage.js'
 import {createWarmSession} from '../src/app/warm-session.js'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
@@ -284,6 +285,7 @@ export type PaneMount = {
   dispose: () => void
   pane: PaneContextValue
   data: AppData
+  keepDraft: DraftWriteChain
   queryClient: QueryClient
   refetch: () => Promise<void>
   setWidth: (pixels: number) => void
@@ -396,6 +398,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     },
     pane,
     data,
+    keepDraft: app.liveSessions.keepDraft,
     queryClient,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
     setWidth,

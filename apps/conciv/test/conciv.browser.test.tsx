@@ -615,6 +615,33 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent('typed while the engine held every save')
   })
 
+  test('text whose batch write still waits on the draft chain when the page is left is in this browser', async () => {
+    const {sessionId} = await newSession()
+    const TEXT = 'left while the batch write waits'
+    const readLocalCopy = async (): Promise<unknown> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : JSON.parse(kept)
+    }
+    const mount = mountChatPane(sessionId)
+    await expect.element(input()).toBeVisible()
+    const earlier = Promise.withResolvers<void>()
+    void mount.keepDraft(() => earlier.promise)
+    onTestFinished(() => earlier.resolve())
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+
+    await userEvent.click(input())
+    await userEvent.keyboard(TEXT)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await readLocalCopy()).toBeNull()
+
+    window.dispatchEvent(new PageTransitionEvent('pagehide'))
+
+    expect(await readLocalCopy()).toMatchObject({text: TEXT})
+  })
+
   describe('the local draft when the engine read fails, lags, or misses an answer', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
     const DRAFT_SET_PATH = ['drafts', 'set']
