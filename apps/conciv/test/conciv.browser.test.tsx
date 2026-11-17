@@ -896,7 +896,7 @@ describe('chat pane', () => {
       expect((await rpc.drafts.get({sessionId}))?.text).toBe(TYPED)
     })
 
-    test('a later successful save clears the notice and leaves one save of that session in the cache', async () => {
+    test('a later failed save replaces the earlier one, a later successful save clears the notice, and one save of that session stays in the cache', async () => {
       const DRAFT_SET_PATH = ['drafts', 'set']
       const {sessionId} = await newSession()
       const mount = mountChatPane(sessionId)
@@ -905,9 +905,29 @@ describe('chat pane', () => {
       const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
       const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
 
+      const failedSaves = () =>
+        mount.queryClient
+          .getMutationCache()
+          .findAll({
+            mutationKey: mount.data.utils.drafts.set.mutationKey(),
+            predicate: (mutation) =>
+              mutation.state.status === 'error' &&
+              z.object({sessionId: z.string()}).safeParse(mutation.state.variables).data?.sessionId === sessionId,
+          })
+          .map((mutation) => z.object({text: z.string()}).parse(mutation.state.variables).text)
+
       await input().fill('refused first')
       await runClockPastDraftSaveRetries(unsaved)
       await expect.element(unsaved.getByRole('button', {name: 'Retry'})).toBeVisible()
+      await userEvent.click(input())
+      await userEvent.keyboard('{End}, refused again')
+      await expect
+        .poll(async () => {
+          await vi.advanceTimersByTimeAsync(1000)
+          return failedSaves().at(-1)
+        })
+        .toBe('refused first, refused again')
+      expect(failedSaves()).toEqual(['refused first, refused again'])
       await coreControl.releaseFault(refusal)
       await userEvent.click(input())
       await userEvent.keyboard('{End}, then taken')
