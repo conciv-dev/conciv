@@ -59,6 +59,7 @@ import {
   ASSISTANT_ROOT_CLASS,
   PROMPT_GUTTER_CLASS,
   PROMPT_BODY_CLASS,
+  PROMPT_NOTES_ROW_CLASS,
   PROMPT_ROOT_CLASS,
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
@@ -472,7 +473,7 @@ function UserTurn(): JSX.Element {
                   </div>
                 }
               >
-                <div class={`${PROMPT_ROOT_CLASS}  ${TURN_INDENT_CLASS}`}>
+                <div class={PROMPT_NOTES_ROW_CLASS}>
                   <div class={PROMPT_BODY_CLASS}>
                     <PromptSuffix besideText={false} />
                   </div>

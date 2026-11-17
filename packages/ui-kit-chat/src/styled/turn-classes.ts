@@ -10,6 +10,8 @@ export const USER_ROOT_CLASS = 'flex flex-col gap-1.5 min-w-0 self-stretch'
 
 export const PROMPT_ROOT_CLASS = `relative flex items-start gap-0 min-w-0 self-stretch anim-msg ${TURN_MEASURE_CLASS}`
 
+export const PROMPT_NOTES_ROW_CLASS = `${PROMPT_ROOT_CLASS} ${TURN_INDENT_CLASS}`
+
 export const PROMPT_GUTTER_CLASS =
   'flex-none select-none w-[var(--chat-trace-gutter)] text-chat-md leading-normal [font-family:var(--chat-mono)] text-chat-accent'
 

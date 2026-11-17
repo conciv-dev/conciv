@@ -305,10 +305,13 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     sessionId,
     openModelMenu: () => modelMenu.popover().setOpen(true),
   })
+  const addItem = (item: ComposerItem) => composerApi.current?.addItem(item)
   const sendOrRunCommand = async (content: string | SendContent, draft: ComposerDraft): Promise<void> => {
-    const prompt = promptWithNotes(content, draft)
-    if (typeof prompt === 'string' && commandSources.runTyped(prompt)) return
-    await messaging.onSend(prompt)
+    if (typeof content === 'string' && commandSources.runTyped(content)) {
+      draft.items.forEach(addItem)
+      return
+    }
+    await messaging.onSend(promptWithNotes(content, draft))
   }
   const insert = (text: string) => {
     inputHandle()?.append(text)
@@ -328,7 +331,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     void api.addAttachment(file)
     focusInput()
   }
-  const addItem = (item: ComposerItem) => composerApi.current?.addItem(item)
   const imageInput = () => harness()?.imageInput
   const attachments = createMemo(() =>
     paneAttachments(
