@@ -7,7 +7,7 @@ import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
 import type {PageEffect} from '@conciv/plugin/experimental/page'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
-import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
+import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 
@@ -36,11 +36,7 @@ const OPEN_RESULT: Record<OpenedSource, {variant: 'success' | 'error'; label: (t
 }
 
 function elementAt(x: number, y: number): Element | null {
-  return (
-    document
-      .elementsFromPoint(x, y)
-      .find((element) => !element.closest('[data-conciv-root]') && !element.closest(`[${PLUGIN_OVERLAY_ATTR}]`)) ?? null
-  )
+  return document.elementsFromPoint(x, y).find((element) => !element.closest(CONCIV_UI_SELECTOR)) ?? null
 }
 
 const isEditing = (): boolean => {
