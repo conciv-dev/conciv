@@ -115,6 +115,21 @@ function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTML
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
 }
 
+function maskedValueAttribute(el: Element, attribute: string): string | null {
+  if (attribute.toLowerCase() === 'value' && isSensitiveField(el)) return el.hasAttribute('value') ? MASKED_VALUE : null
+  return el.getAttribute(attribute)
+}
+
+function maskedOuterHtml(root: Element): string {
+  const copy = root.cloneNode(true)
+  if (!(copy instanceof Element)) return fail('dom could not copy the element')
+  const sensitive = [copy, ...copy.querySelectorAll('[value]')].filter(
+    (el) => el.hasAttribute('value') && isSensitiveField(el),
+  )
+  sensitive.forEach((el) => el.setAttribute('value', MASKED_VALUE))
+  return copy.outerHTML
+}
+
 function result(value: unknown, attached: File[] = []): Answer {
   if ((JSON.stringify(value) ?? '').length > 512_000)
     throw new Error(
@@ -304,7 +319,7 @@ function perform(
     case 'dom':
       return touching(() => {
         const root = hasLocator(action) ? call.target(action) : call.document.body
-        return {html: root.outerHTML.slice(0, DOM_CAP)}
+        return {html: maskedOuterHtml(root).slice(0, DOM_CAP)}
       })
     case 'query':
       return touching(() => {
@@ -409,7 +424,7 @@ function perform(
         return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
       })
     case 'attr':
-      return touching(() => ({value: call.target(action).getAttribute(action.attribute)}))
+      return touching(() => ({value: maskedValueAttribute(call.target(action), action.attribute)}))
     case 'click':
       return acting(call, action, () => {
         simulateClick({element: actionableTarget(call, action), agent: call.agentId})
