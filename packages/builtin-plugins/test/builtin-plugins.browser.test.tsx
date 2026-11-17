@@ -7,6 +7,7 @@ import {createStore} from 'solid-js/store'
 import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import tokens from '@conciv/ui-kit-system/tokens.css?inline'
+import utilities from 'virtual:uno.css?inline'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
@@ -1587,6 +1588,11 @@ describe('the page contracts another plugin reads', () => {
 })
 
 describe('the tanstack cards', () => {
+  const widgetSheet = document.createElement('style')
+  widgetSheet.textContent = `${tokens}${utilities}`
+  beforeAll(() => document.head.append(widgetSheet))
+  afterAll(() => widgetSheet.remove())
+
   type Tool = keyof typeof tanstackCards
   type Case = {tool: Tool; input?: Record<string, unknown>; output: unknown; summary: string; detail?: string}
 
