@@ -7172,6 +7172,7 @@ describe('terminal panel', () => {
   const bar = () => page.getByRole('toolbar', {name: 'Session status'})
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
+  const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
   const output = (text: string) => page.getByText(text, {exact: true})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
@@ -7265,8 +7266,8 @@ describe('terminal panel', () => {
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('model busy-model')).toBeInTheDocument()
 
-    await terminalTab().click()
-    await expect.element(terminalTab()).toHaveFocus()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     await expect.element(output('interrupted'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
@@ -7310,6 +7311,58 @@ describe('terminal panel', () => {
     expect(await shot()).toBe(flippedToDark)
     pageScheme.remove('dark')
     expect(await shot()).toBe(freshLight)
+  }, 60_000)
+
+  test('the host page keeps its own keys: Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {
+    await page.viewport(1200, 900)
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+    const hostText = () => page.getByText('Host page text', {exact: true})
+    const hostSawEscape = (count: number) => page.getByText(`Host page saw Escape ${count}`, {exact: true})
+    const hostSpot = Object.assign(document.createElement('span'), {textContent: 'Host page text'})
+    const hostLog = document.createElement('p')
+    document.body.prepend(hostSpot, hostLog)
+    const hostEscapes = {count: 0}
+    const onHostKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      hostEscapes.count += 1
+      hostLog.textContent = `Host page saw Escape ${hostEscapes.count}`
+    }
+    document.addEventListener('keydown', onHostKeyDown)
+    onTestFinished(() => {
+      document.removeEventListener('keydown', onHostKeyDown)
+      hostSpot.remove()
+      hostLog.remove()
+    })
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {shadow: true})
+
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+    await picker().click()
+    await page.getByRole('option', {name: 'Busy model'}).click()
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect.element(launcher()).toBeVisible()
+    await hostText().click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hostSawEscape(1)).toBeVisible()
+
+    await launcher().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(picker()).toBeDisabled()
+    await terminalPanel().click()
+    await userEvent.keyboard('zz')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(terminalPanel(), {timeout: 15_000}).toMatchTextContent(/zz[\s\S]*interrupted/)
+    await expect.element(picker()).toBeEnabled()
+    await expect.element(hostSawEscape(2)).not.toBeInTheDocument()
+
+    await picker().click()
+    await page.getByRole('option', {name: 'First model'}).click()
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
   }, 60_000)
 
   test('Escape in the composer on the Chat view stops the chat turn and leaves a busy CLI in the terminal running', async () => {

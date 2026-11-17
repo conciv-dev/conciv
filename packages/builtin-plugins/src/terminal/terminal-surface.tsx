@@ -77,32 +77,32 @@ export default function TerminalSurface(props: {
       model.terminal.options.theme = readTerminalTheme(props.themeHost())
     },
   )
-  makeEventListener(
-    window,
-    'keydown',
-    (event) => {
-      if (event.key !== 'Escape' || !model.busy()) return
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      model.sendInput(ESCAPE_KEY)
-      model.focus()
-    },
-    {capture: true},
-  )
   onCleanup(() => props.terminal.closed(terminalKey))
   model.terminal.attachCustomKeyEventHandler((event) => {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     return true
   })
-  const keepFocus = (element: HTMLDivElement) =>
+  const surface = (element: HTMLDivElement) => {
+    makeEventListener(
+      element,
+      'keydown',
+      (event) => {
+        if (event.key !== 'Escape' || !model.busy()) return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        model.sendInput(ESCAPE_KEY)
+      },
+      {capture: true},
+    )
     makeEventListener(element, 'focusout', (event) => {
       if (event.relatedTarget !== null) return
       queueMicrotask(() => {
         if (element.ownerDocument.hasFocus()) model.focus()
       })
     })
+  }
   return (
-    <div ref={keepFocus} class="flex flex-1 flex-col min-h-0">
+    <div ref={surface} class="flex flex-1 flex-col min-h-0">
       <Terminal model={model} onBackToChat={() => ctx.layout.close(PANEL_KEY, props.session)} class="flex-1 min-h-0" />
     </div>
   )
