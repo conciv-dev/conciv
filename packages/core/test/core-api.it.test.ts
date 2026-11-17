@@ -6342,14 +6342,16 @@ describe('page action queue delivery', () => {
     await (await nextTurn).text()
   })
 
-  it('a chat-agent page_eval in the same session during an admitted CLI page_eval is still asked and does not run', async () => {
+  it('a chat-agent page_eval in the same session during a config-allowed CLI page_eval is still asked and does not run', async () => {
     const evals: string[] = []
     const holdsUnder = (command: Page.Command) => {
       if (command.action.type !== 'eval') return undefined
       evals.push(command.action.code)
       return `eval/${command.action.code}`
     }
-    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder)
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder, {
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
     const events = await makeRpcClient(page.base).event.subscribe()
     const asked = async (): Promise<unknown> => {
       const next = await events.next()
@@ -6417,6 +6419,36 @@ describe('page action queue delivery', () => {
     const denied = page.inChat('denied-eval', 'return await external_page_eval({code: "document.cookie"})')
     const ended = await Promise.race([asking.then(() => 'asked'), denied.then((turn) => turn.text())])
     expect(ended).toContain('denied')
+    expect(evals).toEqual(['document.title'])
+  })
+
+  it('an outside page_eval naming its tab is asked like any outside call: refused with no rule, run under a config allow, refused under a config deny', async () => {
+    const evals: string[] = []
+    const holdsUnder = (command: Page.Command) => {
+      if (command.action.type !== 'eval') return undefined
+      evals.push(command.action.code)
+      return command.action.code === 'document.title' ? 'eval/document.title' : undefined
+    }
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder, {
+      permission: {page_eval: {'document.cookie': 'deny'}},
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
+    const outside = makeRpcClient(page.base, {
+      headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    const evaluate = (code: string) => outside.registry.call({name: 'page_eval', input: {code}})
+    await expect(evaluate('document.domain')).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    })
+    expect(evals).toEqual([])
+    const allowed = evaluate('document.title')
+    await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
+    expect(await allowed).toEqual({result: 'Example'})
+    await expect(evaluate('document.cookie')).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: 'Permission denied: page_eval',
+    })
     expect(evals).toEqual(['document.title'])
   })
 
