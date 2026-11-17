@@ -198,7 +198,7 @@ export function whiteboardElementOptions(deps: {
       return {refetch: false}
     },
     utils: {
-      write: (row: ElementRow): void => void pacedWrite(row),
+      write: (row: ElementRow) => pacedWrite(row),
       cleanupStrategy: strategy.cleanup,
     },
   }

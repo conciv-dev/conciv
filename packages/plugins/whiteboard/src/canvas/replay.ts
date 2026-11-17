@@ -1,23 +1,24 @@
-export type ReplayStep = {elementId: string; write: () => void}
+export type ReplayStep<Result> = {elementId: string; write: () => Result}
 
-export type ReplayHandle = {skip: () => void; done: Promise<void>}
+export type ReplayHandle<Result> = {skip: () => void; done: Promise<Result[]>}
 
-export function replayDraft(steps: ReplayStep[]): ReplayHandle {
+export function replayDraft<Result>(steps: ReplayStep<Result>[]): ReplayHandle<Result> {
   const perStep = Math.max(60, Math.min(3000 / Math.max(steps.length, 1), 400))
   let skipped = false
-  const done = new Promise<void>((resolve) => {
+  const written: Result[] = []
+  const done = new Promise<Result[]>((resolve) => {
     const run = (index: number): void => {
       if (skipped || index >= steps.length) {
-        steps.slice(index).forEach((step) => step.write())
-        resolve()
+        steps.slice(index).forEach((step) => written.push(step.write()))
+        resolve(written)
         return
       }
       const step = steps[index]
       if (!step) {
-        resolve()
+        resolve(written)
         return
       }
-      step.write()
+      written.push(step.write())
       setTimeout(() => run(index + 1), perStep)
     }
     run(0)
