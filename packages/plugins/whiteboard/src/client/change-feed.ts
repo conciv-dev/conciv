@@ -20,9 +20,17 @@ const LATEST = Number.MAX_SAFE_INTEGER
 
 export function createChangeFeed(client: Context['client'], room: string) {
   const tableHandlers = new Map<string, Set<Handler>>()
-  const position = {cursor: 0, connected: false}
+  const position = {cursor: 0}
   const whiteboard = client.rpc(Whiteboard)
   const abort = new AbortController()
+  const opened = whiteboard.since({room, cursor: LATEST}, {signal: abort.signal}).then(
+    (latest) => {
+      position.cursor = Math.max(position.cursor, latest.cursor)
+    },
+    (error: unknown) => {
+      if (!abort.signal.aborted) console.error('[whiteboard] the change position could not be read', error)
+    },
+  )
 
   const route = (change: {table: string; key: string; type: 'upsert' | 'delete'; cursor: number}): void => {
     if (change.cursor <= position.cursor) return
@@ -31,12 +39,7 @@ export function createChangeFeed(client: Context['client'], room: string) {
   }
 
   const catchUp = async (): Promise<void> => {
-    if (!position.connected) {
-      position.connected = true
-      const latest = await whiteboard.since({room, cursor: LATEST}, {signal: abort.signal})
-      position.cursor = Math.max(position.cursor, latest.cursor)
-      return
-    }
+    await opened
     const missed = await whiteboard.since({room, cursor: position.cursor}, {signal: abort.signal})
     missed.changes.forEach(route)
   }
@@ -63,6 +66,7 @@ export function createChangeFeed(client: Context['client'], room: string) {
   })
 
   return {
+    opened: () => opened,
     subscribe: (table: string, handler: Handler): (() => void) => {
       const existing = tableHandlers.get(table)
       if (existing) existing.add(handler)

@@ -48,6 +48,7 @@ const buildSync = <Row extends object>(deps: {
       })
       const off = feed.subscribe(table, (message) => void queue.addItem(message))
       const start = async (): Promise<void> => {
+        await feed.opened()
         const loaded = await loadRows()
         params.begin()
         loaded.forEach((row) => params.write({type: 'insert', value: row}))
