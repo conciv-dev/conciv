@@ -1408,8 +1408,9 @@ describe('nextjs', () => {
       expect(JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port).toBe(9999)
     })
 
-    it('exports no widget port when the widget is off, and still hands the engine its options', () => {
-      const cfg = withConciv({}, {port: 6124, widget: false})
+    it('exports no widget port when the widget is off, inherited ones included, and still hands the engine its options', () => {
+      process.env.NEXT_PUBLIC_CONCIV_PORT = '6125'
+      const cfg = withConciv({env: {NEXT_PUBLIC_CONCIV_PORT: '6124'}}, {port: 6124, widget: false})
       expect(cfg.env).not.toHaveProperty('NEXT_PUBLIC_CONCIV_PORT')
       expect(process.env.NEXT_PUBLIC_CONCIV_PORT).toBeUndefined()
       expect(JSON.parse(cfg.env.CONCIV_OPTIONS ?? '{}')).toMatchObject({port: 6124, widget: false})
