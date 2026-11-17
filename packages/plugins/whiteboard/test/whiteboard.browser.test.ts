@@ -529,6 +529,8 @@ describe('the comments of the whiteboard plugin', () => {
       const pin = page.getByRole('button', {name: 'AI comment, open, unread'})
       await expect(pin).toBeVisible({timeout: 30_000})
       await pin.click()
+      const thread = page.getByRole('dialog', {name: 'Comment thread'})
+      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
       const readPin = page.getByRole('button', {name: 'AI comment, open', exact: true})
       await expect(readPin).toBeVisible()
 
