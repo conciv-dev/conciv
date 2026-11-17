@@ -7,6 +7,7 @@ import type {terminalDeclarations} from './stores.js'
 export const PANEL_KEY = 'terminal:terminal'
 
 const BUSY_REFUSAL = 'The CLI is busy. Wait for it to finish, then try again.'
+export const OPEN_FAILED = 'Couldn’t open the terminal.'
 const RESTART_FAILED = 'Couldn’t restart the terminal.'
 
 export type TerminalContext = SetupContext<typeof terminalDeclarations>
