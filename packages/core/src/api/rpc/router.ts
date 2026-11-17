@@ -144,8 +144,9 @@ async function callTool<Output extends z.ZodType>(
 }
 
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
-  if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
+  const widget = widgetCaller(call.context.callerOrigin, deps.allowedOrigins)
   const asked = askedPagePermission(name, input)
+  if (asked === undefined && widget) return
   if (asked === undefined && callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
   const catalog = [...deps.runtime.engine.catalog(), ...(await deps.pluginHost.runPromise(pluginSignatures))]
   const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
@@ -161,7 +162,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
       ),
       {signal: call.signal},
     ))
-  if (allowed) return
+  if (allowed || widget) return
   const refusal = await deps.chat.plane.admitCall(scope.id, {toolName: name, input, publish: scope.stream.publish})
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }

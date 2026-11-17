@@ -11,3 +11,5 @@ A queued page action the engine gives up on stops on the page instead of still t
 A queued page action that never reached the page is reported as lost, not counted as played.
 
 A page tab whose attach was refused because its page permissions could not be granted in time tries again by itself on a back-off instead of waiting for a reload; the engine option permissionSyncTimeoutMs sets how long that grant may take.
+
+A page eval the config denies is refused from the widget's own tab too, not only from outside callers.
