@@ -8654,6 +8654,25 @@ export default {
     expect([await replied(before), await replied(after)]).toEqual([0, 2])
     await cut
   }, 60_000)
+
+  test('an eval card offers no Always, so a later eval with other code is asked again', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const evaluate = (code: string) => driver('tool', {sessionId, name: 'eval', input: {code}})
+    const card = () => page.getByRole('group', {name: 'Permission request'})
+    const first = evaluate('document.title')
+    await expect.element(card().getByRole('button', {name: 'Approve'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(card().getByRole('button', {name: 'Always allow'})).not.toBeInTheDocument()
+    await card().getByRole('button', {name: 'Approve'}).click()
+    await expect(first).resolves.toMatchObject({value: expect.anything()})
+    await expect.element(card()).not.toBeInTheDocument()
+    const second = evaluate('document.domain')
+    await expect.element(card().getByRole('button', {name: 'Approve'}), {timeout: 15_000}).toBeVisible()
+    await card().getByRole('button', {name: 'Deny'}).click()
+    await expect(second).rejects.toThrow()
+    await expect.element(card()).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('a fixture plugin built into chunks', () => {

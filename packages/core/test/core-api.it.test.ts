@@ -7672,7 +7672,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id gets a new empty session while one on a deleted id is refused and nothing comes back', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id gets a new empty session while one on a deleted id is refused and nothing comes back', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7919,10 +7919,20 @@ export default {
     expect(onEval.command.action).toEqual({type: 'eval', code: 'document.title'})
     await reply('conn_d', onEval.requestId, succeeded({result: 'Example'}))
     expect(await always).toEqual({ok: true, value: {result: 'Example'}})
-    const remembered = ask({type: 'eval', code: 'document.title'})
+    await expect(
+      registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)('page_eval', {
+        code: 'location.href',
+      }),
+    ).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    })
+    const askedAgain = ask({type: 'eval', code: 'location.href'})
+    await decide('location.href', 'once')
     const again = await next('conn_d')
+    expect(again.command.action).toEqual({type: 'eval', code: 'location.href'})
     await reply('conn_d', again.requestId, succeeded({result: 'Example'}))
-    expect(await remembered).toEqual({ok: true, value: {result: 'Example'}})
+    expect(await askedAgain).toEqual({ok: true, value: {result: 'Example'}})
     expect(await tabs('waiting', {})).toEqual({waiting: 0})
 
     const locating = ask({type: 'locate', selector: 'h1'})
