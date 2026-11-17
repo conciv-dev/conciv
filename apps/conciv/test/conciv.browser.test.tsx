@@ -518,7 +518,7 @@ describe('chat pane', () => {
 
   function mountChatPane(
     sessionId: string,
-    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport'> = {},
+    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport' | 'engineOnlyDrafts'> = {},
   ): PaneMount {
     const mount = mountPane({base: core(), sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
     active.pane = mount
@@ -792,7 +792,7 @@ describe('chat pane', () => {
         await expect
           .element(
             unsaved.getByText(
-              'conciv could not save your draft. It is still in the composer, but a reload would lose it.',
+              'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.',
             ),
           )
           .toBeVisible()
@@ -804,6 +804,70 @@ describe('chat pane', () => {
 
         await expect.element(input()).toHaveTextContent('kept through every refused save')
       })
+
+      test('the unsaved notice says where the draft is kept, follows the text on screen, and Retry saves it anew', async () => {
+        const KEPT_HERE =
+          'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.'
+        const ENGINE_ONLY = 'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+        const {rpc, sessionId} = await newSession()
+        const mount = mountChatPane(sessionId)
+        await expect.element(input()).toBeVisible()
+        const readLocalCopy = async (): Promise<unknown> => {
+          const kept = await createBrowserDraftStore().getItem(sessionId)
+          return kept === null ? null : JSON.parse(kept)
+        }
+        const failedSaves = (text: string) =>
+          mount.queryClient.getMutationCache().findAll({
+            mutationKey: mount.data.utils.drafts.set.mutationKey(),
+            predicate: (mutation) =>
+              mutation.state.status === 'error' &&
+              z.object({sessionId: z.string(), text: z.string()}).safeParse(mutation.state.variables).data?.text ===
+                text,
+          }).length
+        const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+
+        await input().fill('refused at first')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(KEPT_HERE)).toBeVisible()
+
+        await coreControl.releaseFault(refusal)
+        await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await expect.poll(() => rpc.drafts.get({sessionId})).toMatchObject({text: 'refused at first'})
+        const taken = await rpc.drafts.get({sessionId})
+        await expect.poll(readLocalCopy).toMatchObject({text: 'refused at first', syncedAt: taken?.updatedAt, sent: []})
+
+        const refusedAgain = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        await userEvent.click(input())
+        await userEvent.keyboard('{End} and more')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(KEPT_HERE)).toBeVisible()
+        await input().fill('refused at first')
+        await expect
+          .poll(async () => {
+            await vi.advanceTimersByTimeAsync(1000)
+            return failedSaves('refused at first')
+          })
+          .toBe(1)
+        await expect.element(unsaved).not.toBeInTheDocument()
+
+        await userEvent.keyboard(' and sent')
+        await runClockPastDraftSaveRetries(unsaved)
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+        await expect.element(unsaved).not.toBeInTheDocument()
+        await coreControl.releaseFault(refusedAgain)
+        active.pane?.dispose()
+
+        const engineOnly = await newSession()
+        mountChatPane(engineOnly.sessionId, {engineOnlyDrafts: true})
+        await expect.element(input()).toBeVisible()
+        await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+        await input().fill('refused with no local store')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
+      }, 30_000)
     })
 
     test('a save that failed for good keeps the typed text across a view switch, and Retry saves what is on screen', async () => {

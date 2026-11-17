@@ -209,13 +209,14 @@ type AppContextValueOptions = {
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
   transport?: ChatTransportPreference
+  engineOnlyDrafts?: boolean
 }
 
 function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpcClient): AppContextValue {
   const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient, createBrowserDraftStore())
+  const data = makeAppData(rpc, queryClient, options.engineOnlyDrafts ? null : createBrowserDraftStore())
   const connected = () => true
   const liveSessions = makeLiveSessions({
     active: () => null,
@@ -272,6 +273,7 @@ export type PaneMountOptions = {
   width?: number
   transport?: ChatTransportPreference
   onNewSession?: () => void
+  engineOnlyDrafts?: boolean
 }
 
 export type PaneMount = {
@@ -306,6 +308,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         announce: (message) => setAnnounced((entries) => [...entries, message]),
         instances,
         transport: options.transport,
+        engineOnlyDrafts: options.engineOnlyDrafts,
       },
       client,
     )
