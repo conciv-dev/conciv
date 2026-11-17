@@ -578,8 +578,6 @@ describe('chat plane', () => {
       db,
       root,
       storeCapture: () => Promise.resolve(),
-      bundler: () => undefined,
-      hotUpdate: async () => ({applied: false, waitedMs: 0}),
       listTabs: async () => ({tabs: [], unreachable: []}),
     })
     const runtime = makeCoreRuntime({
@@ -2396,8 +2394,6 @@ describe('page bus and the session scope', () => {
         db: fixture.db,
         root: fixture.stateRoot,
         storeCapture: () => Promise.resolve(),
-        bundler: () => undefined,
-        hotUpdate: async () => ({applied: false, waitedMs: 0}),
         listTabs: async () => ({tabs: [], unreachable: []}),
       })
       const clicker = defineTool({
@@ -4580,7 +4576,6 @@ describe('direct tools on the MCP surface', () => {
       moduleGraph: () => [],
       transform: async () => ({code: null}),
       urls: () => ({local: [], network: []}),
-      reload: async () => undefined,
       restart: async (force) => {
         restarts.push(force ?? false)
       },
@@ -4792,7 +4787,6 @@ describe('plugin context keys provided by core', () => {
       moduleGraph: () => [],
       transform: async () => ({code: null}),
       urls: () => ({local: [], network: []}),
-      reload: async () => undefined,
       restart: async () => undefined,
     })
     const host = ManagedRuntime.make(

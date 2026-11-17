@@ -12,9 +12,6 @@ export function makeViteBridge(server: ViteDevServer): BundlerBridge {
     moduleGraph: (file) => viteGraph(server, file),
     transform: (url) => viteTransform(server, url),
     urls: () => viteUrls(server),
-    reload: async (file) => {
-      for (const node of findModules(server, file)) await server.reloadModule(node)
-    },
     restart: async (force) => {
       await server.restart?.(force)
     },

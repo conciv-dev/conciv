@@ -1,16 +1,13 @@
 import {description, dynamic, extend, name, route, type AnyRoute} from '@bomb.sh/router'
 import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
-import {contract, ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
+import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
 import {envelopeFlag} from './envelope.js'
 import {pageChangesCommand} from './page.js'
 import {runRpc, type CliTarget} from './request.js'
-import {callServerOperation} from './server.js'
 import {tabFlag} from './tab-flag.js'
 import {wireToolCommand} from './tool-command.js'
 import {toolGroupRoute} from './tool-group.js'
-
-const SERVER_GROUP = 'server'
 
 const PAGE_GROUP = 'page'
 
@@ -18,7 +15,7 @@ const REACT_CATEGORY = 'react'
 
 export const toolsRoute = route(
   name('tools'),
-  description('inspect & drive the live dev server: every tool group it serves (page, react, server, ...)'),
+  description('inspect & drive the live dev server: every tool group it serves (page, react, ...)'),
   envelopeFlag,
   tabFlag,
   dynamic(z.array(ToolCommandSignatureSchema), (catalog) => extend(...catalogRoutes(catalog))),
@@ -31,7 +28,7 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
       name: group,
       description: `the ${group} tools the running dev server serves; run --help for every capability`,
       signatures,
-      call: group === SERVER_GROUP ? callServerTool : callRegistry,
+      call: callRegistry,
       extra: group === PAGE_GROUP ? [pageChangesCommand] : [],
     }),
   )
@@ -63,13 +60,6 @@ function singleCommand(signature: ToolCommandSignature): AnyRoute {
 
 function readGroup(signature: ToolCommandSignature): string {
   return signature.name.slice(0, signature.name.indexOf('_'))
-}
-
-function callServerTool(signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) {
-  if (Object.hasOwn(contract.server, signature.name.slice(SERVER_GROUP.length + 1))) {
-    return callServerOperation(signature, input, target)
-  }
-  return callRegistry(signature, input, target)
 }
 
 function callRegistry(signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) {

@@ -10,4 +10,4 @@ export const ElementTarget = {
   name: z.string().optional().describe('React component name (targets the first match)'),
 }
 
-export type BuiltinCategory = 'read' | 'act' | 'edit-live' | 'react' | 'server'
+export type BuiltinCategory = 'read' | 'act' | 'edit-live' | 'react'

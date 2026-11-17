@@ -2,7 +2,7 @@
 
 ## Overview
 
-Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `defineTool` from `@conciv/protocol/chat-tool-types`), wrap it as a sandbox server tool, re-export the builtin `server_reload` and `tabs` tools, and register Solid card renderers by tool name.
+Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `defineTool` from `@conciv/protocol/chat-tool-types`), wrap it as a sandbox server tool, re-export the builtin `tabs` tool, and register Solid card renderers by tool name.
 
 ## Interface
 
@@ -11,14 +11,13 @@ Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `
 - `concivSandboxTools(ctx)` and `concivSandboxToolNames()` (`['conciv_ui']`) (`server.ts`).
 - `tools.ts` (export `.`): `ConcivServerTool`, `ConcivToolContext`, `concivSandboxTools`, `concivSandboxToolNames`, `concivUiToolDef`.
 - `defs.ts` (export `./defs`): `concivUiToolDef`.
-- `builtins.ts` (export `./builtins`): re-exports `BUILTIN_SERVER_TOOL`, `BUILTIN_SERVER_TOOLS`, `BUILTIN_TABS_TOOL`, `TABS_GUIDANCE`, `ServerToolContext`, `TabsToolContext`, `BuiltinCategory`; defines `SERVER_TOOL_PREFIX` (`'server_'`), `serverOperationOfTool(name)`, `builtinToolNames()`.
+- `builtins.ts` (export `./builtins`): re-exports `BUILTIN_TABS_TOOL`, `TabsToolContext`, `BuiltinCategory`; defines `builtinToolNames()`.
 - `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard`) and re-exports of the two cards.
-- [builtins/README.md](./builtins/README.md): the `server_reload` and `tabs` tools.
+- [builtins/README.md](./builtins/README.md): the `tabs` tool.
 - [cards/README.md](./cards/README.md): card renderers.
 
 ## Invariants
 
-- `serverOperationOfTool` throws `"<name>" is not a dev-server tool` without the `server_` prefix (`builtins.ts`).
 - The sandbox wrapper throws `conciv_ui: server tool has no execute` when `.server()` returns no execute, and parses input with `UiInputSchema.parse` first (`server.ts`).
 
 ## Side Effects

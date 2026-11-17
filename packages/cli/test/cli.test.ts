@@ -31,6 +31,7 @@ import {
   TabOpenSchema,
 } from '@conciv/protocol/chat-types'
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
@@ -78,7 +79,6 @@ import {type HarnessInitIo, harnessInitStep} from '../src/init/steps/harness/ins
 import {hasIt, installItStep} from '../src/init/steps/install-it.js'
 import {
   answerNextQuery,
-  approvedSession,
   bootCli,
   captureStdout,
   cliSession,
@@ -384,6 +384,18 @@ describe('cli', () => {
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
+    describe('the dev-server reload command is gone', () => {
+      it('tools offers no server group and tools server reload is an unknown command', async () => {
+        await bootCli(cleanups)
+        expect(await helpText(['tools', '--help'])).not.toMatch(/^\s+server\s/m)
+        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringMatching(/^Unknown command 'server' for conciv tools\./)},
+        })
+      })
+    })
+
     describe('the CLI reads its commands from the tool declarations', () => {
       it('sends every repeat of an array flag to the server as one array', async () => {
         const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
@@ -543,30 +555,6 @@ describe('cli', () => {
         )
       })
 
-      it('derives a dev-server operation and its positional from the declaration', async () => {
-        const reloaded: string[] = []
-        const kit = await bootCli(cleanups, {
-          bridge: {
-            id: 'derived-test',
-            config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
-            resolve: async (spec: string) => ({id: spec}),
-            moduleGraph: () => [],
-            transform: async () => ({code: null}),
-            urls: () => ({local: ['http://localhost:3000'], network: []}),
-            reload: async (file: string) => {
-              reloaded.push(file)
-            },
-            restart: async () => {},
-          },
-        })
-        const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(1)
-        expect(reloaded).toEqual([])
-        expect(await session.approve()).toHaveLength(1)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
-        expect(reloaded).toEqual(['src/hot.ts'])
-      })
-
       it('takes the positional the declaration names and leaves its other fields as flags', async () => {
         const actions: Array<Parameters<PageAnswer>[0]['action']> = []
         const held = await engineWithTab(tempDir('conciv-home-'), {
@@ -637,7 +625,7 @@ describe('cli', () => {
     describe('conciv CLI failure reporting', () => {
       it('names the address and the fix when no dev server is listening, with no stack', async () => {
         process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
+        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -661,7 +649,7 @@ describe('cli', () => {
             response.end(body)
           }),
         )
-        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
+        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
@@ -686,7 +674,7 @@ describe('cli', () => {
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
         process.env.CONCIV_PORT = String(await listen((_request, response) => response.end('not a rpc reply')))
-        const code = await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])
+        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('unexpected')
@@ -719,30 +707,11 @@ describe('cli', () => {
         moduleGraph: (file) => [{url: file, importers: [], importedModules: []}],
         transform: async () => ({code: null}),
         urls: () => ({local: [], network: []}),
-        reload: async () => {},
         restart: async () => {},
       })
     }
 
     describe('conciv CLI (IT, real served core, typed rpc)', () => {
-      it('server reload is refused through the session and an approval lets the retry run', async () => {
-        const bridge = restartCapableBridge()
-        const kit = await bootCli(cleanups, {bridge})
-        const session = await approvedSession(kit)
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({
-          ok: false,
-          error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
-        })
-        written.length = 0
-        expect(await session.approve()).toEqual(['conciv:tool:server_reload'])
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
-        written.length = 0
-        expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
-        expect((await kit.rpc.chat.hydrate({sessionId: session.sessionId})).lastRun).toBeNull()
-      })
-
       it('runs every command the agent guide teaches exactly as the guide spells it, except the design commands: this engine has no design extension', async () => {
         const placeholders: Record<string, string> = {
           '<selector>': '#a',
@@ -1055,6 +1024,7 @@ describe('cli', () => {
       hubAccess?: 'session' | 'open'
       queued?: (queue: {id: string; of: number}) => void
       answer?: PageAnswer
+      permissions?: Pick<ConcivConfig, 'permission' | 'permissions'>
     } = {},
   ) {
     const root = given.shared?.root ?? tempDir('conciv-hub-')
@@ -1065,6 +1035,7 @@ describe('cli', () => {
         stateRoot: root,
         systemPrompt: `the instructions of ${root}`,
         hubAccess: given.hubAccess ?? 'session',
+        ...given.permissions,
       },
       root,
       launchEditor: given.launchEditor ?? (() => {}),
@@ -1228,7 +1199,12 @@ describe('cli', () => {
     it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
       const home = tempDir('conciv-home-')
       const elsewhere = tempDir('conciv-elsewhere-')
-      const {engine, sessionId, page} = await engineWithTab(home)
+      const evaluated = {result: 'evaluated'}
+      const {engine, sessionId, page} = await engineWithTab(home, {
+        answer: (command): PageReply | undefined =>
+          command.action.type === 'eval' ? {type: 'success', result: {value: evaluated, files: []}} : undefined,
+        permissions: {permissions: [{action: 'page_eval', resource: '1', effect: 'allow'}]},
+      })
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
         const viaTab = ['tools', 'tabs', '--tab', sessionId]
@@ -1240,12 +1216,14 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
-        const restart = ['tools', 'server', 'reload', 'src/a.ts']
+        const evaluate = ['tools', 'page', 'eval', '--code', '1']
         expect([
-          await conciv(elsewhere, home, [...restart, '--tab', sessionId]),
-          await conciv(elsewhere, home, restart),
+          await conciv(elsewhere, home, [...evaluate, '--tab', sessionId]),
+          await conciv(elsewhere, home, evaluate),
+          await conciv(elsewhere, home, ['tools', 'page', 'eval', '--code', '2', '--tab', sessionId]),
         ]).toMatchObject([
-          {ok: false, error: {code: 'NO_BUNDLER'}},
+          {ok: true, data: evaluated},
+          {ok: true, data: evaluated},
           {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
         ])
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
@@ -2018,7 +1996,6 @@ describe('cli', () => {
           return {code: `export const served = ${JSON.stringify(url)}`}
         },
         urls: () => ({local: ['http://localhost:5173/'], network: ['http://192.168.1.2:5173/']}),
-        reload: async () => {},
         restart: async (force) => {
           restarts.push(force ?? false)
         },
@@ -5600,7 +5577,7 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(section).toContain('`.conciv/bin/conciv tools page snapshot`')
           expect(section).toContain('`.conciv/bin/conciv tools react inspect <selector>`')
           expect(section).toContain(`\`.conciv/bin/conciv plugin call server graph --data '{"file":"<file>"}'\``)
-          expect(section).toContain('`.conciv/bin/conciv tools server reload <file>`')
+          expect(section).not.toContain('tools server')
           expect(section).toContain('`.conciv/bin/conciv tools --help`')
         })
 
