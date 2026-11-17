@@ -39,6 +39,10 @@ export function settledCardBody(
   return hasContent
 }
 
+export function actionCardBody(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
+  return readError(part, result) !== null
+}
+
 export function CardRows(props: {children: JSX.Element}): JSX.Element {
   return <div class="flex flex-col gap-0.5">{props.children}</div>
 }

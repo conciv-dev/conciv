@@ -33,10 +33,10 @@ function RouteManifestCard(props: ToolCardProps): JSX.Element {
               {(route) => (
                 <CardRow>
                   <TruncatedText class="text-chat-text-2 flex-1 min-w-0" text={route.path} />
-                  <span class="text-chat-xs text-chat-text-3 tracking-wider shrink-0 w-14 uppercase">{route.kind}</span>
                   <Show when={route.dynamic}>
                     <Chip kind="pill" value="dynamic" tone="accent" />
                   </Show>
+                  <span class="text-chat-xs text-chat-text-3 tracking-wider shrink-0 w-14 uppercase">{route.kind}</span>
                 </CardRow>
               )}
             </For>

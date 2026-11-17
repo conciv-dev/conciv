@@ -53,8 +53,10 @@ function QueryCacheCard(props: ToolCardProps): JSX.Element {
   const summary = () => {
     const value = cache()
     if (!value) return ''
-    const count = value.queries.length
-    return `${count} ${count === 1 ? 'query' : 'queries'}`
+    const queries = `${value.queries.length} ${value.queries.length === 1 ? 'query' : 'queries'}`
+    const mutationCount = value.mutations.length
+    if (mutationCount === 0) return queries
+    return `${queries} · ${mutationCount} ${mutationCount === 1 ? 'mutation' : 'mutations'}`
   }
   return (
     <InspectionCard {...props} summary={summary()}>
@@ -64,7 +66,10 @@ function QueryCacheCard(props: ToolCardProps): JSX.Element {
             <Show when={value().queries.length === 0 && value().mutations.length === 0}>
               <CardNote>no cached queries</CardNote>
             </Show>
-            <For each={value().queries}>{(entry) => <EntryRow entry={entry} />}</For>
+            <Show when={value().queries.length > 0}>
+              <CardNote>queries</CardNote>
+              <For each={value().queries}>{(entry) => <EntryRow entry={entry} />}</For>
+            </Show>
             <Show when={value().mutations.length > 0}>
               <CardNote class="pt-1">mutations</CardNote>
               <For each={value().mutations}>{(entry) => <EntryRow entry={entry} />}</For>

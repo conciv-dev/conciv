@@ -14,6 +14,10 @@ function isTruncatedMarker(value: unknown): boolean {
   return isRecord(value) && value.__conciv === 'object' && typeof value.preview === 'string'
 }
 
+function opensAsTree(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !isTruncatedMarker(value)
+}
+
 function preview(value: unknown): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) return `Array(${value.length})`
@@ -68,9 +72,11 @@ function LoaderDataCard(props: ToolCardProps): JSX.Element {
                 <div class="flex flex-col gap-1">
                   <CardRow>
                     <TruncatedText class="text-chat-text-2 min-w-0" text={entry.key} />
-                    <TruncatedText class="text-chat-text-3 min-w-0" text={entry.preview} />
+                    <Show when={!opensAsTree(entry.value)}>
+                      <TruncatedText class="text-chat-text-3 min-w-0" text={entry.preview} />
+                    </Show>
                   </CardRow>
-                  <Show when={!isTruncatedMarker(entry.value)}>
+                  <Show when={opensAsTree(entry.value)}>
                     <JsonValue value={entry.value} name={`${entry.key}.json`} />
                   </Show>
                 </div>

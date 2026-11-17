@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 type RouteNodeShape = {id: string; depth: number; hasLoader: boolean}
@@ -49,7 +49,7 @@ function RouteTreeCard(props: ToolCardProps): JSX.Element {
                   </Show>
                   <TruncatedText class="text-chat-text-2 min-w-0" text={node.id} />
                   <Show when={node.hasLoader}>
-                    <Chip kind="pill" value="loader" />
+                    <span class="text-chat-text-3 tracking-wider shrink-0 uppercase">loader</span>
                   </Show>
                 </CardRow>
               )}

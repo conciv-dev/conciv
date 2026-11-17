@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {ActionCard, settledCardBody} from './card-shared.js'
+import {ActionCard, actionCardBody} from './card-shared.js'
 
 const NavigateResultSchema = z.object({to: z.string()}).loose()
 
@@ -21,5 +21,5 @@ function NavigateCard(props: ToolCardProps): JSX.Element {
 
 export const navigateCard: ToolCardView = {
   render: NavigateCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, navigatedTo(result) !== undefined),
+  hasEmbeddedBody: actionCardBody,
 }

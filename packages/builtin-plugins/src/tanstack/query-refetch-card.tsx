@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseInput, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {ActionCard, settledCardBody} from './card-shared.js'
+import {ActionCard, actionCardBody} from './card-shared.js'
 
 const OkResultSchema = z.object({ok: z.literal(true)}).loose()
 const KeyInputSchema = z.object({key: z.string()})
@@ -22,5 +22,5 @@ function QueryRefetchCard(props: ToolCardProps): JSX.Element {
 
 export const queryRefetchCard: ToolCardView = {
   render: QueryRefetchCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, didRefetch(result)),
+  hasEmbeddedBody: actionCardBody,
 }
