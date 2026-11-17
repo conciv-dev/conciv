@@ -1,4 +1,4 @@
-import {onCleanup, untrack, type JSX} from 'solid-js'
+import {onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {engineWebSocket} from '@conciv/contract'
@@ -29,6 +29,22 @@ function readTerminalTheme(element: Element): TerminalTheme {
   }
   probe.remove()
   return theme
+}
+
+function takesFocusOnPress(node: EventTarget, view: Window & typeof globalThis): boolean {
+  if (!(node instanceof view.HTMLElement) || node.matches(':disabled')) return false
+  return node.tabIndex >= 0 || node.hasAttribute('tabindex')
+}
+
+function keepFocusInsideTheWidget(element: HTMLElement): void {
+  const root = element.getRootNode()
+  const view = element.ownerDocument.defaultView
+  if (view === null || !(root instanceof view.ShadowRoot || root instanceof view.Document)) return
+  makeEventListener(root, 'mousedown', (event) => {
+    if (!element.contains(root.activeElement)) return
+    if (event.composedPath().some((node) => node === element || takesFocusOnPress(node, view))) return
+    event.preventDefault()
+  })
 }
 
 async function openPty(server: ServerRef, request: PtyRequest): Promise<{ptyId: string; url: string}> {
@@ -82,7 +98,12 @@ export default function TerminalSurface(props: {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     return true
   })
-  const surface = (element: HTMLDivElement) => {
+  const surface: {element: HTMLDivElement | undefined} = {element: undefined}
+  onMount(() => {
+    if (surface.element) keepFocusInsideTheWidget(surface.element)
+  })
+  const interruptOnEscape = (element: HTMLDivElement) => {
+    surface.element = element
     makeEventListener(
       element,
       'keydown',
@@ -94,15 +115,9 @@ export default function TerminalSurface(props: {
       },
       {capture: true},
     )
-    makeEventListener(element, 'focusout', (event) => {
-      if (event.relatedTarget !== null) return
-      queueMicrotask(() => {
-        if (element.ownerDocument.hasFocus()) model.focus()
-      })
-    })
   }
   return (
-    <div ref={surface} class="flex flex-1 flex-col min-h-0">
+    <div ref={interruptOnEscape} class="flex flex-1 flex-col min-h-0">
       <Terminal model={model} onBackToChat={() => ctx.layout.close(PANEL_KEY, props.session)} class="flex-1 min-h-0" />
     </div>
   )

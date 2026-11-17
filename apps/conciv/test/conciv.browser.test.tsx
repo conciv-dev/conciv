@@ -7313,7 +7313,7 @@ describe('terminal panel', () => {
     expect(await shot()).toBe(freshLight)
   }, 60_000)
 
-  test('the host page keeps its own keys: Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {
+  test('the host page keeps its own keys: a click there leaves the terminal unfocused, Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {
     await page.viewport(1200, 900)
     const picker = () => bar().getByRole('button', {name: 'Select model'})
     const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
@@ -7338,17 +7338,35 @@ describe('terminal panel', () => {
     harness.mountShell(terminalRoute(sessionId), [], {shadow: true})
 
     await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await terminalPanel().click()
+    await userEvent.keyboard('echo $((6*7))')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    await hostText().click()
+    await userEvent.keyboard('echo hostmarker')
+    await userEvent.keyboard('{Enter}')
+    await terminalPanel().click()
+    await userEvent.keyboard('echo $((3*3))')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
+
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
     await picker().click()
     await page.getByRole('option', {name: 'Busy model'}).click()
     await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(picker()).toBeDisabled()
 
+    await hostText().click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hostSawEscape(1)).toBeVisible()
+
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect.element(launcher()).toBeVisible()
     await hostText().click()
     await userEvent.keyboard('{Escape}')
-    await expect.element(hostSawEscape(1)).toBeVisible()
+    await expect.element(hostSawEscape(2)).toBeVisible()
 
     await launcher().click()
     await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
@@ -7358,7 +7376,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(terminalPanel(), {timeout: 15_000}).toMatchTextContent(/zz[\s\S]*interrupted/)
     await expect.element(picker()).toBeEnabled()
-    await expect.element(hostSawEscape(2)).not.toBeInTheDocument()
+    await expect.element(hostSawEscape(3)).not.toBeInTheDocument()
 
     await picker().click()
     await page.getByRole('option', {name: 'First model'}).click()
