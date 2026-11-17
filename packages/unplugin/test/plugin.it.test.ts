@@ -371,13 +371,13 @@ describe('webpack and rspack', () => {
         await page.goto(await magicLink(recordedEngineBase(root), site.url), {waitUntil: 'domcontentloaded'})
         await expectLocator(page.getByText('fixture app')).toBeVisible()
         const launcher = page.getByRole('button', {name: 'Open conciv chat'})
-        await expectLocator(launcher).toBeVisible({timeout: 30_000})
+        await expectLocator(launcher).toBeVisible()
         await launcher.click()
         const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
         await expectLocator(chat.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
         expect(await page.getByRole('button', {name: /Authorize conciv/}).count()).toBe(0)
       },
-      90_000,
+      60_000,
     )
 
     it.each(bundlers)(
@@ -403,7 +403,7 @@ describe('webpack and rspack', () => {
         await page.goto(site.url, {waitUntil: 'domcontentloaded'})
         expect(new URL(await engineSocket.promise).host).toBe(defaultHost)
       },
-      90_000,
+      60_000,
     )
   })
 
