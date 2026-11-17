@@ -13,13 +13,13 @@ type TerminalSize = {readonly cols: number; readonly rows: number}
 type PtyRequest = {readonly sessionId: string; readonly size: TerminalSize; readonly model: string | undefined}
 
 function readTerminalTheme(element: Element): TerminalTheme {
-  const tokens = getComputedStyle(element)
-  const token = (name: string, fallback: string): string => tokens.getPropertyValue(name).trim() || fallback
+  const style = getComputedStyle(element)
+  const resolved = (value: string) => (value === '' ? undefined : value)
   return {
-    background: token('--chat-bg', '#101014'),
-    foreground: token('--chat-text-hi', '#d6d6de'),
-    cursor: token('--chat-text-hi', '#d6d6de'),
-    selectionBackground: token('--chat-fill-strong', '#3a3a44'),
+    background: resolved(style.backgroundColor),
+    foreground: resolved(style.color),
+    cursor: resolved(style.color),
+    selectionBackground: resolved(style.borderTopColor),
   }
 }
 
@@ -111,7 +111,7 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
       ref={(element) => {
         host.element = element
       }}
-      class="flex flex-1 flex-col min-h-0"
+      class="text-chat-text-hi border-chat-fill-strong bg-chat-panel flex flex-1 flex-col min-h-0"
     >
       <Show
         when={failure()}
