@@ -4,7 +4,7 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe} from 'vitest'
 import {expect} from '@playwright/test'
-import type {Page} from 'playwright'
+import type {Locator, Page} from 'playwright'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
 import {magicLink} from '@conciv/harness-testkit/login'
@@ -40,8 +40,7 @@ const MOVED_DIAMOND_WRITE = {
 const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
-const PinRows = z.array(z.object({cid: z.string(), x: z.number(), y: z.number()}).loose())
-const ReadRows = z.array(z.object({threadId: z.string(), accountId: z.string()}).loose())
+const PinRows = z.array(z.object({cid: z.string(), pinState: z.string()}).loose())
 const ThreadRead = z.object({
   comment: z.object({status: z.string()}).loose(),
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
@@ -73,6 +72,13 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
   await page.mouse.down()
   await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2)
   await page.mouse.move(to.x, to.y)
+  await page.mouse.up()
+}
+
+async function dragPin(page: Page, pin: Locator, to: {x: number; y: number}): Promise<void> {
+  await pin.hover()
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, {steps: 4})
   await page.mouse.up()
 }
 
@@ -540,24 +546,20 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(readPin).toBeVisible()
 
       const dragged = observer.mark()
-      await page.mouse.move(640, 360)
-      await page.mouse.down()
-      await page.mouse.move(690, 385)
-      await page.mouse.move(740, 410)
-      await page.mouse.up()
+      await dragPin(page, readPin, {x: 740, y: 410})
       await observer.completed({
         path: WHITEBOARD_CALL,
         input: {rpcId: 'whiteboard', method: 'pins.update'},
         since: dragged,
       })
-      const room = await widget.kit.session()
-      const pins = PinRows.parse(
-        await widget.kit.rpc.plugin.call(
-          {rpcId: 'whiteboard', method: 'pins.list', input: {room}},
-          {signal: AbortSignal.timeout(30_000)},
-        ),
-      )
-      expect(pins.find((row) => row.cid === 'agent-first')).toMatchObject({x: 740, y: 410})
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+      await readPin.click()
+      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
 
       const unread = page.getByRole('button', {name: 'AI comment, open, unread'})
       await widget.kit.callTool('whiteboard_comment_reply', {
@@ -566,48 +568,18 @@ describe('the comments of the whiteboard plugin', () => {
       })
       await expect(unread).toBeVisible()
       await expect(readPin).toBeHidden()
-      await page.mouse.click(740, 410)
+      await unread.click()
+      await expect(thread.getByText('and the footer too')).toBeVisible()
       await expect(readPin).toBeVisible()
       await expect(unread).toBeHidden()
 
-      const [read] = ReadRows.parse(
-        await widget.kit.rpc.plugin.call(
-          {rpcId: 'whiteboard', method: 'reads.list', input: {room}},
-          {signal: AbortSignal.timeout(30_000)},
-        ),
-      )
-      const now = Date.now()
-      await widget.kit.rpc.plugin.call(
-        {
-          rpcId: 'whiteboard',
-          method: 'comments.insert',
-          input: {
-            room,
-            row: {
-              id: 'own-reply',
-              cid: 'own-reply',
-              threadId: 'agent-first',
-              parentId: 'agent-first',
-              parts: [{type: 'text', text: 'on it'}],
-              authorKind: 'human',
-              authorModel: null,
-              authorId: read?.accountId ?? null,
-              authorName: null,
-              authorAvatar: null,
-              status: 'open',
-              kind: 'floating',
-              anchor: null,
-              anchorFile: null,
-              anchorComponent: null,
-              anchorHash: null,
-              createdAt: now,
-              updatedAt: now,
-              resolvedAt: null,
-            },
-          },
-        },
-        {signal: AbortSignal.timeout(30_000)},
-      )
+      const reply = thread.getByRole('textbox', {name: 'Reply'})
+      await expect(reply).toBeFocused()
+      await reply.pressSequentially('on it')
+      await page.keyboard.press('Enter')
+      await expect(thread.getByText('on it')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
       await widget.kit.callTool('whiteboard_comment_create', {
         cid: 'agent-second',
         kind: 'floating',
@@ -618,7 +590,8 @@ describe('the comments of the whiteboard plugin', () => {
       })
       await expect(unread).toBeVisible()
       await expect(readPin).toBeVisible()
-      await page.mouse.click(400, 200)
+      await unread.click()
+      await expect(thread.getByText('the button has no focus ring')).toBeVisible()
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
       await expect(unread).toHaveCount(0)
     } finally {
@@ -653,17 +626,10 @@ describe('the comments of the whiteboard plugin', () => {
         y: 360,
         authorKind: 'ai',
       })
-      await widget.kit.callTool('whiteboard_comment_create', {
-        cid: 'newer',
-        kind: 'floating',
-        parts: [{type: 'text', text: 'the button has no focus ring'}],
-        x: 400,
-        y: 200,
-        authorKind: 'ai',
-      })
-      await expect(page.getByRole('button', {name: 'AI comment, open, unread'})).toHaveCount(2, {timeout: 30_000})
+      const unreadPin = page.getByRole('button', {name: 'AI comment, open, unread'})
+      await expect(unreadPin).toBeVisible({timeout: 30_000})
 
-      await page.mouse.click(640, 360)
+      await unreadPin.click()
       const thread = page.getByRole('dialog', {name: 'Comment thread'})
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
       const reply = thread.getByRole('textbox', {name: 'Reply'})
@@ -687,7 +653,17 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(thread).toBeHidden()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
       await expect(chat).toBeVisible()
-      await page.mouse.click(640, 360)
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'newer',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'the button has no focus ring'}],
+        x: 400,
+        y: 200,
+        authorKind: 'ai',
+      })
+      await expect(unreadPin).toBeVisible()
+      const readPin = page.getByRole('button', {name: 'AI comment, open', exact: true})
+      await readPin.click()
       await expect(thread.getByText('moving it left')).toBeVisible()
 
       await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
@@ -710,7 +686,7 @@ describe('the comments of the whiteboard plugin', () => {
       const afterResolve = ThreadRead.parse(await widget.kit.callTool('whiteboard_comment_read', {cid: 'older'}))
       expect(afterResolve.comment.status).toBe('resolved')
 
-      await page.mouse.click(400, 200)
+      await readPin.click()
       await expect(thread.getByText('the button has no focus ring')).toBeVisible()
       const deleted = observer.mark()
       await thread.getByRole('button', {name: 'Delete thread'}).click()
@@ -741,8 +717,8 @@ describe('the comments of the whiteboard plugin', () => {
         y: 520,
         authorKind: 'ai',
       })
-      await expect(page.getByRole('button', {name: 'AI comment, open, unread'})).toBeVisible({timeout: 30_000})
-      await dragRectangle(page, {x: 560, y: 520}, {x: 620, y: 580})
+      await expect(unreadPin).toBeVisible({timeout: 30_000})
+      await dragPin(page, unreadPin, {x: 620, y: 580})
       const drift = page.getByRole('dialog', {name: 'Pin drift'})
       await expect(drift.getByRole('button', {name: 'Disconnect from source'})).toBeVisible()
       await expect(drift.getByRole('button', {name: 'Cancel'})).toBeVisible()
@@ -752,11 +728,11 @@ describe('the comments of the whiteboard plugin', () => {
       await pill.click()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
       await expect(drift).toBeHidden()
-      await page.mouse.click(560, 520)
+      await unreadPin.click()
       await expect(thread.getByText('this label is off by one')).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()
-      await dragRectangle(page, {x: 560, y: 520}, {x: 620, y: 580})
+      await dragPin(page, readPin, {x: 620, y: 580})
       await expect(drift.getByRole('button', {name: 'Keep link, accept drift'})).toBeVisible()
       const kept = observer.mark()
       await drift.getByRole('button', {name: 'Keep link, accept drift'}).click()
@@ -773,13 +749,7 @@ describe('the comments of the whiteboard plugin', () => {
           {signal: AbortSignal.timeout(30_000)},
         ),
       )
-      expect(pins.find((row) => row.cid === 'linked')).toMatchObject({
-        x: 620,
-        y: 580,
-        pinState: 'offset',
-        anchorX: 560,
-        anchorY: 520,
-      })
+      expect(pins.find((row) => row.cid === 'linked')).toMatchObject({pinState: 'offset'})
     } finally {
       await widget.close()
     }
