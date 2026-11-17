@@ -46,8 +46,22 @@ type SurfaceProps = {
   close: () => void
 }
 
-function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visible' | 'layer'>): JSX.Element {
+function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visible' | 'layer' | 'close'>): JSX.Element {
   const model = useComments()
+  const overlayBusy = (): boolean => model.openCid() !== null || model.composeTarget() !== null
+  onMount(() =>
+    makeEventListener(
+      window,
+      'keydown',
+      (event) => {
+        if (!props.visible || overlayBusy() || escapeLeftToOthers(event)) return
+        event.preventDefault()
+        event.stopPropagation()
+        props.close()
+      },
+      true,
+    ),
+  )
   return (
     <>
       <Island doc={document} room={props.room} theme="dark" visible={props.visible} onViewport={model.setViewport} />
@@ -65,19 +79,6 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
     if (outcome === 'added' && !props.visible)
       props.toast.show({title: 'Comment added to the whiteboard', variant: 'success'})
   }
-  onMount(() =>
-    makeEventListener(
-      window,
-      'keydown',
-      (event) => {
-        if (!props.visible || escapeLeftToOthers(event)) return
-        event.preventDefault()
-        event.stopPropagation()
-        props.close()
-      },
-      true,
-    ),
-  )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
       <CommentsProvider room={() => props.room} onComposeSettled={onComposeSettled}>
@@ -87,6 +88,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
           room={props.room}
           visible={props.visible}
           layer={props.layer}
+          close={props.close}
         />
       </CommentsProvider>
     </WhiteboardDbProvider>
