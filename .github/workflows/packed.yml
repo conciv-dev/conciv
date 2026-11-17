@@ -12,9 +12,10 @@ name: Packed
 # It runs on pull requests that touch the paths below, and on demand; on main, release.yml
 # calls it on every push, so a broken tarball blocks npm publish (no standalone push trigger,
 # that would run it twice). The pull request paths are what can drift the two fixture
-# lockfiles or change how a tarball is packed. A source-only change can still break a packed
-# install: a pull request that touches none of the paths finds that out from main's Packed
-# run, which blocks publish, not on the pull request.
+# lockfiles or change how a tarball is packed, and the packed suites' own files. A
+# source-only change can still break a packed install: a pull request that touches none of
+# the paths finds that out from main's Packed run, which blocks publish, not on the pull
+# request.
 #
 # Refreshing the fixture lockfiles (never locally): when the drift guard fails, the run
 # writes the lockfile it produced over the committed one, shows the diff in the run summary
@@ -41,7 +42,9 @@ on:
     # Only what can drift the two fixture lockfiles (e2e/vite-react-packed/fixture-lock.yaml,
     # e2e/nextjs/packed/fixture-lock.yaml) or change how a tarball is packed: the lockfile,
     # catalog and manifests, the patches bundled into built dists, the fixtures and the
-    # sources vite-react-packed copies, and the pack helper.
+    # sources vite-react-packed copies, the pack helper, and the packed suites' own files
+    # (the files holding the packed describes and specs, the configs that define the
+    # `packed` tag, and each manifest holding a `test:packed` script).
     paths:
       - .github/workflows/packed.yml
       - package.json
@@ -56,6 +59,13 @@ on:
       - e2e/nextjs/packed/**
       - e2e/nextjs/test/packed-*.spec.ts
       - e2e/nextjs/playwright.packed.config.ts
+      - e2e/nextjs/package.json
+      - packages/mascot/test/unit/mascot.test.ts
+      - packages/mascot/vitest.config.ts
+      - packages/mascot-react/test/unit/mascot-react.test.ts
+      - packages/mascot-react/vitest.config.ts
+      - packages/extensions/tanstack/test/tanstack.test.ts
+      - packages/extensions/tanstack/vitest.config.ts
   workflow_call: {}
   workflow_dispatch: {}
 

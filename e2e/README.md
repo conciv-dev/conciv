@@ -84,7 +84,10 @@ tarball is packed: the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.ya
 `patches/`, every `packages/**/package.json` and `apps/conciv/package.json`, the pack helper
 `packages/vitest-config/src/pack.ts`, `e2e/vite-react` (which `vite-react-packed` copies),
 `e2e/vite-react-packed`, `e2e/nextjs/packed`, the nextjs `test/packed-*.spec.ts` and
-`playwright.packed.config.ts`, and `packed.yml` itself. It also runs on demand
+`playwright.packed.config.ts`, and `packed.yml` itself; and the packed suites' own files:
+`e2e/nextjs/package.json` (its `test:packed` script), the `mascot`, `mascot-react` and
+`extension-tanstack` test files holding the `packed` describes and their `vitest.config.ts` (which define
+the `packed` tag). It also runs on demand
 (`gh workflow run packed.yml --ref <branch>`). On main it runs only from `release.yml`, on every push,
 and npm publish waits on it. A source-only change can still break a packed install; on a pull request
 that touches none of those paths, main's Packed run finds it and blocks publish.
