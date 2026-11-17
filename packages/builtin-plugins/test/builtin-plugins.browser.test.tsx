@@ -4,6 +4,7 @@ import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
 import {installReactBridge, MASKED_VALUE} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
+import tokens from '@conciv/ui-kit-system/tokens.css?inline'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
@@ -1193,7 +1194,11 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
-    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    const shadow = host.attachShadow({mode: 'open'})
+    const themed = document.createElement('style')
+    themed.textContent = tokens
+    shadow.append(themed)
+    onTestFinished(mountSimulator({root: shadow, session: () => AGENT, onStop: endTask}))
     startTask(AGENT)
     onTestFinished(endTask)
     onTestFinished(() => dropCursor(AGENT))
