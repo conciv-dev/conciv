@@ -122,7 +122,7 @@ async function followEvents(kit: CoreKit): Promise<() => Promise<z.infer<typeof 
   return next
 }
 
-function useTool(kit: CoreKit, name: 'start' | 'stop' | 'pull', input: unknown = {}): Promise<unknown> {
+function useTool(kit: CoreKit, name: 'start' | 'stop' | 'pull' | 'get', input: unknown = {}): Promise<unknown> {
   return kit.callTool(`recording_${name}`, input)
 }
 
@@ -475,17 +475,18 @@ describe('the recorder viewer presence', () => {
 })
 
 describe('the recording tools', () => {
-  it('are offered as recording_start, recording_stop and recording_pull, fail to start without a page client, record what a flushing client sends between start and stop, and pull the last seconds with the log clipped to them', async () => {
+  it('are offered as recording_start, recording_stop, recording_pull and recording_get, fail to start without a page client, record what a flushing client sends between start and stop, pull the last seconds with the log clipped to them, and read a saved recording by its id until it is gone', async () => {
     const kit = await bootRecorder()
 
     const discovered = await makeDiscoverTools(
       kit.base,
       await kit.session(),
-    )(['recording_start', 'recording_stop', 'recording_pull'])
+    )(['recording_start', 'recording_stop', 'recording_pull', 'recording_get'])
     expect(discovered.tools.map((tool) => tool.name)).toEqual([
       'external_recording_start',
       'external_recording_stop',
       'external_recording_pull',
+      'external_recording_get',
     ])
 
     expect(await toolFailure(useTool(kit, 'start'))).toBe(
@@ -524,6 +525,14 @@ describe('the recording tools', () => {
     const clipped = z.string().parse(await useTool(kit, 'pull', {secondsBack: 10, keyframes: 0}))
     expect(clipped).toContain('New')
     expect(clipped).not.toContain('Old')
+
+    const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'clip'}))
+    const read = z.string().parse(await useTool(kit, 'get', {recordingId: saved.recordingId, keyframes: 0}))
+    expect(read).toContain('Old')
+    expect(read).toContain('New')
+    expect(await toolFailure(useTool(kit, 'get', {recordingId: 'gone-recording', keyframes: 0}))).toBe(
+      'the recording gone-recording has expired',
+    )
   })
 
   it('answers the log as output and the keyframes rendered in Chromium as image file parts after the untrusted-data note', async () => {
@@ -746,16 +755,22 @@ describe('the page flusher', () => {
 })
 
 describe('the recorder skill', () => {
-  it('is loadable and names the three tools', async () => {
+  it('is loadable and names the four tools', async () => {
     const kit = await bootRecorder()
     const mcp = await connectMcpClient(`${kit.base}/api/mcp`, {[SESSION_HEADER]: await kit.session()})
     onTestFinished(() => mcp.close())
     const skill = (await mcp.tools()).find((tool) => tool.name === 'skill')
     if (!skill) throw new Error('the skill tool is not on /api/mcp')
     const loaded = JSON.stringify(await skill.execute({id: 'recorder'}))
-    for (const name of ['external_recording_start', 'external_recording_stop', 'external_recording_pull']) {
+    for (const name of [
+      'external_recording_start',
+      'external_recording_stop',
+      'external_recording_pull',
+      'external_recording_get',
+    ]) {
       expect(loaded).toContain(name)
     }
+    expect(loaded).toContain('screen recording')
   })
 })
 
