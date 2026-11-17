@@ -102,3 +102,10 @@ The card the thread draws for a finished `test_runner_run` or `test_runner_statu
 last two path segments, a failing test closed until opened, and its failure with Open (the desktop editor, at the
 failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
 streams the live rows.
+
+## terminal
+
+The session's CLI in a terminal (built-in id `terminal`, a pinned Terminal tab in the session's pane): listed for a
+session whose harness has a terminal, the CLI started only when the tab first opens (the xterm surface loads then
+too), replayed after a reload, with a toolbar that picks the CLI model and starts a new terminal, both locked while
+the CLI is busy. Escape with focus in the terminal interrupts a busy CLI; keys pressed on the host page stay there.

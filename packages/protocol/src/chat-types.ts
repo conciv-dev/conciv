@@ -180,6 +180,7 @@ export const HarnessMetaSchema = z.object({
   id: z.string(),
   name: z.string(),
   imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
+  persistentPty: z.boolean(),
 })
 export type HarnessMeta = z.infer<typeof HarnessMetaSchema>
 export const ChatModelsSchema = z.object({

@@ -30,6 +30,7 @@ import {createClientSettings} from '@conciv/extension'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 import {createRoot, createSignal, type JSX} from 'solid-js'
+import {createShadowRoot} from '../src/lib/shadow.js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
@@ -65,6 +66,7 @@ declare module 'vitest/internal/browser' {
     closeCore: () => Promise<void>
     pagePluginPaths: () => Promise<{engine: string; rpc: string}>
     writeProjectFile: (path: string, content: string) => Promise<void>
+    projectFileExists: (path: string) => Promise<boolean>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
     awaitPushSocketLive: () => Promise<void>
@@ -397,6 +399,23 @@ export type ShellMountOptions = {
   host?: Record<string, unknown>
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
+  shadow?: boolean
+}
+
+function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; dispose: () => void} {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const shadow = createShadowRoot(host)
+  const container = document.createElement('div')
+  shadow.root.append(container)
+  return {
+    root: shadow.root,
+    container,
+    dispose: () => {
+      shadow.dispose()
+      host.remove()
+    },
+  }
 }
 
 type ShellHarness = {
@@ -413,11 +432,13 @@ export function createShellHarness(base: () => string): ShellHarness {
     disposeLogin: () => void
     unmount: () => void
     closeRpc: () => void
+    removeShadow: () => void
   } = {
     router: null,
     disposeLogin: () => {},
     unmount: () => {},
     closeRpc: () => {},
+    removeShadow: () => {},
   }
 
   const mountShell = (
@@ -437,10 +458,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     const activeSession: {read: () => string | null} = {read: () => null}
     const client = makeBrowserRpcClient(apiBase, {session: () => activeSession.read()})
     mounted.closeRpc = client.close
+    const shadow = options.shadow ? mountInShadowRoot() : undefined
+    mounted.removeShadow = shadow?.dispose ?? (() => {})
     const router = createConcivRouter({
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
-      environment: {rootNode: document, document},
+      environment: {rootNode: shadow?.root ?? document, document},
       settings: parseConcivSettings(
         JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
       ),
@@ -454,7 +477,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       },
     })
     mounted.router = router
-    mounted.unmount = render(() => <RouterProvider router={router} />).unmount
+    mounted.unmount = render(() => <RouterProvider router={router} />, {container: shadow?.container}).unmount
   }
 
   const dispose = (): void => {
@@ -466,6 +489,8 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.disposeLogin = () => {}
     mounted.closeRpc()
     mounted.closeRpc = () => {}
+    mounted.removeShadow()
+    mounted.removeShadow = () => {}
     window.dispatchEvent(new Event('online'))
   }
 
