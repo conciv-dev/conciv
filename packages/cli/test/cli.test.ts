@@ -2759,7 +2759,7 @@ describe('cli', () => {
       }
     })
 
-    it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
+    it('with no engine running a call names the home folder, list_tabs answers the same, and the tools still say how to pick a tab', async () => {
       const home = tempDir('conciv-home-')
       const client = await hub(home)
       try {
@@ -2769,6 +2769,7 @@ describe('cli', () => {
         const reply = await run(client, 'return 1')
         expect(reply).toContain('no conciv dev server is running; start one and open its page')
         expect(reply).toContain(home)
+        expect(JSON.stringify(await client.callTool('list_tabs', {}))).toBe(reply)
       } finally {
         await client.close()
       }
