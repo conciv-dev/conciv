@@ -35,6 +35,10 @@ const TabsSchema = z.object({tabs: z.array(z.object({id: z.string(), url: z.stri
 
 const ErrorsSchema = z.object({errors: z.array(z.object({kind: z.string(), message: z.string()}))})
 
+const QueryCacheSchema = z.object({queries: z.array(z.object({key: z.string()}))})
+
+const DataEntriesSchema = z.object({entries: z.array(z.object({key: z.string(), state: z.string()}))})
+
 const ExecuteFailureSchema = z.object({error: z.object({message: z.string()})})
 
 async function toolFailure(pending: Promise<unknown>): Promise<string> {
@@ -101,7 +105,7 @@ async function openHost(browser: Browser, kit: CoreKit, withApp: boolean) {
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches a query, redacts secret params and search, answers a long handler error with its code, reports a thrown page error and answers a router-less page', async ({
+  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches and invalidates one exact query, redacts secret params, search, hash and query keys, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error and answers a router-less page', async ({
     browser,
   }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -134,6 +138,17 @@ describe('the tanstack plugin in the page', () => {
     expect(await call('tanstack_query_refetch', {key: '["spike","demo"]'})).toEqual({ok: true})
     await expect(page.getByText('Fetches: 2')).toBeVisible()
 
+    await expect(page.getByText('Todo page runs: 1')).toBeVisible()
+    expect(await call('tanstack_query_refetch', {key: '["todos"]'})).toEqual({ok: true})
+    await expect(page.getByText('Todo list runs: 2')).toBeVisible()
+    expect(await call('tanstack_query_invalidate', {key: '["todos"]'})).toEqual({ok: true})
+    await expect(page.getByText('Todo list runs: 3')).toBeVisible()
+    await expect(page.getByText('Todo page runs: 1')).toBeVisible()
+
+    const cache = QueryCacheSchema.parse(await call('tanstack_query_cache', {}))
+    expect(cache.queries.map((query) => query.key)).toContain('["user",{"token":"[redacted]"}]')
+    expect(JSON.stringify(cache)).not.toContain('query-key-secret-value')
+
     expect(
       await call('tanstack_navigate', {
         to: '/reset/$token',
@@ -151,6 +166,22 @@ describe('the tanstack plugin in the page', () => {
     expect(reset.location.search).toContain('redacted')
     expect(reset.location.pathname).toBe('/reset/[redacted]')
     expect(JSON.stringify(reset)).not.toMatch(/param-secret-value|search-secret-value/)
+
+    await page.getByRole('link', {name: 'Signed in'}).click()
+    await expect(page.getByRole('heading', {name: 'TanStack inspection home'})).toBeVisible()
+    const signedIn = RouterStateSchema.parse(await call('tanstack_router_state', {}))
+    expect(signedIn.location.hash).toContain('redacted')
+    expect(JSON.stringify(signedIn)).not.toContain('secret-hash-value')
+
+    expect(await call('tanstack_navigate', {to: '/slow'})).toEqual({ok: true, to: '/slow'})
+    await expect(page.getByText('Loads: 1')).toBeVisible()
+    await page.getByRole('button', {name: 'Reload slow data'}).click()
+    await expect(page.getByText('Reloading')).toBeVisible()
+    const reloading = DataEntriesSchema.parse(await call('tanstack_data_entries', {}))
+    expect(reloading.entries).toContainEqual(expect.objectContaining({key: '/slow', state: 'fetching'}))
+    await page.getByRole('button', {name: 'Release loader'}).click()
+    await expect(page.getByText('Loads: 2')).toBeVisible()
+    await expect(page.getByText('Reloading')).toBeHidden()
 
     expect(await toolFailure(call('tanstack_navigate', {to: '/refusing', search: {refuse: true}}))).toMatch(
       /^\[tanstack\.handler_error\] refused x{100}/,

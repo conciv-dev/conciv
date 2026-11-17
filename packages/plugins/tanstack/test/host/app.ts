@@ -1,4 +1,4 @@
-import {createElement, StrictMode} from 'react'
+import {createElement, type ReactElement, StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import {QueryClient, QueryClientProvider, useQuery} from '@tanstack/react-query'
 import {createRootRoute, createRoute, createRouter, Link, Outlet, RouterProvider} from '@tanstack/react-router'
@@ -6,6 +6,10 @@ import {createRootRoute, createRoute, createRouter, Link, Outlet, RouterProvider
 const queryClient = new QueryClient()
 
 const fetches = {count: 0}
+
+const todoFetches = {list: 0, page: 0}
+
+const slowLoads = {count: 0, release: () => {}}
 
 function RootLayout() {
   return createElement(
@@ -17,6 +21,7 @@ function RootLayout() {
       createElement(Link, {to: '/'}, 'Home'),
       createElement(Link, {to: '/about'}, 'About'),
       createElement(Link, {to: '/boom'}, 'Boom'),
+      createElement(Link, {to: '/', hash: 'access_token=secret-hash-value'}, 'Signed in'),
     ),
     createElement('main', null, createElement(Outlet)),
   )
@@ -38,11 +43,28 @@ function AboutPage() {
       return {fetches: fetches.count}
     },
   })
+  const todos = useQuery({
+    queryKey: ['todos'],
+    queryFn: async () => {
+      todoFetches.list += 1
+      return {fetches: todoFetches.list}
+    },
+  })
+  const todoPage = useQuery({
+    queryKey: ['todos', {page: 1}],
+    queryFn: async () => {
+      todoFetches.page += 1
+      return {fetches: todoFetches.page}
+    },
+  })
+  useQuery({queryKey: ['user', {token: 'query-key-secret-value'}], queryFn: async () => ({name: 'Ada'})})
   return createElement(
     'section',
     null,
     createElement('h1', null, 'About this app'),
     createElement('p', null, `Fetches: ${demo.data?.fetches ?? 0}`),
+    createElement('p', null, `Todo list runs: ${todos.data?.fetches ?? 0}`),
+    createElement('p', null, `Todo page runs: ${todoPage.data?.fetches ?? 0}`),
   )
 }
 
@@ -68,6 +90,37 @@ const resetRoute = createRoute({
   component: ResetPage,
 })
 
+function SlowPage(): ReactElement {
+  const data = slowRoute.useLoaderData()
+  const match = slowRoute.useMatch()
+  const reload = () => {
+    router.invalidate().catch((error: unknown) => console.error(error))
+  }
+  return createElement(
+    'section',
+    null,
+    createElement('h1', null, 'Slow data'),
+    createElement('p', null, `Loads: ${data.loads}`),
+    match.isFetching ? createElement('p', null, 'Reloading') : null,
+    createElement('button', {type: 'button', onClick: reload}, 'Reload slow data'),
+    createElement('button', {type: 'button', onClick: () => slowLoads.release()}, 'Release loader'),
+  )
+}
+
+const slowRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/slow',
+  loader: () => {
+    slowLoads.count += 1
+    const loads = slowLoads.count
+    if (loads === 1) return {loads}
+    return new Promise<{loads: number}>((resolve) => {
+      slowLoads.release = () => resolve({loads})
+    })
+  },
+  component: SlowPage,
+})
+
 const refusingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/refusing',
@@ -83,7 +136,7 @@ const refusingRoute = createRoute({
 })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, aboutRoute, boomRoute, resetRoute, refusingRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, aboutRoute, boomRoute, resetRoute, slowRoute, refusingRoute]),
 })
 
 const rootElement = document.getElementById('root')
