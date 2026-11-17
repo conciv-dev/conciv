@@ -72,7 +72,6 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "defu": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
