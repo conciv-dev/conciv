@@ -2262,6 +2262,9 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/page':
         specifier: workspace:^
         version: link:../page
