@@ -3,8 +3,12 @@ import {join} from 'node:path'
 import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
 import type {HarnessId} from '../../harness-detect.js'
 
-export function consentFile(cwd: string): string {
+function consentFile(cwd: string): string {
   return join(concivStateDir(cwd), 'harnesses.json')
+}
+
+export function consentFiles(cwd: string): string[] {
+  return [join(concivStateDir(cwd), '.gitignore'), consentFile(cwd)]
 }
 
 export function writeConsent(cwd: string, ids: HarnessId[]): void {
