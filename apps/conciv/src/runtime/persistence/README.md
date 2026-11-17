@@ -31,6 +31,11 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - The draft store lists its document keys (`DraftStore.keys`, the driver's `keys`: `getAllKeys` on `documents`, in key
   order). The source has no such call; conciv uses it once per start to remove the local drafts of sessions the engine
   no longer has (`data/app-data.ts` `forgetGoneDrafts`).
+- A blob put or a document removal settles when its transaction aborts (`drafts.ts` `write`, the `abort` listener,
+  which rejects): an abort without an error event, such as a quota failure at commit after the request succeeded,
+  left the attachment chip pending and the app's one draft write chain stalled. The source has the same gap at
+  `drafts.ts:574-584`. No test covers it: the store never exposes its transaction, so an abort at commit cannot be
+  made in a test without a mock.
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
 - A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod and

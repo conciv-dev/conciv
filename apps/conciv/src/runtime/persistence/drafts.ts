@@ -468,6 +468,7 @@ export function createBrowserDraftStore(): DraftStore {
     return new Promise<void>((resolve, reject) => {
       transaction.addEventListener('complete', () => resolve())
       transaction.addEventListener('error', () => reject(transaction.error))
+      transaction.addEventListener('abort', () => reject(transaction.error))
     })
   }
 
