@@ -123,6 +123,8 @@ function EmbeddedOutput(props: {
             {(value) => (
               <CodeBlock
                 size="xs"
+                title={props.failed ? 'Error' : 'Output'}
+                tone={props.failed ? 'error' : 'normal'}
                 label={props.failed ? 'Error output' : 'Output'}
                 file={{name: 'output.log', lang: 'ansi', contents: value()}}
               />

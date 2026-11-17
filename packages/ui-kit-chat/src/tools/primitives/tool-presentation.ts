@@ -54,6 +54,15 @@ export function codeBlockFileChromeOptions(): FileOptions<undefined, undefined> 
   }
 }
 
+export function codeBlockTitledOptions(): FileOptions<undefined, undefined> {
+  return {
+    ...codeBlockOptions(),
+    disableFileHeader: false,
+    unsafeCSS: FILE_HEADER_CSS,
+    renderCustomHeader: () => undefined,
+  }
+}
+
 export function displayValue(value: unknown): string {
   if (typeof value === 'string') return value
   return JSON.stringify(value) ?? String(value)

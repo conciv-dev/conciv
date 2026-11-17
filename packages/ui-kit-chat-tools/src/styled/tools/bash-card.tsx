@@ -29,7 +29,9 @@ function StoppedBody(): JSX.Element {
   return (
     <div class="flex flex-col gap-2">
       <Show when={bash.command()}>
-        {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
+        {(command) => (
+          <CodeBlock size="xs" title="Command" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />
+        )}
       </Show>
       <ErrorBlock message={bash.stoppedReason()} outcome={bash.outcome()} />
     </div>
@@ -51,12 +53,20 @@ function Body(): JSX.Element {
       >
         <div class="flex flex-col gap-2">
           <Show when={bash.command()}>
-            {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
+            {(command) => (
+              <CodeBlock
+                size="xs"
+                title="Command"
+                file={{name: 'command.sh', lang: 'shellscript', contents: command()}}
+              />
+            )}
           </Show>
           <Show when={text()}>
             {(value) => (
               <CodeBlock
                 size="xs"
+                title={bash.isError() ? 'Error' : 'Output'}
+                tone={bash.isError() ? 'error' : 'normal'}
                 label={bash.isError() ? 'Error output' : 'Output'}
                 file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
               />

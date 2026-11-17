@@ -96,6 +96,8 @@ function EmbeddedResults(props: {text: string; failed: boolean}): JSX.Element {
       fallback={
         <CodeBlock
           size="xs"
+          title={props.failed ? 'Error' : 'Output'}
+          tone={props.failed ? 'error' : 'normal'}
           label={props.failed ? 'Error output' : 'Output'}
           file={{name: 'results.txt', lang: 'text', contents: props.text}}
         />

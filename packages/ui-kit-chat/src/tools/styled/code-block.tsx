@@ -2,7 +2,12 @@ import {createMemo, Show, splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
 import {ClipboardCopyButton} from '@conciv/ui-kit-system'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
-import {codeBlockOptions, codeBlockFileChromeOptions, codeLineOptions} from '../primitives/tool-presentation.js'
+import {
+  codeBlockOptions,
+  codeBlockFileChromeOptions,
+  codeBlockTitledOptions,
+  codeLineOptions,
+} from '../primitives/tool-presentation.js'
 import {useEmbeddedCard} from './card-chrome.js'
 import {TraceClamp, type TraceClampSize} from '../../styled/trace/clamp.js'
 import {codeTheme} from '../../theme/code-theme.js'
@@ -26,6 +31,15 @@ const CORNER_ACTIONS = 'absolute top-1 end-1 z-1 flex'
 const ACTION_BUTTON = 'size-6 shrink-0'
 const CLAMP_FOOTER = 'px-2 pb-1'
 const CLEAR_OF_CORNER = 'pe-8'
+const TITLE_ROW = 'flex items-center justify-between gap-2 min-w-0 ps-3 pe-1 py-1'
+const TITLE_TEXT: Record<CodeBlockTone, string> = {
+  normal: 'min-w-0 truncate text-chat-xs [font-family:var(--chat-font)] text-chat-text-2',
+  error: 'min-w-0 truncate text-chat-xs [font-family:var(--chat-font)] text-chat-danger',
+}
+
+type CodeBlockTone = 'normal' | 'error'
+
+type CodeChrome = 'plain' | 'file' | 'titled' | 'line'
 
 type HeightCap = 'result' | 'log' | 'none'
 
@@ -40,6 +54,7 @@ const codeBlock = cva(`block w-full min-w-0 ${PAINTLESS_HIGHLIGHT} [font-family:
     chrome: {
       plain: `${CLEAR_OF_CORNER} [--diffs-gap-block:0px] [--diffs-gap-inline:0px]`,
       file: '',
+      titled: '',
       line: 'overflow-auto whitespace-nowrap [--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
     },
   },
@@ -92,36 +107,62 @@ function useHeightCap(requested: () => HeightCap | undefined): () => HeightCap {
   return () => (embedded() ? 'none' : (requested() ?? 'result'))
 }
 
+function TitleRow(props: {title: string; tone: CodeBlockTone; text: string}): JSX.Element {
+  return (
+    <div class={TITLE_ROW}>
+      <span class={TITLE_TEXT[props.tone]}>{props.title}</span>
+      <CopyAction text={props.text} />
+    </div>
+  )
+}
+
 export function CodeBlock(props: {
   file: {name: string; lang?: string; contents: string}
   size?: 'xs' | 'sm'
   maxHeight?: HeightCap
   chrome?: 'plain' | 'file' | 'line'
+  title?: string
+  tone?: CodeBlockTone
   label?: string
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'label', 'class'])
-  const chrome = (): 'plain' | 'file' | 'line' => local.chrome ?? 'plain'
+  const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'title', 'tone', 'label', 'class'])
+  const chrome = (): CodeChrome => {
+    const requested = local.chrome ?? 'plain'
+    return requested === 'plain' && local.title !== undefined ? 'titled' : requested
+  }
   const cap = useHeightCap(() => local.maxHeight)
   const codeClass = (): string => codeBlock({size: local.size ?? 'xs', chrome: chrome()})
   const options = createMemo(() => {
     if (chrome() === 'line') return codeLineOptions()
+    if (chrome() === 'titled') return codeBlockTitledOptions()
     return chrome() === 'plain' ? codeBlockOptions() : codeBlockFileChromeOptions()
   })
   const headerCopy = (): JSX.Element => (chrome() === 'file' ? <CopyAction text={local.file.contents} /> : undefined)
+  const titleRow = (): JSX.Element => {
+    const title = local.title
+    if (chrome() !== 'titled' || title === undefined) return undefined
+    return <TitleRow title={title} tone={local.tone ?? 'normal'} text={local.file.contents} />
+  }
   return (
     <Show
       when={chrome() !== 'line'}
       fallback={<SolidCodeBlock class={`${codeClass()}  ${local.class ?? ''}`} options={options()} file={local.file} />}
     >
       <BlockFrame
-        label={local.label ?? local.file.name}
+        label={local.label ?? local.title ?? local.file.name}
         text={local.file.contents}
         cap={cap()}
         cornerCopy={chrome() === 'plain'}
         class={local.class}
       >
-        <SolidCodeBlock class={codeClass()} options={options()} file={local.file} headerMetadata={headerCopy()} />
+        <SolidCodeBlock
+          class={codeClass()}
+          options={options()}
+          file={local.file}
+          headerMetadata={headerCopy()}
+          customHeader={titleRow()}
+        />
       </BlockFrame>
     </Show>
   )
