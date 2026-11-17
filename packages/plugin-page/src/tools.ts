@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer'
+import {Effect} from 'effect'
 import {z} from 'zod'
 import {Tool, type Plugin, type ToolContext} from '@conciv/plugin'
 import {raise, type Connection} from './connection.js'
@@ -72,21 +73,25 @@ export async function register(
       .request({agentId: tool.agent, signal: tool.signal})
       .catch((error: unknown) => Promise.reject(declared(operation.name, error)))
     const output = decodeResult(operation, response)
-    if (response.capture)
-      await connection.records
-        .capture(tool.sessionId, tool.id, response.capture)
-        .catch((error: unknown) => console.warn(`Saving the capture of page.${operation.name} failed`, error))
+    const capture = response.capture
+    if (capture)
+      await warned(
+        () => connection.records.capture(tool.sessionId, tool.id, capture),
+        `Saving the capture of page.${operation.name} failed`,
+      )
     if (operation.mutating) {
       const {type: _type, ref, selector, ...args} = Targeted.parse(action)
-      await connection.records
-        .append(tool.sessionId, {
-          ts: Date.now(),
-          verb: `page_${operation.name}`,
-          ...(ref === undefined ? {} : {ref}),
-          ...(selector === undefined ? {} : {selector}),
-          args,
-        })
-        .catch((error: unknown) => console.warn(`Journaling page.${operation.name} failed`, error))
+      await warned(
+        () =>
+          connection.records.append(tool.sessionId, {
+            ts: Date.now(),
+            verb: `page_${operation.name}`,
+            ...(ref === undefined ? {} : {ref}),
+            ...(selector === undefined ? {} : {selector}),
+            args,
+          }),
+        `Journaling page.${operation.name} failed`,
+      )
     }
     if (action.type === 'locate')
       return exportResult(await located(output, ctx.location.directory), response.files, ctx.location.directory)
@@ -117,6 +122,12 @@ export async function register(
       })
     })
   })
+}
+
+function warned(write: () => Promise<void>, message: string) {
+  return Effect.runPromise(
+    Effect.tryPromise(write).pipe(Effect.catch((error) => Effect.logWarning(message, error.cause))),
+  )
 }
 
 function declared(name: string, error: unknown) {
