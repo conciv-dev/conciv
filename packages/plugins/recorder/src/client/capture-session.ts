@@ -1,4 +1,4 @@
-import type {RecorderConfig} from '../shared/protocol.js'
+import type {RecorderConfig} from '../protocol.js'
 import {startCapture, takeFreshSnapshot, type CaptureLibrary} from './capture.js'
 import type {Flusher} from './flusher.js'
 import {createVisibilityPauser} from './visibility-pauser.js'

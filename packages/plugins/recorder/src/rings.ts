@@ -1,5 +1,5 @@
 import {createEventRing, createSequence, type EventRing} from './ring.js'
-import type {RrwebEvent} from '../shared/protocol.js'
+import type {RrwebEvent} from './protocol.js'
 
 const CLIENT_RING_IDLE_MS = 30 * 60 * 1000
 const MAX_CLIENT_RINGS = 8

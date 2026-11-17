@@ -4755,6 +4755,9 @@ importers:
 
   packages/plugins/recorder:
     dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       p-queue:
         specifier: 'catalog:'
         version: 10.0.0

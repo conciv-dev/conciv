@@ -1,5 +1,5 @@
 import type {Tool} from '@conciv/plugin'
-import type {ActionLogEntry, Keyframe} from '../shared/protocol.js'
+import type {ActionLogEntry, Keyframe} from './protocol.js'
 
 const SIGNIFICANT: ReadonlySet<string> = new Set(['click', 'navigation', 'console', 'reload'])
 

@@ -1,4 +1,4 @@
-import {jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
+import {jsonByteLength, type RrwebEvent} from './protocol.js'
 
 export type EventRing = {
   append(clientId: string, events: RrwebEvent[]): void
