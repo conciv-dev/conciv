@@ -5,6 +5,7 @@ import {Button} from '@conciv/ui-kit-system'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {prependDraft} from './draft-storage.js'
 import {useStartSession} from '../app/start-session.js'
+import {usePane} from '../app/pane-context.js'
 
 const PANEL =
   'flex flex-1 flex-col items-center justify-center gap-3 p-6 min-h-0 text-center text-chat-text text-chat-sm'
@@ -14,6 +15,7 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const router = useRouter()
   const announce = useAnnounce()
   const startSession = useStartSession()
+  const pane = usePane()
   const draft = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
   const carried = () => (draft.isSuccess ? (draft.data?.text ?? '') : '')
 
@@ -32,6 +34,10 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
     },
     onSuccess: (sessionId: string) => {
       announce('Started a new session')
+      if (pane.replaceSession) {
+        pane.replaceSession(sessionId)
+        return
+      }
       void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
     },
     onError: (error: unknown) => console.error('[conciv] could not move to a new session', error),

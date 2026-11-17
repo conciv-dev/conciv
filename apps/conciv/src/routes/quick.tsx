@@ -286,7 +286,11 @@ function QuickLayer(): JSX.Element {
                     onPointerDown={onGutterDown}
                   />
                 </Show>
-                <PaneProvider sessionId={id} onNewSession={addFreshPane}>
+                <PaneProvider
+                  sessionId={id}
+                  onNewSession={addFreshPane}
+                  onReplaceSession={(next) => activatePane(index(), next)}
+                >
                   <Show when={focusedIndex() === index()}>
                     <PluginSession sessionId={id} />
                   </Show>
