@@ -16,7 +16,6 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
-  openInEditor?: (file: string, line?: number, column?: number) => void
   extensions?: Parameters<typeof makeApp>[0]['extensions']
 }
 
@@ -24,7 +23,6 @@ function bootCliApp(extras: BootExtras): BootApp {
   return async (env) => {
     const cfg: ResolvedConcivConfig = {
       enabled: true,
-      widgetUrl: undefined,
       stateRoot: env.stateRoot,
       harness: env.harness.id,
       harnessBin: undefined,
@@ -34,16 +32,18 @@ function bootCliApp(extras: BootExtras): BootApp {
       hubAccess: 'session',
       plugins: [],
       policies: [],
+      permissions: [],
     }
-    const {fetch, dispose, agentToken} = await makeApp({
+    const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
       print: env.print,
       cfg,
       cwd: env.cwd,
-      openInEditor: extras.openInEditor ?? (() => {}),
+      openInEditor: () => {},
       harness: env.harness,
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }
 }

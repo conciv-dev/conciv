@@ -25,7 +25,6 @@ export type QueueRecord = {
   queueId: string
   sessionId: SessionId
   toolCallId: string
-  startedBy: 'terminal' | 'agent'
   tools: string[]
   settled: (Settled | undefined)[]
   result: PageQueueResult | null
@@ -43,8 +42,6 @@ type Play = (
 ) => Promise<RequestSettlement>[]
 
 type Origin = {readonly toolCallIds?: readonly string[]; readonly excludeToolCallIds?: readonly string[]}
-
-export const TERMINAL_AGENT = 'terminal'
 
 const KEPT_QUEUES = 200
 
@@ -125,8 +122,7 @@ function awaitsDelivery(record: QueueRecord): boolean {
 }
 
 function fromOrigin(record: QueueRecord, origin: Origin): boolean {
-  const included =
-    origin.toolCallIds === undefined ? record.startedBy !== 'terminal' : origin.toolCallIds.includes(record.toolCallId)
+  const included = origin.toolCallIds === undefined || origin.toolCallIds.includes(record.toolCallId)
   return included && origin.excludeToolCallIds?.includes(record.toolCallId) !== true
 }
 
@@ -192,7 +188,6 @@ export function fromPlay(deps: {
       queueId,
       sessionId,
       toolCallId: given.toolCallId,
-      startedBy: given.agentId === TERMINAL_AGENT ? 'terminal' : 'agent',
       tools: actions.map((action) => action.tool),
       settled: actions.map(() => undefined),
       result: null,
@@ -215,12 +210,12 @@ export function fromPlay(deps: {
     return {queueId, actions: actions.length}
   }
 
-  async function wait(
+  async function reached(
     sessionId: SessionId,
     queueId: string,
     waitMs: number,
     signal?: AbortSignal,
-  ): Promise<PageQueueResult | PageQueueProgress> {
+  ): Promise<QueueRecord> {
     const record = records.get(queueId)
     if (record === undefined || record.sessionId !== sessionId) {
       throw new Error(`no queue ${queueId} on this tab`)
@@ -229,16 +224,42 @@ export function fromPlay(deps: {
       await Promise.race([record.done, delay(waitMs, signal === undefined ? {} : {signal})]).catch(() => undefined)
     }
     signal?.throwIfAborted()
-    if (record.result !== null) {
-      record.delivery = 'delivered'
-      return record.result
-    }
+    return record
+  }
+
+  function progress(record: QueueRecord): PageQueueProgress {
     return {
-      queueId,
+      queueId: record.queueId,
       status: 'playing',
       done: record.settled.filter((entry) => entry !== undefined).length,
       of: record.tools.length,
     }
+  }
+
+  async function wait(
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<PageQueueResult | PageQueueProgress> {
+    const record = await reached(sessionId, queueId, waitMs, signal)
+    if (record.result === null) return progress(record)
+    record.delivery = 'delivered'
+    return record.result
+  }
+
+  async function claim(
+    sessionId: SessionId,
+    queueId: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<{result: PageQueueResult; before: 'owed' | 'nextReply' | null} | PageQueueProgress> {
+    const record = await reached(sessionId, queueId, waitMs, signal)
+    if (record.result === null) return progress(record)
+    if (!awaitsDelivery(record)) return {result: record.result, before: null}
+    const before = record.delivery === 'owed' ? 'owed' : 'nextReply'
+    record.delivery = 'claimed'
+    return {result: record.result, before}
   }
 
   async function play(
@@ -295,5 +316,5 @@ export function fromPlay(deps: {
     }
   }
 
-  return {start, play, wait, undelivered, startedBy, owed, settle, cancelSession}
+  return {start, play, wait, claim, undelivered, startedBy, owed, settle, cancelSession}
 }

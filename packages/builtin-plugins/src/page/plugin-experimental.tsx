@@ -1,8 +1,11 @@
-import {onCleanup} from 'solid-js'
-import {createKeyed, Plugin, type MountedSession} from '@conciv/plugin/experimental'
-import {Page, ReactTree} from '@conciv/plugin/experimental/page'
+import {createComponent, onCleanup, type Accessor, type JSX} from 'solid-js'
+import {Portal} from 'solid-js/web'
+import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
+import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition, type Tab} from '@conciv/plugin-page/rpc'
+import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import {openAttachment} from './attachment.js'
+import {makeHighlight, type OpenedSource} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
@@ -26,13 +29,20 @@ function woken(signal: AbortSignal) {
   })
 }
 
-function mountShadowHost() {
-  const host = document.createElement('div')
-
-  host.setAttribute('data-conciv-root', '')
-  document.body.append(host)
-
-  return {root: host.attachShadow({mode: 'open'}), remove: () => host.remove()}
+function HighlightHost(props: {
+  mode: Accessor<'light' | 'dark'>
+  mount: (root: ShadowRoot) => () => void
+}): JSX.Element {
+  return (
+    <Portal mount={document.body}>
+      <div
+        data-conciv-effects
+        classList={{light: props.mode() === 'light', dark: props.mode() === 'dark'}}
+        style={{position: 'fixed', 'z-index': '2147483000'}}
+        ref={(element) => onCleanup(props.mount(element.attachShadow({mode: 'open'})))}
+      />
+    </Portal>
+  )
 }
 
 export default Plugin.define({
@@ -81,17 +91,28 @@ export default Plugin.define({
       },
     )
 
-    const shadow = mountShadowHost()
-    const unmount = mountSimulator({
-      root: shadow.root,
-      session: () => routed()?.id ?? null,
-      running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
-      onStop: (sessionId) => {
-        const session = routed()
+    ctx.add(Slot, {
+      at: 'page.overlay',
+      hides: false,
+      render: () => (
+        <div
+          ref={(element) =>
+            onCleanup(
+              mountSimulator({
+                root: element,
+                session: () => routed()?.id ?? null,
+                running: (sessionId) => routed()?.id === sessionId && routed()?.run.status() === 'running',
+                onStop: (sessionId) => {
+                  const session = routed()
 
-        if (session?.id === sessionId) void session.run.interrupt()
-        endTask()
-      },
+                  if (session?.id === sessionId) void session.run.interrupt()
+                  endTask()
+                },
+              }),
+            )
+          }
+        />
+      ),
     })
 
     createKeyed(
@@ -103,22 +124,42 @@ export default Plugin.define({
       (session) => onCleanup(() => endRun(session.id)),
     )
 
-    ctx.provide(Page, {
-      ...pageMembers,
-      symbolicate: (input) => {
-        const session = routed()
+    const symbolicate = (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
+      const session = routed()
 
-        if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
+      if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
 
-        return session.server.client.rpc(Definition).symbolicate({frames: [...input.frames]})
-      },
+      return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
+    }
+
+    const openSource = async (located: LocateResult): Promise<OpenedSource> => {
+      const desktop = ctx.desktop
+
+      if (!desktop) return 'failed'
+      try {
+        const frames = located.frames.flatMap(({fileName, line, column}) =>
+          fileName === undefined || line === undefined ? [] : [{fileName, line, column}],
+        )
+        const source = located.source ?? (frames.length > 0 ? await symbolicate(frames) : null)
+
+        if (!source) return 'no-source'
+        await desktop.launch(source.file, {line: source.line, column: source.column})
+        return 'opened'
+      } catch {
+        return 'failed'
+      }
+    }
+
+    const highlight = makeHighlight({
+      open: openSource,
+      toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
+    ctx.add(PageEffect, highlight.effect)
+    createComponent(HighlightHost, {mode: () => ctx.appearance.mode(), mount: highlight.mount})
+
+    ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 
-    return () => {
-      unmount()
-      shadow.remove()
-      operations.dispose()
-    }
+    return () => operations.dispose()
   },
 })

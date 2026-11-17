@@ -110,6 +110,7 @@ async function sessionPage(
   const listed = await listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
+    publishCreated: chat.rows.publishCreated,
     nativePages: await loadNativePages(page),
     page,
     search,
@@ -168,7 +169,7 @@ const sameEffort = (effort: ReasoningEffort | null) =>
   effort === null ? isNull(sessions.effort) : eq(sessions.effort, effort)
 
 async function ensuredRow(chat: ChatContext, sessionId: SessionId): Promise<SessionRecord | null> {
-  await ensureRow(chat.db, sessionId, chat.defaultHarness.id, chat.cwd)
+  await ensureRow(chat.rows, sessionId)
   return rowById(chat.db, sessionId)
 }
 
@@ -238,7 +239,7 @@ export function searchedSessionPage(
 export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
   const chat = deps.chat
   const db = chat.db
-  const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
+  const scope = chat.rows
   const search = deps.search
   return {
     list: os.sessions.list.handler(({input}) => listedSessionPage(chat, search, input)),
@@ -265,13 +266,21 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       return page
     }),
     create: os.sessions.create.handler(async () => {
-      const {sessionId} = await createChatSession(db, scope)
+      const {sessionId} = await createChatSession(scope)
       const session = await rpcSessionMeta(chat, sessionId)
       if (session === null) throw new Error(`the session row ${sessionId} vanished right after it was created`)
       return {sessionId, session}
     }),
-    resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),
-    open: os.sessions.open.handler(({input}) => openNativeRow(scope, input)),
+    resolve: os.sessions.resolve.handler(async ({input, errors}) => {
+      const resolved = await resolveRow(scope, input)
+      if (resolved === null) throw errors.NOT_FOUND()
+      return resolved
+    }),
+    open: os.sessions.open.handler(async ({input, errors}) => {
+      const opened = await openNativeRow(scope, input)
+      if (opened === null) throw errors.NOT_FOUND()
+      return opened
+    }),
     restore: os.sessions.restore.handler(async ({input}) => {
       await restoreRow(db, input.sessionId)
       return {sessionId: input.sessionId}
@@ -316,7 +325,9 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
       switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
-    compact: os.sessions.compact.handler(async ({input}) => {
+    compact: os.sessions.compact.handler(async ({input, errors}) => {
+      const row = await rowById(db, input.sessionId)
+      if (row === null || row.deletedAt !== null) throw errors.NOT_FOUND()
       await deps.runtime.forSession(input.sessionId).run.compact()
       return {ok: true as const}
     }),

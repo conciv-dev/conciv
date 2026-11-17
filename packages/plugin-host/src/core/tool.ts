@@ -73,7 +73,7 @@ export interface Snapshot {
   }) => Effect.Effect<NormalizedResult, Tool.Error>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Tool')
+export const Service = Context.Service<Interface>('@conciv/Tool')
 
 export const layer = Layer.effect(
   Service,

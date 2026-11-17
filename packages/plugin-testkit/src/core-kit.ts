@@ -8,6 +8,7 @@ import {
   type Kit,
 } from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
+import {resolveConfig} from '@conciv/core/config'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -17,8 +18,11 @@ import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 
+export type EditorOpen = {file: string; line?: number; column?: number}
+
 export type CoreKit = Kit & {
   harness: FakeHarness
+  editorOpened: () => ReadonlyArray<EditorOpen>
   forSession: (id: SessionId) => SessionScope
   home: string
   writeProjectFile: (path: string, content: string) => void
@@ -32,25 +36,27 @@ export type AlternateHarness = {
   commands?: HarnessCommand[]
 }
 
-export async function bootCoreKit(opts: {
-  id: string
-  text?: string
-  resume?: boolean
-  displayName?: string
-  extensions?: AnyExtension[]
-  models?: HarnessModel[]
-  commands?: HarnessCommand[]
-  history?: FixtureSession[]
-  resumeBin?: string
-  alternates?: AlternateHarness[]
-  allowedOrigins?: string[]
-  staleness?: () => EngineStaleness
-  nativePageDir?: string
-  plugins?: NonNullable<ConcivConfig['plugins']>
-  files?: Readonly<Record<string, string>>
-  stateRoot?: string
-  bundler?: BundlerBridge
-}): Promise<CoreKit> {
+export async function bootCoreKit(
+  opts: Pick<ConcivConfig, 'permission' | 'permissions'> & {
+    id: string
+    text?: string
+    resume?: boolean
+    displayName?: string
+    extensions?: AnyExtension[]
+    models?: HarnessModel[]
+    commands?: HarnessCommand[]
+    history?: FixtureSession[]
+    resumeBin?: string
+    alternates?: AlternateHarness[]
+    allowedOrigins?: string[]
+    staleness?: () => EngineStaleness
+    nativePageDir?: string
+    plugins?: NonNullable<ConcivConfig['plugins']>
+    files?: Readonly<Record<string, string>>
+    stateRoot?: string
+    bundler?: BundlerBridge
+  },
+): Promise<CoreKit> {
   const harness = createFakeHarness({
     id: opts.id,
     text: opts.text ?? 'Hello from conciv',
@@ -62,15 +68,15 @@ export async function bootCoreKit(opts: {
     resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
+  const editorOpens: EditorOpen[] = []
   const kit = await createTestkit(
     harness,
     async (env) => {
       for (const [path, content] of Object.entries(opts.files ?? {})) writeInside(env.cwd, path, content)
-      const {fetch, dispose, runtime, agentToken, startPlugins} = await makeApp({
+      const {fetch, dispose, runtime, agentToken, awaitActivation} = await makeApp({
         print: env.print,
         cfg: {
           enabled: true,
-          widgetUrl: undefined,
           stateRoot: env.stateRoot,
           harness: env.harness.id,
           harnessBin: undefined,
@@ -80,9 +86,12 @@ export async function bootCoreKit(opts: {
           hubAccess: 'session',
           plugins: opts.plugins ?? [],
           policies: [],
+          permissions: resolveConfig({permission: opts.permission, permissions: opts.permissions}, env.cwd).permissions,
         },
         cwd: env.cwd,
-        openInEditor: () => {},
+        openInEditor: (file, line, column) => {
+          editorOpens.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})})
+        },
         harness: env.harness,
         harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
         extensions: opts.extensions,
@@ -93,7 +102,7 @@ export async function bootCoreKit(opts: {
         bridge: opts.bundler,
       })
       captured.runtime = runtime
-      await startPlugins()
+      await awaitActivation()
       return {
         fetch,
         dispose,
@@ -107,6 +116,7 @@ export async function bootCoreKit(opts: {
   return {
     ...kit,
     harness,
+    editorOpened: () => editorOpens,
     forSession: runtime.forSession,
     home: kitHome(kit.stateRoot),
     writeProjectFile: (path, content) => writeInside(kit.stateRoot, path, content),

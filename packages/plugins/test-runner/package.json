@@ -1,8 +1,7 @@
 {
   "name": "@conciv/plugin-test-runner",
   "version": "0.0.22",
-  "private": true,
-  "description": "The conciv test-runner plugin: runs the project's tests (vitest, playwright) from code mode and streams live results over plugin RPC.",
+  "description": "The conciv test-runner plugin: runs the project's tests (vitest, playwright), streams each run live in the Tests tab and shows the finished run as a card in the thread.",
   "keywords": [
     "conciv",
     "conciv-plugin",
@@ -36,33 +35,46 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
+    "./view": {
+      "types": "./dist/view.d.ts",
+      "import": "./dist/view.js"
+    },
+    "./plugin-experimental": "./dist/plugin-experimental.cjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/browser-fixture": "workspace:*",
+    "@conciv/embed": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "playwright": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {

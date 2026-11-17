@@ -4,19 +4,24 @@ import type {Plugin} from '@conciv/plugin/effect/plugin'
 import type {Generation} from './service.js'
 import {Context, Effect, Scope} from 'effect'
 import {FSUtil} from '../../util/fs-util.js'
+import {ConfigAgentPlugin} from '../config/plugin/agent.js'
 import {ConfigPluginSource} from '../config/plugin/source.js'
 import {Global} from '../../util/global.js'
 import {ConfigSkillPlugin} from '../config/plugin/skill.js'
 import {Watcher} from '../filesystem/watcher.js'
 import {Location} from '../location.js'
 import {Permission} from '../permission.js'
+import {EditorSource} from './host.js'
 import {Skill} from '../skill.js'
 import {SkillPlugin} from './skill.js'
+import {ServerTools} from '../tool/plugin/server.js'
 import {SkillTool} from '../tool/plugin/skill.js'
 import {Tool} from '../tool.js'
 
 const services = [
+  ConfigAgentPlugin.ConfiguredPermissions,
   ConfigPluginSource.ConfiguredPlugins,
+  EditorSource,
   FSUtil.Service,
   Global.Service,
   Location.Service,
@@ -30,9 +35,9 @@ export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
 export type InternalPlugin = Plugin<Requirements | Scope.Scope>
 
-const pre = [SkillPlugin.Plugin, SkillTool.Plugin] as const satisfies readonly InternalPlugin[]
+const pre = [SkillPlugin.Plugin, SkillTool.Plugin, ServerTools.Plugin] as const satisfies readonly InternalPlugin[]
 
-const post = [ConfigSkillPlugin.Plugin] as const satisfies readonly InternalPlugin[]
+const post = [ConfigSkillPlugin.Plugin, ConfigAgentPlugin.Plugin] as const satisfies readonly InternalPlugin[]
 
 export const guarded: ReadonlySet<string> = new Set([])
 

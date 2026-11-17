@@ -347,6 +347,16 @@ type PermissionReplied = {
   data: {sessionId: SessionId; requestId: string; reply: PermissionReply}
 }
 
+type SessionCreated = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'session.created'
+  durable: {aggregateID: string; seq: number; version: 1}
+  location?: LocationRef
+  data: {sessionID: SessionId; title?: string}
+}
+
 export type SessionDeleted = {
   id: string
   created: number
@@ -390,6 +400,7 @@ export type EventSubscribeOutput =
   | PluginUpdated
   | PermissionAsked
   | PermissionReplied
+  | SessionCreated
   | SessionDeleted
   | SessionInstructionsUpdated
   | V2EventRpc

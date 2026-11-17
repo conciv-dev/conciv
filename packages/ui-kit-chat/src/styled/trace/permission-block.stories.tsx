@@ -28,7 +28,7 @@ function askingCtx(): ToolViewCtx {
     harnessId: 'story',
     sendMessage: () => {},
     catalog: {loaded: () => true, meta: () => undefined},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     respondApproval: () => {},
   }
 }

@@ -13,7 +13,6 @@ export {defineConfig} from '@conciv/protocol/config-types'
 
 export interface ResolvedConcivConfig {
   enabled: boolean
-  widgetUrl: string | undefined
   stateRoot: string
   harness: string
   harnessBin: string | undefined
@@ -23,6 +22,17 @@ export interface ResolvedConcivConfig {
   hubAccess: HubAccess
   plugins: NonNullable<ConcivConfig['plugins']>
   policies: NonNullable<ConcivConfig['policies']>
+  permissions: NonNullable<ConcivConfig['permissions']>
+}
+
+function shortPermissions(permission: ConcivConfig['permission']): NonNullable<ConcivConfig['permissions']> {
+  if (permission === undefined) return []
+  if (typeof permission === 'string') return [{action: '*', resource: '*', effect: permission}]
+  return Object.entries(permission).flatMap(([action, value]) =>
+    typeof value === 'string'
+      ? [{action, resource: '*', effect: value}]
+      : Object.entries(value).map(([resource, effect]) => ({action, resource, effect})),
+  )
 }
 
 function declaredValue(candidates: (string | undefined)[]): string | undefined {
@@ -59,7 +69,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
   const env = process.env
   return {
     enabled: options.enabled ?? true,
-    widgetUrl: options.widgetUrl ?? env.CONCIV_WIDGET_URL,
     stateRoot: options.stateRoot ?? env.CONCIV_STATE_ROOT ?? root,
     harness: options.harness ?? env.CONCIV_HARNESS ?? 'claude',
     harnessBin:
@@ -70,5 +79,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     hubAccess: options.hubAccess ?? 'open',
     plugins: options.plugins ?? [],
     policies: options.policies ?? [],
+    permissions: [...shortPermissions(options.permission), ...(options.permissions ?? [])],
   }
 }

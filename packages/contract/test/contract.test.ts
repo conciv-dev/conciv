@@ -276,6 +276,33 @@ describe('browser rpc calls cancelled before the socket opens', () => {
   }, 15_000)
 })
 
+describe('browser rpc calls whose caller decides the retry', () => {
+  it('a call with its own shouldRetry stops retrying once its connection is released', async () => {
+    const vacant = createServer()
+    await new Promise<void>((resolve) => vacant.listen(0, '127.0.0.1', resolve))
+    const address = vacant.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+    await new Promise((resolve) => vacant.close(resolve))
+    const client = makeBrowserRpcClient(`http://127.0.0.1:${port}`)
+    const asks = [Promise.withResolvers<string>(), Promise.withResolvers<string>()]
+    const asked = {count: 0}
+    const shouldRetry = () => {
+      asks[asked.count]?.resolve(`asked ${asked.count + 1} times`)
+      asked.count += 1
+      return true
+    }
+    const call = client.rpc.sessions.resolve({}, {context: {shouldRetry}})
+    await asks[0]?.promise
+    client.close()
+    const settled = call.then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+    expect(await Promise.race([settled, asks[1]?.promise])).toBe('rejected')
+    expect(asked.count).toBe(1)
+  }, 15_000)
+})
+
 describe('browser rpc frames that cannot be delivered or read', () => {
   it('a call whose request meets a socket that is not open rejects with the socket error', async () => {
     const vacant = createServer()

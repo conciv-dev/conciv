@@ -15,13 +15,7 @@ import {Model} from '@conciv/plugin/schema/model'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {ChatContext} from '../api/rpc/mount.js'
 import {listedSessionPage, searchedSessionPage, switchSessionEffort, switchSessionModel} from '../api/rpc/sessions.js'
-import {
-  createChatSession,
-  deleteSession,
-  newSessionId,
-  renameSession,
-  reuseDeletedChatSession,
-} from '../sessions/session-actions.js'
+import {createChatSession, deleteSession, newSessionId, renameSession} from '../sessions/session-actions.js'
 import type {createSessionSearch} from '../sessions/session-search.js'
 import {rowById, setMetadata, setPermissions} from '../sessions/session-rows.js'
 import type {CoreRuntime} from './scope-types.js'
@@ -181,14 +175,10 @@ export function provideSessions(started: () => SessionKeyDeps) {
           const supplied = input.id
           const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
           if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
+          if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
           const sessionId = supplied ?? newSessionId()
           const choice = yield* createdModel(chat, input, sessionId)
-          const scope = {harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
-          yield* Effect.promise(() =>
-            recorded === null
-              ? createChatSession(chat.db, scope, sessionId)
-              : reuseDeletedChatSession(chat.db, scope, sessionId),
-          )
+          yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
           yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
           if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))

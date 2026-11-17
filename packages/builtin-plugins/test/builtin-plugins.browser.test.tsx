@@ -1137,6 +1137,7 @@ describe.skipIf(inFirefox)('the agent acts on the page like a person', () => {
     ))
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
     const unmountSimulator = mountSimulator({
@@ -1196,6 +1197,7 @@ describe.skipIf(inFirefox)('the agent acts on the page like a person', () => {
     host.remove()
     const remounted = document.createElement('div')
     remounted.setAttribute('data-conciv-root', '')
+    remounted.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(remounted)
     onTestFinished(() => remounted.remove())
     onTestFinished(
@@ -1212,6 +1214,7 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
   function mountedAgent(): void {
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
     const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
@@ -1247,7 +1250,7 @@ describe.skipIf(inFirefox)('page action queue', () => {
   const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
   const MASK = {name: 'Agent is using this page'}
 
-  function QueueForm(props: {heard: (event: string) => void}) {
+  function QueueForm(props: {heard: (event: string) => void; drafting: () => void}) {
     const field = (name: string) => (
       <label>
         {name}
@@ -1275,31 +1278,49 @@ describe.skipIf(inFirefox)('page action queue', () => {
         <div id="notes" contenteditable="true" role="textbox" aria-label="Notes">
           <p id="notes-line">old note</p>
         </div>
+        <div
+          contenteditable="true"
+          role="textbox"
+          aria-label="Draft"
+          onBeforeInput={(event) => {
+            if (event.isTrusted) return
+            event.preventDefault()
+            props.drafting()
+          }}
+        >
+          <p id="draft-line">old draft</p>
+        </div>
       </form>
     )
   }
 
-  function queuePage() {
+  function queuePage(drafting: () => void = () => {}) {
     const heard: string[] = []
-    render(() => <QueueForm heard={(event) => heard.push(event)} />)
+    render(() => <QueueForm heard={(event) => heard.push(event)} drafting={drafting} />)
     const host = document.createElement('div')
     host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
-    onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
+    onTestFinished(unmount)
     onTestFinished(endTask)
     const driver = makePageOperations(noContributions)
     onTestFinished(driver.dispose)
-    const queued = (id: string, index: number, of: number, action: Record<string, unknown>) =>
-      driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}))
-    const accept = (id: string, actions: Record<string, unknown>[]) =>
-      queued(id, -1, actions.length, {type: 'queue', actions})
-    const play = (id: string, actions: Record<string, unknown>[]) =>
+    const queued = (id: string, index: number, of: number, action: Record<string, unknown>, signal?: AbortSignal) =>
+      driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
+    const accept = (id: string, actions: Record<string, unknown>[], signal?: AbortSignal) =>
+      queued(id, -1, actions.length, {type: 'queue', actions}, signal)
+    const play = (id: string, actions: Record<string, unknown>[], signal?: AbortSignal) =>
       actions.reduce<Promise<Outcome[]>>(async (done, {tool, ...input}, index) => {
         const before = await done
-        return [...before, await queued(id, index, actions.length, {...input, type: String(tool).slice(5)})]
+        return [...before, await queued(id, index, actions.length, {...input, type: String(tool).slice(5)}, signal)]
       }, Promise.resolve([]))
-    return {heard, accept, play}
+    const leave = () => {
+      driver.dispose()
+      unmount()
+    }
+    return {heard, accept, play, leave}
   }
 
   const fill = (name: string, value: string) => ({tool: 'page_fill', selector: `[name=${name}]`, value})
@@ -1357,6 +1378,62 @@ describe.skipIf(inFirefox)('page action queue', () => {
       played({ok: true, value: 'Hello editor'}),
     ])
     await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^\s*Hello editor\s*$/)
+  })
+
+  it("a queue cut off by an unmount does not keep a later mount's mask up", async () => {
+    const before = queuePage()
+    const attached = new AbortController()
+    await before.accept(
+      'q-cut',
+      [fill('first', 'Ada'), fill('last', 'Lovelace'), fill('email', 'a@b.c')],
+      attached.signal,
+    )
+    attached.abort()
+    before.leave()
+    const after = queuePage()
+    const next = [fill('city', 'Paris')]
+    await after.accept('q-next', next)
+    await after.play('q-next', next)
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
+    expect(before.heard).toEqual(['city'])
+  })
+
+  it('a session switch mid-queue lands nothing more of the old queue, reports none of it, and takes the mask down', async () => {
+    const {heard, accept, play} = queuePage()
+    const first = new AbortController()
+    const cut = [fill('first', 'Ada'), fill('last', 'Lovelace')]
+    await accept('q-switched', cut, first.signal)
+    first.abort()
+    const second = new AbortController()
+    const other = [fill('city', 'Paris')]
+    await accept('q-other', other, second.signal)
+    expect(await play('q-other', other, second.signal)).toMatchObject([played({ok: true, value: 'Paris'})])
+    expect(await play('q-switched', cut, first.signal)).toMatchObject([{type: 'failure'}, {type: 'failure'}])
+    expect(heard).toEqual(['city'])
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
+  })
+
+  it('a queue whose acceptance never reached the engine plays nothing and takes the mask down', async () => {
+    const {heard, accept, play} = queuePage()
+    const unsent = new AbortController()
+    const actions = [fill('first', 'Ada'), fill('last', 'Byron')]
+    await accept('q-unsent', actions, unsent.signal)
+    unsent.abort()
+    expect(await play('q-unsent', actions)).toMatchObject([{type: 'failure'}, {type: 'failure'}])
+    expect(heard).toEqual([])
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
+  })
+
+  it('a session switch while a queued fill waits on the editor does not fall back to typing into it', async () => {
+    const first = new AbortController()
+    const {accept, play} = queuePage(() => first.abort())
+    const draft = [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}]
+    await accept('q-draft', draft, first.signal)
+    await play('q-draft', draft, first.signal)
+    const after = [fill('city', 'Paris')]
+    await accept('q-after', after)
+    await play('q-after', after)
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
   })
 
   it('masks a card number in the result', async () => {

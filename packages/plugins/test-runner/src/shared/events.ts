@@ -61,6 +61,7 @@ export const TestEventSchema = z.discriminatedUnion('type', [
     failures: z.array(TestErrorSchema),
     tests: z.array(TestRowSchema),
   }),
+  z.object({type: z.literal('run-unavailable'), reason: z.string()}),
 ])
 export type TestEvent = z.infer<typeof TestEventSchema>
 

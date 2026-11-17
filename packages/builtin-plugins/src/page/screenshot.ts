@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {capturePlugins} from './capture-plugins.js'
 
 const WEBP_QUALITY = 0.8

@@ -64,7 +64,7 @@ type Run = {
 }
 
 type Simulator = {
-  root: ShadowRoot | null
+  root: ParentNode | null
   run: Run | null
   shown: boolean
   timeout: ReturnType<typeof setTimeout> | undefined
@@ -158,7 +158,7 @@ function onMaskClick(): void {
 }
 
 export function mountSimulator(options: {
-  root: ShadowRoot
+  root: ParentNode
   session: () => string | null
   onStop: (sessionId: string) => void
   running?: (sessionId: string) => boolean
@@ -191,7 +191,7 @@ function unmountSimulator(): void {
   })
 }
 
-function mountRun(root: ShadowRoot): Run {
+function mountRun(root: ParentNode): Run {
   const style = document.createElement('style')
   style.textContent = SIMULATOR_CSS
   const layer = div(MASK_CLASS)

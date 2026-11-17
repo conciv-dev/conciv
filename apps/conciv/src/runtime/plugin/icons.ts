@@ -35,6 +35,7 @@ import EyeOffIcon from 'lucide-solid/icons/eye-off'
 import FileDiffIcon from 'lucide-solid/icons/file-diff'
 import FilePenIcon from 'lucide-solid/icons/file-pen'
 import FileTextIcon from 'lucide-solid/icons/file-text'
+import FlaskConicalIcon from 'lucide-solid/icons/flask-conical'
 import FoldVerticalIcon from 'lucide-solid/icons/fold-vertical'
 import GripVerticalIcon from 'lucide-solid/icons/grip-vertical'
 import InboxIcon from 'lucide-solid/icons/inbox'
@@ -129,6 +130,7 @@ export const icons: Record<IconName, Component<LucideProps>> = {
   'file-diff': FileDiffIcon,
   'file-pen': FilePenIcon,
   'file-text': FileTextIcon,
+  'flask-conical': FlaskConicalIcon,
   'fold-vertical': FoldVerticalIcon,
   'grip-vertical': GripVerticalIcon,
   inbox: InboxIcon,

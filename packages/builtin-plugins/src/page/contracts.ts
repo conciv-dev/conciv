@@ -1,4 +1,4 @@
-import {CONCIV_UI_SELECTOR} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 import {addRef, dehydrate, describe, locate, reactBridge, rootFibers, showToast, type Refs} from '@conciv/page'
 import type {Page, ReactTree} from '@conciv/plugin/experimental/page'
 import {capturePlugins} from './capture-plugins.js'

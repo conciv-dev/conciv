@@ -12,7 +12,6 @@ import {QueryClientProvider, useQuery} from '@conciv/client'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
-import {endRun, endTask, mountSimulator} from '@conciv/extension-page/client'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -138,22 +137,8 @@ function AppRoot() {
     appData: app.data,
     queryClient: app.queryClient,
     announce,
-    onRunEnd: endRun,
   })
   const rootNode = app.environment.rootNode
-  if (rootNode instanceof ShadowRoot) {
-    onCleanup(
-      mountSimulator({
-        root: rootNode,
-        session: activeSession,
-        running: liveSessions.runLive,
-        onStop: (sessionId) => {
-          liveSessions.stop(sessionId)
-          endTask()
-        },
-      }),
-    )
-  }
   const preferences = createPreferences({
     settings: getHostApi().useScope('conciv').settings,
     data: app.data,
@@ -219,8 +204,8 @@ function AppRoot() {
                       apiBase={app.apiBase}
                       toast={showToast}
                       openEditor={(file, line) =>
-                        void app.rpc.editor
-                          .open({file, line})
+                        void app.rpc.plugin
+                          .call({rpcId: 'server', method: 'open', input: {file, ...(line === undefined ? {} : {line})}})
                           .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
                       }
                       registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}

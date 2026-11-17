@@ -48,6 +48,7 @@ export function make(
     editor: raw.editor,
     meta: raw.meta,
     plugin: raw.plugin,
+    experimental: raw.experimental,
     event: raw.event,
   } satisfies {readonly [Group in keyof typeof contract]: RpcClient[Group]}
   return {
@@ -116,16 +117,16 @@ async function* attempted(
   }
   try {
     arm()
-    for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal})) {
+    for await (const event of await raw.event.subscribe(undefined, {signal: attempt.signal, context: {retry: 0}})) {
       touch()
       if (event.type === 'server.heartbeat') continue
       if (event.type === 'server.connected') setStatus('connected')
       yield event as EventSubscribeOutput
     }
-    if (!signal.aborted) console.warn('[conciv] the event stream ended; subscribing again')
+    if (!signal.aborted) console.info('[conciv] the event stream ended; subscribing again')
   } catch (error) {
     if (signal.aborted) return
-    console.error(
+    console.info(
       '[conciv] the event stream failed; subscribing again',
       attempt.signal.aborted ? attempt.signal.reason : error,
     )

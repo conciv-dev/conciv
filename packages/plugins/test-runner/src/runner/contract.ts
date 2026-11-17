@@ -14,10 +14,13 @@ export type TestRunnerCapabilities = {
   failedOnly: boolean
 }
 
+export type CurrentRun = {events: TestEvent[] | null; unavailable: string | null}
+
 export type TestRunnerManager = {
   list: (failedOnly?: boolean) => Promise<ListResult>
   run: (args: RunArgs) => Promise<TestRunResult>
   status: () => TestRunResult
+  current: () => CurrentRun
   subscribeRaw: (cb: (e: TestEvent) => void) => () => void
   emitSnapshot: () => TestEvent
   openUiServer: () => Promise<UiServerInfo>

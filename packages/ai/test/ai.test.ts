@@ -645,6 +645,7 @@ const watched = require('node:net').connect(data.socket, () => {
     hooks: Partial<Omit<TurnHooks, 'plan'>> = {},
   ): TurnHooks {
     return {
+      admit: async () => undefined,
       plan: (turn) => ({
         systemPrompts: async () => [],
         tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),

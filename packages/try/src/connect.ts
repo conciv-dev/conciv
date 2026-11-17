@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
 import terminal from '@conciv/extension-terminal/server'
-import {getHarness} from '@conciv/harness'
+import {getHarness, listHarnesses} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/harness'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {seedWorkspace} from './seed-workspace.js'
@@ -40,9 +40,13 @@ function isAddressInUse(error: unknown): boolean {
 
 function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
   if (opts.harnessAdapter) return opts.harnessAdapter
-  const adapter = getHarness(opts.harness ?? 'claude')
-  if (!adapter) throw new Error(`unknown harness "${opts.harness}"; try claude, codex, gemini-cli, opencode or pi`)
-  return adapter
+  const id = opts.harness ?? 'claude'
+  const adapter = getHarness(id)
+  if (adapter) return adapter
+  const known = listHarnesses()
+    .map((registered) => registered.id)
+    .join(', ')
+  throw new Error(`conciv: unknown harness "${id}". Known harnesses: ${known}.`)
 }
 
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {

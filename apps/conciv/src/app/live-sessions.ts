@@ -34,7 +34,6 @@ export type LiveSessionsDeps = {
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
-  onRunEnd?: (sessionId: string) => void
 }
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>; dispose: () => void}
@@ -85,7 +84,6 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     const run = readRun(sessionId)
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
-    deps.onRunEnd?.(sessionId)
     void deps.appData.invalidateSession(sessionId)
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({

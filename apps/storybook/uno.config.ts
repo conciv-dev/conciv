@@ -16,6 +16,7 @@ export default defineConfig({
       '../../packages/extensions/tanstack/src/**/*.{ts,tsx}',
       '../../packages/extensions/recorder/src/**/*.{ts,tsx}',
       '../../packages/extensions/whiteboard/src/**/*.{ts,tsx}',
+      '../../packages/plugins/test-runner/src/**/*.{ts,tsx}',
     ],
   },
   presets: [presetConciv()],

@@ -19,7 +19,7 @@ import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-t
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
-import type {AlternateHarness} from '@conciv/plugin-testkit/core-kit'
+import type {AlternateHarness, EditorOpen} from '@conciv/plugin-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/plugin-testkit/push-wire'
 import type {RpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 
@@ -56,6 +56,7 @@ export type FaultSpec =
   | {kind: 'gate'; path?: string[]; input?: unknown}
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
+  | {kind: 'handshake-hold'}
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
@@ -368,6 +369,29 @@ const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = asy
   return started.map((path) => calls.startedSince(path))
 }
 
+const rpcMark: BrowserCommand<[]> = async (ctx): Promise<number> => {
+  const {rpcObserverFor} = await importTestkit(ctx)
+  return rpcObserverFor(ctx.page).mark()
+}
+
+const awaitRpcFailedCount: BrowserCommand<[string[], number, number, number]> = async (
+  ctx,
+  path,
+  status,
+  count,
+  since,
+): Promise<void> => {
+  const {rpcObserverFor} = await importTestkit(ctx)
+  const observer = rpcObserverFor(ctx.page)
+  const settle = async (): Promise<void> => {
+    const next = observer.mark()
+    if (observer.completedCount({path, status, since}) >= count) return
+    await observer.completed({path, status, since: next, timeout: AWAIT_RPC_TIMEOUT_MS})
+    await settle()
+  }
+  await settle()
+}
+
 function requireCalls(ctx: BrowserCommandContext): RpcCallCursor {
   const calls = ensureState(ctx).rpcCalls
   if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
@@ -397,7 +421,7 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
   const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
   const matcher = (url: URL): boolean => url.origin === origin
   await ctx.page.route(matcher, (route) => (offline.value ? route.abort('connectionrefused') : route.continue()))
-  rpcSocket.hold()
+  await rpcSocket.hold()
   return {
     repair: () => {
       offline.value = false
@@ -406,6 +430,25 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
     dispose: () => {
       rpcSocket.release()
       return ctx.page.unroute(matcher)
+    },
+  }
+}
+
+async function holdEngineHandshakes(ctx: BrowserCommandContext): Promise<Fault> {
+  const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
+  await rpcSocket.installed
+  rpcSocket.holdHandshakes()
+  return {
+    pending: rpcSocket.heldHandshakes,
+    awaitCaptured: rpcSocket.awaitHandshakes,
+    answered: () => Promise.reject(new Error('a held handshake fault has no single call to await')),
+    release: () => {
+      rpcSocket.releaseHandshakes()
+      return Promise.resolve()
+    },
+    dispose: () => {
+      rpcSocket.releaseHandshakes()
+      return Promise.resolve()
     },
   }
 }
@@ -640,6 +683,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
+  if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
@@ -666,17 +710,22 @@ const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<unkn
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => requireFault(ctx, handle).pending()
 
-const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, count): Promise<void> => {
+const awaitFaultPending: BrowserCommand<[string, number, number?]> = async (
+  ctx,
+  handle,
+  count,
+  timeoutMs = AWAIT_RPC_TIMEOUT_MS,
+): Promise<void> => {
   const timer: {value: ReturnType<typeof setTimeout> | null} = {value: null}
   const deadline = new Promise<never>((_, reject) => {
     timer.value = setTimeout(
       () =>
         reject(
           new Error(
-            `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+            `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
           ),
         ),
-      AWAIT_RPC_TIMEOUT_MS,
+      timeoutMs,
     )
   })
   try {
@@ -736,6 +785,8 @@ const downloadFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<
   return {name: saved.suggestedFilename(), text: readFileSync(path, 'utf8')}
 }
 
+const editorOpened: BrowserCommand<[]> = (ctx): ReadonlyArray<EditorOpen> => requireKit(ctx).editorOpened()
+
 const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<string> => {
   const opened = ctx.page.context().waitForEvent('page')
   await ctx.iframe.getByRole('button', {name, exact: true}).click()
@@ -748,6 +799,7 @@ const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<st
 
 export const coreCommands = {
   chooseFiles,
+  editorOpened,
   openedFrom,
   downloadFrom,
   dragButton,
@@ -779,6 +831,8 @@ export const coreCommands = {
   setHubConnection,
   rpcCallCount,
   rpcStartedOnceServed,
+  rpcMark,
+  awaitRpcFailedCount,
   installFault,
   releaseFault,
   faultPending,

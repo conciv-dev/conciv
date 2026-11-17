@@ -46,6 +46,7 @@ import {
   codeExecuteReply,
   makeBrowserRpcClient,
   PluginExperimentalBundleSchema,
+  SOCKET_TRUST_FRAME,
   type EngineStaleness,
 } from '@conciv/contract'
 import {
@@ -59,7 +60,7 @@ import {
   defineAttachment,
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
-import {getHarness} from '@conciv/harness'
+import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {createHubConnections} from '@conciv/harness-init/hub'
 import {
   anchorKey,
@@ -98,6 +99,7 @@ import {
   type RunStream,
   type McpClient,
   type McpTool,
+  type RpcClient,
 } from '@conciv/harness-testkit'
 import {Plugin, Rpc as PluginRpc, type RpcRegistration} from '@conciv/plugin'
 import {evaluatePluginBundle} from '@conciv/plugin/experimental/host'
@@ -114,8 +116,9 @@ import {
   runLifecycleEvent,
   sessionRunEvent,
 } from '@conciv/protocol/chat-event-types'
-import {webSocket} from '@conciv/ai/client'
+import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
   HarnessSessionId,
@@ -131,12 +134,20 @@ import {
   TabsSchema,
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
+import {type TtyCommand} from '@conciv/protocol/terminal-types'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   type ElementCapture,
   type ElementCaptureKind,
   SessionCapturesSchema,
 } from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
+import {
+  type HarnessChatDeps,
+  type HarnessConnectContext,
+  type HarnessListCursor,
+  type HarnessModel,
+} from '@conciv/protocol/harness-types'
 import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -153,7 +164,6 @@ import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
 import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
-import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {provideServersSource} from '../src/runtime/servers-source.js'
@@ -168,7 +178,6 @@ import {
   bootCoreApp,
   requireTranscriptPath,
   chunkWithInlineMap,
-  cleanupChunks,
   hydratedSnapshot,
   runTurn,
   userTexts,
@@ -275,6 +284,11 @@ async function readSse(response: Response, stopType: string): Promise<void> {
   const stream = sseStream(response)
   await stream.reach(`"type":"${stopType}"`)
   await stream.cancel()
+}
+
+function registryCall(base: string, sessionId: string) {
+  return (name: string, input: Record<string, unknown>) =>
+    makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call({name, input})
 }
 
 describe('cors', () => {
@@ -384,7 +398,7 @@ describe('api engine staleness di', () => {
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(description).toContain('## Code Mode tools (call only inside `execute_typescript`)')
       expect(description).toContain('The catalog is partial.')
-      expect(description).toContain('- server (5 tools')
+      expect(description).toContain('- server (6 tools')
       expect(sandboxNames).toContain('external_server_transform')
       expect(sandboxNames.filter((name) => name.startsWith('external_page_'))).toEqual([])
       expect(
@@ -616,7 +630,7 @@ describe('api installed harnesses', () => {
 })
 
 describe('connect hub', () => {
-  const root = join(realpathSync(tmpdir()), `conciv-connect-hub-${randomUUID()}`)
+  const root = realpathSync(tempDir('conciv-connect-hub-'))
   const engineHome = join(root, 'engine-home')
   const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
@@ -1218,8 +1232,10 @@ describe('api harness switching', () => {
     await kit().rpc.sessions.delete({sessionId})
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
     expect(row(sessionId)?.deletedAt).not.toBeNull()
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).toBeNull()
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    await kit().rpc.sessions.restore({sessionId})
+    expect(row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1249,16 +1265,21 @@ describe('api harness switching', () => {
     expect(await entries((service) => service.list(id))).toEqual([{key: 'brief', value: 'the old session'}])
     await key((sessions) => sessions.remove(id))
     const location = Schema.decodeSync(Location.Ref)({directory: app.chat.cwd})
-    const reused = await key((sessions) => sessions.create({id, title: 'A new session on an old id', location}))
-    expect(reused).toMatchObject({id, title: 'A new session on an old id', metadata: undefined, permissions: undefined})
-    expect(reused.time.created).toEqual(expect.any(Number))
-    expect(reused.time.created).toBeGreaterThanOrEqual(old.time.updated)
-    expect(await key((sessions) => sessions.get(id))).toEqual(reused)
+    const refused = await key((sessions) =>
+      sessions.create({id, title: 'A new session on an old id', location}).pipe(Effect.flip),
+    )
+    expect(refused).toMatchObject({_tag: 'Session.NotFoundError', sessionId: id})
+    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(row(sessionId)?.title).not.toBe('A new session on an old id')
+    expect(row(sessionId)).toMatchObject({
+      metadata: {ticket: 7},
+      permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
+    })
     expect(await entries((service) => service.list(id))).toEqual([])
-    expect(row(sessionId)).toMatchObject({harnessKind: 'alpha', harnessSessionId: null, deletedAt: null})
-    const newMarkers = (await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)
-    expect(newMarkers.filter((marker) => oldMarkers.includes(marker))).toEqual([])
-    expect(await listings(false)).toEqual({owner: 1, phantoms: 1})
+    expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
+    expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
+    expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
+    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -1529,24 +1550,52 @@ describe('api native page', () => {
 })
 
 describe('api page open source', () => {
-  afterEach(async () => {
-    await cleanupChunks()
-  })
+  describe('editor.openFromFrames', () => {
+    const opened: Array<{file: string; line?: number}> = []
+    const record = (file: string, line?: number) => opened.push({file, ...(line === undefined ? {} : {line})})
+    const withPage = sharedKit(() => bootKit({cwd: tmpdir(), openInEditor: record}))
+    const withoutPage = sharedKit(() => bootKit({cwd: tmpdir(), openInEditor: record, configPlugins: ['-conciv.page']}))
 
-  describe('openSourceFromFrames', () => {
-    it('symbolicates frames and opens the resolved file', async () => {
-      const opened: {file?: string; line?: number} = {}
+    beforeEach(() => {
+      opened.splice(0)
+    })
+
+    async function openFrames(kit: Kit, frames: {fileName: string; line: number; column: number}[]) {
+      const rpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: await kit.session()}})
+      return rpc.editor.openFromFrames({frames})
+    }
+
+    it('opens the original source a bundled frame points at', async () => {
       const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-      const result = await openSourceFromFrames(
-        [{fileName: `file://${chunk}`, line: 2, column: 1}],
-        tmpdir(),
-        (file, line) => {
-          opened.file = file
-          opened.line = line
-        },
-      )
-      expect(result).toEqual({status: 'opened'})
-      expect(opened).toEqual({file: 'app/page.tsx', line: 17})
+      expect(await openFrames(withPage(), [{fileName: `file://${chunk}`, line: 2, column: 1}])).toEqual({
+        status: 'opened',
+      })
+      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
+    })
+
+    it('with the page plugin removed by config, opens the frame as the page gave it', async () => {
+      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+      expect(await openFrames(withoutPage(), [{fileName: `file://${chunk}`, line: 2, column: 1}])).toEqual({
+        status: 'opened',
+      })
+      expect(opened).toEqual([{file: `file://${chunk}`, line: 2}])
+    })
+
+    it('an open asked while the plugins are still starting opens the original source once they are active', async () => {
+      const booted: MadeApp[] = []
+      const kit = await createTestkit(requireClaude(), async (env) => {
+        const made = await bootMadeApp(env, {cwd: tmpdir(), openInEditor: record})
+        booted.push(made)
+        return made
+      }).setup()
+      onTestFinished(() => kit.cleanup())
+      const made = booted[0]
+      if (made === undefined) throw new Error('the kit booted no app')
+      const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+      const asked = openFrames(kit, [{fileName: `file://${chunk}`, line: 2, column: 1}])
+      await made.awaitActivation()
+      expect(await asked).toEqual({status: 'opened'})
+      expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
     })
   })
 })
@@ -1561,7 +1610,7 @@ describe('api page page', () => {
     source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
   })
 
-  describe('experimental.page run (IT, real server, typed rpc)', () => {
+  describe('page tools through registry.call (IT, real server, typed rpc)', () => {
     const tabs = pageTabs()
     const kit = sharedKit(() => bootKit({cwd: tmpdir(), plugins: [tabs.plugin]}))
     const state: {tab: PageTab | undefined} = {tab: undefined}
@@ -1569,21 +1618,21 @@ describe('api page page', () => {
     const page = async (method: string, input: Record<string, unknown> = {}): Promise<unknown> =>
       kit().rpc.plugin.call({rpcId: 'experimental.page', method, input: {sessionId: await kit().session(), ...input}})
 
-    const run = (action: Page.Action): Promise<unknown> => page('run', {action})
+    const run = async (name: string, input: Record<string, unknown> = {}): Promise<unknown> =>
+      registryCall(kit().base, await kit().session())(name, input)
 
     afterEach(async () => {
       state.tab?.end()
       state.tab = undefined
       await page('clearChanges')
-      await cleanupChunks()
     })
 
     it('a call its rpc caller aborts drops its page query, so the late reply settles nothing', async () => {
       const sessionId = await kit().session()
       state.tab = await tabs.open(sessionId, () => undefined)
       const calling = new AbortController()
-      const called = kit().rpc.plugin.call(
-        {rpcId: 'experimental.page', method: 'run', input: {sessionId, action: {type: 'route'}}},
+      const called = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call(
+        {name: 'page_route', input: {}},
         {signal: calling.signal},
       )
       const requestId = await state.tab.requested()
@@ -1593,16 +1642,30 @@ describe('api page page', () => {
       await expect(state.tab.command(requestId)).rejects.toThrow('Page request is no longer available.')
     })
 
-    it('run reports [page.timeout] when the page never replies', async () => {
+    it('run is no page method: an eval through plugin.call is refused as an unknown method and never reaches the tab', async () => {
+      const heard: string[] = []
+      state.tab = await tabs.open(await kit().session(), ({action}) => {
+        heard.push(action.type)
+        return pageSuccess({result: 'conciv'})
+      })
+      await expect(page('run', {action: {type: 'eval', code: 'document.title'}})).rejects.toMatchObject({
+        data: {type: 'rpc.method_not_found'},
+      })
+      expect(heard).toEqual([])
+    })
+
+    it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
       state.tab = await tabs.open(await kit().session(), () => undefined)
-      await expect(run({type: 'wait', selector: 'body', timeout: 100})).rejects.toMatchObject({
-        message: expect.stringContaining('[page.timeout]'),
+      await expect(run('page_wait', {selector: 'body', timeout: 100})).rejects.toMatchObject({
+        code: 'PAGE_TIMEOUT',
+        message: expect.stringContaining('page_wait: [page.timeout]'),
       })
     })
 
     it('reports [page.disconnected] when no tab is attached', async () => {
-      await expect(run({type: 'route'})).rejects.toMatchObject({
-        message: expect.stringContaining('[page.disconnected]'),
+      await expect(run('page_route')).rejects.toMatchObject({
+        code: 'NO_PAGE_CLIENT',
+        message: 'page_route: no widget connected to session',
       })
     })
 
@@ -1611,7 +1674,7 @@ describe('api page page', () => {
       state.tab = await tabs.open(await kit().session(), () =>
         pageSuccess({component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]}),
       )
-      const data = LocateSchema.parse(await run({type: 'locate', selector: 'h1'}))
+      const data = LocateSchema.parse(await run('page_locate', {selector: 'h1'}))
       expect(data.component).toBe('Home')
       expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     })
@@ -1622,11 +1685,13 @@ describe('api page page', () => {
           ? {type: 'failure', code: 'handler-error', message: 'handler-error says no'}
           : {type: 'failure', code: 'invalid-args', message: 'no element for selector #email'},
       )
-      await expect(run({type: 'text', selector: '#h'})).rejects.toMatchObject({
-        message: '[page.handler-error] handler-error says no',
+      await expect(run('page_text', {selector: '#h'})).rejects.toMatchObject({
+        code: 'HANDLER_ERROR',
+        message: 'page_text: handler-error says no',
       })
-      await expect(run({type: 'fill', selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
-        message: '[page.invalid-args] no element for selector #email',
+      await expect(run('page_fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
+        code: 'INVALID_ARGS',
+        message: 'page_fill: no element for selector #email',
       })
       expect(ChangesSchema.parse(await page('changes'))).toEqual([])
     })
@@ -1635,8 +1700,8 @@ describe('api page page', () => {
       state.tab = await tabs.open(await kit().session(), ({action}) =>
         action.type === 'text' ? pageSuccess({text: 'hi'}) : pageSuccess({ok: true, value: 'a@b.c'}),
       )
-      await run({type: 'text', selector: '#h'})
-      expect(await run({type: 'fill', selector: '#email', value: 'a@b.c'})).toEqual({
+      await run('page_text', {selector: '#h'})
+      expect(await run('page_fill', {selector: '#email', value: 'a@b.c'})).toEqual({
         ok: true,
         value: 'a@b.c',
       })
@@ -1733,18 +1798,34 @@ describe('api page tool capture', () => {
 })
 
 describe('capability collision', () => {
-  const impostor = defineTool({
-    name: 'open',
-    description: 'Pretends to be the built-in open tool.',
-    inputSchema: z.object({}),
-    outputSchema: z.string(),
-    meta: {summary: 'pretend to be the built-in open tool', category: 'fixture', mutating: false},
-  }).server(() => 'nope')
-
-  const shady = defineExtension({name: 'shady', tools: [impostor]})
+  const impostor = (name: string) =>
+    defineTool({
+      name,
+      description: `Pretends to be the ${name} tool.`,
+      inputSchema: z.object({}),
+      outputSchema: z.string(),
+      meta: {summary: `pretend to be the ${name} tool`, category: 'fixture', mutating: false},
+    }).server(() => 'nope')
 
   it('boot fails loud when an extension tool name collides with a built-in capability', async () => {
-    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"open".*built-in.*extension/)
+    const shady = defineExtension({name: 'shady', tools: [impostor('tabs')]})
+    await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"tabs".*built-in.*extension/)
+  }, 30_000)
+
+  it("an extension tool named open boots beside the server plugin's open, and each answers on its own route", async () => {
+    const opened: string[] = []
+    const shady = defineExtension({name: 'shady', tools: [impostor('open')]})
+    const kit = await bootKit({extensions: [shady], openInEditor: (file) => opened.push(file)})
+    try {
+      expect(await kit.rpc.registry.call({name: 'open', input: {}})).toBe('nope')
+      expect(await kit.rpc.plugin.call({rpcId: 'server', method: 'open', input: {file: 'src/a.ts'}})).toEqual({
+        ok: true,
+        file: 'src/a.ts',
+      })
+      expect(opened).toEqual(['src/a.ts'])
+    } finally {
+      await kit.cleanup()
+    }
   }, 30_000)
 })
 
@@ -1884,7 +1965,7 @@ describe('rpc wire', () => {
         opened.splice(0)
       })
 
-      it('extension openSource drives editor.open and openFromFrames over rpc', async () => {
+      it("extension openSource drives the server plugin's open and openFromFrames over rpc", async () => {
         const located = {component: null, stack: [], owners: []}
         const sessionId = await kit().session()
         const session = () => sessionId
@@ -1903,9 +1984,10 @@ describe('rpc wire', () => {
         expect(viaFrames).toBe('no-source')
         const rpc = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
         opened.splice(0)
-        expect(await rpc.editor.open({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true})
+        const openFile = (input: unknown) => rpc.plugin.call({rpcId: 'server', method: 'open', input})
+        expect(await openFile({file: 'src/b.ts', line: 3, column: 9})).toEqual({ok: true, file: 'src/b.ts', line: 3})
         expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}])
-        await rpc.editor.open({file: 'src/c.ts', column: 4})
+        await openFile({file: 'src/c.ts', column: 4})
         expect(opened).toEqual([{file: 'src/b.ts', line: 3, column: 9}, {file: 'src/c.ts'}])
       })
 
@@ -1989,24 +2071,29 @@ describe('rpc wire', () => {
         },
       })
       const {kit} = await bootWire({bridge})
-      expect(await kit.rpc.server.config(undefined)).toMatchObject({root: '/repo', mode: 'development'})
-      expect(await kit.rpc.server.resolve({spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
-      expect(await kit.rpc.server.graph({file: 'src/a.ts'})).toEqual([
+      const server = (method: string, input?: unknown) =>
+        kit.rpc.plugin.call({rpcId: 'server', method, ...(input === undefined ? {} : {input})})
+      expect(await server('config')).toMatchObject({root: '/repo', mode: 'development'})
+      expect(await server('resolve', {spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
+      expect(await server('graph', {file: 'src/a.ts'})).toEqual([
         {url: 'src/a.ts', importers: ['entry.ts'], importedModules: ['dep.ts']},
       ])
-      expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
-      expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
+      expect(await server('transform', {url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
+      expect(await server('urls')).toEqual({local: ['http://localhost:3000'], network: []})
       const {sessionId} = await kit.rpc.sessions.create(undefined)
       const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await expect(sessionRpc.server.reload({file: 'src/hot.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(sessionRpc.server.restart({force: true})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       expect(reloaded).toEqual([])
+      await expect(server('restart', {force: true})).rejects.toMatchObject({
+        status: 400,
+        code: 'PLUGIN_RPC',
+        message: 'Unknown RPC method: server.restart',
+        data: {type: 'rpc.method_not_found', message: 'Unknown RPC method: server.restart'},
+      })
       expect(restarted).toEqual([])
       await approvePending(kit.base, sessionId)
       expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
-      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
       expect(reloaded).toEqual(['src/hot.ts'])
-      expect(restarted).toEqual([true])
     })
   })
 
@@ -2481,7 +2568,10 @@ describe('rpc wire', () => {
           done: 'w',
         })
         await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
-        await expect(browserRpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
+        await expect(browserRpc.plugin.call({rpcId: 'server', method: 'config'})).rejects.toMatchObject({
+          code: 'PLUGIN_RPC',
+          data: {type: 'BUNDLER_UNAVAILABLE'},
+        })
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
@@ -2810,6 +2900,38 @@ describe('rpc wire', () => {
         const after = await chatKit().rpc.sessions.list({includeHidden: true})
         expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
+      })
+
+      it('a deleted session whose transcript is still on disk stays deleted: the list leaves it out and opening or resolving it by either id is refused', async () => {
+        const kept = claudeId('deleted-native')
+        writeNativeAt(kept, 'a task deleted while its transcript stays', Date.now() + 180_000)
+        const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
+        expect(listed).toMatchObject({native: {nativeId: kept}})
+        if (!listed?.native) throw new Error('the native session was not listed')
+        await chatKit().rpc.sessions.delete({sessionId: listed.id})
+
+        const after = await chatKit().rpc.sessions.list(undefined)
+        expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id, hidden: true})
+        const withHidden = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(withHidden.sessions.find((meta) => meta.id === listed.id)).toMatchObject({hidden: true})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.open(listed.native)).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+        expect(existsSync(resolveTranscriptPath(kept))).toBe(true)
+
+        await expect(chatKit().rpc.sessions.resolve({id: kept})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        await expect(chatKit().rpc.sessions.resolve({id: listed.id})).rejects.toMatchObject({code: 'NOT_FOUND'})
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({hidden: true})
+
+        const neverSeen = claudeId('never-seen-native')
+        const opened = await chatKit().rpc.sessions.open({...listed.native, nativeId: neverSeen})
+        expect(await chatKit().rpc.sessions.get({sessionId: opened.sessionId})).toMatchObject({
+          hidden: false,
+          native: {nativeId: neverSeen},
+        })
       })
 
       it('a page leaves hidden conciv-only sessions out unless asked, and get still answers for them', async () => {
@@ -3580,7 +3702,7 @@ return seen`
         expect(results).not.toContain('z'.repeat(60_000))
       })
 
-      it('a page screenshot from code mode is written to a temporary file, and the result names it beside the image', async () => {
+      it('a page screenshot lands in a gitignored project file, and the result names it beside the image', async () => {
         const sessionId = await chatKit().session()
         const shot = {id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: ONE_PIXEL_WEBP}
         const tab = await chatTabs.open(sessionId, () => ({
@@ -3593,10 +3715,9 @@ return seen`
         const results = collectResults(await thread(sessionId))
         expect(results).toContain(ONE_PIXEL_WEBP)
         expect(results).toContain('"mimeType":"image/webp"')
-        const saved = /"path":"([^"]+\/conciv-page-[\w-]+\/0\/screenshot\.webp)"/.exec(results)?.[1]
+        const saved = /\.conciv\/tmp\/screenshots\/[\w-]+\.webp/.exec(results)?.[0]
         if (saved === undefined) throw new Error(`no screenshot path in: ${results.slice(0, 300)}`)
-        expect(saved.startsWith(join(tmpdir(), 'conciv-page-'))).toBe(true)
-        expect(readFileSync(saved).toString('base64')).toBe(ONE_PIXEL_WEBP)
+        expect(readFileSync(join(chatKit().stateRoot, saved)).toString('base64')).toBe(ONE_PIXEL_WEBP)
       })
 
       it('the tool bridge hands the CLI an image block, with the text capped apart from it', async () => {
@@ -4341,9 +4462,10 @@ function bootAt(
   hubAccess: HubAccess = 'session',
   harness = createFakeHarness(),
   plugins: readonly Plugin.Plugin[] = [],
+  permissions: Pick<ConcivConfig, 'permission' | 'permissions'> = {},
 ): Promise<Engine> {
   return start({
-    options: {stateRoot: root, hubAccess},
+    options: {stateRoot: root, hubAccess, ...permissions},
     root,
     launchEditor: () => {},
     harness,
@@ -4476,13 +4598,7 @@ describe('outside sessions', () => {
       const second = await browserTab('/second')
       const listedFirst = async () => (await listTabs()).tabs[0]?.browserTabs[0]?.page?.href
       const routed = async () =>
-        z.object({href: z.string()}).parse(
-          await kit().rpc.plugin.call({
-            rpcId: 'experimental.page',
-            method: 'run',
-            input: {sessionId, action: {type: 'route'}},
-          }),
-        ).href
+        z.object({href: z.string()}).parse(await registryCall(kit().base, sessionId)('page_route', {})).href
       await second.report(true)
       expect(await listedFirst()).toBe('http://localhost:5173/second')
       const listing = await listTabs()
@@ -4685,7 +4801,6 @@ describe('outside agent consent', () => {
     expect((await lister.tools()).map((tool) => tool.name)).toEqual([
       'discover_tools',
       'server_reload',
-      'server_restart',
       'skill',
       'execute_typescript',
     ])
@@ -5177,7 +5292,7 @@ export default {
     await decideOutside(base, sessionId, true)
     expect(await allowed).toMatch(RAN)
     const own = createSessionRpc(base, sessionId)
-    const waiting = own.registry.call({name: 'server_restart', input: {}}).then(String, String)
+    const waiting = own.registry.call({name: 'server_reload', input: {file: 'a.ts'}}).then(String, String)
     const raised = await askRaised(base, sessionId)
     const [card] = await loadPending(base, sessionId)
     expect(card?.approvalId).toBe(raised?.approvalId)
@@ -5228,13 +5343,16 @@ export default {
     expect(await waiting).toMatchObject({
       tabs: expect.arrayContaining([expect.objectContaining({tab: sessionId, href: ROUTE.href})]),
     })
-    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    const namedHubRpc = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    await expect(namedHubRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'tabs',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
-      expect.objectContaining({toolCallName: 'server_urls'}),
+      expect.objectContaining({toolCallName: 'server_reload'}),
     ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
@@ -5261,19 +5379,19 @@ export default {
   it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
     const base = await boot('open')
     const sessionId = await newSession(base)
-    const restart = {name: 'server_restart', input: {}}
+    const reload = {name: 'server_reload', input: {file: 'a.ts'}}
     const overMcp = async (headers: Record<string, string>) => {
       const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
       try {
-        const tool = (await mcp.tools()).find((entry) => entry.name === restart.name)
-        return String(await tool?.execute(restart.input).then(JSON.stringify, String))
+        const tool = (await mcp.tools()).find((entry) => entry.name === reload.name)
+        return String(await tool?.execute(reload.input).then(JSON.stringify, String))
       } finally {
         await mcp.close()
       }
     }
     const overRpc = (headers: Record<string, string>) =>
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
-        .registry.call(restart)
+        .registry.call(reload)
         .then(String, String)
     const outsideCalls = [
       await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}),
@@ -5284,13 +5402,13 @@ export default {
     expect(outsideCalls).toEqual([ran, ran, ran])
     expect(await loadPending(base, sessionId)).toEqual([])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
     const insideCalls = [
-      await createSessionRpc(base, sessionId).registry.call(restart).then(String, String),
+      await createSessionRpc(base, sessionId).registry.call(reload).then(String, String),
       await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),
     ]
     expect(insideCalls).toEqual([expect.stringMatching(/needs the user/), expect.stringMatching(/needs the user/)])
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([reload.name])
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
@@ -5378,7 +5496,11 @@ describe('session activity recorded with its chat messages', () => {
     const trace = callTrace((name) => hub[name] ?? null)
     const run = {threadId: sessionId, live: false}
     const before = Date.now()
-    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    const mirror = trace.mirror(run, {
+      publish: () => {},
+      record: (chunks) => made().plane.record(sessionId, chunks),
+      driving: () => made().plane.driving(sessionId),
+    })
     mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
     await mirror.settle()
     const meta = await kit().rpc.sessions.get({sessionId})
@@ -5482,36 +5604,74 @@ describe('page action queue delivery', () => {
     {tool: 'page_check', selector: '#agree'},
   ]
   const QueueHandleSchema = z.object({result: z.object({queueId: z.string(), actions: z.number()})})
+  const WINDOW_LONGER_THAN_THE_CASE_MS = 60_000
   const pages = new AbortController()
-  const engines: Engine[] = []
+  const stops: Array<() => Promise<void>> = []
   afterAll(async () => {
     pages.abort()
-    await Promise.all(engines.map((engine) => engine.stop()))
+    await Promise.all(stops.map((stop) => stop()))
   })
 
   type QueuedOnTab = {id: string; of: number}
+  type ServedEngine = {origin: string; token: string}
+  type ServeEngine = (
+    home: string,
+    harness: ReturnType<typeof createFakeHarness>,
+    plugins: readonly Plugin.Plugin[],
+    root: string,
+    permissions: Pick<ConcivConfig, 'permission' | 'permissions'>,
+  ) => Promise<ServedEngine>
+
+  const servedByStart: ServeEngine = async (home, harness, plugins, root, permissions) => {
+    const engine = await bootAt(home, root, 'open', harness, plugins, permissions)
+    stops.push(engine.stop)
+    return {origin: `http://127.0.0.1:${engine.port}`, token: engine.agentToken}
+  }
+
+  const servedWithWindowsLongerThanTheCase: ServeEngine = async (home, harness, plugins, root) => {
+    const boot = bootCoreApp({
+      home,
+      cwd: root,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
 
   async function engineWithTab(
     harness = createFakeHarness(),
     plugins: readonly Plugin.Plugin[] = [],
     root = tempDir('conciv-queue-'),
+    holdsUnder: (command: Page.Command) => string | undefined = () => undefined,
+    permissions: Pick<ConcivConfig, 'permission' | 'permissions'> = {},
+    serve: ServeEngine = servedByStart,
   ) {
     const home = tempDir('conciv-queue-home-')
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
     const tabs = pageTabs()
-    const engine = await bootAt(home, root, 'open', harness, [tabs.plugin, ...plugins])
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const {origin, token} = await serve(home, harness, [tabs.plugin, ...plugins], root, permissions)
+    const base = `${origin}/t/${token}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
-    const origin = `http://127.0.0.1:${engine.port}`
     const browser = makeBrowserRpcClient(origin, {session: () => sessionId})
-    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(engine.agentToken)).toBe(true)
+    expect(await browserRpcConnection(origin).trust.requestTrustWithToken(token)).toBe(true)
     onTestFinished(() => browser.close())
     const tab = browser.rpc
     const accepted: QueuedOnTab[] = []
     const held = new Map<string, string>()
     const arrivals = new EventTarget()
+    const arrived: string[] = []
     const answerFor = (command: Page.Command, requestId: string): PageReply | undefined => {
+      arrived.push(command.queued === undefined ? command.action.type : `queued ${command.queued.index}`)
+      const holdKey = holdsUnder(command)
+      if (holdKey !== undefined) {
+        held.set(holdKey, requestId)
+        arrivals.dispatchEvent(new Event('held'))
+        return undefined
+      }
       if (command.queued === undefined) return pageSuccess({})
       const {id, index, of} = command.queued
       if (index >= 0) {
@@ -5565,7 +5725,7 @@ describe('page action queue delivery', () => {
     const followUpFinished = async (earlier: readonly string[] = []): Promise<void> => {
       await seenChunk(() => runIds().some((runId) => !earlier.includes(runId)))
       const runId = runIds().find((known) => !earlier.includes(known)) ?? ''
-      const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
+      const joined = webSocket(`${base.replace('http', 'ws')}${CHAT_WS_PATH}`)
       for await (const chunk of joined.joinRun(runId, pages.signal)) {
         if (chunk.type === ChatEventType.RUN_ERROR) return
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
@@ -5591,8 +5751,9 @@ describe('page action queue delivery', () => {
     }
     return {
       base,
+      origin,
+      token,
       sessionId,
-      engine,
       tab,
       onTab,
       nextQueue,
@@ -5609,6 +5770,7 @@ describe('page action queue delivery', () => {
       runIds,
       seenChunk,
       inChat,
+      arrived,
     }
   }
 
@@ -5685,6 +5847,12 @@ describe('page action queue delivery', () => {
     await expect(
       typed.page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
     ).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `session "${page.sessionId}" does not exist`,
+    })
+    await expect(
+      makeRpcClient(page.base).page.queue.wait({sessionId: page.sessionId, queueId: onTab.id, waitMs: 0}),
+    ).rejects.toMatchObject({
       code: 'NO_QUEUE',
     })
     await expect(page.onTab.reply(requestId, pageSuccess({ok: true, checked: true}))).rejects.toMatchObject({
@@ -5703,8 +5871,40 @@ describe('page action queue delivery', () => {
     expect((await page.nextQueue()).id).toBe(handle.queueId)
   })
 
+  it('a queue the page refuses to accept runs none of its actions, and each says it did not run', async () => {
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), (command) =>
+      command.queued?.index === -1 ? 'acceptance' : undefined,
+    )
+    const typed = makeRpcClient(page.base, {headers: HUB})
+    const {queueId} = parseHandle(await page.hub(queued()))
+    await page.onTab.reply(await page.heldRequest('acceptance'), {
+      type: 'failure',
+      code: 'handler-error',
+      message: 'the tab is busy',
+    })
+    const refusal = expect.stringContaining('the page refused the queue, so this action did not run: ')
+    expect(await typed.page.queue.wait({sessionId: page.sessionId, queueId, waitMs: 5000})).toMatchObject({
+      queueId,
+      status: 'lost',
+      played: 0,
+      failed: 0,
+      outcomes: [
+        {index: 0, ok: false, error: refusal},
+        {index: 1, ok: false, error: refusal},
+      ],
+    })
+    expect(page.arrived).toEqual(['queued -1'])
+  })
+
   it('a page.queue.wait its caller aborts stops waiting, so the result it never handed over leads the next reply', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(
+      createFakeHarness(),
+      [],
+      tempDir('conciv-queue-'),
+      () => undefined,
+      {},
+      servedWithWindowsLongerThanTheCase,
+    )
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
     const caller = new AbortController()
@@ -5718,10 +5918,17 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a page.queue.wait its caller aborts before any play starts keeps the result owed, so it leads the next reply once, with one finished event and one card, while a result a live waiter took gets none', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(
+      createFakeHarness(),
+      [],
+      tempDir('conciv-queue-'),
+      () => undefined,
+      {},
+      servedWithWindowsLongerThanTheCase,
+    )
     const typed = makeRpcClient(page.base, {headers: HUB})
     const taken = parseHandle(await page.hub(queued())).queueId
     const takenOnTab = await page.nextQueue()
@@ -5748,14 +5955,21 @@ describe('page action queue delivery', () => {
     expect(page.cards(queueId)).toHaveLength(1)
     expect(page.queueEvents().filter((event) => event.queueId === taken)).toHaveLength(0)
     expect(page.cards(taken)).toHaveLength(0)
-  }, 5000)
+  })
 
   it('a page.queue.wait over the websocket its caller aborts before the queue finishes keeps the result owed, so it leads the next reply once', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(
+      createFakeHarness(),
+      [],
+      tempDir('conciv-queue-'),
+      () => undefined,
+      {},
+      servedWithWindowsLongerThanTheCase,
+    )
     const {queueId} = parseHandle(await page.hub(queued()))
     const onTab = await page.nextQueue()
-    const socket = new WebSocket(`ws://127.0.0.1:${page.engine.port}${RPC_WS_PATH}`, {
-      headers: {authorization: `Bearer ${page.engine.agentToken}`},
+    const socket = new WebSocket(`${page.origin.replace('http', 'ws')}${RPC_WS_PATH}`, {
+      headers: {authorization: `Bearer ${page.token}`},
     })
     await once(socket, 'open')
     const overSocket = createORPCClient<ReturnType<typeof makeRpcClient>>(
@@ -5781,10 +5995,17 @@ describe('page action queue delivery', () => {
     expect(JSON.stringify(await page.hub('return 2'))).not.toContain(notice)
     expect(page.queueEvents().filter((event) => event.queueId === queueId)).toHaveLength(1)
     expect(page.cards(queueId)).toHaveLength(1)
-  }, 5000)
+  })
 
   it('a code.execute its caller aborts hands over no finished result, so that result leads the next reply', async () => {
-    const page = await engineWithTab()
+    const page = await engineWithTab(
+      createFakeHarness(),
+      [],
+      tempDir('conciv-queue-'),
+      () => undefined,
+      {},
+      servedWithWindowsLongerThanTheCase,
+    )
     const {queueId} = parseHandle(await page.hub(queued()))
     const first = await page.nextQueue()
     await page.play(first, 0, pageSuccess({ok: true, value: 'Ada'}))
@@ -5803,7 +6024,7 @@ describe('page action queue delivery', () => {
     )
     expect(blocking.id).not.toBe(queueId)
     expect(JSON.stringify(await page.hub('return 1'))).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
-  }, 5000)
+  })
 
   it('a queue a hub request starts stays hub work after a fast finish, an aborted request and a thousand later hub calls', async () => {
     const page = await engineWithTab()
@@ -5850,15 +6071,15 @@ describe('page action queue delivery', () => {
     expect(page.runIds()).toEqual([])
 
     const long = parseHandle(await page.hub(queued())).queueId
-    const onTab = await page.nextQueue()
-    expect(
+    await playAll(await page.nextQueue())
+    await page.finishedEvent(long)
+    const called = JSON.stringify(
       await page.hub(
         "for (let call = 0; call < 1001; call += 1) await external_page_queue_async({actions: 'none'}).catch(() => null); return 'called'",
       ),
-    ).toContain('called')
-    await playAll(onTab)
-    await page.finishedEvent(long)
-    expect(await nextHubReply()).toContain(notice(long))
+    )
+    expect(called).toContain('called')
+    expect(called).toContain(notice(long))
     expect(page.runIds()).toEqual([])
   }, 20000)
 
@@ -6100,12 +6321,13 @@ describe('page action queue delivery', () => {
     const answered = (await page.tab.chat.hydrate({sessionId: page.sessionId})).messages.flatMap((message) =>
       message.parts.flatMap((part) => (part.type === 'tool-result' ? [part.content] : [])),
     )
-    const notOffered =
-      'No tool named "page_eval" is currently available. Please use a tool from the available tool list.'
-    const [program, call] = answered.map((content): unknown => JSON.parse(String(content)))
-    expect(answered).toHaveLength(2)
-    expect(program).toMatchObject({success: false, logs: [], error: {message: notOffered, name: 'Error'}})
-    expect(call).toEqual({error: notOffered})
+    const [program] = answered.map((content): unknown => JSON.parse(String(content)))
+    expect(answered).toHaveLength(1)
+    expect(program).toMatchObject({
+      success: false,
+      logs: [],
+      error: {message: "'external_page_eval' is not defined", name: 'ReferenceError'},
+    })
     expect(page.onTab.seen()).toEqual([])
     releaseRejoin()
     await page.onTab.joined(2)
@@ -6118,6 +6340,101 @@ describe('page action queue delivery', () => {
     await events.return(undefined)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['eval-again']})
     await (await nextTurn).text()
+  })
+
+  it('a chat-agent page_eval in the same session during an admitted CLI page_eval is still asked and does not run', async () => {
+    const evals: string[] = []
+    const holdsUnder = (command: Page.Command) => {
+      if (command.action.type !== 'eval') return undefined
+      evals.push(command.action.code)
+      return `eval/${command.action.code}`
+    }
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder)
+    const events = await makeRpcClient(page.base).event.subscribe()
+    const asked = async (): Promise<unknown> => {
+      const next = await events.next()
+      if (next.done === true) return undefined
+      if (next.value.type === 'permission.asked') return next.value.data
+      return asked()
+    }
+    const asking = asked()
+    const cli = makeRpcClient(page.base, {
+      headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    const admitted = cli.registry.call({name: 'page_eval', input: {code: 'document.title'}})
+    const cliRequest = await page.heldRequest('eval/document.title')
+    const agentTurn = page.inChat('agent-eval', 'return await external_page_eval({code: "document.domain"})')
+    expect(await asking).toMatchObject({sessionId: page.sessionId, action: 'page_eval', resources: ['document.domain']})
+    expect(evals).toEqual(['document.title'])
+    await page.onTab.reply(cliRequest, pageSuccess({result: 'Example'}))
+    expect(await admitted).toEqual({result: 'Example'})
+    await events.return(undefined)
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['agent-eval']})
+    await (await agentTurn).text()
+    expect(evals).toEqual(['document.title'])
+  })
+
+  const configuredEvals = async (permissions: Pick<ConcivConfig, 'permission' | 'permissions'>) => {
+    const evals: string[] = []
+    const page = await engineWithTab(
+      createFakeHarness(),
+      [],
+      tempDir('conciv-queue-'),
+      (command) => {
+        if (command.action.type !== 'eval') return undefined
+        evals.push(command.action.code)
+        return `eval/${command.action.code}`
+      },
+      permissions,
+    )
+    const events = await makeRpcClient(page.base).event.subscribe()
+    onTestFinished(async () => {
+      await events.return(undefined)
+    })
+    const asked = async (): Promise<unknown> => {
+      const next = await events.next()
+      if (next.done === true) return undefined
+      if (next.value.type === 'permission.asked') return next.value.data
+      return asked()
+    }
+    return {page, evals, asked}
+  }
+
+  it('an in-chat page_eval the config allows runs with no ask, and one the config denies is refused', async () => {
+    const {page, evals, asked} = await configuredEvals({
+      permission: {page_eval: {'document.cookie': 'deny'}},
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
+    const asking = asked()
+    const allowed = page.inChat('allowed-eval', 'return await external_page_eval({code: "document.title"})')
+    const first = await Promise.race([
+      asking.then(() => 'asked'),
+      page.heldRequest('eval/document.title').then(() => 'ran'),
+    ])
+    expect(first).toBe('ran')
+    await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
+    await (await allowed).text()
+    const denied = page.inChat('denied-eval', 'return await external_page_eval({code: "document.cookie"})')
+    const ended = await Promise.race([asking.then(() => 'asked'), denied.then((turn) => turn.text())])
+    expect(ended).toContain('denied')
+    expect(evals).toEqual(['document.title'])
+  })
+
+  it('config page rules land on every agent before the page guards: page allow keeps the attach gate, and an eval with no rule is asked', async () => {
+    const {page, evals, asked} = await configuredEvals({permission: {page: 'allow'}})
+    const tabless = (await makeRpcClient(page.base).sessions.create(undefined)).sessionId
+    const listed = await executeOverMcp(
+      page.base,
+      {...HUB, [CONCIV_SESSION_HEADER]: tabless},
+      'return Object.keys(globalThis).filter((key) => key.startsWith("external_page_"))',
+    )
+    expect(z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result).toEqual([])
+    const asking = asked()
+    const unruled = page.inChat('unruled-eval', 'return await external_page_eval({code: "document.domain"})')
+    expect(await asking).toMatchObject({sessionId: page.sessionId, action: 'page_eval', resources: ['document.domain']})
+    expect(evals).toEqual([])
+    await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['unruled-eval']})
+    await (await unruled).text()
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
@@ -6412,9 +6729,11 @@ export default {
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
+      'conciv.config.agent',
       'conciv.config.skill',
       'conciv.page',
       'conciv.skill',
+      'conciv.tool.server',
       'conciv.tool.skill',
       'configured',
       'embedded',
@@ -6753,6 +7072,51 @@ export default Plugin.define({
     ).toContain('You can deploy from code mode with `external_deploy_run`.')
   })
 
+  const LOOKALIKE = `export default {
+  id: 'lookalike',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'open',
+        description: 'Opens nothing',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'the project plugin opened it'}),
+      })
+      tools.add({
+        name: 'config',
+        description: 'Reports the project config',
+        input: {type: 'object', properties: {}},
+        options: {namespace: 'server'},
+        execute: async () => ({content: 'the project plugin config'}),
+      })
+    })
+  },
+}
+`
+
+  it("a project plugin's tool named like an engine tool replaces the engine's, as any later plugin tool replaces an earlier one", async () => {
+    const root = tempDir('conciv-lookalike-')
+    mkdirSync(join(root, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'lookalike.ts'), LOOKALIKE)
+    const opened: string[] = []
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: (file) => opened.push(file),
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const run = async (code: string) =>
+      JSON.stringify(await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, code))
+
+    expect.soft(await run("return await external_open({file: 'src/a.ts'})")).toContain('the project plugin opened it')
+    expect.soft(opened).toEqual([])
+    expect.soft(await run('return await external_server_config({})')).toContain('the project plugin config')
+  })
+
   const LANTERN = (marks: string, look: string) => `import {appendFileSync} from 'node:fs'
 import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
 import {Effect} from ${JSON.stringify(import.meta.resolve('effect'))}
@@ -7000,6 +7364,58 @@ export default {
     const text = await turn.ended()
     expect(text).toContain('the first step')
     expect(text).toContain('asker is undefined')
+  })
+})
+
+describe('a hub call while a turn is held in a plugin prompt hook', () => {
+  it('a hub call made while a prompt hook holds a starting turn answers at once, and its record lands after the turn, in order', async () => {
+    const entered = Promise.withResolvers<void>()
+    const gate = Promise.withResolvers<void>()
+    const holder = Plugin.define({
+      id: 'prompt-holder',
+      async setup(ctx) {
+        await ctx.session.hook('prompt', async () => {
+          entered.resolve()
+          await gate.promise
+        })
+      },
+    })
+    const home = tempDir('conciv-prompt-held-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const engine = await bootAt(home, tempDir('conciv-prompt-held-'), 'open', createFakeHarness(), [holder])
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const viewer = new AbortController()
+    onTestFinished(() => {
+      gate.resolve()
+      viewer.abort()
+    })
+    const turn = sseTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal)
+    await entered.promise
+    const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const hub = makeRpcClient(base, {
+      headers: {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+    })
+    expect(await hub.page.changes()).toEqual([])
+    gate.resolve()
+    expect(await sseStream(await turn).ended()).toContain('RUN_FINISHED')
+    const {messages} = await tab.chat.hydrate({sessionId})
+    expect(
+      messages.flatMap((message) =>
+        message.parts.flatMap((part) => {
+          if (part.type === 'text') return [`${message.role} text ${part.content}`]
+          if (part.type === 'tool-call') return [`${message.role} call ${part.name}`]
+          if (part.type === 'tool-result') return [`${message.role} result ${part.content}`]
+          return []
+        }),
+      ),
+    ).toEqual([
+      'user text hold me in the prompt hook',
+      'assistant text ok',
+      'assistant call page_changes',
+      'assistant result []',
+    ])
   })
 })
 
@@ -7256,7 +7672,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs any action through run without asking and with its own id per call, and deleting the session ends its tabs and drops its records', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id gets a new empty session while one on a deleted id is refused and nothing comes back', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7347,20 +7763,18 @@ export default {
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
     expect(await refusedAfterReload).toMatchObject({ok: false})
-    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({
-      error: 'Session not found.',
+    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({attached: true})
+    expect(await rpc.sessions.get({sessionId: SessionId.parse('conciv_missing')})).toMatchObject({
+      id: 'conciv_missing',
     })
+    expect((await rpc.chat.hydrate({sessionId: SessionId.parse('conciv_missing')})).messages).toEqual([])
     expect(await ask({type: 'route'})).toMatchObject({
       ok: false,
       message: expect.stringContaining('[page.disconnected]'),
     })
     await expect(
-      rpc.plugin.call({
-        rpcId: 'experimental.page',
-        method: 'run',
-        input: {sessionId: session, action: {type: 'route'}},
-      }),
-    ).rejects.toMatchObject({message: expect.stringContaining('[page.disconnected]')})
+      registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)('page_route', {}),
+    ).rejects.toMatchObject({code: 'NO_PAGE_CLIENT', message: 'page_route: no widget connected to session'})
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_a'})).toEqual({attached: true})
     expect(await granted()).toHaveLength(1)
@@ -7642,7 +8056,7 @@ export default {
       })
       .parse(await shot)
     expect(saved.value).toMatchObject({width: 800, files: [{id: image.id, mime: 'image/webp', bytes: 550}]})
-    expect(await readFile(saved.value.files[0]?.path ?? '', 'base64')).toBe(ONE_PIXEL_WEBP)
+    expect(await readFile(join(root, saved.value.files[0]?.path ?? ''), 'base64')).toBe(ONE_PIXEL_WEBP)
 
     const stranded = ask({type: 'wait', selector: 'body', timeout: 100})
     await next('conn_d')
@@ -7669,20 +8083,21 @@ export default {
 
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_e'})).toEqual({attached: true})
     const ending = tabs('ended', {connectionId: 'conn_e'})
+    await tabs('report', {sessionId: session, connectionId: 'conn_e', tab})
     expect(await page('captures.list')).toEqual(captured)
-    const ran = (action: Page.Action) => page('run', {action})
-    const evaluated = ran({type: 'eval', code: 'document.cookie'})
+    const ran = registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)
+    const evaluated = ran('page_text', {selector: 'h1'})
     const onRun = await next('conn_e')
     expect(onRun.command).toEqual({
-      action: {type: 'eval', code: 'document.cookie'},
-      agentId: 'terminal',
+      action: {type: 'text', selector: 'h1'},
+      agentId: 'build',
       timeoutMs: 5000,
     })
-    await reply('conn_e', onRun.requestId, succeeded({result: 'a=1'}))
-    expect(await evaluated).toEqual({result: 'a=1'})
+    await reply('conn_e', onRun.requestId, succeeded({text: 'a=1'}))
+    expect(await evaluated).toEqual({text: 'a=1'})
     expect(await tabs('waiting', {})).toEqual({waiting: 0})
     for (const text of ['One', 'Two']) {
-      const editing = ran({type: 'settext', selector: 'h1', text})
+      const editing = ran('page_settext', {selector: 'h1', text})
       const onRunEdit = await next('conn_e')
       await reply('conn_e', onRunEdit.requestId, {
         type: 'success',
@@ -7697,8 +8112,409 @@ export default {
     expect(ranCaptures).toHaveLength(4)
     expect(ranIds).toHaveLength(2)
     expect(ranIds).toEqual(ranIds.map(() => expect.stringMatching(/^[0-9a-f-]{36}$/u)))
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    await (await sseTurn(base, session, 'before-delete', 'remember the form')).text()
+    expect((await rpc.chat.hydrate({sessionId: session})).messages).not.toEqual([])
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
+      error: `Session ${session} could not be opened: it was deleted`,
+    })
+    expect(await page('sessions.attached')).not.toContain(session)
+    expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(session)
+    expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
+    await expect(page('queue.wait', {queueId: strandedId, waitMs: 0})).rejects.toMatchObject({
+      cause: expect.objectContaining({message: expect.stringContaining(`no queue ${strandedId}`)}),
+    })
   })
+})
+describe('prefixed serving', () => {
+  const TOKEN = '8a1e7d5c-3b2f-4e6a-9c0d-1f2e3a4b5c6d'
+
+  describe('prefixed serving over the real wire (start with an access token)', () => {
+    let root: string
+    let engine: Engine
+    let base: string
+    let rpc: RpcClient
+
+    beforeAll(async () => {
+      root = tempDir('conciv-prefixed-wire-')
+      const harness: HarnessAdapter = createFakeHarness({id: 'fake-prefixed-wire', text: 'prefixed ok'})
+      engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-prefixed-wire'},
+        root,
+        harness,
+        launchEditor: () => {},
+        accessToken: TOKEN,
+      })
+      base = `http://127.0.0.1:${engine.port}/t/${TOKEN}`
+      rpc = makeRpcClient(base)
+    })
+
+    afterAll(async () => {
+      await engine?.stop()
+      rmSync(root, {recursive: true, force: true})
+    })
+
+    it('the mcp url under the token prefix answers mcp and the bare one is refused', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+      try {
+        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
+      } finally {
+        await mcp.close()
+      }
+      await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
+    })
+
+    it('streams a chat turn over the prefixed delivery route', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const abort = new AbortController()
+      const connection = fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`)
+      const types: string[] = []
+      for await (const chunk of connection.connect(
+        [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello through the prefix'}]}],
+        {},
+        abort.signal,
+        {threadId: sessionId, runId: randomUUID()},
+      )) {
+        types.push(chunk.type)
+        if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) break
+      }
+      abort.abort()
+
+      expect(types).toContain(ChatEventType.RUN_FINISHED)
+    })
+
+    it('answers chat.permissionDecision through the prefixed route', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const sessionRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      await expect(
+        sessionRpc.chat.permissionDecision({approvalId: 'none-pending', approved: false}),
+      ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+    })
+  })
+})
+
+describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', () => {
+  const SHELL = ['--noprofile', '--norc', '-i']
+  const BUSY_MODEL = 'busy-model'
+  const terminalHarness = (id: string, pidFile: string) => {
+    const connects: HarnessConnectContext[] = []
+    const command = (context: HarnessConnectContext): TtyCommand => {
+      connects.push(context)
+      const env = {TERM: 'xterm-256color', PS1: 'P> ', PID_FILE: pidFile}
+      const busy = context.model === BUSY_MODEL ? `printf '\\033]9;4;1\\007'; ` : ''
+      return {bin: 'bash', args: ['-c', `echo $$ > "$PID_FILE"; ${busy}exec bash ${SHELL.join(' ')}`], env}
+    }
+    return {connects, harness: createFakeHarness({id, history: [], tty: {command}})}
+  }
+  const processAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  type TerminalSocket = {socket: WebSocket; text: () => string; controls: string[]}
+
+  const openTerminalSocket = (url: string, origin?: string): Promise<TerminalSocket> => {
+    const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
+    const received: string[] = []
+    const controls: string[] = []
+    socket.on('message', (data, isBinary) => {
+      if (isBinary) received.push(new TextDecoder().decode(Array.isArray(data) ? Buffer.concat(data) : data))
+      else controls.push(String(data))
+    })
+    return new Promise((resolve, reject) => {
+      socket.once('open', () => resolve({socket, text: () => received.join(''), controls}))
+      socket.once('error', reject)
+    })
+  }
+
+  const refusedStatus = (url: string, origin?: string): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
+      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
+      socket.once('open', () => reject(new Error('the upgrade completed without a valid ticket')))
+    })
+
+  const closeCode = (url: string): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const socket = new WebSocket(url)
+      socket.once('close', (code) => resolve(code))
+      socket.once('error', reject)
+    })
+
+  const shows = async (terminal: TerminalSocket, text: string): Promise<void> => {
+    await until(() => terminal.text().includes(text))
+  }
+
+  const connectUrl = async (base: string, ptyId: string, query = '', origin?: string): Promise<string> => {
+    const client = makeRpcClient(base, origin === undefined ? {} : {headers: {origin}})
+    const {ticket, expiresIn} = await client.experimental.persistentPty.connectToken({ptyId})
+    expect(expiresIn).toBe(60)
+    return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
+  }
+
+  const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
+
+  it(
+    'creates one terminal per session running its harness CLI, reuses it, refuses removing it while busy, resumes a known transcript, and dies with the engine',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-')
+      const transcripts = join(root, 'transcripts')
+      mkdirSync(transcripts)
+      const pidFile = join(root, 'pid')
+      const fake = terminalHarness('fake-terminal', pidFile)
+      if (fake.harness.history === undefined) throw new Error('the fake harness has no history')
+      const harness: HarnessAdapter = {
+        ...fake.harness,
+        history: {
+          ...fake.harness.history,
+          transcriptRoot: () => transcripts,
+          transcriptPath: (_cwd: string, token: HarnessSessionId) => join(transcripts, `${token}.jsonl`),
+        },
+      }
+      const engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal'},
+        root,
+        harness,
+        launchEditor: () => {},
+        homeDir: tempDir('conciv-home-'),
+      })
+      const stopped = {current: false}
+      onTestFinished(async () => {
+        if (!stopped.current) await engine.stop()
+      })
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const rpc = makeRpcClient(base)
+      const terminal = rpc.experimental.persistentPty
+      const {sessionId} = await rpc.sessions.create(undefined)
+
+      const created = await terminal.create({sessionId, size: {cols: 100, rows: 30}, model: 'claude-x'})
+      expect(created).toEqual({id: expect.stringMatching(/^pty_/), sessionId, size: {cols: 100, rows: 30}, busy: false})
+      expect(fake.connects).toHaveLength(1)
+      const first = fake.connects[0]
+      expect(first).toMatchObject({cwd: root, concivSessionId: sessionId, model: 'claude-x', resume: false})
+      expect(first?.mcpUrl).toBe(`${base}/api/mcp`)
+      expect(first?.harnessSessionId).toEqual(expect.any(String))
+
+      expect(await terminal.create({sessionId, size: {cols: 90, rows: 20}})).toEqual({
+        ...created,
+        size: {cols: 90, rows: 20},
+      })
+      expect(fake.connects).toHaveLength(1)
+
+      expect(await terminal.remove({ptyId: created.id})).toEqual({ok: true})
+      await expect(terminal.remove({ptyId: created.id})).rejects.toMatchObject({
+        code: 'PTY_NOT_FOUND',
+        status: 404,
+        data: {ptyId: created.id},
+      })
+
+      writeFileSync(join(transcripts, `${first?.harnessSessionId}.jsonl`), '')
+      const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
+      expect(resumed.id).not.toBe(created.id)
+      expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
+      const banner = await openTerminalSocket(await connectUrl(base, resumed.id))
+      await shows(banner, '\u2500 conciv: resumed session \u2500')
+      banner.socket.close()
+
+      await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
+      await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
+      expect((await terminal.create({sessionId})).id).toBe(resumed.id)
+
+      const pid = readPid(pidFile)
+      expect(processAlive(pid)).toBe(true)
+      stopped.current = true
+      await engine.stop()
+      await until(() => !processAlive(pid))
+    },
+  )
+
+  it(
+    'a session switched to another harness never gets the old terminal back, and one with no terminal command is refused NO_TTY',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-switch-')
+      const first = terminalHarness('fake-terminal-a', join(root, 'pid-a'))
+      const second = terminalHarness('fake-terminal-b', join(root, 'pid-b'))
+      const bare = createFakeHarness({id: 'fake-no-terminal'})
+      const kit = await bootKit({cwd: root, harnesses: [second.harness, bare]}, first.harness)
+      onTestFinished(() => kit.cleanup())
+      const terminal = kit.rpc.experimental.persistentPty
+      const {sessionId} = await kit.rpc.sessions.create(undefined)
+
+      const onFirst = await terminal.create({sessionId})
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-b'})
+      const onSecond = await terminal.create({sessionId})
+      expect(onSecond.id).not.toBe(onFirst.id)
+      expect(first.connects).toHaveLength(1)
+      expect(second.connects).toHaveLength(1)
+      await expect(terminal.remove({ptyId: onFirst.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-terminal-a'})
+      const back = await terminal.create({sessionId})
+      expect(back.id).not.toBe(onFirst.id)
+      expect(first.connects).toHaveLength(2)
+      await expect(terminal.remove({ptyId: onSecond.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-no-terminal'})
+      await expect(terminal.create({sessionId})).rejects.toMatchObject({code: 'NO_TTY'})
+    },
+  )
+
+  it(
+    'a ticketed socket carries the terminal both ways and replays to a late attacher, a socket with a missing, used, foreign, disallowed or other-origin ticket is refused, and outside agents cannot use the terminal',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-socket-')
+      const fake = terminalHarness('fake-terminal-socket', join(root, 'pid'))
+      const engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-socket'},
+        root,
+        harness: fake.harness,
+        launchEditor: () => {},
+        homeDir: tempDir('conciv-home-'),
+      })
+      onTestFinished(() => engine.stop())
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const rpc = makeRpcClient(base)
+      const terminal = rpc.experimental.persistentPty
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const pty = await terminal.create({sessionId})
+
+      const first = await openTerminalSocket(await connectUrl(base, pty.id, '&cols=100&rows=30'))
+      first.socket.send('echo ws-roundtrip-$((40+2))\r')
+      await shows(first, 'ws-roundtrip-42')
+      expect(first.controls).toContain(JSON.stringify({type: 'busy', busy: false}))
+      first.socket.send('stty size\r')
+      await shows(first, '30 100')
+      first.socket.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
+      first.socket.send('stty size\r')
+      await shows(first, '27 91')
+      first.socket.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
+      await shows(first, '\r\nconciv says hi\r\n')
+      first.socket.close()
+
+      const late = await openTerminalSocket(await connectUrl(base, pty.id))
+      await shows(late, 'ws-roundtrip-42')
+      await shows(late, '\r\nconciv says hi\r\n')
+      late.socket.close()
+
+      const connectPath = (ptyId: string) =>
+        `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect`
+      expect(await refusedStatus(connectPath(pty.id))).toBe(403)
+      expect(await refusedStatus(`${connectPath(pty.id)}?ticket=not-a-ticket`)).toBe(403)
+      const used = await connectUrl(base, pty.id)
+      const usedOnce = await openTerminalSocket(used)
+      usedOnce.socket.close()
+      expect(await refusedStatus(used)).toBe(403)
+      const foreign = new URL(await connectUrl(base, pty.id)).searchParams.get('ticket')
+      expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
+      expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
+      await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const widget = 'http://localhost:5173'
+      const sameOrigin = await openTerminalSocket(await connectUrl(base, pty.id, '', widget), widget)
+      await shows(sameOrigin, 'ws-roundtrip-42')
+      sameOrigin.socket.close()
+      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget), 'http://127.0.0.1:5173')).toBe(403)
+      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget))).toBe(403)
+
+      const outside = makeRpcClient(base, {
+        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+      }).experimental.persistentPty
+      await expect(outside.create({sessionId})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      await expect(outside.connectToken({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+      expect((await terminal.create({sessionId})).id).toBe(pty.id)
+
+      const gone = await connectUrl(base, pty.id)
+      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
+      expect(await closeCode(gone)).toBe(4404)
+    },
+  )
+
+  const trustedBrowserTerminal = async (prefix: string) => {
+    const root = tempDir(prefix)
+    const fake = terminalHarness('fake-terminal-revoke', join(root, 'pid'))
+    const engine = await start({
+      options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-revoke'},
+      root,
+      harness: fake.harness,
+      launchEditor: () => {},
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const origin = `http://127.0.0.1:${engine.port}`
+    const base = `${origin}/t/${engine.agentToken}`
+    const rpc = makeRpcClient(base)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    const pty = await rpc.experimental.persistentPty.create({sessionId})
+    const browserToken = engine.trustBrowser(
+      {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'},
+      Date.now(),
+    )
+    const browserTicketUrl = async (): Promise<string> => {
+      const url = new URL(await connectUrl(`${origin}/t/${browserToken}`, pty.id))
+      url.pathname = url.pathname.replace(`/t/${browserToken}`, '')
+      return url.toString()
+    }
+    const openAsBrowser = async (url: string) => {
+      const terminal = await openTerminalSocket(url)
+      const closes: number[] = []
+      terminal.socket.on('close', (code) => closes.push(code))
+      terminal.socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: browserToken}))
+      return {...terminal, closes}
+    }
+    const revoke = (): void => {
+      revokeBrowsers(concivStateDir(root), 'all')
+    }
+    const shownToEngine = async (proof: string): Promise<string> => {
+      const witness = await openTerminalSocket(await connectUrl(base, pty.id))
+      witness.socket.send(`\recho ${proof}-$((3+4))\r`)
+      await shows(witness, `${proof}-7`)
+      witness.socket.close()
+      return witness.text()
+    }
+    return {browserTicketUrl, openAsBrowser, revoke, shownToEngine}
+  }
+
+  it(
+    'revoking a browser closes its terminal socket with 1008, and nothing it writes afterwards reaches the terminal',
+    {timeout: 20_000},
+    async () => {
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-live-')
+      const kept = await browser.openAsBrowser(await browser.browserTicketUrl())
+      kept.socket.send('\recho kept-$((40+2))\r')
+      await shows(kept, 'kept-42')
+
+      browser.revoke()
+      await until(() => kept.closes.length > 0)
+      expect(kept.closes).toEqual([1008])
+      kept.socket.send('\recho late-$((5+6))\r')
+      expect(await browser.shownToEngine('after-late')).not.toContain('late-11')
+    },
+  )
+
+  it(
+    'a terminal ticket a browser was given before its revoke opens no terminal after it: the socket closes 1008',
+    {timeout: 20_000},
+    async () => {
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-ticket-')
+      const minted = await browser.browserTicketUrl()
+      browser.revoke()
+
+      const stale = await browser.openAsBrowser(minted)
+      stale.socket.send('\recho stale-$((2+3))\r')
+      await until(() => stale.closes.length > 0)
+      expect(stale.closes).toEqual([1008])
+      expect(await browser.shownToEngine('after-stale')).not.toContain('stale-5')
+    },
+  )
 })

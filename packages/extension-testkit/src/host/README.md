@@ -27,7 +27,7 @@ Browser page for the test host. It mounts the extension under test (from a virtu
 
 - `installStorageFixtures` (`host-runtime.tsx`): adds a ~10KB script and a ~600KB `style[data-conciv-fonts]` to document.head
 - `startHost` (`host-runtime.tsx`): appends a `div[data-conciv-root].dark` and a fixture root to document.body; listens for `testkit:attach`
-- `openEditor` (`host-runtime.tsx`): calls `rpc.editor.open`
+- `openEditor` (`host-runtime.tsx`): calls the server plugin's `open` method through `rpc.plugin.call`
 - `showToast` / `showAttachment` / `showCardAttachment` (`host-runtime.tsx`): append elements to body
 
 ## Verification

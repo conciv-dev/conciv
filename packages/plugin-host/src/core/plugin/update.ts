@@ -19,7 +19,7 @@ export interface Interface {
   readonly changes: () => Stream.Stream<Change>
 }
 
-export const Service = Context.Service<Interface>('@opencode/PluginUpdate')
+export const Service = Context.Service<Interface>('@conciv/PluginUpdate')
 
 export const layer = Layer.effect(
   Service,

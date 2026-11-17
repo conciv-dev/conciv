@@ -1,8 +1,9 @@
 import {once} from 'node:events'
 import {keyBy, Mutex, TimeoutError, withTimeout} from 'es-toolkit'
+import {z} from 'zod'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {PAGE_QUEUE_REFUSED} from '@conciv/protocol/page-types'
-import {Tool, type Plugin, type Rule, type RpcRegistration} from '@conciv/plugin'
+import {Tool, type Plugin, type RpcRegistration} from '@conciv/plugin'
 import {
   ACCESS,
   PERMISSION_SYNC_TIMEOUT_MS,
@@ -26,13 +27,19 @@ import * as Records from './records.js'
 import {Definition, Operations, type Action, type Command, type Result, type Tab} from './rpc.js'
 import {symbolicateFrames} from './symbolicate.js'
 
-const DEFAULT_TIMEOUT_MS = 5000
+const SessionNotFound = z.object({_tag: z.literal('Session.NotFoundError')})
+
+function refusalReason(error: unknown): string {
+  if (SessionNotFound.safeParse(error).success) return 'it was deleted'
+  return error instanceof Error ? error.message : String(error)
+}
 
 const TAB_RETURN_MS = 5000
 
-const QUEUED_ACTION_MS = 7000
-
-const EVAL_ASK: Rule = {action: 'page_eval', resource: '*', effect: 'ask'}
+const Windows = z.object({
+  pageReplyTimeoutMs: z.number().int().positive().default(5000),
+  queuedActionTimeoutMs: z.number().int().positive().default(7000),
+})
 
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
 
@@ -41,11 +48,6 @@ const operations = keyBy(Operations, (operation) => operation.name)
 type SyncEffect = Extract<ConnectionEffect, {readonly type: 'sync-permissions'}>
 
 type Call = {readonly agentId: string; readonly signal?: AbortSignal | undefined}
-
-export type Run = (
-  action: Action,
-  call: {readonly sessionId: SessionId; readonly agent: string; readonly id: string; readonly signal: AbortSignal},
-) => Promise<unknown>
 
 export type Connection = Awaited<ReturnType<typeof make>>
 
@@ -64,21 +66,21 @@ function whenAborted(signal: AbortSignal | undefined): Promise<'aborted'> {
   return once(signal, 'abort').then(() => 'aborted')
 }
 
-function callTimeout(action: Action): number {
+function callTimeout(action: Action, pageReplyTimeoutMs: number): number {
   if ((action.type === 'wait' || action.type === 'hmr') && action.timeout !== undefined) return action.timeout + 1000
-  return DEFAULT_TIMEOUT_MS
+  return pageReplyTimeoutMs
 }
 
-export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage'>) {
+export async function make(
+  ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage' | 'options'>,
+) {
+  const {pageReplyTimeoutMs, queuedActionTimeoutMs} = Windows.parse(ctx.options)
   await ctx.agent.transform((editor) =>
     editor
       .list()
-      .forEach((agent) =>
-        agent.permissions.push(...ACCESS.map((rule) => ({...rule, effect: 'deny' as const})), EVAL_ASK),
-      ),
+      .forEach((agent) => agent.permissions.push(...ACCESS.map((rule) => ({...rule, effect: 'deny' as const})))),
   )
   const machine = {state: createConnectionState()}
-  const runner = Promise.withResolvers<Run>()
   const records = Records.fromStorage(ctx.storage)
   const queues = Queue.fromPlay({
     play: (sessionId, play) => playQueue(sessionId, play),
@@ -173,8 +175,21 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
   }
   const registration: RpcRegistration<typeof Definition> = await ctx.rpc.register(Definition, {
     attach: async (input, call) => {
-      const session = await ctx.session.get({sessionId: input.sessionId}).catch(() => undefined)
-      if (!session) return call.error('unavailable', 'Session not found.', {})
+      const opened = await ctx.session
+        .get({sessionId: input.sessionId})
+        .catch((error: unknown) => {
+          if (SessionNotFound.safeParse(error).success) return ctx.session.create({id: input.sessionId})
+          throw error
+        })
+        .then(
+          (session) => ({session, reason: ''}),
+          (error: unknown) => ({session: undefined, reason: refusalReason(error)}),
+        )
+      const session = opened.session
+      if (!session) {
+        console.warn(`Page could not open session ${input.sessionId}`, opened.reason)
+        return call.error('unavailable', `Session ${input.sessionId} could not be opened: ${opened.reason}`, {})
+      }
       if (session.location.directory !== ctx.location.directory)
         return call.error('unavailable', 'Session belongs to another location.', {})
       const started = await begin(input.sessionId, input.connectionId)
@@ -221,20 +236,6 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
         return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
       }
     },
-    run: async (input, call) => {
-      try {
-        const run = await runner.promise
-        const output = await run(input.action, {
-          sessionId: input.sessionId,
-          agent: Queue.TERMINAL_AGENT,
-          id: crypto.randomUUID(),
-          signal: call.signal,
-        })
-        return Definition.methods.run.output.parse(output)
-      } catch (error) {
-        return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
-      }
-    },
     changes: (input) => records.changes(input.sessionId),
     clearChanges: async (input) => {
       await records.clear(input.sessionId)
@@ -242,10 +243,18 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     },
     'captures.list': (input) => records.captures(input.sessionId),
     'sessions.attached': async () => selectAttachedSessions(machine.state),
+    'tabs.list': async (input) => selectTabs(machine.state, input.sessionId),
     symbolicate: (input) => symbolicateFrames(input.frames, ctx.location.directory),
     'queue.wait': async (input, call) => {
       try {
         return await queues.wait(input.sessionId, input.queueId, input.waitMs, call.signal)
+      } catch (error) {
+        return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
+      }
+    },
+    'queue.claim': async (input, call) => {
+      try {
+        return await queues.claim(input.sessionId, input.queueId, input.waitMs, call.signal)
       } catch (error) {
         return call.error('unavailable', error instanceof Error ? error.message : String(error), {})
       }
@@ -327,7 +336,7 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     if (!selected.ok) throw raise(selected.error)
     const mutating = operations[action.type].mutating
     const send = async (call: Call): Promise<Result> => {
-      const command = {action, agentId: call.agentId, timeoutMs: callTimeout(action)}
+      const command = {action, agentId: call.agentId, timeoutMs: callTimeout(action, pageReplyTimeoutMs)}
       const deadline = Date.now() + command.timeoutMs
       const first = await request(sessionId, selected.connectionId, command, call.signal)
       if (first.ok) return first.result
@@ -388,10 +397,10 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
       const serial = lane(sessionId)
       await serial.acquire()
       try {
-        const acceptance = await send(play.action, -1, DEFAULT_TIMEOUT_MS)
+        const acceptance = await send(play.action, -1, pageReplyTimeoutMs)
         for (const [index, action] of play.actions.entries())
           played[index]?.resolve(
-            acceptance.ok ? await send(action, index, QUEUED_ACTION_MS) : refused(acceptance.error),
+            acceptance.ok ? await send(action, index, queuedActionTimeoutMs) : refused(acceptance.error),
           )
       } finally {
         serial.release()
@@ -413,7 +422,6 @@ export async function make(ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session'
     queues,
     records,
     tabs: (sessionId: SessionId): {tabs: Tab[]; focusedTabId: string | null} => selectTabs(machine.state, sessionId),
-    serve: (run: Run) => runner.resolve(run),
     dispose: async (): Promise<void> => {
       await dispatch({type: 'disposed'})
       await drained.promise

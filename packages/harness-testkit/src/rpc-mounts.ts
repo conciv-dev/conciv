@@ -1,7 +1,8 @@
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import type {AnyRouter} from '@orpc/server'
-import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/extension/rpc-mount'
+import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
+import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {serveHono, upgradeWebSocket} from '@conciv/serve'
 

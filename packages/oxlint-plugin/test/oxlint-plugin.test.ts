@@ -355,7 +355,7 @@ describe('vocabulary', () => {
       expect(await lintFixture('of-suffix/allowed.ts', 'conciv(no-of-suffix)')).toEqual([])
     })
 
-    test('exempts the files copied from opencode', async () => {
+    test('exempts the ported files, which keep the names of the code they were ported from', async () => {
       expect(await lintFixture('of-suffix/packages/plugin-host/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       expect(await lintFixture('of-suffix/packages/plugin/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       for (const folder of ['plugin', 'persistence']) {
@@ -541,5 +541,22 @@ describe('no hand-made temp dir', () => {
       await lintDiagnostics('test/oxlintrc-temp-dir.json', 'fixtures/temp-dir-outside/vitest.config.ts')
     ).filter((diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)')
     expect.soft(inConfig).toHaveLength(1)
+  })
+
+  test('flags every fs call that creates a path on the OS temp dir, through one const, in tests, e2e and testkit sources', async () => {
+    const created = await lintFixture('temp-dir/tmpdir-paths.ts')
+    expect.soft(created).toHaveLength(10)
+    expect.soft(created[0]).toContain('tempDir(prefix)')
+    expect.soft(await lintFixture('temp-dir/tmpdir-reads.ts')).toEqual([])
+    const outside = async (file: string) =>
+      (await lintDiagnostics('test/oxlintrc-temp-dir.json', `fixtures/temp-dir-outside/${file}`))
+        .filter((diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)')
+        .map((diagnostic) => String(diagnostic.message))
+    const e2e = await outside('e2e/app/fixture-root.ts')
+    expect.soft(e2e).toHaveLength(2)
+    expect.soft(e2e[0]).toContain('e2e/.conciv-e2e/<app>')
+    const testkit = await outside('packages/x-testkit/src/create-kit.ts')
+    expect.soft(testkit).toHaveLength(2)
+    expect.soft(testkit[0]).toContain('pass it in')
   })
 })

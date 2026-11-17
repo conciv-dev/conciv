@@ -1,34 +1,26 @@
-import {Plugin} from '@conciv/plugin'
+import {Effect} from 'effect'
+import {Plugin} from '@conciv/plugin/effect'
 import {Definition} from './rpc.js'
-import {info} from './skill.js'
-import {capabilities, failureMessage, register} from './tools.js'
+import {capabilities, register} from './tools.js'
 
 export default Plugin.define({
   id: 'tanstack',
-  async setup(ctx) {
-    const tanstack = capabilities(ctx.bundler, ctx.location.directory)
-    await register(ctx.tool, tanstack)
-    const registration = await ctx.rpc.register(Definition, {
-      buildErrors: async (_input, {error}) => {
-        try {
-          return tanstack.buildErrors()
-        } catch (cause) {
-          return error('BUNDLER_UNAVAILABLE', failureMessage(cause), {})
-        }
-      },
-      routeManifest: async (_input, {error}) => {
-        try {
-          return await tanstack.routeManifest()
-        } catch (cause) {
-          return error('MANIFEST_UNREADABLE', failureMessage(cause), {})
-        }
-      },
-      serverFnTrace: async ({count}) => tanstack.serverFnTrace(count),
-    })
-    await ctx.skill.transform((editor) => editor.add(info))
-    return async () => {
-      await registration.dispose()
-      tanstack.dispose()
-    }
-  },
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const tanstack = yield* capabilities(ctx.bundler, ctx.location.directory)
+      yield* register(ctx, tanstack)
+      yield* ctx.rpc
+        .register(Definition, {
+          buildErrors: (_input, call) =>
+            tanstack
+              .buildErrors()
+              .pipe(Effect.mapError((failure) => call.error('BUNDLER_UNAVAILABLE', failure.message, {}))),
+          routeManifest: (_input, call) =>
+            tanstack
+              .routeManifest()
+              .pipe(Effect.mapError((failure) => call.error('MANIFEST_UNREADABLE', failure.message, {}))),
+          serverFnTrace: ({count}) => Effect.succeed(tanstack.serverFnTrace(count)),
+        })
+        .pipe(Effect.orDie)
+    }),
 })

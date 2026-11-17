@@ -625,17 +625,13 @@ describe('plugin files', () => {
       expect(body).toContain('Use browser MCP tools only when a conciv command cannot do what you need.')
       expect(body).toContain('### When to use conciv instead of the browser MCP')
       expect(body).toContain('tools design diff')
-      expect(body).toContain(
-        '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"locate","selector":"<selector>"}}\'`',
-      )
-      expect(body).toContain('`.conciv/bin/conciv tools server graph <file>`')
-      expect(body).toContain('`.conciv/bin/conciv tools server transform <url>`')
+      expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
+      expect(body).toContain(`\`.conciv/bin/conciv plugin call server graph --data '{"file":"<file>"}'\``)
+      expect(body).toContain(`\`.conciv/bin/conciv plugin call server transform --data '{"url":"<url>"}'\``)
       expect(body).toContain('`.conciv/bin/conciv tools server reload <file>`')
+      expect(body).toContain('`.conciv/bin/conciv tools react find --name <ComponentName>`')
       expect(body).toContain(
-        '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"find","name":"<ComponentName>"}}\'`',
-      )
-      expect(body).toContain(
-        '`.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"start"}}\'`, reproduce, then `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"report"}}\'` (or `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"report","name":"<ComponentName>"}}\'` for one component), then `.conciv/bin/conciv plugin call experimental.page run --data \'{"sessionId":"<sessionId>","action":{"type":"track","action":"stop"}}\'`',
+        '`.conciv/bin/conciv tools react track --action start`, reproduce, then `.conciv/bin/conciv tools react track --action report [--name <ComponentName>]`, then `.conciv/bin/conciv tools react track --action stop`',
       )
       expect(body).not.toMatch(/`conciv /)
     })

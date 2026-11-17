@@ -1,9 +1,8 @@
 import {z} from 'zod'
 import {defineTool, toolError} from '@conciv/extension/tool'
-import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {TabsListingSchema, type SessionId, type TabsListing} from '@conciv/protocol/chat-types'
-import {OkResult, type BuiltinCategory} from './shared.js'
-import {OpenInput} from './open-input.js'
+import type {BuiltinCategory} from './shared.js'
 
 type HotUpdateWait = {applied: boolean; waitedMs: number}
 
@@ -11,8 +10,6 @@ export type ServerToolContext = {
   bundler: () => BundlerBridge | undefined
   hotUpdate: (sessionId: SessionId, timeout: number) => Promise<HotUpdateWait>
 }
-
-export type OpenToolContext = {openInEditor: (file: string, line?: number, column?: number) => void}
 
 export type TabsToolContext = {listTabs: () => Promise<TabsListing>}
 
@@ -61,57 +58,6 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   )
 }
 
-const configTool = serverTool({
-  operation: 'config',
-  summary: 'report the resolved root, base, aliases and plugins',
-  keywords: ['vite', 'aliases'],
-  input: z.object({}),
-  output: BundlerConfigSchema,
-  run: (_input, bundler) => bundler.config(),
-})
-
-const urlsTool = serverTool({
-  operation: 'urls',
-  summary: 'report where the dev server listens',
-  keywords: ['host', 'port'],
-  input: z.object({}),
-  output: z.object({local: z.array(z.string()), network: z.array(z.string())}),
-  run: (_input, bundler) => bundler.urls(),
-})
-
-const resolveTool = serverTool({
-  operation: 'resolve',
-  summary: 'report where an import specifier resolves',
-  positional: 'spec',
-  keywords: ['import', 'alias'],
-  input: z.object({
-    spec: z.string().describe('the import specifier'),
-    importer: z.string().optional().describe('resolve as if imported from this file'),
-  }),
-  output: z.object({id: z.string().nullable()}),
-  run: (input, bundler) => bundler.resolve(input.spec, input.importer),
-})
-
-const graphTool = serverTool({
-  operation: 'graph',
-  summary: 'report the importers and imported modules of a file',
-  positional: 'file',
-  keywords: ['module', 'imports'],
-  input: z.object({file: z.string().describe('the file to inspect')}),
-  output: z.array(ModuleNodeSchema),
-  run: (input, bundler) => bundler.moduleGraph(input.file),
-})
-
-const transformTool = serverTool({
-  operation: 'transform',
-  summary: 'report the transformed code the dev server serves for a url',
-  positional: 'url',
-  keywords: ['compile', 'output'],
-  input: z.object({url: z.string().describe('the module url')}),
-  output: z.object({code: z.string().nullable()}),
-  run: (input, bundler) => bundler.transform(input.url),
-})
-
 const HOT_UPDATE_WAIT_MS = 5000
 
 const NOT_WAITED: HotUpdateWait = {applied: false, waitedMs: 0}
@@ -139,47 +85,11 @@ const reloadTool = serverTool({
   },
 })
 
-const restartTool = serverTool({
-  operation: 'restart',
-  summary: 'restart the dev server and re-bundle its dependencies',
-  mutating: true,
-  approval: 'ask',
-  keywords: ['rebundle'],
-  input: z.object({force: z.boolean().optional().describe('force a full restart')}),
-  output: OkResult,
-  run: async (input, bundler): Promise<{ok: true}> => {
-    await bundler.restart(input.force ?? false)
-    return {ok: true}
-  },
-})
-
 export const BUILTIN_SERVER_TOOL = {
-  server_config: configTool,
-  server_urls: urlsTool,
-  server_resolve: resolveTool,
-  server_graph: graphTool,
-  server_transform: transformTool,
   server_reload: reloadTool,
-  server_restart: restartTool,
 } as const
 
 export const BUILTIN_SERVER_TOOLS = Object.values(BUILTIN_SERVER_TOOL)
-
-export const BUILTIN_OPEN_TOOL = defineTool({
-  name: 'open',
-  description: "open a source file in the user's editor",
-  inputSchema: OpenInput,
-  outputSchema: z.object({ok: z.literal(true), file: z.string(), line: z.number().optional()}),
-  meta: {
-    summary: "open a source file in the user's editor",
-    category: 'server',
-    mutating: false,
-    keywords: ['editor', 'source'],
-  },
-}).server((input, ctx: OpenToolContext): {ok: true; file: string; line?: number} => {
-  ctx.openInEditor(input.file, input.line, input.line === undefined ? undefined : input.column)
-  return input.line === undefined ? {ok: true, file: input.file} : {ok: true, file: input.file, line: input.line}
-})
 
 const TABS_GUIDANCE =
   'conciv tabs are live web pages running the conciv widget. When the user refers to a conciv tab, session or page in words, call external_tabs({}) and match their words against project, branch, root, href, pageTitle and sessionTitle. If exactly one tab matches, use it and tell the user which one you picked (project, branch, URL). If more than one matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose state is visible only when the user says "this one" or "the one I have open". If none match, say so and list what is open. Then pass the id of that tab as tab on every execute_typescript and discover_tools call; the first reply for a tab starts with its instructions, follow them. When a session has more than one browser tab (browserTabs lists each with its href), calls go to the one focused last, which is the first listed; tell the user which one (href). If a call says you are waiting for the user to allow it, tell the user to click Approve in that conciv tab, then retry; if it says the user denied you access, stop and tell the user, do not retry. If a call says the tab is not open, call external_tabs({}) again.'

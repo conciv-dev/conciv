@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {keyBy, mapValues} from 'es-toolkit'
 import {Rpc} from '@conciv/plugin/rpc'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {
@@ -536,15 +537,23 @@ export const Definition = Rpc.define({
       output: z.object({applied: z.boolean(), waitedMs: z.number()}),
       errors,
     },
-    run: {input: z.object({sessionId: SessionId, action: Action}), output: z.json(), errors},
     changes: {input: z.object({sessionId: SessionId}), output: z.array(PageChangeEntrySchema), errors},
     clearChanges: {input: z.object({sessionId: SessionId}), output: OkResult, errors},
     'captures.list': {input: z.object({sessionId: SessionId}), output: SessionCapturesSchema, errors},
     'sessions.attached': {input: z.object({}), output: z.array(SessionId), errors},
+    'tabs.list': {input: z.object({sessionId: SessionId}), output: State, errors},
     symbolicate: {input: SymbolicateSchema, output: SourceLocSchema.nullable(), errors},
     'queue.wait': {
       input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
       output: z.union([PageQueueResultSchema, PageQueueProgressSchema]),
+      errors,
+    },
+    'queue.claim': {
+      input: z.object({sessionId: SessionId, queueId: z.string().min(1), waitMs: z.number().int().min(0)}),
+      output: z.union([
+        z.object({result: PageQueueResultSchema, before: z.enum(['owed', 'nextReply']).nullable()}),
+        PageQueueProgressSchema,
+      ]),
       errors,
     },
     'queue.startedBy': {
@@ -596,3 +605,30 @@ export const Definition = Rpc.define({
     },
   },
 })
+
+const REACT_OPERATIONS: readonly string[] = ['locate', 'tree', 'inspect', 'override', 'find', 'track']
+const TERMINAL_LEFT_OUT: readonly string[] = ['tabs.list', 'fill_form']
+
+export const CLI_HIDDEN_FIELDS: readonly string[] = ['tabId']
+
+export type CliEntry = {
+  readonly positional: 'selector' | undefined
+  readonly category: 'react' | undefined
+  readonly asks: ((input: unknown) => AskedPermission) | undefined
+  readonly terminal: boolean
+}
+
+export type AskedPermission = {readonly action: string; readonly resources: readonly string[]}
+
+export const CliTools: Readonly<Record<string, CliEntry>> = mapValues(
+  keyBy(Operations, (entry) => entry.name),
+  (entry): CliEntry => ({
+    positional: Object.hasOwn(entry.input.shape, 'selector') ? 'selector' : undefined,
+    category: REACT_OPERATIONS.includes(entry.name) ? 'react' : undefined,
+    asks:
+      entry.name === 'eval'
+        ? (input: unknown): AskedPermission => ({action: 'page_eval', resources: [entry.input.parse(input).code]})
+        : undefined,
+    terminal: !TERMINAL_LEFT_OUT.includes(entry.name),
+  }),
+)

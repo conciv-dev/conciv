@@ -8,20 +8,10 @@ Private. The browser parts of conciv's built-in plugins, given to the widget fro
 The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
 
-The terminal runs any page action through the engine half's one `run` method: `conciv plugin call experimental.page
-run --data '{"sessionId":"conciv_...","action":{"type":"text","selector":"h1"}}'`. It takes the same actions the
-page tools validate and answers what the tool answers, files saved as the tool saves them. Each call gets a fresh id
-in the role a tool call id plays, so its captures and any queue it starts are its own; a queue started this way
-belongs to no chat turn. `run` asks nobody, `eval` included: the terminal is the owner. Inside a chat turn the
-`eval` tool still asks the user first.
-`run` waits on the executor through a deferred (`plugin-page/src/connection.ts:80`) that is always resolved before
-`run` can be called: `setup` makes the connection and then registers the tools in the same call
-(`plugin-page/src/index.ts:8-9`), and `register` serves the executor (`plugin-page/src/tools.ts:90`) before its first
-await.
+The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
+tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
+says. Inside a chat turn the `eval` tool asks the user first.
 
-A queue the terminal starts keeps that it was started there (`plugin-page/src/queue.ts` `startedBy`): `queue.owed`
-never offers or claims it, `queue.undelivered` returns it only when its id is asked for by name, so its finish starts
-no follow-up turn in the chat; `queue.wait` still delivers its result.
 The engine's session delete calls `queue.cancelSession {sessionId}` before it tombstones the row, and the page plugin
 also runs it when it hears `session.deleted`: it drops that session's queue records (`queue.ts` `cancelSession`), as
 the source's `jobs.cancelSession` does on delete: a result that lands later is never announced or owed, and
@@ -49,7 +39,7 @@ started after the reload waits for activation (opencode `core/src/session/prompt
 
 The engine half's `sessions.attached` answers the session ids with at least one tab attached
 (`plugin-page/src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); core's `tabs.list` walks it and reads each
-session's tabs through `run {type: 'tabs.list'}`, and `tabs.get` answers open when that read has a tab. This is a
+session's tabs through the engine half's own non-asking `tabs.list` method (`selectTabs`), and `tabs.get` answers open when that read has a tab. This is a
 conciv addition: the source has no cross-session listing because it has no tabs listing. Only callers that may call
 `plugin.call` reach it, and the RPC mount refuses `plugin.call` to an outside agent (`core/src/api/rpc/mount.ts`
 `PLUGIN_PROCEDURES`), so it is no wider than `tabs.list`.
@@ -60,18 +50,18 @@ outside agent is offered a page tool, and they are gone again once the last tab 
 
 A page failure is the plugin's own error, a `[page.<code>]` message; the old registry's codes and behaviour for page tools map:
 
-| Old registry                                 | Page plugin                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NO_PAGE_CLIENT`                             | `[page.disconnected]`                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `PAGE_TIMEOUT`                               | `[page.timeout]`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `INVALID_ARGS`                               | a missing target: `[page.invalid-args] <the page's message>`                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `INVALID_ARGS`, input that fails the schema  | in a chat turn or code mode, the tool runtime's own failure: `Invalid arguments for tool "page_<name>":`, one `- <field>: <message>` line per failing field, the arguments provided, then `Update the arguments and call the tool again.`; through `conciv plugin call experimental.page run`, exit 1 and `{ok: false, error: {kind: 'user', code: 'PLUGIN_RPC', type: 'rpc.invalid_input', message}}`, the message one line per failing field, then `Invalid input` |
-| `HANDLER_ERROR`                              | the action's own error as the page raised it, e.g. `[page.handler-error] <message>`                                                                                                                                                                                                                                                                                                                                                                                  |
-| `UNKNOWN_REQUEST`                            | no page error: a dropped request's page is told to stop (a `cancel` control for that request id) and the request is gone (`command` for it answers unavailable `Page request is no longer available.`); a late result for it while the tab is attached is accepted and ignored, as the source does                                                                                                                                                                   |
-| `registry.call` reaching a page tool         | gone: page tools are the plugin's; the terminal calls `conciv plugin call experimental.page run`, an agent reaches them in code mode or through the MCP hub                                                                                                                                                                                                                                                                                                          |
-| `page_eval` in the hub session's MCP listing | not listed: `page_eval` asks inside the tool, so an outside agent reaches it in code mode                                                                                                                                                                                                                                                                                                                                                                            |
-| a page that never answers, in `tabs.list`    | listed with the href its tab reported                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `NO_TAB` for page tools on an outside run    | no page tools: with no tab attached an outside run is offered none, as opencode's browser plugin (`plugin-browser/src/connection.ts:21-28`, `core/src/tool.ts:260, :385-388`), so a call answers `external_page_<name> is not defined` and `discover_tools` does not list it                                                                                                                                                                                         |
+| Old registry                                 | Page plugin                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NO_PAGE_CLIENT`                             | `[page.disconnected]`                                                                                                                                                                                                                                                                                                                    |
+| `PAGE_TIMEOUT`                               | `[page.timeout]`                                                                                                                                                                                                                                                                                                                         |
+| `INVALID_ARGS`                               | a missing target: `[page.invalid-args] <the page's message>`                                                                                                                                                                                                                                                                             |
+| `INVALID_ARGS`, input that fails the schema  | in a chat turn or code mode, the tool runtime's own failure: `Invalid arguments for tool "page_<name>":`, one `- <field>: <message>` line per failing field, the arguments provided, then `Update the arguments and call the tool again.`; through `conciv tools page <verb>`, a user error with exit 1 before any call is made, as main |
+| `HANDLER_ERROR`                              | the action's own error as the page raised it, e.g. `[page.handler-error] <message>`                                                                                                                                                                                                                                                      |
+| `UNKNOWN_REQUEST`                            | no page error: a dropped request's page is told to stop (a `cancel` control for that request id) and the request is gone (`command` for it answers unavailable `Page request is no longer available.`); a late result for it while the tab is attached is accepted and ignored, as the source does                                       |
+| `registry.call` reaching a page tool         | runs the plugin's page tool for the caller's session (`conciv tools page <verb>`); an agent reaches them in code mode or through the MCP hub                                                                                                                                                                                             |
+| `page_eval` in the hub session's MCP listing | not listed: `page_eval` asks inside the tool, so an outside agent reaches it in code mode                                                                                                                                                                                                                                                |
+| a page that never answers, in `tabs.list`    | listed with the href its tab reported                                                                                                                                                                                                                                                                                                    |
+| `NO_TAB` for page tools on an outside run    | no page tools: with no tab attached an outside run is offered none, as opencode's browser plugin (`plugin-browser/src/connection.ts:21-28`, `core/src/tool.ts:260, :385-388`), so a call answers `external_page_<name> is not defined` and `discover_tools` does not list it                                                             |
 
 ### Owed
 
@@ -83,3 +73,11 @@ A page failure is the plugin's own error, a `[page.<code>]` message; the old reg
   So the halt check passes and the fill types into the session it was queued for, which is not a wrong-session write.
   The app case "a queued fill released after a session switch does not type" covers the user-visible claim instead:
   it holds the fill's `command` call by its input until the switch shows on screen, then releases it.
+
+## test-runner-card
+
+The card the thread draws for a finished `test_runner_run` or `test_runner_status` call of the test-runner plugin
+(built-in id `test-runner-card`, a `ToolCall` contribution): the count pills, each file as a disclosure named by the
+last two path segments, a failing test closed until opened, and its failure with Open (the desktop editor, at the
+failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
+streams the live rows.

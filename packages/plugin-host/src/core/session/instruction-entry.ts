@@ -19,4 +19,4 @@ export interface Interface {
   readonly remove: (input: {readonly sessionId: Session.Id; readonly key: Key}) => Effect.Effect<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/InstructionEntry')
+export const Service = Context.Service<Interface>('@conciv/InstructionEntry')

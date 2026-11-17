@@ -1,6 +1,10 @@
-import {readFile, rm} from 'node:fs/promises'
-import {basename, dirname} from 'node:path'
-import {describe, expect, it, onTestFinished} from 'vitest'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {readFileSync} from 'node:fs'
+import {readFile, writeFile} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import {dirname, extname, join} from 'node:path'
+import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
+import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
@@ -8,6 +12,7 @@ import * as PageMachine from '../src/machine.js'
 import * as PageQueue from '../src/queue.js'
 import * as Page from '../src/rpc.js'
 import * as PageSkill from '../src/skill.js'
+import {symbolicateFrame} from '../src/symbolicate.js'
 
 const tabId = `tab_${crypto.randomUUID()}`
 
@@ -97,18 +102,6 @@ describe('page rpc', () => {
     const source = {file: 'app/page.tsx', line: 17, column: 4}
     expect(z.parse(output, source)).toEqual(source)
     expect(z.parse(output, null)).toBeNull()
-  })
-
-  it('run takes a session and one action the page tools validate, and answers what the tool answers', () => {
-    const {input, output} = Page.Definition.methods.run
-    const text = {sessionId, action: {type: 'text', selector: 'h1'}}
-    expect(z.parse(input, text)).toEqual(text)
-    expect(z.parse(input, {sessionId, action: {type: 'tabs.list'}})).toEqual({sessionId, action: {type: 'tabs.list'}})
-    expect(() => z.parse(input, {action: {type: 'text'}})).toThrow()
-    expect(() => z.parse(input, {sessionId, action: {type: 'no_such_action'}})).toThrow()
-    expect(() => z.parse(input, {sessionId, action: {type: 'fill', selector: 'h1', value: 1}})).toThrow()
-    const saved = {width: 800, files: [{id: `file_${crypto.randomUUID()}`, path: '/tmp/conciv-page-a/0/shot.webp'}]}
-    expect(z.parse(output, saved)).toEqual(saved)
   })
 
   it('page ID patterns survive JSON Schema export for model tool definitions', () => {
@@ -613,35 +606,6 @@ describe('page machine: disposal', () => {
 })
 
 describe('page queue: where it started', () => {
-  it('a terminal-started queue is never offered to the chat, and queue.wait still delivers it', async () => {
-    const finished: string[] = []
-    const bothFinished = Promise.withResolvers<void>()
-    const queues = PageQueue.fromPlay({
-      play: (_sessionId, play) =>
-        play.actions.map(async () => ({ok: true as const, result: {value: {ok: true}, files: []}})),
-      journal: async () => {},
-      finished: (record) => {
-        finished.push(record.toolCallId)
-        if (finished.length === 2) bothFinished.resolve()
-      },
-    })
-    const action = Page.Action.parse({type: 'queue_async', actions: [{tool: 'page_click', selector: '#go'}]})
-    if (action.type !== 'queue_async') throw new Error('the action is not a queue')
-    const terminal = queues.start(sessionId, {agentId: 'terminal', action, toolCallId: 'terminal-call'})
-    const chat = queues.start(sessionId, {agentId: 'build', action, toolCallId: 'chat-call'})
-    await bothFinished.promise
-
-    expect(queues.owed(sessionId, [], false).map((owed) => owed.queueId)).toEqual([chat.queueId])
-    expect(queues.owed(sessionId, [], true).map((owed) => owed.queueId)).toEqual([chat.queueId])
-    expect(queues.owed(sessionId, [], true)).toEqual([])
-    expect(queues.undelivered(sessionId, {excludeToolCallIds: []})).toEqual([])
-    expect(await queues.wait(sessionId, terminal.queueId, 0)).toMatchObject({
-      queueId: terminal.queueId,
-      status: 'finished',
-      played: 1,
-    })
-  })
-
   it('a finished chat queue is owed until claimed, a settle to nextReply hands it to the next reply once, and queue.wait still delivers it', async () => {
     const finished = Promise.withResolvers<void>()
     const queues = PageQueue.fromPlay({
@@ -671,6 +635,33 @@ describe('page queue: where it started', () => {
     expect(queues.undelivered(sessionId, {toolCallIds: ['q1']})).toEqual([result])
     expect(queues.undelivered(sessionId, {toolCallIds: ['q1']})).toEqual([])
     expect(await queues.wait(sessionId, queueId, 0)).toEqual(result)
+  })
+
+  it('queue.claim hands a finished result over claimed, a settle back leaves it owed, and a result already claimed or delivered is handed over with nothing claimed', async () => {
+    const finished = Promise.withResolvers<void>()
+    const queues = PageQueue.fromPlay({
+      play: (_sessionId, play) =>
+        play.actions.map(async () => ({ok: true as const, result: {value: {ok: true}, files: []}})),
+      journal: async () => {},
+      finished: () => finished.resolve(),
+    })
+    const action = Page.Action.parse({type: 'queue_async', actions: [{tool: 'page_click', selector: '#go'}]})
+    if (action.type !== 'queue_async') throw new Error('the action is not a queue')
+    const {queueId} = queues.start(sessionId, {agentId: 'build', action, toolCallId: 'hub-call'})
+    await finished.promise
+    const claimed = await queues.claim(sessionId, queueId, 0)
+    if (!('result' in claimed)) throw new Error('the queue did not finish')
+    expect(claimed).toEqual({result: expect.objectContaining({queueId, status: 'finished'}), before: 'owed'})
+    expect(queues.owed(sessionId, [], false)).toEqual([])
+    expect(await queues.claim(sessionId, queueId, 0)).toEqual({result: claimed.result, before: null})
+    queues.settle(sessionId, [queueId], 'owed')
+    expect(queues.owed(sessionId, [], false)).toEqual([
+      {queueId, toolCallId: 'hub-call', result: claimed.result, before: 'owed'},
+    ])
+    expect(await queues.claim(sessionId, queueId, 0)).toEqual({result: claimed.result, before: 'owed'})
+    queues.settle(sessionId, [queueId], 'delivered')
+    expect(queues.owed(sessionId, [], false)).toEqual([])
+    expect(await queues.claim(sessionId, queueId, 0)).toEqual({result: claimed.result, before: null})
   })
 
   it('a deleted session drops its queues: a result landing after the delete is never announced or owed, and waiting on it answers no queue', async () => {
@@ -709,17 +700,50 @@ describe('page tools', () => {
       data: new TextEncoder().encode(name),
     })
     const PageFiles = await import('../src/files.js')
-    const saved = await PageFiles.save([file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')])
-    const first = saved[0]?.path ?? ''
-    onTestFinished(() => rm(dirname(dirname(first)), {recursive: true, force: true}))
-    expect(saved.map((capture) => basename(capture.path))).toEqual([
-      'capture',
-      'capture',
-      'capture',
-      'capture',
-      'report.html',
-    ])
+    const root = tempDir('conciv-page-')
+    const saved = await PageFiles.save(
+      [file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')],
+      root,
+    )
+    const screenshots = join('.conciv', 'tmp', 'screenshots')
+    expect(saved.map((capture) => dirname(capture.path))).toEqual(saved.map(() => screenshots))
+    expect(saved.map((capture) => extname(capture.path))).toEqual(['', '', '', '', '.html'])
     expect(saved.map((capture) => capture.name)).toEqual(['..', '.', 'CON.txt', 'lpt1', 'report.html'])
-    expect(await readFile(first, 'utf8')).toBe('..')
+    expect(await readFile(join(root, saved[0]?.path ?? ''), 'utf8')).toBe('..')
+  })
+})
+
+async function chunkWithInlineMap(source: string, line: number, column: number): Promise<string> {
+  const gen = new GenMapping()
+  addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})
+  const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
+  const path = join(tempDir('conciv-chunk-'), 'chunk.js')
+  await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
+  return path
+}
+
+describe('symbolicate', () => {
+  it('reads a React server frame, fetches a loopback http frame, and never fetches another host', async () => {
+    const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+    const fetched: string[] = []
+    const fakeFetch: typeof fetch = async (input) => {
+      fetched.push(String(input))
+      return new Response(readFileSync(chunk, 'utf8'))
+    }
+    const at = (fileName: string) => symbolicateFrame({fileName, line: 2, column: 1}, tmpdir(), fakeFetch)
+    expect((await at(`about://React/Server/file://${chunk}?42`))?.file).toBe('app/page.tsx')
+    expect((await at('http://localhost:3000/src/App.tsx?x=1'))?.file).toBe('app/page.tsx')
+    expect(await at('http://169.254.169.254/latest/meta-data')).toBeNull()
+    expect(fetched.some((url) => url.includes('169.254'))).toBe(false)
+  })
+
+  it('answers null for a frame with no fileName and reads nothing', async () => {
+    const fetched: string[] = []
+    const fakeFetch: typeof fetch = async (input) => {
+      fetched.push(String(input))
+      return new Response('')
+    }
+    expect(await symbolicateFrame({line: 2, column: 1}, tmpdir(), fakeFetch)).toBeNull()
+    expect(fetched).toEqual([])
   })
 })

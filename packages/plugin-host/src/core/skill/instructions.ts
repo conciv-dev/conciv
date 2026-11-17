@@ -48,7 +48,7 @@ export interface Interface {
   readonly load: (permissions: Permission.Ruleset) => Effect.Effect<Instructions.List>
 }
 
-export const Service = Context.Service<Interface>('@opencode/SkillInstructions')
+export const Service = Context.Service<Interface>('@conciv/SkillInstructions')
 
 export const layer = Layer.effect(
   Service,

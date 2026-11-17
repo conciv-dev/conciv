@@ -2,17 +2,37 @@ import {describe, expect} from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {setTimeout} from 'node:timers/promises'
-import {Cause, Deferred, Duration, Effect, Fiber, Layer, LayerMap, Logger, Schedule} from 'effect'
+import {
+  Cause,
+  Deferred,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  LayerMap,
+  Logger,
+  Option,
+  Queue,
+  Schedule,
+  Stream,
+} from 'effect'
 import {z} from 'zod'
 import {TestClock} from 'effect/testing'
+import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import {Agent} from '../../../src/core/agent.js'
 import {Bus} from '../../../src/core/bus.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
-import {Agent} from '../../../src/core/agent.js'
+import {Location} from '../../../src/core/location.js'
+import {Permission} from '../../../src/core/permission.js'
 import {Plugin} from '../../../src/core/plugin.js'
 import {SdkPlugins} from '../../../src/core/plugin/sdk.js'
 import {Rpc} from '../../../src/core/rpc.js'
+import {Session as Sessions} from '../../../src/core/session.js'
 import {Tool} from '../../../src/core/tool.js'
 import {define} from '@conciv/plugin/effect/plugin'
+import {Session} from '@conciv/plugin/schema/session'
+import {Tool as ToolSchema} from '@conciv/plugin/schema/tool'
 import {Npm} from '../../../src/util/npm.js'
 import {tmpdirScoped} from '../fixture/tmpdir'
 import {advance} from '../lib/clock'
@@ -111,28 +131,31 @@ describe('PluginSupervisor reload', () => {
         yield* Effect.promise(() => write(file, reviewer(1)))
         const watcher = yield* Watcher.Test
         const locations = yield* LayerMap.make(
-          (location: string) => supervisorLayer(location, {configured: [path.dirname(file)], post: [everyAgentAsks]}),
+          (location: string) =>
+            supervisorLayer(location, {configured: [path.dirname(file)], builtin: {post: [everyAgentAsks]}}),
           {idleTimeToLive: Duration.infinity},
         )
         yield* Effect.gen(function* () {
           const plugins = yield* Plugin.Service
           const agents = yield* Agent.Service
-          const asked = (description: string) =>
-            agents.get(Agent.Id.make('reviewer')).pipe(
-              Effect.flatMap((agent) =>
-                agent?.description === description ? Effect.succeed(agent.permissions) : Effect.fail('not reloaded'),
-              ),
-              Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
-            )
+          const bus = yield* Bus.Service
+          const reviewerId = Agent.Id.make('reviewer')
           yield* plugins.awaitActivation
-          expect(yield* asked('v1')).toContainEqual(ask)
+          expect(yield* agents.get(reviewerId)).toMatchObject({description: 'v1'})
+          expect((yield* agents.get(reviewerId))?.permissions).toContainEqual(ask)
 
+          const reloaded = yield* bus.subscribe(Agent.Event.Updated).pipe(
+            Stream.mapEffect(() => agents.get(reviewerId)),
+            Stream.filter((agent) => agent?.description === 'v2'),
+            Stream.runHead,
+            Effect.forkScoped({startImmediately: true}),
+          )
           yield* Effect.promise(async () => {
             await write(file, reviewer(2))
             await fs.utimes(file, new Date(), new Date(Date.now() + 1000))
           })
           yield* watcher.emit({path: file, type: 'update'})
-          expect(yield* asked('v2')).toContainEqual(ask)
+          expect(Option.getOrUndefined(yield* Fiber.join(reloaded))?.permissions).toContainEqual(ask)
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
       }),
     30_000,
@@ -425,6 +448,380 @@ describe('PluginSupervisor reload', () => {
           yield* plugins.awaitActivation
 
           expect(peak).toBe(1)
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+})
+
+const restarts: boolean[] = []
+
+const bundler = defineBundlerBridge({
+  id: 'later-agent-bundler',
+  config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
+  resolve: async () => ({id: null}),
+  moduleGraph: () => [],
+  transform: async () => ({code: null}),
+  urls: () => ({local: [], network: []}),
+  reload: async () => {},
+  restart: async (force) => {
+    restarts.push(force ?? false)
+  },
+})
+
+const laterAgent = (version: number) => `export default {
+  id: "later",
+  async setup(ctx) {
+    await ctx.agent.transform((editor) => editor.update("later", () => {}))
+    await ctx.tool.transform((editor) => editor.add({ name: "later_v${version}", description: "", input: {}, execute: async () => ({}) }))
+  },
+}`
+
+describe('a rule pushed onto every agent', () => {
+  it.live(
+    'server_restart asks an agent that a project plugin adds, also after that plugin reloads',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const file = path.join(directory.path, 'conciv/plugins/later.ts')
+        yield* Effect.promise(async () => {
+          await write(file, laterAgent(1))
+          await fs.utimes(file, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000))
+        })
+        const watcher = yield* Watcher.Test
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const permission = yield* Permission.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_later_agent_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartAsLater = (call: string) =>
+            Effect.gen(function* () {
+              const codeMode = (yield* tools.snapshot()).codeMode
+              if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+              const running = yield* codeMode
+                .execute(
+                  'server_restart',
+                  {},
+                  {
+                    sessionId,
+                    agent: Agent.Id.make('later'),
+                    messageId: undefined,
+                    id: ToolSchema.CallId.make(call),
+                    progress: () => Effect.void,
+                  },
+                )
+                .pipe(Effect.forkScoped)
+              const first = yield* Effect.raceFirst(
+                Queue.take(asked).pipe(Effect.as('asked')),
+                Fiber.await(running).pipe(Effect.as('ran without asking')),
+              )
+              const [request] = yield* permission.forSession(sessionId)
+              if (request) yield* permission.reply({requestId: request.id, reply: 'once'})
+              yield* Fiber.join(running)
+              return first
+            })
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* get(tools, 'later_v1')).toBeDefined()
+          expect(yield* restartAsLater('call-first-generation')).toBe('asked')
+          expect(restarts).toEqual([false])
+
+          yield* Effect.promise(async () => {
+            await write(file, laterAgent(2))
+            await fs.utimes(file, new Date(), new Date())
+          })
+          yield* watcher.emit({path: file, type: 'update'})
+          yield* get(tools, 'later_v2').pipe(
+            Effect.flatMap((tool) => (tool ? Effect.void : Effect.fail('activation pending'))),
+            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+          )
+          yield* plugins.awaitActivation
+          expect(yield* get(tools, 'later_v1')).toBeUndefined()
+          expect(yield* restartAsLater('call-next-generation')).toBe('asked')
+          expect(restarts).toEqual([false, false])
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
+    'server_restart stays offered and still asks while a later plugin reloads with the call waiting in a before hook',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const callEntered = yield* Deferred.make<void>()
+        const callGate = yield* Deferred.make<void>()
+        const reloadEntered = yield* Deferred.make<void>()
+        const reloadGate = yield* Deferred.make<void>()
+        const sdk = yield* SdkPlugins.Service
+        yield* sdk.register(
+          define({
+            id: 'holds-the-call',
+            effect: (ctx) =>
+              Effect.gen(function* () {
+                yield* ctx.agent.transform((editor) => editor.update('held', () => {}))
+                yield* ctx.tool.hook('execute.before', (event) =>
+                  event.tool === 'server_restart'
+                    ? Deferred.succeed(callEntered, undefined).pipe(Effect.andThen(Deferred.await(callGate)))
+                    : Effect.void,
+                )
+              }),
+          }),
+        )
+        yield* sdk.register(define({id: 'reloaded', effect: () => Effect.void}))
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const permission = yield* Permission.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_held_call_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartTool = Effect.map(
+            tools.snapshot(),
+            (snapshot) => snapshot.codeMode?.tools.has('server_restart') === true,
+          )
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartTool).toBe(true)
+
+          const codeMode = (yield* tools.snapshot()).codeMode
+          if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+          const running = yield* codeMode
+            .execute(
+              'server_restart',
+              {},
+              {
+                sessionId,
+                agent: Agent.Id.make('held'),
+                messageId: undefined,
+                id: ToolSchema.CallId.make('call-held-in-before-hook'),
+                progress: () => Effect.void,
+              },
+            )
+            .pipe(Effect.forkScoped({startImmediately: true}))
+          yield* Deferred.await(callEntered)
+
+          yield* sdk.register(
+            define({
+              id: 'reloaded',
+              effect: () => Deferred.succeed(reloadEntered, undefined).pipe(Effect.andThen(Deferred.await(reloadGate))),
+            }),
+          )
+          yield* Deferred.await(reloadEntered)
+          expect(yield* restartTool).toBe(true)
+          expect(restarts).toEqual([])
+
+          yield* Deferred.succeed(callGate, undefined)
+          const first = yield* Effect.raceFirst(
+            Queue.take(asked).pipe(Effect.as('asked')),
+            Fiber.await(running).pipe(Effect.as('ran without asking')),
+          )
+          const restartsAtDecision = [...restarts]
+          yield* Deferred.succeed(reloadGate, undefined)
+          const [request] = yield* permission.forSession(sessionId)
+          if (request) yield* permission.reply({requestId: request.id, reply: 'once'})
+          yield* Fiber.join(running)
+          yield* plugins.awaitActivation
+          expect(yield* restartTool).toBe(true)
+          expect({first, restartsAtDecision}).toEqual({first: 'asked', restartsAtDecision: []})
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
+    'server_restart still asks when the host closes its plugins while the call waits in a before hook',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const callEntered = yield* Deferred.make<void>()
+        const callGate = yield* Deferred.make<void>()
+        const sdk = yield* SdkPlugins.Service
+        yield* sdk.register(
+          define({
+            id: 'holds-the-call',
+            effect: (ctx) =>
+              Effect.gen(function* () {
+                yield* ctx.agent.transform((editor) => editor.update('held', () => {}))
+                yield* ctx.tool.hook('execute.before', (event) =>
+                  event.tool === 'server_restart'
+                    ? Deferred.succeed(callEntered, undefined).pipe(Effect.andThen(Deferred.await(callGate)))
+                    : Effect.void,
+                )
+              }),
+          }),
+        )
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const permission = yield* Permission.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_closed_host_call_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartTool = Effect.map(
+            tools.snapshot(),
+            (snapshot) => snapshot.codeMode?.tools.has('server_restart') === true,
+          )
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartTool).toBe(true)
+
+          const codeMode = (yield* tools.snapshot()).codeMode
+          if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+          const running = yield* codeMode
+            .execute(
+              'server_restart',
+              {},
+              {
+                sessionId,
+                agent: Agent.Id.make('held'),
+                messageId: undefined,
+                id: ToolSchema.CallId.make('call-held-while-the-host-closes'),
+                progress: () => Effect.void,
+              },
+            )
+            .pipe(Effect.forkScoped({startImmediately: true}))
+          yield* Deferred.await(callEntered)
+
+          yield* plugins.close(Exit.void)
+          expect(restarts).toEqual([])
+
+          yield* Deferred.succeed(callGate, undefined)
+          const first = yield* Effect.raceFirst(
+            Queue.take(asked).pipe(Effect.as('asked')),
+            Fiber.await(running).pipe(Effect.as('ran without asking')),
+          )
+          const restartsAtDecision = [...restarts]
+          const [request] = yield* permission.forSession(sessionId)
+          if (request) yield* permission.reply({requestId: request.id, reply: 'once'})
+          yield* Fiber.join(running)
+          expect({first, restartsAtDecision}).toEqual({first: 'asked', restartsAtDecision: []})
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
+    "an agent rule a plugin pushes for server_restart beats the tool's own ask, in either direction",
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const sdk = yield* SdkPlugins.Service
+        const pushRule = (effect: 'allow' | 'deny') =>
+          sdk.register(
+            define({
+              id: 'user-rules',
+              effect: (ctx) =>
+                ctx.agent.transform((editor) =>
+                  editor
+                    .list()
+                    .forEach((agent) => agent.permissions.push({action: 'server_restart', resource: '*', effect})),
+                ),
+            }),
+          )
+        yield* pushRule('allow')
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const agents = yield* Agent.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_user_rule_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartAsBuild = (call: string) =>
+            Effect.gen(function* () {
+              const codeMode = (yield* tools.snapshot()).codeMode
+              if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+              const running = yield* codeMode
+                .execute(
+                  'server_restart',
+                  {},
+                  {
+                    sessionId,
+                    agent: Agent.defaultId,
+                    messageId: undefined,
+                    id: ToolSchema.CallId.make(call),
+                    progress: () => Effect.void,
+                  },
+                )
+                .pipe(Effect.forkScoped)
+              return yield* Effect.raceFirst(
+                Queue.take(asked).pipe(Effect.as('asked')),
+                Fiber.await(running).pipe(Effect.map((exit) => (Exit.isSuccess(exit) ? 'ran' : 'refused'))),
+              )
+            })
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartAsBuild('call-allowed')).toBe('ran')
+          expect(restarts).toEqual([false])
+
+          yield* pushRule('deny')
+          yield* agents.get(Agent.defaultId).pipe(
+            Effect.flatMap((agent) =>
+              agent?.permissions.at(-1)?.effect === 'deny' ? Effect.void : Effect.fail('activation pending'),
+            ),
+            Effect.retry({times: 80, schedule: Schedule.spaced('25 millis')}),
+          )
+          yield* plugins.awaitActivation
+          expect(yield* restartAsBuild('call-denied')).toBe('refused')
+          expect(restarts).toEqual([false])
         }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
       }),
     30_000,

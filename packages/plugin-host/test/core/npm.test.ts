@@ -147,14 +147,14 @@ async function createRegistryFixture(directory: string) {
 
 describe('Npm.sanitize', () => {
   test('keeps normal scoped package specs unchanged', () => {
-    expect(Npm.sanitize('@opencode/acme')).toBe('@opencode/acme')
-    expect(Npm.sanitize('@opencode/acme@1.0.0')).toBe('@opencode/acme@1.0.0')
+    expect(Npm.sanitize('@conciv/acme')).toBe('@conciv/acme')
+    expect(Npm.sanitize('@conciv/acme@1.0.0')).toBe('@conciv/acme@1.0.0')
     expect(Npm.sanitize('prettier')).toBe('prettier')
   })
 
   test('handles git https specs', () => {
-    const spec = 'acme@git+https://github.com/opencode/acme.git'
-    const expected = win ? 'acme@git+https_//github.com/opencode/acme.git' : spec
+    const spec = 'acme@git+https://github.com/conciv/acme.git'
+    const expected = win ? 'acme@git+https_//github.com/conciv/acme.git' : spec
     expect(Npm.sanitize(spec)).toBe(expected)
   })
 })
@@ -189,9 +189,9 @@ describe('Npm.isInstallablePackage', () => {
 
 describe('Npm.cacheKey', () => {
   test('canonicalizes registry keys and hashes Git specs', async () => {
-    expect(await Npm.cacheKey('@opencode/acme@1.0.0')).toBe(Npm.sanitize('@opencode/acme@1.0.0'))
+    expect(await Npm.cacheKey('@conciv/acme@1.0.0')).toBe(Npm.sanitize('@conciv/acme@1.0.0'))
     expect(await Npm.cacheKey('plugin')).toBe(Npm.sanitize('plugin@latest'))
-    expect(await Npm.cacheKey('@opencode/acme')).toBe(Npm.sanitize('@opencode/acme@latest'))
+    expect(await Npm.cacheKey('@conciv/acme')).toBe(Npm.sanitize('@conciv/acme@latest'))
     const spec = 'git+ssh://git@github.com/acme/plugin.git#main'
     expect(await Npm.cacheKey(spec)).toMatch(/^git-plugin-[a-f0-9]{12}$/)
     expect(await Npm.cacheKey(spec)).toBe(await Npm.cacheKey(spec))

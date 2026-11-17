@@ -1,9 +1,10 @@
 import {z} from 'zod'
 import {Effect} from 'effect'
-import {Bus, Rpc} from '@conciv/plugin-host'
+import {Bus, Plugin, Rpc} from '@conciv/plugin-host'
 import {Definition, State} from '@conciv/plugin-page/rpc'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {PluginHost} from '../api/rpc/mount.js'
 import {logError} from '../lib/debug.js'
 import type {OwedQueue, QueueDelivery} from './page-queue.js'
@@ -39,7 +40,8 @@ export function makePagePlugin(host: () => PluginHost) {
 
   const call = (method: keyof Methods, input: unknown, signal?: AbortSignal) =>
     host().runPromise(
-      Rpc.Service.use((rpc) => rpc.call(Definition.id, method, input)).pipe(
+      Plugin.awaitActivation.pipe(
+        Effect.andThen(Rpc.Service.use((rpc) => rpc.call(Definition.id, method, input))),
         Effect.mapError((failure) => new Error(failure.message, {cause: failure})),
       ),
       signal === undefined ? {} : {signal},
@@ -86,20 +88,55 @@ export function makePagePlugin(host: () => PluginHost) {
     },
   }
 
+  const symbolicate = async (frames: RawFrame[]): Promise<SourceLoc | null> =>
+    Definition.methods.symbolicate.output.parse(await call('symbolicate', {frames}))
+
   return {
+    symbolicate,
+    symbolicateOrNone: (frames: RawFrame[]): Promise<SourceLoc | null> =>
+      symbolicate(frames).catch((error: unknown) => {
+        if (!unlisted(error)) logError(`[core] the page plugin could not symbolicate: ${String(error)}`)
+        return null
+      }),
     hmrWait: async (input: Input<'hmr.wait'>, signal?: AbortSignal) =>
       Definition.methods['hmr.wait'].output.parse(await call('hmr.wait', input, signal)),
-    queueWait: async (input: Input<'queue.wait'>, signal?: AbortSignal) =>
-      Definition.methods['queue.wait'].output.parse(await call('queue.wait', input, signal)),
+    queueWait: async (
+      input: Input<'queue.wait'>,
+      signal?: AbortSignal,
+      replied?: Promise<boolean>,
+    ): Promise<PageQueueResult | PageQueueProgress> => {
+      if (replied === undefined)
+        return Definition.methods['queue.wait'].output.parse(await call('queue.wait', input, signal))
+      const handed = Definition.methods['queue.claim'].output.parse(await call('queue.claim', input, signal))
+      if (!('result' in handed)) return handed
+      const {before} = handed
+      if (before !== null)
+        void replied
+          .catch(() => false)
+          .then((sent) =>
+            call('queue.settle', {
+              sessionId: input.sessionId,
+              queueIds: [input.queueId],
+              delivery: sent ? 'delivered' : before,
+            }),
+          )
+          .catch((error: unknown) =>
+            logError(`[core] the queue ${input.queueId} handed to a waiter could not be settled: ${String(error)}`),
+          )
+      return handed.result
+    },
     tabs: async (sessionId: SessionId): Promise<State> => {
       try {
-        return State.parse(await call('run', {sessionId, action: {type: 'tabs.list'}}))
+        return Definition.methods['tabs.list'].output.parse(await call('tabs.list', {sessionId}))
       } catch (error) {
-        if (!unlisted(error) && !String(error).includes('[page.disconnected]'))
-          logError(`[core] the page tabs of ${sessionId} could not be read: ${String(error)}`)
+        if (!unlisted(error)) logError(`[core] the page tabs of ${sessionId} could not be read: ${String(error)}`)
         return NO_TABS
       }
     },
+    changes: async (sessionId: SessionId) =>
+      Definition.methods.changes.output.parse(await call('changes', {sessionId})),
+    clearChanges: async (sessionId: SessionId) =>
+      Definition.methods.clearChanges.output.parse(await call('clearChanges', {sessionId})),
     attachedSessions: async (): Promise<SessionId[]> =>
       orNone(
         call('sessions.attached', {}).then((listed) => Definition.methods['sessions.attached'].output.parse(listed)),
