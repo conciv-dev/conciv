@@ -6486,6 +6486,32 @@ describe('page action queue delivery', () => {
     expect(evals).toEqual(['document.title'])
   })
 
+  it('a widget-origin page_eval under a config deny is refused like any caller, and one the config allows runs', async () => {
+    const evals: string[] = []
+    const holdsUnder = (command: Page.Command) => {
+      if (command.action.type !== 'eval') return undefined
+      evals.push(command.action.code)
+      return command.action.code === 'document.title' ? 'eval/document.title' : undefined
+    }
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder, {
+      permission: {page_eval: {'document.cookie': 'deny'}},
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
+    const widget = makeRpcClient(page.base, {
+      headers: {[CONCIV_SESSION_HEADER]: page.sessionId, origin: 'http://localhost:3000'},
+    })
+    const evaluate = (code: string) => widget.registry.call({name: 'page_eval', input: {code}})
+    await expect(evaluate('document.cookie')).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: 'Permission denied: page_eval',
+    })
+    expect(evals).toEqual([])
+    const allowed = evaluate('document.title')
+    await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
+    expect(await allowed).toEqual({result: 'Example'})
+    expect(evals).toEqual(['document.title'])
+  })
+
   it('config page rules land on every agent before the page guards: page allow keeps the attach gate, and an eval with no rule is asked', async () => {
     const {page, evals, asked} = await configuredEvals({permission: {page: 'allow'}})
     const tabless = (await makeRpcClient(page.base).sessions.create(undefined)).sessionId
