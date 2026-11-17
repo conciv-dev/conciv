@@ -3497,14 +3497,16 @@ describe('plugin host bus', () => {
     const reused = await created()
     await kit.rpc.sessions.delete({sessionId: reused})
     const location = Schema.decodeSync(Location.Ref)({directory: made.chat.cwd})
-    await sessionKey(made).run((sessions) =>
-      sessions.create({id: SessionSchema.Id.make(reused), title: 'a new session on a deleted id', location}),
-    )
-    const reusedTurn = await kit.turn('sent after a plugin created the id again', {
+    expect(
+      await sessionKey(made).fail((sessions) =>
+        sessions.create({id: SessionSchema.Id.make(reused), title: 'a refused session on a deleted id', location}),
+      ),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: reused})
+    const reusedTurn = await kit.turn('sent after a plugin create on the deleted id was refused', {
       session: reused,
-      runId: 'reused-run',
+      runId: 'refused-create-run',
     })
-    expect((await reusedTurn.done()).errors()).toEqual([])
+    expect((await reusedTurn.done()).errors()).toEqual([`session "${reused}" does not exist`])
 
     const listed = await created()
     const listedNative = HarnessSessionId.parse(randomUUID())
@@ -3513,9 +3515,12 @@ describe('plugin host bus', () => {
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(transcript, JSON.stringify({type: 'user', message: {content: 'a task written in the terminal'}}))
     await kit.rpc.sessions.delete({sessionId: listed})
-    expect((await kit.rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).toContain(listed)
-    const listedTurn = await kit.turn('sent after a listing restored it', {session: listed, runId: 'listed-run'})
-    expect((await listedTurn.done()).errors()).toEqual([])
+    expect((await kit.rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(listed)
+    const listedTurn = await kit.turn('sent after a listing left the deleted id out', {
+      session: listed,
+      runId: 'listed-still-deleted-run',
+    })
+    expect((await listedTurn.done()).errors()).toEqual([`session "${listed}" does not exist`])
 
     const neverSeen = SessionId.parse('conciv_never_seen_before_its_first_send')
     const firstTurn = await kit.turn('the first message to an id no session had', {
