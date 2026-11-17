@@ -54,12 +54,8 @@ export function CardRows(props: {children: JSX.Element}): JSX.Element {
   return <div class="flex flex-col gap-0.5">{props.children}</div>
 }
 
-export function CardRow(props: {children: JSX.Element; style?: JSX.CSSProperties}): JSX.Element {
-  return (
-    <div class="text-chat-xs font-chat-mono flex gap-2 items-baseline" style={props.style}>
-      {props.children}
-    </div>
-  )
+export function CardRow(props: {children: JSX.Element}): JSX.Element {
+  return <div class="text-chat-xs font-chat-mono flex gap-2 items-baseline">{props.children}</div>
 }
 
 export function CardNote(props: {children: JSX.Element; class?: string}): JSX.Element {
