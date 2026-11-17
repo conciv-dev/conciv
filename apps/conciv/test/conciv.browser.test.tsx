@@ -8232,6 +8232,23 @@ module.exports = {default: {setup(ctx) {
     const brokenAsked = await readAsked(brokenId)
     expect(brokenAsked).toHaveLength(1)
     expect(brokenAsked[0]).toMatchObject({parts: [{type: 'text', content: 'after the broken note'}]})
+
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveTextContent('/model')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('textbox', {name: 'Search models'})).toHaveFocus()
+    await expect.element(editor()).not.toHaveTextContent()
+    await expect.element(card('alone note 1')).toBeVisible()
+    await expect.element(card('alone note 6')).toBeVisible()
+    expect(await readAsked(brokenId)).toHaveLength(1)
   }, 60_000)
 
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
