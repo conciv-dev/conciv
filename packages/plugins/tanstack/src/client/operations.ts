@@ -41,37 +41,31 @@ const PAGE_PENDING: Outcome = {
     'The page plugin is still starting in this tab; no action ran. Call tanstack.tabs.list({}) once it finishes starting, then retry.',
 }
 
-async function perform(tree: ReactTree, action: Action): Promise<unknown> {
-  switch (action.type) {
-    case 'tabs.list':
-      throw new Error('tanstack.tabs.list is answered by the engine, not the page')
-    case 'detect':
-      return readDetect(tree)
-    case 'router_state':
-      return readRouterState(tree)
-    case 'route_tree':
-      return readRouteTree(tree)
-    case 'data_entries':
-      return readDataEntries(tree)
-    case 'loader_data':
-      return readLoaderData(tree, action.routeId)
-    case 'data_invalidate':
-      return invalidateRouterMatch(tree, action.routeId)
-    case 'errors_snapshot':
-      return readRuntimeErrors()
-    case 'query_cache':
-      return {queries: readQueryCache(tree), mutations: readMutations(tree)}
-    case 'query_invalidate':
-      return invalidateQuery(tree, action.key)
-    case 'query_refetch':
-      return refetchQuery(tree, action.key)
-    case 'navigate':
-      return navigateTo(tree, action)
-    case 'router_invalidate':
-      return invalidateRouter(tree)
-    case 'back':
-      return goBack(tree)
-  }
+type ActionMap = {[Entry in Action as Entry['type']]: Entry}
+
+type Handlers = {[Type in keyof ActionMap]: (tree: ReactTree, action: ActionMap[Type]) => unknown}
+
+const handlers: Handlers = {
+  'tabs.list': () => {
+    throw new Error('tanstack.tabs.list is answered by the engine, not the page')
+  },
+  detect: (tree) => readDetect(tree),
+  router_state: (tree) => readRouterState(tree),
+  route_tree: (tree) => readRouteTree(tree),
+  data_entries: (tree) => readDataEntries(tree),
+  loader_data: (tree, action) => readLoaderData(tree, action.routeId),
+  data_invalidate: (tree, action) => invalidateRouterMatch(tree, action.routeId),
+  errors_snapshot: () => readRuntimeErrors(),
+  query_cache: (tree) => ({queries: readQueryCache(tree), mutations: readMutations(tree)}),
+  query_invalidate: (tree, action) => invalidateQuery(tree, action.key),
+  query_refetch: (tree, action) => refetchQuery(tree, action.key),
+  navigate: (tree, action) => navigateTo(tree, action),
+  router_invalidate: (tree) => invalidateRouter(tree),
+  back: (tree) => goBack(tree),
+}
+
+function perform<Type extends keyof ActionMap>(tree: ReactTree, type: Type, action: ActionMap[Type]): unknown {
+  return handlers[type](tree, action)
 }
 
 function inactive(live: Exclude<Live<ReactTree>, {readonly status: 'active'}>): Outcome {
@@ -85,7 +79,7 @@ export function makeTanstackOperations(tree: () => Live<ReactTree>): TanstackOpe
     if (live.status !== 'active') return inactive(live)
     try {
       signal?.throwIfAborted()
-      const value = z.json().parse(await perform(live.value, command.action))
+      const value = z.json().parse(await perform(live.value, command.action.type, command.action))
       return {type: 'success', result: {value}}
     } catch (error) {
       return {type: 'failure', code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
