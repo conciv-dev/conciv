@@ -1,7 +1,7 @@
 import {createResource, Show, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import {Button} from '@conciv/ui-kit-system'
-import {useAnnounce, useAppData} from '../app/context.js'
+import {useAnnounce, useAppData, useLiveSessions} from '../app/context.js'
 import {clearMovedDraft, prependDraft, readMovedDraft} from './draft-storage.js'
 import {useStartSession} from '../app/start-session.js'
 import {usePane} from '../app/pane-context.js'
@@ -14,10 +14,11 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const announce = useAnnounce()
   const startSession = useStartSession()
   const pane = usePane()
+  const {keepDraft} = useLiveSessions()
   const [carried] = createResource(
     () => props.sessionId,
     (sessionId) =>
-      readMovedDraft(appData, sessionId).catch((error: unknown) => {
+      readMovedDraft(appData, keepDraft, sessionId).catch((error: unknown) => {
         console.error('[conciv] could not read the deleted session draft', error)
         return ''
       }),
@@ -31,10 +32,10 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
 
   const move = useMutation(() => ({
     mutationFn: async () => {
-      const text = await logMoveFailure(readMovedDraft(appData, props.sessionId))
+      const text = await logMoveFailure(readMovedDraft(appData, keepDraft, props.sessionId))
       const {sessionId} = await startSession()
       if (text !== '') await logMoveFailure(prependDraft(appData, sessionId, text))
-      await clearMovedDraft(appData, props.sessionId)
+      await clearMovedDraft(appData, keepDraft, props.sessionId)
       return sessionId
     },
     onSuccess: (sessionId: string) => {

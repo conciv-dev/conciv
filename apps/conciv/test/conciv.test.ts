@@ -1,7 +1,7 @@
 import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import {appendDraft, makeDraftStorage, type RestoredDraft} from '../src/pane/draft-storage.js'
+import {appendDraft, makeDraftStorage, makeDraftWriteChain, type RestoredDraft} from '../src/pane/draft-storage.js'
 import {QueryClient} from '@conciv/client'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
@@ -74,7 +74,7 @@ describe('draft storage', () => {
   }
 
   test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId, app}) => {
-    const draftStorage = makeDraftStorage(app, sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.noteSelection({start: 40, end: 44})
@@ -97,7 +97,7 @@ describe('draft storage', () => {
     app,
   }) => {
     await seedDraft(kit.rpc, sessionId, {text: 'stale on the server'})
-    const draftStorage = makeDraftStorage(app, sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed early'))
     draftStorage.storage.setItem('any', composerDraft(''))
@@ -111,7 +111,7 @@ describe('draft storage', () => {
 
   test('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId, app}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'restored then cleared'})
-    const draftStorage = makeDraftStorage(app, sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
     draftStorage.storage.setItem('any', composerDraft(''))
@@ -126,7 +126,7 @@ describe('draft storage', () => {
     sessionId,
     app,
   }) => {
-    const draftStorage = makeDraftStorage(app, sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed while loading'))
     await draftStorage.restore(() => {}, new AbortController().signal)
@@ -152,7 +152,7 @@ describe('draft storage', () => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
 
-    const draftStorage = makeDraftStorage(app, sessionId)
+    const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
     const restored: RestoredDraft[] = []
     await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
 

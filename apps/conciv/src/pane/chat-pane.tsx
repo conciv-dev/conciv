@@ -225,10 +225,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const rpc = useRpc()
   const appData = useAppData()
   const announce = useAnnounce()
-  const connected = useConnected()
   const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
   const pane = usePane()
+  const liveSessions = useLiveSessions()
   const sessionId = untrack(() => props.sessionId)
   const harness = useSessionHarness(() => sessionId)
   const chat = pane.chat()
@@ -252,13 +252,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   restored.promise.catch(() => undefined)
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
-  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
-  const catalog: ToolCatalogView = {
-    loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
-  }
+  const catalog = useToolCatalog()
   const captures = useSessionCaptures(sessionId)
-  const draftStorage = makeDraftStorage(appData, sessionId)
+  const draftStorage = makeDraftStorage(appData, liveSessions.keepDraft, sessionId)
 
   const messaging = usePaneMessaging({
     rpc,
@@ -571,6 +567,16 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
       <LoadFailedAlert busy sessionId={props.sessionId} />
     </Show>
   )
+}
+
+function useToolCatalog(): ToolCatalogView {
+  const appData = useAppData()
+  const connected = useConnected()
+  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
+  return {
+    loaded: () => registryCatalog.data !== undefined,
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
+  }
 }
 
 function DraftReturnReceiver(props: {sessionId: string; sinks: PaneDraftSinks}): JSX.Element {

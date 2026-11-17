@@ -190,6 +190,7 @@ type LocalDraftWriter = {
 function makeLocalDraftWriter(
   appData: AppData,
   drafts: DraftStore,
+  keep: DraftWriteChain,
   sessionId: string,
   selection: () => SelectionOffsets | null,
   sendable: () => boolean,
@@ -250,10 +251,7 @@ function makeLocalDraftWriter(
     storage: NoLocalHydration,
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
-    write: (_value, serialized) =>
-      appData.sessionDeleted(sessionId)
-        ? Promise.resolve()
-        : drafts.setDocument(sessionId, JSON.parse(serialized)).finally(feed),
+    write: (_value, serialized) => keep(() => drafts.setDocument(sessionId, JSON.parse(serialized))).finally(feed),
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
     const offsets = clampSelection(selection(), draft.draft)
@@ -458,16 +456,21 @@ async function keepImageInDraft(appData: AppData, sessionId: string, file: File)
   if (!drafts) await saving
 }
 
-export async function readMovedDraft(appData: AppData, sessionId: string): Promise<string> {
-  const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
+export async function readMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<string> {
+  const {drafts} = appData
+  const stored = drafts ? await keep(() => readLocalDraft(drafts, sessionId)) : null
   if (stored) return stored.text
   return (await appData.readDraft(sessionId))?.text ?? ''
 }
 
-export async function clearMovedDraft(appData: AppData, sessionId: string): Promise<void> {
-  await appData.drafts?.removeItem(sessionId).catch((error: unknown) => {
-    console.error('[conciv] could not remove the local draft of the deleted session', error)
-  })
+export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<void> {
+  const {drafts} = appData
+  if (drafts)
+    await keep(() =>
+      drafts.removeItem(sessionId).catch((error: unknown) => {
+        console.error('[conciv] could not remove the local draft of the deleted session', error)
+      }),
+    )
   await appData.saveDraft({
     sessionId,
     text: '',
@@ -488,14 +491,14 @@ export function prependDraft(appData: AppData, sessionId: string, text: string):
 
 type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<void>
 
-export type DraftWriteChain = (write: () => Promise<void>) => void
+export type DraftWriteChain = <T>(step: () => Promise<T>) => Promise<T>
 
 export function makeDraftWriteChain(): DraftWriteChain {
-  let written = Promise.resolve()
-  return (write) => {
-    written = written
-      .then(write)
-      .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
+  let written: Promise<unknown> = Promise.resolve()
+  return (step) => {
+    const queued = written.then(step)
+    written = queued.catch((error: unknown) => console.error('[conciv] a local draft step failed', error))
+    return queued
   }
 }
 
@@ -505,13 +508,15 @@ export function draftCacheSink(
   sessionId: string,
   write: DraftWrite,
 ): DraftSink {
+  const logKeepFailure = (error: unknown) =>
+    console.error('[conciv] could not keep the queued message as a draft', error)
   return {
-    insert: (text) => keep(() => write(appData, sessionId, text)),
-    addFile: (file) => keep(() => keepImageInDraft(appData, sessionId, file)),
+    insert: (text) => keep(() => write(appData, sessionId, text).catch(logKeepFailure)),
+    addFile: (file) => keep(() => keepImageInDraft(appData, sessionId, file).catch(logKeepFailure)),
   }
 }
 
-export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraftStorage {
+export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessionId: string): PaneDraftStorage {
   let cache: string | null = null
   let selection: SelectionOffsets | null = null
   let phase: RestorePhase = {kind: 'reading'}
@@ -544,6 +549,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
     ? makeLocalDraftWriter(
         appData,
         appData.drafts,
+        keep,
         sessionId,
         () => selection,
         () => mayPersist(),
