@@ -13,7 +13,8 @@ finished result: how many passed and failed, and each failure with its message.
   height={1080}
 />
 
-The Tests tab shows the run live. Rows stream in as each test passes or fails.
+The Tests tab shows the run live. With the default `vitest` runner, rows stream in as each test passes or fails.
+With the `playwright` runner, the rows appear together when the run ends.
 
 The agent reads the last result with `test_runner_status`. A vague request like "run the tests"
 makes it list your test files first (through code mode), and it may ask which to run. Name a target to skip that step.
