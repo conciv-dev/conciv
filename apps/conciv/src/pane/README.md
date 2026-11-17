@@ -2,7 +2,9 @@
 
 ## Overview
 
-The chat pane for one session: transcript, composer with attachments and element grabs, drafts persisted over rpc, send checks, queue strip, pending approvals, context usage tracker, status bar with view tabs, and refresh.
+The chat pane for one session: transcript, composer with attachments and element grabs, drafts kept in two copies, send checks, queue strip, pending approvals, context usage tracker, status bar with view tabs, and refresh.
+
+The composer draft has two copies. The first is in this browser: the IndexedDB database `conciv-drafts`, written within 100 ms of each change and flushed when the page is hidden or left, so text and images survive an instant reload even when the engine socket is already closed. The second is the engine's `drafts` row, saved over rpc after each local write; it can lag the local copy, and it is what another origin, another port, a fresh profile or cleared site data gets back. On load the local copy is applied at once and the engine row is read beside it; `reconcileDraft` (`draft-reconcile.ts`) picks one by comparing stamps for equality only: when the row's stamp is the one this browser last sent, the local copy wins; when it differs, the engine wins; a synced local copy whose row is gone (a send or a delete) is cleared. The local copy is opencode's draft persistence, ported in `runtime/persistence/` (`drafts.ts`, `drafts-machine.ts`, and the `persist.ts` write batch they reuse); that folder's README lists what came from opencode and each difference from it. The reconcile rule and the engine copy are conciv's own: opencode keeps its draft only in the browser.
 
 ## Interface
 
