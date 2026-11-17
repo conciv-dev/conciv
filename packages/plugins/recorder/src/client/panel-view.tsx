@@ -2,10 +2,10 @@ import {Match, Show, Switch, createResource, onCleanup, untrack, type JSX} from 
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {makeTimer} from '@solid-primitives/timer'
-import {usePlugin} from '@conciv/plugin/experimental'
+import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
-import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../protocol.js'
+import {RECORDER_NAME, REPLAY_MIN_EVENTS, recordingPoster, type RrwebEvent} from '../protocol.js'
 import type {CaptureState} from './boot.js'
 import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
@@ -30,12 +30,12 @@ function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(data), (character) => character.charCodeAt(0))
 }
 
-export function RecorderPanel(props: {clientId: string; capture: CaptureState}): JSX.Element {
+export function RecorderPanel(props: {clientId: string; capture: CaptureState; panel: PanelProps}): JSX.Element {
   const ctx = usePlugin()
   const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
-  const [state, setState] = createStore({live: true, exporting: false, resetting: false})
+  const [state, setState] = createStore({live: true, exporting: false, resetting: false, sending: false})
 
   const presence = (live: boolean): Promise<void> =>
     recorder()
@@ -109,6 +109,9 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
     })
   }
 
+  const sendFailed = (): void =>
+    void ctx.toast.show({title: 'Could not save the recording. Try again.', variant: 'error'})
+
   const exportFailed = (): void =>
     void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
 
@@ -135,6 +138,39 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
       exportFailed()
     } finally {
       setState('exporting', false)
+    }
+  }
+
+  const sendToAgent = async (): Promise<void> => {
+    setState('sending', true)
+    try {
+      const [saved, log] = await Promise.all([
+        recorder()['recordings.save']({clientId: props.clientId}),
+        recorder().log({clientId: props.clientId}),
+      ])
+      const savedRecording = SavedRecording.safeParse(saved)
+      if (!savedRecording.success) {
+        sendFailed()
+        return
+      }
+      const {recordingId} = savedRecording.data
+      const poster = recordingPoster(log.entries)
+      props.panel.screen.composer.attach({
+        type: 'note',
+        origin: RECORDER_NAME,
+        commentId: crypto.randomUUID(),
+        label: 'Screen recording',
+        subtitle: poster,
+        icon: 'clapperboard',
+        subject: `the screen recording ${recordingId} (${poster})`,
+        href: recordingId,
+        comment: '',
+      })
+      ctx.layout.hide(`${RECORDER_NAME}:${props.panel.tab.id}`, props.panel.session)
+    } catch {
+      sendFailed()
+    } finally {
+      setState('sending', false)
     }
   }
 
@@ -182,6 +218,15 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
                 </Match>
               </Switch>
               <div class="flex gap-2 items-center">
+                <ctx.ui.Button
+                  variant="contrast"
+                  size="small"
+                  disabled={state.sending}
+                  busy={state.sending}
+                  onClick={() => void sendToAgent()}
+                >
+                  Send to agent
+                </ctx.ui.Button>
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
