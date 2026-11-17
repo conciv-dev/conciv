@@ -693,7 +693,8 @@ engine.
   {timeoutMs: 300})`, then each live engine's contract `tabs.list` in parallel, bounded at `ENGINE_READ_MS` (2 s);
   an engine that fails, or answers outside the contract (`engine too old; upgrade its @conciv packages`), is listed
   under `unreachable` beside every engine `checkEngines` reported silent. An unreadable home db fails with `cannot
-  read the conciv home folder <home>`. The listing function, `listTabs(home)`, lives beside the hub's other engine
+  read the conciv home folder <home>`. With no engine registered it answers exactly as the other two tools do: the
+  error `no conciv dev server is running; start one and open its page (conciv home folder read: <home>)`. The listing function, `listTabs(home)`, lives beside the hub's other engine
   reads in `packages/cli/src/engine-read.ts`; there is no second engine walk.
 - The agent guidance that was the `tabs` tool hint (`TABS_GUIDANCE`) is the `list_tabs` description, with
   `external_tabs({})` replaced by `list_tabs`. The `tab` input's description and the hub's fixed `execute_typescript`
