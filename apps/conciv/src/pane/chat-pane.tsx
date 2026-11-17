@@ -343,7 +343,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const paneGrab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
-  const markerRowsAfter = markersAfter(chat, () => markers.data ?? [])
+  const markerRowsAfter = markersAfter(chat, () => (markers.isPending ? [] : (markers.data ?? [])))
 
   const PaneBody = (): JSX.Element => {
     const thread = useThread()
