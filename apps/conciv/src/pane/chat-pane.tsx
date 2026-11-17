@@ -471,7 +471,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <SessionComposerPills pane={pluginSession} />
                   <ExtensionSurface name="footer" instances={instances} />
                 </div>
-                <DraftUnsavedNotice sessionId={sessionId} />
+                <DraftUnsavedNotice sessionId={sessionId} retry={draftStorage.retry} />
                 <QueueStrip queue={chat.queue()} />
                 <Suspense>
                   <PaneComposer

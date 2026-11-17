@@ -45,6 +45,8 @@ function withoutSessionInPages<Pages extends {pages: readonly {sessions: readonl
 
 const DRAFT_SAVE_RETRIES = 3
 
+const SETTLED: readonly string[] = ['error', 'success']
+
 function retriableDraftSave(failureCount: number, error: unknown): boolean {
   if (failureCount >= DRAFT_SAVE_RETRIES) return false
   return isReachabilityError(error) || (error instanceof ORPCError && error.code === 'INTERNAL_SERVER_ERROR')
@@ -77,6 +79,16 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
   }
   queryClient.setQueryDefaults(utils.drafts.get.key(), {staleTime: Infinity, gcTime: Infinity, retry: false})
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
+  const forgetDraftSaves = (sessionId: string, statuses: readonly string[]): void => {
+    const mutationCache = queryClient.getMutationCache()
+    const settled = mutationCache.findAll({
+      mutationKey: utils.drafts.set.mutationKey(),
+      predicate: (mutation) =>
+        statuses.includes(mutation.state.status) &&
+        DraftSessionSchema.safeParse(mutation.state.variables).data?.sessionId === sessionId,
+    })
+    for (const mutation of settled) mutationCache.remove(mutation)
+  }
   queryClient.setMutationDefaults<unknown, Error, DraftSave>(utils.drafts.set.mutationKey(), {
     retry: retriableDraftSave,
     gcTime: Infinity,
@@ -105,15 +117,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
       console.error('[conciv] could not save the draft', error)
     },
     onSuccess: (answer, input) => {
-      if (answer === null) return
-      const mutationCache = queryClient.getMutationCache()
-      const settled = mutationCache.findAll({
-        mutationKey: utils.drafts.set.mutationKey(),
-        predicate: (mutation) =>
-          mutation.state.status !== 'pending' &&
-          DraftSessionSchema.safeParse(mutation.state.variables).data?.sessionId === input.sessionId,
-      })
-      for (const mutation of settled) mutationCache.remove(mutation)
+      forgetDraftSaves(input.sessionId, answer === null ? ['error'] : SETTLED)
     },
     onSettled: (_data, _error, input) =>
       queryClient.invalidateQueries({queryKey: draftQuery(input.sessionId).queryKey}),
@@ -157,6 +161,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
   >
   const endDraftSaves = (sessionId: string): void => {
     queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
+    forgetDraftSaves(sessionId, SETTLED)
   }
   const sessionGone = (sessionId: string): Promise<boolean> =>
     rpc.sessions.get({sessionId}).then(

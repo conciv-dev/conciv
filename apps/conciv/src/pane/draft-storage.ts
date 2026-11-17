@@ -39,6 +39,7 @@ export type PaneDraftStorage = {
   writer: ComposerDraftWriter | undefined
   noteSelection: (offsets: SelectionOffsets) => void
   restore: (apply: DraftApply, signal: AbortSignal) => Promise<void>
+  retry: () => void
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -180,6 +181,7 @@ type LocalDraftWriter = {
   writer: ComposerDraftWriter
   typed: () => DraftContent | null
   feed: () => void
+  resend: () => void
   read: () => Promise<LocalDraft | null>
   takeStored: (stored: LocalDraft) => void
   settle: (verdict: DraftReconcile, row: DraftRow | null, edited: boolean) => void
@@ -196,12 +198,9 @@ function makeLocalDraftWriter(
     draft: null,
     files: [],
   })
-  const send = (recorded: LocalDraft, filed: readonly {id: string}[], encoded: DraftRow['attachments']) => {
-    const row = appData.cachedDraft(sessionId)
-    const attachments = sendableAttachments(recorded, filed, encoded, row)
+  const send = (recorded: LocalDraft, attachments: DraftRow['attachments']) => {
     const current = document.draft
-    if (!current || appData.sessionDeleted(sessionId) || sameAsRow({...recorded, attachments}, row)) return
-    if (row === null && isEmptied(recorded)) return
+    if (!current || appData.sessionDeleted(sessionId)) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
     void keepLocally(drafts, sessionId, structuredClone(unwrap(current)))
@@ -219,13 +218,31 @@ function makeLocalDraftWriter(
         persisted.setStore('draft', (latest) => latest && settledDraft(latest, updatedAt, saved))
       })
   }
-  const feed = () => {
+  const sendChanged = (
+    recorded: LocalDraft,
+    attachments: DraftRow['attachments'],
+    row: DraftRow | null | undefined,
+  ) => {
+    if (sameAsRow({...recorded, attachments}, row)) return
+    if (row === null && isEmptied(recorded)) return
+    send(recorded, attachments)
+  }
+  const encoded = (
+    then: (recorded: LocalDraft, attachments: DraftRow['attachments'], row: DraftRow | null | undefined) => void,
+  ) => {
     const draft = document.draft
-    if (!draft || !sendable() || appData.sessionDeleted(sessionId)) return
+    if (!draft || appData.sessionDeleted(sessionId)) return
     const recorded = structuredClone(unwrap(draft))
     const files = [...unwrap(document.files)]
-    void encodeAttachments(files).then((encoded) => send(recorded, files, encoded))
+    void encodeAttachments(files).then((encodedFiles) => {
+      const row = appData.cachedDraft(sessionId)
+      then(recorded, sendableAttachments(recorded, files, encodedFiles, row), row)
+    })
   }
+  const feed = () => {
+    if (sendable()) encoded(sendChanged)
+  }
+  const resend = () => encoded(send)
   const persisted = persistStore({
     store: document,
     setStore: setDocument,
@@ -265,7 +282,7 @@ function makeLocalDraftWriter(
     if (verdict.kind === 'cleared') return persisted.setStore('draft', 'syncedAt', undefined)
     if (row) persisted.setStore('draft', 'syncedAt', row.updatedAt)
   }
-  return {writer, typed: () => document.draft, feed, read, takeStored, settle}
+  return {writer, typed: () => document.draft, feed, resend, read, takeStored, settle}
 }
 
 function serializeDraft(text: string, attachments: DraftRow['attachments']): string {
@@ -555,8 +572,14 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         return undefined
       },
     )
+  const retry = () => {
+    if (local) return local.resend()
+    const row = appData.cachedDraft(sessionId)
+    if (row) void appData.saveDraft({...row, updatedAt: Date.now()})
+  }
   return {
     writer: local?.writer,
+    retry,
     storage: {
       getItem: () => {
         const row = appData.cachedDraft(sessionId)

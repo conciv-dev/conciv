@@ -1,39 +1,59 @@
 import {createEffect, createMemo, onCleanup, type JSX} from 'solid-js'
+import {isEqual} from 'es-toolkit'
 import {useMutationState} from '@conciv/client'
 import {useAppData} from '../app/context.js'
 import {DraftSaveSchema} from '../data/app-data.js'
 import {useNotices} from '../shell/notice-context.js'
 
 const DRAFT_UNSAVED_KEY = 'draft-unsaved'
-const DRAFT_UNSAVED_MESSAGE =
-  'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
+const KEPT_HERE_MESSAGE =
+  'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.'
+const ENGINE_ONLY_MESSAGE = 'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
 
-export function DraftUnsavedNotice(props: {sessionId: string}): JSX.Element {
+type DraftContent = {text: string; attachments: readonly {id: string}[]}
+
+function sameContent(draft: DraftContent, other: DraftContent): boolean {
+  return (
+    draft.text === other.text &&
+    isEqual(
+      draft.attachments.map((attachment) => attachment.id),
+      other.attachments.map((attachment) => attachment.id),
+    )
+  )
+}
+
+export function DraftUnsavedNotice(props: {sessionId: string; retry: () => void}): JSX.Element {
   const appData = useAppData()
   const notices = useNotices()
+  const message = appData.drafts ? KEPT_HERE_MESSAGE : ENGINE_ONLY_MESSAGE
   const saves = useMutationState(() => ({
     filters: {
       mutationKey: appData.utils.drafts.set.mutationKey(),
       predicate: (mutation) => DraftSaveSchema.safeParse(mutation.state.variables).data?.sessionId === props.sessionId,
     },
-    select: (mutation) => ({status: mutation.state.status, draft: DraftSaveSchema.parse(mutation.state.variables)}),
+    select: (mutation) => ({
+      failed: mutation.state.status === 'error',
+      taken: mutation.state.status === 'success' && mutation.state.data !== null,
+      draft: DraftSaveSchema.parse(mutation.state.variables),
+    }),
   }))
-  const unsaved = createMemo(() => saves().some((save) => save.status === 'error'))
-  const retry = (): void => {
-    const latest = saves().at(-1)
-    if (latest) void appData.saveDraft(latest.draft)
-  }
+  const unsaved = createMemo(() => {
+    const failed = saves().findLast((save) => save.failed)
+    if (!failed) return false
+    const held = saves().findLast((save) => save.taken)
+    return !held || !sameContent(failed.draft, held.draft)
+  })
   onCleanup(() => notices.remove(DRAFT_UNSAVED_KEY))
   createEffect(() => {
     if (!unsaved()) {
       notices.remove(DRAFT_UNSAVED_KEY)
       return
     }
-    notices.notify(DRAFT_UNSAVED_MESSAGE, {
+    notices.notify(message, {
       key: DRAFT_UNSAVED_KEY,
       tone: 'warn',
       persist: true,
-      action: {label: 'Retry', run: retry},
+      action: {label: 'Retry', run: () => props.retry()},
     })
   })
   return null

@@ -135,10 +135,12 @@ import {
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
 async function runClockPastDraftSaveRetries(notice: Locator): Promise<void> {
-  vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
-  onTestFinished(() => {
-    vi.useRealTimers()
-  })
+  if (!vi.isFakeTimers()) {
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+  }
   await expect
     .poll(
       async () => {
