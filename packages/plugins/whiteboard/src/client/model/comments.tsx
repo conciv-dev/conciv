@@ -1,4 +1,4 @@
-import {createContext, createMemo, untrack, useContext, type Accessor, type JSX} from 'solid-js'
+import {createContext, createMemo, onCleanup, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {screenToScene, type Viewport} from '../../canvas/coords.js'
@@ -17,6 +17,7 @@ const newest = (dates: number[]): number | undefined => (dates.length === 0 ? un
 export function createCommentsModel(
   room: Accessor<string>,
   onComposeSettled: (outcome: 'added' | 'cancelled') => void,
+  onThreadChange: (open: boolean) => void,
 ) {
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
@@ -85,9 +86,13 @@ export function createCommentsModel(
 
   const openThread = (cid: string): void => {
     setState('openCid', cid)
+    onThreadChange(true)
     markRead(cid)
   }
-  const closeThread = (): void => void setState('openCid', null)
+  const closeThread = (): void => {
+    setState('openCid', null)
+    onThreadChange(false)
+  }
   const toggleThread = (cid: string): void => (state.openCid === cid ? closeThread() : openThread(cid))
   const registerPin = (cid: string, button: HTMLButtonElement | undefined): void =>
     void setState('pinButtons', cid, button)
@@ -251,9 +256,11 @@ const CommentsContext = createContext<CommentsModel>()
 export function CommentsProvider(props: {
   room: Accessor<string>
   onComposeSettled: (outcome: 'added' | 'cancelled') => void
+  onThreadChange: (open: boolean) => void
   children: JSX.Element
 }): JSX.Element {
-  const model = untrack(() => createCommentsModel(props.room, props.onComposeSettled))
+  const model = untrack(() => createCommentsModel(props.room, props.onComposeSettled, props.onThreadChange))
+  onCleanup(() => props.onThreadChange(false))
   return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }
 

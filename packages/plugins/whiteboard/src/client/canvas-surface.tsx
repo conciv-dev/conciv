@@ -44,6 +44,7 @@ type SurfaceProps = {
   visible: boolean
   layer: HTMLElement
   close: () => void
+  onThreadChange: (open: boolean) => void
 }
 
 function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visible' | 'layer' | 'close'>): JSX.Element {
@@ -81,7 +82,11 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   }
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider room={() => props.room} onComposeSettled={onComposeSettled}>
+      <CommentsProvider
+        room={() => props.room}
+        onComposeSettled={onComposeSettled}
+        onThreadChange={props.onThreadChange}
+      >
         <CanvasView
           ui={props.ui}
           dialogs={props.dialogs}

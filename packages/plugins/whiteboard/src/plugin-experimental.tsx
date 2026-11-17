@@ -6,7 +6,7 @@ import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 
 export default Plugin.define({
   setup(ctx) {
-    const [canvas, setCanvas] = createStore({open: false, engaged: false})
+    const [canvas, setCanvas] = createStore({open: false, engaged: false, threadOpen: false})
     const [surface, {refetch}] = createResource(
       () => canvas.engaged,
       () => import('./client/canvas-surface.js'),
@@ -18,6 +18,8 @@ export default Plugin.define({
       hides: false,
       render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }
+    const threadHidesChat: Slot = {at: 'page.overlay', hides: true, render: () => undefined}
+    const onThreadChange = (open: boolean): void => void setCanvas('threadOpen', open)
     const pill: ComposerPill = {
       id: 'whiteboard-open',
       order: 20,
@@ -37,7 +39,16 @@ export default Plugin.define({
     }
     onCleanup(
       render(
-        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} layer={layer} close={close} />,
+        () => (
+          <WhiteboardCanvas
+            ctx={ctx}
+            surface={surface}
+            visible={canvas.open}
+            layer={layer}
+            close={close}
+            onThreadChange={onThreadChange}
+          />
+        ),
         document.createDocumentFragment(),
         undefined,
         {owner: getOwner()},
@@ -46,5 +57,7 @@ export default Plugin.define({
     ctx.add(ComposerPill, pill)
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (canvas.open ? overlay : undefined))
+    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
+    ctx.add(Slot, () => (canvas.open && canvas.threadOpen ? threadHidesChat : undefined))
   },
 })

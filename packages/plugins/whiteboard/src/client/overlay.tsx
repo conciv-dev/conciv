@@ -70,6 +70,7 @@ export function WhiteboardCanvas(props: {
   visible: boolean
   layer: HTMLElement
   close: () => void
+  onThreadChange: (open: boolean) => void
 }): JSX.Element {
   const module = (): SurfaceModule | undefined => (props.surface.state === 'ready' ? props.surface() : undefined)
   return (
@@ -89,6 +90,7 @@ export function WhiteboardCanvas(props: {
                 visible={props.visible}
                 layer={props.layer}
                 close={props.close}
+                onThreadChange={props.onThreadChange}
               />
             )}
           </Show>
