@@ -5345,7 +5345,7 @@ export default {
     leaving.abort()
     await expect(left).rejects.toThrow()
     expect(await loadPending(base, sessionId)).toHaveLength(1)
-    const starts = await toolStarts(base, sessionId, 2)
+    const starts = await toolStarts(base, sessionId)
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({
@@ -5354,14 +5354,20 @@ export default {
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
-    expect(await namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).toEqual(EVALUATED)
+    await expect(namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    })
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'tabs',
         metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
       }),
-      expect.objectContaining({toolCallName: 'page_eval'}),
     ])
+    const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
+      message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
+    )
+    expect(saved).toEqual(['tabs'])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
@@ -5384,7 +5390,7 @@ export default {
     expect(await loadPending(base, first)).toEqual([])
   })
 
-  it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
+  it('an outside page_eval is asked whether or not it names its tab, like a plain rpc call, and the asks share the one card', async () => {
     const base = await boot('open')
     const sessionId = await openTab(base)
     const evaluate = {name: 'page_eval', input: {code: '1'}}
@@ -5392,8 +5398,8 @@ export default {
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
         .registry.call(evaluate)
         .then(JSON.stringify, String)
-    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toBe(JSON.stringify(EVALUATED))
-    expect(await loadPending(base, sessionId)).toEqual([])
+    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toMatch(/needs the user/)
+    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
     expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
     expect(await overRpc({})).toMatch(/needs the user/)
