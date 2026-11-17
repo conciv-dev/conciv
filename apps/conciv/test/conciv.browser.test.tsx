@@ -8170,6 +8170,36 @@ module.exports = {default: {setup(ctx) {
       parts: [{type: 'text', content: ['noted', firstSentence, otherSentence].join('\n')}],
       metadata: {displayText: 'noted'},
     })
+
+    const rpc = coreRpc(coreBase())
+    const deletedId = await createSession(rpc)
+    const carriedNote = {
+      type: 'note',
+      origin: 'fixture',
+      commentId: 'carried',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment: 'the carried comment',
+    }
+    await rpc.sessions.delete({sessionId: deletedId})
+    await rpc.drafts.set({
+      sessionId: deletedId,
+      text: '',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+      items: [{key: 'note:fixture:c=carried', value: carriedNote}],
+    })
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('Your text moves to the new session.', {exact: true})).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
+    await expect
+      .element(card('the carried comment'), {timeout: 8000})
+      .toHaveTextContent('the carried commentFixture note')
+    await expect.element(editor()).toBeVisible()
   }, 60_000)
 
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
