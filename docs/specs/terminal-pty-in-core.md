@@ -60,6 +60,11 @@ OSC 9;4 progress state), which the source has no counterpart for.
    `connectToken` carry only a `ptyId`, so consent could not find a session; outside agents have their own CLI. A
    ticket remembers the origin that minted it, and the socket refuses one presented from another origin, as it
    refuses none.
+10. Revoke (ruled (B)): the socket goes through core's `trustingUpgrade` (`packages/core/src/engine-login.ts`), as
+    the old `/tty` did, and checks the ticket as well. It is admitted only with a valid ticket AND the engine trust (a
+    bearer header or a first `conciv:trust` frame), so revoking a browser closes its terminal socket with 1008, the
+    same as main. The panel, a first-party built-in, opens it with `engineWebSocket`. The source's socket is
+    ticket-only because the source has no per-browser revoke to honour.
 
 ## Open
 
