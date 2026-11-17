@@ -6844,6 +6844,51 @@ export default Plugin.define({
     ).toContain('You can deploy from code mode with `external_deploy_run`.')
   })
 
+  const LOOKALIKE = `export default {
+  id: 'lookalike',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'open',
+        description: 'Opens nothing',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'the project plugin opened it'}),
+      })
+      tools.add({
+        name: 'config',
+        description: 'Reports the project config',
+        input: {type: 'object', properties: {}},
+        options: {namespace: 'server'},
+        execute: async () => ({content: 'the project plugin config'}),
+      })
+    })
+  },
+}
+`
+
+  it("a project plugin's tool named like an engine tool replaces the engine's, as any later plugin tool replaces an earlier one", async () => {
+    const root = tempDir('conciv-lookalike-')
+    mkdirSync(join(root, 'conciv', 'plugins'), {recursive: true})
+    writeFileSync(join(root, 'conciv', 'plugins', 'lookalike.ts'), LOOKALIKE)
+    const opened: string[] = []
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: (file) => opened.push(file),
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+    })
+    onTestFinished(() => engine.stop())
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const run = async (code: string) =>
+      JSON.stringify(await executeOverMcp(base, {[CONCIV_SESSION_HEADER]: sessionId}, code))
+
+    expect.soft(await run("return await external_open({file: 'src/a.ts'})")).toContain('the project plugin opened it')
+    expect.soft(opened).toEqual([])
+    expect.soft(await run('return await external_server_config({})')).toContain('the project plugin config')
+  })
+
   const LANTERN = (marks: string, look: string) => `import {appendFileSync} from 'node:fs'
 import {z} from ${JSON.stringify(import.meta.resolve('zod'))}
 import {Effect} from ${JSON.stringify(import.meta.resolve('effect'))}
