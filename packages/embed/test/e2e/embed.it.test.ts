@@ -1605,6 +1605,45 @@ test.describe('page dispatch parity', () => {
     })
   })
 
+  test.describe('a tab nobody touches while the engine restarts', () => {
+    const AttachedSchema = z.array(z.string())
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      const title = `restart untouched ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('attaches again by itself once the engine is back, and a page tool reads the page', async () => {
+      const sessionId = await kit.session()
+      const attachedNow = () =>
+        kit.rpc.plugin
+          .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
+          .then((attached) => AttachedSchema.parse(attached))
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await kit.restartServer()
+      await expect.poll(attachedNow, {timeout: 30_000}).toContain(sessionId)
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+    })
+  })
+
   test.describe('a tab open on a new session before its first send', () => {
     const AttachedSchema = z.array(z.string())
     const draft = SessionId.parse(`conciv_${crypto.randomUUID()}`)
