@@ -76,7 +76,7 @@ import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
 import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notice.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
-import {makePaneGrabApi} from '../src/extension/pane-grab.js'
+import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
 import {
