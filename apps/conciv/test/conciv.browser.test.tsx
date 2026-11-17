@@ -5897,7 +5897,7 @@ describe('engine login', () => {
     expect(await createBrowserDraftStore().keys()).toEqual([])
   }, 30_000)
 
-  test('a draft save the engine refuses because this browser was revoked locks the panel and raises no unsaved notice', async () => {
+  test('a draft save the engine refuses because this browser was revoked locks the panel and raises no unsaved notice, neither while locked out nor after the new code', async () => {
     const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
     await faults.install({kind: 'detached-sockets'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
@@ -5913,6 +5913,12 @@ describe('engine login', () => {
     await expect.element(dialog()).not.toBeInTheDocument()
 
     await expect.element(reloginNotice()).toBeVisible()
+    await expect.element(unsaved).not.toBeInTheDocument()
+
+    await userEvent.click(reloginNotice().getByRole('button', {name: 'Log in'}))
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: false})).toBeVisible()
     await expect.element(unsaved).not.toBeInTheDocument()
   }, 30_000)
 
