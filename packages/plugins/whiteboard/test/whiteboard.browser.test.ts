@@ -20,6 +20,12 @@ const WHITEBOARD_CALL = ['plugin', 'call']
 
 const Pending = z.object({pending: z.string()})
 
+const Committed = z.object({committed: z.boolean()})
+const Exported = z.tuple([
+  z.unknown(),
+  z.object({type: z.literal('image'), source: z.object({mimeType: z.string(), value: z.string()})}),
+])
+
 const CanvasRead = z.object({elements: z.array(z.object({type: z.string()}).loose())})
 
 async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Promise<string[]> {
@@ -41,7 +47,7 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, and converts what the agent draws', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, converts what the agent draws, commits it and exports a PNG', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -109,6 +115,14 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         Pending.parse(await widget.kit.callTool('whiteboard_canvas_diagram', {mermaid: 'flowchart LR\n  A --> B'})),
       ).toEqual({pending: expect.any(String)})
       expect(await canvasTypes(widget.kit, 'draft')).toEqual(expect.arrayContaining(['ellipse', 'rectangle', 'arrow']))
+
+      expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
+      expect(await canvasTypes(widget.kit, 'draft')).toEqual([])
+      expect(await canvasTypes(widget.kit)).toEqual(expect.arrayContaining(['rectangle', 'ellipse', 'arrow']))
+
+      const [, image] = Exported.parse(await widget.kit.callTool('whiteboard_canvas_export', {format: 'png'}))
+      expect(image.source.mimeType).toBe('image/png')
+      expect(image.source.value).toMatch(/^iVBORw0KGgo/)
     } finally {
       await widget.close()
     }
