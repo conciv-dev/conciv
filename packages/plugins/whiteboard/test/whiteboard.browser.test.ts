@@ -39,7 +39,7 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, and the agent reads the drawing', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape and reopens with the drawing kept', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -71,6 +71,19 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         input: {rpcId: 'whiteboard', method: 'elements.upsert'},
         since: drawn,
       })
+      expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
+
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click()
+      await page.keyboard.press('Escape')
+      await expect(rectangleTool).toBeHidden()
+      await expect(composer).toBeFocused()
+      await page.keyboard.type('the canvas is closed')
+      await expect(composer).toHaveText('the canvas is closed')
+
+      await pill.click()
+      await expect(rectangleTool).toBeVisible({timeout: 60_000})
+      await expect(rectangleTool).not.toBeChecked()
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
     } finally {
       await widget.close()
