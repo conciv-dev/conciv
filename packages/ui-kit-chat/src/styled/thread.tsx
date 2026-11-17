@@ -334,8 +334,8 @@ function AssistantTurn(props: {
   }
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
-    const pageSession = props.pageSession
-    return [chain, ...(pageSession ? [pageSession.entry] : []), ...(props.groupEntries ?? [])]
+    const config = props.pageSession
+    return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => {
