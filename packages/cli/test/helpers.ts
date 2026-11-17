@@ -1,5 +1,5 @@
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import {approvePending, type BootApp, createFakeHarness, createTestkit, type Kit} from '@conciv/harness-testkit'
+import {type BootApp, createFakeHarness, createTestkit, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
 import {afterEach, beforeEach, expect, vi} from 'vitest'
@@ -59,12 +59,6 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
   process.env.CONCIV_TOKEN = kit.token
   process.env.CONCIV_SESSION_ID = await kit.session()
   return kit
-}
-
-export async function approvedSession(kit: Kit): Promise<{sessionId: string; approve: () => Promise<string[]>}> {
-  const {sessionId} = await kit.rpc.sessions.create(undefined)
-  process.env.CONCIV_SESSION_ID = sessionId
-  return {sessionId, approve: () => approvePending(kit.base, sessionId)}
 }
 
 export type SeenQuery = Record<string, unknown>

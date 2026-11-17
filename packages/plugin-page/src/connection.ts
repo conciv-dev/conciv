@@ -6,7 +6,6 @@ import {PAGE_QUEUE_REFUSED} from '@conciv/protocol/page-types'
 import {Tool, type Plugin, type RpcRegistration} from '@conciv/plugin'
 import {
   ACCESS,
-  PERMISSION_SYNC_TIMEOUT_MS,
   createConnectionState,
   isAttachedConnection,
   isConnectionDisposed,
@@ -40,6 +39,7 @@ const TAB_RETURN_MS = 5000
 const Windows = z.object({
   pageReplyTimeoutMs: z.number().int().positive().default(5000),
   queuedActionTimeoutMs: z.number().int().positive().default(7000),
+  permissionSyncTimeoutMs: z.number().int().positive().default(10_000),
 })
 
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
@@ -75,7 +75,7 @@ function callTimeout(action: Action, pageReplyTimeoutMs: number): number {
 export async function make(
   ctx: Pick<Plugin.Context, 'agent' | 'rpc' | 'session' | 'location' | 'event' | 'storage' | 'options'>,
 ) {
-  const {pageReplyTimeoutMs, queuedActionTimeoutMs} = Windows.parse(ctx.options)
+  const {pageReplyTimeoutMs, queuedActionTimeoutMs, permissionSyncTimeoutMs} = Windows.parse(ctx.options)
   await ctx.agent.transform((editor) =>
     editor
       .list()
@@ -165,7 +165,7 @@ export async function make(
       const session = await ctx.session.get({sessionId: effect.sessionId})
       const permissions = reconcilePagePermissions(session.permissions, effect.allow)
       if (permissions) await ctx.session.update({sessionId: effect.sessionId, permissions})
-    }, PERMISSION_SYNC_TIMEOUT_MS).then(
+    }, permissionSyncTimeoutMs).then(
       (): ConnectionEvent => ({type: 'permissions.synced', ...synced}),
       (error: unknown): ConnectionEvent =>
         error instanceof TimeoutError
@@ -177,10 +177,15 @@ export async function make(
   const registration: RpcRegistration<typeof Definition> = await ctx.rpc.register(Definition, {
     attach: async (input, call) => {
       const opened = await ctx.session.get({sessionId: input.sessionId}).then(
-        (session) => ({session, reason: ''}),
-        (error: unknown) => ({session: undefined, reason: refusalReason(input.sessionId, error)}),
+        (session) => ({session, missing: false, reason: ''}),
+        (error: unknown) => ({
+          session: undefined,
+          missing: SessionNotFound.safeParse(error).success,
+          reason: refusalReason(input.sessionId, error),
+        }),
       )
       const session = opened.session
+      if (!session && opened.missing) return call.error('missing', opened.reason, {})
       if (!session) return call.error('unavailable', opened.reason, {})
       if (session.location.directory !== ctx.location.directory)
         return call.error('unavailable', 'Session belongs to another location.', {})
