@@ -218,7 +218,12 @@ describe('the tanstack plugin before a page attaches', () => {
   })
 })
 
-const ControlSchema = z.object({type: z.string(), connectionId: z.string(), requestId: z.string().optional()})
+const ControlSchema = z.object({
+  type: z.string(),
+  connectionId: z.string(),
+  requestId: z.string().optional(),
+  version: z.literal(1).optional(),
+})
 
 async function followControls(kit: CoreKit): Promise<() => Promise<z.infer<typeof ControlSchema>>> {
   const closing = new AbortController()
