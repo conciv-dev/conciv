@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vit
 import {cdp, page, server, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
-import {installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
+import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
@@ -1453,6 +1453,7 @@ describe('the page contracts another plugin reads', () => {
       const [leafFrame] = await makeReactTree().frames(leaf().element())
       expect(leafFrame?.fn).toBe('Leaf')
       const {x, y, width, height} = leaf().element().getBoundingClientRect()
+      await getReactGrabAdapter()
       const picked = pageMembers.pick()
       await vi.waitFor(() => expect(picking()).toBe(true))
       await userEvent.click(leaf(), {force: true})
