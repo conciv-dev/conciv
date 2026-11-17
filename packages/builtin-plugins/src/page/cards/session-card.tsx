@@ -83,9 +83,9 @@ const HEAD_STATE_SETTLED = '[color:var(--chat-text-3)]'
 const ACTING_LABEL = 'acting'
 
 const RAIL =
-  'm-0 p-0 list-none grid grid-cols-[1.375rem_5rem_1fr_minmax(0,max-content)] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
+  'm-0 p-0 list-none grid grid-cols-[auto_5rem_1fr_minmax(0,max-content)] gap-x-2.5 w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
 const ROW =
-  'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 gap-2.5 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
+  'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
 const ROW_ENTRANCE = '[[data-state=open]_&]:anim-msg animate-fill-backwards'
 const ROW_DELAYS = [
   'animate-delay-[0ms]',
