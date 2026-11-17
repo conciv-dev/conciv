@@ -355,6 +355,10 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           pty.kill()
           return {ok: true as const}
         }),
+        connectToken: os.experimental.persistentPty.connectToken.handler(({input, errors}) => {
+          if (deps.ptys.find(input.ptyId) === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          return deps.ptys.issueTicket(input.ptyId)
+        }),
       },
     },
     event: {

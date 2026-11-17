@@ -7387,6 +7387,46 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
       return false
     }
   }
+  type TerminalSocket = {socket: WebSocket; text: () => string; controls: string[]}
+
+  const openTerminalSocket = (url: string, origin?: string): Promise<TerminalSocket> => {
+    const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
+    const received: string[] = []
+    const controls: string[] = []
+    socket.on('message', (data, isBinary) => {
+      if (isBinary) received.push(new TextDecoder().decode(Array.isArray(data) ? Buffer.concat(data) : data))
+      else controls.push(String(data))
+    })
+    return new Promise((resolve, reject) => {
+      socket.once('open', () => resolve({socket, text: () => received.join(''), controls}))
+      socket.once('error', reject)
+    })
+  }
+
+  const refusedStatus = (url: string, origin?: string): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
+      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
+      socket.once('open', () => reject(new Error('the upgrade completed without a valid ticket')))
+    })
+
+  const closeCode = (url: string): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const socket = new WebSocket(url)
+      socket.once('close', (code) => resolve(code))
+      socket.once('error', reject)
+    })
+
+  const shows = async (terminal: TerminalSocket, text: string): Promise<void> => {
+    await until(() => terminal.text().includes(text))
+  }
+
+  const connectUrl = async (base: string, ptyId: string, query = ''): Promise<string> => {
+    const {ticket, expiresIn} = await makeRpcClient(base).experimental.persistentPty.connectToken({ptyId})
+    expect(expiresIn).toBe(60)
+    return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
+  }
+
   const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
 
   it(
@@ -7448,6 +7488,9 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
       const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
       expect(resumed.id).not.toBe(created.id)
       expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
+      const banner = await openTerminalSocket(await connectUrl(base, resumed.id))
+      await shows(banner, '\u2500 conciv: resumed session \u2500')
+      banner.socket.close()
 
       await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
       await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
@@ -7490,6 +7533,63 @@ describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', ()
 
       await kit.rpc.sessions.switchHarness({sessionId, harnessId: 'fake-no-terminal'})
       await expect(terminal.create({sessionId})).rejects.toMatchObject({code: 'NO_TTY'})
+    },
+  )
+
+  it(
+    'a ticketed socket carries the terminal both ways and replays to a late attacher, and a socket with a missing, used, foreign or disallowed ticket is refused',
+    {timeout: 20_000},
+    async () => {
+      const root = tempDir('conciv-terminal-socket-')
+      const fake = terminalHarness('fake-terminal-socket', join(root, 'pid'))
+      const engine = await start({
+        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-socket'},
+        root,
+        harness: fake.harness,
+        launchEditor: () => {},
+        homeDir: tempDir('conciv-home-'),
+      })
+      onTestFinished(() => engine.stop())
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const rpc = makeRpcClient(base)
+      const terminal = rpc.experimental.persistentPty
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const pty = await terminal.create({sessionId})
+
+      const first = await openTerminalSocket(await connectUrl(base, pty.id, '&cols=100&rows=30'))
+      first.socket.send('echo ws-roundtrip-$((40+2))\r')
+      await shows(first, 'ws-roundtrip-42')
+      expect(first.controls).toContain(JSON.stringify({type: 'busy', busy: false}))
+      first.socket.send('stty size\r')
+      await shows(first, '30 100')
+      first.socket.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
+      first.socket.send('stty size\r')
+      await shows(first, '27 91')
+      first.socket.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
+      await shows(first, '\r\nconciv says hi\r\n')
+      first.socket.close()
+
+      const late = await openTerminalSocket(await connectUrl(base, pty.id))
+      await shows(late, 'ws-roundtrip-42')
+      await shows(late, '\r\nconciv says hi\r\n')
+      late.socket.close()
+
+      const connectPath = (ptyId: string) =>
+        `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect`
+      expect(await refusedStatus(connectPath(pty.id))).toBe(403)
+      expect(await refusedStatus(`${connectPath(pty.id)}?ticket=not-a-ticket`)).toBe(403)
+      const used = await connectUrl(base, pty.id)
+      const usedOnce = await openTerminalSocket(used)
+      usedOnce.socket.close()
+      expect(await refusedStatus(used)).toBe(403)
+      const foreign = new URL(await connectUrl(base, pty.id)).searchParams.get('ticket')
+      expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
+      expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
+      await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const gone = await connectUrl(base, pty.id)
+      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
+      expect(await closeCode(gone)).toBe(4404)
     },
   )
 })

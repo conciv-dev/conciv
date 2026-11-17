@@ -549,6 +549,10 @@ export const contract = {
         .errors({...ptyNotFound, ...ptyBusy})
         .input(PtyIdInput)
         .output(Ok),
+      connectToken: oc
+        .errors(ptyNotFound)
+        .input(PtyIdInput)
+        .output(z.object({ticket: z.string(), expiresIn: z.number().int().positive()})),
     },
   },
   event: {

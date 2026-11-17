@@ -1,8 +1,13 @@
 import {randomUUID} from 'node:crypto'
 import type {ServerHarness, ServerSessions} from '@conciv/extension'
+import {Cache, Duration, Effect} from 'effect'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {createTtySessions, type TtySession} from './pty-sessions.js'
+
+const TICKET_TTL = Duration.seconds(60)
+
+const TICKET_CAPACITY = 10_000
 
 const RESUMED_BANNER = '\u001b[2m─ conciv: resumed session ─\u001b[0m'
 
@@ -34,6 +39,22 @@ function describePty(session: TtySession, sessionId: SessionId): PersistentPtyIn
 
 export function createPersistentPtys(deps: PersistentPtyDeps) {
   const ttys = createTtySessions()
+  const tickets = Effect.runSync(
+    Cache.make<string, string>({
+      capacity: TICKET_CAPACITY,
+      timeToLive: TICKET_TTL,
+      lookup: () => Effect.die(new Error('conciv: terminal tickets are set and consumed, never looked up')),
+    }),
+  )
+
+  const issueTicket = (ptyId: string): {ticket: string; expiresIn: number} => {
+    const ticket = randomUUID()
+    Effect.runSync(Cache.set(tickets, ticket, ptyId))
+    return {ticket, expiresIn: Duration.toSeconds(TICKET_TTL)}
+  }
+
+  const consumeTicket = (ticket: string, ptyId: string): boolean =>
+    Effect.runSync(Cache.invalidateWhen(tickets, ticket, (bound) => bound === ptyId))
 
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
     const owner = ownerKey(deps.harness(sessionId).id, await deps.sessions.resumeToken(sessionId))
@@ -92,5 +113,5 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     return describePty(await spawnFresh(input, harness, command), input.sessionId)
   }
 
-  return {create, find: ttys.find, shutdown: ttys.shutdown}
+  return {create, find: ttys.find, issueTicket, consumeTicket, shutdown: ttys.shutdown}
 }
