@@ -1040,15 +1040,23 @@ describe('config', () => {
       .map((adapter) => adapter.id)
       .join(', ')
     const refusal = (id: string) => `conciv: unknown harness "${id}". Known harnesses: ${known}.`
+    const held = createServer().listen(0, '127.0.0.1')
+    await once(held, 'listening')
+    onTestFinished(async () => {
+      await once(held.close(), 'close')
+    })
+    const address = held.address()
+    if (address === null || typeof address === 'string') throw new Error('the held server has no port')
+    const port = address.port
     const root = tempDir('conciv-core-unit-')
     const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
       onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
     const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
-    const fromOptions = bootEngine(root, {options})
+    const fromOptions = bootEngine(root, {port: {exact: port}, options})
     stopIfStarted(fromOptions)
     await expect(fromOptions).rejects.toThrow(refusal('no-such-harness'))
     process.env.CONCIV_HARNESS = 'no-such-env-harness'
-    const fromEnv = bootEngine(root)
+    const fromEnv = bootEngine(root, {port: {exact: port}})
     stopIfStarted(fromEnv)
     await expect(fromEnv).rejects.toThrow(refusal('no-such-env-harness'))
     expect(existsSync(join(concivStateDir(root), 'server.json'))).toBe(false)
