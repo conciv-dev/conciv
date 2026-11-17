@@ -22,6 +22,7 @@ type InvalidateOptions = {filter?: (match: unknown) => boolean}
 type TanstackRouter = {
   state: {matches: unknown[]; location: unknown}
   navigate: (input: unknown) => unknown
+  buildLocation: (options: {to: string; params: Record<string, unknown>}) => {pathname: string}
   invalidate?: (options?: InvalidateOptions) => unknown
   history?: {back?: () => unknown}
   routeTree?: unknown
@@ -37,7 +38,12 @@ const isObject = (value: unknown): value is Record<string, unknown> => typeof va
 function isTanstackRouter(candidate: unknown): candidate is TanstackRouter {
   if (!isObject(candidate)) return false
   const state = candidate.state
-  return isObject(state) && Array.isArray(state.matches) && typeof candidate.navigate === 'function'
+  return (
+    isObject(state) &&
+    Array.isArray(state.matches) &&
+    typeof candidate.navigate === 'function' &&
+    typeof candidate.buildLocation === 'function'
+  )
 }
 
 function routerFromFiber(fiber: Fiber): TanstackRouter | null {
@@ -111,7 +117,21 @@ function errorMessage(value: unknown): string | null {
   return String(value)
 }
 
-function mapMatch(tree: ReactTree, match: unknown): RouteMatch {
+function redactedPathname(tree: ReactTree, router: TanstackRouter, match: unknown, pathname: string): string {
+  if (!isObject(match)) return pathname
+  const params = unknownRecord(match.params)
+  const redacted = unknownRecord(tree.dehydrate(params))
+  if (JSON.stringify(redacted) === JSON.stringify(params)) return pathname
+  return router.buildLocation({to: stringValue(match.fullPath), params: redacted}).pathname
+}
+
+function redactedMatchId(tree: ReactTree, router: TanstackRouter, match: Record<string, unknown>): string {
+  const pathname = redactedPathname(tree, router, match, stringValue(match.pathname))
+  const deps = match.loaderDeps ? (JSON.stringify(tree.dehydrate(match.loaderDeps)) ?? '') : ''
+  return stringValue(match.routeId) + pathname + deps
+}
+
+function mapMatch(tree: ReactTree, router: TanstackRouter, match: unknown): RouteMatch {
   if (!isObject(match))
     return {
       id: '',
@@ -126,7 +146,7 @@ function mapMatch(tree: ReactTree, match: unknown): RouteMatch {
       isFetching: false,
     }
   return {
-    id: stringValue(match.id),
+    id: redactedMatchId(tree, router, match),
     routeId: stringValue(match.routeId),
     path: stringValue(match.fullPath),
     params: stringRecord(tree.dehydrate(match.params)),
@@ -148,7 +168,7 @@ function redactedSearchString(tree: ReactTree, router: TanstackRouter, search: u
 function readLocation(tree: ReactTree, router: TanstackRouter): RouterLocation {
   const location = unknownRecord(router.state.location)
   return {
-    pathname: stringValue(location.pathname),
+    pathname: redactedPathname(tree, router, router.state.matches.at(-1), stringValue(location.pathname)),
     search: redactedSearchString(tree, router, location.search),
     hash: stringValue(location.hash),
   }
@@ -156,7 +176,10 @@ function readLocation(tree: ReactTree, router: TanstackRouter): RouterLocation {
 
 export function readRouterState(tree: ReactTree): RouterCurrent {
   const router = requireRouter(tree)
-  return {location: readLocation(tree, router), matches: router.state.matches.map((match) => mapMatch(tree, match))}
+  return {
+    location: readLocation(tree, router),
+    matches: router.state.matches.map((match) => mapMatch(tree, router, match)),
+  }
 }
 
 export function readDetect(tree: ReactTree): FrameworkInfo {
