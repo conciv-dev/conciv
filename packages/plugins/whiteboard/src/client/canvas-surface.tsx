@@ -18,6 +18,15 @@ const insideExcalidraw = (event: KeyboardEvent): boolean => {
   return target instanceof Element && target.closest('.excalidraw') !== null
 }
 
+const OPEN_CHAT_LAYER = '[data-scope]:not([data-scope="tabs"])[data-part="content"][data-state="open"]'
+
+const chatLayerOpen = (event: KeyboardEvent): boolean => {
+  const [origin] = event.composedPath()
+  if (!(origin instanceof Node)) return false
+  const root = origin.getRootNode()
+  return (root instanceof ShadowRoot || root instanceof Document) && root.querySelector(OPEN_CHAT_LAYER) !== null
+}
+
 export default function CanvasSurface(props: {
   client: Context['client']
   room: string
@@ -31,7 +40,7 @@ export default function CanvasSurface(props: {
       window,
       'keydown',
       (event) => {
-        if (event.key !== 'Escape' || !props.visible || insideExcalidraw(event)) return
+        if (event.key !== 'Escape' || !props.visible || insideExcalidraw(event) || chatLayerOpen(event)) return
         event.preventDefault()
         event.stopPropagation()
         props.close()
