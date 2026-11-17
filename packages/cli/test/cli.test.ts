@@ -1849,12 +1849,11 @@ describe('cli', () => {
         expect(answering.seen).toHaveLength(1)
       })
 
-      it('page eval from a caller naming its tab runs with no card', async () => {
+      it('page eval from a caller naming its tab is asked like any outside call', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
         const pending = async () => (await engine.page.chat.hydrate({sessionId: engine.sessionId})).pendingApprovals
         const before = await pending()
-        answering.next = {type: 'success', result: {value: {result: 'Example'}, files: []}}
         const answered = binCall(
           tempDir('conciv-elsewhere-'),
           ['tools', 'page', 'eval', '--code', 'document.title', '--tab', engine.sessionId],
@@ -1865,9 +1864,18 @@ describe('cli', () => {
         const [ask] = await asked()
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await engine.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
-        expect(await answered).toEqual({code: 0, document: {ok: true, data: {result: 'Example'}}})
-        expect(answering.seen).toMatchObject([{action: {type: 'eval', code: 'document.title'}}])
-        expect(await pending()).toEqual(before)
+        expect(await answered).toEqual({
+          code: 1,
+          document: {
+            ok: false,
+            error: {
+              kind: 'user',
+              code: 'APPROVAL_DENIED',
+              message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+            },
+          },
+        })
+        expect(answering.seen).toEqual([])
       })
 
       it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
@@ -1886,7 +1894,9 @@ describe('cli', () => {
             error: {
               kind: 'user',
               code: 'NO_PAGE_CLIENT',
-              message: expect.stringContaining('page_snapshot: no widget connected to session'),
+              message: expect.stringContaining(
+                'page_snapshot: the page is showing another session; switch back to this session to use page tools',
+              ),
             },
           },
         })

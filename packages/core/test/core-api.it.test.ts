@@ -6357,14 +6357,16 @@ describe('page action queue delivery', () => {
     await (await nextTurn).text()
   })
 
-  it('a chat-agent page_eval in the same session during an admitted CLI page_eval is still asked and does not run', async () => {
+  it('a chat-agent page_eval in the same session during a config-allowed CLI page_eval is still asked and does not run', async () => {
     const evals: string[] = []
     const holdsUnder = (command: Page.Command) => {
       if (command.action.type !== 'eval') return undefined
       evals.push(command.action.code)
       return `eval/${command.action.code}`
     }
-    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder)
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder, {
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
     const events = await makeRpcClient(page.base).event.subscribe()
     const asked = async (): Promise<unknown> => {
       const next = await events.next()
@@ -6432,6 +6434,36 @@ describe('page action queue delivery', () => {
     const denied = page.inChat('denied-eval', 'return await external_page_eval({code: "document.cookie"})')
     const ended = await Promise.race([asking.then(() => 'asked'), denied.then((turn) => turn.text())])
     expect(ended).toContain('denied')
+    expect(evals).toEqual(['document.title'])
+  })
+
+  it('an outside page_eval naming its tab is asked like any outside call: refused with no rule, run under a config allow, refused under a config deny', async () => {
+    const evals: string[] = []
+    const holdsUnder = (command: Page.Command) => {
+      if (command.action.type !== 'eval') return undefined
+      evals.push(command.action.code)
+      return command.action.code === 'document.title' ? 'eval/document.title' : undefined
+    }
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder, {
+      permission: {page_eval: {'document.cookie': 'deny'}},
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
+    const outside = makeRpcClient(page.base, {
+      headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId, [CONCIV_NAMED_TAB_HEADER]: '1'},
+    })
+    const evaluate = (code: string) => outside.registry.call({name: 'page_eval', input: {code}})
+    await expect(evaluate('document.domain')).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    })
+    expect(evals).toEqual([])
+    const allowed = evaluate('document.title')
+    await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
+    expect(await allowed).toEqual({result: 'Example'})
+    await expect(evaluate('document.cookie')).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: 'Permission denied: page_eval',
+    })
     expect(evals).toEqual(['document.title'])
   })
 
@@ -7687,7 +7719,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks until the user always allows it, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id gets a new empty session while one on a deleted id is refused and nothing comes back', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7778,11 +7810,15 @@ export default {
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
     expect(await refusedAfterReload).toMatchObject({ok: false})
-    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({attached: true})
-    expect(await rpc.sessions.get({sessionId: SessionId.parse('conciv_missing')})).toMatchObject({
-      id: 'conciv_missing',
+    const neverSeen = SessionId.parse('conciv_missing')
+    expect(await tabs('open', {sessionId: neverSeen, connectionId: 'conn_x'})).toEqual({
+      error: `session "${neverSeen}" does not exist`,
     })
-    expect((await rpc.chat.hydrate({sessionId: SessionId.parse('conciv_missing')})).messages).toEqual([])
+    await expect(rpc.sessions.get({sessionId: neverSeen})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(neverSeen)
+    await (await sseTurn(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, neverSeen, 'born', 'hello')).text()
+    expect(await tabs('open', {sessionId: neverSeen, connectionId: 'conn_x'})).toEqual({attached: true})
+    expect(await tabs('close', {connectionId: 'conn_x'})).toEqual({closed: true})
     expect(await ask({type: 'route'})).toMatchObject({
       ok: false,
       message: expect.stringContaining('[page.disconnected]'),
@@ -7934,10 +7970,20 @@ export default {
     expect(onEval.command.action).toEqual({type: 'eval', code: 'document.title'})
     await reply('conn_d', onEval.requestId, succeeded({result: 'Example'}))
     expect(await always).toEqual({ok: true, value: {result: 'Example'}})
-    const remembered = ask({type: 'eval', code: 'document.title'})
+    await expect(
+      registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)('page_eval', {
+        code: 'location.href',
+      }),
+    ).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    })
+    const askedAgain = ask({type: 'eval', code: 'location.href'})
+    await decide('location.href', 'once')
     const again = await next('conn_d')
+    expect(again.command.action).toEqual({type: 'eval', code: 'location.href'})
     await reply('conn_d', again.requestId, succeeded({result: 'Example'}))
-    expect(await remembered).toEqual({ok: true, value: {result: 'Example'}})
+    expect(await askedAgain).toEqual({ok: true, value: {result: 'Example'}})
     expect(await tabs('waiting', {})).toEqual({waiting: 0})
 
     const locating = ask({type: 'locate', selector: 'h1'})
@@ -7985,7 +8031,7 @@ export default {
     expect(await page('changes')).toMatchObject([
       {seq: 1, verb: 'page_click', selector: '#one', args: {}},
       {seq: 2, verb: 'page_eval', args: {code: 'document.title'}},
-      {seq: 3, verb: 'page_eval', args: {code: 'document.title'}},
+      {seq: 3, verb: 'page_eval', args: {code: 'location.href'}},
       {seq: 4, verb: 'page_settext', selector: 'h1', args: {text: 'Hello'}},
     ])
     const captured = {
@@ -8134,7 +8180,7 @@ export default {
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
-      error: `Session ${session} could not be opened: it was deleted`,
+      error: `session "${session}" does not exist`,
     })
     expect(await page('sessions.attached')).not.toContain(session)
     expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(session)
