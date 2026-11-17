@@ -44,6 +44,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Interface
 
 - `withConciv(nextConfig)` (`next.config.ts`): wraps the Next config with the conciv plugin from `@conciv/it/plugin/nextjs`
+- The example loads the workspace test-runner plugin by path; an app outside this repo uses `plugins: ['@conciv/plugin-test-runner']`.
 - `register` (`instrumentation.ts`): re-export of `@conciv/it/plugin/nextjs` server instrumentation hook
 - `instrumentation-client.ts`: side-effect import of `@conciv/it/plugin/nextjs/widget`, loads the widget in the browser
 - `eslintConfig` (`eslint.config.mjs`): `eslint-config-next` core-web-vitals and typescript presets

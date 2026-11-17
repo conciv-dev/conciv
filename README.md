@@ -99,7 +99,7 @@ export default defineConfig({
 Make sure the [Claude Code CLI](https://claude.ai/code) (`claude`) is on your `PATH`, start your
 dev server, and click the conciv button in the corner of your app.
 
-Override defaults via `conciv({harness, testRunner, widgetUrl, …})`. Other bundlers are one import
+Override defaults via `conciv({harness, plugins, widgetUrl, …})`. Other bundlers are one import
 away: `@conciv/it/plugin/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`.
 
 ## Extensions
@@ -128,10 +128,10 @@ Extensions are plain Solid JSX (compiled as a Solid zone even inside a React hos
 with a real test harness: [`@conciv/extension-testkit`](./packages/extension-testkit) mounts any
 extension in a real browser against a real spawned server.
 
-Two built-ins show what the contract can do:
+Two built-ins show what the contracts can do, the whiteboard extension and the test-runner plugin:
 
 - 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard): a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted libSQL store (TanStack DB).
-- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner): runner-agnostic test execution (Vitest and Playwright) with live result cards in the thread.
+- 🧪 &nbsp;[**Test runner**](./packages/plugins/test-runner): a plugin that runs your tests (Vitest and Playwright). The Tests tab streams live rows, and a card shows the finished run in the thread.
 
 ## Supported tools
 
@@ -145,25 +145,25 @@ Two built-ins show what the contract can do:
 
 Install these. Everything else on npm under `@conciv/*` is internal and comes in automatically:
 
-| Package                                                     | What it is                                                                                                 |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [`@conciv/it`](./packages/it)                               | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs). |
-| [`@conciv/extension`](./packages/extension)                 | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.     |
-| [`@conciv/extension-testkit`](./packages/extension-testkit) | Mounts any extension in a real browser against a real spawned server, through its real contract.           |
-| [`@conciv/try`](./packages/try)                             | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.       |
+| Package                                                        | What it is                                                                                                 |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](./packages/it)                                  | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs). |
+| [`@conciv/extension`](./packages/extension)                    | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.     |
+| [`@conciv/extension-testkit`](./packages/extension-testkit)    | Mounts any extension in a real browser against a real spawned server, through its real contract.           |
+| [`@conciv/plugin-test-runner`](./packages/plugins/test-runner) | The test-runner plugin: `plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]`.                   |
+| [`@conciv/try`](./packages/try)                                | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.       |
 
 Under the hood (installed automatically by `@conciv/it`):
 
-| Package                                                              | What it is                                                                                                               |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
-| [`@conciv/core`](./packages/core)                                    | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
-| [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                           |
-| [`@conciv/unplugin`](./packages/unplugin)                            | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
-| [`@conciv/embed`](./packages/embed)                                  | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
-| [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open`.                                         |
-| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard)   | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                                     |
-| [`@conciv/extension-test-runner`](./packages/extensions/test-runner) | Built-in: runner-agnostic test execution with live result cards.                                                         |
+| Package                                                            | What it is                                                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| [`@conciv/protocol`](./packages/protocol)                          | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
+| [`@conciv/core`](./packages/core)                                  | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
+| [`@conciv/harness`](./packages/harness)                            | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                           |
+| [`@conciv/unplugin`](./packages/unplugin)                          | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
+| [`@conciv/embed`](./packages/embed)                                | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
+| [`@conciv/cli`](./packages/cli)                                    | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open`.                                         |
+| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard) | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                                     |
 
 ## Documentation
 
