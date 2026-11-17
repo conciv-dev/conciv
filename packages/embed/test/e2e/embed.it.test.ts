@@ -2052,10 +2052,14 @@ test.describe('reload continuity', () => {
         const input = chatBox(page)
         await input.click()
         await input.pressSequentially('kept while the engine refuses')
+        await page.clock.install()
         await page.reload({waitUntil: 'domcontentloaded'})
 
         await expect(chatBox(page)).toHaveText('kept while the engine refuses')
-        await expect(unsaved(page)).toBeVisible()
+        await expect(async () => {
+          await page.clock.fastForward(1000)
+          await expect(unsaved(page)).toBeVisible({timeout: 1000})
+        }).toPass()
         await expect(chatBox(page)).toHaveText('kept while the engine refuses')
         expect(await suite.kit().rpc.drafts.get({sessionId})).toBeNull()
       } finally {

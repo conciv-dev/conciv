@@ -134,6 +134,22 @@ import {
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
+async function runClockPastDraftSaveRetries(notice: Locator): Promise<void> {
+  vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  await expect
+    .poll(
+      async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+        return notice.elements().length
+      },
+      {timeout: 8000},
+    )
+    .toBe(1)
+}
+
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
@@ -666,12 +682,12 @@ describe('chat pane', () => {
         const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
 
         await input().fill('kept through every refused save')
+        await runClockPastDraftSaveRetries(unsaved)
         await expect
           .element(
             unsaved.getByText(
               'conciv could not save your draft. It is still in the composer, but a reload would lose it.',
             ),
-            {timeout: 20_000},
           )
           .toBeVisible()
         await coreControl.releaseFault(refusal)
@@ -695,7 +711,8 @@ describe('chat pane', () => {
       const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
 
       await input().fill(TYPED)
-      await expect.element(unsaved.getByRole('button', {name: 'Retry'}), {timeout: 20_000}).toBeVisible()
+      await runClockPastDraftSaveRetries(unsaved)
+      await expect.element(unsaved.getByRole('button', {name: 'Retry'})).toBeVisible()
       await userEvent.click(page.getByRole('link', {name: 'Settings'}))
       await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
       await expect.element(input()).toHaveTextContent(TYPED)
@@ -717,7 +734,8 @@ describe('chat pane', () => {
       const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
 
       await input().fill('refused first')
-      await expect.element(unsaved.getByRole('button', {name: 'Retry'}), {timeout: 20_000}).toBeVisible()
+      await runClockPastDraftSaveRetries(unsaved)
+      await expect.element(unsaved.getByRole('button', {name: 'Retry'})).toBeVisible()
       await coreControl.releaseFault(refusal)
       await userEvent.click(input())
       await userEvent.keyboard('{End}, then taken')
@@ -4385,14 +4403,15 @@ describe('panel view tabs', () => {
         await goBack(titles)
 
         await expect.element(composer(), {timeout: 8000}).toMatchTextContent(inOrder)
-        await expect.element(unsaved, {timeout: 30_000}).toBeVisible()
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved).toBeVisible()
         await expect.element(composer()).toMatchTextContent(inOrder)
         await coreControl.releaseFault(draftWrite)
         await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
         await expect.element(unsaved).not.toBeInTheDocument()
         await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId: running, text: joined})
         expect(await coreRpc(coreBase()).drafts.get({sessionId: running})).toMatchObject({text: joined})
-      }, 60_000)
+      }, 30_000)
 
       test('a refused steer keeps its image: back in the composer from this browser while saves are refused, and Retry saves it to the engine', async () => {
         const {running, titles} = await twoSessions('pictured')
@@ -4430,7 +4449,8 @@ describe('panel view tabs', () => {
         await expect.element(composer(), {timeout: 8000}).toMatchTextContent(steered)
         await expect.element(page.getByRole('button', {name: 'Remove image'})).toBeVisible()
         expect(page.getByRole('button', {name: 'Remove image'}).elements()).toHaveLength(1)
-        await expect.element(unsaved, {timeout: 30_000}).toBeVisible()
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved).toBeVisible()
         await coreControl.releaseFault(draftWrite)
         await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
         await expect.element(unsaved).not.toBeInTheDocument()
@@ -4440,7 +4460,7 @@ describe('panel view tabs', () => {
             text: steered,
             attachments: [expect.objectContaining({type: 'image', contentType: 'image/png'})],
           })
-      }, 60_000)
+      }, 30_000)
     })
 
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
