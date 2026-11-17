@@ -38,7 +38,6 @@ type SurfaceProps = {
   client: Context['client']
   ui: Context['ui']
   dialogs: Context['dialogs']
-  toast: Context['toast']
   room: string
   catchUpRetryMs: number
   visible: boolean
@@ -64,10 +63,6 @@ function CanvasView(props: Pick<SurfaceProps, 'ui' | 'dialogs' | 'room' | 'visib
 
 export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   injectExcalidrawCss(document)
-  const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {
-    if (outcome === 'added' && !props.visible)
-      props.toast.show({title: 'Comment added to the whiteboard', variant: 'success'})
-  }
   onMount(() =>
     makeEventListener(
       window,
@@ -83,11 +78,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider
-        room={() => props.room}
-        onComposeSettled={onComposeSettled}
-        onThreadChange={props.onThreadChange}
-      >
+      <CommentsProvider room={() => props.room} onThreadChange={props.onThreadChange}>
         <CanvasView
           ui={props.ui}
           dialogs={props.dialogs}
