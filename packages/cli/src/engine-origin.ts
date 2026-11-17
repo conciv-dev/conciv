@@ -6,11 +6,9 @@ import {checkEngines, concivHome} from '@conciv/db'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {userFailure} from './failure.js'
-import {askAgain, askTabs, ENGINE_READ_MS, silence, type Silent, type TabAsk} from './engine-read.js'
+import {askAgain, askTabs, ENGINE_READ_MS, PROBE_MS, silence, type Silent, type TabAsk} from './engine-read.js'
 
 const DEFAULT_ENGINE_PORT = '5173'
-
-const PROBE_MS = 300
 
 const ServerStateSchema = z.object({
   port: z.number().int().min(1).max(65535),
