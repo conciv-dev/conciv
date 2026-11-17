@@ -1415,7 +1415,7 @@ describe('native page vite boot', () => {
       const rewrite = () => runPageTool(target, 'page_settext', {selector: '#probe', text: 'rewritten'})
 
       const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
-      expect((await rewrite()).capture.after.node).toBeUndefined()
+      expect((await rewrite()).capture.node).toBeUndefined()
       const failedImport = (await stillBlocked).url()
       await importSettled(blockedPage, failedImport)
       expect(await blockerNotice.count()).toBe(0)
@@ -1425,7 +1425,7 @@ describe('native page vite boot', () => {
       await rewrite()
       const loadedImport = (await unblocked).url()
       await importSettled(blockedPage, loadedImport)
-      expect((await rewrite()).capture.after.node).toBeDefined()
+      expect((await rewrite()).capture.node).toBeDefined()
       await blockedPage.close()
     }, 90_000)
   })
