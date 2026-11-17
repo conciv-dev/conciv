@@ -119,12 +119,8 @@ export default function TerminalSurface(props: {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     return true
   })
-  const surface: {element: HTMLDivElement | undefined} = {element: undefined}
-  onMount(() => {
-    if (surface.element) keepFocusInsideTheWidget(surface.element)
-  })
   const interruptOnEscape = (element: HTMLDivElement) => {
-    surface.element = element
+    onMount(() => keepFocusInsideTheWidget(element))
     makeEventListener(
       element,
       'keydown',
