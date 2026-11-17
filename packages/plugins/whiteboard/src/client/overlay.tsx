@@ -45,8 +45,8 @@ export function WhiteboardNotices(props: {ctx: Context; surface: Resource<Surfac
   return (
     <div class="text-chat-text font-chat pointer-events-none inset-0 fixed">
       <Switch>
-        <Match when={props.surface.error !== undefined}>
-          <OverlayError toast={props.ctx.toast} error={props.surface.error} />
+        <Match when={props.surface.error} keyed>
+          {(error) => <OverlayError toast={props.ctx.toast} error={error} />}
         </Match>
         <Match when={props.surface.loading}>
           <Notice>Loading the whiteboard…</Notice>
