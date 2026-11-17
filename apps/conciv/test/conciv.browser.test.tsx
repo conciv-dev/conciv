@@ -891,7 +891,7 @@ describe('chat pane', () => {
         await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
       }, 30_000)
 
-      test('the unsaved notice appears without moving the last message out of view', async () => {
+      test('the unsaved notice appears in view above the composer without moving the last message out of view', async () => {
         const CLOSING = 'the closing line of a long answer'
         const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
         const {sessionId} = await newSession()
@@ -906,6 +906,7 @@ describe('chat pane', () => {
 
         await input().fill('typed while the engine refuses')
         await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved).toBeInViewport({ratio: 1})
         await expect.element(page.getByText(CLOSING)).toBeInViewport({ratio: 1})
         await expect.element(input()).toBeInViewport({ratio: 1})
       }, 30_000)
