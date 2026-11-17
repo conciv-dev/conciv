@@ -167,7 +167,6 @@ import {
   requireTranscriptPath,
   connectWidget,
   chunkWithInlineMap,
-  cleanupChunks,
   hydratedSnapshot,
   runTurn,
   userTexts,
@@ -1518,10 +1517,6 @@ describe('api native page', () => {
 })
 
 describe('api page open source', () => {
-  afterEach(async () => {
-    await cleanupChunks()
-  })
-
   describe('editor.openFromFrames', () => {
     const opened: Array<{file: string; line?: number}> = []
     const record = (file: string, line?: number) => opened.push({file, ...(line === undefined ? {} : {line})})

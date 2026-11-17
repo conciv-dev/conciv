@@ -316,5 +316,3 @@ export async function chunkWithInlineMap(source: string, line: number, column: n
   await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
   return path
 }
-
-export async function cleanupChunks(): Promise<void> {}
