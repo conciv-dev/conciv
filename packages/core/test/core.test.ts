@@ -337,8 +337,9 @@ describe('chat plane', () => {
 
     const skilled = sessionId('skills')
     const builtins = sessionId('builtins')
+    const codeless = sessionId('codeless')
     const db = openDatabase(root)
-    await bornRows(root, [skilled, builtins])
+    await bornRows(root, [skilled, builtins, codeless])
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
         Layer.provideMerge(
@@ -524,8 +525,6 @@ describe('chat plane', () => {
     expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
     expect(told.asked.at(-1)).toBe('sixth')
 
-    const codeless = sessionId('codeless')
-    await bornRows(root, [codeless])
     const registry = createToolRegistry()
     const ping = defineTool({
       name: 'unit_ping',
