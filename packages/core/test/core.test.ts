@@ -97,7 +97,7 @@ import {
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
-import {eq, sql} from 'drizzle-orm'
+import {and, eq, isNull, sql} from 'drizzle-orm'
 import {
   Agent,
   App,
@@ -163,6 +163,8 @@ import {
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import {
+  connectMcpClient,
+  createFakeHarness,
   createTestHarness,
   createTestkit,
   exchangePrintedCode,
@@ -209,7 +211,7 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, makeChatFixture, requireClaude, requireTranscriptPath} from './helpers.js'
+import {bootMadeApp, makeChatFixture, requireClaude, requireTranscriptPath, runTurn} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -3764,6 +3766,89 @@ describe('plugin host bus', () => {
     expect(publishedOutside).toEqual([])
     const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
     expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
+  })
+})
+
+describe('session.created on the plugin host bus', () => {
+  test('every way a session comes to exist publishes one session.created, and a session that already exists or was deleted publishes none', async () => {
+    const listedNative = HarnessSessionId.parse('native-listed-transcript')
+    const resolvedNative = HarnessSessionId.parse('native-resolved-by-id')
+    const harness = createFakeHarness({
+      id: 'fake-born',
+      history: [{id: listedNative, derivedTitle: 'a listed transcript', updatedAt: Date.now()}],
+    })
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env)
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the session.created kit booted no app')
+    await made.awaitActivation()
+    const heard: {type: string; data: unknown}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
+    )
+    const created = () => heard.filter((event) => event.type === 'session.created').map((event) => event.data)
+    const bornAs = (sessionId: string) => created().filter((data) => isEqual(data, {sessionID: sessionId}))
+    const rowOfNative = (nativeId: HarnessSessionId) =>
+      made.chat.db
+        .select({id: sessionTable.id})
+        .from(sessionTable)
+        .where(eq(sessionTable.harnessSessionId, nativeId))
+        .get()?.id ?? 'no row'
+    const externalRows = () =>
+      made.chat.db
+        .select({id: sessionTable.id})
+        .from(sessionTable)
+        .where(and(eq(sessionTable.origin, 'external'), isNull(sessionTable.harnessSessionId)))
+        .all()
+
+    const draft = SessionId.parse('conciv_born_on_first_send')
+    await runTurn(kit, 'the first send', draft)
+    expect.soft(bornAs(draft)).toHaveLength(1)
+    await runTurn(kit, 'a second send', draft)
+    expect.soft(bornAs(draft)).toHaveLength(1)
+
+    const {sessionId: fromRpc} = await kit.rpc.sessions.create(undefined)
+    expect.soft(bornAs(fromRpc)).toHaveLength(1)
+
+    const key = sessionKey(made)
+    const fromPlugin = await key.run((sessions) => sessions.create({}))
+    expect.soft(bornAs(fromPlugin.id)).toHaveLength(1)
+
+    const {sessionId: fromNative} = await kit.rpc.sessions.resolve({id: resolvedNative})
+    expect.soft(bornAs(fromNative)).toHaveLength(1)
+    await kit.rpc.sessions.resolve({id: resolvedNative})
+    expect.soft(bornAs(fromNative)).toHaveLength(1)
+
+    const hub = await connectMcpClient(`${kit.base}/api/mcp`, {
+      [CONCIV_ORIGIN_HEADER]: 'hub',
+      [CONCIV_CLIENT_HEADER]: 'codex',
+    })
+    await hub.tools()
+    await hub.close()
+    const [external] = externalRows()
+    expect(externalRows()).toHaveLength(1)
+    expect.soft(bornAs(external?.id ?? 'no external row')).toHaveLength(1)
+
+    await kit.rpc.sessions.list({limit: 30})
+    const fromList = rowOfNative(listedNative)
+    expect.soft(bornAs(fromList)).toHaveLength(1)
+    await kit.rpc.sessions.list({limit: 30})
+    expect.soft(bornAs(fromList)).toHaveLength(1)
+
+    await kit.rpc.sessions.delete({sessionId: fromRpc})
+    expect(await key.fail((sessions) => sessions.create({id: SessionSchema.Id.make(fromRpc)}))).toMatchObject({
+      _tag: 'Session.NotFoundError',
+      sessionId: fromRpc,
+    })
+
+    expect(created()).toEqual(
+      [draft, fromRpc, fromPlugin.id, fromNative, external?.id, fromList].map((sessionId) => ({sessionID: sessionId})),
+    )
   })
 })
 
