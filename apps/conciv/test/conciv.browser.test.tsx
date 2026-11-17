@@ -7052,6 +7052,36 @@ describe('terminal panel', () => {
     await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
     await expect.element(picker()).not.toBeInTheDocument()
   }, 60_000)
+
+  test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
+    const pageScheme = document.documentElement.classList
+    onTestFinished(() => pageScheme.remove('dark'))
+    const panel = () => page.getByRole('tabpanel', {name: 'Terminal'})
+    const shot = () => panel().screenshot({save: false})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const mountSettled = async () => {
+      harness.dispose()
+      harness.mountShell(terminalRoute(sessionId))
+      await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    }
+    harness.mountShell(terminalRoute(sessionId))
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+
+    await mountSettled()
+    const freshLight = await shot()
+    pageScheme.add('dark')
+    const flippedToDark = await shot()
+    expect(flippedToDark).not.toBe(freshLight)
+
+    await mountSettled()
+    expect(await shot()).toBe(flippedToDark)
+    pageScheme.remove('dark')
+    expect(await shot()).toBe(freshLight)
+  }, 60_000)
 })
 
 describe('plugin composer pills', () => {
