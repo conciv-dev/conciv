@@ -8012,7 +8012,7 @@ export default {
     expect(await page('changes')).toMatchObject([
       {seq: 1, verb: 'page_click', selector: '#one', args: {}},
       {seq: 2, verb: 'page_eval', args: {code: 'document.title'}},
-      {seq: 3, verb: 'page_eval', args: {code: 'document.title'}},
+      {seq: 3, verb: 'page_eval', args: {code: 'location.href'}},
       {seq: 4, verb: 'page_settext', selector: 'h1', args: {text: 'Hello'}},
     ])
     const captured = {
