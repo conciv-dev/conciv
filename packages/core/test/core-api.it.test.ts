@@ -4739,16 +4739,22 @@ describe('outside agent consent', () => {
 
   const SCREENSHOT = {image: ONE_PIXEL_WEBP, width: 1, height: 1}
 
+  const EVALUATED = {result: 'evaluated'}
+
   const pageAnswer = (command: Page.Command): PageReply =>
-    command.action.type === 'screenshot'
-      ? {
-          type: 'success',
-          result: {
-            value: {width: SCREENSHOT.width, height: SCREENSHOT.height},
-            files: [{id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: SCREENSHOT.image}],
-          },
-        }
-      : pageSuccess(ROUTE)
+    command.action.type === 'eval'
+      ? {type: 'success', result: {value: EVALUATED, files: []}}
+      : command.action.type === 'screenshot'
+        ? {
+            type: 'success',
+            result: {
+              value: {width: SCREENSHOT.width, height: SCREENSHOT.height},
+              files: [
+                {id: `file_${randomUUID()}`, name: 'screenshot.webp', mime: 'image/webp', data: SCREENSHOT.image},
+              ],
+            },
+          }
+        : pageSuccess(ROUTE)
 
   const createSessionRpc = (base: string, sessionId: string) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -5348,7 +5354,7 @@ export default {
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
-    expect(await namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).toEqual(ROUTE)
+    expect(await namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).toEqual(EVALUATED)
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'tabs',
@@ -5386,12 +5392,38 @@ export default {
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
         .registry.call(evaluate)
         .then(JSON.stringify, String)
-    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toContain(ROUTE.href)
+    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toBe(JSON.stringify(EVALUATED))
     expect(await loadPending(base, sessionId)).toEqual([])
     expect(await overRpc(HUB)).toMatch(/needs the user/)
     expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
     expect(await overRpc({})).toMatch(/needs the user/)
     expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
+  })
+
+  it('an outside agent over MCP calling page_eval in code mode is asked: it runs only once approved, and a denial refuses it', async () => {
+    const base = await boot('open')
+    const heard: string[] = []
+    const sessionId = await openTab(base, undefined, heard)
+    const headers = {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}
+    const evaluate = 'return await external_page_eval({code: "1"})'
+    const decideCard = async (approved: boolean) => {
+      expect(await askRaised(base, sessionId)).not.toBeNull()
+      expect(heard).not.toContain('page_eval')
+      const pending = await loadPending(base, sessionId)
+      expect(pending).toHaveLength(1)
+      const [card] = pending
+      await createSessionRpc(base, sessionId).chat.permissionDecision({approvalId: card?.approvalId ?? '', approved})
+    }
+    const allowed = executeOverMcp(base, headers, evaluate).then(String, String)
+    await decideCard(true)
+    expect(await allowed).toContain(EVALUATED.result)
+    expect(heard).toContain('page_eval')
+    heard.length = 0
+    const refused = executeOverMcp(base, headers, evaluate).then(String, String)
+    await decideCard(false)
+    expect(await refused).not.toContain(EVALUATED.result)
+    expect(heard).not.toContain('page_eval')
+    expect(await loadPending(base, sessionId)).toEqual([])
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
