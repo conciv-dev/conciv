@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
+import {encodeAttachments} from '../src/draft-storage.js'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {ChatPart, ChatMessage, ToolCallPart} from '@conciv/protocol/chat-message-types'
