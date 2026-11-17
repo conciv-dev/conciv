@@ -3,6 +3,7 @@ import {z} from 'zod'
 import {isPlainObject} from 'es-toolkit'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
+import {cardErrorMessage} from '../page/cards/shared.js'
 import {
   CardShell,
   CodeBlock,
@@ -10,7 +11,6 @@ import {
   JsonTree,
   cardHeader,
   parseResultPayload,
-  resultText,
   toolStatus,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
@@ -28,15 +28,9 @@ export function resultOk(result: ToolCardProps['result']): boolean {
   return OkResult.safeParse(parseResultPayload(result)).success
 }
 
-const ErrorPayloadSchema = z.object({message: z.string()}).loose()
-
-function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {
+function readError(result: ToolCardProps['result']): string | null {
   if (result?.state !== 'error') return null
-  if (result?.error && result.error.length > 0) return result.error
-  const shaped = ErrorPayloadSchema.safeParse(parseResultPayload(result))
-  if (shaped.success && shaped.data.message.length > 0) return shaped.data.message
-  const text = resultText(result)
-  return text.length > 0 ? text : 'tool failed'
+  return cardErrorMessage(result) ?? 'tool failed'
 }
 
 function isRunning(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
@@ -48,13 +42,13 @@ export function settledCardBody(
   result: ToolCardProps['result'],
   hasContent: boolean,
 ): boolean {
-  if (readError(part, result) !== null) return true
+  if (readError(result) !== null) return true
   if (isRunning(part, result)) return false
   return hasContent
 }
 
 export function actionCardBody(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
-  return readError(part, result) !== null
+  return readError(result) !== null
 }
 
 export function CardRows(props: {children: JSX.Element}): JSX.Element {
@@ -114,7 +108,7 @@ export function InspectionCard(
 ): JSX.Element {
   const [local, card] = splitProps(props, ['summary', 'failed', 'children'])
   const {meta, title} = cardHeader(card)
-  const error = () => readError(card.part, card.result)
+  const error = () => readError(card.result)
   const running = () => isRunning(card.part, card.result)
   const subtitle = () => (error() || running() ? undefined : local.summary)
   const status = (): ToolStatus | undefined => (local.failed === true ? 'error' : undefined)
@@ -137,7 +131,7 @@ export function InspectionCard(
 export function ActionCard(props: ToolCardProps & {summary: string}): JSX.Element {
   const [local, card] = splitProps(props, ['summary'])
   const {meta, title} = cardHeader(card)
-  const error = () => readError(card.part, card.result)
+  const error = () => readError(card.result)
   const running = () => isRunning(card.part, card.result)
   const subtitle = () => (error() || running() ? undefined : local.summary)
   return (
