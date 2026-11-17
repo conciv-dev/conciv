@@ -1478,6 +1478,7 @@ describe('the page contracts another plugin reads', () => {
 
 describe('the tanstack cards', () => {
   type Tool = keyof typeof tanstackCards
+  type Case = {tool: Tool; input?: Record<string, unknown>; output: unknown; summary: string; detail?: string}
 
   const cardContext: ToolViewCtx = {
     apiBase: '',
@@ -1489,55 +1490,38 @@ describe('the tanstack cards', () => {
 
   const failure = 'tab_unavailable: no TanStack page is attached to this session'
 
-  const routerState = {
-    location: {pathname: '/about', search: '', hash: ''},
-    matches: [
-      {
-        id: '__root__',
-        routeId: '__root__',
-        path: '',
-        params: {},
-        search: {},
-        status: 'success',
-        error: null,
-        loaderData: null,
-        updatedAt: null,
-        isFetching: false,
-      },
-      {
-        id: '/about',
-        routeId: '/about',
-        path: '/about',
-        params: {},
-        search: {},
-        status: 'success',
-        error: null,
-        loaderData: {greeting: 'hello'},
-        updatedAt: 1,
-        isFetching: false,
-      },
-    ],
+  function routeMatch(routeId: string, search: Record<string, unknown>) {
+    const timing = {error: null, loaderData: null, updatedAt: null, isFetching: false}
+    return {
+      id: routeId,
+      routeId,
+      path: routeId === '__root__' ? '' : routeId,
+      params: {},
+      search,
+      status: 'success',
+      ...timing,
+    }
   }
 
-  const cases: ReadonlyArray<{
-    tool: Tool
-    input?: Record<string, unknown>
-    output: unknown
-    summary: string
-    detail?: string
-  }> = [
-    {tool: 'tanstack_router_state', output: routerState, summary: '/about · 2 matches', detail: '__root__'},
+  const routerState = {
+    location: {pathname: '/about', search: '?token=%5Bredacted%5D', hash: ''},
+    matches: [routeMatch('__root__', {}), routeMatch('/about', {token: '[redacted]'})],
+  }
+
+  const routeNode = (id: string, kind: string, hasLoader: boolean) => ({id, path: id, kind, hasLoader, children: []})
+
+  const cases: ReadonlyArray<Case> = [
+    {
+      tool: 'tanstack_router_state',
+      output: routerState,
+      summary: '/about · 2 matches',
+      detail: '/about?token=%5Bredacted%5D',
+    },
     {
       tool: 'tanstack_route_tree',
       output: {
-        id: '__root__',
-        path: '',
-        kind: 'layout',
-        hasLoader: false,
-        children: [
-          {id: '/', path: '/', kind: 'index', hasLoader: false, children: []},
-          {id: '/about', path: '/about', kind: 'static', hasLoader: true, children: []},
-        ],
+        ...routeNode('__root__', 'layout', false),
+        children: [routeNode('/', 'index', false), routeNode('/about', 'static', true)],
       },
       summary: '3 routes',
       detail: '/about',
@@ -1556,7 +1540,7 @@ describe('the tanstack cards', () => {
             key: '["todos"]',
             state: 'fresh',
             status: 'success',
-            value: ['write the card test'],
+            value: ['card'],
             updatedAt: Date.now(),
             error: null,
             observers: 1,
@@ -1613,65 +1597,56 @@ describe('the tanstack cards', () => {
     },
   ]
 
-  function callPart(tool: Tool, input: Record<string, unknown>): ToolCallPart {
-    return {
+  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
+    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
+  }
+
+  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined) {
+    const part: ToolCallPart = {
       type: 'tool-call',
       id: `call-${tool}`,
       name: tool,
       arguments: JSON.stringify(input),
       state: 'input-complete',
     }
-  }
-
-  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
-    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
-  }
-
-  function cardProps(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined): ToolCardProps {
-    return {part: callPart(tool, input), result, ctx: cardContext, addResult: () => Promise.resolve()}
-  }
-
-  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart): void {
-    const props = cardProps(tool, input, result)
+    const [props, setProps] = createStore<ToolCardProps>({
+      part,
+      result,
+      ctx: cardContext,
+      addResult: () => Promise.resolve(),
+    })
     render(() => <Dynamic component={tanstackCards[tool].render} {...props} />)
+    return setProps
   }
 
-  function header(tool: Tool) {
-    return page.getByRole('button', {name: new RegExp(tool)})
-  }
+  const header = (tool: Tool) => page.getByRole('button', {name: new RegExp(tool)})
+  const exactText = (text: string) => page.getByText(text, {exact: true})
 
-  it('draws each finished tanstack call as its card, on success and on error', async () => {
+  it("draws each tool's card on success, the error state, and the running row before the card", async () => {
     onTestFinished(cleanup)
     for (const call of cases) {
-      const success = resultPart(call.tool, JSON.stringify(call.output), 'complete')
-      mountCard(call.tool, call.input ?? {}, success)
-      await expect.element(page.getByText(call.summary, {exact: true})).toBeVisible()
+      mountCard(call.tool, call.input ?? {}, resultPart(call.tool, JSON.stringify(call.output), 'complete'))
+      await expect.element(exactText(call.summary)).toBeVisible()
       if (call.detail !== undefined) {
         await header(call.tool).click()
-        await expect.element(page.getByText(call.detail, {exact: true})).toBeVisible()
+        await expect.element(exactText(call.detail)).toBeVisible()
       }
       cleanup()
-
-      const failed = resultPart(call.tool, failure, 'error')
-      mountCard(call.tool, call.input ?? {}, failed)
-      await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
-      await header(call.tool).click()
-      await expect.element(page.getByText(failure)).toBeVisible()
-      await expect.element(page.getByText(call.summary, {exact: true})).not.toBeInTheDocument()
-      cleanup()
     }
-  })
 
-  it("a running tanstack call shows the host's running row, then its card once it finishes", async () => {
-    onTestFinished(cleanup)
-    const [props, setProps] = createStore(cardProps('tanstack_router_state', {}, undefined))
-    render(() => <Dynamic component={tanstackCards.tanstack_router_state.render} {...props} />)
+    mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    await header('tanstack_router_state').click()
+    await expect.element(page.getByText(failure)).toBeVisible()
+    await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
+    cleanup()
+
+    const finish = mountCard('tanstack_router_state', {}, undefined)
     await expect.element(header('tanstack_router_state')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
-    await expect.element(page.getByText('/about · 2 matches', {exact: true})).not.toBeInTheDocument()
-
-    setProps('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
-    await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
+    await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
+    finish('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
+    await expect.element(exactText('/about · 2 matches')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
   })
