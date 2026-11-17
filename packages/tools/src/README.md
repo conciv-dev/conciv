@@ -2,7 +2,7 @@
 
 ## Overview
 
-Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `defineTool` from `@conciv/protocol/chat-tool-types`), wrap it as a sandbox server tool, re-export the builtin `tabs` tool, and register Solid card renderers by tool name.
+Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `defineTool` from `@conciv/protocol/chat-tool-types`), wrap it as a sandbox server tool, and register Solid card renderers by tool name.
 
 ## Interface
 
@@ -11,9 +11,8 @@ Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `
 - `concivSandboxTools(ctx)` and `concivSandboxToolNames()` (`['conciv_ui']`) (`server.ts`).
 - `tools.ts` (export `.`): `ConcivServerTool`, `ConcivToolContext`, `concivSandboxTools`, `concivSandboxToolNames`, `concivUiToolDef`.
 - `defs.ts` (export `./defs`): `concivUiToolDef`.
-- `builtins.ts` (export `./builtins`): re-exports `BUILTIN_TABS_TOOL`, `TabsToolContext`, `BuiltinCategory`; defines `builtinToolNames()`.
 - `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard`) and re-exports of the two cards.
-- [builtins/README.md](./builtins/README.md): the `tabs` tool.
+- [builtins/README.md](./builtins/README.md): `OpenInput` for the `open` card.
 - [cards/README.md](./cards/README.md): card renderers.
 
 ## Invariants

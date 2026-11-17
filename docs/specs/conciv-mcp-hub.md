@@ -1,7 +1,8 @@
 # conciv MCP hub: any agent session finds and drives any open conciv tab
 
-Status: revision 7 (2026-11-10) adds the section "Revision 7" near the end: speed, routing, one browser tab per
-call. Below it, revision 6 (2026-11-07; hub is a pass-through; `tabs` is a normal registry tool;
+Status: revision 8 (2026-11-17) adds the section "Revision 8" after Revision 7: the hub lists tabs itself with a
+third MCP tool, `list_tabs`, and the engine's `tabs` registry tool is deleted. Revision 7 (2026-11-10) adds the section
+"Revision 7" near the end: speed, routing, one browser tab per call. Below it, revision 6 (2026-11-07; hub is a pass-through; `tabs` is a normal registry tool;
 `conciv tools` gains `--tab` and home-db discovery). Base: PR #739's branch `feat/ai-mcp-server` (already
 contains `main` with the `@tanstack/ai` 1.2.0 family from #736, and `@tanstack/ai-mcp` 1.1.0); `feat/mcp-hub` is
 rebased onto `main` once #739 merges. File
@@ -672,6 +673,46 @@ decided by the tool's existing `mutating` mark (`packages/extensions/page/src/sh
 
 - One WebSocket for all browser RPC (#798). Part 4 lands after it: two browser tabs exhaust the browser's six
   HTTP connections per host today, and the second tab's page replies never leave.
+
+## Revision 8 (2026-11-17): the hub lists tabs itself; the engine's `tabs` tool is deleted
+
+Ruled by Omri (Option 1). Where this section disagrees with the text above, this section wins. It reverses the
+revision 5 decision "No new MCP tools" and the revision 6 decision that finding tabs is a registry tool (`tabs`,
+`external_tabs({})` in code mode), together with every paragraph above that names `external_tabs`.
+
+Why: one path. The engine's `tabs` tool walked every engine in the home db and called each one's `tabs.list`, which
+is the hub's own cross-engine walk (`checkEngines`, then a probe per live engine) done a second time inside an
+engine. Nothing inside the engine called it: no engine source, skill, harness prompt or page-plugin skill named it;
+the in-page agent saw it only because every registry tool is bound, and it has `page.tabs.list` for its own browser
+tabs. Code mode cannot call back into the stdio hub, so keeping the listing in code mode kept the fan-out in the
+engine.
+
+- The hub (`conciv mcp serve`, `packages/cli/src/hub.ts`) serves a third tool, `list_tabs`, named verb_noun like its
+  other two (`execute_typescript`, `discover_tools`). Its input is empty. It answers one text part holding the
+  `TabsListingSchema` JSON (`@conciv/protocol/chat-types`), the same rows and fields as before: `checkEngines(home,
+  {timeoutMs: 300})`, then each live engine's contract `tabs.list` in parallel, bounded at `ENGINE_READ_MS` (2 s);
+  an engine that fails, or answers outside the contract (`engine too old; upgrade its @conciv packages`), is listed
+  under `unreachable` beside every engine `checkEngines` reported silent. An unreadable home db fails with `cannot
+  read the conciv home folder <home>`. With no engine registered it answers exactly as the other two tools do: the
+  error `no conciv dev server is running; start one and open its page (conciv home folder read: <home>)`. The listing function, `listTabs(home)`, lives beside the hub's other engine
+  reads in `packages/cli/src/engine-read.ts`; there is no second engine walk.
+- The agent guidance that was the `tabs` tool hint (`TABS_GUIDANCE`) is the `list_tabs` description, with
+  `external_tabs({})` replaced by `list_tabs`. The `tab` input's description and the hub's fixed `execute_typescript`
+  text say to list with `list_tabs`.
+- A tab open nowhere: `TAB_NOT_OPEN: tab <id> is not open; call list_tabs`.
+- `conciv tools tabs` is a fixed CLI route over the same `listTabs(home)`, no longer a registry call. Its output is
+  the same `{ok: true, data: <listing>}` envelope. It never goes through a session, so it never raises an Allow
+  card. It still sits under `conciv tools`, whose dynamic phase loads the catalog of one engine before any verb is
+  resolved (`@bomb.sh/router` pauses at a dynamic phase for every route below it), so it fails the same way as today
+  when no engine is reachable from where it runs.
+- Engine, deleted: `packages/core/src/api/outside-tabs.ts` and its wiring in `app.ts`; `BUILTIN_TABS_TOOL`,
+  `TabsToolContext`, `TABS_GUIDANCE` and the registry registration in `packages/core/src/tool-registry.ts`; the
+  `listTabs` dependency of the session primitives; the `tabs` special case in
+  `packages/core/src/api/outside-run.ts`. An outside run (a hub-origin `execute_typescript` without a tab) keeps only
+  direct plugin tools; every other non-ask capability throws `NO_TAB: pass tab to execute_typescript; list_tabs lists
+  the open tabs`.
+- `@conciv/tools/builtins` held only the `tabs` tool once `server_reload` was removed, so the export is removed.
+- Unchanged: the contract's `tabs.list` and `tabs.get`, and the page plugin.
 
 ## Out of scope / follow-ups
 

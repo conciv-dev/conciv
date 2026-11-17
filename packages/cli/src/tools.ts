@@ -1,9 +1,12 @@
-import {description, dynamic, extend, name, route, type AnyRoute} from '@bomb.sh/router'
+import {command, description, dynamic, extend, name, route, type AnyRoute} from '@bomb.sh/router'
 import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
 import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
+import {concivHome} from '@conciv/db'
 import {envelopeFlag} from './envelope.js'
+import {listTabs} from './engine-read.js'
 import {pageChangesCommand} from './page.js'
+import {handler} from './router/handler.js'
 import {runRpc, type CliTarget} from './request.js'
 import {tabFlag} from './tab-flag.js'
 import {wireToolCommand} from './tool-command.js'
@@ -13,11 +16,20 @@ const PAGE_GROUP = 'page'
 
 const REACT_CATEGORY = 'react'
 
+const tabsCommand = command(
+  name('tabs'),
+  description('list the open conciv tabs of every running conciv dev server on this machine'),
+  envelopeFlag,
+  tabFlag,
+  handler(async () => ({report: 'json', data: await listTabs(concivHome({env: process.env}))})),
+)
+
 export const toolsRoute = route(
   name('tools'),
   description('inspect & drive the live dev server: every tool group it serves (page, react, ...)'),
   envelopeFlag,
   tabFlag,
+  tabsCommand,
   dynamic(z.array(ToolCommandSignatureSchema), (catalog) => extend(...catalogRoutes(catalog))),
 )
 

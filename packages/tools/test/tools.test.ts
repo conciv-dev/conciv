@@ -1,27 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {createToolRegistry} from '@conciv/extension/registry'
-import {BUILTIN_TABS_TOOL, builtinToolNames} from '../src/builtins.js'
 import {concivSandboxToolNames, concivSandboxTools} from '../src/tools.js'
-
-describe('builtins', () => {
-  function registryWithTabs() {
-    const registry = createToolRegistry()
-    registry.register(BUILTIN_TABS_TOOL, {
-      owner: 'a test registrant',
-      context: {listTabs: async () => ({tabs: [], unreachable: []})},
-    })
-    return registry
-  }
-
-  describe('built-in tool declarations', () => {
-    it('lists every built-in in the catalog with its binding kind', () => {
-      const catalog = registryWithTabs().catalog.list()
-      expect(catalog.map((entry) => entry.name).toSorted()).toEqual(builtinToolNames().toSorted())
-      const bindings = new Map(catalog.map((entry) => [entry.name, entry.binding]))
-      expect(bindings.get('tabs')).toBe('server')
-    })
-  })
-})
 
 describe('sandbox tools', () => {
   it('offers conciv_ui as the only conciv sandbox tool', () => {
