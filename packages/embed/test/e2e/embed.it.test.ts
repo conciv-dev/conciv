@@ -1942,7 +1942,8 @@ test.describe('rebind', () => {
   const ASSISTANT_TEXT = 'Rebound reply'
   const USER_TEXT = 'first message before the drift'
   const SECOND_USER_TEXT = 'second message after the drift'
-  const TYPED_TEXT = 'typed while logged out'
+  const TYPED_TEXT = 'typed once logged in'
+  const REFUSED_TEXT = 'typed while logged out'
   const RUNNING_TEXT = 'keep this run going'
   const QUEUED_TEXT = 'steer toward this instead'
   const STARTER_TEXT = 'Explain this page'
@@ -2038,7 +2039,7 @@ test.describe('rebind', () => {
       expect(pageErrors).toEqual([])
     })
 
-    test('an empty conversation that failed to load on the untrusted port loads by itself after login', async ({
+    test('an empty conversation that failed to load on the untrusted port keeps a read-only composer and loads by itself after login', async ({
       page,
     }) => {
       test.setTimeout(240_000)
@@ -2056,20 +2057,14 @@ test.describe('rebind', () => {
 
       const composer = chatBox(page)
       const loggedOutSend = panel.getByRole('button', {name: LOGGED_OUT_SENTENCE, exact: true})
-      const loggedOutRefusal = page.getByRole('status').filter({hasText: LOGGED_OUT_SENTENCE})
+      await expect(panel.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
+      await expect(panel.getByText('Log in to continue', {exact: true})).toBeVisible()
       await composer.click()
-      await composer.pressSequentially(TYPED_TEXT)
-      await expect(composer).toHaveText(TYPED_TEXT)
+      await page.keyboard.type(REFUSED_TEXT)
+      await expect(composer).toHaveText('')
       await expect(loggedOutSend).toBeDisabled({timeout: 30_000})
-      await expect(loggedOutRefusal).toHaveCount(0)
-      await page.keyboard.press('Enter')
-      await expect(loggedOutRefusal.getByText(LOGGED_OUT_SENTENCE, {exact: true})).toBeVisible({timeout: 30_000})
-      await expect(composer).toHaveText(TYPED_TEXT)
-      await expect(loggedOutSend).toBeDisabled()
-      await expect(chatLog(page).getByText(TYPED_TEXT)).toHaveCount(0)
+      await expect(chatLog(page).getByText(REFUSED_TEXT)).toHaveCount(0)
       await expect(panel.getByText(STREAM_READ_FAILED)).toHaveCount(0)
-      await loggedOutRefusal.getByRole('button', {name: 'Dismiss'}).click()
-      await expect(loggedOutRefusal).toHaveCount(0)
 
       await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
       await expect(loginNotice).toBeHidden({timeout: 30_000})
@@ -2077,8 +2072,11 @@ test.describe('rebind', () => {
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
       const send = panel.getByRole('button', {name: 'Send message', exact: true})
-      await expect(send).toBeEnabled({timeout: 30_000})
+      await expect(panel.getByRole('textbox', {name: 'Message the conciv agent', disabled: false})).toBeVisible()
+      await composer.click()
+      await composer.pressSequentially(TYPED_TEXT)
       await expect(composer).toHaveText(TYPED_TEXT)
+      await expect(send).toBeEnabled({timeout: 30_000})
 
       const starter = panel.getByRole('button', {name: STARTER_TEXT})
       const revokedNotice = panel.getByRole('alert').filter({hasText: REVOKED_SENTENCE})

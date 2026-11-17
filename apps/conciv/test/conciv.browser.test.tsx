@@ -5875,7 +5875,7 @@ describe('engine login', () => {
     await expect.element(unsaved).not.toBeInTheDocument()
   }, 30_000)
 
-  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
+  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, and the code restores it in place', async () => {
     const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
@@ -5887,14 +5887,24 @@ describe('engine login', () => {
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
     await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
+    await expect.element(page.getByText('Log in to continue', {exact: true})).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('typed while locked out')
+    await expect.element(editor()).toMatchTextContent(/^$/)
+    await userEvent.keyboard('{Tab}')
+    await expect.element(page.getByRole('button', {name: 'More composer actions'})).toHaveFocus()
     await reloginNotice().getByRole('button', {name: 'Log in'}).click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
     await expect.element(dialog()).not.toBeInTheDocument()
     await expect.element(reloginNotice()).not.toBeInTheDocument()
     await expect.element(editor()).toHaveFocus()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: false})).toBeVisible()
     await coreControl.scriptTurn({toolCalls: [], text: 'Back in after the new code.'})
-    await editor().fill('are we back')
+    await userEvent.keyboard('are we back')
+    await expect.element(editor()).toMatchTextContent(/^are we back$/)
+    await expect.element(page.getByRole('button', {name: 'Send message'})).toBeEnabled()
     await page.getByRole('button', {name: 'Send message'}).click()
     await expect.element(page.getByText('Back in after the new code.')).toBeVisible()
   }, 30_000)
@@ -5914,7 +5924,7 @@ describe('engine login', () => {
     expect(await createBrowserDraftStore().getItem(sessionId)).toContain(LOCAL_ONLY)
   }
 
-  test('a revoke while the panel is open empties this browser draft store, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
+  test('a revoke while the panel is open empties this browser draft store, refuses typing, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
     await typeEngineAndLocalDrafts()
@@ -5927,7 +5937,7 @@ describe('engine login', () => {
 
     await userEvent.click(editor())
     await userEvent.keyboard('{End} and typed while locked out')
-    await expect.element(editor()).toHaveTextContent(`${LOCAL_ONLY} and typed while locked out`)
+    await expect.element(editor()).toMatchTextContent(new RegExp(`^${LOCAL_ONLY}$`))
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect.element(locked(), {timeout: 8000}).toBeVisible()
     expect(await keptDrafts()).toEqual([])
