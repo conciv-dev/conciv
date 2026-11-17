@@ -50,6 +50,8 @@ import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
 import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
+import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
+import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
@@ -1547,6 +1549,7 @@ test.describe('page dispatch parity', () => {
     let host: {base: string; close: () => Promise<void>}
     let page: Page
     let title: string
+    let wire: RpcObserver
 
     test.beforeAll(async ({browser}) => {
       kit = await bootEmbedKit()
@@ -1554,6 +1557,8 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
+      wire = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
       await openPagePlaneHost(page, kit, host.base)
       const shown = await kit.session()
       title = `deleted while open ${shown.slice(-12)}`
@@ -1568,25 +1573,27 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('does not attach again by itself, so no empty row comes back into the session list', async () => {
+    test('a click after the delete is refused on the wire, and after a reload the id is in no list', async () => {
       const deleted = await kit.session()
+      const attach = {
+        path: ['plugin', 'call'],
+        input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: deleted}},
+      }
       await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      const ended = wire.completed(attach)
       await kit.rpc.sessions.delete({sessionId: deleted})
-      await expect(page.getByRole('button', {name: `${title}, session options`})).toBeHidden({timeout: 30_000})
+      await ended
+      const since = wire.mark()
+      await page.getByText('page-bus-ok').click()
+      const refused = await wire.completed({...attach, since})
+      expect(refused.output).toMatchObject({message: `Session ${deleted} could not be opened: it was deleted`})
       await page.reload({waitUntil: 'domcontentloaded'})
       await openPanel(page)
-      const attached = {sessions: AttachedSchema.parse([])}
-      await until(
-        async () => {
-          attached.sessions = AttachedSchema.parse(
-            await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
-          )
-          return attached.sessions.length > 0
-        },
-        {hangGuardMs: 30_000, intervalMs: 200},
+      const attached = AttachedSchema.parse(
+        await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
       )
-      expect(attached.sessions).not.toContain(deleted)
-      const {sessions} = await kit.rpc.sessions.list({includeHidden: true})
+      expect(attached).not.toContain(deleted)
+      const {sessions} = await kit.rpc.sessions.list(undefined)
       expect(sessions.map((session) => session.id)).not.toContain(deleted)
     })
   })
