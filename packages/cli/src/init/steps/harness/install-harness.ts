@@ -1,5 +1,6 @@
 import {mkdirSync, writeFileSync} from 'node:fs'
-import {dirname, join, relative} from 'node:path'
+import {dirname, relative} from 'node:path'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {HarnessInit, HarnessInitCommand, HarnessInitPlan} from '@conciv/protocol/harness-types'
 import type {HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
@@ -16,12 +17,8 @@ export type HarnessInitIo = {
   ) => Promise<{code: number; output: string}>
 }
 
-function resolveStateDir(cwd: string): string {
-  return join(cwd, '.conciv')
-}
-
 function buildProject(cwd: string): {cwd: string; stateDir: string} {
-  return {cwd, stateDir: resolveStateDir(cwd)}
+  return {cwd, stateDir: concivStateDir(cwd)}
 }
 
 function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): void {

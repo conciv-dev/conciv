@@ -1,11 +1,12 @@
 import {randomInt, timingSafeEqual} from 'node:crypto'
-import {mkdirSync, unwatchFile, watchFile} from 'node:fs'
+import {unwatchFile, watchFile} from 'node:fs'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import {REVOKED_SOCKET_CLOSE_CODE, SocketTrustFrameSchema, type ExchangeRefusal} from '@conciv/contract'
 import {RPC_PREFIX, type RpcSocketGate, type UpgradeWebSocket} from '@conciv/serve/rpc'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
+import {createConcivStateDir} from '@conciv/protocol/state-types'
 import {
   TRUSTED_BROWSERS_FILE,
   grantBrowser,
@@ -167,7 +168,7 @@ function trustedHashes(stateDir: string): Set<string> {
 }
 
 export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
-  mkdirSync(stateDir, {recursive: true})
+  createConcivStateDir(stateDir)
   const sockets = new Map<EngineSocket, string>()
   const closeRevoked = (): void => {
     const hashes = trustedHashes(stateDir)

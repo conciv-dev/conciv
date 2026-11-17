@@ -3,7 +3,7 @@ import type {MountedSession} from '@conciv/plugin/experimental'
 import {Command, Control, Definition, Outcome, type Tab} from '@conciv/plugin-page/rpc'
 import type {PageOperations} from './operations.js'
 
-export type AttachmentOutcome = 'closed' | 'replaced' | 'unavailable' | 'unsupported'
+export type AttachmentOutcome = 'born' | 'closed' | 'replaced' | 'unavailable' | 'unsupported'
 
 export type AttachmentEnd = {readonly outcome: AttachmentOutcome; readonly attached: boolean}
 
@@ -24,8 +24,10 @@ const UNSUPPORTED: Outcome = {
     'This page does not support the requested page operation. Ask the user to reload the page so it runs the same conciv version as the engine, or use another operation.',
 }
 
-function attachmentFailure(cause: unknown): AttachmentOutcome {
+function attachmentFailure(cause: unknown): AttachmentOutcome | 'refused' {
   const type = RpcFailure.safeParse(cause).data?.type
+
+  if (type === 'unavailable') return 'refused'
 
   if (type === 'rpc.unavailable') return 'unavailable'
 
@@ -143,9 +145,13 @@ export async function openAttachment(input: {
   }
 
   const read = async (connected: PromiseWithResolvers<void>): Promise<AttachmentOutcome> => {
-    for await (const event of client.event.subscribe({types: [CONTROL], signal: ended})) {
+    for await (const event of client.event.subscribe({types: [CONTROL, 'session.created'], signal: ended})) {
       if (event.type === 'server.connected') {
         connected.resolve()
+        continue
+      }
+      if (event.type === 'session.created') {
+        if (event.data.sessionID === input.session.id) return 'born'
         continue
       }
       const header = ControlHeader.safeParse(event.data)
@@ -167,9 +173,12 @@ export async function openAttachment(input: {
     const reading = read(connected)
     const attached = connected.promise.then(() => rpc.attach({...attachment, version: 1}, options))
     const outcome = await Promise.race([attached, reading]).then(
-      (result): AttachmentOutcome => (result === 'replaced' || result === 'unsupported' ? result : 'closed'),
+      (result): AttachmentOutcome | 'refused' =>
+        result === 'replaced' || result === 'unsupported' || result === 'born' ? result : 'closed',
       attachmentFailure,
     )
+
+    if (outcome === 'refused') return {outcome: status.attached ? 'closed' : await reading, attached: status.attached}
 
     return {outcome, attached: status.attached}
   } finally {

@@ -23,6 +23,7 @@ export default defineConfig({
       '../extensions/tanstack/src/**/*.{ts,tsx}',
       '../plugins/test-runner/src/**/*.{ts,tsx}',
       '../plugins/tanstack/src/**/*.{ts,tsx}',
+      '../plugins/whiteboard/src/**/*.{ts,tsx}',
     ],
   },
 

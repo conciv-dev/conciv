@@ -3528,7 +3528,7 @@ describe('rpc wire', () => {
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
         expect(await executeResult('return 1 + 1')).toBe(2)
         expect(await executeResult('return await external_fixture_echo({text: "bound"})')).toEqual({echoed: 'bound'})
-        expect(await executeResult('return typeof external_conciv_extensions')).toBe('function')
+        expect(await executeResult('return typeof external_conciv_ui')).toBe('function')
         expect(await runTypescript('console.log("logged line"); return 5')).toMatchObject({
           result: 5,
           logs: ['logged line'],
@@ -7704,7 +7704,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id gets a new empty session while one on a deleted id is refused and nothing comes back', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7795,11 +7795,15 @@ export default {
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
     expect(await refusedAfterReload).toMatchObject({ok: false})
-    expect(await tabs('open', {sessionId: 'conciv_missing', connectionId: 'conn_x'})).toEqual({attached: true})
-    expect(await rpc.sessions.get({sessionId: SessionId.parse('conciv_missing')})).toMatchObject({
-      id: 'conciv_missing',
+    const neverSeen = SessionId.parse('conciv_missing')
+    expect(await tabs('open', {sessionId: neverSeen, connectionId: 'conn_x'})).toEqual({
+      error: `session "${neverSeen}" does not exist`,
     })
-    expect((await rpc.chat.hydrate({sessionId: SessionId.parse('conciv_missing')})).messages).toEqual([])
+    await expect(rpc.sessions.get({sessionId: neverSeen})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(neverSeen)
+    await (await sseTurn(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, neverSeen, 'born', 'hello')).text()
+    expect(await tabs('open', {sessionId: neverSeen, connectionId: 'conn_x'})).toEqual({attached: true})
+    expect(await tabs('close', {connectionId: 'conn_x'})).toEqual({closed: true})
     expect(await ask({type: 'route'})).toMatchObject({
       ok: false,
       message: expect.stringContaining('[page.disconnected]'),
@@ -8161,7 +8165,7 @@ export default {
     expect(await ending).toEqual({outcome: 'closed'})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
-      error: `Session ${session} could not be opened: it was deleted`,
+      error: `session "${session}" does not exist`,
     })
     expect(await page('sessions.attached')).not.toContain(session)
     expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(session)

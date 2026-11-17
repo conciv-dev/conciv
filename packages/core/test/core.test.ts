@@ -9,7 +9,7 @@ import {
   utimesSync,
   chmodSync,
 } from 'node:fs'
-import {spawn, type ChildProcess} from 'node:child_process'
+import {execFileSync, spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {connect, createServer, type Socket} from 'node:net'
@@ -190,7 +190,6 @@ import {
   rowById,
   setMetadata,
   setPermissions,
-  type RowScope,
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
@@ -338,9 +337,9 @@ describe('chat plane', () => {
 
     const skilled = sessionId('skills')
     const builtins = sessionId('builtins')
+    const codeless = sessionId('codeless')
     const db = openDatabase(root)
-    await ensureRow(unheardRows(db, root), skilled)
-    await ensureRow(unheardRows(db, root), builtins)
+    await bornRows(root, [skilled, builtins, codeless])
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
         Layer.provideMerge(
@@ -526,8 +525,6 @@ describe('chat plane', () => {
     expect(told.systemPrompts.at(-1)?.[0]).toMatch(listed('deploy', 'lint', 'review'))
     expect(told.asked.at(-1)).toBe('sixth')
 
-    const codeless = sessionId('codeless')
-    await ensureRow(unheardRows(db, root), codeless)
     const registry = createToolRegistry()
     const ping = defineTool({
       name: 'unit_ping',
@@ -1234,6 +1231,39 @@ describe('local state files', () => {
   })
 })
 
+describe('engine start keeps .conciv out of git', () => {
+  function untrackedStateFiles(root: string): string[] {
+    return execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {cwd: root, encoding: 'utf8'})
+      .split('\n')
+      .filter((line) => line.startsWith('?? .conciv/'))
+      .toSorted()
+  }
+
+  it('a fresh project shows only .conciv/.gitignore, then the shareable settings and harnesses.json, and a user-edited .gitignore stays byte for byte', async () => {
+    const root = tempDir('conciv-core-unit-')
+    execFileSync('git', ['init', '--quiet'], {cwd: root})
+    const engine = await bootEngine(root)
+    await engine.stop()
+    expect(untrackedStateFiles(root)).toEqual(['?? .conciv/.gitignore'])
+    mkdirSync(join(statePaths(root).dir, 'settings'), {recursive: true})
+    writeFileSync(join(statePaths(root).dir, 'settings', 'conciv.json'), '{}\n')
+    writeFileSync(join(statePaths(root).dir, 'harnesses.json'), '{"harnesses":[]}\n')
+    expect(untrackedStateFiles(root)).toEqual([
+      '?? .conciv/.gitignore',
+      '?? .conciv/harnesses.json',
+      '?? .conciv/settings/conciv.json',
+    ])
+
+    const edited = tempDir('conciv-core-unit-')
+    execFileSync('git', ['init', '--quiet'], {cwd: edited})
+    mkdirSync(statePaths(edited).dir, {recursive: true})
+    writeFileSync(join(statePaths(edited).dir, '.gitignore'), 'conciv.db\n# mine\n')
+    const second = await bootEngine(edited)
+    await second.stop()
+    expect(readFileSync(join(statePaths(edited).dir, '.gitignore'), 'utf8')).toBe('conciv.db\n# mine\n')
+  })
+})
+
 describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   it('start records the MCP endpoint a headless stdio bridge reads, the endpoint answers, and repeat opens launch the editor once', async () => {
     const root = tempDir('conciv-core-unit-')
@@ -1417,7 +1447,7 @@ describe('session metadata', () => {
     const root = tempDir('conciv-core-unit-')
     const db = openDb(root)
     const id = SessionId.parse('conciv_metadata')
-    await ensureRow(unheardRows(db, root), id)
+    await bornRows(root, [id])
     expect((await rowById(db, id))?.metadata).toBeNull()
 
     await setMetadata(db, id, {owner: 'review', tags: ['a', 'b']})
@@ -3058,8 +3088,14 @@ describe('settings storage', () => {
 
 type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
 
-function unheardRows(db: ConcivDb, cwd: string): RowScope {
-  return {db, harnessKind: 'fake-cli', cwd, publishCreated: async () => {}}
+async function bornRows(root: string, ids: readonly SessionId[]): Promise<void> {
+  const harness = createFakeHarness({id: 'fake-cli'})
+  const made = await bootMadeApp({stateRoot: root, cwd: root, harness, print: () => {}})
+  try {
+    for (const id of ids) await ensureRow(made.chat.rows, id)
+  } finally {
+    await made.dispose()
+  }
 }
 
 function sessionKey(made: MadeApp) {
@@ -3765,9 +3801,9 @@ describe('plugin host bus', () => {
         [CONCIV_CLIENT_HEADER]: 'terminal',
       },
     })
-    await expect(outsideRpc.registry.call({name: 'conciv_extensions', input: {verb: 'catalog'}})).rejects.toMatchObject(
-      {code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`},
-    )
+    await expect(
+      outsideRpc.registry.call({name: 'conciv_ui', input: {kind: 'confirm', question: 'Proceed?'}}),
+    ).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`})
     expect(publishedOutside).toEqual([])
     const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
     expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
@@ -4611,7 +4647,6 @@ describe('direct tools on the MCP surface', () => {
       .object({result: z.array(z.string())})
       .parse(JSON.parse(bindings.result.content.map((part) => part.text).join('')))
     expect(bound.result.toSorted()).toEqual([
-      'external_conciv_extensions',
       'external_conciv_ui',
       'external_open',
       'external_server_config',
@@ -4626,7 +4661,7 @@ describe('direct tools on the MCP surface', () => {
     expect(bound.result.filter((name) => name.startsWith('external_page_'))).toEqual([])
     expect(execute).not.toMatch(/^- page \(/m)
     expect(execute).toMatch(/^- server \(6 tools/m)
-    expect(execute).toMatch(/^- conciv \(2 tools/m)
+    expect(execute).toMatch(/^- conciv \(1 tool\)/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
         name: 'execute_typescript',
@@ -4748,8 +4783,7 @@ describe('plugin context keys provided by core', () => {
     const db = openDb(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
-    await ensureRow(unheardRows(db, root), id)
-    await ensureRow(unheardRows(db, root), other)
+    await bornRows(root, [id, other])
     const base: {current: string | undefined} = {current: undefined}
     const devServer = defineBundlerBridge({
       id: 'unit-bundler',

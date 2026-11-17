@@ -4,10 +4,14 @@ import {makeApp} from '@conciv/core/app'
 
 export type ClientKit = Kit & {harness: FakeHarness; gate: {hold: () => void; release: () => void}}
 
-export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): Promise<ClientKit> {
+type AppPlugins = Parameters<typeof makeApp>[0]['plugins']
+
+export async function bootClientKit(
+  opts: {extensions?: AnyExtension[]; plugins?: AppPlugins} = {},
+): Promise<ClientKit> {
   const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
   const kit = await createTestkit(harness, async (env) => {
-    const {fetch, dispose, agentToken} = await makeApp({
+    const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
       print: env.print,
       cfg: {
         enabled: true,
@@ -20,12 +24,15 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
         hubAccess: 'session',
         plugins: [],
         policies: [],
+        permissions: [],
       },
       cwd: env.cwd,
       openInEditor: () => {},
       harness: env.harness,
       extensions: opts.extensions,
+      plugins: opts.plugins,
     })
+    await awaitActivation()
     return {fetch, dispose, agentToken}
   }).setup()
   return {...kit, harness, gate: {hold: harness.script.hold, release: harness.script.release}}
