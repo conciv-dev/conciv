@@ -1,6 +1,6 @@
 import {createSignal, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
-import {Batcher} from '@tanstack/pacer'
+import {AsyncRetryer, Batcher} from '@tanstack/pacer'
 import type {Transaction} from '@tanstack/solid-db'
 import {Component, createElement, type PropsWithChildren, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
@@ -20,6 +20,8 @@ type ExportScope = 'live' | 'draft' | 'both'
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_DRAIN_TASK_MS = 0
+const PENDING_REMOVE_RETRY_MS = 100
+const PENDING_REMOVE_MAX_WAIT_MS = 10_000
 
 const isObject = (value: unknown): boolean => typeof value === 'object' && value !== null
 const sceneElement = z.custom<SceneElement>(isObject)
@@ -133,6 +135,25 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
   }
 
   const draining = new Set<string>()
+  const lifetime = new AbortController()
+  const removePending = (row: PendingRow): Promise<void | undefined> =>
+    new AsyncRetryer(
+      async () => {
+        if (db.canvasPending.has(row.id)) await db.canvasPending.delete(row.id).isPersisted.promise
+      },
+      {
+        maxAttempts: () => (lifetime.signal.aborted ? 0 : Number.POSITIVE_INFINITY),
+        backoff: 'exponential',
+        baseWait: PENDING_REMOVE_RETRY_MS,
+        maxWait: PENDING_REMOVE_MAX_WAIT_MS,
+        throwOnError: false,
+        onError: (error) => {
+          if (!lifetime.signal.aborted) {
+            console.error(`[whiteboard] removing pending ${row.kind} ${row.id} failed; retrying`, error)
+          }
+        },
+      },
+    ).execute()
   const replyDrawFailure = async (row: PendingRow, error: unknown): Promise<void> => {
     const reason = error instanceof Error ? error.message : String(error)
     await db.canvasReplies
@@ -158,7 +179,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
       console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
       await replyDrawFailure(row, error)
     } finally {
-      db.canvasPending.delete(row.id)
+      void removePending(row)
     }
   }
 
@@ -190,7 +211,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
       console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
     } finally {
       container?.removeEventListener('pointerdown', onPointerDown)
-      db.canvasPending.delete(row.id)
+      void removePending(row)
     }
   }
 
@@ -225,7 +246,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
     try {
       db.canvasReplies.insert({id: crypto.randomUUID(), room: props.room, requestId, kind: 'export', payload})
     } finally {
-      db.canvasPending.delete(row.id)
+      void removePending(row)
     }
   }
 
@@ -271,6 +292,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
     sceneSubscription.unsubscribe()
     pendingSubscription.unsubscribe()
     drainTask.clear()
+    lifetime.abort()
   })
 
   const renderExcalidraw = (): void => {
