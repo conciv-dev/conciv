@@ -9,8 +9,8 @@ The unplugin factory and its per-bundler entries. Vite gets the full hook; webpa
 - `index.ts:createConcivUnplugin(builtins = NO_BUILTINS)` - `UnpluginInstance<ConcivConfig | undefined>` named `conciv`.
 - `index.ts:unplugin` (default export) - `createConcivUnplugin()`; also re-exports `NO_BUILTINS` and `Builtins`.
 - `vite.ts` / `webpack.ts` / `rspack.ts` / `rollup.ts` / `esbuild.ts` - default export `unplugin.<bundler>`.
-- `nextjs.ts` - re-exports `withConciv`, `register`, `registerWith`, `CONCIV_DEFAULT_PORT` from `core/nextjs.ts`.
-- `nextjs-widget.ts` - client entry that starts the widget (`core/widget-start.ts`) with `Number(NEXT_PUBLIC_CONCIV_PORT)`.
+- `nextjs.ts` - re-exports `withConciv`, `register`, `CONCIV_DEFAULT_PORT` from `core/nextjs.ts`.
+- `nextjs-widget.ts` - client entry that starts the widget (`core/widget-start.ts`, which mounts it with the `@conciv/app-extensions` entries) with `Number(NEXT_PUBLIC_CONCIV_PORT)`.
 - `nextjs-edge.ts:register` - an empty edge-runtime `register`.
 - Subdirectories: [core](./core/README.md).
 
