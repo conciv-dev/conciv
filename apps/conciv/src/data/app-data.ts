@@ -105,6 +105,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     },
     onMutate: async (input) => {
       const {pending, ...row} = DraftSaveSchema.parse(input)
+      forgetDraftSaves(row.sessionId, ['error'])
       const {queryKey} = draftQuery(row.sessionId)
       await queryClient.cancelQueries({queryKey})
       const cached = queryClient.getQueryData(queryKey)
@@ -113,8 +114,9 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
         pending.length === 0 ? row : {...row, attachments: cached?.attachments ?? row.attachments},
       )
     },
-    onError: (error) => {
+    onError: (error, input) => {
       console.error('[conciv] could not save the draft', error)
+      forgetDraftSaves(input.sessionId, ['error'])
     },
     onSuccess: (answer, input) => {
       forgetDraftSaves(input.sessionId, answer === null ? ['error'] : SETTLED)
