@@ -810,7 +810,7 @@ describe('chat pane', () => {
         await expect.element(input()).toHaveTextContent('kept through every refused save')
       })
 
-      test('the unsaved notice says where the draft is kept, follows the text on screen, and Retry saves it anew', async () => {
+      test('the unsaved notice says where the draft is kept, follows the text on screen, Retry saves it anew, and a local store that would not open is no place it is kept', async () => {
         const KEPT_HERE =
           'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.'
         const ENGINE_ONLY = 'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
@@ -870,6 +870,23 @@ describe('chat pane', () => {
         await expect.element(input()).toBeVisible()
         await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
         await input().fill('refused with no local store')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
+        active.pane?.dispose()
+
+        await coreControl.openNewerDraftTab(2)
+        onTestFinished(async () => {
+          await coreControl.closeNewerDraftTab()
+          await new Promise<void>((resolve, reject) => {
+            const request = indexedDB.deleteDatabase('conciv-drafts')
+            request.addEventListener('success', () => resolve())
+            request.addEventListener('error', () => reject(request.error))
+          })
+        })
+        const unopened = await newSession()
+        mountChatPane(unopened.sessionId)
+        await expect.element(input()).toBeVisible()
+        await input().fill('refused while the local store is closed')
         await runClockPastDraftSaveRetries(unsaved)
         await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
       }, 30_000)
