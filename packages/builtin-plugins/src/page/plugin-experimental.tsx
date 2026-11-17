@@ -67,6 +67,8 @@ export default Plugin.define({
 
         if (signal.aborted) return
 
+        if (end.outcome === 'born') continue
+
         if (end.outcome === 'unsupported' || end.outcome === 'unavailable')
           return void unsupported.add(session.server.id)
 
