@@ -31,6 +31,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - The draft store lists its document keys (`DraftStore.keys`, the driver's `keys`: `getAllKeys` on `documents`, in key
   order). The source has no such call; conciv uses it once per start to remove the local drafts of sessions the engine
   no longer has (`data/app-data.ts` `forgetGoneDrafts`).
+- The draft store empties itself (`DraftStore.clear`, the driver's `clear`: one `readwrite` transaction that clears
+  `documents` and `blobs`, then the in-memory text chunk caches). The source has no such call; conciv uses it when
+  this browser stops being trusted by the engine (`data/app-data.ts` `forgetLocalDrafts`).
 - A blob put or a document removal settles when its transaction aborts (`drafts.ts` `write`, the `abort` listener,
   which rejects): an abort without an error event, such as a quota failure at commit after the request succeeded,
   left the attachment chip pending and the app's one draft write chain stalled. The source has the same gap at

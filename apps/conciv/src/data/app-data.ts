@@ -69,6 +69,7 @@ export type AppData = {
   endDraftSaves: (sessionId: string) => void
   sessionDeleted: (sessionId: string) => boolean
   forgetGoneDrafts: () => Promise<void>
+  forgetLocalDrafts: () => Promise<void>
   dispose: () => void
 }
 
@@ -181,6 +182,12 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     })
     await kept.reduce((checked, sessionId) => checked.then(() => forgetGoneDraft(sessionId)), Promise.resolve())
   }
+  const forgetLocalDrafts = async (): Promise<void> => {
+    if (!drafts) return
+    await drafts.clear().catch((error: unknown) => {
+      console.error('[conciv] could not empty the local draft store', error)
+    })
+  }
   const reading = new AbortController()
   const forgetDeletedSessions = async () => {
     for await (const event of client.event.subscribe({signal: reading.signal})) {
@@ -217,6 +224,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     saveDraft,
     endDraftSaves,
     forgetGoneDrafts,
+    forgetLocalDrafts,
     sessionDeleted: (sessionId) => queryClient.getQueryData(sessionKey(sessionId))?.hidden === true,
     dispose: () => reading.abort(),
   }

@@ -32,6 +32,7 @@ type Driver = {
   set(key: string, value: string, strict: boolean): Promise<readonly string[]>
   remove(key: string): Promise<void>
   keys(): Promise<string[]>
+  clear(): Promise<void>
   putBlob(blob: Blob): Promise<string>
   getBlob(id: string): Promise<Blob | null>
 }
@@ -40,6 +41,7 @@ export type DraftStore = AsyncStorage & {
   putBlob(blob: Blob): Promise<BlobReference>
   setDocument(key: string, document: unknown): Promise<void>
   keys(): Promise<string[]>
+  clear(): Promise<void>
 }
 const draftTextThreshold = 16 * 1024
 
@@ -398,6 +400,11 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
       dispatch({type: 'remove.committed', storeId, key, attempt, graceMs: grace})
     },
     keys: () => driver.keys(),
+    clear: async () => {
+      await driver.clear()
+      chunks.clear()
+      chunkIds.clear()
+    },
     putBlob,
   }
 }
@@ -459,17 +466,20 @@ export function createBrowserDraftStore(): DraftStore {
     })
   }
 
+  const committed = (transaction: IDBTransaction) =>
+    new Promise<void>((resolve, reject) => {
+      transaction.addEventListener('complete', () => resolve())
+      transaction.addEventListener('error', () => reject(transaction.error))
+      transaction.addEventListener('abort', () => reject(transaction.error))
+    })
+
   const write = async (store: string, key: string, value?: unknown) => {
     const transaction = (await db).transaction(store, 'readwrite')
 
     if (value === undefined) transaction.objectStore(store).delete(key)
     else transaction.objectStore(store).put(value, key)
 
-    return new Promise<void>((resolve, reject) => {
-      transaction.addEventListener('complete', () => resolve())
-      transaction.addEventListener('error', () => reject(transaction.error))
-      transaction.addEventListener('abort', () => reject(transaction.error))
-    })
+    return committed(transaction)
   }
 
   return createDraftStore({
@@ -504,6 +514,13 @@ export function createBrowserDraftStore(): DraftStore {
       })
     },
     remove: (key) => write('documents', key),
+    clear: async () => {
+      const transaction = (await db).transaction(['blobs', 'documents'], 'readwrite')
+      transaction.objectStore('documents').clear()
+      transaction.objectStore('blobs').clear()
+
+      return committed(transaction)
+    },
     keys: async () => {
       const request = (await db).transaction('documents').objectStore('documents').getAllKeys()
       return new Promise<string[]>((resolve, reject) => {
