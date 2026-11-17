@@ -6719,6 +6719,7 @@ export default {
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
       'broken',
+      'conciv.config.agent',
       'conciv.config.skill',
       'conciv.page',
       'conciv.skill',
