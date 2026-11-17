@@ -1,4 +1,4 @@
-import {onCleanup, type JSX} from 'solid-js'
+import {onCleanup, Show, type JSX} from 'solid-js'
 import {File, type FileContents, type FileOptions} from '@pierre/diffs'
 import {syncRender} from './render-sync.js'
 import {highlightWorkerPool} from './worker-pool.js'
@@ -8,6 +8,7 @@ export type SolidCodeBlockProps = {
   options?: FileOptions<undefined, undefined>
   class?: string
   style?: JSX.CSSProperties
+  headerMetadata?: JSX.Element
 }
 
 export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
@@ -28,5 +29,11 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
     })
   }
 
-  return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
+  return (
+    <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style}>
+      <Show when={props.headerMetadata}>
+        <div slot="header-metadata">{props.headerMetadata}</div>
+      </Show>
+    </diffs-container>
+  )
 }

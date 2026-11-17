@@ -36,8 +36,9 @@ export function TraceClamp(props: {
   live?: boolean
   size?: TraceClampSize
   overflowLabel?: (hiddenLines: number) => string
+  footerClass?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['children', 'lines', 'live', 'size', 'overflowLabel'])
+  const [local] = splitProps(props, ['children', 'lines', 'live', 'size', 'overflowLabel', 'footerClass'])
   const [expanded, setExpanded] = createSignal(false)
   const [measured, setMeasured] = createStore<ClampMeasure>({
     viewportHeight: 0,
@@ -72,7 +73,7 @@ export function TraceClamp(props: {
         {overflowing() ? <span aria-hidden="true" class={local.live === true ? FADE_TOP : FADE_BOTTOM} /> : undefined}
       </div>
       {overflowing() || expanded() ? (
-        <div class={FOOTER}>
+        <div class={`${FOOTER}  ${local.footerClass ?? ''}`}>
           <Button
             variant="plain"
             size="none"

@@ -33,6 +33,36 @@ describe('code block streaming growth', () => {
   })
 })
 
+describe('code block actions', () => {
+  const SOURCE = ['const total = 1', 'const doubled = total * 2', 'export {doubled}'].join('\n')
+  const LOG_LINES = Array.from({length: 24}, (_, index) => `[build] step ${index} finished`)
+
+  it('copies a file block from its header, then expands a clipped log to show its hidden lines', async () => {
+    mountView(() => (
+      <>
+        <CodeBlock chrome="file" file={{name: 'pipeline.ts', lang: 'ts', contents: SOURCE}} />
+        <CodeBlock file={{name: 'build.log', lang: 'log', contents: LOG_LINES.join('\n')}} />
+      </>
+    ))
+    const fileBlock = page.getByRole('group', {name: 'pipeline.ts'})
+    const lastLine = page.getByText(LOG_LINES.at(-1) ?? '', {exact: true})
+
+    await fileBlock.getByRole('button', {name: 'Copy'}).click()
+
+    await expect.element(fileBlock.getByRole('status')).toHaveTextContent('Copied to clipboard')
+    expect(await navigator.clipboard.readText()).toBe(SOURCE)
+
+    await expect.element(lastLine).not.toBeInViewport()
+    await page
+      .getByRole('group', {name: 'build.log'})
+      .getByRole('button', {name: /more lines/})
+      .click()
+
+    await expect.element(lastLine).toBeInViewport()
+    await expect.element(page.getByRole('button', {name: 'show less'})).toHaveAttribute('aria-expanded', 'true')
+  })
+})
+
 describe('markdown code highlight', () => {
   const FENCE = ['```ts', 'const total = 1', '```'].join('\n')
 
