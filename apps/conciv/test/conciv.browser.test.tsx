@@ -890,6 +890,25 @@ describe('chat pane', () => {
         await runClockPastDraftSaveRetries(unsaved)
         await expect.element(unsaved.getByText(ENGINE_ONLY)).toBeVisible()
       }, 30_000)
+
+      test('the unsaved notice appears without moving the last message out of view', async () => {
+        const CLOSING = 'the closing line of a long answer'
+        const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+        const {sessionId} = await newSession()
+        shell.mountShell(`/panel/${sessionId}?open=true`)
+        await expect.element(input()).toBeVisible()
+        const paragraphs = Array.from({length: 30}, (_, index) => `paragraph ${index + 1} of a long answer`)
+        await coreControl.scriptTurn({toolCalls: [], text: [...paragraphs, CLOSING].join('\n\n')})
+        await input().fill('ask for a long answer')
+        await userEvent.keyboard('{Enter}')
+        await expect.element(page.getByText(CLOSING)).toBeInViewport({ratio: 1})
+        await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
+
+        await input().fill('typed while the engine refuses')
+        await runClockPastDraftSaveRetries(unsaved)
+        await expect.element(page.getByText(CLOSING)).toBeInViewport({ratio: 1})
+        await expect.element(input()).toBeInViewport({ratio: 1})
+      }, 30_000)
     })
 
     test('a save that failed for good keeps the typed text across a view switch, and Retry saves what is on screen', async () => {
