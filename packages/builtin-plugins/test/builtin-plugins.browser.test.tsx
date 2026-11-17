@@ -1106,18 +1106,19 @@ describe('page effects', () => {
     await userEvent.keyboard('{/Alt}')
   })
 
-  it('holding Alt over conciv’s own interface picks nothing there, while a page element under the pointer is picked', async () => {
+  it('holding Alt over conciv’s own interface picks the page element under it, never conciv’s own', async () => {
     const highlight = makeHighlight({open: async () => 'no-source', toast: () => {}})
     const layer = document.createElement('div')
     layer.setAttribute(PLUGIN_OVERLAY_ATTR, '')
     const surface = document.createElement('div')
     surface.setAttribute(EFFECTS_SURFACE_ATTR, '')
-    surface.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:2147483000'
+    surface.style.cssText = 'position:fixed;top:64px;left:32px;z-index:2147483000'
     const effect = document.createElement('strong')
     effect.textContent = 'conciv effect'
     surface.append(effect)
     const heading = document.createElement('h1')
     heading.textContent = 'Page heading'
+    heading.style.cssText = 'position:fixed;top:0;left:0;margin:0;width:320px;height:160px'
     document.body.append(layer, heading, surface)
     const dispose = highlight.mount(layer)
     onTestFinished(() => {
@@ -1131,9 +1132,8 @@ describe('page effects', () => {
     await userEvent.keyboard('{Alt>}')
     await expect.element(hint).toBeVisible()
     await userEvent.hover(page.getByText('conciv effect'), {force: true})
-    await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
-    await userEvent.hover(page.getByRole('heading', {name: 'Page heading'}), {force: true})
     await expect.element(page.getByText('<h1>', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
     await userEvent.keyboard('{/Alt}')
     await expect.element(hint).not.toBeInTheDocument()
   })
