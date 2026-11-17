@@ -1,7 +1,7 @@
-import {Show, onCleanup, type JSX} from 'solid-js'
+import {Show, createMemo, onCleanup, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {getKeyStateTracker} from '@tanstack/hotkeys'
+import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {render} from 'solid-js/web'
 import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
@@ -18,7 +18,7 @@ export type HighlightOptions = {
 
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
 
-type AltHold = 'released' | 'inspecting' | 'ignored'
+type AltPress = {id: symbol; whileEditing: boolean}
 
 const SRC_SELECTOR = '[data-tsd-source]'
 const GLIDE = 'transition-transform duration-[80ms] ease-chat'
@@ -47,11 +47,6 @@ const isEditing = (): boolean => {
   const element = document.activeElement
   if (!(element instanceof HTMLElement)) return false
   return element.isContentEditable || element.tagName === 'INPUT' || element.tagName === 'TEXTAREA'
-}
-
-function followAltHold(onChange: (down: boolean) => void): void {
-  const subscription = getKeyStateTracker().store.subscribe((state) => onChange(state.heldKeys.includes('Alt')))
-  onCleanup(() => subscription.unsubscribe())
 }
 
 function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX.Element {
@@ -141,20 +136,25 @@ export function makeHighlight(options: HighlightOptions): {
   effect: PageEffect
   mount: (element: HTMLElement) => () => void
 } {
-  const [state, setState] = createStore<{driven: boolean; alt: AltHold}>({driven: false, alt: 'released'})
-
-  const setAltHold = (down: boolean) => {
-    if (!down) return setState('alt', 'released')
-    if (state.alt === 'released') setState('alt', isEditing() ? 'ignored' : 'inspecting')
-  }
-
-  const exit = () => setState({driven: false, alt: state.alt === 'released' ? 'released' : 'ignored'})
+  const [state, setState] = createStore<{driven: boolean; exitedPress: symbol | null}>({
+    driven: false,
+    exitedPress: null,
+  })
 
   const HighlightLayer = (): JSX.Element => {
-    followAltHold(setAltHold)
+    const altHeld = createKeyHold('Alt')
+    const press = createMemo<AltPress | undefined>((previous) => {
+      if (!altHeld()) return undefined
+      return previous ?? {id: Symbol('alt press'), whileEditing: untrack(isEditing)}
+    }, undefined)
+    const inspecting = createMemo(() => {
+      const current = press()
+      return current !== undefined && !current.whileEditing && state.exitedPress !== current.id
+    })
+    const exit = () => setState({driven: false, exitedPress: press()?.id ?? null})
 
     return (
-      <Show when={state.driven || state.alt === 'inspecting'}>
+      <Show when={state.driven || inspecting()}>
         <HighlightInspector open={options.open} toast={options.toast} onExit={exit} />
       </Show>
     )

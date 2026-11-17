@@ -32,6 +32,7 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/map": "catalog:",
     "@tanstack/hotkeys": "catalog:",
+    "@tanstack/solid-hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",

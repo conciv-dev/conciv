@@ -2313,6 +2313,9 @@ importers:
       '@tanstack/hotkeys':
         specifier: 'catalog:'
         version: 0.18.0
+      '@tanstack/solid-hotkeys':
+        specifier: 'catalog:'
+        version: 0.17.0(solid-js@1.9.17)
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
