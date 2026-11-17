@@ -15,7 +15,7 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
-import {isEqual, takeRightWhile} from 'es-toolkit'
+import {isEqual, sumBy, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import {z} from 'zod'
@@ -140,6 +140,10 @@ function promptLabel(turn: Turn): string {
   const excerpt = promptExcerpt(turn)
   if (excerpt) return `You: ${excerpt}`
   const attachments = shownAttachmentParts(turn.parts)
+  const notes = sentNoteCount(turn)
+  if (attachments.length === 0 && notes > 0) {
+    return `You: ${notes} ${COUNT_PLURALS.select(notes) === 'one' ? 'note' : 'notes'}`
+  }
   if (attachments.length === 1 && attachments[0]?.type === 'image') return 'You: image'
   const noun = COUNT_PLURALS.select(attachments.length) === 'one' ? 'attachment' : 'attachments'
   return `You: ${attachments.length} ${noun}`
@@ -415,6 +419,12 @@ function AssistantTurn(props: {
 
 const PromptDisplaySchema = z.object({displayText: z.string()})
 
+const SentNotesSchema = z.object({comments: z.array(z.unknown())})
+
+function sentNoteCount(turn: Turn): number {
+  return sumBy(turn.messages, (message) => SentNotesSchema.safeParse(message.metadata).data?.comments.length ?? 0)
+}
+
 function messagePromptText(message: ChatMessage): string[] {
   const display = PromptDisplaySchema.safeParse(message.metadata)
   if (display.success) return display.data.displayText.trim() ? [display.data.displayText] : []
@@ -435,20 +445,16 @@ function UserTurn(): JSX.Element {
   const message = useMessage()
   const AttachmentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
   const promptText = createMemo(() => collectPromptText(message.message()))
-  const shown = createMemo(() => promptText().length > 0 || shownAttachmentParts(message.message().parts).length > 0)
+  const noteCount = createMemo(() => sentNoteCount(message.message()))
+  const shown = createMemo(
+    () => promptText().length > 0 || shownAttachmentParts(message.message().parts).length > 0 || noteCount() > 0,
+  )
   const label = createMemo(() => promptLabel(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
     <TurnFrame>
       <TurnPrefix />
-      <Show
-        when={shown()}
-        fallback={
-          <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
-            <PromptSuffix besideText={false} />
-          </div>
-        }
-      >
+      <Show when={shown()}>
         <Message.Root role="article" aria-label={label()} class={USER_ROOT_CLASS}>
           <Message.If hasAttachments>
             <div class="flex flex-wrap gap-1 self-end">
@@ -458,9 +464,21 @@ function UserTurn(): JSX.Element {
           <Show
             when={promptText()}
             fallback={
-              <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
-                <PromptSuffix besideText={false} />
-              </div>
+              <Show
+                when={noteCount() > 0}
+                fallback={
+                  <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
+                    <PromptSuffix besideText={false} />
+                  </div>
+                }
+              >
+                <div class={`${PROMPT_ROOT_CLASS}  ${TURN_INDENT_CLASS}`}>
+                  <div class={PROMPT_BODY_CLASS}>
+                    <PromptSuffix besideText={false} />
+                  </div>
+                  <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+                </div>
+              </Show>
             }
           >
             <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
