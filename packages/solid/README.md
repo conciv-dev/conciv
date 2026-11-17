@@ -22,7 +22,7 @@ Props (all optional): `extensions` (conciv extensions to load: an array, or a `(
 In SSR setups (SolidStart), pass `extensions` as a loader with a dynamic import; extension client modules are browser code and must not be imported during the server render:
 
 ```tsx
-const extensions = () => import('./conciv-extensions').then((mod) => mod.extensions)
+const extensions = () => import('@conciv/extension-tanstack/client').then((mod) => [mod.default])
 
 <ConcivWidget extensions={extensions} />
 ```
