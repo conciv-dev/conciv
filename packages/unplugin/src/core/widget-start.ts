@@ -15,9 +15,10 @@ function startWhenReady(): void {
   mountWidget().catch((error) => console.error('[conciv] widget failed to start', error))
 }
 
-export function startConcivWidget(apiBase: string): void {
+export function startConcivWidget(port: number): void {
   if (typeof window === 'undefined' || process.env.NODE_ENV === 'production') return
-  window.__CONCIV_API_BASE__ = apiBase
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return
+  window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
   if (document.readyState !== 'loading') return startWhenReady()
   document.addEventListener('DOMContentLoaded', startWhenReady, {once: true})
 }
