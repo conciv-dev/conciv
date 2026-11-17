@@ -5,12 +5,7 @@ import {createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
-import {
-  INERT_TOOL_CATALOG,
-  type ToolCardProps,
-  type ToolViewCtx,
-  type ToolViewMeta,
-} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ActCard} from '../src/page/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
 import {ReactCard} from '../src/page/cards/react-card.js'
@@ -46,6 +41,7 @@ import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
 import type {Registry} from '@conciv/plugin/experimental'
 import {tanstackCards} from '../src/tanstack/cards.js'
+import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -2360,6 +2356,7 @@ describe('the tanstack cards', () => {
   type Tool = keyof typeof tanstackCards
   type Case = {
     tool: Tool
+    title: string
     input?: Record<string, unknown>
     output: unknown
     summary: string
@@ -2372,7 +2369,7 @@ describe('the tanstack cards', () => {
     harnessId: 'claude',
     sendMessage: () => {},
     addResult: () => Promise.resolve(),
-    catalog: INERT_TOOL_CATALOG,
+    catalog: {loaded: () => true, meta: builtinToolMeta},
   }
 
   const failure = 'tab_unavailable: no TanStack page is attached to this session'
@@ -2400,12 +2397,14 @@ describe('the tanstack cards', () => {
   const cases: ReadonlyArray<Case> = [
     {
       tool: 'tanstack_router_state',
+      title: 'Read the router state',
       output: routerState,
       summary: '/about · 2 matches',
       detail: '/about?token=%5Bredacted%5D',
     },
     {
       tool: 'tanstack_route_tree',
+      title: 'Read the route tree',
       output: {
         ...routeNode('__root__', 'layout', false),
         children: [routeNode('/', 'index', false), routeNode('/about', 'static', true)],
@@ -2415,6 +2414,7 @@ describe('the tanstack cards', () => {
     },
     {
       tool: 'tanstack_loader_data',
+      title: 'Read the loader data',
       output: {routeId: '/about', data: {greeting: 'hello', visits: 42}},
       summary: '2 keys · /about',
       detail: 'greeting',
@@ -2422,6 +2422,7 @@ describe('the tanstack cards', () => {
     },
     {
       tool: 'tanstack_query_cache',
+      title: 'Read the query cache',
       output: {
         queries: [
           {
@@ -2443,16 +2444,30 @@ describe('the tanstack cards', () => {
     },
     {
       tool: 'tanstack_query_invalidate',
+      title: 'Invalidated a query',
       input: {key: '["todos"]'},
       output: {ok: true},
       summary: 'invalidated ["todos"]',
     },
-    {tool: 'tanstack_query_refetch', input: {key: '["todos"]'}, output: {ok: true}, summary: 'refetched ["todos"]'},
-    {tool: 'tanstack_navigate', input: {to: '/about'}, output: {ok: true, to: '/about'}, summary: '→ /about'},
-    {tool: 'tanstack_router_invalidate', output: {ok: true}, summary: 'invalidated'},
-    {tool: 'tanstack_back', output: {ok: true}, summary: 'went back'},
+    {
+      tool: 'tanstack_query_refetch',
+      title: 'Refetched a query',
+      input: {key: '["todos"]'},
+      output: {ok: true},
+      summary: 'refetched ["todos"]',
+    },
+    {
+      tool: 'tanstack_navigate',
+      title: 'Navigated',
+      input: {to: '/about'},
+      output: {ok: true, to: '/about'},
+      summary: '→ /about',
+    },
+    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, summary: 'invalidated'},
+    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, summary: 'went back'},
     {
       tool: 'tanstack_build_errors',
+      title: 'Read the build errors',
       output: [
         {
           id: 'build-1',
@@ -2469,6 +2484,7 @@ describe('the tanstack cards', () => {
     },
     {
       tool: 'tanstack_route_manifest',
+      title: 'Read the route manifest',
       output: [
         {path: '/', kind: 'page', dynamic: false, file: 'src/routes/index.tsx'},
         {path: '/posts/$id', kind: 'page', dynamic: true, file: 'src/routes/posts.$id.tsx'},
@@ -2478,6 +2494,7 @@ describe('the tanstack cards', () => {
     },
     {
       tool: 'tanstack_server_fn_trace',
+      title: 'Read the server-function calls',
       output: {
         traces: [{id: 'posts-fn', name: 'getPosts', durationMs: 12, status: 'ok', at: 1}],
         functions: [{id: 'posts-fn', name: 'getPosts', route: '/posts', file: 'src/server/posts.ts'}],
@@ -2509,7 +2526,7 @@ describe('the tanstack cards', () => {
     return setProps
   }
 
-  const header = (tool: Tool) => page.getByRole('button', {name: new RegExp(tool)})
+  const header = (title: string) => page.getByRole('button', {name: new RegExp(title)})
   const exactText = (text: string) => page.getByText(text, {exact: true})
 
   it("draws each tool's card on success, the error state, and the running row before the card", async () => {
@@ -2517,8 +2534,9 @@ describe('the tanstack cards', () => {
     for (const call of cases) {
       mountCard(call.tool, call.input ?? {}, resultPart(call.tool, JSON.stringify(call.output), 'complete'))
       await expect.element(exactText(call.summary)).toBeVisible()
+      await expect.element(header(call.title)).toBeVisible()
       if (call.detail !== undefined) {
-        await header(call.tool).click()
+        await header(call.title).click()
         await expect.element(exactText(call.detail)).toBeVisible()
       }
       if (call.single !== undefined) await expect.element(exactText(call.single)).toBeVisible()
@@ -2547,13 +2565,13 @@ describe('the tanstack cards', () => {
 
     mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
     await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
-    await header('tanstack_router_state').click()
+    await header('Read the router state').click()
     await expect.element(page.getByText(failure)).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
     cleanup()
 
     const finish = mountCard('tanstack_router_state', {}, undefined)
-    await expect.element(header('tanstack_router_state')).toBeVisible()
+    await expect.element(header('Reading the router state')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
     finish('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
