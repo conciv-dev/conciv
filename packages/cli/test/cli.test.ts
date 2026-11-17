@@ -1921,7 +1921,9 @@ describe('cli', () => {
             error: {
               kind: 'user',
               code: 'NO_PAGE_CLIENT',
-              message: expect.stringContaining('page_snapshot: no widget connected to session'),
+              message: expect.stringContaining(
+                'page_snapshot: the page is showing another session; switch back to this session to use page tools',
+              ),
             },
           },
         })

@@ -1718,7 +1718,11 @@ test.describe('page dispatch parity', () => {
         code: 1,
         document: {
           ok: false,
-          error: {kind: 'user', code: 'NO_PAGE_CLIENT', message: 'page_eval: no widget connected to session'},
+          error: {
+            kind: 'user',
+            code: 'NO_PAGE_CLIENT',
+            message: 'page_eval: the page is showing another session; switch back to this session to use page tools',
+          },
         },
       })
     })
