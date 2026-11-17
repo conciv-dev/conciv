@@ -19,7 +19,14 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
 
   const clearDeletedDraft = () =>
     appData
-      .saveDraft({sessionId: props.sessionId, text: '', selectionStart: 0, selectionEnd: 0, attachments: []})
+      .saveDraft({
+        sessionId: props.sessionId,
+        text: '',
+        selectionStart: 0,
+        selectionEnd: 0,
+        attachments: [],
+        updatedAt: Date.now(),
+      })
       .catch(() => undefined)
 
   const logMoveFailure = <T,>(work: Promise<T>): Promise<T> =>

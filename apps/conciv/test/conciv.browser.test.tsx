@@ -5402,6 +5402,33 @@ describe('a deleted session', () => {
     expect(harness.href()).not.toContain(deletedId)
   }, 40_000)
 
+  test('text kept only in this browser moves with New session, and the deleted session keeps no local copy', async () => {
+    const KEPT = 'kept only in this browser'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    const refusal = await faults.install({kind: 'fail', path: ['drafts', 'set']})
+
+    await userEvent.click(editor())
+    await userEvent.keyboard(KEPT)
+    await coreControl.awaitFaultAnswered(refusal)
+    await expect.poll(() => readLocalCopy(deletedId)).toContain(KEPT)
+    harness.dispose()
+    expect(await rpc.drafts.get({sessionId: deletedId})).toBeNull()
+    await rpc.sessions.delete({sessionId: deletedId})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+    await userEvent.click(newSessionButton())
+
+    await expect.element(editor().getByText(KEPT), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    expect(await readLocalCopy(deletedId)).toBeNull()
+  }, 40_000)
+
   test('compacting a session deleted elsewhere and compacting an id no session ever had both say the session no longer exists', async () => {
     const NO_LONGER_EXISTS = 'This session no longer exists.'
     const OLD_DELETED_SENTENCE = 'This session was deleted, so it cannot be compacted.'
