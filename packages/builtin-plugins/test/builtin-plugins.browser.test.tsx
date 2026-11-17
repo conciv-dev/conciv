@@ -2461,7 +2461,7 @@ describe('the tanstack cards', () => {
       title: 'Navigated',
       input: {to: '/about'},
       output: {ok: true, to: '/about'},
-      summary: '→ /about',
+      summary: '/about',
     },
     {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, summary: 'invalidated'},
     {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, summary: 'went back'},

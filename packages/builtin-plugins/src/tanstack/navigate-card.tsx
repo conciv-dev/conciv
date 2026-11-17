@@ -12,10 +12,7 @@ function navigatedTo(result: ToolCardProps['result']): string | undefined {
 }
 
 function NavigateCard(props: ToolCardProps): JSX.Element {
-  const summary = () => {
-    const to = navigatedTo(props.result)
-    return to === undefined ? '' : `→ ${to}`
-  }
+  const summary = () => navigatedTo(props.result) ?? ''
   return <InspectionCard {...props} summary={summary()} />
 }
 
