@@ -1454,8 +1454,12 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor, and two clicks on the page stop the agent', async () => {
       await expectClickDispatched(kit, page)
+      const agentMask = page.getByRole('status', {name: 'Agent is using this page'})
+      await agentMask.click()
+      await agentMask.click()
+      await expect(agentMask).toBeHidden()
     })
 
     test('page reload: a page_reload run from the chat resolves on initiation and the page really reloads', async () => {
