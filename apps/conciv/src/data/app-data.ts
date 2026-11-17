@@ -194,9 +194,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
       const sessionId = event.data.sessionID
       queryClient.setQueryData(sessionKey(sessionId), (meta) => meta && {...meta, hidden: true})
       endDraftSaves(sessionId)
-      await drafts?.removeItem(sessionId).catch((error: unknown) => {
-        console.error('[conciv] could not remove the local draft of a deleted session', error)
-      })
       queryClient.setQueriesData<SessionPage>({queryKey: utils.sessions.list.key({type: 'query'})}, (data) =>
         data ? withoutSessionOnPage(data, sessionId) : data,
       )
