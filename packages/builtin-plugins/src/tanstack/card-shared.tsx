@@ -104,7 +104,7 @@ export function ErrorRecord(props: {heading?: string; body: string}): JSX.Elemen
 }
 
 export function InspectionCard(
-  props: ToolCardProps & {summary: string; failed?: boolean; children: JSX.Element},
+  props: ToolCardProps & {summary: string; failed?: boolean; children?: JSX.Element},
 ): JSX.Element {
   const [local, card] = splitProps(props, ['summary', 'failed', 'children'])
   const {meta, title} = cardHeader(card)
@@ -124,26 +124,6 @@ export function InspectionCard(
     >
       <Show when={error()}>{(message) => <ErrorBlock message={message()} outcome={card.result?.outcome} />}</Show>
       <Show when={!error() && !running()}>{local.children}</Show>
-    </CardShell>
-  )
-}
-
-export function ActionCard(props: ToolCardProps & {summary: string}): JSX.Element {
-  const [local, card] = splitProps(props, ['summary'])
-  const {meta, title} = cardHeader(card)
-  const error = () => readError(card.result)
-  const running = () => isRunning(card.part, card.result)
-  const subtitle = () => (error() || running() ? undefined : local.summary)
-  return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      subtitle={subtitle()}
-      part={card.part}
-      result={card.result}
-      durationMs={card.durationMs}
-    >
-      <Show when={error()}>{(message) => <ErrorBlock message={message()} outcome={card.result?.outcome} />}</Show>
     </CardShell>
   )
 }

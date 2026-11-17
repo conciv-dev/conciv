@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseInput} from '@conciv/ui-kit-chat/tools'
-import {ActionCard, actionCardBody, resultOk} from './card-shared.js'
+import {InspectionCard, actionCardBody, resultOk} from './card-shared.js'
 
 const KeyInputSchema = z.object({key: z.string()})
 
@@ -12,7 +12,7 @@ function QueryInvalidateCard(props: ToolCardProps): JSX.Element {
     const input = parseInput(KeyInputSchema, props.part)
     return `invalidated ${input?.key ?? ''}`.trimEnd()
   }
-  return <ActionCard {...props} summary={summary()} />
+  return <InspectionCard {...props} summary={summary()} />
 }
 
 export const queryInvalidateCard: ToolCardView = {

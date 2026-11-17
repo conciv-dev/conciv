@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {ActionCard, actionCardBody} from './card-shared.js'
+import {InspectionCard, actionCardBody} from './card-shared.js'
 
 const NavigateResultSchema = z.object({to: z.string()}).loose()
 
@@ -16,7 +16,7 @@ function NavigateCard(props: ToolCardProps): JSX.Element {
     const to = navigatedTo(props.result)
     return to === undefined ? '' : `→ ${to}`
   }
-  return <ActionCard {...props} summary={summary()} />
+  return <InspectionCard {...props} summary={summary()} />
 }
 
 export const navigateCard: ToolCardView = {
