@@ -61,6 +61,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       const rectangleTool = page.getByRole('radio', {name: /Rectangle/})
       await expect(rectangleTool).toBeVisible({timeout: 60_000})
 
+      await page.mouse.click(120, 640)
       await page.keyboard.press('r')
       await expect(rectangleTool).toBeChecked()
       const drawn = observer.mark()
