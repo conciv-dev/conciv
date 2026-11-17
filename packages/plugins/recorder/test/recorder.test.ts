@@ -765,7 +765,7 @@ const RELOAD_MARKER = `export default {id: 'reload-marker', async setup() {}}\n`
 const MARKER_FILE = 'conciv/plugins/before-recorder/index.ts'
 
 function useSweepClock(): void {
-  vi.useFakeTimers({toFake: ['setInterval', 'clearInterval', 'Date']})
+  vi.useFakeTimers({toFake: ['setInterval', 'clearInterval', 'Date'], shouldAdvanceTime: true})
   onTestFinished(() => {
     vi.useRealTimers()
   })
