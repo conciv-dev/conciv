@@ -2,7 +2,7 @@
 
 The conciv whiteboard plugin. Its engine part keeps a canvas the user and the agent share, with source-anchored
 comments and pins, in the plugin's own libSQL database, and offers it to the agent and over the plugin's RPC. Its
-browser part is empty for now.
+browser part opens the Excalidraw canvas from the "Whiteboard" pill above the composer.
 
 Internal until the canvas ships in the widget: the package is private and not published. Until then, the old
 `@conciv/extension-whiteboard` is the whiteboard users have, and the two cannot run together (with the extension
@@ -12,15 +12,19 @@ What enabling it gives today:
 
 - 22 tools under the `whiteboard` namespace, in code mode as `external_whiteboard_*`: comments, pins, anchors,
   `element_reference`, and the canvas tools.
-- The `whiteboard` plugin RPC: the table and element methods, `since` for the changes after a cursor, and a `changed`
-  event that carries ids and a cursor only.
+- The `whiteboard` plugin RPC: the table and element methods, `<table>.get` and `elements.get` to read one row by id,
+  `since` for the changes after a cursor, and a `changed` event that carries ids and a cursor only.
 - The `whiteboard` skill, which guides the agent through the tools.
 - When a turn finishes, a draft left on the canvas is handed to the canvas to commit.
+- The canvas: the "Whiteboard" pill opens Excalidraw over the page, with the chat still usable above it; Escape
+  closes it. The open canvas converts what the agent draws (`canvas_draw`, `canvas_svg`, `canvas_diagram`,
+  `canvas_connect`), replays a commit onto the shared canvas and renders PNG exports. Every open tab follows the
+  board through the `changed` event, fetching each changed row by id, and catches up through `since` after a
+  reconnect.
 
-What it does not give yet: a canvas in the widget. Drawing (`canvas_draw`, `canvas_svg`, `canvas_diagram`,
-`canvas_connect`) is converted by an open canvas, so with none taking the plugin's work it answers `NO_CANVAS` after
-8 seconds and draws nothing. A PNG export answers `EXPORT_TIMEOUT` for the same reason. Comments, pins, anchors, reading
-the canvas, its JSON export and the edits that change stored elements directly work without a canvas.
+What it does not give yet: comments, pins, threads, the inbox, cursors and the "Comment on an element" pill in the
+widget. With no canvas open, drawing answers `NO_CANVAS` after 8 seconds and a PNG export answers `EXPORT_TIMEOUT`.
+Excalidraw loads its fonts from esm.sh, as the old whiteboard does.
 
 ```ts
 plugins: ['@conciv/plugin-whiteboard']
