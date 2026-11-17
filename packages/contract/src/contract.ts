@@ -408,7 +408,10 @@ export const contract = {
       })
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
-    compact: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
+    compact: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(Ok),
     switchHarness: oc
       .errors({
         ...notFound,

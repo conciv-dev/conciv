@@ -80,6 +80,7 @@ import {
   idleFailedEvent,
   readApprovalAsk,
   readApprovalSettled,
+  SESSION_DELETED_CODE,
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
@@ -88,6 +89,8 @@ import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
   CHAT_WS_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   HarnessSessionId,
   SessionId,
@@ -204,7 +207,7 @@ import {
   pluginInstructions,
   sessionToolDomain,
 } from '../src/runtime/permission-cards.js'
-import {bootMadeApp, makeChatFixture, requireClaude} from './helpers.js'
+import {bootMadeApp, makeChatFixture, requireClaude, requireTranscriptPath} from './helpers.js'
 
 const NO_CAPABILITIES = {
   resume: false,
@@ -866,7 +869,7 @@ describe('chat plane', () => {
 
   function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind}),
+      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -3435,6 +3438,172 @@ describe('plugin host bus', () => {
       {sessionId: running, what: 'session.deleted with no run'},
       {sessionId: queueing, what: 'session.deleted with no run'},
     ])
+
+    const refused = await created()
+    await kit.rpc.sessions.delete({sessionId: refused})
+    const publishedToRefused: ChatEvent[] = []
+    onTestFinished(made.runtime.forSession(refused).stream.listen((chunk) => void publishedToRefused.push(chunk)))
+    const beforeRefusal = await made.plane.hydrate(refused)
+    const refusedTurn = await kit.turn('sent to a deleted session', {session: refused, runId: 'refused-run'})
+    const refusedEvents = await refusedTurn.done()
+    expect(refusedEvents.errors()).toHaveLength(1)
+    expect(
+      refusedEvents.all.flatMap((chunk) =>
+        chunk.type === ChatEventType.RUN_ERROR ? [{message: chunk.message, code: chunk.code}] : [],
+      ),
+    ).toEqual([{message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE}])
+    const sseRefusal = await kit.post(
+      CHAT_SSE_PATH,
+      {
+        threadId: refused,
+        runId: 'refused-sse-run',
+        messages: [{id: 'refused-sse-user', role: 'user', content: 'sent over SSE to a deleted session'}],
+        tools: [],
+        context: [],
+      },
+      refused,
+    )
+    const sseFrame = z.object({
+      type: z.string(),
+      name: z.string().optional(),
+      message: z.string().optional(),
+      code: z.string().optional(),
+    })
+    const sseFrames = (await sseRefusal.text())
+      .split('\n')
+      .flatMap((line) => (line.startsWith('data: ') ? [sseFrame.parse(JSON.parse(line.slice('data: '.length)))] : []))
+    expect(sseFrames).toEqual([
+      {type: ChatEventType.CUSTOM, name: 'run.accepted'},
+      {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    expect(await made.plane.followUp(refused, 'a page queue result after the delete')).toEqual({
+      kind: 'failed',
+      error: `session "${refused}" does not exist`,
+    })
+    const markersBeforeCompact = await kit.rpc.markers.list({sessionId: refused})
+    await expect(made.plane.compact(refused)).rejects.toThrow(`session "${refused}" does not exist`)
+    await expect(made.plane.compact(refused)).rejects.toMatchObject({code: SESSION_DELETED_CODE})
+    await expect(kit.rpc.sessions.compact({sessionId: refused})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
+    expect(
+      await made.plane.admitCall(refused, {
+        toolName: 'an outside call',
+        input: {},
+        publish: made.runtime.forSession(refused).stream.publish,
+        until: AbortSignal.abort(),
+      }),
+    ).toEqual({reason: 'missing', message: `session "${refused}" does not exist`})
+    expect(publishedToRefused).toEqual([])
+    expect(heardBy(refused)).toEqual(['session.deleted with no run'])
+    const afterRefusal = await made.plane.hydrate(refused)
+    expect([afterRefusal.messages, afterRefusal.lastRun]).toEqual([beforeRefusal.messages, beforeRefusal.lastRun])
+
+    const resent = await created()
+    const keptTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'kept-run',
+      messageId: 'kept-message',
+    })
+    expect((await keptTurn.done()).errors()).toEqual([])
+    await kit.rpc.sessions.delete({sessionId: resent})
+    const beforeResend = await made.plane.hydrate(resent)
+    const resentTurn = await kit.turn('kept before the delete', {
+      session: resent,
+      runId: 'resent-run',
+      messageId: 'kept-message',
+    })
+    expect((await resentTurn.done()).errors()).toEqual([`session "${resent}" does not exist`])
+    const afterResend = await made.plane.hydrate(resent)
+    expect([afterResend.messages, afterResend.lastRun]).toEqual([beforeResend.messages, beforeResend.lastRun])
+
+    await kit.rpc.sessions.restore({sessionId: refused})
+    const restoredTurn = await kit.turn('sent after the restore', {session: refused, runId: 'restored-run'})
+    expect((await restoredTurn.done()).errors()).toEqual([])
+
+    const reused = await created()
+    await kit.rpc.sessions.delete({sessionId: reused})
+    const location = Schema.decodeSync(Location.Ref)({directory: made.chat.cwd})
+    expect(
+      await sessionKey(made).fail((sessions) =>
+        sessions.create({id: SessionSchema.Id.make(reused), title: 'a refused session on a deleted id', location}),
+      ),
+    ).toMatchObject({_tag: 'Session.NotFoundError', sessionId: reused})
+    const reusedTurn = await kit.turn('sent after a plugin create on the deleted id was refused', {
+      session: reused,
+      runId: 'refused-create-run',
+    })
+    expect((await reusedTurn.done()).errors()).toEqual([`session "${reused}" does not exist`])
+
+    const listed = await created()
+    const listedNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, listed, harness.id, listedNative)
+    const transcript = requireTranscriptPath(harness)(made.chat.cwd, listedNative)
+    mkdirSync(dirname(transcript), {recursive: true})
+    writeFileSync(transcript, JSON.stringify({type: 'user', message: {content: 'a task written in the terminal'}}))
+    await kit.rpc.sessions.delete({sessionId: listed})
+    expect((await kit.rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(listed)
+    const listedTurn = await kit.turn('sent after a listing left the deleted id out', {
+      session: listed,
+      runId: 'listed-still-deleted-run',
+    })
+    expect((await listedTurn.done()).errors()).toEqual([`session "${listed}" does not exist`])
+
+    const neverSeen = SessionId.parse('conciv_never_seen_before_its_first_send')
+    const firstTurn = await kit.turn('the first message to an id no session had', {
+      session: neverSeen,
+      runId: 'never-seen-run',
+    })
+    expect((await firstTurn.done()).errors()).toEqual([])
+    expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
+
+    const quiet = await created()
+    const quietNative = HarnessSessionId.parse(randomUUID())
+    await recordNativeId(made.chat.db, quiet, harness.id, quietNative)
+    await kit.rpc.sessions.delete({sessionId: quiet})
+    const tombstone = currentRow(made.chat.db, quiet)
+    const quietTranscript = requireTranscriptPath(harness)(made.chat.cwd, quietNative)
+    mkdirSync(dirname(quietTranscript), {recursive: true})
+    writeFileSync(
+      quietTranscript,
+      JSON.stringify({
+        type: 'user',
+        message: {content: 'written in the terminal after the delete'},
+      }),
+    )
+    const quietHydration = await made.plane.hydrate(quiet)
+    expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+    expect(quietHydration.messages).toEqual([])
+    expect((await kit.rpc.chat.hydrate({sessionId: quiet})).messages).toEqual([])
+
+    const openBooted: MadeApp[] = []
+    const openKit = await createTestkit(harness, async (env) => {
+      const app = await bootMadeApp(env, {hubAccess: 'open'})
+      openBooted.push(app)
+      return app
+    }).setup()
+    onTestFinished(() => openKit.cleanup())
+    const openMade = openBooted[0]
+    if (openMade === undefined) throw new Error('the open hub access kit booted no app')
+    const outsideOnDeleted = SessionId.parse((await openKit.rpc.sessions.create(undefined)).sessionId)
+    await openKit.rpc.sessions.delete({sessionId: outsideOnDeleted})
+    const publishedOutside: ChatEvent[] = []
+    onTestFinished(
+      openMade.runtime.forSession(outsideOnDeleted).stream.listen((chunk) => void publishedOutside.push(chunk)),
+    )
+    const beforeOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    const outsideRpc = makeRpcClient(openKit.base, {
+      headers: {
+        [CONCIV_SESSION_HEADER]: outsideOnDeleted,
+        [CONCIV_ORIGIN_HEADER]: 'hub',
+        [CONCIV_CLIENT_HEADER]: 'terminal',
+      },
+    })
+    await expect(outsideRpc.registry.call({name: 'conciv_extensions', input: {verb: 'catalog'}})).rejects.toMatchObject(
+      {code: 'APPROVAL_DENIED', message: `session "${outsideOnDeleted}" does not exist`},
+    )
+    expect(publishedOutside).toEqual([])
+    const afterOutside = await openMade.plane.hydrate(outsideOnDeleted)
+    expect([afterOutside.messages, afterOutside.lastRun]).toEqual([beforeOutside.messages, beforeOutside.lastRun])
   })
 })
 
