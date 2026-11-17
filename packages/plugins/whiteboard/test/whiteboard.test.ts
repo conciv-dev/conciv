@@ -389,9 +389,11 @@ describe('the whiteboard store and its rpc', () => {
 
     const element = {elementId: 'e1', data: {type: 'rectangle'}, version: 2}
     expect(await call(kit, 'elements.upsert', {room, scope: 'live', row: element})).toEqual({...element, room})
-    expect(await call(kit, 'elements.get', {room, scope: 'live', id: 'e1'})).toEqual({...element, room})
-    expect(await failureType(call(kit, 'elements.get', {room, scope: 'draft', id: 'e1'}))).toBe('NOT_FOUND')
-    expect(await failureType(call(kit, 'elements.get', {room: OTHER_ROOM, scope: 'live', id: 'e1'}))).toBe('NOT_FOUND')
+    expect(await call(kit, 'elements.get', {room, scope: 'live', elementId: 'e1'})).toEqual({...element, room})
+    expect(await failureType(call(kit, 'elements.get', {room, scope: 'draft', elementId: 'e1'}))).toBe('NOT_FOUND')
+    expect(await failureType(call(kit, 'elements.get', {room: OTHER_ROOM, scope: 'live', elementId: 'e1'}))).toBe(
+      'NOT_FOUND',
+    )
     const conflict = await call(kit, 'elements.upsert', {room, scope: 'live', row: {...element, version: 1}}).then(
       () => new Error('the stale upsert answered'),
       (error: unknown) => error,

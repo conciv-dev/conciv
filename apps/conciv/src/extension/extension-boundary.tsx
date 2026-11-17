@@ -120,14 +120,21 @@ export function guardedAttachmentCards(extensions: AnyExtension[], fallback: 'ca
     const owner = extensions.find((extension) =>
       extension.attachments?.some((attachment) => attachment.mime === entry.mime && attachment.__card === entry.render),
     )
-    const name = owner?.name ?? entry.mime
-    return {
-      ...entry,
-      render: (props) => (
-        <ExtensionBoundary name={name} fallback={fallback} removable={props.remove !== undefined}>
-          <entry.render {...props} />
-        </ExtensionBoundary>
-      ),
-    }
+    return guardedAttachmentCard(owner?.name ?? entry.mime, fallback, entry)
   })
+}
+
+export function guardedAttachmentCard(
+  name: string,
+  fallback: 'card' | 'chip',
+  entry: AttachmentCardSlot,
+): AttachmentCardSlot {
+  return {
+    ...entry,
+    render: (props) => (
+      <ExtensionBoundary name={name} fallback={fallback} removable={props.remove !== undefined}>
+        <entry.render {...props} />
+      </ExtensionBoundary>
+    ),
+  }
 }

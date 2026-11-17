@@ -262,7 +262,7 @@ function VirtualMessages(props: {
         {(item) => (
           <div
             ref={(element) =>
-              queueMicrotask(() => {
+              onMount(() => {
                 if (settledEstimate(item.index)?.exact !== true) virtualizer.measureRow(element)
               })
             }

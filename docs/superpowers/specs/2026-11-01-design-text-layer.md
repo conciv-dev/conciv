@@ -276,7 +276,7 @@ Rules without a constant: an OCR box under 2px on a side is not trimmed; two box
 
 ## Detailed Implementation Plan
 
-Worktree `/Users/omrikatz/Public/web/aidx-text`, branch `design-text-layer` off `main` at 02084232a. Paths are relative to `packages/extensions/design/` unless stated. The parked branch `design-text-mask` (worktree `/Users/omrikatz/Public/web/aidx-659`, commits 56785440c, 43d653446, 74f4381ae, 4e5c87adf on top of a5ef8054e) is a source of code to copy by hand, not to cherry-pick: its base predates the merge of main and its masking semantics differ.
+Worktree `~/Public/web/aidx-text`, branch `design-text-layer` off `main` at 02084232a. Paths are relative to `packages/extensions/design/` unless stated. The parked branch `design-text-mask` (worktree `~/Public/web/aidx-659`, commits 56785440c, 43d653446, 74f4381ae, 4e5c87adf on top of a5ef8054e) is a source of code to copy by hand, not to cherry-pick: its base predates the merge of main and its masking semantics differ.
 
 The gate after every commit: `pnpm typecheck && pnpm lint && pnpm build` in the package, `pnpm exec turbo run build --filter='@conciv/it...'` at the root, `cd packages/it && pnpm exec vitest run test/design.it.test.ts` (all tests pass), and `pnpm exec fallow audit --changed-since 02084232a` at the root with 0 errors. From commit 4 on, also `pnpm test` in the package.
 

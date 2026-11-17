@@ -72,16 +72,21 @@ export async function register(
       .request({agentId: tool.agent, signal: tool.signal})
       .catch((error: unknown) => Promise.reject(declared(operation.name, error)))
     const output = decodeResult(operation, response)
-    if (response.capture) await connection.records.capture(tool.sessionId, tool.id, response.capture)
+    if (response.capture)
+      await connection.records
+        .capture(tool.sessionId, tool.id, response.capture)
+        .catch((error: unknown) => console.warn(`Saving the capture of page.${operation.name} failed`, error))
     if (operation.mutating) {
       const {type: _type, ref, selector, ...args} = Targeted.parse(action)
-      await connection.records.append(tool.sessionId, {
-        ts: Date.now(),
-        verb: `page_${operation.name}`,
-        ...(ref === undefined ? {} : {ref}),
-        ...(selector === undefined ? {} : {selector}),
-        args,
-      })
+      await connection.records
+        .append(tool.sessionId, {
+          ts: Date.now(),
+          verb: `page_${operation.name}`,
+          ...(ref === undefined ? {} : {ref}),
+          ...(selector === undefined ? {} : {selector}),
+          args,
+        })
+        .catch((error: unknown) => console.warn(`Journaling page.${operation.name} failed`, error))
     }
     if (action.type === 'locate')
       return exportResult(await located(output, ctx.location.directory), response.files, ctx.location.directory)
