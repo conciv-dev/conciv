@@ -714,12 +714,13 @@ test.describe('element capture', () => {
     test('shows once, under the panel: Stop and the composer take clicks, Tab and Escape keep their panel meaning', async ({
       page,
     }) => {
-      test.setTimeout(90_000)
       await openSessionPanel(page, 'agent mask')
       const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
       const composer = chatBox(page)
       const stop = panel.getByRole('button', {name: 'Stop generating'})
       const mask = page.getByRole('status', {name: 'Agent is using this page'})
+      const firstStop = panel.getByRole('separator', {name: 'Resize chat height'})
+      const lastStop = panel.getByRole('tab', {name: 'Chat'})
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_click({selector: '#cta'})",
       })
@@ -728,7 +729,7 @@ test.describe('element capture', () => {
         await composer.click()
         await composer.pressSequentially('click the button')
         await page.keyboard.press('Enter')
-        await expect(mask).toBeVisible({timeout: 30_000})
+        await expect(mask).toBeVisible()
         await expect(mask).toHaveCount(1)
         await expect(stop).toBeVisible()
 
@@ -738,6 +739,15 @@ test.describe('element capture', () => {
         await page.keyboard.press('Tab')
         await expect(composer).not.toBeFocused()
         await page.keyboard.press('Shift+Tab')
+        await expect(composer).toBeFocused()
+
+        await lastStop.click()
+        await expect(lastStop).toBeFocused()
+        await page.keyboard.press('Tab')
+        await expect(firstStop).toBeFocused()
+        await page.keyboard.press('Shift+Tab')
+        await expect(lastStop).toBeFocused()
+        await composer.click()
         await expect(composer).toBeFocused()
 
         await page.keyboard.press('Escape')
