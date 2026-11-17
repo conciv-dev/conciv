@@ -12,7 +12,7 @@ Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `
 - `tools.ts` (export `.`): `ConcivServerTool`, `ConcivToolContext`, `concivSandboxTools`, `concivSandboxToolNames`, `concivUiToolDef`.
 - `defs.ts` (export `./defs`): `concivUiToolDef`.
 - `builtins.ts` (export `./builtins`): re-exports `BUILTIN_SERVER_TOOL`, `BUILTIN_SERVER_TOOLS`, `BUILTIN_TABS_TOOL`, `TABS_GUIDANCE`, `ServerToolContext`, `TabsToolContext`, `BuiltinCategory`; defines `SERVER_TOOL_PREFIX` (`'server_'`), `serverOperationOfTool(name)`, `builtinToolNames()`.
-- `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard` and re-exports of the two cards.
+- `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard`) and re-exports of the two cards.
 - [builtins/README.md](./builtins/README.md): the `server_reload` and `tabs` tools.
 - [cards/README.md](./cards/README.md): card renderers.
 
