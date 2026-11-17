@@ -242,11 +242,17 @@ function isBlank(message: ModelMessage): boolean {
   return !hasParts && readText(message).trim() === ''
 }
 
-const PromptDisplaySchema = z.object({displayText: z.string()})
+const PromptDisplaySchema = z.object({
+  displayText: z.string(),
+  comments: z.array(z.object({label: z.string()}).nullable().catch(null)).catch([]),
+})
 
 function titleText(message: ModelMessage | undefined): string {
-  const typed = PromptDisplaySchema.safeParse(message?.metadata).data?.displayText.trim()
-  return typed || readText(message).trim()
+  const display = PromptDisplaySchema.safeParse(message?.metadata)
+  if (!display.success) return readText(message).trim()
+  return (
+    display.data.displayText.trim() || display.data.comments.find((comment) => comment !== null)?.label.trim() || ''
+  )
 }
 
 export function firstUserTitle(messages: readonly ModelMessage[]): string {
