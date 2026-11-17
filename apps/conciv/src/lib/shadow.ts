@@ -1,7 +1,7 @@
 import type {ConcivSurface} from '@conciv/protocol/config-types'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {CHAT_FONTS, type ChatFontFace} from '@conciv/ui-kit-chat/theme/fonts'
-import {widgetStyles} from './widget-styles.js'
+import {widgetSheet, widgetStyles} from './widget-styles.js'
 
 const PROPERTY_RULE = /@property\s+--[\w-]+\s*\{[^}]*\}/g
 
@@ -106,9 +106,7 @@ export function createShadowRoot(
   registerSelectionContainment()
   placeHost(host, surface)
   const root = host.attachShadow({mode: 'open'})
-  const style = document.createElement('style')
-  style.textContent = widgetStyles
-  root.appendChild(style)
+  root.adoptedStyleSheets = [widgetSheet(host.ownerDocument)]
   const releaseKeys = keepEditableKeysOffTheHostPage(root)
   const releaseSelection = keepSelectionInsideTheWidget(host, root)
   return {

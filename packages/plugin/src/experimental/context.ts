@@ -190,6 +190,21 @@ export interface Context extends BaseContext {
    */
   readonly appearance: Appearance
   /**
+   * A layer over the page, under the app: a `div` in its own shadow root on `document.body`, styled with the app's
+   * stylesheet and carrying the app's color scheme and skin. Removed by `dispose`, else with the current owner, else
+   * with the plugin.
+   *
+   * @param options - `styles`: CSS text added to that shadow root after the app's stylesheet.
+   * @returns The `element` to render into, and `dispose` to remove it early.
+   *
+   * @example
+   * ```ts
+   * const layer = ctx.overlay({ styles: [highlightCss] })
+   * render(() => <Highlight />, layer.element)
+   * ```
+   */
+  overlay(options?: {readonly styles?: readonly string[]}): {readonly element: HTMLElement; dispose(): void}
+  /**
    * The app's route.
    *
    * @example
