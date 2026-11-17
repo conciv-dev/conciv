@@ -40,6 +40,7 @@ const MOVED_DIAMOND_WRITE = {
 const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
+const PinRows = z.array(z.object({cid: z.string(), x: z.number(), y: z.number()}).loose())
 
 const MALFORMED_SVG = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10'></svg>"
 const UNDRAWABLE_SVG = "<svg viewBox='0 0 10 10'><g></g></svg>"
@@ -478,7 +479,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, and clicking the pin marks its thread read', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, and a dragged pin lands on the engine', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -489,6 +490,7 @@ describe('the comments of the whiteboard plugin', () => {
     })
     try {
       const page = widget.page
+      const observer = rpcObserverFor(page)
       await rpcSocketFor(page).installed
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.setViewportSize({width: 1280, height: 800})
@@ -507,7 +509,28 @@ describe('the comments of the whiteboard plugin', () => {
       const pin = page.getByRole('button', {name: 'AI comment, open, unread'})
       await expect(pin).toBeVisible({timeout: 30_000})
       await pin.click()
-      await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toBeVisible()
+      const readPin = page.getByRole('button', {name: 'AI comment, open', exact: true})
+      await expect(readPin).toBeVisible()
+
+      const dragged = observer.mark()
+      await page.mouse.move(640, 360)
+      await page.mouse.down()
+      await page.mouse.move(690, 385)
+      await page.mouse.move(740, 410)
+      await page.mouse.up()
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'pins.update'},
+        since: dragged,
+      })
+      const room = await widget.kit.session()
+      const pins = PinRows.parse(
+        await widget.kit.rpc.plugin.call(
+          {rpcId: 'whiteboard', method: 'pins.list', input: {room}},
+          {signal: AbortSignal.timeout(30_000)},
+        ),
+      )
+      expect(pins.find((row) => row.cid === 'agent-first')).toMatchObject({x: 740, y: 410})
     } finally {
       await widget.close()
     }

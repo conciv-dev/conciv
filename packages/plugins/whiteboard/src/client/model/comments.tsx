@@ -60,6 +60,11 @@ export function createCommentsModel(room: Accessor<string>) {
   }
   const closeThread = (): void => void setState('openCid', null)
 
+  const movePin = (cid: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>): void => {
+    const pin = pins().find((row) => row.cid === cid)
+    if (pin) db.pins.update(pin.id, (draft) => void Object.assign(draft, patch))
+  }
+
   return {
     comments,
     pins,
@@ -68,6 +73,7 @@ export function createCommentsModel(room: Accessor<string>) {
     openCid: () => state.openCid,
     openThread,
     closeThread,
+    movePin,
     isUnread,
     markRead,
     viewport: () => state.viewport,
