@@ -7056,6 +7056,15 @@ module.exports = {default: {setup(ctx) {
     },
   })
   ctx.add(ToolCall, {
+    tools: ['plugin_card_throw_probe'],
+    card: {
+      hasEmbeddedBody: () => true,
+      render() {
+        throw new Error('the probe card render failed')
+      },
+    },
+  })
+  ctx.add(ToolCall, {
     tools: ['plugin_probe'],
     render(props) {
       if (props.input.mode === 'throw') throw new Error('the probe render failed')
@@ -7139,6 +7148,29 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Probe card running', {exact: false})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the card probe"', {exact: true})).not.toBeInTheDocument()
+  }, 45_000)
+
+  test('a plugin card that throws leaves its call on the generic card, records the error under the plugin, and the plugin keeps drawing its other card', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'plugin_card_throw_probe', input: {mode: 'broken'}, result: {drawn: 'the broken card probe'}},
+        {name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}},
+      ],
+      text: 'the card probes are done',
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the card probes{Enter}')
+    await expect.element(page.getByText('the card probes are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(probeRow('mode=broken')).toBeVisible()
+    await expect.element(page.getByText('"the broken card probe"', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect.element(page.getByText('Error: the probe card render failed', {exact: true})).toBeVisible()
   }, 45_000)
 
   test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
