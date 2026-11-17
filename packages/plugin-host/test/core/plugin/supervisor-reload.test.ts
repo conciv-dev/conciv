@@ -594,6 +594,92 @@ describe('a rule pushed onto every agent', () => {
   )
 
   it.live(
+    'server_restart still asks when the host closes its plugins while the call waits in a before hook',
+    () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        const callEntered = yield* Deferred.make<void>()
+        const callGate = yield* Deferred.make<void>()
+        const sdk = yield* SdkPlugins.Service
+        yield* sdk.register(
+          define({
+            id: 'holds-the-call',
+            effect: (ctx) =>
+              Effect.gen(function* () {
+                yield* ctx.agent.transform((editor) => editor.update('held', () => {}))
+                yield* ctx.tool.hook('execute.before', (event) =>
+                  event.tool === 'server_restart'
+                    ? Deferred.succeed(callEntered, undefined).pipe(Effect.andThen(Deferred.await(callGate)))
+                    : Effect.void,
+                )
+              }),
+          }),
+        )
+        const bus = yield* Bus.Service
+        const locations = yield* LayerMap.make((root: string) => supervisorLayer(root, {bundler}), {
+          idleTimeToLive: Duration.infinity,
+        })
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          const tools = yield* Tool.Service
+          const permission = yield* Permission.Service
+          const location = yield* Location.Service
+          const sessionId = Session.Id.make('conciv_closed_host_call_test')
+          yield* (yield* Sessions.Service).create({
+            id: sessionId,
+            location: Location.Ref.make({directory: location.directory}),
+          })
+          const asked = yield* Queue.unbounded<void>()
+          const unsubscribe = yield* bus.listen((event) =>
+            event.type === Permission.Event.Asked.type
+              ? Queue.offer(asked, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+          )
+          yield* Effect.addFinalizer(() => unsubscribe)
+          const restartTool = Effect.map(
+            tools.snapshot(),
+            (snapshot) => snapshot.codeMode?.tools.has('server_restart') === true,
+          )
+          restarts.length = 0
+          yield* plugins.awaitActivation
+          expect(yield* restartTool).toBe(true)
+
+          const codeMode = (yield* tools.snapshot()).codeMode
+          if (!codeMode) return yield* Effect.die(new Error('code mode is off'))
+          const running = yield* codeMode
+            .execute(
+              'server_restart',
+              {},
+              {
+                sessionId,
+                agent: Agent.Id.make('held'),
+                messageId: undefined,
+                id: ToolSchema.CallId.make('call-held-while-the-host-closes'),
+                progress: () => Effect.void,
+              },
+            )
+            .pipe(Effect.forkScoped({startImmediately: true}))
+          yield* Deferred.await(callEntered)
+
+          yield* plugins.close(Exit.void)
+          expect(restarts).toEqual([])
+
+          yield* Deferred.succeed(callGate, undefined)
+          const first = yield* Effect.raceFirst(
+            Queue.take(asked).pipe(Effect.as('asked')),
+            Fiber.await(running).pipe(Effect.as('ran without asking')),
+          )
+          const restartsAtDecision = [...restarts]
+          const [request] = yield* permission.forSession(sessionId)
+          if (request) yield* permission.reply({requestId: request.id, reply: 'once'})
+          yield* Fiber.join(running)
+          expect({first, restartsAtDecision}).toEqual({first: 'asked', restartsAtDecision: []})
+        }).pipe(Effect.scoped, Effect.provide(locations.get(directory.path)))
+      }),
+    30_000,
+  )
+
+  it.live(
     "an agent rule a plugin pushes for server_restart beats the tool's own ask, in either direction",
     () =>
       Effect.gen(function* () {
