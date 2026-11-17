@@ -19,6 +19,14 @@ export function noteValue(note: NoteComment): DraftItem['value'] {
   return omitBy({...note, live: note.live && omitBy(note.live, isUndefined)}, isUndefined)
 }
 
+export function decodeNotes(items: readonly DraftItem[]) {
+  return items.flatMap((item) => {
+    const note = NoteContextItem.safeParse(item.value)
+
+    return note.success ? [{key: item.key, note: note.data}] : []
+  })
+}
+
 export function noteItem(note: NoteContextItem) {
   return {key: contextItemKey(note), value: noteValue(note)}
 }

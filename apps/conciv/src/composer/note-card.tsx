@@ -10,7 +10,7 @@ import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {icons} from '../runtime/plugin/icons'
 import type {ChatMessage, NoteComment} from '@conciv/protocol/chat-message-types'
-import {NoteContextItem} from './note-schema'
+import {decodeNotes} from './note-schema'
 import {readPromptPresentation} from './comment-note'
 
 const FALLBACK_ICON: IconName = 'message-square'
@@ -95,11 +95,7 @@ function PluginNoteCard(props: {
 export function ComposerNotes(props: {session: Accessor<MountedSession | undefined>; onRemoved: () => void}) {
   const context = useComposerContext()
   const notes = createMemo(() =>
-    context.items().flatMap((item) => {
-      const note = NoteContextItem.safeParse(item.value)
-
-      return note.success ? [{key: item.key, note: {...note.data, icon: noteIcon(note.data.icon)}}] : []
-    }),
+    decodeNotes(context.items()).map((entry) => ({...entry, note: {...entry.note, icon: noteIcon(entry.note.icon)}})),
   )
   const remove = (key: string) => {
     context.removeItem(key)

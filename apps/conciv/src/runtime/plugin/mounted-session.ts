@@ -18,7 +18,7 @@ import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected, useLiveSessions} from '../../app/context'
 import {usePluginAttachment} from './attachment'
-import {NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
+import {decodeNotes, NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
 import type {ComposerBinding} from './host-apis'
 import {
   createComposerWriteState,
@@ -41,11 +41,7 @@ type ComposerTarget = {
 }
 
 const commentNotes = (items: readonly DraftItem[], commentId: string) =>
-  items.flatMap((item) => {
-    const note = NoteContextItem.safeParse(item.value)
-
-    return note.success && note.data.commentId === commentId ? [{key: item.key, note: note.data}] : []
-  })
+  decodeNotes(items).filter((entry) => entry.note.commentId === commentId)
 
 type ComposerSlot = {
   readonly target: ComposerTarget

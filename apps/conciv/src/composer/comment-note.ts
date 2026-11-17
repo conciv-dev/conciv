@@ -1,14 +1,6 @@
-import {z} from 'zod'
 import {PromptPresentationSchema, type NoteComment, type SendContent} from '@conciv/protocol/chat-message-types'
 import type {ComposerDraft} from '@conciv/ui-kit-chat'
-import {durableNote, NoteContextItem} from './note-schema'
-
-const decoded = <Schema extends z.ZodType>(schema: Schema, items: readonly unknown[]): z.infer<Schema>[] =>
-  items.flatMap((item) => {
-    const result = schema.safeParse(item)
-
-    return result.success ? [result.data] : []
-  })
+import {decodeNotes, durableNote, type NoteContextItem} from './note-schema'
 
 export function readPromptPresentation(metadata: unknown) {
   return PromptPresentationSchema.safeParse(metadata).data
@@ -46,10 +38,7 @@ export function formatNoteComment(input: NoteComment) {
 }
 
 export function promptWithNotes(content: string | SendContent, draft: ComposerDraft): string | SendContent {
-  const notes = decoded(
-    NoteContextItem,
-    draft.items.map((item) => item.value),
-  )
+  const notes = decodeNotes(draft.items).map((entry) => entry.note)
 
   if (notes.length === 0) return content
 
