@@ -1,7 +1,5 @@
 import {z} from 'zod'
 
-export const RECORDER_NAME = 'recorder'
-
 export const recorderConfig = z.object({
   masking: z.enum(['none', 'inputs', 'sensitive']).default('none'),
   windowMinutes: z.number().int().positive().max(60).default(10),
