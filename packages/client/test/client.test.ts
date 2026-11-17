@@ -14,7 +14,7 @@ import {
   runLifecycleEvent,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
-import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
+import {acquirePushChannel, livePushChannelCount} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeQueryUtils} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
@@ -588,10 +588,22 @@ describe('push channel', () => {
     return {type: 'success', result: {value: {text}, files: []}}
   }
 
-  async function nextQuery(source: AsyncIterator<PageQueryFrame>): Promise<PageQueryFrame> {
+  async function nextEvent(source: AsyncIterator<ChatEvent>): Promise<ChatEvent> {
     const next = await source.next()
-    if (next.done) throw new Error('the push channel closed before a page query arrived')
+    if (next.done) throw new Error('the push channel closed before a session event arrived')
     return next.value
+  }
+
+  function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
+    return connection.send(
+      [{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}],
+      undefined,
+      undefined,
+      {
+        threadId: sessionId,
+        runId,
+      },
+    )
   }
 
   describe('the per-tab push socket', () => {
@@ -608,28 +620,28 @@ describe('push channel', () => {
       tab.end()
     })
 
-    it('reopens itself after the engine restarts and serves page queries again', async () => {
-      const {booted, channel, abort} = await bootWithChannel()
-      const warming = nextQuery(channel.queries(abort.signal))
+    it('reopens itself after the engine restarts and serves the session events again', async () => {
+      const {booted, sessionId, channel, abort} = await bootWithChannel()
+      const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
+      const warming = nextEvent(channel.events(abort.signal))
       await settled(SETTLE_MS)
-      const warmup = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
-      const warmupFrame = await warming
-      await booted.rpc.page.reply({requestId: warmupFrame.requestId, outcome: {ok: true, result: {text: 'before'}}})
-      expect(await warmup).toEqual({text: 'before'})
+      await sendTurn(connection, sessionId, 'push-before')
+      const before = await warming
+      if (before.type !== ChatEventType.CUSTOM)
+        throw new Error(`the push channel served ${before.type}, not a session event`)
 
       await booted.restartServer()
-      const seen: PageQueryFrame[] = []
+      const seen: ChatEvent[] = []
       const collecting = (async () => {
-        for await (const frame of channel.queries(abort.signal)) seen.push(frame)
+        for await (const chunk of channel.events(abort.signal)) seen.push(chunk)
       })()
       await settled(RECONNECT_MS)
-      const calling = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
+      await sendTurn(connection, sessionId, 'push-after')
       await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
       const frame = seen[0]
-      if (!frame) throw new Error('the reconnected channel served no page query')
-      await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'after'}}})
+      if (!frame) throw new Error('the reconnected channel served no session event')
 
-      expect(await calling).toEqual({text: 'after'})
+      expect(frame).toMatchObject({type: ChatEventType.CUSTOM, name: before.name})
       expect(seen).toHaveLength(1)
       abort.abort()
       await collecting
