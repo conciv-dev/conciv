@@ -12,7 +12,7 @@ import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessCapabilities, HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -45,6 +45,7 @@ export async function bootCoreKit(opts: {
   commands?: HarnessCommand[]
   history?: FixtureSession[]
   resumeBin?: string
+  imageInput?: HarnessCapabilities['imageInput']
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
@@ -63,6 +64,7 @@ export async function bootCoreKit(opts: {
     commands: opts.commands,
     history: opts.history,
     resumeBin: opts.resumeBin,
+    imageInput: opts.imageInput,
   })
   const captured: {runtime?: CoreRuntime} = {}
   const editorOpens: EditorOpen[] = []

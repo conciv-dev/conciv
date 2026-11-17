@@ -1,5 +1,10 @@
 import type {AnyExtension} from '@conciv/extension'
-import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCapabilities,
+  HarnessCommand,
+  HarnessModel,
+  HarnessSessionMeta,
+} from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -24,6 +29,7 @@ export async function bootEmbedKit(
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: HarnessSessionMeta[]
+    imageInput?: HarnessCapabilities['imageInput']
   } = {},
 ): Promise<EmbedKit> {
   const kit = await bootCoreKit({
@@ -33,6 +39,7 @@ export async function bootEmbedKit(
     models: opts.models,
     commands: opts.commands,
     history: opts.history,
+    imageInput: opts.imageInput,
   })
   return {
     ...kit,

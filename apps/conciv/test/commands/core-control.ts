@@ -13,7 +13,7 @@ import {
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
-import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessCapabilities, HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
@@ -28,6 +28,7 @@ export type BootCoreInput = {
   resume?: boolean
   displayName?: string
   resumeBin?: string
+  imageInput?: HarnessCapabilities['imageInput']
   history?: FixtureSession[]
   holdTranscripts?: boolean
   commands?: HarnessCommand[]
@@ -157,6 +158,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     resumeBin: input.resumeBin,
+    imageInput: input.imageInput,
     plugins: input.plugins,
     files: input.files,
   })
