@@ -5372,7 +5372,7 @@ describe('engine login', () => {
     expect(window.location.hash).toBe('')
   }, 30_000)
 
-  test('once the page is trusted, the local drafts of sessions deleted while this browser was away are removed, and one whose check failed stays', async () => {
+  test('once the page is trusted, the local drafts of sessions deleted while this browser was away are removed, and one whose check failed or whose session this engine never had stays', async () => {
     const rpc = coreRpc(core())
     const store = createBrowserDraftStore()
     const readKept = async (sessionId: string): Promise<string | null> => {
@@ -5386,6 +5386,8 @@ describe('engine login', () => {
     const draft = (text: string) => ({text, selectionStart: 0, selectionEnd: 0, attachments: []})
     await store.setDocument(deleted, draft('left by a deleted session'))
     await store.setDocument(unchecked, draft('left by a session the engine could not answer for'))
+    const unknown = 'conciv_-kept-from-another-engine'
+    await store.setDocument(unknown, draft('left by a session of another engine'))
     await rpc.sessions.delete({sessionId: deleted})
     await rpc.sessions.delete({sessionId: unchecked})
     const failedCheck = await faults.install({kind: 'garble', path: ['sessions', 'get'], input: {sessionId: unchecked}})
@@ -5399,6 +5401,7 @@ describe('engine login', () => {
     await expect.poll(() => readKept(deleted), {timeout: 8000}).toBeNull()
     await coreControl.releaseFault(failedCheck)
     expect(await readKept(unchecked)).toBe('left by a session the engine could not answer for')
+    expect(await readKept(unknown)).toBe('left by a session of another engine')
   }, 30_000)
 
   test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
