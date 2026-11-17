@@ -1599,6 +1599,40 @@ describe('api page open source', () => {
       expect(await asked).toEqual({status: 'opened'})
       expect(opened).toEqual([{file: 'app/page.tsx', line: 17}])
     })
+
+    it('a page plugin call from a tab while the plugins are still starting answers once they are active', async () => {
+      const entered = Promise.withResolvers<void>()
+      const gate = Promise.withResolvers<void>()
+      const served = Promise.withResolvers<string>()
+      onTestFinished(() => gate.resolve())
+      const holder = Plugin.define({
+        id: 'activation-holder',
+        async setup() {
+          entered.resolve()
+          await gate.promise
+        },
+      })
+      const setup = createTestkit(requireClaude(), async (env) => {
+        const made = await bootMadeApp(env, {cwd: tmpdir(), plugins: [holder]})
+        return {
+          ...made,
+          fetch: (...input: Parameters<MadeApp['fetch']>) => {
+            const url = new URL(input[0].url)
+            served.resolve(`${url.origin}/t/${made.agentToken}`)
+            if (url.pathname.endsWith('/rpc/plugin/call')) gate.resolve()
+            return made.fetch(...input)
+          },
+        }
+      }).setup()
+      onTestFinished(async () => (await setup).cleanup())
+      await entered.promise
+      const asked = makeRpcClient(await served.promise).plugin.call({
+        rpcId: 'experimental.page',
+        method: 'sessions.attached',
+        input: {},
+      })
+      expect(await asked).toEqual([])
+    })
   })
 })
 
@@ -6449,6 +6483,32 @@ describe('page action queue delivery', () => {
       code: 'APPROVAL_DENIED',
       message: 'Permission denied: page_eval',
     })
+    expect(evals).toEqual(['document.title'])
+  })
+
+  it('a widget-origin page_eval under a config deny is refused like any caller, and one the config allows runs', async () => {
+    const evals: string[] = []
+    const holdsUnder = (command: Page.Command) => {
+      if (command.action.type !== 'eval') return undefined
+      evals.push(command.action.code)
+      return command.action.code === 'document.title' ? 'eval/document.title' : undefined
+    }
+    const page = await engineWithTab(createFakeHarness(), [], tempDir('conciv-queue-'), holdsUnder, {
+      permission: {page_eval: {'document.cookie': 'deny'}},
+      permissions: [{action: 'page_eval', resource: 'document.title', effect: 'allow'}],
+    })
+    const widget = makeRpcClient(page.base, {
+      headers: {[CONCIV_SESSION_HEADER]: page.sessionId, origin: 'http://localhost:3000'},
+    })
+    const evaluate = (code: string) => widget.registry.call({name: 'page_eval', input: {code}})
+    await expect(evaluate('document.cookie')).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: 'Permission denied: page_eval',
+    })
+    expect(evals).toEqual([])
+    const allowed = evaluate('document.title')
+    await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
+    expect(await allowed).toEqual({result: 'Example'})
     expect(evals).toEqual(['document.title'])
   })
 

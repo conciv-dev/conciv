@@ -4,6 +4,7 @@ import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
 import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
+import tokens from '@conciv/ui-kit-system/tokens.css?inline'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
@@ -16,7 +17,7 @@ import {makePageOperations, type PageOperations} from '../src/page/operations.js
 import {Command, Operations, type Outcome} from '@conciv/plugin-page/rpc'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
-import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/page/agent-cursor.js'
+import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
@@ -149,6 +150,17 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(await runForResult('value', {selector: '#secret'})).toEqual({value: '***'})
     })
 
+    it('masks a password value attribute in dom and attr reads as value reads do', async () => {
+      await runForResult('setattr', {selector: '#secret', attribute: 'value', value: 'hunter2'})
+      expect(await runForResult('attr', {selector: '#secret', attribute: 'value'})).toEqual({value: MASKED_VALUE})
+      expect(await runForResult('attr', {selector: '#field', attribute: 'type'})).toEqual({value: 'text'})
+      const dom = await runForResult('dom', {selector: '#secret'})
+      expect(dom.html).toContain(`value="${MASKED_VALUE}"`)
+      expect(dom.html).not.toContain('hunter2')
+      expect(document.querySelector('#secret')?.getAttribute('value')).toBe('hunter2')
+      await runForResult('removeattr', {selector: '#secret', attribute: 'value'})
+    })
+
     it('drives React-controlled checkboxes and radios so component state follows', async () => {
       expect(await runForResult('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
       await expect.element(formState()).toMatchTextContent('subscribed: true')
@@ -209,6 +221,18 @@ describe.skipIf(inFirefox)('page tools', () => {
         code: 'handler-error',
         message: 'wait timed out for #missing (visible)',
       })
+      const cancel = new AbortController()
+      const waiting = driver.execute(
+        command('wait', {selector: '#late', state: 'visible', timeout: 60_000}),
+        cancel.signal,
+      )
+      cancel.abort()
+      const late = document.createElement('p')
+      late.id = 'late'
+      late.textContent = 'late'
+      container.append(late)
+      onTestFinished(() => late.remove())
+      expect(await waiting).toMatchObject({type: 'failure'})
     })
 
     it('returns the value of a bare expression and still runs a statement body', async () => {
@@ -1146,6 +1170,78 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
   })
 })
 
+describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it', () => {
+  const AGENT = 'dispose-session'
+  const cursor = () => page.getByRole('img', {name: "Agent's cursor", includeHidden: true})
+
+  async function scrolledTo(y: number): Promise<void> {
+    const scrolled = new Promise<void>((resolve) =>
+      document.addEventListener('scroll', () => resolve(), {once: true, capture: true}),
+    )
+    window.scrollTo(0, y)
+    await scrolled
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+
+  it('after the plugin is disposed a page scroll no longer re-lays-out the agent cursor, and the next aim follows scrolls again', async () => {
+    const tall = document.createElement('div')
+    tall.style.height = '4000px'
+    document.body.prepend(tall)
+    onTestFinished(() => tall.remove())
+    onTestFinished(() => window.scrollTo(0, 0))
+    const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    const shadow = host.attachShadow({mode: 'open'})
+    const themed = document.createElement('style')
+    themed.textContent = tokens
+    shadow.append(themed)
+    onTestFinished(mountSimulator({root: shadow, session: () => AGENT, onStop: endTask}))
+    startTask(AGENT)
+    onTestFinished(endTask)
+    onTestFinished(() => dropCursor(AGENT))
+    window.scrollTo(0, 0)
+    const driver = makePageOperations(noContributions)
+    await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
+    await expect.element(cursor()).toBeVisible()
+    await scrolledTo(2000)
+    await expect.element(cursor()).not.toBeVisible()
+    await scrolledTo(0)
+    await expect.element(cursor()).toBeVisible()
+
+    driver.dispose()
+    await scrolledTo(2000)
+    await expect.element(cursor()).toBeVisible()
+    await scrolledTo(0)
+
+    const again = makePageOperations(noContributions)
+    onTestFinished(again.dispose)
+    await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
+    await expect.element(cursor()).toBeVisible()
+    await scrolledTo(2000)
+    await expect.element(cursor()).not.toBeVisible()
+  })
+
+  it('leaves a console wrapper installed after its own in place when disposed', () => {
+    const untouched = console.info
+    onTestFinished(() => {
+      console.info = untouched
+    })
+    const driver = makePageOperations(noContributions)
+    const heard: unknown[][] = []
+    const later = (...args: unknown[]) => {
+      heard.push(args)
+    }
+    console.info = later
+    driver.dispose()
+    expect(console.info).toBe(later)
+    console.info('after dispose')
+    expect(heard).toEqual([['after dispose']])
+  })
+})
+
 describe.skipIf(inFirefox)('page action queue', () => {
   const AGENT = 'queue-session'
   const FIELDS = ['first', 'last', 'email', 'phone', 'city', 'zip']
@@ -1335,6 +1431,20 @@ describe.skipIf(inFirefox)('page action queue', () => {
     await accept('q-after', after)
     await play('q-after', after)
     await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+  })
+
+  it('a queued fill the engine cancels while it waits on the editor stops there, and the next queue plays alone', async () => {
+    const cancelled = new AbortController()
+    const {heard, accept, play} = queuePage(() => cancelled.abort())
+    const draft = [{tool: 'page_fill', selector: '#draft-line', value: 'Hello draft'}]
+    await accept('q-cancelled', draft)
+    expect(await play('q-cancelled', draft, cancelled.signal)).toMatchObject([{type: 'failure'}])
+    await expect.element(page.getByRole('textbox', {name: 'Draft'})).toMatchTextContent(/^\s*old draft\s*$/)
+    const after = [fill('city', 'Paris')]
+    await accept('q-after-cancel', after)
+    expect(await play('q-after-cancel', after)).toMatchObject([played({ok: true, value: 'Paris'})])
+    expect(heard).toEqual(['city'])
+    await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
   })
 
   it('masks a card number in the result', async () => {

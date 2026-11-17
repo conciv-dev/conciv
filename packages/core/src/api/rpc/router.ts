@@ -122,8 +122,9 @@ function contentPart(part: Tool.Content) {
 }
 
 async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
-  if (widgetCaller(call.context.callerOrigin, deps.allowedOrigins)) return
+  const widget = widgetCaller(call.context.callerOrigin, deps.allowedOrigins)
   const asked = askedPagePermission(name, input)
+  if (asked === undefined && widget) return
   if (asked === undefined && callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
   const catalog = [...deps.runtime.engine.catalog(), ...(await deps.pluginHost.runPromise(pluginSignatures))]
   const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
@@ -139,7 +140,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
       ),
       {signal: call.signal},
     ))
-  if (allowed) return
+  if (allowed || widget) return
   const refusal = await deps.chat.plane.admitCall(scope.id, {toolName: name, input, publish: scope.stream.publish})
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }
@@ -283,7 +284,8 @@ async function pluginCall(
   signal?: AbortSignal,
 ) {
   return host.runPromise(
-    Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input)).pipe(
+    Plugin.awaitActivation.pipe(
+      Effect.andThen(Rpc.Service.use((rpc) => rpc.call(input.rpcId, input.method, input.input))),
       Effect.catchDefect((defect) =>
         Effect.logError('rpc call failed', {rpc: input.rpcId, method: input.method, defect}).pipe(
           Effect.andThen(Effect.fail({type: 'rpc.internal', message: 'RPC call failed'})),

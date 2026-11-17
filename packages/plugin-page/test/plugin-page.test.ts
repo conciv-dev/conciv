@@ -689,6 +689,33 @@ describe('page queue: where it started', () => {
     expect(queues.startedBy(sessionId, ['deleted-call'])).toEqual([])
     await expect(queues.wait(sessionId, playing.queueId, 0)).rejects.toThrow(`no queue ${playing.queueId} on this tab`)
   })
+
+  it('a queued action whose command never reached the page counts as lost, not played', async () => {
+    const live = run(attached(), started('req_1')).state
+    const [notDispatched] = settlements(
+      run(live, {
+        type: 'request.dispatch-failed',
+        sessionId,
+        connectionId: 'conn_1',
+        requestId: 'req_1',
+        error: new Error('bus closed'),
+      }).effects,
+    )
+    if (notDispatched === undefined) throw new Error('the failed dispatch settled nothing')
+    const queues = PageQueue.fromPlay({
+      play: (_sessionId, play) => play.actions.map(async () => notDispatched),
+      journal: async () => {},
+      finished: () => {},
+    })
+    const action = Page.Action.parse({type: 'queue', actions: [{tool: 'page_click', selector: '#go'}]})
+    if (action.type !== 'queue') throw new Error('the action is not a queue')
+    expect(await queues.play(sessionId, {agentId: 'build', action, toolCallId: 'undispatched'})).toMatchObject({
+      status: 'lost',
+      played: 0,
+      failed: 0,
+      outcomes: [{index: 0, tool: 'page_click', ok: false, error: expect.stringContaining('Could not dispatch')}],
+    })
+  })
 })
 
 describe('page tools', () => {

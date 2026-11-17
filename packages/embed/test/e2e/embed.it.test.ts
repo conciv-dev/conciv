@@ -48,6 +48,8 @@ import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
+import {join} from 'node:path'
+import {DatabaseSync} from 'node:sqlite'
 import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
 import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
@@ -1590,7 +1592,7 @@ test.describe('page dispatch parity', () => {
       const since = wire.mark()
       await page.getByText('page-bus-ok').click()
       const refused = await wire.completed({...attach, since})
-      expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`})
+      expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`, data: {type: 'missing'}})
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(page.getByRole('region', {name: 'Deleted session'}).getByRole('status')).toHaveText(
         'This session was deleted.',
@@ -1602,6 +1604,45 @@ test.describe('page dispatch parity', () => {
       expect(attached).not.toContain(deleted)
       const {sessions} = await kit.rpc.sessions.list(undefined)
       expect(sessions.map((session) => session.id)).not.toContain(deleted)
+    })
+  })
+
+  test.describe('a tab nobody touches while the engine restarts', () => {
+    const AttachedSchema = z.array(z.string())
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      await openPagePlaneHost(page, kit, host.base)
+      const shown = await kit.session()
+      const title = `restart untouched ${shown.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: shown, title})
+      await openPanel(page)
+      await switchToSessionByTitle(page, title)
+    })
+
+    test.afterAll(async () => {
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('attaches again by itself once the engine is back, and a page tool reads the page', async () => {
+      const sessionId = await kit.session()
+      const attachedNow = () =>
+        kit.rpc.plugin
+          .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
+          .then((attached) => AttachedSchema.parse(attached))
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await kit.restartServer()
+      await expect.poll(attachedNow, {timeout: 30_000}).toContain(sessionId)
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
     })
   })
 
@@ -1641,7 +1682,7 @@ test.describe('page dispatch parity', () => {
         path: ['plugin', 'call'],
         input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: draft}},
       })
-      expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`})
+      expect(refused.output).toMatchObject({message: `session "${draft}" does not exist`, data: {type: 'missing'}})
       expect((await kit.rpc.sessions.list(undefined)).sessions.map((session) => session.id)).not.toContain(draft)
       expect(await attachedNow()).not.toContain(draft)
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -1669,6 +1710,57 @@ test.describe('page dispatch parity', () => {
           .join('\n')
       }
       await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
+    })
+  })
+
+  test.describe('a tab on an existing session whose page permissions could not be granted', () => {
+    const AttachedSchema = z.array(z.string())
+    let kit: EmbedKit
+    let host: {base: string; close: () => Promise<void>}
+    let page: Page
+    let wire: RpcObserver
+    let database: DatabaseSync
+    let existing: string
+
+    test.beforeAll(async ({browser}) => {
+      kit = await bootEmbedKit()
+      existing = await kit.session()
+      database = new DatabaseSync(join(concivStateDir(kit.stateRoot), 'conciv.db'))
+      database.exec(
+        `CREATE TRIGGER refuse_page_grant BEFORE UPDATE OF permissions ON sessions WHEN NEW.id = '${SessionId.parse(existing)}' BEGIN SELECT RAISE(ABORT, 'disk full'); END`,
+      )
+      await kit.rpc.navigation.set({entries: [{href: `/panel/${existing}?open=true`}], index: 0, updatedAt: Date.now()})
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
+      page = await browser.newPage()
+      wire = rpcObserverFor(page)
+      await rpcSocketFor(page).installed
+      await openPagePlaneHost(page, kit, host.base)
+      await openPanel(page)
+    })
+
+    test.afterAll(async () => {
+      database.close()
+      await page.close()
+      await host.close()
+      await kit.cleanup()
+    })
+
+    test('is refused, then attaches by itself once the grant can be written, and a page tool reads the page', async () => {
+      const attachedNow = () =>
+        kit.rpc.plugin
+          .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
+          .then((attached) => AttachedSchema.parse(attached))
+      const refused = await wire.completed({
+        path: ['plugin', 'call'],
+        input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: existing}},
+      })
+      expect(refused.output).toMatchObject({message: 'Page permissions could not be granted.'})
+      expect(await attachedNow()).not.toContain(existing)
+      database.exec('DROP TRIGGER refuse_page_grant')
+      await expect.poll(attachedNow, {timeout: 30_000}).toContain(existing)
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
     })
   })
 

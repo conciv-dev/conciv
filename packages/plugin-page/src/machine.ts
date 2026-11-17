@@ -3,8 +3,6 @@ import {Tool, type Rule} from '@conciv/plugin'
 import type {Action, Command, Control, Method, Outcome, Result, State, Tab} from './rpc.js'
 import {id as skillId} from './skill.js'
 
-export const PERMISSION_SYNC_TIMEOUT_MS = 10_000
-
 export const ACCESS = [
   {action: 'page', resource: '*'},
   {action: 'skill', resource: skillId},
@@ -607,7 +605,7 @@ function syncWarning(
     return [
       {
         type: 'warn',
-        message: `Page permission ${action} timed out after ${PERMISSION_SYNC_TIMEOUT_MS} ms`,
+        message: `Page permission ${action} timed out`,
         error: undefined,
       },
     ]
@@ -758,10 +756,8 @@ function disconnectedAfterDispatch() {
 }
 
 function dispatchFailed(action: Method, error: unknown) {
-  return Tool.toolError({
-    message: `Could not dispatch page.${action}. Check that the page is open and call page.tabs.list({}) before deciding whether to retry.`,
-    error,
-  })
+  const message = `[page.not_dispatched] Could not dispatch page.${action}; it did not run. Check that the page is open and call page.tabs.list({}) before deciding whether to retry.`
+  return Tool.toolError({message, metadata: {code: 'not_dispatched', message}, error})
 }
 
 function timedOut(action: Method, timeoutMs: number) {
