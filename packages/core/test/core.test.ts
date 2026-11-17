@@ -2904,7 +2904,13 @@ describe('plugin host bus', () => {
     const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
     const key = sessionKey(served.made)
     const {sessionId} = await rpc.sessions.create(undefined)
-    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'an unsent draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      updatedAt: Date.now(),
+    })
     const readBack = () =>
       Promise.all([
         key.run((sessions) =>
