@@ -8,6 +8,7 @@ import {describe, onTestFinished} from 'vitest'
 import {expect} from '@playwright/test'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
+import {makeRunTypescript} from '@conciv/harness-testkit'
 import {magicLink} from '@conciv/harness-testkit/login'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {serveStaticDir} from '@conciv/plugin-testkit/widget-suite'
@@ -91,7 +92,7 @@ async function openHost(browser: Browser, kit: CoreKit, withApp: boolean) {
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches and invalidates one exact query, redacts secret params, search, hash and query keys, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error and answers a router-less page', async ({
+  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches and invalidates one exact query, redacts secret params, search, hash and query keys, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
     browser,
   }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -181,6 +182,23 @@ describe('the tanstack plugin in the page', () => {
     expect(snapshot.errors).toContainEqual(
       expect.objectContaining({kind: 'runtime', message: expect.stringContaining('boom-from-event-handler')}),
     )
+
+    const lastRejection = page.waitForEvent('pageerror', {
+      predicate: (error) => error.message.startsWith('long-error-49 '),
+    })
+    await page.getByRole('button', {name: 'Reject fifty long promises'}).click()
+    await lastRejection
+    const runTypescript = makeRunTypescript(kit.base, draft)
+    const floodedMessages = z
+      .array(z.string())
+      .parse(
+        await runTypescript(
+          'return (await external_tanstack_errors_snapshot({})).errors.map((error) => error.message.slice(0, 20))',
+        ),
+      )
+    const indices = floodedMessages.map((message) => Number(/^long-error-(\d+) /u.exec(message)?.[1]))
+    expect(indices.at(-1)).toBe(49)
+    expect(indices).toEqual(Array.from({length: indices.length}, (_, offset) => 50 - indices.length + offset))
 
     const bare = await openHost(browser, kit, false)
     await expect(bare.page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})

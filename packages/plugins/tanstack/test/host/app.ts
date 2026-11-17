@@ -74,7 +74,15 @@ function BoomPage() {
   const trigger = () => {
     throw new Error('boom-from-event-handler')
   }
-  return createElement('button', {type: 'button', onClick: trigger}, 'Trigger runtime error')
+  const flood = () => {
+    Array.from({length: 50}, (_, index) => Promise.reject(new Error(`long-error-${index} ${'x'.repeat(9_000)}`)))
+  }
+  return createElement(
+    'div',
+    null,
+    createElement('button', {type: 'button', onClick: trigger}, 'Trigger runtime error'),
+    createElement('button', {type: 'button', onClick: flood}, 'Reject fifty long promises'),
+  )
 }
 
 const boomRoute = createRoute({getParentRoute: () => rootRoute, path: '/boom', component: BoomPage})
