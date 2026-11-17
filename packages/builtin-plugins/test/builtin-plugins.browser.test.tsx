@@ -1327,8 +1327,12 @@ describe.skipIf(inFirefox)('page action queue', () => {
     onTestFinished(driver.dispose)
     const queued = (id: string, index: number, of: number, action: Record<string, unknown>, signal?: AbortSignal) =>
       driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
-    const accept = (id: string, actions: Record<string, unknown>[], signal?: AbortSignal) =>
-      queued(id, -1, actions.length, {type: 'queue', actions}, signal)
+    const accept = (
+      id: string,
+      actions: Record<string, unknown>[],
+      signal?: AbortSignal,
+      type: 'queue' | 'queue_async' = 'queue',
+    ) => queued(id, -1, actions.length, {type, actions}, signal)
     const play = (id: string, actions: Record<string, unknown>[], signal?: AbortSignal) =>
       actions.reduce<Promise<Outcome[]>>(async (done, {tool, ...input}, index) => {
         const before = await done
@@ -1378,10 +1382,12 @@ describe.skipIf(inFirefox)('page action queue', () => {
     expect(heard).toEqual(['first', 'email'])
   })
 
-  it('a queue with no in-page run takes the mask down once it finishes', async () => {
+  it('an async queue with no in-page run answers its handle at once and takes the mask down once it finishes', async () => {
     const {accept, play} = queuePage()
     const actions = [fill('first', 'Ada'), fill('last', 'Byron')]
-    await accept('q-outside', actions)
+    expect(await accept('q-outside', actions, undefined, 'queue_async')).toMatchObject(
+      played({queueId: 'q-outside', status: 'playing', done: 0, of: 2}),
+    )
     await expect.element(page.getByRole('status', MASK)).toBeInTheDocument()
     await play('q-outside', actions)
     await expect.element(page.getByRole('status', MASK)).not.toBeInTheDocument()
