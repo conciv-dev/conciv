@@ -53,7 +53,7 @@
     "@blazediff/core": "catalog:",
     "@bramus/specificity": "catalog:",
     "@conciv/extension": "workspace:^",
-    "@conciv/extension-page": "workspace:^",
+    "@conciv/page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/server": "catalog:",
     "@zumer/snapdom": "catalog:",

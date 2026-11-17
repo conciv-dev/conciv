@@ -17,6 +17,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./capture-plugins": {
+      "types": "./dist/capture-plugins.d.ts",
+      "import": "./dist/capture-plugins.js"
     }
   },
   "publishConfig": {
@@ -35,6 +39,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@zumer/snapdom": "catalog:",
     "bippy": "catalog:",
     "p-queue": "catalog:",
     "react-grab": "catalog:",

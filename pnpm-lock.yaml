@@ -3290,9 +3290,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@conciv/extension-page':
+      '@conciv/page':
         specifier: workspace:^
-        version: link:../page
+        version: link:../../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
@@ -4373,6 +4373,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 3.3.3
       bippy:
         specifier: 'catalog:'
         version: 0.6.1(react@19.3.1)
@@ -4633,9 +4636,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

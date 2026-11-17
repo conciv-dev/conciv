@@ -49,7 +49,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/extension-page": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@jridgewell/gen-mapping": "catalog:",
