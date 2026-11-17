@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, ErrorRecord, InspectionCard, settledCardBody} from './card-shared.js'
+import {CardNote, ErrorRecord, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
@@ -32,7 +32,7 @@ function BuildErrorsCard(props: ToolCardProps): JSX.Element {
     const list = errors()
     if (!list) return ''
     if (list.length === 0) return 'no errors'
-    return `${list.length} ${list.length === 1 ? 'error' : 'errors'}`
+    return countLabel(list.length, 'error', 'errors')
   }
   const failed = () => (errors()?.length ?? 0) > 0
   return (

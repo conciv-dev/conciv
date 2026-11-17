@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
 type RouteNodeShape = {id: string; depth: number; hasLoader: boolean}
 
@@ -32,7 +32,7 @@ function RouteTreeCard(props: ToolCardProps): JSX.Element {
   const summary = () => {
     const list = nodes()
     if (!list) return ''
-    return `${list.length} ${list.length === 1 ? 'route' : 'routes'}`
+    return countLabel(list.length, 'route', 'routes')
   }
   return (
     <InspectionCard {...props} summary={summary()}>

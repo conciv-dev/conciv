@@ -4,7 +4,7 @@ import {isPlainObject} from 'es-toolkit'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
+import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue, countLabel} from './card-shared.js'
 
 type Entry = {key: string; preview: string; value: unknown}
 
@@ -58,7 +58,7 @@ function LoaderDataCard(props: ToolCardProps): JSX.Element {
   const summary = () => {
     const list = entries()
     if (!list) return ''
-    const keys = `${list.length} ${list.length === 1 ? 'key' : 'keys'}`
+    const keys = countLabel(list.length, 'key', 'keys')
     const routeId = loaderDataPayload(props.result)?.routeId
     return routeId ? `${keys} · ${routeId}` : keys
   }

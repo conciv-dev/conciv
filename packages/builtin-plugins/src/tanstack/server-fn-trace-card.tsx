@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 
@@ -41,7 +41,7 @@ function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
     const list = traces()
     if (!list) return ''
     if (list.length === 0) return 'no calls'
-    return `${list.length} ${list.length === 1 ? 'call' : 'calls'}`
+    return countLabel(list.length, 'call', 'calls')
   }
   return (
     <InspectionCard {...props} summary={summary()}>

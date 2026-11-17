@@ -15,6 +15,13 @@ import {
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
 
+const COUNT_FORMAT = new Intl.NumberFormat()
+const COUNT_PLURAL = new Intl.PluralRules('en')
+
+export function countLabel(count: number, one: string, other: string): string {
+  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
+}
+
 const OkResult = z.looseObject({ok: z.literal(true)})
 
 export function resultOk(result: ToolCardProps['result']): boolean {

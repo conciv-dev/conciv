@@ -3,7 +3,7 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
 
 const MatchSchema = z.object({routeId: z.string(), path: z.string().default(''), status: z.string().optional()}).loose()
 
@@ -23,7 +23,7 @@ function parseState(result: ToolCardProps['result']): RouterState | null {
 
 function summarize(state: RouterState): string {
   const count = state.matches.length
-  return `${state.location.pathname} · ${count} ${count === 1 ? 'match' : 'matches'}`
+  return `${state.location.pathname} · ${countLabel(count, 'match', 'matches')}`
 }
 
 function locationLine(location: RouterState['location']): string {

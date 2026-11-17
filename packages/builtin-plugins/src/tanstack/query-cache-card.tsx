@@ -3,7 +3,16 @@ import {z} from 'zod'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
-import {CardNote, CardRow, CardRows, ErrorRecord, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
+import {
+  CardNote,
+  CardRow,
+  CardRows,
+  ErrorRecord,
+  settledCardBody,
+  InspectionCard,
+  JsonValue,
+  countLabel,
+} from './card-shared.js'
 
 const EntrySchema = z
   .object({
@@ -55,10 +64,10 @@ function QueryCacheCard(props: ToolCardProps): JSX.Element {
   const summary = () => {
     const value = cache()
     if (!value) return ''
-    const queries = `${value.queries.length} ${value.queries.length === 1 ? 'query' : 'queries'}`
+    const queries = countLabel(value.queries.length, 'query', 'queries')
     const mutationCount = value.mutations.length
     if (mutationCount === 0) return queries
-    return `${queries} · ${mutationCount} ${mutationCount === 1 ? 'mutation' : 'mutations'}`
+    return `${queries} · ${countLabel(mutationCount, 'mutation', 'mutations')}`
   }
   return (
     <InspectionCard {...props} summary={summary()}>
