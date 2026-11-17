@@ -18,8 +18,12 @@ import {Key} from '@solid-primitives/keyed'
 import {isEqual, sumBy, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
-import {z} from 'zod'
-import type {ChatMessage, ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import {
+  PromptPresentationSchema,
+  type ChatMessage,
+  type ChatPart,
+  type ToolCallPart,
+} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
@@ -418,16 +422,15 @@ function AssistantTurn(props: {
   )
 }
 
-const PromptDisplaySchema = z.object({displayText: z.string()})
-
-const SentNotesSchema = z.object({comments: z.array(z.unknown())})
-
 function sentNoteCount(turn: Turn): number {
-  return sumBy(turn.messages, (message) => SentNotesSchema.safeParse(message.metadata).data?.comments.length ?? 0)
+  return sumBy(
+    turn.messages,
+    (message) => PromptPresentationSchema.safeParse(message.metadata).data?.comments.length ?? 0,
+  )
 }
 
 function messagePromptText(message: ChatMessage): string[] {
-  const display = PromptDisplaySchema.safeParse(message.metadata)
+  const display = PromptPresentationSchema.safeParse(message.metadata)
   if (display.success) return display.data.displayText.trim() ? [display.data.displayText] : []
   return message.parts
     .filter(
