@@ -1172,7 +1172,7 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
 
 describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it', () => {
   const AGENT = 'dispose-session'
-  const cursor = () => page.getByRole('img', {name: "Agent's cursor"})
+  const cursor = () => page.getByRole('img', {name: "Agent's cursor", includeHidden: true})
 
   async function scrolledTo(y: number): Promise<void> {
     const scrolled = new Promise<void>((resolve) =>
