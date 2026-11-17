@@ -67,7 +67,7 @@ test.describe('embed boot', () => {
   let host: {base: string; close: () => Promise<void>}
 
   test.beforeEach(async () => {
-    kit = await bootEmbedKit({text: ASSISTANT_TEXT})
+    kit = await bootEmbedKit({text: ASSISTANT_TEXT, terminal: true})
     host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   })
 
@@ -92,14 +92,9 @@ test.describe('embed boot', () => {
       const first = await openPage(page)
       await openPanel(first)
       await first.getByRole('tab', {name: 'Terminal'}).click()
-      await expect(
-        first
-          .getByRole('tabpanel', {name: 'Terminal'})
-          .getByRole('alert')
-          .filter({hasText: 'Couldn’t open the terminal.'}),
-      ).toBeVisible({timeout: 30_000})
+      await expect(first.getByRole('textbox', {name: 'Terminal input'})).toBeAttached({timeout: 30_000})
       await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
-      expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
+      expect(await currentHref(kit)).toMatch(/\/terminal%3Aterminal\?.*open=true/)
       await first.close()
       const second = await reopenPage(await context.newPage())
       await expect(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
@@ -2302,7 +2297,7 @@ test.describe('recording attachment', () => {
 test.describe('reload continuity', () => {
   const ASSISTANT_TEXT = 'Continuity reply'
 
-  const suite = setupWidgetSuite({text: ASSISTANT_TEXT})
+  const suite = setupWidgetSuite({text: ASSISTANT_TEXT, terminal: true})
 
   test.describe('reload continuity through the db-backed navigation row', () => {
     test('restores the open panel route, the transcript, and the draft after a reload', async ({page}) => {
@@ -2563,7 +2558,7 @@ test.describe('unknown view restore', () => {
         intervalMs: 100,
       })
 
-      await page.goto(`${suite.host().base}/?extensions=terminal`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${suite.host().base}/?extensions=`, {waitUntil: 'domcontentloaded'})
 
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(page.getByRole('tab', {name: 'Recorder'})).toHaveCount(0)
