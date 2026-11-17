@@ -6,7 +6,7 @@ export default defineConfig({
     ...ciTest(),
     name: 'plugin-tanstack',
     environment: 'node',
-    include: ['test/tanstack.test.ts'],
+    include: ['test/tanstack.test.ts', 'test/tanstack.browser.test.ts'],
     testTimeout: 120_000,
     fileParallelism: false,
   },
