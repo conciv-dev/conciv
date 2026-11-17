@@ -360,6 +360,9 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await expect(failing.getByText('The whiteboard needs a running conciv server')).toBeVisible({timeout: 30_000})
         await expect(failing.getByRole('status').filter({hasText: 'The whiteboard is unavailable.'})).toBeVisible()
         await chunks.dispose()
+        await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+        await expect(failing.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+        await expect(failing.getByRole('status').filter({hasText: 'The whiteboard is unavailable.'})).toBeHidden()
       } finally {
         await failing.close()
       }
