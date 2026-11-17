@@ -235,7 +235,12 @@ export const ui: Ui = {
       onOpenChange={(details) => props.onOpenChange(details.open)}
       modal={false}
       portalled={false}
-      positioning={{placement: 'right-start', gutter: 8, getAnchorElement: () => props.anchor() ?? null}}
+      positioning={{
+        placement: 'right-start',
+        flip: ['left-start', 'bottom-start', 'top-start'],
+        gutter: 8,
+        getAnchorElement: () => props.anchor() ?? null,
+      }}
       persistentElements={[() => props.anchor() ?? null]}
       initialFocusEl={() => props.initialFocus?.() ?? null}
       finalFocusEl={() => props.anchor() ?? null}
