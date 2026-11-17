@@ -34,6 +34,8 @@ const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 
+const MALFORMED_SVG = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10'></svg>"
+const UNDRAWABLE_SVG = "<svg viewBox='0 0 10 10'><g></g></svg>"
 const SCRIPT_MARKER = 'svg markup ran as script'
 const HOSTILE_SVG = `<svg viewBox='0 0 100 50' onload="document.title='${SCRIPT_MARKER}'"><image href='missing.png' onerror="document.title='${SCRIPT_MARKER}'"/><rect x='0' y='0' width='100' height='50' fill='#e03131'/></svg>`
 
@@ -174,6 +176,12 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         ]),
       )
       expect(await page.title()).not.toBe(SCRIPT_MARKER)
+      await expect(
+        widget.kit.callTool('whiteboard_canvas_svg', {svg: MALFORMED_SVG, x: 660, y: 540, width: 100}),
+      ).rejects.toThrow('the svg is not well-formed')
+      await expect(
+        widget.kit.callTool('whiteboard_canvas_svg', {svg: UNDRAWABLE_SVG, x: 660, y: 540, width: 100}),
+      ).rejects.toThrow('the svg had nothing drawable')
 
       const draftBeforeCommit = await canvasElements(widget.kit, 'draft')
       const liveWrites = await Promise.all(
