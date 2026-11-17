@@ -4419,7 +4419,7 @@ describe('direct tools on the MCP surface', () => {
     ])
     expect(execute).toMatch(/^- page \(41 tools/m)
     expect(execute).toMatch(/^- server \(6 tools/m)
-    expect(execute).toMatch(/^- conciv \(2 tools/m)
+    expect(execute).toMatch(/^- conciv \(1 tool\)/m)
     const searched = ToolCalled.parse(
       await post('tools/call', {
         name: 'execute_typescript',
