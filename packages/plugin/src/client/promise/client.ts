@@ -48,6 +48,7 @@ export function make(
     editor: raw.editor,
     meta: raw.meta,
     plugin: raw.plugin,
+    experimental: raw.experimental,
     event: raw.event,
   } satisfies {readonly [Group in keyof typeof contract]: RpcClient[Group]}
   return {

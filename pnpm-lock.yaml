@@ -42,6 +42,9 @@ catalogs:
     '@libsql/client':
       specifier: ^0.18.0
       version: 0.18.0
+    '@lydell/node-pty':
+      specifier: ^1.1.0
+      version: 1.1.0
     '@modelcontextprotocol/sdk':
       specifier: ^1.32.2
       version: 1.32.2
@@ -866,15 +869,15 @@ importers:
       '@conciv/extension-terminal':
         specifier: workspace:*
         version: link:../../../packages/extensions/terminal
-      '@conciv/extension-test-runner':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/test-runner
       '@conciv/extension-whiteboard':
         specifier: workspace:*
         version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-test-runner':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/test-runner
       next:
         specifier: 'catalog:'
         version: 16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0)
@@ -921,15 +924,15 @@ importers:
       '@conciv/extension-terminal':
         specifier: workspace:*
         version: link:../../../packages/extensions/terminal
-      '@conciv/extension-test-runner':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/test-runner
       '@conciv/extension-whiteboard':
         specifier: workspace:*
         version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-test-runner':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/test-runner
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
@@ -2259,9 +2262,6 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/page':
         specifier: workspace:^
         version: link:../page
@@ -2271,6 +2271,9 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugin-page
+      '@conciv/plugin-test-runner':
+        specifier: workspace:^
+        version: link:../plugins/test-runner
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2416,6 +2419,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/serve':
+        specifier: workspace:^
+        version: link:../serve
       '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
@@ -2705,6 +2711,9 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
+      '@lydell/node-pty':
+        specifier: 'catalog:'
+        version: 1.1.0
       '@orama/orama':
         specifier: 'catalog:'
         version: 3.1.18
@@ -3026,6 +3035,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/serve':
+        specifier: workspace:^
+        version: link:../serve
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
@@ -3044,9 +3056,6 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.14
-      semver:
-        specifier: 'catalog:'
-        version: 7.8.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3060,9 +3069,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.8.0
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
@@ -3763,6 +3769,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
+      '@conciv/serve':
+        specifier: workspace:^
+        version: link:../../serve
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../ui-kit-chat
@@ -3773,7 +3782,7 @@ importers:
         specifier: workspace:^
         version: link:../../ui-kit-terminal
       '@lydell/node-pty':
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       '@orpc/client':
         specifier: 'catalog:'
@@ -3863,94 +3872,6 @@ importers:
       ws:
         specifier: 'catalog:'
         version: 8.22.2
-
-  packages/extensions/test-runner:
-    dependencies:
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../extension
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
-      '@conciv/ui-kit-chat':
-        specifier: workspace:^
-        version: link:../../ui-kit-chat
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../../ui-kit-system
-      '@orpc/server':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
-      es-toolkit:
-        specifier: 'catalog:'
-        version: 1.53.0
-      lucide-solid:
-        specifier: 'catalog:'
-        version: 1.66.0(solid-js@1.9.17)
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@conciv/core':
-        specifier: workspace:^
-        version: link:../../core
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
-      '@conciv/tsconfig':
-        specifier: workspace:*
-        version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
-      '@playwright/test':
-        specifier: 'catalog:'
-        version: 1.64.1
-      '@solidjs/testing-library':
-        specifier: 'catalog:'
-        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      '@vitest/browser-playwright':
-        specifier: 'catalog:'
-        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
-      '@vitest/coverage-v8':
-        specifier: 'catalog:'
-        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
-      storybook:
-        specifier: 'catalog:'
-        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      storybook-solidjs-vite:
-        specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      tsx:
-        specifier: 'catalog:'
-        version: 4.23.15
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
-      vite-plugin-solid:
-        specifier: 'catalog:'
-        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/extensions/try-it:
     dependencies:
@@ -5325,18 +5246,30 @@ importers:
 
   packages/serve:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@hono/node-server':
         specifier: 'catalog:'
         version: 2.1.5(hono@4.13.14)
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
       hono:
         specifier: 'catalog:'
         version: 4.13.14
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       ws:
         specifier: 'catalog:'
         version: 8.22.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*
@@ -5347,6 +5280,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.2
@@ -21124,6 +21060,7 @@ snapshots:
       '@conciv/contract': link:packages/contract
       '@conciv/extension': link:packages/extension
       '@conciv/protocol': link:packages/protocol
+      '@conciv/serve': link:packages/serve
       '@conciv/ui-kit-chat': link:packages/ui-kit-chat
       '@conciv/ui-kit-system': link:packages/ui-kit-system
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal
@@ -21147,6 +21084,7 @@ snapshots:
       '@conciv/contract': link:packages/contract
       '@conciv/extension': link:packages/extension
       '@conciv/protocol': link:packages/protocol
+      '@conciv/serve': link:packages/serve
       '@conciv/ui-kit-chat': link:packages/ui-kit-chat
       '@conciv/ui-kit-system': link:packages/ui-kit-system
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal

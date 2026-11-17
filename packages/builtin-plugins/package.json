@@ -20,10 +20,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
+    "@conciv/plugin-test-runner": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@solid-primitives/event-listener": "catalog:",

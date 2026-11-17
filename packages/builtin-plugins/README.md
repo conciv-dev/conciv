@@ -73,3 +73,11 @@ A page failure is the plugin's own error, a `[page.<code>]` message; the old reg
   So the halt check passes and the fill types into the session it was queued for, which is not a wrong-session write.
   The app case "a queued fill released after a session switch does not type" covers the user-visible claim instead:
   it holds the fill's `command` call by its input until the switch shows on screen, then releases it.
+
+## test-runner-card
+
+The card the thread draws for a finished `test_runner_run` or `test_runner_status` call of the test-runner plugin
+(built-in id `test-runner-card`, a `ToolCall` contribution): the count pills, each file as a disclosure named by the
+last two path segments, a failing test closed until opened, and its failure with Open (the desktop editor, at the
+failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
+streams the live rows.

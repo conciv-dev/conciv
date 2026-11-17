@@ -292,7 +292,7 @@ export function recordActivity(db: ConcivDb, sessionId: SessionId, title: string
       updatedAt: sql`max(${sessions.updatedAt}, ${at})`,
       title: sql`coalesce(${sessions.title}, iif(${sessions.harnessSessionId} is null, ${title === '' ? null : title}, null))`,
     })
-    .where(eq(sessions.id, sessionId))
+    .where(and(eq(sessions.id, sessionId), isNull(sessions.deletedAt)))
     .run()
 }
 

@@ -1,10 +1,10 @@
 ---
 title: Built-ins
-description: The whiteboard and test runner, read as worked examples.
+description: The whiteboard extension and the test-runner plugin, read as worked examples.
 ---
 
-Two extensions ship inside conciv, on by default. Both are built on the public contract, nothing
-private, so they double as reference implementations.
+Two built-ins show the public contracts at work: the whiteboard extension and the test-runner
+plugin. Neither uses anything private, so they double as reference implementations.
 
 ## Whiteboard
 
@@ -23,18 +23,22 @@ the contract:
 
 ## Test runner
 
-[`@conciv/extension-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/test-runner)
-powers [live tests](/docs/usage/live-tests). It shows the middleweight patterns:
+[`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner)
+powers [live tests](/docs/usage/live-tests). It is a plugin, not an extension. Load it with
+`plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]`. It shows the plugin patterns:
 
-- **`configSchema`**: the plugin's `testRunner` option lands here, validated by zod.
-- **A runner registry**: adapters (Vitest, Playwright) behind one interface, picked from config.
-- **Server-sent events**: `server.app.get('/stream', ...)` streams live results to the card.
-- **Error mapping**: an `onError` hook converts "runner unavailable" into a structured 422 the
-  card can explain.
-- **`systemPrompt`**: teaches the agent to list tests before running vague requests.
+- **Options**: the `runner` option (vitest, jest, node-test, playwright) is parsed with zod in
+  `setup`. Vitest is the default.
+- **A runner registry**: adapters (Vitest, Playwright) behind one interface, picked from the option.
+- **Tools**: `test_runner_run` and `test_runner_status` are direct tools the agent calls by name.
+  `external_test_runner_list` stays in code mode.
+- **Plugin RPC**: the Tests tab starts and stops runs over the plugin's RPC, and reads one `event`
+  per live run step to stream rows.
+- **The card**: the finished result renders in the thread as a test card.
+- **A skill**: teaches the agent to list tests before it runs a vague request.
 
 ## Reading order
 
-Start with the test runner's `src/server.ts` (about fifty lines end to end), then the whiteboard's
-tool groups. Everything they import from `@conciv/extension` is documented in
+Start with the test runner's `src/index.ts` (about eighty lines end to end), then the whiteboard's
+tool groups. Everything the whiteboard imports from `@conciv/extension` is documented in
 [Tool contract](/docs/extending/tool-contract) and [Widget UI](/docs/extending/widget-ui).

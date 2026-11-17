@@ -331,6 +331,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => options.onNewSession?.(),
+    replaceSession: () => {},
     chat: chatRoot.chat,
     refresh: chatRoot.coordinator.refresh,
     isRefreshing: chatRoot.coordinator.isRefreshing,

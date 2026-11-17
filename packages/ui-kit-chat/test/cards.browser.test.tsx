@@ -477,7 +477,6 @@ describe('meta tool card error', () => {
       ))
 
       await expect.element(page.getByText(`The tool call was ${outcome}.`)).toBeVisible()
-      await page.screenshot({path: `__screenshots__/tool-outcomes/catalog-${outcome}.png`})
       await expect.element(page.getByText(label, {exact: true})).toBeVisible()
       await expect.element(page.getByText('Error', {exact: true})).not.toBeInTheDocument()
     })
@@ -889,7 +888,6 @@ describe('tool trace row', () => {
     await expect.element(page.getByText('clear skies over the bay')).toBeVisible()
     await expect.element(page.getByText('location', {exact: true})).toBeVisible()
     expect(container.querySelectorAll('diffs-container').length).toBe(1)
-    await page.screenshot({path: '__screenshots__/tool-trace-row/generic-body-shiki.png'})
   })
 
   it('folds a mounted body away and back from the row control', async () => {

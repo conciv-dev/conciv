@@ -6,6 +6,8 @@ export const TURN_FRAME_CLASS = 'flex flex-col gap-1.5'
 
 export const TURN_LEAD_CLASS = 'pt-1.5'
 
+export const USER_ROOT_CLASS = 'flex flex-col gap-1.5 min-w-0 self-stretch'
+
 export const PROMPT_ROOT_CLASS = `relative flex items-start gap-0 min-w-0 self-stretch anim-msg ${TURN_MEASURE_CLASS}`
 
 export const PROMPT_GUTTER_CLASS =

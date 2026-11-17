@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Hono} from 'hono'
-import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
@@ -30,7 +30,7 @@ import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
+import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
 
 export {
   assistCapabilities,
@@ -174,8 +174,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const normalize = toolNameNormalizer(deps.toolNames)
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
-    if (deps.sessions.row(sessionId) === null) {
-      return {reason: 'missing', message: `session "${sessionId}" does not exist`}
+    if (deps.sessions.row(sessionId) === null || sessionDeleted(deps.sessions, sessionId)) {
+      return {reason: 'missing', message: missingSession(sessionId)}
     }
     const approvalId = toolApprovalId(call.toolName)
     const settled = new AbortController()
@@ -200,7 +200,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
-      if (window?.before === undefined) await transcripts.sync(sessionId)
+      if (window?.before === undefined && !sessionDeleted(deps.sessions, sessionId)) await transcripts.sync(sessionId)
     }
     const thread = await server.hydrate(sessionId, window)
     const messages = normalizedMessages(thread.messages, normalize)
@@ -220,6 +220,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   }
 
   const driveFollowUp = async (sessionId: SessionId, input: string, ended: AbortSignal): Promise<FollowUpOutcome> => {
+    if (sessionDeleted(deps.sessions, sessionId)) return {kind: 'failed', error: missingSession(sessionId)}
     if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
     if (ended.aborted) return {kind: 'stopped'}
     const runId = randomUUID()
@@ -264,6 +265,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return {ok: true, stopped}
     },
     compact: async (sessionId) => {
+      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
       const afterMessageId = messages.at(-1)?.id ?? null
