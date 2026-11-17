@@ -4986,9 +4986,12 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
+    const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
+    await coreControl.awaitFaultPending(pushHandshake, 1)
     await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.releaseFault(pushHandshake)
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()

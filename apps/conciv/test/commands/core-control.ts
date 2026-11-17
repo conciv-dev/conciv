@@ -12,6 +12,7 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -56,6 +57,7 @@ export type FaultSpec =
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
   | {kind: 'handshake-hold'}
+  | {kind: 'push-handshake-hold'}
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
@@ -447,6 +449,42 @@ async function holdEngineHandshakes(ctx: BrowserCommandContext): Promise<Fault> 
   }
 }
 
+async function holdPushHandshakes(ctx: BrowserCommandContext): Promise<Fault> {
+  const host = new URL(requireKit(ctx).origin).host
+  const held: {open: boolean; handshakes: (() => void)[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    handshakes: [],
+    waiters: [],
+  }
+  await ctx.page.routeWebSocket(
+    (url) => url.host === host && url.pathname.endsWith(PUSH_WS_PATH),
+    async (socket) => {
+      if (!held.open) {
+        await new Promise<void>((resolve) => {
+          held.handshakes.push(resolve)
+          for (const waiter of held.waiters.filter((entry) => held.handshakes.length >= entry.count)) waiter.deliver()
+        })
+      }
+      socket.connectToServer()
+    },
+  )
+  const open = (): Promise<void> => {
+    held.open = true
+    for (const handshake of held.handshakes.splice(0)) handshake()
+    return Promise.resolve()
+  }
+  return {
+    pending: () => held.handshakes.length,
+    awaitCaptured: (count) =>
+      held.handshakes.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () => Promise.reject(new Error('a held push handshake fault has no single call to await')),
+    release: open,
+    dispose: open,
+  }
+}
+
 async function holdEngineCloses(ctx: BrowserCommandContext): Promise<Injector> {
   const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
   await rpcSocket.installed
@@ -678,6 +716,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
+  if (spec.kind === 'push-handshake-hold') return holdPushHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
