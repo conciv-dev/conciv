@@ -2,6 +2,7 @@ import {mkdirSync, writeFileSync} from 'node:fs'
 import {findPackageJSON} from 'node:module'
 import {dirname, join} from 'node:path'
 import {WIDGET_START_SPECIFIER} from './nextjs.js'
+import {isEnginePort} from './widget-start.js'
 
 const CLIENT_FILE = join('.conciv', 'widget-client.gen.js')
 
@@ -12,7 +13,7 @@ export function widgetStarterPath(): string {
 }
 
 export function writeWidgetClient(root: string, port: number): string {
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  if (!isEnginePort(port)) {
     throw new Error(`conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}`)
   }
   const path = join(root, CLIENT_FILE)
