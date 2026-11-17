@@ -2,9 +2,7 @@ import type {SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
-import {z} from 'zod'
 import {
-  SESSION_DELETED_CODE,
   isRunPhaseTerminal,
   type ApprovalAsk,
   type RunClockSource,
@@ -127,9 +125,6 @@ type RunState =
   | {phase: 'known'; source: RunClockSource | null}
   | {phase: 'stop-queued'; source: RunClockSource | null; runId: string | null}
   | {phase: 'withdrawn'; source: RunClockSource | null; hidden: Error}
-  | {phase: 'refused'; source: RunClockSource | null; hidden: Error}
-
-const SessionDeletedSchema = z.object({code: z.literal(SESSION_DELETED_CODE)})
 
 function heardRun(queued: string | null, next: RunClockSource | null): boolean {
   if (next === null) return false
@@ -186,9 +181,14 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     setRun({phase: 'known', source: next})
     if (next !== null && !isRunPhaseTerminal(next.lifecycle.phase)) void stop()
   }
-  const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: Record<string, string>}>({
+  const [served, setServed] = createStore<{
+    pending: ApprovalAsk[]
+    harnesses: Record<string, string>
+    historyError: Error | undefined
+  }>({
     pending: [],
     harnesses: {},
+    historyError: undefined,
   })
   const hydrating: CardArrival[][] = []
   const arrive = (arrival: CardArrival): void => {
@@ -205,6 +205,17 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       return await read()
     } finally {
       hydrating.splice(hydrating.indexOf(arrivals), 1)
+    }
+  }
+  const latestHistory = async <Result>(load: Promise<Result>): Promise<Result> => {
+    try {
+      const hydration = await load
+      setServed('historyError', undefined)
+      return hydration
+    } catch (cause) {
+      const failure = asError(cause)
+      setServed('historyError', failure)
+      throw failure
     }
   }
   const connected = options.connect({
@@ -238,7 +249,14 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     refresh: (before) => whileHydrating(() => connected.refresh(before)),
     ...(hydrate === undefined
       ? {}
-      : {hydrate: (threadId, hydrateOptions) => whileHydrating(() => hydrate(threadId, hydrateOptions))}),
+      : {
+          hydrate: (threadId, hydrateOptions) =>
+            whileHydrating(() =>
+              hydrateOptions?.before === undefined
+                ? latestHistory(hydrate(threadId, hydrateOptions))
+                : hydrate(threadId, hydrateOptions),
+            ),
+        }),
   }
   const reaching = async (hydration: ChatSessionHydration): Promise<ChatMessage[]> => {
     if (overlaps(chat.messages(), hydration) || hydration.page?.truncated !== true) return hydration.messages
@@ -295,10 +313,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const error = createMemo(() => {
     const current = run()
     const latest = chat.error()
-    const hides = current.phase === 'withdrawn' || current.phase === 'refused'
-    return hides && current.hidden === latest ? undefined : latest
+    return current.phase === 'withdrawn' && current.hidden === latest ? undefined : latest
   })
-  const loadFailed = createMemo(() => error() !== undefined && chat.messages().length === 0)
+  const loadFailed = createMemo(() => served.historyError !== undefined && chat.error() === served.historyError)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -340,8 +357,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     if (runSource()?.lifecycle.runId === lastLocalRunId()) return undefined
     return refused
   }
-  const hidesRefusal = (failure: Error): boolean =>
-    !withdrawn() && chat.messages().length === 0 && !SessionDeletedSchema.safeParse(failure).success
   const sendMessage: Chat['sendMessage'] = async (...args) => {
     const before = run()
     const errorBefore = chat.error()
@@ -349,7 +364,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const failure = neverLeft(before, errorBefore)
     if (failure === undefined) return
     chat.setMessages(beforeLastUser(chat.messages()))
-    if (hidesRefusal(failure)) setRun({phase: 'refused', source: run().source, hidden: failure})
     throw failure
   }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
