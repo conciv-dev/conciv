@@ -42,7 +42,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   )
   const elementOps = (scope: 'live' | 'draft') => ({
     list: () => whiteboard['elements.list']({room, scope}),
-    get: (id: string) => whiteboard['elements.get']({room, scope, id}),
+    get: (elementId: string) => whiteboard['elements.get']({room, scope, elementId}),
     upsert: (row: ElementRow) => whiteboard['elements.upsert']({room, scope, row: elementRowToInsert(row)}),
     bulkUpsert: (rows: ElementRow[]) =>
       whiteboard['elements.bulkUpsert']({room, scope, rows: rows.map(elementRowToInsert)}),

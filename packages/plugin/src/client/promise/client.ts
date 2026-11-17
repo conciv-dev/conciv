@@ -44,7 +44,6 @@ export function make(
     tabs: raw.tabs,
     code: raw.code,
     page: raw.page,
-    server: raw.server,
     editor: raw.editor,
     meta: raw.meta,
     plugin: raw.plugin,

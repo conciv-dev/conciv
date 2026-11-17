@@ -1,7 +1,7 @@
 import type {LocateResult, RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
 import type {SnapdomPlugin} from '@zumer/snapdom'
 import {Contract, Registry} from './core.js'
-import type {GrabFrame} from './grab.js'
+import type {ElementRect, ElementSource, GrabFrame} from './grab.js'
 
 export type PageToastTone = 'info' | 'success' | 'error'
 
@@ -14,6 +14,7 @@ export interface Page {
   symbolicate(input: {readonly frames: readonly GrabFrame[]}): Promise<SourceLoc | null>
   toast(message: string, tone?: PageToastTone): void
   readonly capture: PageCapture
+  pick(): Promise<{readonly source: ElementSource | null; readonly rect: ElementRect | null} | null>
 }
 
 export const Page = Contract.define<Page, 'page'>('page')

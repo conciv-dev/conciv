@@ -628,7 +628,7 @@ describe('plugin files', () => {
       expect(body).toContain('`.conciv/bin/conciv tools react locate <selector>`')
       expect(body).toContain(`\`.conciv/bin/conciv plugin call server graph --data '{"file":"<file>"}'\``)
       expect(body).toContain(`\`.conciv/bin/conciv plugin call server transform --data '{"url":"<url>"}'\``)
-      expect(body).toContain('`.conciv/bin/conciv tools server reload <file>`')
+      expect(body).not.toContain('tools server')
       expect(body).toContain('`.conciv/bin/conciv tools react find --name <ComponentName>`')
       expect(body).toContain(
         '`.conciv/bin/conciv tools react track --action start`, reproduce, then `.conciv/bin/conciv tools react track --action report [--name <ComponentName>]`, then `.conciv/bin/conciv tools react track --action stop`',

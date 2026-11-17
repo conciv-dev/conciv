@@ -14,11 +14,12 @@ export function startConsoleBuffer(): {buf: ConsoleEntry[]; dispose: () => void}
   }
   const originals = (['log', 'info', 'warn', 'error'] as const).map((level) => {
     const original = console[level].bind(console)
-    console[level] = (...args: unknown[]) => {
+    const wrapper = (...args: unknown[]) => {
       const text = push(level, args)
       if (!FORWARD_MARKER.test(text)) original(...args)
     }
-    return {level, original}
+    console[level] = wrapper
+    return {level, original, wrapper}
   })
   const onError = (e: ErrorEvent): void => {
     push('uncaught', [thrownText(e.error, e.message)])
@@ -31,7 +32,7 @@ export function startConsoleBuffer(): {buf: ConsoleEntry[]; dispose: () => void}
   return {
     buf,
     dispose: () => {
-      for (const {level, original} of originals) console[level] = original
+      for (const {level, original, wrapper} of originals) if (console[level] === wrapper) console[level] = original
       window.removeEventListener('error', onError)
       window.removeEventListener('unhandledrejection', onRejection)
     },

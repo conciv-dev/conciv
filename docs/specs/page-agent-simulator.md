@@ -12,7 +12,7 @@ synthetic events (`el.click()` with no pointer sequence, `mouseover` with no coo
 
 ## Source (port verbatim)
 
-Source repo: `/Users/omrikatz/Public/web/mono/packages/preview-branches/preview-branches-toolbar/src`. It is
+Source repo: `~/Public/web/mono/packages/preview-branches/preview-branches-toolbar/src`. It is
 well tested and looks right. Port the logic, the constants, the timings, the event order and the visuals exactly.
 The only allowed changes are the ones this spec lists.
 
