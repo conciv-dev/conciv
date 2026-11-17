@@ -1,8 +1,8 @@
 export * as ConfigAgentPlugin from './agent.js'
 
 import {Context, Effect} from 'effect'
-import {define} from '../../../plugin/effect/plugin.js'
-import type {Permission} from '../../../schema/permission.js'
+import {define} from '@conciv/plugin/effect/plugin'
+import type {Permission} from '@conciv/plugin/schema/permission'
 
 export const ConfiguredPermissions = Context.Service<Permission.Ruleset>('@conciv/ConfiguredPermissions')
 

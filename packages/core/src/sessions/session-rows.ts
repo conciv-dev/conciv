@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, getTableColumns, inArray, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
+import {and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'

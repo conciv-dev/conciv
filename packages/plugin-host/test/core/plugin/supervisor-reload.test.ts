@@ -117,7 +117,8 @@ describe('PluginSupervisor reload', () => {
         yield* Effect.promise(() => write(file, reviewer(1)))
         const watcher = yield* Watcher.Test
         const locations = yield* LayerMap.make(
-          (location: string) => supervisorLayer(location, {configured: [path.dirname(file)], post: [everyAgentAsks]}),
+          (location: string) =>
+            supervisorLayer(location, {configured: [path.dirname(file)], builtin: {post: [everyAgentAsks]}}),
           {idleTimeToLive: Duration.infinity},
         )
         yield* Effect.gen(function* () {

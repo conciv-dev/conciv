@@ -1967,7 +1967,7 @@ describe('page bus and the session scope', () => {
     const tabs = pageTabs()
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {plugins: [tabs.plugin]})
     onTestFinished(() => made.dispose())
-    await made.startPlugins()
+    await made.awaitActivation()
     const id = SessionId.parse('conciv_queue_cancelled_on_delete')
     await ensureRow(made.chat.db, id, harness.id, stateRoot)
     const offered = Promise.withResolvers<string>()
@@ -2033,7 +2033,7 @@ describe('page bus and the session scope', () => {
       print: () => {},
     })
     onTestFinished(stop)
-    await made.startPlugins()
+    await made.awaitActivation()
     const id = SessionId.parse('conciv_queue_reply_went_out')
     await ensureRow(made.chat.db, id, harness.id, stateRoot)
     const held = Promise.withResolvers<string>()
