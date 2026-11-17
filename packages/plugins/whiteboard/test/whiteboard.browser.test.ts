@@ -626,7 +626,7 @@ describe('the comments of the whiteboard plugin', () => {
     }
   }, 120_000)
 
-  test('the thread beside a pin takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, and deletes through its confirm', async ({
+  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, and deletes through its confirm', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -668,6 +668,8 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
       const reply = thread.getByRole('textbox', {name: 'Reply'})
       await expect(reply).toBeFocused()
+      const chat = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await expect(chat).toBeHidden()
 
       const replied = observer.mark()
       await reply.pressSequentially('moving it left')
@@ -684,6 +686,7 @@ describe('the comments of the whiteboard plugin', () => {
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
+      await expect(chat).toBeVisible()
       await page.mouse.click(640, 360)
       await expect(thread.getByText('moving it left')).toBeVisible()
 
