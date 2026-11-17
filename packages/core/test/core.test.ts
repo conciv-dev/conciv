@@ -2939,6 +2939,25 @@ describe('plugin host bus', () => {
     expect(heardAt).toEqual([afterDelete])
   })
 
+  test('a session deleted before it ever ran stays deleted after the engine restarts, and its id is not taken again', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const first = await serveCore(root, [], {})
+    const firstRpc = makeRpcClient(`${first.origin}/t/${first.made.agentToken}`)
+    const sessionId = await firstRpc.sessions
+      .create(undefined)
+      .then(async (created) => {
+        await firstRpc.sessions.delete({sessionId: created.sessionId})
+        return created.sessionId
+      })
+      .finally(() => first.stop())
+    const restarted = await serveCore(root, [], {})
+    onTestFinished(() => restarted.stop())
+    const rpc = makeRpcClient(`${restarted.origin}/t/${restarted.made.agentToken}`)
+    expect(await rpc.sessions.get({sessionId})).toMatchObject({id: sessionId, hidden: true})
+    await expect(rpc.sessions.resolve({id: sessionId})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId})).toMatchObject({hidden: true})
+  })
+
   test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
