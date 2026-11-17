@@ -17,7 +17,7 @@ const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
 const FRAME =
-  'relative flex flex-1 flex-col gap-0.5 min-w-0 py-2 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
+  'group relative flex flex-1 flex-col gap-0.5 min-w-0 py-2 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
 const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
 const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
