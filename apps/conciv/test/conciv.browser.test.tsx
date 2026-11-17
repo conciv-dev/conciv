@@ -8066,7 +8066,9 @@ module.exports = {default: {setup(ctx) {
 
       await control('Open the fixture popover').click()
       await expect.element(dialog('Fixture popover')).toBeVisible()
-      await expect.element(dialog('Fixture popover').getByText('The fixture popover body', {exact: true})).toBeVisible()
+      await expect
+        .element(dialog('Fixture popover').getByText('The fixture popover body', {exact: true}))
+        .toBeInViewport()
 
       await userEvent.keyboard('{Escape}')
       await expect.element(dialog('Fixture popover')).not.toBeInTheDocument()
