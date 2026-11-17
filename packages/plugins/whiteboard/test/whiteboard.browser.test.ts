@@ -30,6 +30,14 @@ const Exported = z.tuple([
 
 const CanvasRead = z.object({elements: z.array(z.object({id: z.string(), type: z.string()}).loose())})
 
+const SCRIPT_MARKER = 'svg markup ran as script'
+const HOSTILE_SVG = `<svg viewBox='0 0 100 50' onload="document.title='${SCRIPT_MARKER}'"><image href='missing.png' onerror="document.title='${SCRIPT_MARKER}'"/><rect x='0' y='0' width='100' height='50' fill='#e03131'/></svg>`
+
+async function canvasElements(kit: CoreKit, scope: 'live' | 'draft'): Promise<{id: string; type: string}[]> {
+  const read = CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {scope}))
+  return read.elements.map((element) => ({id: element.id, type: element.type}))
+}
+
 async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Promise<string[]> {
   const read = CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {scope}))
   return read.elements.map((element) => element.type)
@@ -128,6 +136,40 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         Pending.parse(await widget.kit.callTool('whiteboard_canvas_diagram', {mermaid: 'flowchart LR\n  A --> B'})),
       ).toEqual({pending: expect.any(String)})
       expect(await canvasTypes(widget.kit, 'draft')).toEqual(expect.arrayContaining(['ellipse', 'rectangle', 'arrow']))
+
+      const hostileByTool = Pending.parse(
+        await widget.kit.callTool('whiteboard_canvas_svg', {svg: HOSTILE_SVG, x: 660, y: 300, width: 200}),
+      )
+      const room = await widget.kit.session()
+      const insertedOverRpc = observer.mark()
+      await widget.kit.rpc.plugin.call(
+        {
+          rpcId: 'whiteboard',
+          method: 'canvasPending.insert',
+          input: {
+            room,
+            row: {
+              id: 'svg-over-rpc',
+              kind: 'svg',
+              stage: 'draft',
+              payload: {svg: HOSTILE_SVG, x: 660, y: 420, width: 200, roughness: 1},
+            },
+          },
+        },
+        {signal: AbortSignal.timeout(30_000)},
+      )
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'canvasPending.remove', input: {id: 'svg-over-rpc'}},
+        since: insertedOverRpc,
+      })
+      expect(await canvasElements(widget.kit, 'draft')).toEqual(
+        expect.arrayContaining([
+          {id: `${hostileByTool.pending}-0`, type: 'rectangle'},
+          {id: 'svg-over-rpc-0', type: 'rectangle'},
+        ]),
+      )
+      expect(await page.title()).not.toBe(SCRIPT_MARKER)
 
       expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
       expect(await canvasTypes(widget.kit, 'draft')).toEqual([])
