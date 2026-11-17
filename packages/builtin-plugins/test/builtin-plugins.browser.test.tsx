@@ -16,7 +16,7 @@ import {makePageOperations, type PageOperations} from '../src/page/operations.js
 import {Command, Operations, type Outcome} from '@conciv/plugin-page/rpc'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
-import {aimCursor, CursorLook, dropCursor, windowAt} from '../src/page/agent-cursor.js'
+import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
@@ -1171,44 +1171,52 @@ describe.skipIf(inFirefox)('the agent cursor always arrives', () => {
 
 describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it', () => {
   const AGENT = 'dispose-session'
-  const ObjectHandle = z.object({result: z.object({objectId: z.string()})})
-  const Listeners = z.object({
-    listeners: z.array(z.object({type: z.string(), useCapture: z.boolean(), passive: z.boolean()})),
-  })
+  const cursor = () => page.getByRole('img', {name: "Agent's cursor"})
 
-  async function layoutScrollListeners(): Promise<number> {
-    const handle = ObjectHandle.parse(
-      await cdp().send('Runtime.evaluate', {
-        expression: `[document, ...Array.from(document.querySelectorAll('iframe'), (frame) => frame.contentDocument)].find((doc) => doc?.getElementById('dispose-probe'))`,
-      }),
+  async function scrolledTo(y: number): Promise<void> {
+    const scrolled = new Promise<void>((resolve) =>
+      document.addEventListener('scroll', () => resolve(), {once: true, capture: true}),
     )
-    const {listeners} = Listeners.parse(
-      await cdp().send('DOMDebugger.getEventListeners', {objectId: handle.result.objectId}),
-    )
-    return listeners.filter((listener) => listener.type === 'scroll' && listener.useCapture && listener.passive).length
+    window.scrollTo(0, y)
+    await scrolled
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   }
 
-  it('drops the agent cursor layout listeners when the plugin is disposed, and watches again on the next aim', async () => {
-    const probe = Object.assign(document.createElement('div'), {id: 'dispose-probe'})
-    document.body.append(probe)
-    onTestFinished(() => probe.remove())
-    makePageOperations(noContributions).dispose()
-    const before = await layoutScrollListeners()
+  it('after the plugin is disposed a page scroll no longer re-lays-out the agent cursor, and the next aim follows scrolls again', async () => {
+    const tall = document.createElement('div')
+    tall.style.height = '4000px'
+    document.body.prepend(tall)
+    onTestFinished(() => tall.remove())
+    onTestFinished(() => window.scrollTo(0, 0))
     const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    host.style.cssText = 'position: fixed; z-index: 2147483000'
     document.body.append(host)
     onTestFinished(() => host.remove())
     onTestFinished(mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}))
+    startTask(AGENT)
+    onTestFinished(endTask)
+    onTestFinished(() => dropCursor(AGENT))
+    window.scrollTo(0, 0)
     const driver = makePageOperations(noContributions)
-    await aimCursor({id: AGENT, at: windowAt({x: 20, y: 20}), look: CursorLook.AGENT})
-    expect(await layoutScrollListeners()).toBe(before + 1)
+    await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
+    await expect.element(cursor()).toBeVisible()
+    await scrolledTo(2000)
+    await expect.element(cursor()).not.toBeVisible()
+    await scrolledTo(0)
+    await expect.element(cursor()).toBeVisible()
+
     driver.dispose()
-    dropCursor(AGENT)
-    expect(await layoutScrollListeners()).toBe(before)
+    await scrolledTo(2000)
+    await expect.element(cursor()).toBeVisible()
+    await scrolledTo(0)
+
     const again = makePageOperations(noContributions)
     onTestFinished(again.dispose)
-    await aimCursor({id: AGENT, at: windowAt({x: 20, y: 20}), look: CursorLook.AGENT})
-    expect(await layoutScrollListeners()).toBe(before + 1)
-    dropCursor(AGENT)
+    await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
+    await expect.element(cursor()).toBeVisible()
+    await scrolledTo(2000)
+    await expect.element(cursor()).not.toBeVisible()
   })
 
   it('leaves a console wrapper installed after its own in place when disposed', () => {
