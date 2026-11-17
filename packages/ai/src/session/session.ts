@@ -1,4 +1,4 @@
-import type {SubscribeConnectionAdapter} from '@tanstack/ai-client'
+import {StreamReconnectLimitError, type SubscribeConnectionAdapter} from '@tanstack/ai-client'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
@@ -354,6 +354,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     if (run() !== before && withdrawn()) return new Error('The message was taken back before the engine had it')
     const refused = chat.error()
     if (refused === undefined || refused === errorBefore || answered(chat.messages())) return undefined
+    if (refused instanceof StreamReconnectLimitError) return refused
     if (runSource()?.lifecycle.runId === lastLocalRunId()) return undefined
     return refused
   }
