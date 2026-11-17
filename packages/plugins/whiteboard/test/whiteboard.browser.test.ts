@@ -49,7 +49,7 @@ async function dragRectangle(page: Page, from: {x: number; y: number}, to: {x: n
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape and still takes what the agent draws, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -90,6 +90,15 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(composer).toBeFocused()
       await page.keyboard.type('the canvas is closed')
       await expect(composer).toHaveText('the canvas is closed')
+
+      expect(
+        Pending.parse(
+          await widget.kit.callTool('whiteboard_canvas_draw', {
+            elements: [{id: 'drawn-while-closed', type: 'line', x: 200, y: 400, width: 160, height: 0}],
+          }),
+        ),
+      ).toEqual({pending: expect.any(String)})
+      expect(await canvasTypes(widget.kit, 'draft')).toEqual(['line'])
 
       await pill.click()
       await expect(rectangleTool).toBeVisible({timeout: 60_000})
