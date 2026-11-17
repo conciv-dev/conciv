@@ -1,5 +1,6 @@
 import {Show, splitProps, Switch, Match, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {isPlainObject} from 'es-toolkit'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -66,7 +67,7 @@ export function CardNote(props: {children: JSX.Element; class?: string}): JSX.El
 }
 
 function isTreeable(value: unknown): value is object {
-  return typeof value === 'object' && value !== null
+  return Array.isArray(value) || isPlainObject(value)
 }
 
 export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {

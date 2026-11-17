@@ -1,15 +1,12 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {isPlainObject} from 'es-toolkit'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
 
 type Entry = {key: string; preview: string; value: unknown}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 const TruncatedMarker = z.looseObject({__conciv: z.string(), preview: z.string()})
 
@@ -18,7 +15,7 @@ function isTruncatedMarker(value: unknown): boolean {
 }
 
 function opensAsTree(value: unknown): boolean {
-  return typeof value === 'object' && value !== null && !isTruncatedMarker(value)
+  return (Array.isArray(value) || isPlainObject(value)) && !isTruncatedMarker(value)
 }
 
 function preview(value: unknown): string {
@@ -26,7 +23,7 @@ function preview(value: unknown): string {
   if (Array.isArray(value)) return `Array(${value.length})`
   const marker = TruncatedMarker.safeParse(value)
   if (marker.success) return marker.data.preview
-  if (isRecord(value)) {
+  if (isPlainObject(value)) {
     const keys = Object.keys(value)
     return keys.length > 0 ? `{ ${keys.join(', ')} }` : '{}'
   }
@@ -34,7 +31,7 @@ function preview(value: unknown): string {
 }
 
 function toEntries(payload: unknown): Entry[] {
-  if (isRecord(payload) && !isTruncatedMarker(payload)) {
+  if (isPlainObject(payload) && !isTruncatedMarker(payload)) {
     return Object.entries(payload).map(([key, value]) => ({key, preview: preview(value), value}))
   }
   if (Array.isArray(payload)) {
@@ -43,12 +40,11 @@ function toEntries(payload: unknown): Entry[] {
   return [{key: 'value', preview: preview(payload), value: payload}]
 }
 
-type LoaderDataPayload = {routeId: string; data: unknown}
+const LoaderDataPayload = z.looseObject({routeId: z.string(), data: z.unknown()})
 
-function loaderDataPayload(result: ToolCardProps['result']): LoaderDataPayload | null {
-  const payload = parseResultPayload(result)
-  if (!isRecord(payload) || typeof payload.routeId !== 'string') return null
-  return {routeId: payload.routeId, data: payload.data}
+function loaderDataPayload(result: ToolCardProps['result']): z.infer<typeof LoaderDataPayload> | null {
+  const parsed = LoaderDataPayload.safeParse(parseResultPayload(result))
+  return parsed.success ? parsed.data : null
 }
 
 function parseEntries(result: ToolCardProps['result']): Entry[] | null {
