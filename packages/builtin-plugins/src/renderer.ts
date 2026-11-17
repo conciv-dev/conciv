@@ -1,5 +1,8 @@
 import {compose} from '@conciv/plugin/experimental/host'
 import type {Plugin} from '@conciv/plugin/experimental'
+import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {pageToolMeta} from './page/cards/page-tool-names.js'
+import {tanstackToolMeta} from './tanstack/tanstack-tool-names.js'
 
 export const builtins = compose({
   page: {
@@ -26,4 +29,8 @@ export const builtins = compose({
 })
 
 export {pageAttachmentCards, pageSessionEntry} from './page/cards/page-tool-cards.js'
-export {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, builtinToolMeta} from './page/cards/page-tool-names.js'
+export {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from './page/cards/page-tool-names.js'
+
+export function builtinToolMeta(name: string): ToolViewMeta | undefined {
+  return pageToolMeta(name) ?? tanstackToolMeta(name)
+}
