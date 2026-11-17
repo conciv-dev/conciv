@@ -8,6 +8,7 @@ import {describe, onTestFinished} from 'vitest'
 import {expect} from '@playwright/test'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
+import {makeRunTypescript} from '@conciv/harness-testkit'
 import {magicLink} from '@conciv/harness-testkit/login'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {serveStaticDir} from '@conciv/plugin-testkit/widget-suite'
@@ -187,8 +188,15 @@ describe('the tanstack plugin in the page', () => {
     })
     await page.getByRole('button', {name: 'Reject fifty long promises'}).click()
     await lastRejection
-    const flooded = ErrorsSchema.parse(await call('tanstack_errors_snapshot', {}))
-    const indices = flooded.errors.map((error) => Number(/^long-error-(\d+) /u.exec(error.message)?.[1]))
+    const runTypescript = makeRunTypescript(kit.base, draft)
+    const floodedMessages = z
+      .array(z.string())
+      .parse(
+        await runTypescript(
+          'return (await external_tanstack_errors_snapshot({})).errors.map((error) => error.message.slice(0, 20))',
+        ),
+      )
+    const indices = floodedMessages.map((message) => Number(/^long-error-(\d+) /u.exec(message)?.[1]))
     expect(indices.at(-1)).toBe(49)
     expect(indices).toEqual(Array.from({length: indices.length}, (_, offset) => 50 - indices.length + offset))
 
