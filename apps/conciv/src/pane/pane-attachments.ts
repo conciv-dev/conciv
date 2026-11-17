@@ -10,7 +10,8 @@ import {
   type AttachmentAdapter,
   type AttachmentCardSlot,
 } from '@conciv/ui-kit-chat'
-import {guardedAttachmentCards} from '../extension/extension-boundary.js'
+import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
+import {guardedAttachmentCard, guardedAttachmentCards} from '../extension/extension-boundary.js'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {keepDraftImage} from './draft-storage.js'
 
@@ -33,19 +34,26 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
   }
 }
 
+function attachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
+  const extensionCards = guardedAttachmentCards(extensions, fallback).filter(
+    (entry) => !pageAttachmentCards.some((card) => card.mime === entry.mime),
+  )
+  return [...pageAttachmentCards.map((card) => guardedAttachmentCard('page', fallback, card)), ...extensionCards]
+}
+
 export function paneAttachments(
   extensions: AnyExtension[],
   imageInput: unknown,
   drafts: DraftStore | null,
 ): {cards: AttachmentCardSlot[]; chips: AttachmentCardSlot[]; adapter: AttachmentAdapter} {
-  const cards = guardedAttachmentCards(extensions, 'card')
+  const cards = attachmentCards(extensions, 'card')
   const image = imageInput === 'native' || imageInput === 'fileRef' ? keptInDraftStore(drafts) : undefined
   const adapter = composeAttachmentAdapters([
     ...(image ? [image] : []),
     TEXT_ATTACHMENT_ADAPTER,
     ...cards.map((entry) => createDocumentAttachmentAdapter(entry.mime)),
   ])
-  return {cards, chips: guardedAttachmentCards(extensions, 'chip'), adapter}
+  return {cards, chips: attachmentCards(extensions, 'chip'), adapter}
 }
 
 export type DraftSink = {insert: (text: string) => void; addFile: (file: File) => void}

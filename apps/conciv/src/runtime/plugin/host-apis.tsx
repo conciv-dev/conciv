@@ -67,6 +67,7 @@ import {usePluginHost, type HostApiFactories} from './host'
 import {icons} from './icons'
 import {createLocatedWrites} from './located'
 import {createMobileViews} from './mobile'
+import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
 import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
@@ -122,6 +123,7 @@ export function createHostApis() {
   const rpc = useRpc()
   const apiBase = useApiBase()
   const notices = useNotices()
+  const theme = useHostTheme()
   const systemDark = createMediaQuery('(prefers-color-scheme: dark)')
   const [attachState, setAttachState] = createSignal(createHostApiAttachState<Attached>())
   const attached = createMemo(() => selectAttached(attachState()))
@@ -304,6 +306,11 @@ export function createHostApis() {
       font: () => 'var(--chat-mono)',
       mode: () => current()?.mode() ?? (systemDark() ? 'dark' : 'light'),
     }),
+    overlay: (_plugin, _owner, _context, register) => (options) => {
+      const mounted = mountOverlay(theme, options?.styles)
+
+      return {element: mounted.element, dispose: register(mounted.dispose)}
+    },
     router: () => ({
       routing: () => current()?.routing() ?? false,
       path: () => current()?.path() ?? '',

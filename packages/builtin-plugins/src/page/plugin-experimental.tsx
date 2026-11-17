@@ -1,6 +1,7 @@
 import {createComponent, onCleanup, type Accessor, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
+import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition, type Tab} from '@conciv/plugin-page/rpc'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
@@ -8,6 +9,7 @@ import {openAttachment} from './attachment.js'
 import {makeHighlight, type OpenedSource} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
+import {pageToolCalls} from './cards/page-tool-cards.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
 
 const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
@@ -171,6 +173,7 @@ export default Plugin.define({
     ctx.add(PageEffect, highlight.effect)
     createComponent(HighlightHost, {mode: () => ctx.appearance.mode(), mount: highlight.mount})
 
+    pageToolCalls.forEach((call) => ctx.add(ToolCall, call))
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 

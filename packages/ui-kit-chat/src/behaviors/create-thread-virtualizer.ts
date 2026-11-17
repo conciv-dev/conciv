@@ -408,7 +408,10 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     nearStart: () => edges.nearStart,
     landOnEnd: returnToEnd,
     glideToEnd,
-    measureRow: (element) => instance.measureElement(element),
+    measureRow: (element) =>
+      queueMicrotask(() => {
+        if (element.isConnected) instance.measureElement(element)
+      }),
     remeasure: () => {
       instance.measureElement(null)
       instance.measure()
