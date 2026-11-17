@@ -7886,6 +7886,13 @@ module.exports = {default: {stores: {
     at: 'window.bottom',
     render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
   })
+  const [hidingOverlay, setHidingOverlay] = createSignal(false)
+  ctx.add(Slot, {at: 'window.bottom', render: () => button('Open the hiding overlay', () => setHidingOverlay(true))})
+  ctx.add(Slot, () =>
+    hidingOverlay()
+      ? {at: 'page.overlay', render: () => button('Close the hiding overlay', () => setHidingOverlay(false))}
+      : undefined,
+  )
   ctx.add(SettingsPage, {
     id: 'prefs',
     title: 'Fixture prefs',
@@ -8491,6 +8498,27 @@ module.exports = {default: {setup(ctx) {
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
     await expect.element(heldNote()).toBeVisible()
   }, 90_000)
+
+  test('a page overlay that hides the chat takes the chat out of reach by role and by Tab, and closing it brings the composer back', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Open the hiding overlay')).toBeVisible()
+
+    await control('Open the hiding overlay').click()
+    await expect.element(control('Close the hiding overlay')).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(control('Open the hiding overlay')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await expect.element(control('Close the hiding overlay')).toHaveFocus()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(control('Close the hiding overlay')).not.toBeInTheDocument()
+    await expect.element(editor()).toBeVisible()
+    await editor().click()
+    await expect.element(editor()).toHaveFocus()
+  }, 45_000)
 
   test('on a phone its mobile views are status bar entries drawn in place of the chat, a cached one keeps its state, and the address survives a reload and a desktop width', async () => {
     await page.viewport(414, 896)
