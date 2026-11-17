@@ -66,6 +66,7 @@ declare module 'vitest/internal/browser' {
     writeProjectFile: (path: string, content: string) => Promise<void>
     pushSocketsOpened: () => Promise<number>
     pushSocketsLive: () => Promise<number>
+    awaitPushSocketLive: () => Promise<void>
     rpcSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
