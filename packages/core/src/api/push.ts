@@ -3,7 +3,7 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
 import type {WSContext} from 'hono/ws'
-import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {logError} from '../lib/debug.js'
 import type {BrowserTabFocus} from '../page/page-bus.js'
 

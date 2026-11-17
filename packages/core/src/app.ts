@@ -90,13 +90,8 @@ import {openSourceFromFrames} from './editor/open-source.js'
 import {makePagePlugin} from './page/page-plugin.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
-import {
-  makeCompositeRpcRouter,
-  RPC_PREFIX,
-  rpcFetchMiddleware,
-  rpcWebsocketRoute,
-  type UpgradeWebSocket,
-} from '@conciv/extension/rpc-mount'
+import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
+import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'

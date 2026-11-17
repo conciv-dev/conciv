@@ -2341,6 +2341,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/serve':
+        specifier: workspace:^
+        version: link:../serve
       '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
@@ -2942,6 +2945,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/serve':
+        specifier: workspace:^
+        version: link:../serve
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
@@ -2960,9 +2966,6 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.14
-      semver:
-        specifier: 'catalog:'
-        version: 7.8.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2976,9 +2979,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.8.0
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
@@ -3679,6 +3679,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
+      '@conciv/serve':
+        specifier: workspace:^
+        version: link:../../serve
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../ui-kit-chat
@@ -5207,18 +5210,30 @@ importers:
 
   packages/serve:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@hono/node-server':
         specifier: 'catalog:'
         version: 2.1.5(hono@4.13.14)
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
       hono:
         specifier: 'catalog:'
         version: 4.13.14
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       ws:
         specifier: 'catalog:'
         version: 8.22.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@conciv/tsconfig':
         specifier: workspace:*
@@ -5229,6 +5244,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.2
@@ -21009,6 +21027,7 @@ snapshots:
       '@conciv/contract': link:packages/contract
       '@conciv/extension': link:packages/extension
       '@conciv/protocol': link:packages/protocol
+      '@conciv/serve': link:packages/serve
       '@conciv/ui-kit-chat': link:packages/ui-kit-chat
       '@conciv/ui-kit-system': link:packages/ui-kit-system
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal
@@ -21032,6 +21051,7 @@ snapshots:
       '@conciv/contract': link:packages/contract
       '@conciv/extension': link:packages/extension
       '@conciv/protocol': link:packages/protocol
+      '@conciv/serve': link:packages/serve
       '@conciv/ui-kit-chat': link:packages/ui-kit-chat
       '@conciv/ui-kit-system': link:packages/ui-kit-system
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal

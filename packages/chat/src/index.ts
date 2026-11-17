@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Hono} from 'hono'
-import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
