@@ -58,7 +58,10 @@ const aims = new Map<string, Aim>()
 const placed = new Map<string, Placed>()
 const pass: {dirty: boolean; seenLayout: number} = {dirty: false, seenLayout: -1}
 const frameLoop: {scheduled: boolean; layout: number} = {scheduled: false, layout: 0}
-const watchedDocuments = new WeakSet<Document>()
+const layoutWatch: {documents: WeakSet<Document>; stop: AbortController} = {
+  documents: new WeakSet(),
+  stop: new AbortController(),
+}
 
 const aimed = new ReactiveMap<string, CursorLook>()
 
@@ -129,11 +132,17 @@ function settleWhenHidden(): void {
 }
 
 function watchDocument(doc: Document): void {
-  if (watchedDocuments.has(doc)) return
-  watchedDocuments.add(doc)
-  if (doc === document) doc.addEventListener('visibilitychange', settleWhenHidden)
-  doc.addEventListener('scroll', bumpLayout, {capture: true, passive: true})
-  doc.defaultView?.addEventListener('resize', bumpLayout, {passive: true})
+  if (layoutWatch.documents.has(doc)) return
+  layoutWatch.documents.add(doc)
+  const signal = layoutWatch.stop.signal
+  if (doc === document) doc.addEventListener('visibilitychange', settleWhenHidden, {signal})
+  doc.addEventListener('scroll', bumpLayout, {capture: true, passive: true, signal})
+  doc.defaultView?.addEventListener('resize', bumpLayout, {passive: true, signal})
+}
+
+export function unwatchLayout(): void {
+  layoutWatch.stop.abort()
+  Object.assign(layoutWatch, {documents: new WeakSet(), stop: new AbortController()})
 }
 
 function watchLayout(at: CursorAt): void {

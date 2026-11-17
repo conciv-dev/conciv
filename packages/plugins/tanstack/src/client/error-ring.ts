@@ -2,10 +2,22 @@ import type {AppError} from '@conciv/protocol/framework-types'
 
 const CAPACITY = 50
 
+const MESSAGE_MAX = 2_048
+
+const STACK_MAX = 8_192
+
 let stored: AppError[] = []
 
 function toAppError(message: string, stack: string | null): AppError {
-  return {kind: 'runtime', id: crypto.randomUUID(), message, stack, source: null, digest: null, at: Date.now()}
+  return {
+    kind: 'runtime',
+    id: crypto.randomUUID(),
+    message: message.slice(0, MESSAGE_MAX),
+    stack: stack?.slice(0, STACK_MAX) ?? null,
+    source: null,
+    digest: null,
+    at: Date.now(),
+  }
 }
 
 function push(error: AppError): void {

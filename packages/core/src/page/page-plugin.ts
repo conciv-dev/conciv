@@ -98,8 +98,6 @@ export function makePagePlugin(host: () => PluginHost) {
         if (!unlisted(error)) logError(`[core] the page plugin could not symbolicate: ${String(error)}`)
         return null
       }),
-    hmrWait: async (input: Input<'hmr.wait'>, signal?: AbortSignal) =>
-      Definition.methods['hmr.wait'].output.parse(await call('hmr.wait', input, signal)),
     queueWait: async (
       input: Input<'queue.wait'>,
       signal?: AbortSignal,

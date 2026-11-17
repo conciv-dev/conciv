@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {Live} from '@conciv/plugin/experimental'
 import type {ReactTree} from '@conciv/plugin/experimental/page'
-import type {Action, Command, Outcome} from '../rpc.js'
+import {SHORT_MAX, type Action, type Command, type Outcome} from '../rpc.js'
 import {readRuntimeErrors} from './error-ring.js'
 import {invalidateQuery, readMutations, readQueryCache, refetchQuery} from './query-adapter.js'
 import {
@@ -40,6 +40,8 @@ const PAGE_PENDING: Outcome = {
   message:
     'The page plugin is still starting in this tab; no action ran. Call tanstack.tabs.list({}) once it finishes starting, then retry.',
 }
+
+const RESULT_MAX = 512_000
 
 type ActionMap = {[Entry in Action as Entry['type']]: Entry}
 
@@ -80,9 +82,14 @@ export function makeTanstackOperations(tree: () => Live<ReactTree>): TanstackOpe
     try {
       signal?.throwIfAborted()
       const value = z.json().parse(await perform(live.value, command.action.type, command.action))
+      if ((JSON.stringify(value) ?? '').length > RESULT_MAX)
+        throw new Error(
+          'TanStack result exceeds 512000 JSON characters. Ask for one route with loader_data, or a single query key, instead of the whole cache. Repeating the same request will not reduce its output.',
+        )
       return {type: 'success', result: {value}}
     } catch (error) {
-      return {type: 'failure', code: 'handler_error', message: error instanceof Error ? error.message : String(error)}
+      const message = error instanceof Error ? error.message : String(error)
+      return {type: 'failure', code: 'handler_error', message: message.slice(0, SHORT_MAX)}
     }
   }
 

@@ -119,7 +119,7 @@ export async function run(command: string, args: string[], cwd: string): Promise
 export function assertPackAllowed(): void {
   if (process.env.GITHUB_ACTIONS === 'true') return
   throw new Error(
-    'packing @conciv tarballs runs only in CI (.github/workflows/packed.yml); it never runs locally. Push the branch and read the Packed workflow run instead.',
+    'packing @conciv tarballs runs only in CI (.github/workflows/packed.yml); it never runs locally. Push the branch and read its Packed run, or start one with gh workflow run packed.yml --ref <branch>.',
   )
 }
 
@@ -326,7 +326,8 @@ export function assertLockNotDrifted(root: string, lockPath: string): void {
 const REFRESH_INSTRUCTIONS = [
   'The failed CI run wrote the fresh lockfile over this one and uploaded both fixture locks. Refresh it from',
   'that run, never locally:',
-  '  1. take the id of THIS failed Packed run on your PR (gh run list --workflow packed.yml --branch <branch>)',
+  '  1. take the id of this failed Packed run (on your PR, or one you dispatched on the branch with',
+  '     gh workflow run packed.yml --ref <branch>): gh run list --workflow packed.yml --branch <branch>',
   '  2. gh run download <run-id> -n packed-fixture-locks -D e2e',
   '     (always by run id: a fork PR can upload an artifact with the same name)',
   '  3. before committing, check the diff (also in the run summary) holds only the expected name@version',

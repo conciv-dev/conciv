@@ -57,7 +57,29 @@ function BoomPage() {
 
 const boomRoute = createRoute({getParentRoute: () => rootRoute, path: '/boom', component: BoomPage})
 
-const router = createRouter({routeTree: rootRoute.addChildren([indexRoute, aboutRoute, boomRoute])})
+function ResetPage() {
+  return createElement('h1', null, 'Reset password')
+}
+
+const resetRoute = createRoute({getParentRoute: () => rootRoute, path: '/reset/$token', component: ResetPage})
+
+const refusingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/refusing',
+  search: {
+    middlewares: [
+      ({search, next}) => {
+        const result = next(search)
+        if (Object.keys(result).includes('refuse')) throw new Error(`refused ${'x'.repeat(5000)}`)
+        return result
+      },
+    ],
+  },
+})
+
+const router = createRouter({
+  routeTree: rootRoute.addChildren([indexRoute, aboutRoute, boomRoute, resetRoute, refusingRoute]),
+})
 
 const rootElement = document.getElementById('root')
 if (rootElement)

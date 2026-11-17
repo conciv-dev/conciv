@@ -14,19 +14,24 @@ const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
+const RETRY_BASE_MS = 1000
+
+const RETRY_MAX_MS = 30_000
+
 function reportChanges(report: () => void, signal: AbortSignal) {
   TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
   document.addEventListener('visibilitychange', report, {signal})
 }
 
 function woken(signal: AbortSignal) {
-  return new Promise<void>((resolve) => {
-    const options = {once: true, signal}
+  const woke = new AbortController()
+  const options = {once: true, signal: AbortSignal.any([signal, woke.signal])}
 
+  return new Promise<void>((resolve) => {
     WAKE_EVENTS.forEach((type) => window.addEventListener(type, () => resolve(), options))
     document.addEventListener('visibilitychange', () => resolve(), options)
-    signal.addEventListener('abort', () => resolve(), {once: true})
-  })
+    signal.addEventListener('abort', () => resolve(), {once: true, signal: woke.signal})
+  }).finally(() => woke.abort())
 }
 
 function HighlightHost(props: {
@@ -50,7 +55,6 @@ export default Plugin.define({
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
     const operations = makePageOperations(ctx)
-    const unsupported = new Set<string>()
     const routed = () => ctx.sessions.current()
 
     const tab = (): Tab => ({
@@ -62,17 +66,25 @@ export default Plugin.define({
     })
 
     const keep = async (session: MountedSession, signal: AbortSignal) => {
-      for (;;) {
-        const end = await openAttachment({session, connectionId, tab, changed: reportChanges, operations, signal})
+      for (let refusals = 0; ;) {
+        const retryMs = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** refusals)
+        const end = await openAttachment({
+          session,
+          connectionId,
+          tab,
+          changed: reportChanges,
+          operations,
+          signal,
+          retryMs,
+        })
 
         if (signal.aborted) return
 
-        if (end.outcome === 'born') continue
+        refusals = end.outcome === 'refused' ? refusals + 1 : 0
 
-        if (end.outcome === 'unsupported' || end.outcome === 'unavailable')
-          return void unsupported.add(session.server.id)
+        if (end.outcome === 'born' || end.outcome === 'refused') continue
 
-        if (end.outcome === 'replaced' || !end.attached) return
+        if (end.outcome !== 'closed' || !end.attached) return
         await woken(signal)
 
         if (signal.aborted) return
@@ -83,7 +95,7 @@ export default Plugin.define({
       () => {
         const session = routed()
 
-        return session?.server.compatible && !unsupported.has(session.server.id) ? session : undefined
+        return session?.server.compatible && session.server.connected ? session : undefined
       },
       (session) => {
         const controller = new AbortController()

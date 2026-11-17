@@ -101,7 +101,8 @@ const SessionId = z
 
 export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
 export type TabId = z.infer<typeof TabId>
-const short = z.string().max(2_048)
+export const SHORT_MAX = 2_048
+const short = z.string().max(SHORT_MAX)
 const tab = {
   tabId: TabId.optional().describe(
     'Tab ID returned by tanstack.tabs.list. Omit it for the tab the user focused last, which serves the call.',
@@ -253,7 +254,7 @@ export const Definition = Rpc.define({
     attach: {
       input: z.object({...attachment, version: z.literal(1)}),
       output: z.enum(['closed', 'replaced']),
-      errors: unavailable,
+      errors: {...unavailable, missing: z.object({})},
     },
     state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors: unavailable},
     command: {input: z.object(request), output: Command, errors: unavailable},
