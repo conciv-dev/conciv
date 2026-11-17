@@ -53,6 +53,7 @@
   "dependencies": {
     "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
