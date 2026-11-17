@@ -64,6 +64,7 @@ export type AppData = {
   saveDraft: (save: DraftSave) => Promise<boolean>
   endDraftSaves: (sessionId: string) => void
   sessionDeleted: (sessionId: string) => boolean
+  forgetGoneDrafts: () => Promise<void>
   dispose: () => void
 }
 
@@ -157,6 +158,29 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
   const endDraftSaves = (sessionId: string): void => {
     queryClient.setQueryData(draftQuery(sessionId).queryKey, null)
   }
+  const sessionGone = (sessionId: string): Promise<boolean> =>
+    rpc.sessions.get({sessionId}).then(
+      (meta) => meta.hidden,
+      (error: unknown) => {
+        if (error instanceof ORPCError && error.code === 'NOT_FOUND') return true
+        console.error(`[conciv] could not check session ${sessionId}, so its local draft stays`, error)
+        return false
+      },
+    )
+  const forgetGoneDraft = async (sessionId: string): Promise<void> => {
+    if (!drafts || !(await sessionGone(sessionId))) return
+    await drafts.removeItem(sessionId).catch((error: unknown) => {
+      console.error('[conciv] could not remove the local draft of a gone session', error)
+    })
+  }
+  const forgetGoneDrafts = async (): Promise<void> => {
+    if (!drafts) return
+    const kept = await drafts.keys().catch((error: unknown) => {
+      console.error('[conciv] could not list the local drafts', error)
+      return []
+    })
+    await kept.reduce((checked, sessionId) => checked.then(() => forgetGoneDraft(sessionId)), Promise.resolve())
+  }
   const reading = new AbortController()
   const forgetDeletedSessions = async () => {
     for await (const event of client.event.subscribe({signal: reading.signal})) {
@@ -195,6 +219,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,
     endDraftSaves,
+    forgetGoneDrafts,
     sessionDeleted: (sessionId) => queryClient.getQueryData(sessionKey(sessionId))?.hidden === true,
     dispose: () => reading.abort(),
   }

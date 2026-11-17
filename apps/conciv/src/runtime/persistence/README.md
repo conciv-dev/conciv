@@ -28,6 +28,9 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
 - An attached image is put in the draft database only when the composer accepted it (`pane/pane-attachments.ts`,
   the check on the pending attachment's status). An image the composer refused, such as one over its send limit,
   keeps its chip and gets no local copy. The source's composer refuses nothing at attach time, so it never needs this.
+- The draft store lists its document keys (`DraftStore.keys`, the driver's `keys`: `getAllKeys` on `documents`, in key
+  order). The source has no such call; conciv uses it once per start to remove the local drafts of sessions the engine
+  no longer has (`data/app-data.ts` `forgetGoneDrafts`).
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
 - A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod and

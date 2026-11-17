@@ -31,6 +31,7 @@ type Driver = {
   get(key: string): Promise<string | null>
   set(key: string, value: string, strict: boolean): Promise<readonly string[]>
   remove(key: string): Promise<void>
+  keys(): Promise<string[]>
   putBlob(blob: Blob): Promise<string>
   getBlob(id: string): Promise<Blob | null>
 }
@@ -38,6 +39,7 @@ type Driver = {
 export type DraftStore = AsyncStorage & {
   putBlob(blob: Blob): Promise<BlobReference>
   setDocument(key: string, document: unknown): Promise<void>
+  keys(): Promise<string[]>
 }
 const draftTextThreshold = 16 * 1024
 
@@ -395,6 +397,7 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
       await driver.remove(key)
       dispatch({type: 'remove.committed', storeId, key, attempt, graceMs: grace})
     },
+    keys: () => driver.keys(),
     putBlob,
   }
 }
@@ -500,6 +503,13 @@ export function createBrowserDraftStore(): DraftStore {
       })
     },
     remove: (key) => write('documents', key),
+    keys: async () => {
+      const request = (await db).transaction('documents').objectStore('documents').getAllKeys()
+      return new Promise<string[]>((resolve, reject) => {
+        request.addEventListener('success', () => resolve(request.result.map(String)))
+        request.addEventListener('error', () => reject(request.error))
+      })
+    },
     putBlob: async (blob) => {
       const id = await blobID(blob)
       await write('blobs', id, blob)
