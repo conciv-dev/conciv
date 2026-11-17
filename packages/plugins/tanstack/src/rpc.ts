@@ -234,7 +234,7 @@ export const Result = z.object({value: z.json()})
 export type Result = z.infer<typeof Result>
 export const Outcome = z.discriminatedUnion('type', [
   z.object({type: z.literal('success'), result: Result}),
-  z.object({type: z.literal('failure'), code: short, message: short}),
+  z.object({type: z.literal('failure'), code: z.string().regex(/^[a-z_]{1,64}$/u), message: short}),
 ])
 export type Outcome = z.infer<typeof Outcome>
 export const Control = z.discriminatedUnion('type', [

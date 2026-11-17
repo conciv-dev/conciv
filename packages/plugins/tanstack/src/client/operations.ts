@@ -82,7 +82,7 @@ export function makeTanstackOperations(tree: () => Live<ReactTree>): TanstackOpe
       const value = z.json().parse(await perform(live.value, command.action.type, command.action))
       return {type: 'success', result: {value}}
     } catch (error) {
-      return {type: 'failure', code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
+      return {type: 'failure', code: 'handler_error', message: error instanceof Error ? error.message : String(error)}
     }
   }
 
