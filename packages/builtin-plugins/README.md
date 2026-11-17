@@ -8,6 +8,12 @@ Private. The browser parts of conciv's built-in plugins, given to the widget fro
 The browser part of `experimental.page`: one attachment per tab to its engine half (`@conciv/plugin-page`), the
 operations it runs on the page, and the members other plugins read (`Page`, `ReactTree`).
 
+The `highlight` page effect (`src/page/highlight.tsx`) draws in the plugin's `ctx.overlay` layer, under the widget: the
+overlay brings the widget sheet (reset, tokens, host rules) and the color scheme, and the plugin adds this package's own
+utilities (`virtual:uno.css?inline`) as the overlay's `styles`, since the widget sheet does not scan this package. The
+capture layer opts back into pointer events, and `elementAt` skips the widget root and every `[data-conciv-overlay]`
+host. The layer sits under the widget, so the box is not drawn over the open panel.
+
 The routed session attaches while its server is compatible and its event stream is connected (`ServerRef.connected`):
 a dropped stream or an engine restart ends the attachment and the reconnect starts a new one, with nobody touching the
 tab. In opencode the desktop's own stream ends with the connection, the attachment ends `closed` and the pane registers

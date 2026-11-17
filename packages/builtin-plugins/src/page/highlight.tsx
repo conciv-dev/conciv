@@ -6,10 +6,7 @@ import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
 import type {PageEffect} from '@conciv/plugin/experimental/page'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
-import reset from '@unocss/reset/tailwind.css?inline'
-import tokens from '@conciv/ui-kit-system/tokens.css?inline'
-import hostSheet from '@conciv/ui-kit-system/host.css?inline'
-import utilities from 'virtual:uno.css?inline'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 
@@ -39,7 +36,7 @@ function elementAt(x: number, y: number): Element | null {
   return (
     document
       .elementsFromPoint(x, y)
-      .find((element) => !element.closest('[data-conciv-root]') && !element.closest('[data-conciv-effects]')) ?? null
+      .find((element) => !element.closest('[data-conciv-root]') && !element.closest(`[${PLUGIN_OVERLAY_ATTR}]`)) ?? null
   )
 }
 
@@ -93,7 +90,7 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
 
   return (
     <div aria-hidden="true" class="contents">
-      <div data-conciv-capture class="cursor-crosshair inset-0 fixed" />
+      <div data-conciv-capture class="cursor-crosshair pointer-events-auto inset-0 fixed" />
       <div class={HINT}>
         Inspecting · click to open source · <Kbd>Esc</Kbd> to exit
       </div>
@@ -128,30 +125,19 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
 
 export function makeHighlight(options: HighlightOptions): {
   effect: PageEffect
-  mount: (root: ShadowRoot) => () => void
+  mount: (element: HTMLElement) => () => void
 } {
   const [state, setState] = createStore({driven: false})
 
-  const mount = (root: ShadowRoot) => {
-    const style = document.createElement('style')
-    style.textContent = `${reset}${tokens}${hostSheet}${utilities}`
-    const layer = document.createElement('div')
-    root.append(style, layer)
-    const unmount = render(
+  const mount = (element: HTMLElement) =>
+    render(
       () => (
         <Show when={state.driven}>
           <HighlightInspector open={options.open} toast={options.toast} onExit={() => setState('driven', false)} />
         </Show>
       ),
-      layer,
+      element,
     )
-
-    return () => {
-      unmount()
-      layer.remove()
-      style.remove()
-    }
-  }
 
   return {
     effect: {

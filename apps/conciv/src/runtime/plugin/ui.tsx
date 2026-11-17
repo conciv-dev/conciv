@@ -251,7 +251,9 @@ export const ui: Ui = {
         <OpenLayer />
       </Show>
       <Popover.Positioner>
-        <Popover.Content aria-label={props.label}>{props.children}</Popover.Content>
+        <Popover.Content aria-label={props.label} class="p-4">
+          {props.children}
+        </Popover.Content>
       </Popover.Positioner>
     </Popover.Root>
   ),
