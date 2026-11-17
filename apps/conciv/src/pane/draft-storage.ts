@@ -49,18 +49,23 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
 }
 
-function serializeRow(row: DraftRow): string {
-  return JSON.stringify({text: row.text, quote: null, attachments: row.attachments, items: row.items})
-}
-
-function durableItem(item: DraftItem): DraftItem {
+function durableItems(item: DraftItem): DraftItem[] {
   const note = NoteContextItem.safeParse(item.value)
 
-  return note.success ? {key: item.key, value: noteValue(durableNote(note.data))} : item
+  return note.success ? [{key: item.key, value: noteValue(durableNote(note.data))}] : []
+}
+
+function serializeRow(row: DraftRow): string {
+  return JSON.stringify({
+    text: row.text,
+    quote: null,
+    attachments: row.attachments,
+    items: row.items.flatMap(durableItems),
+  })
 }
 
 function serverDraft(row: DraftRow): ServerDraft {
-  const serialized = serializeRow({...row, items: row.items.map(durableItem)})
+  const serialized = serializeRow(row)
   return {
     snapshot: {getItem: () => serialized, setItem: () => {}},
     selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),
