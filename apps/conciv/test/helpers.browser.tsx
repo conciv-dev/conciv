@@ -234,7 +234,7 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
     warmSession: createWarmSession(data, connected, queryClient),
     queryClient,
     announce: (message) => announce?.(message),
-    layers: makeLayerStack(document),
+    layers: makeLayerStack(),
     suppressed: () => undefined,
     fabAnchor: () => ({
       corner: 'bottom-right',
