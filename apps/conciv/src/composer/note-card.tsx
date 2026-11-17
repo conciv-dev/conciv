@@ -2,9 +2,8 @@ import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
-import XIcon from 'lucide-solid/icons/x'
-import {Button, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
-import {NoteFrame, useComposerContext} from '@conciv/ui-kit-chat'
+import {Button, TruncatedText} from '@conciv/ui-kit-system'
+import {NoteFrame, useComposerContext, type NoteFrameProps} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
 import {usePluginHost} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
@@ -51,6 +50,7 @@ function PluginNoteCard(props: {
   note: NoteCardProps['note']
   session: MountedSession | undefined
   wide?: boolean
+  remove?: NoteFrameProps['remove']
 }): JSX.Element {
   const host = usePluginHost()
   const [state, setState] = createStore({declined: false})
@@ -60,7 +60,7 @@ function PluginNoteCard(props: {
   )
 
   return (
-    <NoteFrame wide={props.wide}>
+    <NoteFrame wide={props.wide} remove={props.remove}>
       <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
         {(item) => (
           <Contribution plugin={item.plugin} failed={decline}>
@@ -103,14 +103,15 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
 
   return (
     <Show when={notes().length > 0}>
-      <ul aria-label="Notes" class="flex flex-wrap gap-1 list-none p-0">
+      <ul aria-label="Notes" class="flex flex-wrap items-start gap-1 list-none p-0">
         <Key each={notes()} by={(entry) => entry.key}>
           {(entry) => (
-            <li class="flex items-center gap-0.5 min-w-0 anim-presence-in">
-              <PluginNoteCard note={entry().note} session={props.session()} />
-              <TooltipIconButton tooltip={`Remove ${noteHeading(entry().note)}`} onClick={() => remove(entry().key)}>
-                <XIcon size={12} aria-hidden="true" />
-              </TooltipIconButton>
+            <li class="flex min-w-0 anim-presence-in">
+              <PluginNoteCard
+                note={entry().note}
+                session={props.session()}
+                remove={{label: `Remove ${noteHeading(entry().note)}`, onRemove: () => remove(entry().key)}}
+              />
             </li>
           )}
         </Key>

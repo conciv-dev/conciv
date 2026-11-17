@@ -18,11 +18,11 @@ function ChipInside(props: {heading: string; meta: string}) {
 export const StagedAndWide: Story = {
   render: () => (
     <div class="p-3 bg-chat-panel flex flex-col gap-3 max-w-80">
-      <div class="flex flex-wrap gap-1">
-        <NoteFrame>
+      <div class="flex flex-wrap gap-1 items-start">
+        <NoteFrame remove={{label: 'Remove Make this button primary', onRemove: () => undefined}}>
           <ChipInside heading="Make this button primary" meta="Button.tsx" />
         </NoteFrame>
-        <NoteFrame>
+        <NoteFrame remove={{label: "Remove A plugin's own drawing", onRemove: () => undefined}}>
           <p>A plugin's own drawing</p>
         </NoteFrame>
       </div>
@@ -39,5 +39,7 @@ export const StagedAndWide: Story = {
 
     await expect(canvas.getAllByText('Make this button primary')).toHaveLength(2)
     await expect(canvas.getAllByText("A plugin's own drawing")).toHaveLength(2)
+    await expect(canvas.getByRole('button', {name: 'Remove Make this button primary'})).toBeVisible()
+    await expect(canvas.getAllByRole('button', {name: /^Remove /})).toHaveLength(2)
   },
 }

@@ -5,15 +5,12 @@ import X from 'lucide-solid/icons/x'
 import {Tooltip, TooltipIconButtonSlot, ZoomableImage} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/attachment/attachment-adapter.js'
-import {FOCUS, FOCUS_INSET} from './classes.js'
+import {FOCUS_INSET, REMOVE, REMOVE_WRAPPER} from './classes.js'
 
 const TILE =
   'relative size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default anim-presence-in'
 
 const IMAGE_TRIGGER = `size-full block !border-0 !cursor-zoom-in ${FOCUS_INSET}`
-
-const REMOVE_WRAPPER = 'absolute end-0.5 top-0.5'
-const REMOVE = `inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)] ${FOCUS}`
 
 type AttachmentState = ReturnType<typeof useAttachment>
 type ImagePart = Extract<AttachmentContentPart, {type: 'image'}>
