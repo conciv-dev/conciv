@@ -255,7 +255,7 @@ const PAINT_PROPERTIES = ['fill', 'stroke', 'stroke-width', 'font-size']
 function parseInert(svgMarkup: string): Element {
   const root = new DOMParser().parseFromString(svgMarkup, 'image/svg+xml').documentElement
   if (root.getElementsByTagName('parsererror').length) {
-    throw new Error('svg markup is not well-formed xml')
+    throw new Error('the svg is not well-formed')
   }
   if (root.localName !== 'svg') throw new Error('no <svg> root found')
   return root

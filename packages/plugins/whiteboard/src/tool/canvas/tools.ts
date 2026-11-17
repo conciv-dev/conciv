@@ -35,6 +35,8 @@ const skeleton = z
     height: z.number().optional(),
   })
   .loose()
+const DrawReply = z.object({error: z.string()})
+const DRAW_FAILURE_CODE = {skeletons: 'DRAW_FAILED', mermaid: 'INVALID_DIAGRAM', svg: 'INVALID_SVG'} as const
 const ExportReply = z.object({
   dataBase64: z.string().optional(),
   error: z.string().optional(),
@@ -66,6 +68,15 @@ function pngContent(dataBase64: string) {
   ]
 }
 
+async function takeReply(store: Store, room: string, requestId: string) {
+  const [reply] = await store.db
+    .select()
+    .from(canvasReplies)
+    .where(and(eq(canvasReplies.room, room), eq(canvasReplies.requestId, requestId)))
+  if (reply) await store.deleteReply(reply.id, room)
+  return reply
+}
+
 function drained(store: Store, id: string): {done: Promise<boolean>; stop: () => void} {
   const settled = Promise.withResolvers<boolean>()
   const timer = setTimeout(() => settled.resolve(false), DRAIN_DEADLINE_MS)
@@ -91,7 +102,11 @@ async function drawIntoDraft(
   const watch = drained(store, id)
   try {
     await store.insertPending({id, room, kind, stage: 'draft', payload})
-    if (await watch.done) return {output: {pending: id}}
+    if (await watch.done) {
+      const reply = await takeReply(store, room, id)
+      if (reply) fail({code: DRAW_FAILURE_CODE[kind], message: DrawReply.parse(reply.payload).error})
+      return {output: {pending: id}}
+    }
   } finally {
     watch.stop()
   }
@@ -110,12 +125,8 @@ async function exportPng(store: Store, room: string, scope: string) {
   })
   const deadline = Date.now() + EXPORT_DEADLINE_MS
   while (Date.now() < deadline) {
-    const [reply] = await store.db
-      .select()
-      .from(canvasReplies)
-      .where(and(eq(canvasReplies.room, room), eq(canvasReplies.requestId, requestId)))
+    const reply = await takeReply(store, room, requestId)
     if (reply) {
-      await store.deleteReply(reply.id, room)
       const payload = ExportReply.parse(reply.payload)
       if (payload.error) fail({message: `${payload.error}: ${payload.reason ?? 'unknown'}`})
       return {output: {scope}, content: pngContent(payload.dataBase64 ?? '')}
@@ -146,7 +157,7 @@ export function registerCanvas(tool: ToolDomain, store: Store, permission: Confi
       name: 'svg',
       options: CANVAS_OPTIONS,
       description:
-        'Draw by writing SVG markup (paths, shapes, text, fills). Converted in the browser into editable canvas elements. Drawings land in the hidden draft; commit publishes them. Fails INVALID_SVG when the markup is rejected and NO_CANVAS when no canvas is open.',
+        'Draw by writing SVG markup (paths, shapes, text, fills). Converted in the browser into editable canvas elements. Drawings land in the hidden draft; commit publishes them. Style every shape with its own fill, stroke, stroke-width and font-size attributes or style: the conversion drops class and <style> styling, gradient and url() fills, per-tspan font sizes, and image and use elements. Fails INVALID_SVG when the markup is rejected, is not well-formed or has nothing drawable, and NO_CANVAS when no canvas is open.',
       input: z.object({
         svg: z.string(),
         x: z.number(),
@@ -174,7 +185,7 @@ export function registerCanvas(tool: ToolDomain, store: Store, permission: Confi
       name: 'draw',
       options: CANVAS_OPTIONS,
       description:
-        'Add element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the hidden draft; commit publishes them. Fails NO_CANVAS when no canvas is open.',
+        'Add element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the hidden draft; commit publishes them. Fails DRAW_FAILED when the canvas cannot convert them and NO_CANVAS when no canvas is open.',
       input: z.object({elements: z.array(skeleton)}),
       output: PendingOutput,
       execute: async ({elements}, {sessionId}) =>
@@ -184,7 +195,7 @@ export function registerCanvas(tool: ToolDomain, store: Store, permission: Confi
       name: 'diagram',
       options: CANVAS_OPTIONS,
       description:
-        'Render a Mermaid diagram (flowchart, sequence, class, ...) into the hidden draft; commit publishes it. Fails DIAGRAM_TOO_LARGE over 500 edges and NO_CANVAS when no canvas is open.',
+        'Render a Mermaid diagram (flowchart, sequence, class, ...) into the hidden draft; commit publishes it. Fails DIAGRAM_TOO_LARGE over 500 edges, INVALID_DIAGRAM when the canvas cannot parse it and NO_CANVAS when no canvas is open.',
       input: z.object({mermaid: z.string()}),
       output: PendingOutput,
       execute: async ({mermaid}, {sessionId}) => {

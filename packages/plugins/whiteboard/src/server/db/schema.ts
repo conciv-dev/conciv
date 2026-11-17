@@ -38,7 +38,7 @@ export const canvasReplies = sqliteTable('canvas_replies', {
   id: text('id').primaryKey(),
   room: text('room').notNull(),
   requestId: text('request_id').notNull(),
-  kind: text('kind', {enum: ['export']}).notNull(),
+  kind: text('kind', {enum: ['export', 'draw']}).notNull(),
   payload: text('payload', {mode: 'json'}).$type<JsonValue>().notNull(),
 })
 

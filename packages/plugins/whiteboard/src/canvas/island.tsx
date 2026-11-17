@@ -45,7 +45,9 @@ async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleto
     const {svgToSkeletons} = await import('./svg-convert.js')
     const {svg, x, y, width, roughness} = SvgPayload.parse(row.payload)
     validateSvg(svg)
-    return withStableIds(svgToSkeletons(svg, {x, y, width, roughness}), row.id)
+    const skeletons = svgToSkeletons(svg, {x, y, width, roughness})
+    if (!skeletons.length) throw new Error('the svg had nothing drawable')
+    return withStableIds(skeletons, row.id)
   }
   return withStableIds(SkeletonsPayload.parse(row.payload).elements, row.id)
 }
@@ -126,6 +128,16 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
   }
 
   const draining = new Set<string>()
+  const replyDrawFailure = async (row: PendingRow, error: unknown): Promise<void> => {
+    const reason = error instanceof Error ? error.message : String(error)
+    await db.canvasReplies
+      .insert({id: crypto.randomUUID(), room: props.room, requestId: row.id, kind: 'draw', payload: {error: reason}})
+      .isPersisted.promise.catch((replyError: unknown) =>
+        console.error(
+          `[whiteboard] the failure of pending ${row.kind} ${row.id} could not be answered: ${String(replyError)}`,
+        ),
+      )
+  }
   const drainPending = async (row: PendingRow): Promise<void> => {
     try {
       const drawn = convertToExcalidrawElements(await buildSkeletons(row), {regenerateIds: false})
@@ -139,6 +151,7 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
       await db.bulkUpsertElements(scope, rows)
     } catch (error) {
       console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
+      await replyDrawFailure(row, error)
     } finally {
       db.canvasPending.delete(row.id)
     }
