@@ -3217,6 +3217,19 @@ describe('page session card', () => {
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
   })
 
+  test('every page tool reads a label and an icon from the catalog the pane reads, the engine catalog first', async () => {
+    const catalog = await coreRpc(core()).registry.catalog()
+    const pageNames = Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`)
+    const listed = catalog.filter((signature) => pageNames.includes(signature.name))
+    expect(listed.map((signature) => signature.name)).toContain(`${PAGE_TOOL_PREFIX}click`)
+    expect(listed.filter((signature) => signature.label === undefined || signature.icon === undefined)).toEqual([])
+    const unlabelled = pageNames.filter((name) => {
+      const meta = listed.find((signature) => signature.name === name) ?? builtinToolMeta(name)
+      return meta?.label === undefined || meta.icon === undefined
+    })
+    expect(unlabelled).toEqual([])
+  })
+
   test('while a page click runs, the now line says Clicking', async () => {
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
@@ -3247,7 +3260,9 @@ describe('page session card', () => {
     keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
     const turn = await sendTurn(core(), sessionId, 'where am I')
     try {
-      await page.getByRole('button', {name: /Hide trace/}).click({timeout: 8000})
+      const hide = page.getByRole('button', {name: /Hide trace/})
+      await expect.element(hide, {timeout: 8000}).toBeVisible()
+      await hide.click()
       const folded = page.getByRole('button', {name: /Show trace/})
       await expect.element(folded).toBeVisible()
       await expect.element(folded).toHaveAccessibleName(/^Reading the route/)
