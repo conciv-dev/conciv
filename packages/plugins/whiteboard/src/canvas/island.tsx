@@ -275,11 +275,13 @@ export function Island(props: {doc: Document; room: string; theme: 'light' | 'da
     <Portal mount={props.doc.body}>
       <div
         ref={(element) => (container = element)}
+        inert={!props.visible}
         style={{
           position: 'fixed',
           inset: '0',
           'z-index': '2147482000',
           visibility: props.visible ? 'visible' : 'hidden',
+          'content-visibility': props.visible ? 'visible' : 'hidden',
         }}
       />
     </Portal>
