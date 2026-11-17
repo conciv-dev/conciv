@@ -45,14 +45,14 @@ export function CardRows(props: {children: JSX.Element}): JSX.Element {
 
 export function CardRow(props: {children: JSX.Element; style?: JSX.CSSProperties}): JSX.Element {
   return (
-    <div class="text-[length:var(--chat-text-xs)] font-chat-mono flex gap-2 items-baseline" style={props.style}>
+    <div class="text-chat-xs font-chat-mono flex gap-2 items-baseline" style={props.style}>
       {props.children}
     </div>
   )
 }
 
 export function CardNote(props: {children: JSX.Element; class?: string}): JSX.Element {
-  return <div class={`text-[length:var(--chat-text-xs)] text-chat-text-3 ${props.class ?? ''}`}>{props.children}</div>
+  return <div class={`text-chat-xs text-chat-text-3 ${props.class ?? ''}`}>{props.children}</div>
 }
 
 function isTreeable(value: unknown): value is object {
@@ -79,12 +79,12 @@ export function ErrorRecord(props: {heading?: string; body: string}): JSX.Elemen
       <Show when={props.heading}>
         {(heading) => (
           <TruncatedText
-            class="text-[length:var(--chat-text-xs)] text-chat-text-2 leading-[var(--chat-trace-gutter)] font-chat-mono m-0 min-w-0 block"
+            class="text-chat-xs text-chat-text-2 leading-[var(--chat-trace-gutter)] font-chat-mono m-0 min-w-0 block"
             text={heading()}
           />
         )}
       </Show>
-      <p class="text-[length:var(--chat-text-xs)] text-chat-frame-text-error leading-[var(--chat-trace-gutter)] font-chat-mono m-0">
+      <p class="text-chat-xs text-chat-frame-text-error leading-[var(--chat-trace-gutter)] font-chat-mono m-0">
         {props.body}
       </p>
     </div>
