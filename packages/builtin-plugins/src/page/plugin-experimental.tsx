@@ -24,13 +24,14 @@ function reportChanges(report: () => void, signal: AbortSignal) {
 }
 
 function woken(signal: AbortSignal) {
-  return new Promise<void>((resolve) => {
-    const options = {once: true, signal}
+  const woke = new AbortController()
+  const options = {once: true, signal: AbortSignal.any([signal, woke.signal])}
 
+  return new Promise<void>((resolve) => {
     WAKE_EVENTS.forEach((type) => window.addEventListener(type, () => resolve(), options))
     document.addEventListener('visibilitychange', () => resolve(), options)
-    signal.addEventListener('abort', () => resolve(), {once: true})
-  })
+    signal.addEventListener('abort', () => resolve(), {once: true, signal: woke.signal})
+  }).finally(() => woke.abort())
 }
 
 function HighlightHost(props: {

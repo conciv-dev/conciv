@@ -15,3 +15,5 @@ A page tab whose attach was refused because its page permissions could not be gr
 A page eval the config denies is refused from the widget's own tab too, not only from outside callers.
 
 A page read of the DOM or of an attribute shows a password field's value attribute masked, as a value read already did.
+
+When the page plugin is turned off it removes its agent cursor listeners from the host page and leaves a console wrapper installed after its own in place, and a tab waiting to attach again no longer adds listeners on every wait.

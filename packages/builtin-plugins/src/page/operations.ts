@@ -42,6 +42,7 @@ import {
   type Refs,
 } from '@conciv/page'
 import {startConsoleBuffer, type ConsoleEntry} from './console-buffer.js'
+import {unwatchLayout} from './agent-cursor.js'
 import {badArgs, fail} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
@@ -759,6 +760,7 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
   function dispose(): void {
     for (const effect of effects()) if (effect.enabled()) effect.set(false)
     disposeConsoleBuffer()
+    unwatchLayout()
   }
 
   return {execute, dispose}
