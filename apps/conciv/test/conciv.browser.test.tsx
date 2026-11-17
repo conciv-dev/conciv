@@ -5922,7 +5922,7 @@ describe('engine login', () => {
     await expect.element(unsaved).not.toBeInTheDocument()
   }, 30_000)
 
-  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, and the code restores it in place', async () => {
+  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, moves focus from the composer to Log in, and the code restores it in place', async () => {
     const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
@@ -5930,8 +5930,11 @@ describe('engine login', () => {
     const pushLive = coreControl.awaitPushSocketLive()
     await coreControl.releaseFault(pushHandshake)
     await pushLive
+    await userEvent.click(editor())
+    await expect.element(editor()).toHaveFocus()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(reloginNotice().getByRole('button', {name: 'Log in'})).toHaveFocus()
     await expect.element(editor()).toBeVisible()
     await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
@@ -5939,12 +5942,6 @@ describe('engine login', () => {
     await userEvent.click(editor(), {force: true})
     await userEvent.keyboard('typed while locked out')
     await expect.element(editor()).toMatchTextContent(/^$/)
-    await userEvent.keyboard('{Tab}')
-    await expect.element(page.getByRole('button', {name: 'More composer actions'})).toHaveFocus()
-    await userEvent.keyboard('{Tab}')
-    await expect.element(page.getByRole('tab', {name: 'Chat'})).toHaveFocus()
-    await userEvent.keyboard('{Tab}')
-    await expect.element(reloginNotice().getByRole('button', {name: 'Log in'})).toHaveFocus()
     await reloginNotice().getByRole('button', {name: 'Log in'}).click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
