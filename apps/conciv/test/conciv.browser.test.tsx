@@ -4753,6 +4753,31 @@ describe('panel view tabs', () => {
       expect(await readLocalCopy(sessionId)).toBeNull()
       expect(await rpc.drafts.get({sessionId})).toBeNull()
     }, 30_000)
+
+    test('once the engine is trusted at start, the local drafts of sessions deleted while this browser was away are removed, and one whose check failed stays', async () => {
+      const rpc = coreRpc(coreBase())
+      const store = createBrowserDraftStore()
+      const first = await createSession(rpc)
+      const second = await createSession(rpc)
+      const unchecked = first < second ? first : second
+      const deleted = first < second ? second : first
+      const draft = (text: string) => ({text, selectionStart: 0, selectionEnd: 0, attachments: []})
+      await store.setDocument(deleted, draft('left by a deleted session'))
+      await store.setDocument(unchecked, draft('left by a session the engine could not answer for'))
+      await rpc.sessions.delete({sessionId: deleted})
+      await rpc.sessions.delete({sessionId: unchecked})
+      const failedCheck = await faults.install({
+        kind: 'garble',
+        path: ['sessions', 'get'],
+        input: {sessionId: unchecked},
+      })
+
+      await openNewPanel()
+
+      await expect.poll(() => readLocalCopy(deleted)).toBeNull()
+      await coreControl.releaseFault(failedCheck)
+      expect(await readLocalCopy(unchecked)).toMatchObject({text: 'left by a session the engine could not answer for'})
+    }, 30_000)
   })
 
   describe('a crashing extension', () => {
