@@ -710,6 +710,7 @@ engine.
   `packages/core/src/api/outside-run.ts`. An outside run (a hub-origin `execute_typescript` without a tab) keeps only
   direct plugin tools; every other non-ask capability throws `NO_TAB: pass tab to execute_typescript; list_tabs lists
   the open tabs`.
+- `@conciv/tools/builtins` held only the `tabs` tool once `server_reload` was removed, so the export is removed.
 - Unchanged: the contract's `tabs.list` and `tabs.get`, and the page plugin.
 
 ## Out of scope / follow-ups
