@@ -626,7 +626,7 @@ describe('the comments of the whiteboard plugin', () => {
     }
   }, 120_000)
 
-  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, and deletes through its confirm', async ({
+  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, and a dropped source-linked pin asks before it drifts', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -731,6 +731,43 @@ describe('the comments of the whiteboard plugin', () => {
       })
       const left = CommentList.parse(await widget.kit.callTool('whiteboard_comment_list', {scope: 'session'}))
       expect(left.comments.map((comment) => comment.cid)).toEqual(['older'])
+
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'linked',
+        kind: 'source-linked',
+        anchor: {source: {file: 'src/app.tsx', line: 3}},
+        parts: [{type: 'text', text: 'this label is off by one'}],
+        x: 560,
+        y: 520,
+        authorKind: 'ai',
+      })
+      await expect(page.getByRole('button', {name: 'AI comment, open, unread'})).toBeVisible({timeout: 30_000})
+      await dragRectangle(page, {x: 560, y: 520}, {x: 620, y: 580})
+      const drift = page.getByRole('dialog', {name: 'Pin drift'})
+      await expect(drift.getByRole('button', {name: 'Disconnect from source'})).toBeVisible()
+      await expect(drift.getByRole('button', {name: 'Cancel'})).toBeVisible()
+      const kept = observer.mark()
+      await drift.getByRole('button', {name: 'Keep link, accept drift'}).click()
+      await expect(drift).toBeHidden()
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'pins.update'},
+        since: kept,
+      })
+      const room = await widget.kit.session()
+      const pins = PinRows.parse(
+        await widget.kit.rpc.plugin.call(
+          {rpcId: 'whiteboard', method: 'pins.list', input: {room}},
+          {signal: AbortSignal.timeout(30_000)},
+        ),
+      )
+      expect(pins.find((row) => row.cid === 'linked')).toMatchObject({
+        x: 620,
+        y: 580,
+        pinState: 'offset',
+        anchorX: 560,
+        anchorY: 520,
+      })
     } finally {
       await widget.close()
     }
