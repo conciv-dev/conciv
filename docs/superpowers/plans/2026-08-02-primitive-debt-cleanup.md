@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Worktree `/Users/omrikatz/Public/web/aidx/.claude-worktrees/connected-external-terminal` only; never touch `apps/site/content/docs/quick-start/ios.mdx` or `plans/ios-extension/11-native-first-integration.md`; commit with pathspec; no push.
+- Worktree `~/Public/web/aidx/.claude-worktrees/connected-external-terminal` only; never touch `apps/site/content/docs/quick-start/ios.mdx` or `plans/ios-extension/11-native-first-integration.md`; commit with pathspec; no push.
 - Zero comments, no `as`/`any`/IIFE/classes, splitProps only, oxfmt style.
 - Tests: real browser, no timers in tests (`conciv/no-timers-in-tests`), no `expect.poll`, no `until()`, no predicate waits. Await product surfaces or auto-retrying web-first assertions only.
 - Gates per task: `pnpm turbo run typecheck build --filter=<pkgs>...`, tests serial (`VITEST_MAX_FORKS=1 pnpm turbo run test --concurrency=1 --force --filter=<pkgs>`), `pnpm lint`, `pnpm exec fallow audit --changed-since main --format json` (nothing newly INTRODUCED; the 2 inherited turn-detach dup findings are known). New UnoCSS classes need an embed rebuild before widget ITs.
