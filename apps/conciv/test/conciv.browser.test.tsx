@@ -7038,8 +7038,23 @@ module.exports = {default: {setup(ctx) {
 
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
+const {insert} = require('solid-js/web')
 const ToolCall = Registry.define('tool-call')
 module.exports = {default: {setup(ctx) {
+  ctx.add(ToolCall, {
+    tools: ['plugin_card_probe'],
+    display: 'standalone',
+    card: {
+      hasEmbeddedBody: () => true,
+      render(props) {
+        const card = document.createElement('p')
+        insert(card, () =>
+          'Probe card ' + (props.result === undefined ? 'running' : 'finished') + ', ' +
+          (props.durationMs === undefined ? 'no time yet' : 'timed'))
+        return card
+      },
+    },
+  })
   ctx.add(ToolCall, {
     tools: ['plugin_probe'],
     render(props) {
@@ -7102,6 +7117,28 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
     await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+
+  test('a plugin card draws the whole card while the call runs and after, with its duration', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}}],
+      text: 'the card probe is done',
+    })
+    await coreControl.holdResults()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the card probe{Enter}')
+    await expect
+      .element(page.getByText('Probe card running, no time yet', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('the card probe is done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card running', {exact: false})).not.toBeInTheDocument()
+    await expect.element(page.getByText('"the card probe"', {exact: true})).not.toBeInTheDocument()
   }, 45_000)
 
   test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
