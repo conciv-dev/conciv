@@ -4,6 +4,7 @@ import {ChatClient} from '@conciv/ai/testkit'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
+import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {createServer, type IncomingMessage, type Server} from 'node:http'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {
@@ -583,6 +584,10 @@ describe('push channel', () => {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
+  function textReply(text: string): PageReply {
+    return {type: 'success', result: {value: {text}, files: []}}
+  }
+
   async function nextQuery(source: AsyncIterator<PageQueryFrame>): Promise<PageQueryFrame> {
     const next = await source.next()
     if (next.done) throw new Error('the push channel closed before a page query arrived')
@@ -591,17 +596,16 @@ describe('push channel', () => {
 
   describe('the per-tab push socket', () => {
     it('carries a page query to the tab and the reply resolves the caller', async () => {
-      const {booted, channel, abort} = await bootWithChannel()
-      const arriving = nextQuery(channel.queries(abort.signal))
-      await settled(SETTLE_MS)
+      const tabs = pageTabs()
+      const booted = await bootClientKit({plugins: [tabs.plugin]})
+      kit = booted
+      const tab = await tabs.open(await booted.session(), () => undefined)
       const calling = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
 
-      const frame = await arriving
-      await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'body text'}}})
+      await tab.reply(await tab.requested(), textReply('body text'))
 
       expect(await calling).toEqual({text: 'body text'})
-      abort.abort()
-      channel.dispose()
+      tab.end()
     })
 
     it('reopens itself after the engine restarts and serves page queries again', async () => {
@@ -658,24 +662,17 @@ describe('push channel', () => {
       }))
     }
 
-    async function answerEvery(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
-      for await (const frame of source) {
-        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
-      }
-    }
-
-    async function answerOnce(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
-      for await (const frame of source) {
-        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
-        return
-      }
+    async function bootWithTabs() {
+      const tabs = pageTabs()
+      const booted = await bootClientKit({plugins: [tabs.plugin]})
+      kit = booted
+      return {booted, tabs, sessionId: await booted.session()}
     }
 
     it('refuses its page tools at once, and serves them again once the page shows it', async () => {
-      const {booted, sessionId: background, channel: backgroundChannel, abort} = await bootWithChannel()
+      const {booted, tabs, sessionId: background} = await bootWithTabs()
       const {sessionId: shown} = await booted.rpc.sessions.create(undefined)
-      const shownChannel = acquirePushChannel({apiBase: booted.base, sessionId: shown})
-      void shownChannel.queries(abort.signal)
+      const shownTab = await tabs.open(shown, () => textReply('shown'))
       const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
 
       await expect
@@ -687,24 +684,24 @@ describe('push channel', () => {
           ),
         })
 
-      const serving = answerEvery(backgroundChannel.queries(abort.signal), backgroundRpc, 'shown again')
+      const backgroundTab = await tabs.open(background, () => textReply('shown again'))
       await expect
         .poll(() => captureOutcome(backgroundRpc.registry.call(pageText)), POLL)
         .toEqual({text: 'shown again'})
 
-      abort.abort()
-      await serving
-      shownChannel.dispose()
-      backgroundChannel.dispose()
+      backgroundTab.end()
+      shownTab.end()
     }, 15_000)
 
-    it('stops serving page queries once its query loop exits, while the chat stream keeps the socket', async () => {
-      const {booted, channel, abort} = await bootWithChannel()
+    it('stops serving page tools once its tab ends, while the chat stream keeps the socket', async () => {
+      const {booted, tabs, sessionId} = await bootWithTabs()
+      const abort = new AbortController()
+      const channel = acquirePushChannel({apiBase: booted.base, sessionId})
       void channel.events(abort.signal)
-      const servedOnce = answerOnce(channel.queries(), booted.rpc, 'once')
+      const tab = await tabs.open(sessionId, () => textReply('once'))
 
       await expect.poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
-      await servedOnce
+      tab.end()
       await expect
         .poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL)
         .toMatchObject({rejected: 'NO_PAGE_CLIENT'})
