@@ -28,6 +28,7 @@ import type {Registry} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {tanstackCards} from '../src/tanstack/cards.js'
+import {ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -1594,7 +1595,14 @@ describe('the tanstack cards', () => {
   afterAll(() => widgetSheet.remove())
 
   type Tool = keyof typeof tanstackCards
-  type Case = {tool: Tool; input?: Record<string, unknown>; output: unknown; summary: string; detail?: string}
+  type Case = {
+    tool: Tool
+    input?: Record<string, unknown>
+    output: unknown
+    summary: string
+    detail?: string
+    single?: string
+  }
 
   const cardContext: ToolViewCtx = {
     apiBase: '',
@@ -1647,6 +1655,7 @@ describe('the tanstack cards', () => {
       output: {routeId: '/about', data: {greeting: 'hello', visits: 42}},
       summary: '2 keys · /about',
       detail: 'greeting',
+      single: '42',
     },
     {
       tool: 'tanstack_query_cache',
@@ -1662,10 +1671,11 @@ describe('the tanstack cards', () => {
             observers: 1,
           },
         ],
-        mutations: [],
+        mutations: [{key: '["addTodo"]', state: 'fresh', status: 'success', value: null, updatedAt: null}],
       },
-      summary: '1 query',
+      summary: '1 query · 1 mutation',
       detail: '1 obs',
+      single: 'queries',
     },
     {
       tool: 'tanstack_query_invalidate',
@@ -1747,8 +1757,29 @@ describe('the tanstack cards', () => {
         await header(call.tool).click()
         await expect.element(exactText(call.detail)).toBeVisible()
       }
+      if (call.single !== undefined) await expect.element(exactText(call.single)).toBeVisible()
       cleanup()
     }
+
+    const backPart: ToolCallPart = {
+      type: 'tool-call',
+      id: 'call-tanstack_back',
+      name: 'tanstack_back',
+      arguments: '{}',
+      state: 'input-complete',
+    }
+    render(() => (
+      <ul>
+        <ToolTraceRow
+          part={backPart}
+          result={resultPart('tanstack_back', JSON.stringify({ok: true}), 'complete')}
+          ctx={cardContext}
+          tools={() => [{names: ['tanstack_back'], ...tanstackCards.tanstack_back}]}
+        />
+      </ul>
+    ))
+    await expect.element(page.getByRole('listitem').getByRole('button').first()).toBeDisabled()
+    cleanup()
 
     mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
     await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
