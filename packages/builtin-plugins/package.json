@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
@@ -35,6 +36,8 @@
     "@unocss/reset": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
+    "js-beautify": "^2.0.3",
+    "lucide-solid": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },
@@ -48,6 +51,7 @@
     "@tiptap/extension-paragraph": "catalog:",
     "@tiptap/extension-text": "catalog:",
     "@tiptap/pm": "catalog:",
+    "@types/js-beautify": "^1.14.3",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -55,6 +59,8 @@
     "playwright": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "storybook": "catalog:",
+    "storybook-solidjs-vite": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",

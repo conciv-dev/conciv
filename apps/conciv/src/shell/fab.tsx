@@ -92,10 +92,11 @@ function EdgeTab(props: {tab: LauncherEdgeTab; suppressed: () => '' | undefined;
       side={EDGE_TOOLTIP_SIDE[props.tab.edge]}
       class={`${EDGE_TAB} ${EDGE_TAB_AT[props.tab.edge]} ${props.tab.preview ? EDGE_TAB_PREVIEW : EDGE_TAB_LIVE}`}
       style={edgeTabStyle(props.tab)}
-      aria-hidden={props.tab.preview ? true : undefined}
+      aria-hidden={props.tab.preview || props.suppressed() !== undefined ? true : undefined}
       tabIndex={props.tab.preview ? -1 : undefined}
       data-conciv-fab
       data-conciv-suppressed={props.suppressed()}
+      inert={props.suppressed() !== undefined}
       onClick={() => {
         if (!props.tab.preview) props.onRestore()
       }}
@@ -160,6 +161,8 @@ export function ShellFab(props: {
           class={fabClass(props.fab, towardStart())}
           data-conciv-fab
           data-conciv-suppressed={props.suppressed()}
+          inert={props.suppressed() !== undefined}
+          aria-hidden={props.suppressed() === undefined ? undefined : true}
           style={launcherPlacement(props.fab.anchor(), towardStart())}
           aria-label={fabLabel(props.open(), badge())}
           aria-busy={props.working()}

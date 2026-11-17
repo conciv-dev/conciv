@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-page",
   "version": "0.0.22",
-  "description": "Internal conciv.dev built-in extension: every page verb as a defineTool().client() declaration, its browser body running through the page-tool dispatcher.",
+  "description": "Internal conciv.dev built-in extension: the grab attachment's engine handler, the old page tool definitions and the snapdom capture plugins the design extension uses.",
   "keywords": [
     "browser",
     "conciv",
@@ -23,18 +23,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "browser": {
-        "types": "./dist/client.d.ts",
-        "default": "./dist/client.js"
-      },
-      "import": {
-        "types": "./dist/server.d.ts",
-        "default": "./dist/server.js"
-      }
-    },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     },
     "./server": {
       "types": "./dist/server.d.ts",
@@ -54,56 +44,25 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
-    "@conciv/page": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/ui-kit-chat": "workspace:*",
-    "@conciv/ui-kit-system": "workspace:^",
-    "@solid-primitives/map": "catalog:",
-    "@tanstack/hotkeys": "catalog:",
-    "@tanstack/solid-pacer": "catalog:",
     "@zumer/snapdom": "catalog:",
-    "ai-motion": "catalog:",
-    "js-beautify": "^2.0.3",
-    "lucide-solid": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/tsconfig": "workspace:*",
-    "@conciv/uno-preset": "workspace:*",
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "catalog:",
-    "@tiptap/core": "catalog:",
-    "@tiptap/extension-document": "catalog:",
-    "@tiptap/extension-paragraph": "catalog:",
-    "@tiptap/extension-text": "catalog:",
-    "@tiptap/pm": "catalog:",
-    "@types/js-beautify": "^1.14.3",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "@vitest/browser-playwright": "catalog:",
-    "playwright": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "solid-js": "catalog:",
-    "storybook": "catalog:",
-    "storybook-solidjs-vite": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:",
-    "unocss": "catalog:",
-    "vite": "catalog:",
-    "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

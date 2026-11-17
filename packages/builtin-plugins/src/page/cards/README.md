@@ -1,8 +1,8 @@
-# page/src/client/cards
+# builtin-plugins/src/page/cards
 
 ## Overview
 
-Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from `@conciv/ui-kit-chat/tools` with a `hasEmbeddedBody` predicate. `src/client/bodies.ts` imports these views, and `src/client.tsx` wires `SessionCard` (a group renderer for `PAGE_SESSION_GROUP_KEY` groups) and `GrabCard` (an attachment card). `shared.tsx` holds the common payload, error and chip helpers. `session-steps.ts` turns a run of page tool calls into `PageSessionStep` rows, and `client.tsx` re-exports it. `story.fixtures.ts` provides part, result and ctx builders that the `*.stories.tsx` files and `test/page.solid.browser.test.tsx` both use.
+Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from `@conciv/ui-kit-chat/tools` with a `hasEmbeddedBody` predicate. `page-tool-cards.ts` binds these views to the page tool names as `ToolCall` card claims (`pageToolCalls`), which the page plugin adds in its setup, and wires `SessionCard` as the group entry for `PAGE_SESSION_GROUP_KEY` groups (`pageSessionEntry`), which `src/renderer.ts` exports for the app chat pane. `shared.tsx` holds the common payload, error and chip helpers. `session-steps.ts` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.ts` provides part, result and ctx builders that the `*.stories.tsx` files use.
 
 ## Interface
 
@@ -18,7 +18,7 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 - `GrabCard` (`grab-card.tsx`): attachment card that decodes a GrabPayload and shows a dom/image preview, a source label, and a Dialog with a toggle between snapshot and agent text
 - `GrabSnapshotFrame` (`grab-snapshot-frame.tsx`): renders grabbed HTML inside a sandboxed iframe in an SVG foreignObject
 - `toolInput`, `resultChips`, `ChipRow`, `cardPayload`, `cardErrorMessage`, `hasPayloadOrError`, `elementChip`, `mutatingBadge`, `ELEMENT_TARGET_KEYS`, `QUIET_TEXT_CLASS`, `LIST_ROW_CLASS` (`shared.tsx`): shared card helpers and class constants
-- `storyCtx`, `storyPart`, `storyResult`, `storyErrorResult`, `storyAddResult`, `STORY_FRAME_CLASS` (`story.fixtures.ts`): fixture builders used by the stories and by test/page.solid.browser.test.tsx
+- `storyCtx`, `storyPart`, `storyResult`, `storyErrorResult`, `storyAddResult`, `STORY_FRAME_CLASS` (`story.fixtures.ts`): fixture builders used by the stories and by test/builtin-plugins.browser.test.tsx
 - Storybook stories under `Extensions/Page/tool/*` (`*.stories.tsx`): ActCard, ConsoleCard, EditLiveCard, EffectCard, GrabCard, ReactCard, ReadBulkCard, ReadValueCard, SessionCard
 
 ## Invariants
@@ -50,4 +50,4 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/extension-page` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/builtin-plugins` from the repo root (turbo builds the package and its dependencies first)
