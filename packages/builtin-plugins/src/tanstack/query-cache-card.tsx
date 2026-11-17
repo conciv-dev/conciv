@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
-import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
+import {CardNote, CardRow, CardRows, ErrorRecord, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
 
 const EntrySchema = z
   .object({
@@ -12,6 +12,7 @@ const EntrySchema = z
     status: z.string().nullable().default(null),
     observers: z.number().nullable().default(null),
     updatedAt: z.number().nullable().default(null),
+    error: z.string().nullable().default(null),
     value: z.unknown(),
   })
   .loose()
@@ -41,6 +42,7 @@ function EntryRow(props: {entry: Entry}): JSX.Element {
           {(updatedAt) => <RelativeTime value={new Date(updatedAt())} class="text-chat-text-3 ms-auto shrink-0" />}
         </Show>
       </CardRow>
+      <Show when={props.entry.error}>{(error) => <ErrorRecord body={error()} />}</Show>
       <Show when={props.entry.value !== undefined && props.entry.value !== null}>
         <JsonValue value={props.entry.value} name={`${props.entry.key}.json`} />
       </Show>

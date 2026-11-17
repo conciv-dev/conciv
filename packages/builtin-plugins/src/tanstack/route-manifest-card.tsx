@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
@@ -33,9 +33,9 @@ function RouteManifestCard(props: ToolCardProps): JSX.Element {
               {(route) => (
                 <CardRow>
                   <TruncatedText class="text-chat-text-2 flex-1 min-w-0" text={route.path} />
-                  <Show when={route.dynamic}>
-                    <Chip kind="pill" value="dynamic" tone="accent" />
-                  </Show>
+                  <span class="text-chat-accent tracking-wider shrink-0 w-16 uppercase">
+                    {route.dynamic ? 'dynamic' : ''}
+                  </span>
                   <span class="text-chat-xs text-chat-text-3 tracking-wider shrink-0 w-14 uppercase">{route.kind}</span>
                 </CardRow>
               )}
