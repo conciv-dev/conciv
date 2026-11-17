@@ -912,6 +912,28 @@ describe('chat pane', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
   })
 
+  test('a first send while the marker rows still load keeps the conversation, the composer and the prompt on screen', async () => {
+    const {sessionId} = await newSession()
+    const markersHeld = await faults.install({kind: 'gate', path: ['markers', 'list']})
+    mountChatPane(sessionId)
+    await coreControl.awaitFaultPending(markersHeld, 1)
+
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('the first words')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('the first words', {exact: true})).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
+
+    await coreControl.releaseFault(markersHeld)
+    await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    await expect.element(page.getByText('the first words', {exact: true})).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+  })
+
   test('clicking stop with a queue stops the run and puts the queued messages, in order, back in the composer unsent', async () => {
     const {rpc, sessionId} = await startStreamingRun()
 
