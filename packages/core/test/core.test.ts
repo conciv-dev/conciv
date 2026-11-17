@@ -190,7 +190,6 @@ import {
   rowById,
   setMetadata,
   setPermissions,
-  type RowScope,
 } from '../src/sessions/session-rows.js'
 import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
@@ -339,8 +338,7 @@ describe('chat plane', () => {
     const skilled = sessionId('skills')
     const builtins = sessionId('builtins')
     const db = openDatabase(root)
-    await ensureRow(unheardRows(db, root), skilled)
-    await ensureRow(unheardRows(db, root), builtins)
+    await bornRows(root, [skilled, builtins])
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
         Layer.provideMerge(
@@ -527,7 +525,7 @@ describe('chat plane', () => {
     expect(told.asked.at(-1)).toBe('sixth')
 
     const codeless = sessionId('codeless')
-    await ensureRow(unheardRows(db, root), codeless)
+    await bornRows(root, [codeless])
     const registry = createToolRegistry()
     const ping = defineTool({
       name: 'unit_ping',
@@ -1417,7 +1415,7 @@ describe('session metadata', () => {
     const root = tempDir('conciv-core-unit-')
     const db = openDb(root)
     const id = SessionId.parse('conciv_metadata')
-    await ensureRow(unheardRows(db, root), id)
+    await bornRows(root, [id])
     expect((await rowById(db, id))?.metadata).toBeNull()
 
     await setMetadata(db, id, {owner: 'review', tags: ['a', 'b']})
@@ -3058,8 +3056,14 @@ describe('settings storage', () => {
 
 type MadeApp = Awaited<ReturnType<typeof bootMadeApp>>
 
-function unheardRows(db: ConcivDb, cwd: string): RowScope {
-  return {db, harnessKind: 'fake-cli', cwd, publishCreated: async () => {}}
+async function bornRows(root: string, ids: readonly SessionId[]): Promise<void> {
+  const harness = createFakeHarness({id: 'fake-cli'})
+  const made = await bootMadeApp({stateRoot: root, cwd: root, harness, print: () => {}})
+  try {
+    for (const id of ids) await ensureRow(made.chat.rows, id)
+  } finally {
+    await made.dispose()
+  }
 }
 
 function sessionKey(made: MadeApp) {
@@ -4748,8 +4752,7 @@ describe('plugin context keys provided by core', () => {
     const db = openDb(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
-    await ensureRow(unheardRows(db, root), id)
-    await ensureRow(unheardRows(db, root), other)
+    await bornRows(root, [id, other])
     const base: {current: string | undefined} = {current: undefined}
     const devServer = defineBundlerBridge({
       id: 'unit-bundler',
