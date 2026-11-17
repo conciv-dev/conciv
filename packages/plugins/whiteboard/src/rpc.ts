@@ -1,4 +1,5 @@
 import {Rpc} from '@conciv/plugin/rpc'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 import {
   commentRow,
@@ -15,8 +16,7 @@ import {
   replyRowInsert,
 } from './shared/rows.js'
 
-const Room = z.string().regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
-const RoomInput = z.object({room: Room})
+const RoomInput = z.object({room: SessionId})
 const ScopeInput = RoomInput.extend({scope: z.enum(['live', 'draft'])})
 const IdInput = RoomInput.extend({id: z.string()})
 const DeletedOutput = z.object({deleted: z.boolean()})
@@ -113,7 +113,7 @@ export const Whiteboard = Rpc.define({
   },
   events: {
     changed: {
-      schema: z.object({room: Room, table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor}),
+      schema: z.object({room: SessionId, table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor}),
     },
   },
 })

@@ -1,10 +1,7 @@
 import {z} from 'zod'
 
-export type JsonValue = string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue}
-
-export const json: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(json), z.record(z.string(), json)]),
-)
+export const json = z.json()
+export type JsonValue = z.infer<typeof json>
 
 export const elementRow = z.object({
   room: z.string(),

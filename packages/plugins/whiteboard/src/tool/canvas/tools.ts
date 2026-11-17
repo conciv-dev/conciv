@@ -1,4 +1,6 @@
 import type {ToolDomain} from '@conciv/plugin'
+import {setTimeout as delay} from 'node:timers/promises'
+import {isPlainObject} from 'es-toolkit'
 import {and, eq} from 'drizzle-orm'
 import {z} from 'zod'
 import {canvasPending, canvasReplies} from '../../server/db/schema.js'
@@ -42,10 +44,6 @@ const ExportReply = z.object({
   error: z.string().optional(),
   reason: z.string().optional(),
 })
-
-function pause(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, POLL_MS))
-}
 
 async function pendingStays(store: Store, room: string, id: string): Promise<boolean> {
   const [row] = await store.db
@@ -131,7 +129,7 @@ async function exportPng(store: Store, room: string, scope: string) {
       if (payload.error) fail({message: `${payload.error}: ${payload.reason ?? 'unknown'}`})
       return {output: {scope}, content: pngContent(payload.dataBase64 ?? '')}
     }
-    await pause()
+    await delay(POLL_MS)
   }
   return fail({
     code: 'EXPORT_TIMEOUT',
@@ -274,7 +272,7 @@ export function registerCanvas(tool: ToolDomain, store: Store, permission: Confi
         const deadline = Date.now() + COMMIT_DEADLINE_MS
         while (Date.now() < deadline) {
           if (!(await pendingStays(store, sessionId, id))) return commitAnswer(store, sessionId, drafts.length)
-          await pause()
+          await delay(POLL_MS)
         }
         return fail({code: 'COMMIT_TIMEOUT', message: 'commit timed out: no canvas tab is connected to perform it'})
       },
@@ -370,5 +368,5 @@ const DraftElementSchema = z.object({
 }) satisfies z.ZodType<DraftElement>
 
 function draftElement(data: JsonValue): DraftElement {
-  return DraftElementSchema.parse(typeof data === 'object' && data !== null && !Array.isArray(data) ? data : {})
+  return DraftElementSchema.parse(isPlainObject(data) ? data : {})
 }

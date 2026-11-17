@@ -9,6 +9,7 @@ import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
+import {isPlainObject} from 'es-toolkit'
 import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
@@ -24,9 +25,8 @@ const PENDING_DRAIN_TASK_MS = 0
 const PENDING_REMOVE_RETRY_MS = 100
 const PENDING_REMOVE_MAX_WAIT_MS = 10_000
 
-const isObject = (value: unknown): boolean => typeof value === 'object' && value !== null
-const sceneElement = z.custom<SceneElement>(isObject)
-const skeleton = z.custom<ExcalidrawElementSkeleton>(isObject)
+const sceneElement = z.custom<SceneElement>(isPlainObject)
+const skeleton = z.custom<ExcalidrawElementSkeleton>(isPlainObject)
 const SkeletonsPayload = z.object({elements: z.array(skeleton)})
 const MermaidPayload = z.object({source: z.string()})
 const SvgPayload = z.object({svg: z.string(), x: z.number(), y: z.number(), width: z.number(), roughness: z.number()})
