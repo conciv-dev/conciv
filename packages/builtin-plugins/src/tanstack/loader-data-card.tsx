@@ -1,4 +1,5 @@
 import {For, Show, type JSX} from 'solid-js'
+import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
@@ -10,8 +11,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const TruncatedMarker = z.looseObject({__conciv: z.string(), preview: z.string()})
+
 function isTruncatedMarker(value: unknown): boolean {
-  return isRecord(value) && value.__conciv === 'object' && typeof value.preview === 'string'
+  return TruncatedMarker.safeParse(value).success
 }
 
 function opensAsTree(value: unknown): boolean {
@@ -21,8 +24,9 @@ function opensAsTree(value: unknown): boolean {
 function preview(value: unknown): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) return `Array(${value.length})`
+  const marker = TruncatedMarker.safeParse(value)
+  if (marker.success) return marker.data.preview
   if (isRecord(value)) {
-    if (isTruncatedMarker(value) && typeof value.preview === 'string') return value.preview
     const keys = Object.keys(value)
     return keys.length > 0 ? `{ ${keys.join(', ')} }` : '{}'
   }
@@ -30,7 +34,7 @@ function preview(value: unknown): string {
 }
 
 function toEntries(payload: unknown): Entry[] {
-  if (isRecord(payload)) {
+  if (isRecord(payload) && !isTruncatedMarker(payload)) {
     return Object.entries(payload).map(([key, value]) => ({key, preview: preview(value), value}))
   }
   if (Array.isArray(payload)) {
