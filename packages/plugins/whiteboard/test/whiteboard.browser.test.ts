@@ -30,6 +30,12 @@ const Exported = z.tuple([
 
 const CanvasRead = z.object({elements: z.array(z.object({id: z.string(), type: z.string()}).loose())})
 const ShownElement = z.object({version: z.number(), index: z.string()}).loose()
+const PlacedElement = ShownElement.extend({id: z.string(), x: z.number(), y: z.number()})
+const TIE_BREAK_MARKER = 'tie-break-marker'
+const MOVED_DIAMOND_WRITE = {
+  path: WHITEBOARD_CALL,
+  input: {rpcId: 'whiteboard', method: /^elements\.(bulkU|u)psert$/, input: /"elementId":"drawn-while-away"/},
+}
 const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
@@ -292,6 +298,57 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
           path: WHITEBOARD_CALL,
           input: {rpcId: 'whiteboard', method: 'elements.get', input: {id: 'drawn-while-away'}},
           since: reconnected,
+        })
+
+        const placedElements = async () =>
+          PlacedElement.array().parse(
+            CanvasRead.parse(await widget.kit.callTool('whiteboard_canvas_read', {})).elements,
+          )
+        const beforeMoves = (await placedElements()).find((element) => element.id === 'drawn-while-away')
+        const secondWrite = await gateRpcCalls(second, MOVED_DIAMOND_WRITE)
+        await second.mouse.click(120, 640)
+        await second.keyboard.press('ControlOrMeta+a')
+        await second.keyboard.press('ArrowDown')
+        await secondWrite.awaitCaptured(1)
+        const firstMoved = observer.mark()
+        await page.mouse.click(120, 640)
+        await page.keyboard.press('ControlOrMeta+a')
+        await page.keyboard.press('ArrowRight')
+        await observer.completed({...MOVED_DIAMOND_WRITE, since: firstMoved})
+        const released = secondObserver.mark()
+        await secondWrite.dispose()
+        await secondObserver.completed({...MOVED_DIAMOND_WRITE, since: released})
+        const lastPlacedIndex = (await placedElements())
+          .map((element) => element.index)
+          .toSorted()
+          .at(-1)
+        await widget.kit.rpc.plugin.call(
+          {
+            rpcId: 'whiteboard',
+            method: 'elements.upsert',
+            input: {
+              room,
+              scope: 'live',
+              row: {
+                elementId: TIE_BREAK_MARKER,
+                data: {...beforeMoves, id: TIE_BREAK_MARKER, index: `${lastPlacedIndex}V`},
+                version: beforeMoves?.version ?? 1,
+              },
+            },
+          },
+          {signal: AbortSignal.timeout(30_000)},
+        )
+        await secondObserver.completed({
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'elements.get', input: {id: TIE_BREAK_MARKER}},
+          since: released,
+        })
+        const secondMoved = secondObserver.mark()
+        await second.keyboard.press('ArrowDown')
+        await secondObserver.completed({...MOVED_DIAMOND_WRITE, since: secondMoved})
+        expect((await placedElements()).find((element) => element.id === 'drawn-while-away')).toMatchObject({
+          x: (beforeMoves?.x ?? 0) + 1,
+          y: (beforeMoves?.y ?? 0) + 1,
         })
 
         await second.mouse.click(120, 640)
