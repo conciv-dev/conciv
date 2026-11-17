@@ -144,6 +144,7 @@ export function buildHarnessMeta(harness: HarnessAdapter): HarnessMeta {
     id: harness.id,
     name: harness.displayName ?? harness.id,
     imageInput: harness.capabilities.imageInput,
+    persistentPty: harness.tty !== undefined,
   }
 }
 
