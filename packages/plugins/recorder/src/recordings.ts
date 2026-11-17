@@ -13,14 +13,36 @@ const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}
 
+export type ReadResult = {kind: 'found'; events: RrwebEvent[]} | {kind: 'expired'} | {kind: 'missing'}
+
 export type RecordingStore = {
   save: (events: RrwebEvent[]) => Promise<SaveResult>
-  get: (id: string) => Promise<RrwebEvent[] | null>
+  get: (id: string) => Promise<ReadResult>
   videoFile: (id: string) => string | null
   sweep: () => Promise<void>
 }
 
 const RECORDING_ID = /^[A-Za-z0-9-]+$/
+
+const SAVED_RECORDING_ID = /^(\d+)-[0-9a-z]{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+const MISSING: ReadResult = {kind: 'missing'}
+
+const EXPIRED: ReadResult = {kind: 'expired'}
+
+function isPastRetention(id: string): boolean {
+  const savedAt = SAVED_RECORDING_ID.exec(id)?.[1]
+  return savedAt !== undefined && Number(savedAt) <= Date.now() - RECORDING_TTL_MS
+}
+
+function readStored(raw: string): ReadResult {
+  try {
+    const parsed = StoredRecording.safeParse(JSON.parse(raw))
+    return parsed.success ? {kind: 'found', events: parsed.data.events} : MISSING
+  } catch {
+    return MISSING
+  }
+}
 
 function removeRecording(dir: string, name: string): Promise<void> {
   const video = join(dir, `${name.slice(0, -'.json'.length)}.webm`)
@@ -96,15 +118,10 @@ export function createRecordingStore(dir: string): RecordingStore {
       return changes.add(() => publish(payload))
     },
     async get(id) {
-      if (!RECORDING_ID.test(id)) return null
+      if (!RECORDING_ID.test(id)) return MISSING
+      if (isPastRetention(id)) return EXPIRED
       const raw = await readFile(join(dir, `${id}.json`), 'utf8').catch(() => null)
-      if (raw === null) return null
-      try {
-        const parsed = StoredRecording.safeParse(JSON.parse(raw))
-        return parsed.success ? parsed.data.events : null
-      } catch {
-        return null
-      }
+      return raw === null ? MISSING : readStored(raw)
     },
     videoFile(id) {
       return RECORDING_ID.test(id) ? join(dir, `${id}.webm`) : null

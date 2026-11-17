@@ -79,14 +79,15 @@ function registerRpc(rpc: Context['rpc'], runtime: RecorderRuntime, announce: An
       ),
     'recordings.get': (input) =>
       Effect.promise(() => runtime.recordings.get(input.recordingId)).pipe(
-        Effect.map((events) => (events ? {events} : EXPIRED)),
+        Effect.map((recording) => (recording.kind === 'found' ? {events: recording.events} : EXPIRED)),
       ),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {
         const file = runtime.recordings.videoFile(input.id)
-        const events = yield* Effect.promise(() => runtime.recordings.get(input.id))
-        if (!file || !events) return yield* Effect.fail(call.error('expired', `The recording ${input.id} has expired`))
-        const rendered = yield* Effect.promise(() => renderedVideo(file, events, runtime.useRenderer))
+        const recording = yield* Effect.promise(() => runtime.recordings.get(input.id))
+        if (!file || recording.kind !== 'found')
+          return yield* Effect.fail(call.error('expired', `The recording ${input.id} has expired`))
+        const rendered = yield* Effect.promise(() => renderedVideo(file, recording.events, runtime.useRenderer))
         if (!rendered)
           return yield* Effect.fail(
             call.error('render-failed', `The recording ${input.id} could not be rendered to video`),

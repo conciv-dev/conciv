@@ -96,9 +96,12 @@ export const register = Effect.fn('RecorderTools.register')(function* (
       options,
       execute: ({recordingId, keyframes}) =>
         Effect.gen(function* () {
-          const events = yield* attemptPromise(() => runtime.recordings.get(recordingId))
-          if (!events) return yield* Effect.fail(Tool.makeError({message: `the recording ${recordingId} has expired`}))
-          return yield* attemptPromise(() => renderRecording(runtime, events, keyframes))
+          const recording = yield* attemptPromise(() => runtime.recordings.get(recordingId))
+          if (recording.kind === 'expired')
+            return yield* Effect.fail(Tool.makeError({message: `the recording ${recordingId} has expired`}))
+          if (recording.kind === 'missing')
+            return yield* Effect.fail(Tool.makeError({message: `there is no saved recording ${recordingId}`}))
+          return yield* attemptPromise(() => renderRecording(runtime, recording.events, keyframes))
         }),
     })
   })
