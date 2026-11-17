@@ -617,6 +617,44 @@ describe('chat pane', () => {
     await expect.element(input()).toHaveTextContent('typed while the engine held every save')
   })
 
+  describe('the local draft when the engine read fails, lags, or misses an answer', () => {
+    const DRAFT_GET_PATH = ['drafts', 'get']
+    const DRAFT_SET_PATH = ['drafts', 'set']
+
+    const readLocalCopy = async (sessionId: string): Promise<unknown> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : JSON.parse(kept)
+    }
+
+    async function typeSyncedDraft(sessionId: string, text: string): Promise<void> {
+      mountChatPane(sessionId)
+      await userEvent.click(input())
+      await userEvent.keyboard(text)
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text})
+      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text, syncedAt: expect.any(Number)})
+      active.pane?.dispose()
+    }
+
+    test('a failed engine read keeps the synced local draft in the composer and in this browser', async () => {
+      const {sessionId} = await newSession()
+      const TEXT = 'kept when the engine read fails'
+      await typeSyncedDraft(sessionId, TEXT)
+      const failedRead = await faults.install({kind: 'fail', path: DRAFT_GET_PATH, status: 500})
+
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TEXT)
+      await coreControl.awaitFaultAnswered(failedRead)
+      await expect.element(input()).toHaveTextContent(TEXT)
+      await coreControl.releaseFault(failedRead)
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toHaveTextContent(TEXT)
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TEXT})
+    })
+  })
+
   describe('the composer never waits on the server draft', () => {
     const DRAFT_GET_PATH = ['drafts', 'get']
     const shell = createShellHarness(core)
