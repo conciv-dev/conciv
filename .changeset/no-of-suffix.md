@@ -8,7 +8,6 @@
 '@conciv/embed': patch
 '@conciv/extension': patch
 '@conciv/extension-compiler': patch
-'@conciv/extension-page': patch
 '@conciv/extension-recorder': patch
 '@conciv/extension-tanstack': patch
 '@conciv/extension-terminal': patch

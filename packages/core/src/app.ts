@@ -62,7 +62,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {isNotNil, memoize, pickBy} from 'es-toolkit'
+import {isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
@@ -237,6 +237,12 @@ function buildAttachmentExpanders(
     entries.push([attachment.mime, async (part) => expand(part, context)])
   }
   return entries
+}
+
+function mergeAttachmentExpanders(
+  entries: [string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>][],
+): AttachmentExpanders {
+  return Object.fromEntries(uniqBy([...Object.entries(grabExpander), ...entries], ([mime]) => mime))
 }
 
 function toolDescription(tool: AnyToolBuilder): string {
@@ -561,9 +567,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const mountResults = await Promise.all(extensions.map((extension) => mountExtension(extension)))
   const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
-  const attachmentExpanders: AttachmentExpanders = {...grabExpander}
-  for (const entry of mounted)
-    for (const [mime, expand] of entry.attachmentExpanders) attachmentExpanders[mime] ??= expand
+  const attachmentExpanders = mergeAttachmentExpanders(mounted.flatMap((entry) => entry.attachmentExpanders))
   const extensionContexts: Record<string, unknown> = Object.fromEntries(
     mounted.map((entry) => [entry.extensionName, entry.context]),
   )

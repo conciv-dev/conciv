@@ -1,6 +1,5 @@
 ---
 '@conciv/embed': patch
-'@conciv/extension-page': patch
 '@conciv/ui-kit-chat': patch
 ---
 

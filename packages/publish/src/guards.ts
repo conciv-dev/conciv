@@ -85,7 +85,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension-recorder',
   '@conciv/extension-tanstack',
   '@conciv/extension-ios',
-  '@conciv/extension-page',
   '@conciv/mascot',
   '@conciv/mascot-react',
   '@conciv/embed',
