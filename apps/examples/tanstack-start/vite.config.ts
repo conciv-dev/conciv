@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import {devtools} from '@tanstack/devtools-vite'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
@@ -7,9 +8,9 @@ import conciv from '@conciv/it/plugin/vite'
 import recorder from '@conciv/extension-recorder'
 import tanstack from '@conciv/extension-tanstack'
 import terminal from '@conciv/extension-terminal'
-import testRunner from '@conciv/extension-test-runner'
 import whiteboard from '@conciv/extension-whiteboard'
 
+const testRunnerPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-test-runner/package.json')))
 const withNitro = process.env.CONCIV_NITRO === '1'
 
 export default defineConfig(async () => {
@@ -25,7 +26,8 @@ export default defineConfig(async () => {
       viteReact(),
       conciv({
         widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: [tanstack(), terminal(), testRunner(), whiteboard(), recorder()],
+        extensions: [tanstack(), terminal(), whiteboard(), recorder()],
+        plugins: [testRunnerPlugin],
       }),
     ],
   }
