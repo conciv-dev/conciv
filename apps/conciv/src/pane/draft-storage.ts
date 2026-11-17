@@ -458,6 +458,26 @@ async function keepImageInDraft(appData: AppData, sessionId: string, file: File)
   if (!drafts) await saving
 }
 
+export async function readMovedDraft(appData: AppData, sessionId: string): Promise<string> {
+  const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
+  if (stored) return stored.text
+  return (await appData.readDraft(sessionId))?.text ?? ''
+}
+
+export async function clearMovedDraft(appData: AppData, sessionId: string): Promise<void> {
+  await appData.drafts?.removeItem(sessionId).catch((error: unknown) => {
+    console.error('[conciv] could not remove the local draft of the deleted session', error)
+  })
+  await appData.saveDraft({
+    sessionId,
+    text: '',
+    selectionStart: 0,
+    selectionEnd: 0,
+    attachments: [],
+    updatedAt: Date.now(),
+  })
+}
+
 export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
   return keepInDraft(appData, sessionId, text, 'last')
 }
