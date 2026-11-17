@@ -100,7 +100,7 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
             {(kit) => (
               <Show keyed when={events()}>
                 {(playable) => (
-                  <div ref={replayRef(kit, playable)} class="flex flex-1 min-h-96 w-full items-start justify-center" />
+                  <div ref={replayRef(kit, playable)} class="flex h-70vh w-full items-start justify-center" />
                 )}
               </Show>
             )}

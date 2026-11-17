@@ -258,7 +258,7 @@ describe('sending a recording to the agent', () => {
     })
     try {
       const page = widget.page
-      const notes = () => page.getByRole('list', {name: 'Notes'})
+      const notes = () => page.getByRole('list', {name: 'Notes', exact: true})
       await showRecorderTab(page)
       await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
         timeout: 30_000,
