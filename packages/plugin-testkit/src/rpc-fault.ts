@@ -96,7 +96,7 @@ export function garbleRpcReplies(
   })
 }
 
-export type RpcHold = {hold: () => void; release: () => void}
+export type RpcHold = {hold: () => Promise<void>; release: () => void}
 
 export async function holdRpcCalls(page: Page): Promise<RpcHold> {
   const socket = rpcSocketFor(page)

@@ -7,6 +7,8 @@ const FS_SOURCES = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises'])
 const OS_SOURCES = new Set(['node:os', 'os'])
 const MKDTEMP_NAMES = new Set(['mkdtemp', 'mkdtempSync'])
 const TMPDIR_NAMES = new Set(['tmpdir'])
+const EXIT_LISTENERS = new Set(['on', 'once'])
+const CONFIG_FILE = /^(?:vitest|playwright)(?:\.[\w-]+)?\.config\.[cm]?[jt]s$/
 
 function isTestFile(filename) {
   const segments = filename.split(/[\\/]/)
@@ -71,12 +73,49 @@ function isBuiltOnTmpdir(argument, sourceCode) {
   return found
 }
 
-function reportHandMade(node, context) {
+function isConfigFile(filename) {
+  return CONFIG_FILE.test(filename.split(/[\\/]/).at(-1) ?? '')
+}
+
+function isUndeclared(identifier, sourceCode) {
+  const reference = sourceCode.getScope(identifier).references.find((entry) => entry.identifier === identifier)
+  return (reference?.resolved?.defs.length ?? 0) === 0
+}
+
+function isGlobalProcess(object, sourceCode) {
+  return object.name === 'process' && isUndeclared(object, sourceCode)
+}
+
+function isExitEvent(argument) {
+  return argument?.type === 'Literal' && argument.value === 'exit'
+}
+
+function isExitHook(node, sourceCode) {
+  const {callee} = node
+  return (
+    isNamedMember(callee, EXIT_LISTENERS) &&
+    isGlobalProcess(callee.object, sourceCode) &&
+    isExitEvent(node.arguments[0])
+  )
+}
+
+function isHandMadeTempDir(node, sourceCode) {
+  return (
+    isModuleFunction(node.callee, sourceCode, FS_SOURCES, MKDTEMP_NAMES) &&
+    isBuiltOnTmpdir(node.arguments[0], sourceCode)
+  )
+}
+
+function findingFor(node, sourceCode, inTestFile) {
+  if (isExitHook(node, sourceCode)) return 'exitHook'
+  if (inTestFile && isHandMadeTempDir(node, sourceCode)) return 'handMadeTempDir'
+  return undefined
+}
+
+function reportHandMade(node, context, inTestFile) {
   if (node.type !== 'CallExpression') return
-  const {sourceCode} = context
-  if (!isModuleFunction(node.callee, sourceCode, FS_SOURCES, MKDTEMP_NAMES)) return
-  if (!isBuiltOnTmpdir(node.arguments[0], sourceCode)) return
-  context.report({node, messageId: 'handMadeTempDir'})
+  const messageId = findingFor(node, context.sourceCode, inTestFile)
+  if (messageId !== undefined) context.report({node, messageId})
 }
 
 export default {
@@ -84,15 +123,18 @@ export default {
     type: 'problem',
     messages: {
       handMadeTempDir:
-        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, processTempDir(prefix) (@conciv/vitest-config: removed when the process exits).',
+        'A test that makes its own folder under the OS temp dir leaks it when the test fails before removing it. Take it from tempDir(prefix) (@conciv/vitest-config/temp-dir: one folder per test file, removed after the file) or, in a vitest config or browser command, a folder under test-results/conciv-home beside the config (the CONCIV_HOME of the run, emptied at the start and removed at the end of every run by the globalSetup ciTest() carries).',
+      exitHook:
+        'A process exit hook is cleanup that a crashed or killed run can skip, and the folder it removes is usually under the OS temp dir. In a test take the folder from tempDir(prefix) (@conciv/vitest-config/temp-dir); in a vitest config or browser command put it under test-results/conciv-home beside the config, which the globalSetup ciTest() carries empties at the start and removes at the end of every run.',
     },
     schema: [],
   },
   createOnce(context) {
     return {
       Program(node) {
-        if (!appliesToFile(context.filename)) return
-        walk(node, (child) => reportHandMade(child, context))
+        const inTestFile = appliesToFile(context.filename)
+        if (!inTestFile && !isConfigFile(context.filename)) return
+        walk(node, (child) => reportHandMade(child, context, inTestFile))
       },
     }
   },

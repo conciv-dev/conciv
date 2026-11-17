@@ -1,7 +1,7 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
-import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {ciTest, ciTestSolidBrowser, HOOK_TIMEOUT_MS, TEST_TIMEOUT_MS} from '@conciv/vitest-config'
 
 const PACKED_TAG = 'packs and installs tarballs; runs only in .github/workflows/packed.yml'
 
@@ -18,8 +18,8 @@ export default defineConfig(({mode}) => ({
           name: 'mascot',
           environment: 'node',
           include: ['test/unit/**/*.test.ts'],
-          testTimeout: ciTest().testTimeout,
-          hookTimeout: ciTest().hookTimeout,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: HOOK_TIMEOUT_MS,
         },
       },
       {

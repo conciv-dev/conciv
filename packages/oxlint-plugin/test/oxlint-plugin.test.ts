@@ -355,7 +355,7 @@ describe('vocabulary', () => {
       expect(await lintFixture('of-suffix/allowed.ts', 'conciv(no-of-suffix)')).toEqual([])
     })
 
-    test('exempts the files copied from opencode', async () => {
+    test('exempts the ported files, which keep the names of the code they were ported from', async () => {
       expect(await lintFixture('of-suffix/packages/plugin-host/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       expect(await lintFixture('of-suffix/packages/plugin/src/copied.ts', 'conciv(no-of-suffix)')).toEqual([])
       for (const folder of ['plugin', 'persistence']) {
@@ -513,7 +513,7 @@ describe('no hand-made temp dir', () => {
     const findings = await lintFixture('temp-dir/hand-made.ts')
     expect(findings).toHaveLength(3)
     expect(findings[0]).toContain('tempDir(prefix)')
-    expect(findings[0]).toContain('processTempDir(prefix)')
+    expect(findings[0]).toContain('test-results/conciv-home')
     expect(await lintFixture('temp-dir/helpers.ts')).toEqual([])
     expect(await lintFixture('packages/vitest-config/src/temp-dir.ts')).toEqual([])
   })
@@ -531,5 +531,15 @@ describe('no hand-made temp dir', () => {
       )
     expect(await outside('hand-made.spec.ts')).toHaveLength(3)
     expect(await outside('hand-made.ts')).toEqual([])
+  })
+
+  test('flags a process exit hook in a test or a vitest config, and leaves other events and a shadowing parameter alone', async () => {
+    const inTest = await lintFixture('temp-dir/exit-hook.ts')
+    expect.soft(inTest).toHaveLength(2)
+    expect.soft(inTest[0]).toContain('test-results/conciv-home')
+    const inConfig = (
+      await lintDiagnostics('test/oxlintrc-temp-dir.json', 'fixtures/temp-dir-outside/vitest.config.ts')
+    ).filter((diagnostic) => diagnostic.code === 'conciv(no-hand-made-temp-dir)')
+    expect.soft(inConfig).toHaveLength(1)
   })
 })

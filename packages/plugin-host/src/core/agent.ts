@@ -1,7 +1,7 @@
 export * as Agent from './agent.js'
 
 import {Array, Context, Effect, Layer, Types} from 'effect'
-import {Agent} from '../schema/agent.js'
+import {Agent} from '@conciv/plugin/schema/agent'
 import {Bus} from './bus.js'
 import {State} from './state.js'
 
@@ -16,7 +16,7 @@ export const Color = Agent.Color
 export const Info = Agent.Info
 export type Info = Agent.Info
 
-export {Event} from '../schema/agent.js'
+export {Event} from '@conciv/plugin/schema/agent'
 
 export interface Selection {
   readonly id: Id
@@ -43,7 +43,7 @@ export interface Interface extends State.Transformable<Editor> {
   readonly list: () => Effect.Effect<Info[]>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Agent')
+export const Service = Context.Service<Interface>('@conciv/Agent')
 
 export const layer = Layer.effect(
   Service,

@@ -1,18 +1,18 @@
 export * as Bus from './bus.js'
 
 import {Cause, Clock, Context, Effect, Layer, Option, PubSub, Schema, Stream} from 'effect'
-import {Event} from '../schema/event.js'
+import {Event} from '@conciv/plugin/schema/event'
 import type {EventLog} from '../schema/event-log.js'
 import {and, asc, eq, gt, isNull, lte, sql} from 'drizzle-orm'
 import {Database} from './database/database.js'
 import {EventSequenceTable, EventTable} from './event/sql.js'
-import type {Location} from '../schema/location.js'
+import type {Location} from '@conciv/plugin/schema/location'
 import {KeyedMutex} from './effect/keyed-mutex.js'
 import {isDeepStrictEqual} from 'node:util'
 import {Durable} from '../schema/durable-event-manifest.js'
-import {SessionEvent} from '../schema/session-event.js'
+import {SessionEvent} from '@conciv/plugin/schema/session-event'
 import {SessionLegacy} from '../schema/session-legacy.js'
-import type {SessionId} from '../schema/session-id.js'
+import type {SessionId} from '@conciv/plugin/schema/session-id'
 
 export type Subscriber<D extends Event.Definition = Event.Definition> = (event: Event.Payload<D>) => Effect.Effect<void>
 export type Unsubscribe = Effect.Effect<void>
@@ -165,7 +165,7 @@ export interface Interface {
   readonly claim: (aggregateId: string, ownerId: string) => Effect.Effect<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Bus')
+export const Service = Context.Service<Interface>('@conciv/Bus')
 
 interface Options {
   readonly beforeAggregateRead?: (aggregateId: string) => Effect.Effect<void>

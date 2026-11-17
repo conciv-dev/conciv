@@ -7,7 +7,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
-import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
+import {makeApp, withBuiltinExtensions, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 
 export type {AppType} from './app.js'
@@ -116,10 +116,14 @@ async function servePort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
   state: {file: string; token: string},
-): Promise<Served> {
+): Promise<Served & {restoreRecord: ShutdownStep}> {
   const serving = await serveRequestedPort(fetchHandler, request, state.file)
-  writePersistedPort(state.file, {port: serving.port, token: state.token})
-  return serving
+  try {
+    return {...serving, restoreRecord: writePersistedPort(state.file, {port: serving.port, token: state.token})}
+  } catch (error) {
+    await cleanupAfterFailedStart([serving.close])
+    throw error
+  }
 }
 
 function cleanupAfterFailedStart(steps: readonly ShutdownStep[]): Promise<void> {
@@ -224,17 +228,23 @@ export async function start(opts: StartOpts): Promise<Engine> {
     tokenScopedBase,
     plugins: opts.plugins,
   }
-  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser, startPlugins} = await makeApp(appOpts)
-
-  let serving: Served
-  try {
-    serving = await servePort(fetchHandler, opts.port, {file: paths.server, token: agentToken})
-  } catch (error) {
-    await cleanupAfterFailedStart([dispose])
-    throw error
-  }
-  const {port, close} = serving
+  const madeApp = Promise.withResolvers<MadeApp>()
+  madeApp.promise.catch(() => {})
+  const {port, close, restoreRecord} = await servePort(
+    (request, env) => madeApp.promise.then((made) => made.fetch(request, env)),
+    opts.port,
+    {file: paths.server, token: agentToken},
+  )
   portRef.port = port
+  const abandonStart = (steps: readonly ShutdownStep[]): Promise<void> =>
+    cleanupAfterFailedStart([close, ...steps, restoreRecord])
+  const made = await makeApp(appOpts).catch(async (error: unknown) => {
+    madeApp.reject(error)
+    await abandonStart([])
+    throw error
+  })
+  madeApp.resolve(made)
+  const {dispose, extensionContexts, trustBrowser, awaitActivation} = made
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
@@ -247,7 +257,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
       writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
     }
   } catch (error) {
-    await cleanupAfterFailedStart([close, dispose])
+    await abandonStart([dispose])
     throw error
   }
   const retire = base
@@ -267,11 +277,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
     }
   }
   try {
-    await startPlugins()
+    await awaitActivation()
   } catch (error) {
     clearEndpoint()
     retire()
-    await cleanupAfterFailedStart([close, dispose])
+    await abandonStart([dispose])
     throw error
   }
   return {

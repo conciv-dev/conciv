@@ -19,7 +19,7 @@ export const Options = Schema.Struct({
 })
 export type Options = typeof Options.Type
 
-export const Service = Context.Service<Interface>('@opencode/storage/Database')
+export const Service = Context.Service<Interface>('@conciv/storage/Database')
 
 const databaseLayer = Layer.effect(
   Service,

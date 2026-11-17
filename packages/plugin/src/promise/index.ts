@@ -4,12 +4,12 @@ export type {AssertInput} from '../permission.js'
 export type {StorageEntry, StorageScanOptions, StorageScanResult} from '../storage.js'
 export * as Plugin from './plugin.js'
 
-export * as Agent from '../schema/agent.js'
-export * as Location from '../schema/location.js'
-export * as Model from '../schema/model.js'
-export * as Rpc from '../schema/rpc.js'
-export * as Skill from '../schema/skill.js'
-export * as Tool from '../schema/tool.js'
+export {Agent} from '../schema/agent.js'
+export {Location} from '../schema/location.js'
+export {Model} from '../schema/model.js'
+export {Rpc} from '../schema/rpc.js'
+export {Skill} from '../schema/skill.js'
+export {Tool} from '../schema/tool.js'
 
 export type {Hooks, Registration, Transform} from './registration.js'
 export type {Rule, Ruleset} from '../schema/permission.js'
@@ -38,7 +38,12 @@ export type {SkillDomain, SkillEditor} from './skill.js'
 export type {StorageDomain} from './storage.js'
 export type {Info, ToolContext, ToolDomain, ToolEditor} from './tool.js'
 export type {ExperimentalGenerateApi, SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
-export type {ClientConnectionStatus, ConcivClient, ConcivEvent} from '../client/promise/index.js'
+export type {
+  ClientConnectionOptions,
+  ClientConnectionStatus,
+  ConcivClient,
+  ConcivEvent,
+} from '../client/promise/index.js'
 export type {RpcApi, RpcArguments, RpcCallOptions, RpcClient, RpcEventPayload} from '../client/promise/rpc.js'
 export {Conciv} from '../client/promise/index.js'
 export {makeRpc} from '../client/promise/rpc.js'

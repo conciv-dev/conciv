@@ -1,7 +1,7 @@
 export * as Plugin from './service.js'
 
-import {Plugin} from '../../schema/plugin.js'
-import type {Plugin as PluginDefinition} from '../../plugin/effect/plugin.js'
+import {Plugin} from '@conciv/plugin/schema/plugin'
+import type {Plugin as PluginDefinition} from '@conciv/plugin/effect/plugin'
 import {Context, type Effect, type Exit} from 'effect'
 
 export interface Interface {
@@ -34,6 +34,6 @@ export type Chunks = {
   readonly files: ReadonlyMap<string, {readonly sha256: string; readonly imports: readonly string[]}>
 }
 
-export const Service = Context.Service<Interface>('@opencode/Plugin')
+export const Service = Context.Service<Interface>('@conciv/Plugin')
 
 export const awaitActivation = Service.use((plugins) => plugins.awaitActivation)

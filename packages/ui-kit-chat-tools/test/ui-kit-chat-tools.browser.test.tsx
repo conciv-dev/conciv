@@ -28,6 +28,24 @@ import {FileReadCard} from '../src/styled/tools/file-read-card.js'
 import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/search-matches.js'
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
 import {builtinPageRegistry, mountView, registryCatalogView} from './helpers.js'
+import {parseClaudePatchBlocks, patchInfo} from '../src/primitives/tools/apply-patch.js'
+
+describe('patch headers', () => {
+  it('reads a file only from the header line itself', () => {
+    const named = '*** Begin Patch\n*** Update File: src/a.ts\n+x\n*** End Patch'
+    expect(patchInfo(named).files).toEqual(['a.ts'])
+    expect(parseClaudePatchBlocks(named)).toEqual([{type: 'Update', path: 'src/a.ts', body: '\n+x'}])
+    const unnamed = '*** Add File:\nsrc/next.ts\n+x'
+    expect(patchInfo(unnamed).files).toEqual([])
+    expect(parseClaudePatchBlocks(unnamed)).toEqual([])
+    const padded = '*** Update File: \t  src/a.ts\n+x'
+    expect(patchInfo(padded).files).toEqual(['a.ts'])
+    expect(parseClaudePatchBlocks(padded)).toEqual([{type: 'Update', path: 'src/a.ts', body: '\n+x'}])
+    const blank = '*** Add File: \t \n+x'
+    expect(patchInfo(blank).files).toEqual([])
+    expect(parseClaudePatchBlocks(blank)).toEqual([])
+  })
+})
 
 describe('standalone outcome headers', () => {
   const REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const
@@ -208,7 +226,7 @@ describe('catalog cards', () => {
   }
 
   function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
+    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => Promise.resolve(), catalog}
   }
 
   function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -355,7 +373,7 @@ describe('new tool projection', () => {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: registryCatalogView(registryWith(shipTool)),
   }
 
@@ -415,7 +433,7 @@ describe('page tool cards', () => {
     apiBase: '',
     harnessId: 'test',
     sendMessage: () => {},
-    addResult: () => {},
+    addResult: () => Promise.resolve(),
     catalog: registryCatalogView(builtinPageRegistry()),
   }
 
@@ -485,7 +503,13 @@ describe('page tool cards', () => {
 
 describe('registry card declarations', () => {
   const catalog = registryCatalogView(builtinPageRegistry())
-  const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
+  const ctx: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'test',
+    sendMessage: () => {},
+    addResult: () => Promise.resolve(),
+    catalog,
+  }
 
   function part(
     verb: string,

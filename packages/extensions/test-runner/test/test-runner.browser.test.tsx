@@ -99,7 +99,7 @@ describe('test card', () => {
       apiBase: '',
       harnessId: 'claude',
       sendMessage: (text) => sent.push(text),
-      addResult: () => {},
+      addResult: () => Promise.resolve(),
       catalog,
     }
   }
@@ -121,7 +121,7 @@ describe('test card', () => {
       render(() => (
         <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
           <CardChromeProvider value="embedded">
-            <TestCard part={part} result={undefined} ctx={ctx} addResult={() => {}} {...over} />
+            <TestCard part={part} result={undefined} ctx={ctx} addResult={() => Promise.resolve()} {...over} />
           </CardChromeProvider>
         </HostApiProvider>
       ))
@@ -129,7 +129,7 @@ describe('test card', () => {
     }
     render(() => (
       <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
-        <TestCard part={part} result={undefined} ctx={ctx} addResult={() => {}} {...over} />
+        <TestCard part={part} result={undefined} ctx={ctx} addResult={() => Promise.resolve()} {...over} />
       </HostApiProvider>
     ))
   }

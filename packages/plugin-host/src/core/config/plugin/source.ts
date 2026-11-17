@@ -28,7 +28,7 @@ export interface Interface {
   readonly changes: () => Stream.Stream<void>
 }
 
-export const Service = Context.Service<Interface>('@opencode/ConfigPluginSource')
+export const Service = Context.Service<Interface>('@conciv/ConfigPluginSource')
 
 export const ConfiguredPlugins = Context.Service<readonly ConfigPlugin.Plugin[]>('@conciv/ConfiguredPlugins')
 
@@ -112,8 +112,12 @@ export const layer = Layer.effect(
       changes: () =>
         Stream.merge(
           Stream.fromPubSub(watchUpdates).pipe(
-            Stream.filter(
-              (update) => update.path === concivDirectory || isDirectorySource(concivDirectory, update.path),
+            Stream.filterEffect((update) =>
+              Effect.map(fs.resolve(concivDirectory), (realConcivDirectory) =>
+                [concivDirectory, realConcivDirectory].some(
+                  (directory) => update.path === directory || isDirectorySource(directory, update.path),
+                ),
+              ),
             ),
             Stream.map(() => undefined),
           ),
@@ -197,6 +201,7 @@ const scan = Effect.fn('ConfigPluginSource.scan')(function* (
       const times = yield* Effect.forEach(
         [
           ...Object.values(entrypoints)
+            .filter((entry) => entry !== entrypoints.experimental)
             .filter((entry) => entry !== undefined)
             .map((entry) => fileURLToPath(entry)),
           path.join(directory ? operation.target : path.dirname(operation.target), 'package.json'),

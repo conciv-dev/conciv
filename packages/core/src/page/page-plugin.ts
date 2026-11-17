@@ -1,8 +1,9 @@
 import {z} from 'zod'
 import {Effect} from 'effect'
-import {Bus, Rpc} from '@conciv/plugin-host'
+import {Bus, Plugin, Rpc} from '@conciv/plugin-host'
 import {Definition, State} from '@conciv/plugin-page/rpc'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {PluginHost} from '../api/rpc/mount.js'
 import {logError} from '../lib/debug.js'
@@ -39,7 +40,8 @@ export function makePagePlugin(host: () => PluginHost) {
 
   const call = (method: keyof Methods, input: unknown, signal?: AbortSignal) =>
     host().runPromise(
-      Rpc.Service.use((rpc) => rpc.call(Definition.id, method, input)).pipe(
+      Plugin.awaitActivation.pipe(
+        Effect.andThen(Rpc.Service.use((rpc) => rpc.call(Definition.id, method, input))),
         Effect.mapError((failure) => new Error(failure.message, {cause: failure})),
       ),
       signal === undefined ? {} : {signal},
@@ -86,7 +88,16 @@ export function makePagePlugin(host: () => PluginHost) {
     },
   }
 
+  const symbolicate = async (frames: RawFrame[]): Promise<SourceLoc | null> =>
+    Definition.methods.symbolicate.output.parse(await call('symbolicate', {frames}))
+
   return {
+    symbolicate,
+    symbolicateOrNone: (frames: RawFrame[]): Promise<SourceLoc | null> =>
+      symbolicate(frames).catch((error: unknown) => {
+        if (!unlisted(error)) logError(`[core] the page plugin could not symbolicate: ${String(error)}`)
+        return null
+      }),
     hmrWait: async (input: Input<'hmr.wait'>, signal?: AbortSignal) =>
       Definition.methods['hmr.wait'].output.parse(await call('hmr.wait', input, signal)),
     queueWait: async (

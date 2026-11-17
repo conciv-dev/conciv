@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {accessSync, constants, existsSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -26,7 +27,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
-import {withSavedModels} from './lib/saved-models.js'
+import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -76,6 +77,7 @@ import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makePagePlugin} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
+import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
   followPermissionCards,
@@ -85,7 +87,6 @@ import {
 import {makePluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
-import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {
@@ -97,10 +98,9 @@ import {
 } from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
-import concivPage from '@conciv/plugin-page'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
-import {loadIsolateDriver} from '@conciv/ai/server'
+import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
@@ -145,6 +145,12 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
+
+  eventHeartbeatIntervalMs?: number
+
+  pageReplyTimeoutMs?: number
+
+  queuedActionTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -204,20 +210,16 @@ function detectedHarnesses(): HarnessAdapter[] {
   return listHarnesses().filter((adapter) => onPath(adapter.binName))
 }
 
-function availableHarnesses(boot: HarnessAdapter, opts: MakeAppOpts, stateDir: string): HarnessAdapter[] {
+function availableHarnesses(
+  boot: SavedModelsHarness,
+  opts: MakeAppOpts,
+  stateDir: string,
+  signal: AbortSignal,
+): SavedModelsHarness[] {
   const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
-    withSavedModels(adapter, stateDir),
+    withSavedModels(adapter, stateDir, signal),
   )
-  return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
-}
-
-function symbolicable(frame: {
-  fileName?: string
-  line?: number
-  column?: number
-  fn?: string
-}): frame is SymbolicableFrame {
-  return typeof frame.fileName === 'string' && typeof frame.line === 'number'
+  return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
 }
 
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
@@ -406,7 +408,7 @@ export type MadeApp = {
   extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
   pluginHost: PluginHost
-  startPlugins: () => Promise<void>
+  awaitActivation: () => Promise<void>
 }
 
 function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
@@ -444,13 +446,26 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   assertUniqueExtensionSlugs(extensions)
 
   const stateDir = concivStateDir(opts.cfg.stateRoot)
-  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
+  const engineLife = new AbortController()
+  const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
+  const harness = boot.harness
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
-  const harnesses = availableHarnesses(harness, opts, stateDir)
+  const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
+  const harnesses = listings.map((listing) => listing.harness)
+  const print = opts.print ?? ((text: string) => console.log(text))
+  const endListing = async (listing: SavedModelsHarness): Promise<void> => {
+    const ended = listing.settled().then(() => true)
+    if (await Promise.race([ended, delay(GROUP_EXIT_TIMEOUT_MS, false, {ref: false})])) return
+    print(`[core] the ${listing.harness.id} model listing did not end when the engine stopped; closing without it`)
+  }
+  const endListings = async (): Promise<void> => {
+    engineLife.abort(new Error('conciv: the engine stopped'))
+    await Promise.all(listings.map(endListing))
+  }
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -459,6 +474,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const outsideTabs = createOutsideTabs(opts.home)
+  const pagePlugin = makePagePlugin(() => pluginHost)
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
@@ -468,8 +484,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
     hotUpdate: (sessionId: SessionId, timeout: number) => pagePlugin.hmrWait({sessionId, timeout}),
-    openInEditor: opts.openInEditor,
     listTabs: outsideTabs.list,
+    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
@@ -525,7 +542,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath,
         sessions: serverSessions,
         harness: serverHarness,
-        symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
+        symbolicate: pagePlugin.symbolicateOrNone,
         bundler: opts.bridge,
         nativeUrl,
         upgradeWebSocket: socketUpgrade,
@@ -622,22 +639,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     plugins: opts.plugins ?? [],
     post: [concivPage],
     harness,
+    signal: engineLife.signal,
     harnessSource: {
       harness: serverHarness,
       sessions: serverSessions,
       tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
     },
     bundler: opts.bridge,
+    openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
     sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
   })
   const pluginHost: PluginHost = plugins.runtime
-  const pagePlugin = makePagePlugin(() => pluginHost)
   const startFailed =
     (steps: ShutdownStep[]) =>
     async (error: unknown): Promise<never> => {
       await runInOrder(
         [
+          endListings,
           plugins.closeRpc,
           plugins.closePlugins,
           plugins.closePermissions,
@@ -670,9 +689,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         ),
       ),
     )
-  const reportToolCollision = memoize((name: string) =>
-    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
-  )
+  const extensionFor = (name: string): string | undefined =>
+    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
+  const reportToolCollision = memoize((name: string) => {
+    const extension = extensionFor(name)
+    if (extension === undefined)
+      return logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`)
+    return logError(
+      `[core] the plugin tool "${name}" is left out: extension "${extension}" already has a tool with that name`,
+    )
+  })
   const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
@@ -681,9 +707,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
       reportToolCollision,
     )
-
-  const extensionFor = (name: string): string | undefined =>
-    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
 
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
@@ -745,9 +768,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     basePath,
     db,
     plane,
+    signal: engineLife.signal,
   }
 
-  const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness, interruptIdle})
+  const runtime = makeCoreRuntime({
+    primitives,
+    plane,
+    db,
+    model: sessionModel,
+    staleness,
+    interruptIdle,
+    symbolicate: pagePlugin.symbolicateOrNone,
+  })
 
   function followUpOwedQueues(sessionId: SessionId): void {
     if (planeRef.current === null) return
@@ -796,6 +828,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     finishedQueues: pagePlugin.undelivered,
     startedQueues: pagePlugin.startedBy,
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
+    driving: (sessionId) => plane.driving(sessionId),
     outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
         await withPluginTools(sessionId, [
@@ -820,11 +853,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     queues: pagePlugin,
     queueWait: pagePlugin.queueWait,
     pluginHost,
+    eventHeartbeatIntervalMs: opts.eventHeartbeatIntervalMs,
     chat: chatDeps,
     search,
     settings,
     tools: toolList,
-    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
+    openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
@@ -834,7 +868,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     answerPermission: (sessionId, requestId, reply) =>
       pluginHost.runPromise(answerPermission(sessionId, requestId, reply)),
     auth: makeAuthRouter({
-      codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+      codes: makeCodeStore({now: Date.now, print}),
       trust,
       browsers,
       now: Date.now,
@@ -888,6 +922,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const dispose = (): Promise<void> =>
     runInOrder(
       [
+        endListings,
         plugins.closeRpc,
         plugins.closePlugins,
         () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
@@ -910,12 +945,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onTrusted: opts.onTrusted,
   })
 
-  await ensureConfiguredRows(rows, opts.cfg).catch(async (error: unknown) => {
-    await dispose().catch((failure: unknown) =>
-      logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
-    )
-    throw error
-  })
+  await ensureConfiguredRows(rows, opts.cfg)
+    .then(plugins.supervise)
+    .catch(async (error: unknown) => {
+      await dispose().catch((failure: unknown) =>
+        logError(`[core] disposing after a failed start also failed: ${String(failure)}`),
+      )
+      throw error
+    })
 
   return {
     app,
@@ -928,7 +965,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
     pluginHost,
-    startPlugins: plugins.startPlugins,
+    awaitActivation: plugins.awaitActivation,
   }
 }
 

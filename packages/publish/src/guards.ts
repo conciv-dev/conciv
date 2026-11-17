@@ -71,6 +71,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/plugin',
   '@conciv/plugin-host',
   '@conciv/plugin-page',
+  '@conciv/plugin-recorder',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
@@ -289,6 +290,7 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
 
 const CATALOG_EXEMPTIONS: Record<string, string[]> = {
   'packages/extensions/whiteboard': ['drizzle-kit', 'drizzle-orm'],
+  'packages/plugins/whiteboard': ['drizzle-kit', 'drizzle-orm'],
 }
 
 type DependencyUse = {name: string; manifestDir: string; spec: string}
