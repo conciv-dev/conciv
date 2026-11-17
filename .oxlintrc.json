@@ -155,7 +155,10 @@
       "files": [
         "packages/plugin-page/src/rpc.ts",
         "packages/plugin-page/src/machine.ts",
-        "packages/plugin-page/src/connection.ts"
+        "packages/plugin-page/src/connection.ts",
+        "packages/plugins/tanstack/src/rpc.ts",
+        "packages/plugins/tanstack/src/machine.ts",
+        "packages/plugins/tanstack/src/connection.ts"
       ],
       "rules": {
         "conciv/banned-vocabulary": "off"
@@ -580,6 +583,7 @@
     "**/test-results",
     "packages/unplugin/test/fixtures/**",
     "packages/extensions/tanstack/test/fixtures/**",
+    "packages/plugins/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "e2e/solid-start/src",
