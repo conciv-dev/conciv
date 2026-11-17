@@ -1,8 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {BUILTIN_TABS_TOOL, builtinToolNames} from '../src/builtins.js'
-import {concivExtensionsToolDef} from '../src/extensions-tool.js'
-import {concivSandboxTools} from '../src/tools.js'
+import {concivSandboxToolNames, concivSandboxTools} from '../src/tools.js'
 
 describe('builtins', () => {
   function registryWithTabs() {
@@ -24,12 +23,12 @@ describe('builtins', () => {
   })
 })
 
-describe('extensions tool', () => {
-  describe('conciv_extensions tool description', () => {
-    it('tells the authoring agent to add @conciv/ui-kit-chat to package.json for composer scaffolds', () => {
-      expect(concivExtensionsToolDef.description).toContain('@conciv/ui-kit-chat')
-      expect(concivExtensionsToolDef.description).toContain('package.json')
-    })
+describe('sandbox tools', () => {
+  it('offers conciv_ui as the only conciv sandbox tool', () => {
+    expect(concivSandboxToolNames()).toEqual(['conciv_ui'])
+    expect(concivSandboxTools({askUi: async () => ({answered: true, value: 'dark'})}).map((tool) => tool.name)).toEqual(
+      ['conciv_ui'],
+    )
   })
 })
 

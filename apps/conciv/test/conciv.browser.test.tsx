@@ -114,7 +114,7 @@ import {
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
-import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
+import {concivUiToolDef} from '@conciv/tools/defs'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {Conciv} from '@conciv/plugin'
@@ -4978,9 +4978,13 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
+    const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.awaitFaultPending(pushHandshake, 1)
+    const pushLive = coreControl.awaitPushSocketLive()
+    await coreControl.releaseFault(pushHandshake)
+    await pushLive
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
@@ -5005,7 +5009,7 @@ describe('engine login', () => {
     await page.getByRole('button', {name: 'Send message'}).click()
     const earlierAnswer = () => page.getByRole('log').getByText('Answer before the revoke.')
     await expect.element(earlierAnswer()).toBeVisible()
-    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.awaitPushSocketLive()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(earlierAnswer()).toBeVisible()
@@ -5014,7 +5018,7 @@ describe('engine login', () => {
     await userEvent.type(firstDigit(), await coreControl.requestCode())
     await expect.element(reloginNotice()).not.toBeInTheDocument()
     await expect.element(earlierAnswer()).toBeVisible()
-    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.awaitPushSocketLive()
     await coreControl.scriptTurn({toolCalls: [], text: 'Answer after the new code.'})
     await editor().fill('second question')
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -5151,7 +5155,7 @@ describe('engine login', () => {
       const lateClose = await faults.install({kind: 'late-close'})
       harness.mountShell('/', [], {login: {apiBase: origin()}})
       await unlock()
-      await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+      await coreControl.awaitPushSocketLive()
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
       await coreControl.revokeBrowsers()
       await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
@@ -5924,7 +5928,6 @@ describe('wire name coverage', () => {
     EXECUTE_TOOL_NAME,
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
-    concivExtensionsToolDef.name,
     ...registry.catalog.list().map((entry) => entry.name),
     ...SERVER_PLUGIN_TOOL_NAMES,
   ]
@@ -7023,8 +7026,32 @@ module.exports = {default: {setup(ctx) {
 
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
+const {insert} = require('solid-js/web')
 const ToolCall = Registry.define('tool-call')
 module.exports = {default: {setup(ctx) {
+  ctx.add(ToolCall, {
+    tools: ['plugin_card_probe'],
+    display: 'standalone',
+    card: {
+      hasEmbeddedBody: () => true,
+      render(props) {
+        const card = document.createElement('p')
+        insert(card, () =>
+          'Probe card ' + (props.result === undefined ? 'running' : 'finished') + ', ' +
+          (props.durationMs === undefined ? 'no time yet' : 'timed'))
+        return card
+      },
+    },
+  })
+  ctx.add(ToolCall, {
+    tools: ['plugin_card_throw_probe'],
+    card: {
+      hasEmbeddedBody: () => true,
+      render() {
+        throw new Error('the probe card render failed')
+      },
+    },
+  })
   ctx.add(ToolCall, {
     tools: ['plugin_probe'],
     render(props) {
@@ -7087,6 +7114,51 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
     await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
+  }, 45_000)
+
+  test('a plugin card draws the whole card while the call runs and after, with its duration', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}}],
+      text: 'the card probe is done',
+    })
+    await coreControl.holdResults()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the card probe{Enter}')
+    await expect
+      .element(page.getByText('Probe card running, no time yet', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('the card probe is done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card running', {exact: false})).not.toBeInTheDocument()
+    await expect.element(page.getByText('"the card probe"', {exact: true})).not.toBeInTheDocument()
+  }, 45_000)
+
+  test('a plugin card that throws leaves its call on the generic card, records the error under the plugin, and the plugin keeps drawing its other card', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'plugin_card_throw_probe', input: {mode: 'broken'}, result: {drawn: 'the broken card probe'}},
+        {name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}},
+      ],
+      text: 'the card probes are done',
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the card probes{Enter}')
+    await expect.element(page.getByText('the card probes are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(probeRow('mode=broken')).toBeVisible()
+    await expect.element(page.getByText('"the broken card probe"', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect.element(page.getByText('Error: the probe card render failed', {exact: true})).toBeVisible()
   }, 45_000)
 
   test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
