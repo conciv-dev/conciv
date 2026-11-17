@@ -68,6 +68,7 @@ type Queued = NonNullable<Command['queued']>
 type Call = {
   agentId: string
   queued?: Queued
+  signal?: AbortSignal
   document: Document
   target: (locator: Locator) => Element
   resolve: (locator: Locator) => Element | null
@@ -88,10 +89,16 @@ function serialize(value: unknown): unknown {
   return dehydrate(value)
 }
 
-function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number): Promise<PageResult> {
+function waitFor(
+  selector: string,
+  state: 'visible' | 'hidden',
+  timeout: number,
+  signal: AbortSignal | undefined,
+): Promise<PageResult> {
   const deadline = Date.now() + timeout
   return new Promise((resolve, reject) => {
     const tick = (): void => {
+      if (signal?.aborted) return reject(signal.reason)
       const el = selectDeep(selector)[0]
       const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
@@ -145,6 +152,7 @@ function stoppedBefore(queued: Queued): void {
 }
 
 function stillQueued(call: Call): void {
+  call.signal?.throwIfAborted()
   if (call.queued !== undefined) stoppedBefore(call.queued)
 }
 
@@ -167,6 +175,7 @@ async function playQueued(options: {
   touchTask()
   const element = paceTarget(input, call)
   if (element !== null) await arriveAt({element, agent: call.agentId, beat})
+  call.signal?.throwIfAborted()
   stoppedBefore(queued)
   return landQueued({beat, act: async () => value()})
 }
@@ -383,7 +392,7 @@ function perform(
     case 'wait':
       return touchingAsync(() =>
         action.selector
-          ? waitFor(action.selector, action.state ?? 'visible', action.timeout ?? 5000)
+          ? waitFor(action.selector, action.state ?? 'visible', action.timeout ?? 5000, signal)
           : badArgs('wait requires a selector'),
       )
     case 'reload':
@@ -573,6 +582,7 @@ function callCtx(
   consoleBuf: ConsoleEntry[],
   slot: TargetSlot,
   queued: Queued | undefined,
+  signal: AbortSignal | undefined,
 ): Call {
   const remember = (el: Element | null): Element | null => {
     if (el !== null) slot.el = el
@@ -582,6 +592,7 @@ function callCtx(
   return {
     agentId,
     ...(queued === undefined ? {} : {queued}),
+    ...(signal === undefined ? {} : {signal}),
     document,
     resolve,
     target: (locator) => {
@@ -705,7 +716,7 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector(action.type)
-    const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued)
+    const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued, signal)
     try {
       const answer = await perform(action, capturingCall(call, mode, captures), effects, signal)
       const record = readPlainRecord(answer.value)
