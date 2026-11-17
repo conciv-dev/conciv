@@ -1,6 +1,8 @@
-import {Tool, type ToolDomain} from '@conciv/plugin'
+import type {Context} from '@conciv/plugin/effect/plugin'
+import {Tool} from '@conciv/plugin/schema/tool'
+import {Effect} from 'effect'
 import {z} from 'zod'
-import {pullWindow, type RecorderRuntime} from './server/runtime.js'
+import {pullWindow, type RecorderRuntime} from './runtime.js'
 
 const options = {namespace: 'recording', codemode: true}
 
@@ -10,8 +12,24 @@ const FLUSH_WAIT_MS = 1500
 
 const Keyframes = z.number().int().min(0).max(8).default(3)
 
-export function register(tool: ToolDomain, runtime: RecorderRuntime) {
-  return tool.transform((editor) => {
+function toolFailure(error: unknown): Tool.Error {
+  if (error instanceof globalThis.Error && Tool.isToolError(error)) return error
+  return Tool.makeError({message: error instanceof globalThis.Error ? error.message : String(error), error})
+}
+
+function attempt<Value>(work: () => Value) {
+  return Effect.try({try: work, catch: toolFailure})
+}
+
+function attemptPromise<Value>(work: () => Promise<Value>) {
+  return Effect.tryPromise({try: work, catch: toolFailure})
+}
+
+export const register = Effect.fn('RecorderTools.register')(function* (
+  ctx: Pick<Context, 'tool'>,
+  runtime: RecorderRuntime,
+) {
+  yield* ctx.tool.transform((editor) => {
     editor.namespace({
       name: 'recording',
       description:
@@ -24,15 +42,18 @@ export function register(tool: ToolDomain, runtime: RecorderRuntime) {
       input: z.object({}),
       output: z.object({captureId: z.string(), startedAt: z.number()}),
       options,
-      execute: async () => {
-        const {captureId, startTs, appendCursor} = runtime.control.startCapture()
-        const covered = await runtime.control.awaitAppendAfter(appendCursor, START_WAIT_MS)
-        if (covered) return {output: {captureId, startedAt: startTs}}
-        runtime.control.stopCapture(captureId)
-        throw Tool.toolError({
-          message: 'no page client attached within 5s; the app page with the widget must be open to record',
-        })
-      },
+      execute: () =>
+        Effect.gen(function* () {
+          const {captureId, startTs, appendCursor} = yield* attempt(() => runtime.control.startCapture())
+          const covered = yield* attemptPromise(() => runtime.control.awaitAppendAfter(appendCursor, START_WAIT_MS))
+          if (covered) return {output: {captureId, startedAt: startTs}}
+          yield* attempt(() => runtime.control.stopCapture(captureId))
+          return yield* Effect.fail(
+            Tool.makeError({
+              message: 'no page client attached within 5s; the app page with the widget must be open to record',
+            }),
+          )
+        }),
     })
     editor.add({
       name: 'stop',
@@ -41,12 +62,13 @@ export function register(tool: ToolDomain, runtime: RecorderRuntime) {
       input: z.object({captureId: z.string(), keyframes: Keyframes}),
       output: z.string(),
       options,
-      execute: async ({captureId, keyframes}) => {
-        const range = runtime.control.stopCapture(captureId)
-        if (!range) throw Tool.toolError({message: `no active capture ${captureId}`})
-        await runtime.control.awaitAppendAfter(range.appendCursor, FLUSH_WAIT_MS)
-        return pullWindow(runtime, range.startTs, range.stopTs, keyframes)
-      },
+      execute: ({captureId, keyframes}) =>
+        Effect.gen(function* () {
+          const range = yield* attempt(() => runtime.control.stopCapture(captureId))
+          if (!range) return yield* Effect.fail(Tool.makeError({message: `no active capture ${captureId}`}))
+          yield* attemptPromise(() => runtime.control.awaitAppendAfter(range.appendCursor, FLUSH_WAIT_MS))
+          return yield* attemptPromise(() => pullWindow(runtime, range.startTs, range.stopTs, keyframes))
+        }),
     })
     editor.add({
       name: 'pull',
@@ -55,14 +77,15 @@ export function register(tool: ToolDomain, runtime: RecorderRuntime) {
       input: z.object({secondsBack: z.number().int().positive().max(600).default(60), keyframes: Keyframes}),
       output: z.string(),
       options,
-      execute: async ({secondsBack, keyframes}) => {
-        const toTs = Date.now()
-        if (runtime.control.isLive()) {
-          const appendCursor = runtime.control.emit({flush: true})
-          await runtime.control.awaitAppendAfter(appendCursor, FLUSH_WAIT_MS)
-        }
-        return pullWindow(runtime, toTs - secondsBack * 1000, toTs, keyframes)
-      },
+      execute: ({secondsBack, keyframes}) =>
+        Effect.gen(function* () {
+          const toTs = Date.now()
+          if (yield* attempt(() => runtime.control.isLive())) {
+            const appendCursor = yield* attempt(() => runtime.control.emit({flush: true}))
+            yield* attemptPromise(() => runtime.control.awaitAppendAfter(appendCursor, FLUSH_WAIT_MS))
+          }
+          return yield* attemptPromise(() => pullWindow(runtime, toTs - secondsBack * 1000, toTs, keyframes))
+        }),
     })
   })
-}
+})

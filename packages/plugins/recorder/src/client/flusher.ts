@@ -1,4 +1,4 @@
-import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
+import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from '../protocol.js'
 
 export type Flusher = {
   push(event: RrwebEvent): void
