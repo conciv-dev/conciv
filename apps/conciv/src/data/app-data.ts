@@ -88,16 +88,21 @@ export function makeAppData(
   }
   queryClient.setQueryDefaults(utils.drafts.get.key(), {staleTime: Infinity, gcTime: Infinity, retry: false})
   const draftQuery = (sessionId: string) => utils.drafts.get.queryOptions({input: {sessionId}})
-  const forgetDraftSaves = (sessionId: string, statuses: readonly string[]): void => {
+  const removeDraftSaves = (
+    forget: (save: {status: string; isPaused: boolean; variables: unknown}) => boolean,
+  ): void => {
     const mutationCache = queryClient.getMutationCache()
-    const settled = mutationCache.findAll({
+    const forgotten = mutationCache.findAll({
       mutationKey: utils.drafts.set.mutationKey(),
-      predicate: (mutation) =>
-        statuses.includes(mutation.state.status) &&
-        DraftSessionSchema.safeParse(mutation.state.variables).data?.sessionId === sessionId,
+      predicate: (mutation) => forget(mutation.state),
     })
-    for (const mutation of settled) mutationCache.remove(mutation)
+    for (const mutation of forgotten) mutationCache.remove(mutation)
   }
+  const forgetDraftSaves = (sessionId: string, statuses: readonly string[]): void =>
+    removeDraftSaves(
+      (save) =>
+        statuses.includes(save.status) && DraftSessionSchema.safeParse(save.variables).data?.sessionId === sessionId,
+    )
   queryClient.setMutationDefaults<unknown, Error, DraftSave>(utils.drafts.set.mutationKey(), {
     retry: retriableDraftSave,
     gcTime: Infinity,
@@ -192,13 +197,7 @@ export function makeAppData(
   }
   const forgetLocalDrafts = async (): Promise<void> => {
     queryClient.removeQueries({queryKey: utils.drafts.get.key()})
-    const mutationCache = queryClient.getMutationCache()
-    mutationCache
-      .findAll({
-        mutationKey: utils.drafts.set.mutationKey(),
-        predicate: (mutation) => SETTLED.includes(mutation.state.status),
-      })
-      .forEach((mutation) => mutationCache.remove(mutation))
+    removeDraftSaves((save) => !save.isPaused)
     if (!drafts) return
     await drafts.clear().catch((error: unknown) => {
       console.error('[conciv] could not empty the local draft store', error)
