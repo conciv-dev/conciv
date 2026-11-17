@@ -1,7 +1,9 @@
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
 import {cdp, page, server, userEvent} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
+import {cleanup, render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import {z} from 'zod'
@@ -21,6 +23,9 @@ import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
 import type {Registry} from '@conciv/plugin/experimental'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {tanstackCards} from '../src/tanstack/cards.js'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -1468,5 +1473,206 @@ describe('the page contracts another plugin reads', () => {
       await userEvent.keyboard('{Escape}')
       expect(await cancelled).toBeNull()
     })
+  })
+})
+
+describe('the tanstack cards', () => {
+  type Tool = keyof typeof tanstackCards
+
+  const cardContext: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'claude',
+    sendMessage: () => {},
+    addResult: () => Promise.resolve(),
+    catalog: INERT_TOOL_CATALOG,
+  }
+
+  const failure = 'tab_unavailable: no TanStack page is attached to this session'
+
+  const routerState = {
+    location: {pathname: '/about', search: '', hash: ''},
+    matches: [
+      {
+        id: '__root__',
+        routeId: '__root__',
+        path: '',
+        params: {},
+        search: {},
+        status: 'success',
+        error: null,
+        loaderData: null,
+        updatedAt: null,
+        isFetching: false,
+      },
+      {
+        id: '/about',
+        routeId: '/about',
+        path: '/about',
+        params: {},
+        search: {},
+        status: 'success',
+        error: null,
+        loaderData: {greeting: 'hello'},
+        updatedAt: 1,
+        isFetching: false,
+      },
+    ],
+  }
+
+  const cases: ReadonlyArray<{
+    tool: Tool
+    input?: Record<string, unknown>
+    output: unknown
+    summary: string
+    detail?: string
+  }> = [
+    {tool: 'tanstack_router_state', output: routerState, summary: '/about · 2 matches', detail: '__root__'},
+    {
+      tool: 'tanstack_route_tree',
+      output: {
+        id: '__root__',
+        path: '',
+        kind: 'layout',
+        hasLoader: false,
+        children: [
+          {id: '/', path: '/', kind: 'index', hasLoader: false, children: []},
+          {id: '/about', path: '/about', kind: 'static', hasLoader: true, children: []},
+        ],
+      },
+      summary: '3 routes',
+      detail: '/about',
+    },
+    {
+      tool: 'tanstack_loader_data',
+      output: {routeId: '/about', data: {greeting: 'hello', visits: 42}},
+      summary: '2 keys · /about',
+      detail: 'greeting',
+    },
+    {
+      tool: 'tanstack_query_cache',
+      output: {
+        queries: [
+          {
+            key: '["todos"]',
+            state: 'fresh',
+            status: 'success',
+            value: ['write the card test'],
+            updatedAt: Date.now(),
+            error: null,
+            observers: 1,
+          },
+        ],
+        mutations: [],
+      },
+      summary: '1 query',
+      detail: '1 obs',
+    },
+    {
+      tool: 'tanstack_query_invalidate',
+      input: {key: '["todos"]'},
+      output: {ok: true},
+      summary: 'invalidated ["todos"]',
+    },
+    {tool: 'tanstack_query_refetch', input: {key: '["todos"]'}, output: {ok: true}, summary: 'refetched ["todos"]'},
+    {tool: 'tanstack_navigate', input: {to: '/about'}, output: {ok: true, to: '/about'}, summary: '→ /about'},
+    {tool: 'tanstack_router_invalidate', output: {ok: true}, summary: 'invalidated'},
+    {tool: 'tanstack_back', output: {ok: true}, summary: 'went back'},
+    {
+      tool: 'tanstack_build_errors',
+      output: [
+        {
+          id: 'build-1',
+          kind: 'build',
+          message: 'Cannot find module ./missing',
+          stack: null,
+          source: {file: 'src/routes/about.tsx', line: 4, column: 1},
+          digest: null,
+          at: 1,
+        },
+      ],
+      summary: '1 error',
+      detail: 'src/routes/about.tsx:4',
+    },
+    {
+      tool: 'tanstack_route_manifest',
+      output: [
+        {path: '/', kind: 'page', dynamic: false, file: 'src/routes/index.tsx'},
+        {path: '/posts/$id', kind: 'page', dynamic: true, file: 'src/routes/posts.$id.tsx'},
+      ],
+      summary: '2 routes',
+      detail: '/posts/$id',
+    },
+    {
+      tool: 'tanstack_server_fn_trace',
+      output: {
+        traces: [{id: 'posts-fn', name: 'getPosts', durationMs: 12, status: 'ok', at: 1}],
+        functions: [{id: 'posts-fn', name: 'getPosts', route: '/posts', file: 'src/server/posts.ts'}],
+      },
+      summary: '1 call',
+      detail: 'src/server/posts.ts',
+    },
+  ]
+
+  function callPart(tool: Tool, input: Record<string, unknown>): ToolCallPart {
+    return {
+      type: 'tool-call',
+      id: `call-${tool}`,
+      name: tool,
+      arguments: JSON.stringify(input),
+      state: 'input-complete',
+    }
+  }
+
+  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
+    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
+  }
+
+  function cardProps(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined): ToolCardProps {
+    return {part: callPart(tool, input), result, ctx: cardContext, addResult: () => Promise.resolve()}
+  }
+
+  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart): void {
+    const props = cardProps(tool, input, result)
+    render(() => <Dynamic component={tanstackCards[tool].render} {...props} />)
+  }
+
+  function header(tool: Tool) {
+    return page.getByRole('button', {name: new RegExp(tool)})
+  }
+
+  it('draws each finished tanstack call as its card, on success and on error', async () => {
+    onTestFinished(cleanup)
+    for (const call of cases) {
+      const success = resultPart(call.tool, JSON.stringify(call.output), 'complete')
+      mountCard(call.tool, call.input ?? {}, success)
+      await expect.element(page.getByText(call.summary, {exact: true})).toBeVisible()
+      if (call.detail !== undefined) {
+        await header(call.tool).click()
+        await expect.element(page.getByText(call.detail, {exact: true})).toBeVisible()
+      }
+      cleanup()
+
+      const failed = resultPart(call.tool, failure, 'error')
+      mountCard(call.tool, call.input ?? {}, failed)
+      await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+      await header(call.tool).click()
+      await expect.element(page.getByText(failure)).toBeVisible()
+      await expect.element(page.getByText(call.summary, {exact: true})).not.toBeInTheDocument()
+      cleanup()
+    }
+  })
+
+  it("a running tanstack call shows the host's running row, then its card once it finishes", async () => {
+    onTestFinished(cleanup)
+    const [props, setProps] = createStore(cardProps('tanstack_router_state', {}, undefined))
+    render(() => <Dynamic component={tanstackCards.tanstack_router_state.render} {...props} />)
+    await expect.element(header('tanstack_router_state')).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
+    await expect.element(page.getByText('/about · 2 matches', {exact: true})).not.toBeInTheDocument()
+
+    setProps('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
+    await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
   })
 })
