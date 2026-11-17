@@ -30,8 +30,12 @@ import {
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {pageSessionEntry} from '@conciv/extension-page/client'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
+import {
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_PREFIX,
+  builtinToolMeta,
+  pageSessionEntry,
+} from '@conciv/builtin-plugins/renderer'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -258,7 +262,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   const catalog: ToolCatalogView = {
     loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
   }
   const captures = useSessionCaptures(sessionId)
   const draftStorage = makeDraftStorage(appData, sessionId)

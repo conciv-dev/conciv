@@ -18,4 +18,4 @@ This directory has one module. Importing it calls `grabAttachment.server(...)` o
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/extension-page` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/extension-page` from the repo root

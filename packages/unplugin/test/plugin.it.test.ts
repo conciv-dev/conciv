@@ -26,12 +26,16 @@ import {expect as expectLocator} from 'playwright/test'
 import webpack from 'webpack'
 import {rspack} from '@rspack/core'
 import {magicLink, recordedEngineBase} from '@conciv/harness-testkit/login'
+import {makeRpcClient} from '@conciv/harness-testkit'
+import {until} from '@conciv/harness-testkit/until'
 import {DevTools} from '@vitejs/devtools'
 import {devtools} from '@tanstack/devtools-vite'
 import {createLogger, createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, type Builtins} from '@conciv/extension-compiler/extensions'
 import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {SessionCapturesSchema, type ToolCaptureRow} from '@conciv/protocol/element-capture-types'
 import type {ExtensionPackage} from '@conciv/protocol/config-types'
 import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -60,6 +64,7 @@ import {
 } from './helpers/dev-servers.js'
 
 const NAVIGATION_SET_PATH = ['navigation', 'set']
+const PageTabsSchema = z.object({tabs: z.array(z.object({id: z.string()}))})
 
 describe('bin shim', () => {
   describe('installConcivBinShim', () => {
@@ -1247,6 +1252,63 @@ describe('native page vite boot', () => {
     const importSettled = (page: Page, href: string) =>
       page.evaluate(`import(${JSON.stringify(href)}).then(() => null, () => null)`)
 
+    const engineRpc = (headers: Record<string, string> = {}) => {
+      const started = state.started
+      if (started === undefined) throw new Error('dev server did not start')
+      return makeRpcClient(recordedEngineBase(started.root), {headers})
+    }
+
+    const pageMethod = (method: string, sessionId: string) =>
+      engineRpc().plugin.call({rpcId: 'experimental.page', method, input: {sessionId}})
+
+    const tabIds = async (sessionId: string) =>
+      PageTabsSchema.parse(await pageMethod('tabs.list', sessionId)).tabs.map((tab) => tab.id)
+
+    const afterRows = async (sessionId: string) =>
+      SessionCapturesSchema.parse(await pageMethod('captures.list', sessionId)).captures.filter(
+        (row) => row.kind === 'after',
+      )
+
+    const pageTabWatch = async () => {
+      const {sessionId} = await engineRpc().sessions.resolve({})
+      const before = await tabIds(sessionId)
+      const attached = async () => {
+        const found: {tabId: string | undefined} = {tabId: undefined}
+        await until(
+          async () => {
+            found.tabId = (await tabIds(sessionId)).find((tabId) => !before.includes(tabId))
+            return found.tabId !== undefined
+          },
+          {hangGuardMs: 30_000, intervalMs: 100},
+        )
+        if (found.tabId === undefined) throw new Error('the page never attached a tab to the session')
+        return {sessionId, tabId: found.tabId}
+      }
+      return {attached}
+    }
+
+    type PageTarget = {sessionId: string; tabId: string}
+
+    const pageTool = (target: PageTarget, name: string, input: Record<string, unknown>) =>
+      engineRpc({[CONCIV_SESSION_HEADER]: target.sessionId}).registry.call({
+        name,
+        input: {...input, tabId: target.tabId},
+      })
+
+    const newAfterCapture = async (sessionId: string, known: readonly ToolCaptureRow[]) => {
+      const row = (await afterRows(sessionId)).find(
+        (entry) => !known.some((seen) => seen.toolCallId === entry.toolCallId),
+      )
+      if (row === undefined) throw new Error('the page tool stored no after capture')
+      return row.capture
+    }
+
+    const runPageTool = async (target: PageTarget, name: string, input: Record<string, unknown>) => {
+      const known = await afterRows(target.sessionId)
+      const output = await pageTool(target, name, input)
+      return {output, capture: await newAfterCapture(target.sessionId, known)}
+    }
+
     it('mounts the widget without a CommonJS interop error', async () => {
       const page = state.page
       if (page === undefined) throw new Error('dev server did not start')
@@ -1289,6 +1351,7 @@ describe('native page vite boot', () => {
       await saves.completed({path: NAVIGATION_SET_PATH, input: /open=true/, since: beforeOpen})
       await opener.close()
       const url = await trustedUrl()
+      const tabWatch = await pageTabWatch()
       const blockedPage = await state.browser?.newPage()
       if (blockedPage === undefined) throw new Error('dev server did not start')
       onTestFinished(() => blockedPage.close())
@@ -1303,45 +1366,41 @@ describe('native page vite boot', () => {
       await chat.getByRole('tab', {name: 'Fixture'}).click()
       await expectLocator(chat.getByText('The fixture extension view')).toBeVisible()
       await expectLocator(blockerNotice).toBeHidden()
+      const target = await tabWatch.attached()
       const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
-      const outcome = await blockedPage.evaluate(() =>
-        Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
-          agentId: 'plugin-it',
-          name: 'page_settext',
-          input: {selector: '#probe', text: 'rewritten'},
-        }),
-      )
-      expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {accessibleName: 'rewritten'}}}})
-      expect(outcome.capture.after.node).toBeUndefined()
+      const outcome = await runPageTool(target, 'page_settext', {selector: '#probe', text: 'rewritten'})
+      expect(outcome.output).toMatchObject({ok: true})
+      expect(outcome.capture).toMatchObject({descriptor: {accessibleName: 'rewritten'}})
+      expect(outcome.capture.node).toBeUndefined()
       await importSettled(blockedPage, (await stillBlocked).url())
       expect(await blockerNotice.count()).toBe(0)
     }, 90_000)
 
     it('runs a page tool once and promptly while rrweb-snapshot is still loading', async () => {
       const url = await trustedUrl()
+      const tabWatch = await pageTabWatch()
       const slowPage = await state.browser?.newPage()
       if (slowPage === undefined) throw new Error('dev server did not start')
       await slowPage.route(/rrweb-snapshot/, () => new Promise<void>(() => {}))
       await slowPage.goto(url, {waitUntil: 'domcontentloaded'})
       await slowPage.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
-      const outcome = await slowPage.evaluate(() =>
-        Promise.race([
-          Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
-            agentId: 'plugin-it',
-            name: 'page_click',
-            input: {selector: '#counter'},
-          }),
-          new Promise((resolve) => setTimeout(() => resolve('still waiting'), 2_000)),
-        ]),
-      )
-      expect(outcome).toMatchObject({ok: true, capture: {after: {descriptor: {tagName: 'button'}}}})
-      expect(outcome.capture.after.node).toBeUndefined()
+      const target = await tabWatch.attached()
+      const known = await afterRows(target.sessionId)
+      const output = await Promise.race([
+        pageTool(target, 'page_click', {selector: '#counter'}),
+        new Promise((resolve) => setTimeout(() => resolve('still waiting'), 2_000)),
+      ])
+      expect(output).toMatchObject({ok: true})
+      const capture = await newAfterCapture(target.sessionId, known)
+      expect(capture).toMatchObject({descriptor: {tagName: 'button'}})
+      expect(capture.node).toBeUndefined()
       await expectLocator(slowPage.getByRole('button', {name: '1', exact: true})).toBeVisible()
       await slowPage.close()
     }, 90_000)
 
     it('retries a failed rrweb-snapshot load on the next page tool and names the content blocker once', async () => {
       const url = await trustedUrl()
+      const tabWatch = await pageTabWatch()
       const blockedPage = await state.browser?.newPage()
       if (blockedPage === undefined) throw new Error('dev server did not start')
       const gate = {open: false}
@@ -1352,17 +1411,11 @@ describe('native page vite boot', () => {
       const blockerNotice = blockedPage.getByText(/content blocker.*rrweb-snapshot/)
       await expectLocator(blockerNotice).toBeVisible({timeout: 45_000})
       await expectLocator(blockerNotice).toBeHidden()
-      const rewrite = () =>
-        blockedPage.evaluate(() =>
-          Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
-            agentId: 'plugin-it',
-            name: 'page_settext',
-            input: {selector: '#probe', text: 'rewritten'},
-          }),
-        )
+      const target = await tabWatch.attached()
+      const rewrite = () => runPageTool(target, 'page_settext', {selector: '#probe', text: 'rewritten'})
 
       const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
-      expect((await rewrite()).capture.after.node).toBeUndefined()
+      expect((await rewrite()).capture.node).toBeUndefined()
       const failedImport = (await stillBlocked).url()
       await importSettled(blockedPage, failedImport)
       expect(await blockerNotice.count()).toBe(0)
@@ -1372,7 +1425,7 @@ describe('native page vite boot', () => {
       await rewrite()
       const loadedImport = (await unblocked).url()
       await importSettled(blockedPage, loadedImport)
-      expect((await rewrite()).capture.after.node).toBeDefined()
+      expect((await rewrite()).capture.node).toBeDefined()
       await blockedPage.close()
     }, 90_000)
   })

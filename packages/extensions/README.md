@@ -8,7 +8,7 @@ Each subdirectory is a separate pnpm package with its own `package.json`, build 
 
 - [try-it](./try-it/README.md): Private `@conciv/extension-try-it` package: the conciv.dev demo extension that shows guided connect steps in the widget panel and probes for a local agent core.
 - [design](./design/README.md): Package root of `@conciv/extension-design`. It holds the build configs for the server/defs/provenance bundles (tsdown), the browser client bundle (vite), the xray Solid page (vite + UnoCSS) and declaration emit.
-- [page](./page/README.md): Package root of `@conciv/extension-page` v0.0.21, the built-in conciv extension that exposes every `page_*` verb as a `defineTool()` declaration, with config files only at this level.
+- [page](./page/README.md): Package root of `@conciv/extension-page` v0.0.21, what is left of the old page extension: the grab attachment's engine handler, the old page tool definitions and the capture plugins design uses.
 - [tanstack](./tanstack/README.md): Package root of `@conciv/extension-tanstack` (v0.0.21), a conciv extension that inspects TanStack Router/Start apps and exposes router state, loader data and the query cache to the widget.
 - [whiteboard](./whiteboard/README.md): Package root of @conciv/extension-whiteboard: build, test, lint and drizzle configs plus package.json for an Excalidraw whiteboard extension with a server entry (src/server.ts) and a browser client entry (src/client.tsx).
 - [terminal](./terminal/README.md): Package root for `@conciv/extension-terminal`, a built-in extension that shows a live harness TUI over a server-side pty.

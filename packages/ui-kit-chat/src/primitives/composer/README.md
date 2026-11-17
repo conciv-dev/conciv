@@ -7,8 +7,8 @@ Headless `Composer` compound: input, send/cancel, attachments with adapters, quo
 ## Interface
 
 - `composer.tsx:Composer` - `{Root, Input, Send, Cancel, AddAttachment, Attachments, AttachmentDropzone, If, Quote, QuoteDismiss, Dictate, StopDictation, DictationTranscript, Queue}`; exported as `ComposerPrimitive`. `Root` props include `attachmentAdapter`, `draftStorage`, `draftKey`; `Input` props include `submitMode` (`enter` | `ctrlEnter` | `none`) and `cancelOnEscape`.
-- `composer-context.tsx:ComposerProvider`, `useComposerContext`; types `ComposerDraft` (`draft`, `attachments`, `quote`, `items`), `ComposerItem` (`key`, `value`), `ComposerContextValue`.
-- `composer-handlers.tsx:ComposerHandlersProvider`, `useComposerHandlers`, type `ComposerHandlers`. `onSend(content, draft)` receives the content and the `ComposerDraft` it was built from (its items included, which the kit never reads), so an app can shape the message from its own items; a draft of items alone can be sent (Send and the submit count items as staged, like attachments).
+- `composer-context.tsx:ComposerProvider`, `useComposerContext`; types `ComposerDraft` (`draft`, `attachments`, `quote`), `ComposerContextValue`.
+- `composer-handlers.tsx:ComposerHandlersProvider`, `useComposerHandlers`, type `ComposerHandlers`.
 - `composer-actions.tsx:ComposerActions` - `{Action, ActionButton, ActionMenuItem, Inline, Leading, Trailing, Trigger}`; `composer-actions.tsx:ComposerActionsHost`.
 - `composer-actions-core.ts:createActionsCoordinator`; `composer-actions-fit.ts:computeVisibleAutoCount`, `ACTION_SLOT_PX` (38), `REGION_GAP_PX` (4), `FIT_HYSTERESIS_PX` (24).
 

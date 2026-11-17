@@ -230,6 +230,8 @@ function QuickLayer(): JSX.Element {
       class={qtShellClass()}
       data-conciv-qt
       data-conciv-suppressed={suppressed()}
+      inert={suppressed() !== undefined}
+      aria-hidden={suppressed() === undefined ? undefined : true}
       style={{height: `${resize.size()}px`}}
       role="dialog"
       aria-label="conciv quick terminal"

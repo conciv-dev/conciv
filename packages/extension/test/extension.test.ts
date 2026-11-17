@@ -1335,53 +1335,18 @@ describe('vite bridge', () => {
       await server.listen()
       const address = server.httpServer?.address()
       const port = typeof address === 'object' && address ? address.port : 0
-      const socket = new WebSocket(`ws://127.0.0.1:${port}/`, 'vite-hmr')
-      const payloads: string[] = []
-      const arrivals: Array<() => void> = []
-      socket.addEventListener('message', (event) => {
-        const type = z.object({type: z.string()}).parse(JSON.parse(String(event.data))).type
-        if (type === 'connected' || type === 'ping') return
-        payloads.push(type)
-        for (const arrived of arrivals.splice(0)) arrived()
-      })
-      await new Promise((opened) => socket.addEventListener('open', opened))
-      const nextPayload = () => new Promise<void>((arrived) => arrivals.push(arrived))
       await fetch(`http://127.0.0.1:${port}/src/main.ts`).then((response) => response.text())
       await fetch(`http://127.0.0.1:${port}/src/dep.ts`).then((response) => response.text())
       await fetch(`http://127.0.0.1:${port}/@fs${nestedDep}`).then((response) => response.text())
       const bridge = makeViteBridge(server)
       const depNode = {url: '/src/dep.ts', importers: ['/src/main.ts'], importedModules: []}
-      const lastReload = () =>
-        [...(server.moduleGraph.getModulesByFile(join(root, 'src/dep.ts')) ?? [])].map((node) => node.lastHMRTimestamp)
-      const nestedLastReload = () =>
-        [...(server.moduleGraph.getModulesByFile(nestedDep) ?? [])].map((node) => node.lastHMRTimestamp)
 
       expect(bridge.moduleGraph('src/dep.ts')).toEqual([depNode])
       expect(bridge.moduleGraph('/src/dep.ts')).toEqual([depNode])
       expect(bridge.moduleGraph(join(root, 'src/dep.ts'))).toEqual([depNode])
-
-      expect(lastReload()).toEqual([0])
-      expect(nestedLastReload()).toEqual([0])
-      const relativeReloaded = nextPayload()
-      await bridge.reload('src/dep.ts')
-      await relativeReloaded
-      expect(payloads).toEqual(['full-reload'])
-      const [afterRelative = 0] = lastReload()
-      expect(afterRelative).toBeGreaterThan(0)
-
-      const absoluteReloaded = nextPayload()
-      await bridge.reload(join(root, 'src/dep.ts'))
-      await absoluteReloaded
-      expect(payloads).toEqual(['full-reload', 'full-reload'])
-      expect(nestedLastReload()).toEqual([0])
-
       expect(() => bridge.moduleGraph('src/missing.ts')).toThrow(
         "no module for src/missing.ts in the dev server's module graph",
       )
-      await expect(bridge.reload('src/missing.ts')).rejects.toThrow(
-        "no module for src/missing.ts in the dev server's module graph",
-      )
-      socket.close()
     } finally {
       await server.close()
       await rm(root, {recursive: true, force: true})

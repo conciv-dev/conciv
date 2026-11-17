@@ -59,20 +59,14 @@ import {
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {
-  defineAttachment,
-  defineExtension,
-  collectToolRenderers,
-  getExtensionApi,
-  type RegisterExtension,
-} from '@conciv/extension'
+import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import pageExtensionEntry from '@conciv/extension-page'
-import pageExtension from '@conciv/extension-page/client'
+import {PAGE_TOOL_PREFIX, builtinToolMeta} from '@conciv/builtin-plugins/renderer'
+import {createPluginToolCards} from '../src/pane/plugin-tool-cards.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -115,9 +109,8 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
-import {BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
+import {Operations} from '@conciv/plugin-page/rpc'
 import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
@@ -494,8 +487,8 @@ describe('chat pane', () => {
     return {rpc, sessionId: await createSession(rpc)}
   }
 
-  function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 'extensions'> {
-    return {grabProvider: grabProviderFor(...grabs), extensions: [pageExtension]}
+  function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider'> {
+    return {grabProvider: grabProviderFor(...grabs)}
   }
 
   function mountChatPane(
@@ -1962,9 +1955,7 @@ describe('grab staging', () => {
 
   test('the grab api an extension receives can stage, read and clear, as the terminal does', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const mount = mountPane({base: core(), sessionId, extensions: [pageExtension]}, () => (
-      <ChatPane sessionId={sessionId} />
-    ))
+    const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
     keep(mount)
     await expect.element(input()).toBeVisible()
     const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)
@@ -1979,6 +1970,24 @@ describe('grab staging', () => {
 
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
+  })
+
+  test('a grabbed element in a sent message shows its grab card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
+    keep(mount)
+    await expect.element(input()).toBeVisible()
+    makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider).stage(HERO_GRAB)
+    await expect.element(removeGrab()).toBeVisible()
+
+    await input().fill('what is this element')
+    await userEvent.keyboard('{Enter}')
+
+    const thread = page.getByRole('log')
+    await expect.element(thread.getByText('what is this element')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await expect.element(thread.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(thread.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   })
 })
 
@@ -3193,6 +3202,37 @@ describe('notices', () => {
 describe('page session card', () => {
   const core = bootedCore('page-session-card')
   const keep = keptPane()
+  const faults = trackedFaults()
+
+  test('a built-in page card wins over builtinToolCards for the same tool', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const click: ToolCallPart = {
+      type: 'tool-call',
+      id: 'd1',
+      name: 'page_click',
+      arguments: JSON.stringify({selector: '#cta'}),
+      input: {selector: '#cta'},
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={click}
+            result={undefined}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await page.getByRole('button', {name: /^page_click/}).click()
+    await expect.element(page.getByText('#cta')).toBeVisible()
+    expect(document.body.textContent).not.toContain('Called page_click')
+  })
 
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
     const rpc = coreRpc(core())
@@ -3217,6 +3257,86 @@ describe('page session card', () => {
     expect(page.getByText('Edited the page').elements()).toHaveLength(1)
     await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
+  })
+
+  test('every page tool reads a label and an icon from the catalog the pane reads, the engine catalog first', async () => {
+    const catalog = await coreRpc(core()).registry.catalog()
+    const pageNames = Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`)
+    const listed = catalog.filter((signature) => pageNames.includes(signature.name))
+    expect(listed.map((signature) => signature.name)).toContain(`${PAGE_TOOL_PREFIX}click`)
+    expect(listed.filter((signature) => signature.label === undefined || signature.icon === undefined)).toEqual([])
+    const unlabelled = pageNames.filter((name) => {
+      const meta = listed.find((signature) => signature.name === name) ?? builtinToolMeta(name)
+      return meta?.label === undefined || meta.icon === undefined
+    })
+    expect(unlabelled).toEqual([])
+  })
+
+  test('while a page click runs, the now line says Clicking', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_click', input: {selector: '#save'}, result: {ok: true}}],
+      text: 'Saved.',
+    })
+    await coreControl.holdResults()
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'save the form')
+    try {
+      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
+
+  test('a first send that lands while the session still resolves keeps the prompt clear of the session card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_click', input: {selector: '#save'}, result: {ok: true}}],
+      text: 'Saved.',
+    })
+    await coreControl.holdResults()
+    const resolving = await faults.install({kind: 'gate', path: ['sessions', 'resolve']})
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'save the form')
+    try {
+      await coreControl.awaitFaultPending(resolving, 1)
+      await userEvent.click(page.getByRole('textbox', {name: 'Message the conciv agent'}))
+      await faults.releaseAll()
+      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await userEvent.click(page.getByText('save the form', {exact: true}))
+      await expect.element(page.getByText('save the form', {exact: true})).toBeVisible()
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
+  })
+
+  test('while a page route read runs, the folded trace line says Reading the route', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'page_route', input: {}, result: {url: 'http://localhost/form'}}],
+      text: 'On the form.',
+    })
+    await coreControl.holdResults()
+    keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
+    const turn = await sendTurn(core(), sessionId, 'where am I')
+    try {
+      const hide = page.getByRole('button', {name: /Hide trace/})
+      await expect.element(hide, {timeout: 8000}).toBeVisible()
+      await hide.click()
+      const folded = page.getByRole('button', {name: /Show trace/})
+      await expect.element(folded).toBeVisible()
+      await expect.element(folded).toHaveAccessibleName(/^Reading the route/)
+    } finally {
+      await coreControl.releaseResults()
+      await turn.awaitTurnEnd()
+      turn.close()
+    }
   })
 })
 
@@ -5891,10 +6011,6 @@ describe('tool card dispatch', () => {
     render(child)
   }
 
-  function part(name: string, input: Record<string, unknown> = {}): ToolCallPart {
-    return {type: 'tool-call', id: 'd1', name, arguments: JSON.stringify(input), input, state: 'complete'}
-  }
-
   function askingPart(input: Record<string, unknown>): ToolCallPart {
     return {
       type: 'tool-call',
@@ -5911,25 +6027,6 @@ describe('tool card dispatch', () => {
   }
 
   const allTools = () => [...concivToolCards, ...builtinToolCards]
-
-  const realPageRenderers = collectToolRenderers([pageExtensionEntry])
-
-  it('an extension-supplied .render() card wins over builtinToolCards for the same tool', async () => {
-    const tools = [...realPageRenderers, ...builtinToolCards]
-
-    mount(() => (
-      <ToolCallCard
-        part={part('page_click', {selector: '#cta'})}
-        result={undefined}
-        ctx={INERT_TOOL_CTX}
-        tools={() => tools}
-      />
-    ))
-
-    await browserPage.getByRole('button').click()
-    await expect.element(browserPage.getByText('#cta')).toBeVisible()
-    expect(document.body.textContent).not.toContain('Called page_click')
-  })
 
   it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
     mount(() => (
@@ -5949,13 +6046,6 @@ describe('tool card dispatch', () => {
 describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
-    for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {
-        owner: 'a built-in server tool',
-        context: {bundler: () => undefined, hotUpdate: async () => ({applied: false, waitedMs: 0})},
-      })
-    }
     return registry
   }
 
@@ -5978,6 +6068,7 @@ describe('wire name coverage', () => {
     EXECUTE_TOOL_NAME,
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
+    ...Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
     ...registry.catalog.list().map((entry) => entry.name),
     ...SERVER_PLUGIN_TOOL_NAMES,
   ]
@@ -5995,19 +6086,17 @@ describe('wire name coverage', () => {
     'ToolSearch',
   ]
 
-  const concivOwnedCards: ToolCardEntry[] = [
-    ...collectToolRenderers([pageExtensionEntry]),
-    ...concivToolCards,
-    ...coreToolCards,
-    ...builtinToolCards,
-  ]
+  const concivOwnedCards: ToolCardEntry[] = [...concivToolCards, ...coreToolCards, ...builtinToolCards]
 
   const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
   it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const drawnByGenericCard = modelReachableNames.filter(
-      (name) => !cardNames.has(name) && registry.catalog.list().every((entry) => entry.name !== name),
+      (name) =>
+        !cardNames.has(name) &&
+        builtinToolMeta(name) === undefined &&
+        registry.catalog.list().every((entry) => entry.name !== name),
     )
     expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })
@@ -7784,13 +7873,13 @@ module.exports = {default: {stores: {
   const drawnLine = document.createElement('p')
   drawnLine.textContent = 'Drawn catalog call asked: 0'
   ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'server_reload'],
+    tools: ['fixture_probe', 'page_route'],
     render(props) {
-      if (props.tool === 'server_reload') {
+      if (props.tool === 'page_route') {
         if (props.input.mode === 'decline') return undefined
         asked.drawn += 1
         drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture reloaded ' + props.input.file})
+        return Object.assign(document.createElement('p'), {textContent: 'Fixture read the route for ' + props.input.file})
       }
       if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
       asked.declined += 1
@@ -7835,6 +7924,22 @@ module.exports = {default: {stores: {
     ctx.dialogs.open(() => createComponent(ctx.ui.Dialog, {title, get children() { return body() }}))
   const second = () => dialog('Fixture second dialog', () => 'The second dialog is on top')
   const first = () => dialog('Fixture dialog', () => button('Open the second dialog', second))
+  const shownOverlay = {current: undefined}
+  const showOverlay = () => {
+    shownOverlay.current?.dispose()
+    const overlay = ctx.overlay({styles: ['.fixture-overlay-own{display:none}']})
+    const label = Object.assign(document.createElement('p'), {className: 'bg-chat-panel text-chat-text', textContent: 'Fixture overlay label'})
+    const hiddenByWidget = Object.assign(document.createElement('p'), {className: 'hidden', textContent: 'Fixture overlay widget-hidden note'})
+    const hiddenByOwn = Object.assign(document.createElement('p'), {className: 'fixture-overlay-own', textContent: 'Fixture overlay own-hidden note'})
+    const [overlayClicks, setOverlayClicks] = createSignal(0)
+    const clickable = Object.assign(document.createElement('div'), {className: 'pointer-events-auto'})
+    clickable.append(createComponent(ctx.ui.Button, {
+      onClick: () => setOverlayClicks(overlayClicks() + 1),
+      get children() { return overlayClicks() === 0 ? 'Count overlay clicks' : 'Overlay clicks: ' + overlayClicks() },
+    }))
+    overlay.element.append(label, clickable, line(() => 'Overlay colors: ' + ctx.appearance.mode()), hiddenByWidget, hiddenByOwn)
+    shownOverlay.current = overlay
+  }
   const [interruptAnswer, setInterruptAnswer] = createSignal('none')
   const tools = {id: 'tools', title: 'Fixture tools', pinned: true}
   const opened = {id: 'opened', title: 'Opened tab'}
@@ -7887,6 +7992,8 @@ module.exports = {default: {stores: {
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
       button('Open the engine health page', () => ctx.system.openExternal(new URL('/health', props.session.server.url).href)),
       button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
+      button('Show the fixture overlay', showOverlay),
+      button('Hide the fixture overlay', () => shownOverlay.current?.dispose()),
     ],
   })
   ctx.add(Panel, {
@@ -7926,6 +8033,13 @@ module.exports = {default: {stores: {
     at: 'window.bottom',
     render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
   })
+  const [hidingOverlay, setHidingOverlay] = createSignal(false)
+  ctx.add(Slot, {at: 'window.bottom', render: () => button('Open the hiding overlay', () => setHidingOverlay(true))})
+  ctx.add(Slot, () =>
+    hidingOverlay()
+      ? {at: 'page.overlay', render: () => button('Close the hiding overlay', () => setHidingOverlay(false))}
+      : undefined,
+  )
   ctx.add(SettingsPage, {
     id: 'prefs',
     title: 'Fixture prefs',
@@ -8384,6 +8498,54 @@ module.exports = {default: {setup(ctx) {
     expect(await readAsked(brokenId)).toHaveLength(1)
   }, 60_000)
 
+  test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const label = () => page.getByText('Fixture overlay label', {exact: true})
+    const colors = (scheme: string) => page.getByText(`Overlay colors: ${scheme}`, {exact: true})
+    const widgetHidden = () => page.getByText('Fixture overlay widget-hidden note', {exact: true})
+    const ownHidden = () => page.getByText('Fixture overlay own-hidden note', {exact: true})
+    const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Show the fixture overlay').click()
+    await expect.element(label()).toBeVisible()
+    await expect.element(colors('light')).toBeVisible()
+    await control('Count overlay clicks').click()
+    await expect.element(control('Overlay clicks: 1')).toBeVisible()
+    await expect.element(widgetHidden()).toBeInTheDocument()
+    await expect.element(widgetHidden()).not.toBeVisible()
+    await expect.element(ownHidden()).toBeInTheDocument()
+    await expect.element(ownHidden()).not.toBeVisible()
+
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await tab('General').click()
+    await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
+    await colorMode().getByText('Dark', {exact: true}).click()
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
+    await expect.element(colors('dark')).toBeVisible()
+    await expect.element(label()).toBeVisible()
+    await colorMode().getByText('Auto', {exact: true}).click()
+    await expect.element(colors('light')).toBeVisible()
+    await page.getByRole('button', {name: 'Back to chat'}).click()
+
+    await tab('Fixture tools').click()
+    await control('Hide the fixture overlay').click()
+    await expect.element(label()).not.toBeInTheDocument()
+    await expect.element(colors('light')).not.toBeInTheDocument()
+
+    await control('Show the fixture overlay').click()
+    await expect.element(label()).toBeVisible()
+    const elsewhere = bundleSource(coreBase())
+    onTestFinished(elsewhere.dispose)
+    await elsewhere.pluginExperimentals()
+    await elsewhere.manager.disable('fixture')
+    await expect.element(label(), {timeout: 15_000}).not.toBeInTheDocument()
+    await elsewhere.manager.enable('fixture')
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(label()).not.toBeInTheDocument()
+  }, 60_000)
+
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const popOutLost = () => page.getByText('The pop-out window could not be reopened.', {exact: true})
@@ -8653,19 +8815,20 @@ module.exports = {default: {setup(ctx) {
   }, 90_000)
 
   test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
+    const routeResult = {pathname: '/', search: '', href: 'http://localhost/', title: 'home', state: 'visible'}
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
       toolCalls: [
         {
-          name: 'server_reload',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'draw'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: routeResult,
         },
         {
-          name: 'server_reload',
+          name: 'page_route',
           input: {file: 'src/a.ts', mode: 'decline'},
-          result: {ok: true, applied: true, waitedMs: 1},
+          result: routeResult,
         },
         {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
         {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
@@ -8682,11 +8845,13 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
 
     await coreControl.releaseFault(catalogHeld)
-    await expect.element(shown('page edit').nth(1), {timeout: 15_000}).toBeVisible()
-    await expect.element(shown('force a hot update of one module')).toBeVisible()
-    await expect.element(shown('Called server_reload')).not.toBeInTheDocument()
+    const routeHeader = () => page.getByRole('button', {name: 'succeeded route src/a.ts'})
+    await expect.element(routeHeader().nth(1), {timeout: 15_000}).toBeVisible()
+    await expect.element(routeHeader().first()).toBeVisible()
+    await expect.element(shown('report the current url of the live page')).toBeVisible()
+    await expect.element(shown('Called page_route')).not.toBeInTheDocument()
     await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture reloaded src/a.ts')).toBeVisible()
+    await expect.element(shown('Fixture read the route for src/a.ts')).toBeVisible()
     await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
     await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
     await expect.element(shown('mode=draw')).toBeVisible()
@@ -8823,6 +8988,28 @@ module.exports = {default: {setup(ctx) {
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
     await expect.element(heldNote()).toBeVisible()
   }, 90_000)
+
+  test('a page overlay that hides the chat takes the chat out of reach by role and by Tab, and closing it brings the composer back', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(editor(), {timeout: 15_000}).toBeVisible()
+    await expect.element(control('Open the hiding overlay')).toBeVisible()
+
+    await control('Open the hiding overlay').click()
+    await expect.element(control('Close the hiding overlay')).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(control('Open the hiding overlay')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await expect.element(control('Close the hiding overlay')).toHaveFocus()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(control('Close the hiding overlay')).not.toBeInTheDocument()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(control('Open the hiding overlay')).toHaveFocus()
+    await editor().click()
+    await expect.element(editor()).toHaveFocus()
+  }, 45_000)
 
   test('on a phone its mobile views are status bar entries drawn in place of the chat, a cached one keeps its state, and the address survives a reload and a desktop width', async () => {
     await page.viewport(414, 896)
