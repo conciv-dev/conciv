@@ -94,9 +94,11 @@ function EmbeddedResults(props: {text: string; failed: boolean}): JSX.Element {
     <Show
       when={matches().length > 0}
       fallback={
-        <TraceOutputBlock text={props.text} tone={props.failed ? 'error' : 'normal'}>
-          <CodeBlock size="xs" file={{name: 'results.txt', lang: 'text', contents: props.text}} />
-        </TraceOutputBlock>
+        <CodeBlock
+          size="xs"
+          label={props.failed ? 'Error output' : 'Output'}
+          file={{name: 'results.txt', lang: 'text', contents: props.text}}
+        />
       }
     >
       <TraceOutputBlock
