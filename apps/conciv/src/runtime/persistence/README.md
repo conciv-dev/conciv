@@ -22,9 +22,11 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   driver's `set`). The source waits for the auto-commit, which needs a round trip an unloading page never gets: the
   put that the `pagehide` flush issues was lost on a reload in Chromium and in Firefox, and the reloaded page read the
   write before it. A write whose blobs are looked up first still needs those lookups to answer before it commits.
-- `persistStore` takes a `writeLeaving` writer beside `write` (`persist.ts`): the flush when the page is hidden or
-  left (`flushPersisted`, on `visibilitychange` to hidden and on `pagehide`) uses it, the 100 ms batch and the flush
-  when the owner is disposed use `write`. The source has one writer. conciv's draft writer queues each write on the
+- `persistStore` takes a `writeLeaving` writer beside `write` (`persist.ts`): the flush when the page is left
+  (`flushPersisted(true)`, on `pagehide`) uses it; the flush when the page is hidden (`flushPersisted()`, on
+  `visibilitychange` to hidden), the 100 ms batch and the flush when the owner is disposed use `write`, so while the
+  page lives on every write stays on the chain in order and an older chain step never lands after a newer direct
+  write. The source has one writer. conciv's draft writer queues each write on the
   app's one draft write chain, and a write queued behind a write still in flight never opened its transaction before
   the page was gone: the `pagehide` flush has to open its transaction in the `pagehide` task, so its writer skips the
   chain (`pane/README.md`).

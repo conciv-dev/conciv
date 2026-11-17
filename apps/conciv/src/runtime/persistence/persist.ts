@@ -12,19 +12,19 @@ import {
 
 const persistSaveDelay = 100
 
-const pending = new Set<() => void>()
+const pending = new Set<(leaving: boolean) => void>()
 
 const EDITED: PersistStoreEvent = Object.freeze({type: 'edited', baseline: undefined})
 
-export function flushPersisted() {
-  for (const save of [...pending]) save()
+export function flushPersisted(leaving = false) {
+  for (const save of [...pending]) save(leaving)
 }
 
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushPersisted()
   })
-  window.addEventListener('pagehide', flushPersisted)
+  window.addEventListener('pagehide', () => flushPersisted(true))
 }
 
 export function persistStore<T extends object>(input: {
@@ -48,7 +48,7 @@ export function persistStore<T extends object>(input: {
   const stopSave = () => {
     clearTimeout(timer)
     timer = undefined
-    pending.delete(flushLeaving)
+    pending.delete(save)
   }
 
   const dispatch = (event: PersistStoreEvent, write = input.write) => {
@@ -67,7 +67,7 @@ export function persistStore<T extends object>(input: {
     if (effect.type === 'hydrate') return input.setStore(reconcile(input.deserialize(effect.raw)))
 
     if (effect.type === 'schedule-save') {
-      pending.add(flushLeaving)
+      pending.add(save)
       timer ??= setTimeout(flush, delay)
 
       return
@@ -98,6 +98,7 @@ export function persistStore<T extends object>(input: {
   }
   const flush = flushWith(input.write)
   const flushLeaving = flushWith(input.writeLeaving ?? input.write)
+  const save = (leaving: boolean) => (leaving ? flushLeaving : flush)()
 
   const apply = input.setStore as unknown as (...values: unknown[]) => void
 
