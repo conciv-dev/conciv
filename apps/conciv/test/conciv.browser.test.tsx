@@ -7719,7 +7719,7 @@ describe('a fixture plugin driven like a user', () => {
   const PLUGIN_CALL = ['plugin', 'call']
 
   const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
-const {createComponent} = require('solid-js/web')
+const {createComponent, insert} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
 const ToolCall = Registry.define('tool-call')
@@ -7814,34 +7814,47 @@ module.exports = {default: {stores: {
       button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
     ],
   })
-  const popover = (label, content, initialFocus) => {
-    const [open, setOpen] = createSignal(false)
-    const anchor = Object.assign(document.createElement('button'), {type: 'button', textContent: 'Open the ' + label.toLowerCase()})
-    anchor.addEventListener('click', () => setOpen(!open()))
-    return [
-      anchor,
-      createComponent(ctx.ui.Popover, {
-        anchor: () => anchor,
-        get open() {
-          return open()
-        },
-        onOpenChange: setOpen,
-        label,
-        initialFocus,
-        get children() {
-          return content()
-        },
-      }),
-    ]
-  }
   ctx.add(Panel, {
     id: 'popovers',
     region: 'pane',
     list: (input) => (input.open.includes('popovers') ? [{id: 'popovers', title: 'Fixture popovers'}] : []),
     render: () => {
       const [pageNote, setPageNote] = createSignal('')
-      const reply = Object.assign(document.createElement('input'), {type: 'text'})
-      reply.setAttribute('aria-label', 'Popover reply')
+      const [open, setOpen] = createSignal(false)
+      const [draft, setDraft] = createSignal('')
+      const [replies, setReplies] = createSignal([])
+      const sendReply = () => {
+        if (!draft().trim()) return
+        setReplies([...replies(), draft().trim()])
+        setDraft('')
+      }
+      const pin = createComponent(ctx.ui.IconButton, {icon: 'message-square', label: 'Comment pin', variant: 'neutral', onClick: () => setOpen(!open())})
+      const field = createComponent(ctx.ui.TextInput, {
+        label: 'Reply to the comment',
+        placeholder: 'Reply',
+        get value() {
+          return draft()
+        },
+        onInput: setDraft,
+        onSubmit: sendReply,
+      })
+      const thread = document.createElement('div')
+      thread.className = 'flex w-64 flex-col gap-2 p-1'
+      const header = document.createElement('div')
+      header.className = 'flex items-center justify-between gap-2'
+      header.append(
+        Object.assign(document.createElement('p'), {className: 'text-chat-sm font-medium', textContent: 'Is this the right blue?'}),
+        createComponent(ctx.ui.IconButton, {icon: 'x', label: 'Close the comment', size: 'small', onClick: () => setOpen(false)}),
+      )
+      insert(thread, [
+        header,
+        Object.assign(line(() => replies().join(' / ')), {className: 'empty:hidden'}),
+        field,
+        createComponent(ctx.ui.Button, {variant: 'contrast', size: 'small', class: 'self-end', onClick: sendReply, children: 'Reply'}),
+      ])
+      const pinRow = document.createElement('div')
+      pinRow.className = 'flex p-2'
+      pinRow.append(pin)
       return [
         createComponent(ctx.ui.TextInput, {
           label: 'Fixture page note',
@@ -7850,8 +7863,17 @@ module.exports = {default: {stores: {
           },
           onInput: setPageNote,
         }),
-        ...popover('Fixture popover', () => Object.assign(document.createElement('p'), {textContent: 'The fixture popover body'})),
-        ...popover('Fixture focused popover', () => [button('A popover action', () => undefined), reply], () => reply),
+        pinRow,
+        createComponent(ctx.ui.Popover, {
+          anchor: () => pin,
+          get open() {
+            return open()
+          },
+          onOpenChange: setOpen,
+          label: 'Comment thread',
+          initialFocus: () => thread.querySelector('input') ?? undefined,
+          children: thread,
+        }),
       ]
     },
   })
@@ -8064,28 +8086,32 @@ module.exports = {default: {setup(ctx) {
       await expect.element(tab('Fixture popovers'), {timeout: 15_000}).toBeVisible()
       await tab('Fixture popovers').click()
 
-      await control('Open the fixture popover').click()
-      await expect.element(dialog('Fixture popover')).toBeVisible()
+      await control('Comment pin').click()
+      await expect.element(dialog('Comment thread')).toBeVisible()
       await expect
-        .element(dialog('Fixture popover').getByText('The fixture popover body', {exact: true}))
+        .element(dialog('Comment thread').getByText('Is this the right blue?', {exact: true}))
         .toBeInViewport()
+      await expect.element(textbox('Reply to the comment')).toHaveFocus()
 
       await userEvent.keyboard('{Escape}')
-      await expect.element(dialog('Fixture popover')).not.toBeInTheDocument()
-      await expect.element(control('Open the fixture popover')).toHaveFocus()
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+      await expect.element(control('Comment pin')).toHaveFocus()
       await userEvent.keyboard('{Enter}')
-      await expect.element(dialog('Fixture popover')).toBeVisible()
+      await expect.element(dialog('Comment thread')).toBeVisible()
 
       await textbox('Fixture page note').click()
-      await expect.element(dialog('Fixture popover')).not.toBeInTheDocument()
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
       await userEvent.keyboard('typed on the page')
       await expect.element(textbox('Fixture page note')).toHaveValue('typed on the page')
 
-      await control('Open the fixture focused popover').click()
-      await expect.element(dialog('Fixture focused popover')).toBeVisible()
-      await expect.element(textbox('Popover reply')).toHaveFocus()
+      await control('Comment pin').click()
+      await expect.element(dialog('Comment thread')).toBeVisible()
+      await expect.element(textbox('Reply to the comment')).toHaveFocus()
       await userEvent.keyboard('a reply')
-      await expect.element(textbox('Popover reply')).toHaveValue('a reply')
+      await expect.element(textbox('Reply to the comment')).toHaveValue('a reply')
+      await dialog('Comment thread').getByRole('button', {name: 'Reply', exact: true}).click()
+      await expect.element(dialog('Comment thread').getByText('a reply', {exact: true})).toBeVisible()
+      await expect.element(textbox('Reply to the comment')).toHaveValue('')
     })
   })
 
