@@ -76,9 +76,9 @@ function disposeExtensionInstances(instances: ExtensionInstance[]): void {
   }
 }
 
-function openDraftStore(): DraftStore | null {
+function openDraftStore(writable: () => boolean): DraftStore | null {
   try {
-    return createBrowserDraftStore()
+    return createBrowserDraftStore({writable})
   } catch (error) {
     console.error('[conciv] drafts stay engine-only', error)
     return null
@@ -97,7 +97,9 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
 
 type TrustHandlers = {rerunRefused: () => void; trusted: () => void; lockedOut: () => void}
 
-function watchEngine(apiBase: string, handlers: TrustHandlers): () => void {
+type EngineWatch = {stop: () => void; locked: () => boolean}
+
+function watchEngine(apiBase: string, handlers: TrustHandlers): EngineWatch {
   const stopReachability = setupEngineReachability(apiBase)
   const connection = browserRpcConnection(apiBase)
   if (connection.trust.isTrusted()) handlers.trusted()
@@ -108,10 +110,13 @@ function watchEngine(apiBase: string, handlers: TrustHandlers): () => void {
     handlers.rerunRefused()
     handlers.trusted()
   })
-  return () => {
-    stopReachability()
-    stopTrust()
-    connection.release()
+  return {
+    stop: () => {
+      stopReachability()
+      stopTrust()
+      connection.release()
+    },
+    locked: () => engineLocked(connection.trust.status()),
   }
 }
 
@@ -130,19 +135,19 @@ function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
   }
 }
 
-function wireEngine(apiBase: () => string, handlers: TrustHandlers): {dispose: () => void} {
+function wireEngine(apiBase: () => string, handlers: TrustHandlers): {dispose: () => void; locked: () => boolean} {
   return createRoot((dispose) => {
     let wiredApiBase = apiBase()
-    let stopWatching = watchEngine(wiredApiBase, handlers)
+    let watching = watchEngine(wiredApiBase, handlers)
     createEffect(() => {
       const nextApiBase = apiBase()
       if (nextApiBase === wiredApiBase) return
-      stopWatching()
+      watching.stop()
       wiredApiBase = nextApiBase
-      stopWatching = watchEngine(nextApiBase, handlers)
+      watching = watchEngine(nextApiBase, handlers)
     })
-    onCleanup(() => stopWatching())
-    return {dispose}
+    onCleanup(() => watching.stop())
+    return {dispose, locked: () => watching.locked()}
   })
 }
 
@@ -150,7 +155,13 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient({
     defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
   })
-  const data = makeAppData(config.rpc, queryClient, openDraftStore())
+  const lockedOut = (): boolean => engine.locked()
+  const data = makeAppData(
+    config.rpc,
+    queryClient,
+    openDraftStore(() => !lockedOut()),
+    lockedOut,
+  )
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')

@@ -70,10 +70,16 @@ export type AppData = {
   sessionDeleted: (sessionId: string) => boolean
   forgetGoneDrafts: () => Promise<void>
   forgetLocalDrafts: () => Promise<void>
+  lockedOut: () => boolean
   dispose: () => void
 }
 
-export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: DraftStore | null): AppData {
+export function makeAppData(
+  rpc: RpcClient,
+  queryClient: QueryClient,
+  drafts: DraftStore | null,
+  lockedOut: () => boolean,
+): AppData {
   const utils = makeQueryUtils(rpc)
   const client = Conciv.make(rpc)
   const listKeys = [utils.sessions.list.key(), utils.sessions.search.key()]
@@ -96,6 +102,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     retry: retriableDraftSave,
     gcTime: Infinity,
     mutationFn: async (input) => {
+      if (lockedOut()) return null
       const row = DraftRowSchema.parse(input)
       const held = queryClient.getQueryData(draftQuery(row.sessionId).queryKey)
       if (!held || held.updatedAt > row.updatedAt) return null
@@ -103,6 +110,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
       return rpc.drafts.set(row)
     },
     onMutate: async (input) => {
+      if (lockedOut()) return
       const row = DraftRowSchema.parse(input)
       forgetDraftSaves(row.sessionId, ['error'])
       const {queryKey} = draftQuery(row.sessionId)
@@ -183,6 +191,14 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     await kept.reduce((checked, sessionId) => checked.then(() => forgetGoneDraft(sessionId)), Promise.resolve())
   }
   const forgetLocalDrafts = async (): Promise<void> => {
+    queryClient.removeQueries({queryKey: utils.drafts.get.key()})
+    const mutationCache = queryClient.getMutationCache()
+    mutationCache
+      .findAll({
+        mutationKey: utils.drafts.set.mutationKey(),
+        predicate: (mutation) => SETTLED.includes(mutation.state.status),
+      })
+      .forEach((mutation) => mutationCache.remove(mutation))
     if (!drafts) return
     await drafts.clear().catch((error: unknown) => {
       console.error('[conciv] could not empty the local draft store', error)
@@ -225,6 +241,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient, drafts: Dr
     endDraftSaves,
     forgetGoneDrafts,
     forgetLocalDrafts,
+    lockedOut,
     sessionDeleted: (sessionId) => queryClient.getQueryData(sessionKey(sessionId))?.hidden === true,
     dispose: () => reading.abort(),
   }

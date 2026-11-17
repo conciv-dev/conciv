@@ -236,7 +236,7 @@ function makeLocalDraftWriter(
     then: (recorded: LocalDraft, attachments: DraftRow['attachments'], row: DraftRow | null | undefined) => void,
   ) => {
     const draft = document.draft
-    if (!draft || appData.sessionDeleted(sessionId)) return
+    if (!draft || appData.sessionDeleted(sessionId) || appData.lockedOut()) return
     const recorded = structuredClone(unwrap(draft))
     const files = [...unwrap(document.files)]
     void encodeAttachments(files).then((encodedFiles) => {

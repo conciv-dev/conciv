@@ -49,7 +49,7 @@ describe('draft storage', () => {
       await core.close()
     },
     app: async ({core}, use) => {
-      const app = makeAppData(makeRpcClient(core.base), new QueryClient(), null)
+      const app = makeAppData(makeRpcClient(core.base), new QueryClient(), null, () => false)
       await use(app)
       app.dispose()
     },

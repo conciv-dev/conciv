@@ -422,7 +422,8 @@ function split(text: string) {
   return pieces
 }
 
-export function createBrowserDraftStore(): DraftStore {
+export function createBrowserDraftStore(options: {writable?: () => boolean} = {}): DraftStore {
+  const writable = options.writable ?? (() => true)
   const request = indexedDB.open('conciv-drafts', 1)
   request.addEventListener('upgradeneeded', () => {
     request.result.createObjectStore('documents')
@@ -473,8 +474,16 @@ export function createBrowserDraftStore(): DraftStore {
       transaction.addEventListener('abort', () => reject(transaction.error))
     })
 
+  const writeTransaction = async (stores: string | string[]) => {
+    const database = await db
+
+    if (!writable()) throw new Error('the draft store takes no writes while the engine does not trust this browser')
+
+    return database.transaction(stores, 'readwrite')
+  }
+
   const write = async (store: string, key: string, value?: unknown) => {
-    const transaction = (await db).transaction(store, 'readwrite')
+    const transaction = await writeTransaction(store)
 
     if (value === undefined) transaction.objectStore(store).delete(key)
     else transaction.objectStore(store).put(value, key)
@@ -486,7 +495,7 @@ export function createBrowserDraftStore(): DraftStore {
     get: async (key) => ((await get('documents', key)) as string | undefined) ?? null,
     set: async (key, value, strict) => {
       const ids = [...referenced(value)]
-      const transaction = (await db).transaction(['blobs', 'documents'], 'readwrite')
+      const transaction = await writeTransaction(['blobs', 'documents'])
       const missing: string[] = []
 
       const publish = () => {
