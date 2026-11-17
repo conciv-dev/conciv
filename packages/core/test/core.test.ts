@@ -9,7 +9,7 @@ import {
   utimesSync,
   chmodSync,
 } from 'node:fs'
-import {spawn, type ChildProcess} from 'node:child_process'
+import {execFileSync, spawn, type ChildProcess} from 'node:child_process'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {connect, createServer, type Socket} from 'node:net'
@@ -1225,6 +1225,39 @@ describe('local state files', () => {
       await Promise.all(engines.map((made) => made.dispose()))
       expect(printed.filter((text) => text.includes('stuck-listing'))).toHaveLength(2)
     })
+  })
+})
+
+describe('engine start keeps .conciv out of git', () => {
+  function untrackedStateFiles(root: string): string[] {
+    return execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {cwd: root, encoding: 'utf8'})
+      .split('\n')
+      .filter((line) => line.startsWith('?? .conciv/'))
+      .toSorted()
+  }
+
+  it('a fresh project shows only .conciv/.gitignore, then the shareable settings and harnesses.json, and a user-edited .gitignore stays byte for byte', async () => {
+    const root = tempDir('conciv-core-unit-')
+    execFileSync('git', ['init', '--quiet'], {cwd: root})
+    const engine = await bootEngine(root)
+    await engine.stop()
+    expect(untrackedStateFiles(root)).toEqual(['?? .conciv/.gitignore'])
+    mkdirSync(join(statePaths(root).dir, 'settings'), {recursive: true})
+    writeFileSync(join(statePaths(root).dir, 'settings', 'conciv.json'), '{}\n')
+    writeFileSync(join(statePaths(root).dir, 'harnesses.json'), '{"harnesses":[]}\n')
+    expect(untrackedStateFiles(root)).toEqual([
+      '?? .conciv/.gitignore',
+      '?? .conciv/harnesses.json',
+      '?? .conciv/settings/conciv.json',
+    ])
+
+    const edited = tempDir('conciv-core-unit-')
+    execFileSync('git', ['init', '--quiet'], {cwd: edited})
+    mkdirSync(statePaths(edited).dir, {recursive: true})
+    writeFileSync(join(statePaths(edited).dir, '.gitignore'), 'conciv.db\n# mine\n')
+    const second = await bootEngine(edited)
+    await second.stop()
+    expect(readFileSync(join(statePaths(edited).dir, '.gitignore'), 'utf8')).toBe('conciv.db\n# mine\n')
   })
 })
 
