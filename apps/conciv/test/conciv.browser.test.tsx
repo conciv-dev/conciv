@@ -5964,8 +5964,10 @@ describe('engine login', () => {
 
   const typeEngineAndLocalDrafts = async (): Promise<void> => {
     const {sessionId} = await coreRpc(core()).sessions.resolve({})
+    const held = {sessionId, text: ENGINE_HELD}
+    const served = await coreControl.rpcCallCount(DRAFT_SET_PATH, held)
     await editor().fill(ENGINE_HELD)
-    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: ENGINE_HELD})
+    await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, served + 1, [], held)
     const refusal = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
     await editor().fill(LOCAL_ONLY)
     await coreControl.awaitFaultAnswered(refusal)
