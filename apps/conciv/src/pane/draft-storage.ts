@@ -203,20 +203,22 @@ function makeLocalDraftWriter(
   })
   const send = (recorded: LocalDraft, attachments: DraftRow['attachments']) => {
     const current = document.draft
-    if (!current || appData.sessionDeleted(sessionId)) return
+    if (!current || !sameContent(current, recorded) || appData.sessionDeleted(sessionId)) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
     void keepLocally(drafts, sessionId, structuredClone(unwrap(current)))
-      .then(() =>
-        appData.saveDraft({
+      .then(() => {
+        const latest = document.draft
+        if (!latest || !sameContent(latest, recorded)) return false
+        return appData.saveDraft({
           sessionId,
           text: recorded.text,
           selectionStart: recorded.selectionStart,
           selectionEnd: recorded.selectionEnd,
           attachments,
           updatedAt,
-        }),
-      )
+        })
+      })
       .then((saved) => {
         persisted.setStore('draft', (latest) => latest && settledDraft(latest, updatedAt, saved))
       })
