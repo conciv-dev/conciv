@@ -530,7 +530,6 @@
     "@conciv/core",
     "@conciv/embed",
     "@conciv/extension",
-    "@conciv/extension-test-runner",
     "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/harness",
