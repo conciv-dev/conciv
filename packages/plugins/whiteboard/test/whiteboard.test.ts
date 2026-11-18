@@ -32,7 +32,7 @@ import {TestClock} from 'effect/testing'
 import {makeChangeFeed, SinceFailed, EventsStopped, type ChangeMessage, type FeedEvent} from '../src/change-feed.js'
 import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/change-feed-machine.js'
 import {startDrain, transitionDrain, type DrainState} from '../src/drain-machine.js'
-import {makePendingDrain, RemoveFailed} from '../src/island-model.js'
+import {makePendingDrain, makeSceneVersions, RemoveFailed} from '../src/island-model.js'
 import {replayDraft} from '../src/replay.js'
 import type {PendingRow} from '../src/rows.js'
 import {startPending, transitionPending, type PendingState} from '../src/pending-machine.js'
@@ -1085,6 +1085,43 @@ describe('the canvas drain machine', () => {
     expect(transitionDrain(disposed.state, {type: 'claimed', id: 'b', attempt: 2, claimed: true}).state).toBe(
       disposed.state,
     )
+  })
+})
+
+describe('the canvas scene versions', () => {
+  it('applies a remote change once, never echoes it back as a local write, and writes only real local edits', () => {
+    const element = (id: string, version: number, versionNonce = 1) => ({id, version, versionNonce})
+    const row = (id: string, version: number, versionNonce = 1) => ({
+      room: 'room',
+      elementId: id,
+      version,
+      data: element(id, version, versionNonce),
+    })
+    const result = Effect.runSync(
+      Effect.gen(function* () {
+        const scene = yield* makeSceneVersions()
+        yield* scene.seed([row('a', 1)])
+        const seededEcho = yield* scene.takeLocal([element('a', 1)])
+        const remoteNewer = yield* scene.acceptRemote([row('a', 2), row('b', 1)], [element('a', 1)])
+        const remoteEcho = yield* scene.takeLocal([element('a', 2), element('b', 1)])
+        const localEdit = yield* scene.takeLocal([element('a', 3), element('b', 1)])
+        const ownWriteBack = yield* scene.acceptRemote([row('a', 3), row('b', 1)], [element('a', 3), element('b', 1)])
+        const lostTie = yield* scene.acceptRemote([row('a', 3, 9), row('b', 1)], [element('a', 3, 7), element('b', 1)])
+        const removed = yield* scene.acceptRemote([row('a', 3, 9)], [element('a', 3, 9), element('b', 1)])
+        const removedEcho = yield* scene.takeLocal([element('a', 3, 9)])
+        return {seededEcho, remoteNewer, remoteEcho, localEdit, ownWriteBack, lostTie, removed, removedEcho}
+      }),
+    )
+    expect(result).toEqual({
+      seededEcho: [],
+      remoteNewer: true,
+      remoteEcho: [],
+      localEdit: [element('a', 3)],
+      ownWriteBack: false,
+      lostTie: true,
+      removed: true,
+      removedEcho: [],
+    })
   })
 })
 

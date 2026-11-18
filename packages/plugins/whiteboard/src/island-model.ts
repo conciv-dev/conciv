@@ -1,5 +1,8 @@
-import {Effect, FiberMap, Queue, Schedule, Schema, SubscriptionRef} from 'effect'
-import type {PendingRow} from './rows.js'
+import type {OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
+import {Effect, FiberMap, Queue, Ref, Schedule, Schema, SubscriptionRef} from 'effect'
+import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
+import {z} from 'zod'
+import type {ElementRow, JsonValue, PendingRow} from './rows.js'
 import {startDrain, transitionDrain, type DrainEffect, type DrainEvent, type DrainState} from './drain-machine.js'
 
 export const RemoveFailed = Schema.TaggedStruct('RemoveFailed', {message: Schema.String})
@@ -70,3 +73,48 @@ export const makePendingDrain = Effect.fn('whiteboard.pendingDrain')(function* (
 })
 
 export type PendingDrain = Effect.Success<ReturnType<typeof makePendingDrain>>
+
+export type SceneElement = OrderedExcalidrawElement
+type Versioned = Pick<SceneElement, 'id' | 'version' | 'versionNonce'>
+type Versions = Readonly<Partial<Record<string, number>>>
+
+const sceneElement = z.custom<SceneElement>(isPlainObject)
+export const asScene = (data: JsonValue): SceneElement => sceneElement.parse(data)
+
+export const makeSceneVersions = Effect.fn('whiteboard.sceneVersions')(function* () {
+  const versions = yield* Ref.make<Versions>({})
+  const known = (current: Versions, elementId: string): number => current[elementId] ?? -1
+
+  const seed = (rows: readonly ElementRow[]) =>
+    Ref.set(versions, Object.fromEntries(rows.map((row) => [row.elementId, row.version])))
+
+  const acceptRemote = (rows: readonly ElementRow[], shown: readonly Versioned[]) =>
+    Ref.modify(versions, (current): [boolean, Versions] => {
+      const incoming = keyBy(rows, (row) => row.elementId)
+      const showing = keyBy(shown, (element) => element.id)
+      const lostTie = (row: ElementRow): boolean => {
+        const element = showing[row.elementId]
+        return element?.version === row.version && element.versionNonce !== asScene(row.data).versionNonce
+      }
+      const changed =
+        rows.some((row) => known(current, row.elementId) < row.version || lostTie(row)) ||
+        Object.keys(current).some((elementId) => incoming[elementId] === undefined)
+      return [
+        changed,
+        {
+          ...pickBy(current, (_version, elementId) => incoming[elementId] !== undefined),
+          ...Object.fromEntries(
+            rows.map((row) => [row.elementId, Math.max(known(current, row.elementId), row.version)]),
+          ),
+        },
+      ]
+    })
+
+  const takeLocal = <Element extends Versioned>(elements: readonly Element[]) =>
+    Ref.modify(versions, (current): [readonly Element[], Versions] => {
+      const changed = elements.filter((element) => known(current, element.id) < element.version)
+      return [changed, {...current, ...Object.fromEntries(changed.map((element) => [element.id, element.version]))}]
+    })
+
+  return {seed, acceptRemote, takeLocal}
+})

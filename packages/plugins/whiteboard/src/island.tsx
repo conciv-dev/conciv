@@ -9,29 +9,26 @@ import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/exca
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {Deferred, Effect, Exit, Ref, Scope} from 'effect'
-import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
+import {isPlainObject} from 'es-toolkit'
 import {z} from 'zod'
 import {useWhiteboardDb} from './db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from './rows.js'
 import {validateSvg} from './svg-caps.js'
 import type {Viewport} from './coords.js'
-import {makePendingDrain, RemoveFailed} from './island-model.js'
+import {asScene, makePendingDrain, makeSceneVersions, RemoveFailed, type SceneElement} from './island-model.js'
 import {replayDraft, type ReplayStep} from './replay.js'
 
-type SceneElement = OrderedExcalidrawElement
 type ExportScope = 'live' | 'draft' | 'both'
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_REMOVE_RETRY_MS = 100
 
-const sceneElement = z.custom<SceneElement>(isPlainObject)
 const skeleton = z.custom<ExcalidrawElementSkeleton>(isPlainObject)
 const SkeletonsPayload = z.object({elements: z.array(skeleton)})
 const MermaidPayload = z.object({source: z.string()})
 const SvgPayload = z.object({svg: z.string(), x: z.number(), y: z.number(), width: z.number(), roughness: z.number()})
 const ExportPayload = z.object({requestId: z.string(), scope: z.enum(['live', 'draft', 'both'])})
 
-const asScene = (data: JsonValue): SceneElement => sceneElement.parse(data)
 const asJson = (element: ExcalidrawElement): JsonValue => json.parse(JSON.parse(JSON.stringify(element)))
 
 const withStableIds = (skeletons: ExcalidrawElementSkeleton[], rowId: string): ExcalidrawElementSkeleton[] =>
@@ -100,47 +97,18 @@ export function Island(props: {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
   const islandScope = Effect.runSync(Scope.make())
-  const guard = {applyingRemote: false}
-  const versions = Ref.makeUnsafe<Readonly<Partial<Record<string, number>>>>({})
+  const scene = Effect.runSync(makeSceneVersions())
   const attached = Ref.makeUnsafe<ExcalidrawImperativeAPI | undefined>(undefined)
-  const readVersion = (elementId: string): number => Ref.getUnsafe(versions)[elementId] ?? -1
-  const setVersions = (next: Readonly<Partial<Record<string, number>>>): void => Effect.runSync(Ref.set(versions, next))
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
     const instance = Ref.getUnsafe(attached)
     if (!instance) return
-    const incoming = keyBy(rows, (row) => row.elementId)
-    const shown = keyBy(instance.getSceneElementsIncludingDeleted(), (element) => element.id)
-    const lostTie = (row: ElementRow): boolean => {
-      const element = shown[row.elementId]
-      return element?.version === row.version && element.versionNonce !== asScene(row.data).versionNonce
-    }
-    const known = Ref.getUnsafe(versions)
-    const remoteChanged =
-      rows.some((row) => readVersion(row.elementId) < row.version || lostTie(row)) ||
-      Object.keys(known).some((elementId) => incoming[elementId] === undefined)
-    setVersions({
-      ...pickBy(known, (_version, elementId) => incoming[elementId] !== undefined),
-      ...Object.fromEntries(rows.map((row) => [row.elementId, Math.max(readVersion(row.elementId), row.version)])),
-    })
-    if (!remoteChanged) return
-    guard.applyingRemote = true
-    try {
-      instance.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
-    } finally {
-      guard.applyingRemote = false
-    }
+    if (!Effect.runSync(scene.acceptRemote(rows, instance.getSceneElementsIncludingDeleted()))) return
+    instance.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
   }
 
   const writeLocal = (next: readonly SceneElement[]): void => {
-    if (guard.applyingRemote) return
-    const changed = next.filter((element) => readVersion(element.id) < element.version)
-    if (!changed.length) return
-    setVersions({
-      ...Ref.getUnsafe(versions),
-      ...Object.fromEntries(changed.map((element) => [element.id, element.version])),
-    })
-    changed.forEach((element) => {
+    Effect.runSync(scene.takeLocal(next)).forEach((element) => {
       db.canvasElements.utils.write({
         room: db.room,
         elementId: element.id,
@@ -265,7 +233,7 @@ export function Island(props: {
   const snapshotElements = (): ElementRow[] => [...db.canvasElements.state.values()]
   const initialScene = () => {
     const rows = snapshotElements()
-    setVersions(Object.fromEntries(rows.map((row) => [row.elementId, row.version])))
+    Effect.runSync(scene.seed(rows))
     return {elements: rows.map((row) => asScene(row.data))}
   }
   const sceneSubscription = db.canvasElements.subscribeChanges(() => applyRemote(snapshotElements()), {
