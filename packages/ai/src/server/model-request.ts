@@ -38,7 +38,7 @@ export type ModelRequestDraft = Omit<ModelRequest, 'tools' | 'result'> & {tools:
 export type RequestHook = (request: ModelRequest, signal: AbortSignal) => Promise<ModelRequest>
 
 function inputSchema(tool: ChatTool): Record<string, unknown> {
-  return {...(convertSchemaToJsonSchema(tool.inputSchema) ?? {type: 'object', properties: {}})}
+  return structuredClone(convertSchemaToJsonSchema(tool.inputSchema) ?? {type: 'object', properties: {}})
 }
 
 function hookedTool(tool: ChatTool, name: string, definition: RequestTool, given: RequestTool | undefined): ChatTool {
