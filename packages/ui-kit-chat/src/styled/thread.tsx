@@ -14,12 +14,13 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {Key} from '@solid-primitives/keyed'
 import {isEqual, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -69,8 +70,7 @@ import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {primeHighlightWorkerPool} from '@conciv/solid-diffs'
 import {HighlightedText, Markdown, warmHighlighter} from './markdown.js'
 import {codeTheme} from '../theme/code-theme.js'
-import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
-import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
+import {ToolPartRow, type ToolDisclosure, type ToolRender} from './tool-part-row.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
 import {TraceRunRow} from './trace/trace-row.js'
 import {TraceBodyFrame} from './trace/output-block.js'
@@ -79,7 +79,6 @@ import {FOCUS} from './classes.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
-  ToolFallback?: ToolCardView
 }
 
 export type TurnPrefixSource = {key: string; role: Turn['role']; turn: Accessor<Turn>}
@@ -89,6 +88,7 @@ export type ThreadRootProps = ParentProps<{class?: string}>
 export type ThreadMessagesProps = {
   components?: ThreadComponents
   tools?: ToolCardEntry[]
+  render?: ToolRender
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
@@ -207,7 +207,7 @@ function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Acces
 
 function AssistantTurn(props: {
   entries: ToolCardEntry[]
-  fallback: ToolCardView
+  render: ToolRender | undefined
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
@@ -218,6 +218,11 @@ function AssistantTurn(props: {
   const config = useContext(ThreadConfigContext)
   const parts = () => message.message().parts
   const turnParts = message.parts
+  const [opened, setOpened] = createStore<Record<string, boolean>>({})
+  const disclosure: ToolDisclosure = {
+    open: (partId) => opened[partId],
+    setOpen: (partId, open) => setOpened(partId, open),
+  }
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
   const lastPartIndex = createMemo(() => turnParts.items().length - 1)
   const runActive = () => thread.isRunning && message.isLast()
@@ -285,14 +290,16 @@ function AssistantTurn(props: {
             ) : (
               <Show when={call()}>
                 {(callPart) => (
-                  <ToolTraceRow
+                  <ToolPartRow
                     part={callPart()}
                     result={result()}
                     ctx={ctx}
+                    entries={props.entries}
+                    render={props.render}
+                    disclosure={disclosure}
                     durationMs={durationMs()}
-                    tools={() => props.entries}
-                    fallback={props.fallback}
                     ring={branch.ring}
+                    chain
                   />
                 )}
               </Show>
@@ -348,13 +355,15 @@ function AssistantTurn(props: {
                 const result = createMemo(() => turnParts.resultFor(callId))
                 const durationMs = createCallDuration(callId, ctx)
                 return (
-                  <ToolCallCard
+                  <ToolPartRow
                     part={part()}
                     result={result()}
                     ctx={ctx}
+                    entries={props.entries}
+                    render={props.render}
+                    disclosure={disclosure}
                     durationMs={durationMs()}
-                    tools={() => props.entries}
-                    fallback={props.fallback}
+                    chain={false}
                   />
                 )
               }}
@@ -456,7 +465,7 @@ function UserTurn(): JSX.Element {
 
 type ThreadConfig = {
   entries: () => ToolCardEntry[]
-  fallback: () => ToolCardView
+  render: () => ToolRender | undefined
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
@@ -469,7 +478,7 @@ type ThreadConfig = {
 
 const ThreadConfigContext = createContext<ThreadConfig>({
   entries: () => [],
-  fallback: () => toolFallbackCardView,
+  render: () => undefined,
   assistant: () => undefined,
   turnPrefix: () => undefined,
   attachmentCards: () => [],
@@ -500,7 +509,7 @@ function AssistantMessageView(): JSX.Element {
         fallback={
           <AssistantTurn
             entries={config.entries()}
-            fallback={config.fallback()}
+            render={config.render()}
             pageSession={config.pageSession()}
             grouping={config.grouping()}
             groupEntries={config.groupEntries()}
@@ -585,7 +594,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
     <ThreadConfigContext.Provider
       value={{
         entries: () => props.tools ?? [],
-        fallback: () => props.components?.ToolFallback ?? toolFallbackCardView,
+        render: () => props.render,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
         attachmentCards: () => props.attachmentCards ?? [],

@@ -1,0 +1,101 @@
+import {createMemo, Show, type JSX} from 'solid-js'
+import {z} from 'zod'
+import type {ToolComponent} from '@conciv/plugin/experimental'
+import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {findToolEntry} from '../tools/primitives/define-toolkit.js'
+import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
+import {parseInput, resultText} from '../tools/primitives/tool-util.js'
+import {ToolDisplay} from '../tools/styled/tool-display.js'
+import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
+import {ROW_ITEM} from './trace/trace-row.js'
+
+export type ToolRender = (name: string) => ToolComponent | undefined
+
+export type ToolDisclosure = {
+  open: (partId: string) => boolean | undefined
+  setOpen: (partId: string, open: boolean) => void
+}
+
+const STATUS: Record<ToolStatus, string> = {
+  running: 'running',
+  approval: 'pending',
+  complete: 'completed',
+  error: 'error',
+  denied: 'error',
+  cancelled: 'error',
+}
+
+const ToolInputSchema = z.record(z.string(), z.unknown())
+
+function toolOutput(part: ToolCallPart, result: ToolResultPart | undefined): string | undefined {
+  if (result !== undefined) return resultText(result)
+  if (part.output === undefined) return undefined
+  return typeof part.output === 'string' ? part.output : JSON.stringify(part.output, null, 2)
+}
+
+export function ToolPartRow(props: {
+  part: ToolCallPart
+  result: ToolResultPart | undefined
+  ctx: ToolViewCtx
+  entries: readonly ToolCardEntry[]
+  render: ToolRender | undefined
+  disclosure: ToolDisclosure
+  durationMs: number | undefined
+  sessionID?: string
+  ring?: boolean
+  chain: boolean
+}): JSX.Element {
+  const entry = createMemo(() =>
+    props.render?.(props.part.name) === undefined ? findToolEntry(props.entries, props.part, props.result) : undefined,
+  )
+  const status = () => STATUS[toolStatus(props.part, props.result)]
+  const settled = () => status() !== 'running' && status() !== 'pending'
+  const output = () => (settled() ? toolOutput(props.part, props.result) : undefined)
+  const input = createMemo(() => parseInput(ToolInputSchema, props.part) ?? {})
+  const display = (): JSX.Element => (
+    <ToolDisplay
+      id={props.part.id}
+      tool={props.part.name}
+      input={input()}
+      metadata={{}}
+      output={output()}
+      error={status() === 'error' ? output() : undefined}
+      status={status()}
+      sessionID={props.sessionID}
+      defaultOpen={status() !== 'error'}
+      open={props.disclosure.open(props.part.id) ?? status() !== 'error'}
+      onOpenChange={(open) => props.disclosure.setOpen(props.part.id, open)}
+      render={props.render}
+      durationMs={props.durationMs}
+    />
+  )
+  const legacy = (): JSX.Element =>
+    props.chain ? (
+      <ToolTraceRow
+        part={props.part}
+        result={props.result}
+        ctx={props.ctx}
+        durationMs={props.durationMs}
+        tools={() => [...props.entries]}
+        ring={props.ring}
+      />
+    ) : (
+      <ToolCallCard
+        part={props.part}
+        result={props.result}
+        ctx={props.ctx}
+        durationMs={props.durationMs}
+        tools={() => [...props.entries]}
+      />
+    )
+  return (
+    <Show when={entry() === undefined} fallback={legacy()}>
+      <Show when={props.chain} fallback={display()}>
+        <li class={ROW_ITEM} data-trace-live={props.ring ? '' : undefined}>
+          {display()}
+        </li>
+      </Show>
+    </Show>
+  )
+}
