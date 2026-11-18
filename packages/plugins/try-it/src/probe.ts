@@ -1,6 +1,6 @@
 import {Data, Effect} from 'effect'
 
-export const ProbeFailed = Data.TaggedError('TryItProbeFailed')<{readonly port: number; readonly cause: unknown}>
+const ProbeFailed = Data.TaggedError('TryItProbeFailed')<{readonly port: number; readonly cause: unknown}>
 export const ProbeSilent = Data.TaggedError('ProbeSilent')<Record<never, never>>
 
 export type ProbeSilent = InstanceType<typeof ProbeSilent>

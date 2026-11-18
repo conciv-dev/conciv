@@ -40,22 +40,34 @@ export function transitionConnect(state: ConnectState, event: ConnectEvent): Con
   return unchanged(state)
 }
 
-function transitionProbing(
-  state: Extract<ConnectState, {readonly status: 'probing'}>,
-  event: ConnectEvent,
-): ConnectTransition {
-  if (event.type === 'copied' && !state.copied) return {state: {...state, copied: true}, effects: []}
-  if (event.type === 'slowElapsed' && !state.slow) return {state: {...state, slow: true}, effects: []}
-  if (event.type === 'answered' && event.attempt === state.attempt && state.attempt === FIRST_ATTEMPT)
-    return {state: {status: 'connected', base: event.base}, effects: []}
-  if (event.type === 'answered' && event.attempt === state.attempt)
-    return {state: {status: 'holding', base: event.base, copied: state.copied}, effects: [{type: 'startHold'}]}
-  if (event.type === 'silent' && event.attempt === state.attempt && state.attempt === FIRST_ATTEMPT)
-    return {
-      state: {...state, attempt: state.attempt + 1},
-      effects: [{type: 'startSlow'}, {type: 'sweep', attempt: state.attempt + 1, retry: true}],
-    }
+type ProbingState = Extract<ConnectState, {readonly status: 'probing'}>
+
+function transitionProbing(state: ProbingState, event: ConnectEvent): ConnectTransition {
+  if (event.type === 'copied') return state.copied ? unchanged(state) : {state: {...state, copied: true}, effects: []}
+  if (event.type === 'slowElapsed') return state.slow ? unchanged(state) : {state: {...state, slow: true}, effects: []}
+  if (event.type === 'answered') return answerProbing(state, event)
+  if (event.type === 'silent') return silenceProbing(state, event)
   return unchanged(state)
+}
+
+function answerProbing(
+  state: ProbingState,
+  event: Extract<ConnectEvent, {readonly type: 'answered'}>,
+): ConnectTransition {
+  if (event.attempt !== state.attempt) return unchanged(state)
+  if (state.attempt === FIRST_ATTEMPT) return {state: {status: 'connected', base: event.base}, effects: []}
+  return {state: {status: 'holding', base: event.base, copied: state.copied}, effects: [{type: 'startHold'}]}
+}
+
+function silenceProbing(
+  state: ProbingState,
+  event: Extract<ConnectEvent, {readonly type: 'silent'}>,
+): ConnectTransition {
+  if (event.attempt !== state.attempt || state.attempt !== FIRST_ATTEMPT) return unchanged(state)
+  return {
+    state: {...state, attempt: state.attempt + 1},
+    effects: [{type: 'startSlow'}, {type: 'sweep', attempt: state.attempt + 1, retry: true}],
+  }
 }
 
 function transitionHolding(
