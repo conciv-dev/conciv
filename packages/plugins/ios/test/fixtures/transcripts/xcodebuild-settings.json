@@ -1,0 +1,20 @@
+[
+  {
+    "target": "PayKit",
+    "action": "build",
+    "buildSettings": {
+      "TARGET_BUILD_DIR": "/Users/dev/Library/Developer/Xcode/DerivedData/PayApp/Build/Products/Debug-iphonesimulator",
+      "WRAPPER_NAME": "PayKit.framework",
+      "PRODUCT_BUNDLE_IDENTIFIER": "dev.conciv.pay.kit"
+    }
+  },
+  {
+    "target": "PayApp",
+    "action": "build",
+    "buildSettings": {
+      "TARGET_BUILD_DIR": "/Users/dev/Library/Developer/Xcode/DerivedData/PayApp/Build/Products/Debug-iphonesimulator",
+      "WRAPPER_NAME": "PayApp.app",
+      "PRODUCT_BUNDLE_IDENTIFIER": "dev.conciv.pay"
+    }
+  }
+]

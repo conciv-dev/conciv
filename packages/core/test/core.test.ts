@@ -799,6 +799,57 @@ describe('chat plane', () => {
     expect(await announced()).toBe('late-push-run')
   }, 10_000)
 
+  it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const db = openDatabase(root)
+    const primitives = makeSessionPrimitives({db, root, storeCapture: () => Promise.resolve()})
+    const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const chat = await plane(cliHarness(fakeCli()), root, {
+      db,
+      sessions: {
+        ...sessionPort(),
+        onRunStart: async () => {
+          starting.entered.resolve()
+          await starting.held.promise
+        },
+        publish: (id, chunk) => primitives.stream.publish(id, chunk),
+      },
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: chat,
+      db,
+      model: () => null,
+      staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
+      interruptIdle: async () => false,
+      symbolicate: async () => null,
+    })
+    const id = sessionId('registering-as-a-run-starts')
+    const turn = startTurn(chat, id, 'racing-run', 'hi')
+    await starting.entered.promise
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const announced: string[] = []
+    const caughtUp = Promise.withResolvers<void>()
+    async function collect(): Promise<void> {
+      for await (const chunk of runtime.forSession(id).stream.events(abort.signal)) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run === null) continue
+        announced.push(run.runId)
+        caughtUp.resolve()
+      }
+    }
+    const collecting = collect()
+
+    await caughtUp.promise
+    expect(announced).toEqual(['racing-run'])
+    starting.held.resolve()
+    expect(await readUntil(await turn, 'end')).toContain(ChatEventType.RUN_FINISHED)
+    abort.abort()
+    await collecting
+    expect(announced).toEqual(['racing-run'])
+  }, 10_000)
+
   it('a page query goes to the browser tab focused last, each tab learning its id from the ready its stream opens with', async () => {
     const reader = defineExtension({
       name: 'focus-probe',
@@ -3271,7 +3322,13 @@ describe('plugin host bus', () => {
     const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
     const key = sessionKey(served.made)
     const {sessionId} = await rpc.sessions.create(undefined)
-    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'an unsent draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      updatedAt: Date.now(),
+    })
     const readBack = () =>
       Promise.all([
         key.run((sessions) =>
@@ -3298,6 +3355,73 @@ describe('plugin host bus', () => {
     const afterDelete = await readBack()
     expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
     expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('an engine restart sweeps the sessions that never ran and hold nothing, keeps one that holds a typed draft, and a deleted one stays deleted with its id not taken again', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const first = await serveCore(root, [], {})
+    const firstRpc = makeRpcClient(`${first.origin}/t/${first.made.agentToken}`)
+    const draftFor = (sessionId: SessionId, text: string) => ({
+      sessionId,
+      text,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      updatedAt: Date.now(),
+    })
+    const made = await Promise.all([
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+    ])
+      .then(async ([deleted, typed, cleared, empty]) => {
+        await firstRpc.sessions.delete({sessionId: deleted.sessionId})
+        await firstRpc.drafts.set(draftFor(typed.sessionId, 'typed before the restart'))
+        await firstRpc.drafts.set(draftFor(cleared.sessionId, ''))
+        return {
+          deleted: deleted.sessionId,
+          typed: typed.sessionId,
+          cleared: cleared.sessionId,
+          empty: empty.sessionId,
+        }
+      })
+      .finally(() => first.stop())
+    const restarted = await serveCore(root, [], {})
+    onTestFinished(() => restarted.stop())
+    const rpc = makeRpcClient(`${restarted.origin}/t/${restarted.made.agentToken}`)
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({id: made.deleted, hidden: true})
+    await expect(rpc.sessions.resolve({id: made.deleted})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({hidden: true})
+    const refusedSend = await fetch(`${restarted.origin}/t/${restarted.made.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: made.deleted,
+        runId: 'sent-after-the-restart',
+        messages: [{id: 'sent-after-the-restart-user', role: 'user', content: 'sent after the restart'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    const refusedFrames = (await refusedSend.text())
+      .split('\n')
+      .flatMap((line) =>
+        line.startsWith('data: ')
+          ? [
+              z
+                .object({type: z.string(), message: z.string().optional(), code: z.string().optional()})
+                .parse(JSON.parse(line.slice('data: '.length))),
+            ]
+          : [],
+      )
+      .filter((frame) => frame.type === ChatEventType.RUN_ERROR)
+    expect(refusedFrames).toEqual([
+      {type: ChatEventType.RUN_ERROR, message: `session "${made.deleted}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    await expect(rpc.sessions.get({sessionId: made.empty})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    await expect(rpc.sessions.get({sessionId: made.cleared})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.typed})).toMatchObject({id: made.typed, hidden: false})
+    expect(await rpc.drafts.get({sessionId: made.typed})).toMatchObject({text: 'typed before the restart'})
   })
 
   test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
@@ -5382,18 +5506,26 @@ describe('pty sessions', () => {
 
     it('injects into live sinks and the replay buffer', async () => {
       const sessions = make()
-      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const silentUntilInput = {bin: 'cat', args: [], env: {TERM: 'xterm-256color'}}
+      const session = await sessions.open('s7', silentUntilInput, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
       const injected = Promise.withResolvers<string>()
       const live = collect((update) => {
-        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+        if (update.kind !== 'data') return
+        if (/typed-line\r\n.*typed-line\r\n$/s.test(update.text)) echoed.resolve(update.text)
+        if (update.text.includes('\r\nconciv second marker\r\n')) injected.resolve(update.text)
       })
       const detach = session.attach(live.sink)
       session.inject('conciv marker')
-      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      expect(live.chunks.join('')).toBe('conciv marker\r\n')
+      session.write('typed-line\r')
+      expect(await echoed.promise).toMatch(/^conciv marker\r\ntyped-line\r\n.*typed-line\r\n$/s)
+      session.inject('conciv second marker')
+      expect(await injected.promise).toMatch(/typed-line.*\r\nconciv second marker\r\n$/s)
       detach()
       const late = collect()
       session.attach(late.sink)
-      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+      expect(late.chunks.join('')).toMatch(/^conciv marker\r\n.*typed-line.*\r\nconciv second marker\r\n$/s)
     })
 
     it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {

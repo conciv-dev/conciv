@@ -9,7 +9,7 @@ const ESCAPE_KEY = String.fromCharCode(27)
 
 type TerminalSize = {readonly cols: number; readonly rows: number}
 
-type PtyRequest = {readonly sessionId: string; readonly size: TerminalSize; readonly model: string | undefined}
+type PtyRequest = {readonly sessionId: string; readonly terminal: TerminalSize; readonly model: string | undefined}
 
 function resolvedColor(probe: HTMLElement, token: string): string | undefined {
   probe.style.color = `var(${token})`
@@ -23,7 +23,7 @@ function readTerminalTheme(element: Element, scheme: 'light' | 'dark'): Terminal
   element.append(probe)
   const text = resolvedColor(probe, '--chat-text-hi')
   const theme = {
-    background: resolvedColor(probe, '--chat-panel'),
+    background: resolvedColor(probe, '--chat-bg'),
     foreground: text,
     cursor: text,
     selectionBackground: resolvedColor(probe, '--chat-fill-strong'),
@@ -86,7 +86,7 @@ export default function TerminalSurface(props: {
         console.error('[terminal] opening the session terminal failed', cause)
         ctx.toast.show({title: OPEN_FAILED, variant: 'error'})
         props.terminal.fail(terminalKey, OPEN_FAILED)
-        throw new Error(OPEN_FAILED)
+        throw new Error(OPEN_FAILED, {cause})
       })
       if (held.ptyId !== ptyId) Object.assign(held, {ptyId, cursor: undefined})
       props.terminal.opened({key: terminalKey, ptyId, busy: model.busy})
@@ -97,17 +97,14 @@ export default function TerminalSurface(props: {
         untrack(() => ctx.appearance.mode()),
       ),
   })
+  model.terminal.options.fontFamily = readTerminalFont(
+    untrack(() => props.themeHost()),
+    ctx.appearance.font('mono'),
+  )
   createKeyed(
     () => ctx.appearance.mode(),
     (scheme) => {
       model.terminal.options.theme = readTerminalTheme(props.themeHost(), scheme)
-    },
-  )
-  createKeyed(
-    () => ctx.appearance.font('mono'),
-    (font) => {
-      model.terminal.options.fontFamily = readTerminalFont(props.themeHost(), font)
-      model.fit()
     },
   )
   onCleanup(() => props.terminal.closed(terminalKey))
@@ -115,12 +112,8 @@ export default function TerminalSurface(props: {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     return true
   })
-  const surface: {element: HTMLDivElement | undefined} = {element: undefined}
-  onMount(() => {
-    if (surface.element) keepFocusInsideTheWidget(surface.element)
-  })
   const interruptOnEscape = (element: HTMLDivElement) => {
-    surface.element = element
+    onMount(() => keepFocusInsideTheWidget(element))
     makeEventListener(
       element,
       'keydown',

@@ -61,18 +61,27 @@ function guardedStream(
   streams: SocketStreams,
 ): AsyncIteratorClass<unknown, unknown> {
   const {revoked} = streams
-  const refused = new Promise<never>((_resolve, reject) => {
-    if (revoked.aborted) reject(revoked.reason)
-    revoked.addEventListener('abort', () => reject(revoked.reason), {once: true})
-  })
-  refused.catch(() => undefined)
   return new AsyncIteratorClass(
-    () =>
-      streams.unsent() > MAX_UNSENT_BYTES ? Promise.reject(slowConsumer()) : Promise.race([stream.next(), refused]),
+    () => (streams.unsent() > MAX_UNSENT_BYTES ? Promise.reject(slowConsumer()) : nextUnlessRevoked(stream, revoked)),
     async () => {
       void stream.return?.()?.catch(() => undefined)
     },
   )
+}
+
+async function nextUnlessRevoked(
+  stream: AsyncIteratorObject<unknown, unknown, void>,
+  revoked: AbortSignal,
+): Promise<IteratorResult<unknown, unknown>> {
+  revoked.throwIfAborted()
+  const refused = Promise.withResolvers<never>()
+  const refuse = (): void => refused.reject(revoked.reason)
+  revoked.addEventListener('abort', refuse, {once: true})
+  try {
+    return await Promise.race([stream.next(), refused.promise])
+  } finally {
+    revoked.removeEventListener('abort', refuse)
+  }
 }
 
 function heldUntilReplied(streams: SocketStreams, replied: Promise<boolean> | undefined): void {

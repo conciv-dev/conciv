@@ -18,6 +18,7 @@ import {
   ChatEventType,
   idleFailedEvent,
   runLifecycleEvent,
+  sessionRunEvent,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
@@ -367,17 +368,29 @@ describe('chat connection', () => {
       kit = clientKit
       const sessionId = await clientKit.session()
       const connection = chatConnection(makeRpcClient(clientKit.base), clientKit.base, sessionId, {transport: 'fetch'})
+      clientKit.gate.hold()
+      const warming = await clientKit.turn('fan-out-0', {session: sessionId, runId: 'fan-out-0'})
+      await warming.waitForRunStart()
       const [staying, leaving] = [watch(connection), watch(connection)]
-      await sendTurn(connection, sessionId, 'fan-out-1')
-      await Promise.all([staying.finished, leaving.finished])
-      expect(leaving.seen.map((chunk) => chunk.type)).toEqual(staying.seen.map((chunk) => chunk.type))
-      const before = leaving.seen.length
-      leaving.abort()
-      await leaving.ended
-      await sendTurn(connection, sessionId, 'fan-out-2')
-      expect(leaving.seen).toHaveLength(before)
-      expect(staying.seen.length).toBeGreaterThan(before)
-      staying.abort()
+      try {
+        expect(await Promise.all([staying.firstAnnounced, leaving.firstAnnounced])).toEqual(['fan-out-0', 'fan-out-0'])
+        clientKit.gate.release()
+        await warming.done()
+        await sendTurn(connection, sessionId, 'fan-out-1')
+        await Promise.all([staying.finished, leaving.finished])
+        expect(leaving.seen.map((chunk) => chunk.type)).toEqual(staying.seen.map((chunk) => chunk.type))
+        const before = leaving.seen.length
+        leaving.abort()
+        await leaving.ended
+        await sendTurn(connection, sessionId, 'fan-out-2')
+        expect(leaving.seen).toHaveLength(before)
+        expect(staying.seen.length).toBeGreaterThan(before)
+      } finally {
+        clientKit.gate.release()
+        staying.abort()
+        leaving.abort()
+        await Promise.all([staying.ended, leaving.ended])
+      }
     }, 30_000)
   })
 
@@ -421,13 +434,22 @@ describe('chat connection', () => {
     const abort = new AbortController()
     const seen: ChatEvent[] = []
     const finished = Promise.withResolvers<void>()
+    const firstAnnounced = Promise.withResolvers<string>()
     const ended = (async () => {
       for await (const chunk of connection.subscribe(abort.signal)) {
         seen.push(chunk)
         if (chunk.type === ChatEventType.RUN_FINISHED) finished.resolve()
+        const announced = sessionRunEvent.parse(chunk)
+        if (announced !== null) firstAnnounced.resolve(announced.runId)
       }
     })()
-    return {seen, finished: finished.promise, ended, abort: () => abort.abort()}
+    return {
+      seen,
+      finished: finished.promise,
+      firstAnnounced: firstAnnounced.promise,
+      ended,
+      abort: () => abort.abort(),
+    }
   }
 
   function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
@@ -566,19 +588,12 @@ describe('chat refresh', () => {
 })
 
 describe('session streams on the rpc socket', () => {
-  const SETTLE_MS = 150
-  const RECONNECT_MS = 1500
-
   let kit: ClientKit | undefined
 
   afterEach(async () => {
     await kit?.cleanup()
     kit = undefined
   })
-
-  function settled(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
 
   function textReply(text: string): PageReply {
     return {type: 'success', result: {value: {text}, files: []}}
@@ -625,25 +640,26 @@ describe('session streams on the rpc socket', () => {
       const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
       const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
       const warming = nextEvent(events)
-      await settled(SETTLE_MS)
-      await sendTurn(connection, sessionId, 'push-before')
+      booted.gate.hold()
+      const turningBefore = sendTurn(connection, sessionId, 'push-before')
       const before = await warming
-      if (before.type !== ChatEventType.CUSTOM)
-        throw new Error(`the chat stream served ${before.type}, not a session event`)
+      booted.gate.release()
+      await turningBefore
+      expect(sessionRunEvent.parse(before)).toEqual({runId: 'push-before'})
 
       await booted.restartServer()
       const seen: ChatEvent[] = []
-      const collecting = (async () => {
+      async function collect(): Promise<void> {
         for await (const chunk of events) seen.push(chunk)
-      })().catch(() => undefined)
-      await settled(RECONNECT_MS)
-      await sendTurn(connection, sessionId, 'push-after')
+      }
+      const collecting = collect().catch(() => undefined)
+      booted.gate.hold()
+      const turningAfter = sendTurn(connection, sessionId, 'push-after')
       await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
-      const frame = seen[0]
-      if (!frame) throw new Error('the resubscribed chat stream served no session event')
+      booted.gate.release()
+      await turningAfter
 
-      expect(frame).toMatchObject({type: ChatEventType.CUSTOM, name: before.name})
-      expect(seen).toHaveLength(1)
+      expect(seen.map((chunk) => sessionRunEvent.parse(chunk))).toEqual([{runId: 'push-after'}])
       abort.abort()
       await collecting
       browser.close()
@@ -728,9 +744,15 @@ describe('session streams on the rpc socket', () => {
         .toMatchObject({rejected: 'NO_PAGE_CLIENT'})
 
       const arriving = nextEvent(events)
-      await settled(SETTLE_MS)
-      await sendTurn(chatConnection(makeRpcClient(booted.base), booted.base, sessionId), sessionId, 'after-tab')
-      expect(await arriving).toMatchObject({type: ChatEventType.CUSTOM})
+      booted.gate.hold()
+      const turning = sendTurn(
+        chatConnection(makeRpcClient(booted.base), booted.base, sessionId),
+        sessionId,
+        'after-tab',
+      )
+      expect(sessionRunEvent.parse(await arriving)).toEqual({runId: 'after-tab'})
+      booted.gate.release()
+      await turning
       abort.abort()
       browser.close()
     }, 15_000)
