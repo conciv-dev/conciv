@@ -23,6 +23,7 @@ import {
   Thread,
   ToolProvider,
   useComposerContext,
+  useModelMenu,
   useThread,
   type PageSessionConfig,
   type TurnItem,
@@ -60,7 +61,7 @@ import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from './pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
-import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
+import {SessionModelPrompt} from '../composer/session-model-prompt.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'

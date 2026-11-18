@@ -7846,29 +7846,33 @@ describe('terminal panel', () => {
     const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
     harness.mountShell(terminalRoute(sessionId))
 
-    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeDisabled()
+    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeEnabled()
     await coreControl.awaitFaultPending(modelsRead, 1)
     await faults.releaseAll()
     await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
     await expect.element(bar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
   }, 60_000)
 
-  test('a model list that failed to load offers Retry, says Models… while Retry reads it, then lists the models', async () => {
+  test('a model list that failed to load offers Retry inside the model selector, which says Models… while Retry reads it, then lists the models', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     harness.mountShell(terminalRoute(sessionId))
 
-    const retry = () => bar().getByRole('button', {name: 'Retry'})
-    await expect.element(retry(), {timeout: 15_000}).toBeEnabled()
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+    const retry = () => menu().getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await bar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await expect.element(retry(), {timeout: 15_000}).toBeVisible()
     await coreControl.releaseFault(broken)
     const retried = await faults.install({kind: 'gate', path: ['meta', 'models']})
     await retry().click()
-    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeDisabled()
+    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(menu().getByRole('status')).toHaveTextContent('Loading models…')
     await expect.element(retry()).not.toBeInTheDocument()
     await coreControl.awaitFaultPending(retried, 1)
     await faults.releaseAll()
-    await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
-    await expect.element(retry()).not.toBeInTheDocument()
+    await expect.element(menu().getByRole('option', {name: 'First model'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Calm model'})).toBeVisible()
+    await expect.element(bar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('a CLI that started while the model list failed restarts with the saved pick once Retry lists the models', async () => {
@@ -7884,9 +7888,13 @@ describe('terminal panel', () => {
     const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
-    const retry = () => bar().getByRole('button', {name: 'Retry'})
-    await expect.element(retry(), {timeout: 15_000}).toBeEnabled()
+    const retry = () =>
+      page
+        .getByRole('dialog', {name: 'Model'})
+        .getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
     await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await bar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await expect.element(retry()).toBeVisible()
 
     await coreControl.releaseFault(broken)
     await retry().click()

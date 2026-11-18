@@ -113,7 +113,7 @@ export function createTerminalState(ctx: TerminalContext) {
       const known = meta(sessionId)
       return known ? known.harness.persistentPty === true : read.errorUpdateCount > 0
     },
-    models,
+    meta,
     modelsFailed: (sessionId: string) => meta(sessionId) === undefined && read.isError,
     modelsLoading: (sessionId: string) => meta(sessionId) === undefined && !read.isError,
     reloadModels: () => void read.refetch(),
