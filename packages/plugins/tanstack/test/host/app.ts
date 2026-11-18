@@ -1,4 +1,4 @@
-import {createElement, type ReactElement, StrictMode} from 'react'
+import {createElement, type ReactElement, StrictMode, useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {QueryClient, QueryClientProvider, useQuery} from '@tanstack/react-query'
 import {createRootRoute, createRoute, createRouter, Link, Outlet, RouterProvider} from '@tanstack/react-router'
@@ -164,12 +164,18 @@ const router = createRouter({
   routeTree: rootRoute.addChildren([indexRoute, aboutRoute, boomRoute, resetRoute, slowRoute, refusingRoute]),
 })
 
+const app = createElement(
+  StrictMode,
+  null,
+  createElement(QueryClientProvider, {client: queryClient}, createElement(RouterProvider, {router})),
+)
+
+function LateHost() {
+  const [mounted, setMounted] = useState(false)
+  if (mounted) return app
+  return createElement('button', {type: 'button', onClick: () => setMounted(true)}, 'Mount router')
+}
+
 const rootElement = document.getElementById('root')
 if (rootElement)
-  createRoot(rootElement).render(
-    createElement(
-      StrictMode,
-      null,
-      createElement(QueryClientProvider, {client: queryClient}, createElement(RouterProvider, {router})),
-    ),
-  )
+  createRoot(rootElement).render(new URLSearchParams(location.search).has('late') ? createElement(LateHost) : app)

@@ -3,6 +3,7 @@ import type {Plugin} from '@conciv/plugin/experimental'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {pageToolMeta} from './page/cards/page-tool-names.js'
 import {tanstackToolMeta} from './tanstack/tanstack-tool-names.js'
+import {terminalDeclarations} from './terminal/stores.js'
 
 export const builtins = compose({
   page: {
@@ -23,6 +24,14 @@ export const builtins = compose({
     windowEntry: () =>
       import('./tanstack/plugin-experimental.js').then(({default: card}) => {
         const setup: Plugin.Setup<typeof card> = (ctx) => card.setup?.(ctx)
+        return {default: setup}
+      }),
+  },
+  terminal: {
+    ...terminalDeclarations,
+    windowEntry: () =>
+      import('./terminal/plugin-experimental.js').then(({default: terminal}) => {
+        const setup: Plugin.Setup<typeof terminal> = (ctx) => terminal.setup?.(ctx)
         return {default: setup}
       }),
   },

@@ -157,12 +157,6 @@ export function redactedHref(tree: ReactTree): string {
   return `${location.origin}${redacted.pathname}${redacted.search}${prefixed('#', redacted.hash)}`
 }
 
-export function subscribeResolved(tree: ReactTree, listener: () => void, signal: AbortSignal): void {
-  const router = findRouter(tree)
-  if (!router) return
-  signal.addEventListener('abort', router.subscribe('onResolved', listener), {once: true})
-}
-
 export function readRouterState(tree: ReactTree): RouterCurrent {
   const router = requireRouter(tree)
   return {

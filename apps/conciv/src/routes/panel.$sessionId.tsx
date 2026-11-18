@@ -44,6 +44,8 @@ import {
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
+import {makePaneGrabApi} from '../pane/pane-grab.js'
+import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
@@ -59,7 +61,7 @@ import {useNotices} from '../shell/notice-context.js'
 import {useStartSession} from '../app/start-session.js'
 import {openPipTarget} from '../shell/pip.js'
 import {createMountedSession} from '../runtime/plugin/mounted-session.js'
-import {createPluginTabs, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
+import {createPluginTabs, PluginPanelEnd, PluginRegion, PluginWindowBottom} from '../shell/plugin-surfaces.js'
 
 const RAIL =
   'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 pt-[13px] pb-[13px] [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -361,6 +363,8 @@ function PanelSession(): JSX.Element {
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
   })
 
+  const paneGrab = makePaneGrabApi(grabStaging, grabProvider)
+
   const coordinator = makeRefreshCoordinator({
     chat,
     liveSessions: useLiveSessions(),
@@ -426,6 +430,7 @@ function PanelSession(): JSX.Element {
 
   return (
     <PaneContext.Provider value={paneValue}>
+      <PaneGrabBinding sessionId={params().sessionId} grab={paneGrab} />
       <header class={RAIL}>
         <Popover.Root
           positioning={{placement: 'bottom-start'}}
@@ -525,6 +530,7 @@ function PanelSession(): JSX.Element {
         activeView={activeView()}
         onSelectView={switchView}
         disabled={viewLocked()}
+        end={<Show when={mounted.view()}>{(view) => <PluginPanelEnd view={view} screen={mounted.screen} />}</Show>}
       />
       <PluginWindowBottom />
     </PaneContext.Provider>

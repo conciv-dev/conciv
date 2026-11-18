@@ -11,7 +11,7 @@ import {
   type PageQueueProgress,
   type PageQueueResult,
 } from '@conciv/protocol/page-types'
-import type {PageChangeEntry} from '@conciv/protocol/page-types'
+import {type PageChangeEntry, PageRaisedErrorSchema as Raised} from '@conciv/protocol/page-types'
 import type {RequestSettlement} from './machine.js'
 import {Action} from './rpc.js'
 
@@ -48,8 +48,6 @@ const KEPT_QUEUES = 200
 const OWED_QUEUES = 1000
 
 const QUEUE_RESULT_CHARS = RESULT_CAP_CHARS - 5000
-
-const Raised = z.object({code: z.string(), message: z.string()})
 
 const Unconfirmed = /^\[page\.(timeout|disconnected|tab_unavailable)\]/
 

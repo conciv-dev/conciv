@@ -47,10 +47,6 @@
     "./rpc-mount": {
       "types": "./dist/rpc-mount.d.ts",
       "import": "./dist/rpc-mount.js"
-    },
-    "./vite": {
-      "types": "./dist/vite-bridge.d.ts",
-      "import": "./dist/vite-bridge.js"
     }
   },
   "publishConfig": {
@@ -72,7 +68,6 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "defu": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"

@@ -12,7 +12,8 @@ The `highlight` page effect (`src/page/highlight.tsx`) draws in the plugin's `ct
 overlay brings the widget sheet (reset, tokens, host rules) and the color scheme, and the plugin adds this package's own
 utilities (`virtual:uno.css?inline`) as the overlay's `styles`, since the widget sheet does not scan this package. The
 capture layer opts back into pointer events, and `elementAt` skips the widget root and every `[data-conciv-overlay]`
-host. The layer sits under the widget, so the box is not drawn over the open panel.
+host. The layer sits under the widget, so the box is not drawn over the open panel. Holding Alt while focus is outside
+an input, textarea or contenteditable shows the inspector too, until Alt is released or Esc is pressed.
 
 The routed session attaches while its server is compatible and its event stream is connected (`ServerRef.connected`):
 a dropped stream or an engine restart ends the attachment and the reconnect starts a new one, with nobody touching the
@@ -109,3 +110,10 @@ Each TanStack tool's card claim gives the whole card, so it draws while the call
 body) and after it finishes. The cards are built from `@conciv/ui-kit-chat/tools` and `@conciv/ui-kit-system`, which the
 widget already bundles, so the embed keeps one copy of each. The old TanStack extension keeps its own copy until that
 extension is deleted.
+
+## terminal
+
+The session's CLI in a terminal (built-in id `terminal`, a pinned Terminal tab in the session's pane): listed for a
+session whose harness has a terminal, the CLI started only when the tab first opens (the xterm surface loads then
+too), replayed after a reload, with a toolbar that picks the CLI model and starts a new terminal, both locked while
+the CLI is busy. Escape with focus in the terminal interrupts a busy CLI; keys pressed on the host page stay there.

@@ -1,4 +1,4 @@
-import type {ServerHarness, ServerSessions} from '@conciv/extension'
+import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'

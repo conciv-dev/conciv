@@ -1,4 +1,4 @@
-import {isToolError} from '@conciv/extension'
+import {isToolError} from '@conciv/protocol/tool-call-types'
 import {isPageFailure} from '@conciv/protocol/page-types'
 import {badArgs, fail, failRaised} from './page-failure.js'
 
