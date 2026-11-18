@@ -29,7 +29,9 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
   const plugin = usePlugin<{stores: typeof whiteboardStores}>()
   const account = plugin.stores.account
   const onWriteFailed = (error: unknown): void => {
-    console.error('[whiteboard] a change could not be saved', error)
+    Effect.runFork(
+      Effect.logError('a change could not be saved', error).pipe(Effect.annotateLogs({plugin: 'whiteboard', room})),
+    )
     void plugin.toast.show({title: 'Could not save your whiteboard change. Try again.', variant: 'error'})
   }
   const fresh = account.value.id ?? crypto.randomUUID()

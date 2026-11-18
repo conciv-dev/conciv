@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
+import {Effect} from 'effect'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
 import type {CommentRow} from './rows.js'
@@ -84,17 +85,20 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
   const model = useComments()
   const confirmDelete = (): void => {
     const root = props.root
-    void ctx.dialogs
-      .confirm({
-        title: 'Delete this thread?',
-        description: 'This removes the comment, all its replies, and its pin.',
-        confirm: 'Delete',
-        danger: true,
-      })
-      .then(
-        (confirmed) => confirmed && model.deleteThread(root),
-        (error: unknown) => console.error('[whiteboard] the delete confirm failed', error),
-      )
+    Effect.runFork(
+      Effect.tryPromise(() =>
+        ctx.dialogs.confirm({
+          title: 'Delete this thread?',
+          description: 'This removes the comment, all its replies, and its pin.',
+          confirm: 'Delete',
+          danger: true,
+        }),
+      ).pipe(
+        Effect.map((confirmed) => confirmed && model.deleteThread(root)),
+        Effect.catchCause((cause) => Effect.logError('the delete confirm failed', cause)),
+        Effect.annotateLogs({plugin: 'whiteboard', thread: root.id}),
+      ),
+    )
   }
   return (
     <header class="pb-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">

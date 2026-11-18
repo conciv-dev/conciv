@@ -57,7 +57,11 @@ async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleto
 const CANVAS = 'fixed inset-0 pointer-events-auto'
 
 const reportMountError = (error: unknown): void =>
-  console.error(`[whiteboard] the excalidraw canvas failed to mount: ${String(error)}`)
+  void Effect.runFork(
+    Effect.logError('the excalidraw canvas failed to mount', error).pipe(
+      Effect.annotateLogs({plugin: 'whiteboard', surface: 'canvas'}),
+    ),
+  )
 
 class IslandBoundary extends Component<PropsWithChildren<{onError: (error: unknown) => void}>, {failed: boolean}> {
   override state = {failed: false}

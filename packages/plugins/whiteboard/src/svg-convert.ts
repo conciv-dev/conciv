@@ -1,3 +1,4 @@
+import {Effect} from 'effect'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 
 type ConvertOptions = {x: number; y: number; width: number; roughness: number}
@@ -185,7 +186,11 @@ function buildPath(node: Element, context: ShapeContext): ExcalidrawElementSkele
       const line = samplePathSubpath(node, subpath, context)
       if (line) out.push(line)
     } catch (error) {
-      console.error(`[whiteboard] svg path subpath skipped: ${String(error)}`)
+      Effect.runSync(
+        Effect.logError('svg path subpath skipped', error).pipe(
+          Effect.annotateLogs({plugin: 'whiteboard', element: node.id || node.tagName}),
+        ),
+      )
     }
   }
   return out

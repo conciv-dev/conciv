@@ -1,13 +1,18 @@
 import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
+import {Effect} from 'effect'
 import {z} from 'zod'
 import type {ChatCover} from './comments-model.js'
 
 export type SurfaceModule = typeof import('./canvas-surface.js')
 
 function reportFailure(toast: Context['toast'], error: unknown): void {
-  console.error('[whiteboard] the canvas failed to open', error)
+  Effect.runFork(
+    Effect.logError('the canvas failed to open', error).pipe(
+      Effect.annotateLogs({plugin: 'whiteboard', surface: 'canvas'}),
+    ),
+  )
   toast.show({title: 'The whiteboard needs a running conciv server', variant: 'error'})
 }
 
