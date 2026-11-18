@@ -7591,6 +7591,9 @@ describe('terminal panel', () => {
     await terminalTab().click()
     await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
     await typeLine('echo $((6*7))')
+    await expect
+      .element(terminalPanel().getByRole('listitem').filter({hasText: 'conciv: resumed session'}))
+      .not.toBeInTheDocument()
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
 
