@@ -2,7 +2,6 @@ import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {AttachmentUI, type RemoveAttachment} from './attachment-ui.js'
-import {CornerRemoveButton} from './corner-remove-button.js'
 import {
   attachmentId,
   fileToDataSource,
@@ -10,7 +9,7 @@ import {
   type AttachmentAdapter,
 } from '../primitives/attachment/attachment-adapter.js'
 
-export type AttachmentCardProps = {remove?: JSX.Element}
+export type AttachmentCardProps = {onRemove?: RemoveAttachment}
 
 export type AttachmentCardSlot = {mime: string; render: Component<AttachmentCardProps>}
 
@@ -28,16 +27,11 @@ export function AttachmentByMime(props: {
 }): JSX.Element {
   const attachment = useAttachment()
   const card = () => props.cards.find((entry) => entry.mime === attachmentMime(attachment))
-  const removeBadge = (): JSX.Element => {
-    const remove = props.onRemove
-    if (!remove) return undefined
-    return <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove(attachment.id)} />
-  }
   return (
     <Show when={card()} fallback={<AttachmentUI onRemove={props.onRemove} />}>
       {(entry) => (
         <Attachment.Root class="group">
-          <Dynamic component={entry().render} remove={removeBadge()} />
+          <Dynamic component={entry().render} onRemove={props.onRemove} />
         </Attachment.Root>
       )}
     </Show>

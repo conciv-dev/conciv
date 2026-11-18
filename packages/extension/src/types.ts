@@ -1,4 +1,4 @@
-import type {Component, JSX} from 'solid-js'
+import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {AnyRouter, ErrorMap, Meta, Middleware, ORPCErrorConstructorMap} from '@orpc/server'
@@ -185,7 +185,7 @@ export type AttachmentExpand<Ctx = unknown> = (
   ctx: Ctx,
 ) => Promise<readonly ContentPart[]> | readonly ContentPart[]
 
-export type AttachmentCardProps = {remove?: JSX.Element}
+export type AttachmentCardProps = {onRemove?: (id: string) => void}
 
 export type ExtensionAttachment = {mime: string; __card?: Component<AttachmentCardProps>; __ctx?: unknown}
 
