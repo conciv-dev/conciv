@@ -44,7 +44,6 @@
     "@conciv/embed": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/extension-terminal": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
@@ -60,7 +59,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "solid-js": ">=1.8"
+    "solid-js": "^1.8"
   },
   "engines": {
     "node": ">=26.0.0"
