@@ -19,8 +19,8 @@ the plugin. Each `ctx` domain returns an `Effect`.
 
 ```ts title="packages/plugins/recorder/src/index.ts"
 import {join} from 'node:path'
-import {Plugin, type Rpc} from '@conciv/plugin/effect'
-import {Effect, Queue, Stream} from 'effect'
+import {Plugin} from '@conciv/plugin/effect'
+import {Effect} from 'effect'
 import {createCaptureControl} from './capture-control.js'
 import {createRecordingStore} from './recordings.js'
 import {createChromiumRenderer} from './render.js'
