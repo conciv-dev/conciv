@@ -65,16 +65,18 @@ function pluginCommand(item: Item<Command>): WidgetCommand[] {
 }
 
 function placeAfterSlash(commands: WidgetCommand[]): WidgetCommand[] {
-  const anchors = uniqBy(
-    commands.filter((command) => command.after === undefined),
-    (command) => command.name,
-  )
-  const moved = commands.filter((command) => anchors.some((anchor) => anchor.name === command.after))
-  return commands.flatMap((command) => {
-    if (moved.includes(command)) return []
-    if (!anchors.includes(command)) return [command]
-    return [command, ...moved.filter((follower) => follower.after === command.name)]
-  })
+  const anchorFor = (command: WidgetCommand) => commands.find((anchor) => anchor.name === command.after)
+  const reachesRoot = (command: WidgetCommand, steps: number): boolean => {
+    const anchor = anchorFor(command)
+    if (!anchor) return true
+    return steps > 0 && reachesRoot(anchor, steps - 1)
+  }
+  const follows = (command: WidgetCommand) => anchorFor(command) !== undefined && reachesRoot(command, commands.length)
+  const place = (command: WidgetCommand): WidgetCommand[] => [
+    command,
+    ...commands.filter((follower) => follower.after === command.name && follows(follower)).flatMap(place),
+  ]
+  return commands.filter((command) => !follows(command)).flatMap(place)
 }
 
 function widgetCommandEntry(command: WidgetCommand): RichTextFieldTriggerItem {
@@ -137,9 +139,11 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
       .items(Command)
       .toSorted((first, second) => pluginRank(first.plugin) - pluginRank(second.plugin))
       .flatMap(pluginCommand)
-    return uniqBy(
-      placeAfterSlash([...builtinCommands(props), ...pluginCommands, ...extensionCommands(instances, props)]),
-      (command) => command.name,
+    return placeAfterSlash(
+      uniqBy(
+        [...builtinCommands(props), ...pluginCommands, ...extensionCommands(instances, props)],
+        (command) => command.name,
+      ),
     )
   })
   const runTyped = (text: string): boolean => {
