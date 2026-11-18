@@ -2,6 +2,9 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {Permission} from '@conciv/plugin/schema/permission'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Effect} from 'effect'
+import type {SourceUnreadable} from '../anchor/confine.js'
+import type {StoreError} from '../server/store.js'
+import type {RenderFailed} from './canvas/preview.js'
 
 type Failure = {code?: string; message: string; error?: unknown}
 export type Confirm = Context['permission']
@@ -36,15 +39,16 @@ export function confirmed(
   })
 }
 
-export function fail({code, ...failure}: Failure): never {
-  throw Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}})
+export function fail({code, ...failure}: Failure) {
+  return Effect.fail(Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}}))
 }
 
-function toolFailure(error: unknown): Tool.Error {
-  if (error instanceof globalThis.Error && Tool.isToolError(error)) return error
-  return Tool.makeError({message: error instanceof globalThis.Error ? error.message : String(error), error})
-}
-
-export function attemptPromise<Value>(work: () => Promise<Value>) {
-  return Effect.tryPromise({try: work, catch: toolFailure})
+export function toolEdge<Value>(work: Effect.Effect<Value, Tool.Error | StoreError | RenderFailed | SourceUnreadable>) {
+  return work.pipe(
+    Effect.catchTags({
+      StoreError: (failure) => fail({message: `whiteboard state ${failure.key} is unreadable: ${failure.message}`}),
+      RenderFailed: (failure) => fail({message: failure.message}),
+      SourceUnreadable: (failure) => fail({message: failure.message}),
+    }),
+  )
 }

@@ -1,11 +1,7 @@
-import type {AnchorResolver} from './resolver.js'
+import {Effect} from 'effect'
+import {unreadable} from './confine.js'
 
-const cache = new Map<string, Promise<AnchorResolver>>()
-
-export function loadResolver(root: string): Promise<AnchorResolver> {
-  const existing = cache.get(root)
-  if (existing) return existing
-  const created = import('./resolver.js').then((m) => m.createReactAnchorResolver({root}))
-  cache.set(root, created)
-  return created
-}
+export const loadResolver = (root: string) =>
+  Effect.tryPromise({try: () => import('./resolver.js'), catch: unreadable(root)}).pipe(
+    Effect.map((module) => module.createReactAnchorResolver({root})),
+  )

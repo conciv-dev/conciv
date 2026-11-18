@@ -1,5 +1,5 @@
-import {execFileSync, spawnSync} from 'node:child_process'
-import {existsSync, mkdirSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
+import {mkdirSync} from 'node:fs'
 import {open} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -11,6 +11,13 @@ import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
+import {Tool} from '@conciv/plugin/schema/tool'
+import {Cause, Effect, Exit, Fiber, Ref, type Schema} from 'effect'
+import {TestClock} from 'effect/testing'
+import {startPending, transitionPending, type PendingState} from '../src/server/pending-machine.js'
+import {makeWhiteboardStore} from '../src/server/store.js'
+import {awaitDrawing, commitDraft, exportPng} from '../src/tool/canvas/tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const OTHER_ROOM = 'conciv_other_room'
@@ -316,7 +323,7 @@ function pinRow(cid: string) {
 }
 
 describe('the whiteboard plugin', () => {
-  it('is active, serves its browser bundle, offers its twenty-two tools under the whiteboard namespace and ships migrations in step with its schema', async () => {
+  it('is active, serves its browser bundle, offers its twenty-two tools under the whiteboard namespace', async () => {
     const {kit, room} = await boot()
 
     const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'whiteboard')
@@ -330,13 +337,6 @@ describe('the whiteboard plugin', () => {
     expect(offered.errors).toBeUndefined()
     expect(offered.tools.map((tool) => tool.name).toSorted()).toEqual(OFFERED_TOOLS.map((name) => `external_${name}`))
     for (const tool of offered.tools) expect(tool.description, tool.name).not.toBe('')
-
-    const checked = spawnSync(join(PACKAGE_DIR, 'node_modules', '.bin', 'drizzle-kit'), ['check'], {
-      cwd: PACKAGE_DIR,
-      encoding: 'utf8',
-    })
-    expect(checked.stdout).toContain("Everything's fine")
-    expect(checked.status).toBe(0)
   })
 })
 
@@ -474,7 +474,7 @@ describe('the whiteboard store and its rpc', () => {
     expect(await listPending(kit, room)).toEqual([])
   })
 
-  it('keeps its database in the project folder, where a second engine on that folder reads the board back', async () => {
+  it('keeps its board in the plugin storage of the state root, where a second engine on that root reads it back', async () => {
     const folder = tempDir('conciv-whiteboard-reopen-')
 
     const first = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], stateRoot: folder})
@@ -517,7 +517,6 @@ describe('the whiteboard store and its rpc', () => {
     onTestFinished(() => second.cleanup())
     expect(second.stateRoot).toBe(folder)
     expect(await board(second, room)).toEqual(stored)
-    expect(existsSync(join(folder, '.conciv', 'whiteboard', 'whiteboard.db'))).toBe(true)
   })
 
   it('announces each stored change as ids and a per-room cursor, and answers the missed changes since a cursor', async () => {
@@ -817,5 +816,130 @@ describe('the whiteboard anchors', () => {
     expect(insertedThenEnriched.map((change) => change.type)).toEqual(['upsert', 'upsert'])
     const rows = z.array(CommentSchema).parse(await call(kit, 'comments.list', {room}))
     expect(rows.find((row) => row.id === inserted)?.anchorHash).toEqual(anchored?.anchorHash)
+  })
+})
+
+describe('the pending request machine', () => {
+  it('waits for the deadline, follows a claim lease, ignores stale attempts and ends once', () => {
+    const started = startPending(8_000)
+    expect(started.effects).toEqual([{type: 'wait', attempt: 0, ms: 8_000}])
+    const stale = transitionPending(started.state, {type: 'waitExpired', attempt: 3, claim: {status: 'gone'}, now: 0})
+    expect(stale.state).toBe(started.state)
+    expect(stale.effects).toEqual([])
+    expect(
+      transitionPending(started.state, {type: 'waitExpired', attempt: 0, claim: {status: 'unclaimed'}, now: 8_000}),
+    ).toEqual({state: {status: 'done', outcome: 'unclaimed'}, effects: [{type: 'finish', outcome: 'unclaimed'}]})
+    expect(
+      transitionPending(started.state, {type: 'waitExpired', attempt: 0, claim: {status: 'gone'}, now: 8_000}).state,
+    ).toEqual({status: 'done', outcome: 'drawn'})
+    const claimed = transitionPending(started.state, {
+      type: 'waitExpired',
+      attempt: 0,
+      claim: {status: 'claimed', until: 30_000},
+      now: 8_000,
+    })
+    expect(claimed).toEqual({
+      state: {status: 'claimed', attempt: 1, leaseUntil: 30_000},
+      effects: [{type: 'wait', attempt: 1, ms: 22_000}],
+    })
+    const expired = transitionPending(claimed.state, {
+      type: 'waitExpired',
+      attempt: 1,
+      claim: {status: 'claimed', until: 30_000},
+      now: 30_000,
+    })
+    expect(expired.state).toEqual({status: 'done', outcome: 'unfinished'})
+    expect(transitionPending(claimed.state, {type: 'drained'}).state).toEqual({status: 'done', outcome: 'drawn'})
+    const disposed = transitionPending(claimed.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    const after: PendingState = disposed.state
+    expect(transitionPending(after, {type: 'drained'}).state).toBe(after)
+    expect(transitionPending(expired.state, {type: 'drained'}).state).toBe(expired.state)
+  })
+})
+
+const memoryStorage = Effect.gen(function* () {
+  const entries = yield* Ref.make<Readonly<Record<string, Schema.Json>>>({})
+  const storage: PluginContext['storage'] = {
+    directory: '',
+    get: (key) => Ref.get(entries).pipe(Effect.map((all) => Object.entries(all).find(([name]) => name === key)?.[1])),
+    set: (key, value) => Ref.update(entries, (all) => ({...all, [key]: value})),
+    remove: (key) =>
+      Ref.update(entries, (all) => Object.fromEntries(Object.entries(all).filter(([name]) => name !== key))),
+    scan: ({prefix, after}) =>
+      Ref.get(entries).pipe(
+        Effect.map((all) => ({
+          entries: Object.entries(all)
+            .filter(([key]) => key.startsWith(prefix) && (after === undefined || key > after))
+            .toSorted(([left], [right]) => (left < right ? -1 : 1))
+            .map(([key, value]) => ({key, value})),
+        })),
+      ),
+  }
+  return yield* makeWhiteboardStore(storage)
+})
+
+const ROOM = 'conciv_clocked'
+
+function failureCode<Value, Failure>(exit: Exit.Exit<Value, Failure>): unknown {
+  if (Exit.isSuccess(exit)) return 'answered'
+  const failure = Cause.squash(exit.cause)
+  if (!Tool.isToolError(failure)) return 'no tool failure'
+  return failure.metadata?.['code']
+}
+
+function clocked<Value, Failure>(program: Effect.Effect<Value, Failure>) {
+  return Effect.runPromise(program.pipe(Effect.provide(TestClock.layer())))
+}
+
+describe('the pending request driver on the test clock', () => {
+  it('answers unclaimed at the draw deadline, waits out a claim lease, and times out a commit and an export', async () => {
+    const outcomes = await clocked(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* memoryStorage
+          const insert = (id: string) =>
+            store.pending.insert(ROOM, {id, room: ROOM, kind: 'skeletons', stage: 'draft', payload: {}})
+          const unclaimed = yield* Effect.forkChild(Effect.scoped(awaitDrawing(store, ROOM, insert, 8_000)), {
+            startImmediately: true,
+          })
+          yield* TestClock.adjust(7_999)
+          expect(unclaimed.pollUnsafe()).toBeUndefined()
+          yield* TestClock.adjust(1)
+          const first = yield* Fiber.join(unclaimed)
+
+          const leased = yield* Effect.forkChild(
+            Effect.scoped(
+              awaitDrawing(store, ROOM, (id) => insert(id).pipe(Effect.andThen(store.pending.claim(ROOM, id))), 8_000),
+            ),
+            {startImmediately: true},
+          )
+          yield* TestClock.adjust(8_000)
+          expect(leased.pollUnsafe()).toBeUndefined()
+          yield* TestClock.adjust(22_000)
+          const second = yield* Fiber.join(leased)
+
+          const drained = yield* Effect.forkChild(
+            Effect.scoped(
+              awaitDrawing(store, ROOM, (id) => insert(id).pipe(Effect.andThen(store.pending.remove(ROOM, id))), 8_000),
+            ),
+            {startImmediately: true},
+          )
+          const third = yield* Fiber.join(drained)
+
+          yield* store.upsertElement('draft', {room: ROOM, elementId: 'kept', data: {}, version: 1})
+          const commit = yield* Effect.forkChild(Effect.exit(commitDraft(store, ROOM)), {startImmediately: true})
+          yield* TestClock.adjust(15_000)
+          const committed = yield* Fiber.join(commit)
+          const exporting = yield* Effect.forkChild(Effect.exit(exportPng(store, ROOM, 'live')), {
+            startImmediately: true,
+          })
+          yield* TestClock.adjust(10_000)
+          const exported = yield* Fiber.join(exporting)
+          return [first.outcome, second.outcome, third.outcome, failureCode(committed), failureCode(exported)]
+        }),
+      ),
+    )
+    expect(outcomes).toEqual(['unclaimed', 'unfinished', 'drawn', 'COMMIT_TIMEOUT', 'EXPORT_TIMEOUT'])
   })
 })

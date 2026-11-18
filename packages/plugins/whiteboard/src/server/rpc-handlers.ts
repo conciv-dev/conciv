@@ -1,136 +1,159 @@
 import type {RpcHandlers} from '@conciv/plugin/effect/rpc'
-import {and, eq} from 'drizzle-orm'
-import {Effect} from 'effect'
+import {Effect, Schema} from 'effect'
 import type {Whiteboard} from '../rpc.js'
-import {canvasPending, canvasReplies, comments, pins, reads} from './db/schema.js'
-import type {Store} from './db/store.js'
+import {StoreError, type RowNotFound, type Store} from './store.js'
 
-const notFound = (id: string) => ({id})
+const isStoreError = Schema.is(StoreError)
 
-function found<Row, Missing>(read: () => Promise<Row>, missing: () => Missing) {
-  return Effect.promise(read).pipe(Effect.flatMap(Effect.fromNullishOr), Effect.mapError(missing))
+function unreadable<Value, Failure>(work: Effect.Effect<Value, Failure>) {
+  return work.pipe(Effect.catchIf(isStoreError, Effect.die))
 }
 
+const missing =
+  <Failure>(what: string, error: (message: string, failure: RowNotFound) => Failure) =>
+  (failure: RowNotFound) =>
+    Effect.fail(error(`no ${what} ${failure.id} in this room`, failure))
+
 export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard> {
-  const db = store.db
   return {
-    'comments.list': ({room}) => Effect.promise(() => db.select().from(comments).where(eq(comments.sessionId, room))),
+    'comments.list': ({room}) => unreadable(store.comments.list(room)),
     'comments.get': ({room, id}, {error}) =>
-      found(
-        () =>
-          db
-            .select()
-            .from(comments)
-            .where(and(eq(comments.id, id), eq(comments.sessionId, room)))
-            .get(),
-        () => error('NOT_FOUND', `no comment ${id} in this room`, notFound(id)),
-      ),
-    'comments.insert': ({room, row}) => Effect.promise(() => store.insertComment({...row, sessionId: room})),
-    'comments.update': ({room, id, patch}, {error}) =>
-      found(
-        () => store.updateComment(id, room, patch),
-        () => error('NOT_FOUND', `no comment ${id} in this room`, notFound(id)),
-      ),
-    'comments.remove': ({room, id}) => Effect.promise(async () => ({deleted: await store.deleteComment(id, room)})),
-    'pins.list': ({room}) => Effect.promise(() => db.select().from(pins).where(eq(pins.room, room))),
-    'pins.get': ({room, id}, {error}) =>
-      found(
-        () =>
-          db
-            .select()
-            .from(pins)
-            .where(and(eq(pins.id, id), eq(pins.room, room)))
-            .get(),
-        () => error('NOT_FOUND', `no pin ${id} in this room`, notFound(id)),
-      ),
-    'pins.insert': ({room, row}) => Effect.promise(() => store.insertPin({...row, room})),
-    'pins.update': ({room, id, patch}, {error}) =>
-      found(
-        () => store.updatePin(id, room, patch),
-        () => error('NOT_FOUND', `no pin ${id} in this room`, notFound(id)),
-      ),
-    'pins.remove': ({room, id}) => Effect.promise(async () => ({deleted: await store.deletePin(id, room)})),
-    'reads.list': ({room}) => Effect.promise(() => db.select().from(reads).where(eq(reads.sessionId, room))),
-    'reads.get': ({room, id}, {error}) =>
-      found(
-        () =>
-          db
-            .select()
-            .from(reads)
-            .where(and(eq(reads.id, id), eq(reads.sessionId, room)))
-            .get(),
-        () => error('NOT_FOUND', `no read ${id} in this room`, notFound(id)),
-      ),
-    'reads.insert': ({room, row}) => Effect.promise(() => store.insertRead({...row, sessionId: room})),
-    'reads.update': ({room, id, patch}, {error}) =>
-      found(
-        () => store.updateRead(id, room, patch),
-        () => error('NOT_FOUND', `no read ${id} in this room`, notFound(id)),
-      ),
-    'reads.remove': ({room, id}) => Effect.promise(async () => ({deleted: await store.deleteRead(id, room)})),
-    'canvasPending.list': ({room}) =>
-      Effect.promise(() => db.select().from(canvasPending).where(eq(canvasPending.room, room))),
-    'canvasPending.get': ({room, id}, {error}) =>
-      found(
-        () =>
-          db
-            .select()
-            .from(canvasPending)
-            .where(and(eq(canvasPending.id, id), eq(canvasPending.room, room)))
-            .get(),
-        () => error('NOT_FOUND', `no pending row ${id} in this room`, notFound(id)),
-      ),
-    'canvasPending.insert': ({room, row}) => Effect.promise(() => store.insertPending({...row, room})),
-    'canvasPending.update': ({room, id, patch}, {error}) =>
-      found(
-        () => store.updatePending(id, room, patch),
-        () => error('NOT_FOUND', `no pending row ${id} in this room`, notFound(id)),
-      ),
-    'canvasPending.remove': ({room, id}) =>
-      Effect.promise(async () => ({deleted: await store.deletePending(id, room)})),
-    'canvasPending.claim': ({room, id}) => Effect.promise(async () => ({claimed: await store.claimPending(id, room)})),
-    'canvasReplies.list': ({room}) =>
-      Effect.promise(() => db.select().from(canvasReplies).where(eq(canvasReplies.room, room))),
-    'canvasReplies.get': ({room, id}, {error}) =>
-      found(
-        () =>
-          db
-            .select()
-            .from(canvasReplies)
-            .where(and(eq(canvasReplies.id, id), eq(canvasReplies.room, room)))
-            .get(),
-        () => error('NOT_FOUND', `no reply ${id} in this room`, notFound(id)),
-      ),
-    'canvasReplies.insert': ({room, row}) => Effect.promise(() => store.insertReply({...row, room})),
-    'canvasReplies.update': ({room, id, patch}, {error}) =>
-      found(
-        () => store.updateReply(id, room, patch),
-        () => error('NOT_FOUND', `no reply ${id} in this room`, notFound(id)),
-      ),
-    'canvasReplies.remove': ({room, id}) => Effect.promise(async () => ({deleted: await store.deleteReply(id, room)})),
-    'elements.list': ({room, scope}) => Effect.promise(() => store.listElements(scope, room)),
-    'elements.get': ({room, scope, elementId}, {error}) =>
-      found(
-        () => store.getElement(scope, room, elementId),
-        () => error('NOT_FOUND', `no element ${elementId} in this room`, notFound(elementId)),
-      ),
-    'elements.upsert': ({room, scope, row}, {error}) =>
-      Effect.promise(() => store.upsertElement(scope, {...row, room})).pipe(
-        Effect.flatMap((outcome) =>
-          outcome.ok
-            ? Effect.succeed(outcome.row)
-            : Effect.fail(error('CONFLICT', 'element version conflict', {current: outcome.current})),
+      unreadable(
+        store.comments.get(room, id).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('comment', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
         ),
       ),
+    'comments.insert': ({room, row}) => unreadable(store.comments.insert(room, {...row, sessionId: room})),
+    'comments.update': ({room, id, patch}, {error}) =>
+      unreadable(
+        store.comments.update(room, id, patch).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('comment', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'comments.remove': ({room, id}) =>
+      unreadable(store.comments.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'pins.list': ({room}) => unreadable(store.pins.list(room)),
+    'pins.get': ({room, id}, {error}) =>
+      unreadable(
+        store.pins.get(room, id).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('pin', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'pins.insert': ({room, row}) => unreadable(store.pins.insert(room, {...row, room})),
+    'pins.update': ({room, id, patch}, {error}) =>
+      unreadable(
+        store.pins.update(room, id, patch).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('pin', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'pins.remove': ({room, id}) => unreadable(store.pins.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'reads.list': ({room}) => unreadable(store.reads.list(room)),
+    'reads.get': ({room, id}, {error}) =>
+      unreadable(
+        store.reads.get(room, id).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('read', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'reads.insert': ({room, row}) => unreadable(store.reads.insert(room, {...row, sessionId: room})),
+    'reads.update': ({room, id, patch}, {error}) =>
+      unreadable(
+        store.reads.update(room, id, patch).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('read', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'reads.remove': ({room, id}) => unreadable(store.reads.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'canvasPending.list': ({room}) => unreadable(store.pending.list(room)),
+    'canvasPending.get': ({room, id}, {error}) =>
+      unreadable(
+        store.pending.get(room, id).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('pending row', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'canvasPending.insert': ({room, row}) => unreadable(store.pending.insert(room, {...row, room})),
+    'canvasPending.update': ({room, id, patch}, {error}) =>
+      unreadable(
+        store.pending.update(room, id, patch).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('pending row', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'canvasPending.remove': ({room, id}) =>
+      unreadable(store.pending.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'canvasPending.claim': ({room, id}) =>
+      unreadable(store.pending.claim(room, id)).pipe(Effect.map((claimed) => ({claimed}))),
+    'canvasReplies.list': ({room}) => unreadable(store.replies.list(room)),
+    'canvasReplies.get': ({room, id}, {error}) =>
+      unreadable(
+        store.replies.get(room, id).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('reply', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'canvasReplies.insert': ({room, row}) => unreadable(store.replies.insert(room, {...row, room})),
+    'canvasReplies.update': ({room, id, patch}, {error}) =>
+      unreadable(
+        store.replies.update(room, id, patch).pipe(
+          Effect.catchTag(
+            'RowNotFound',
+            missing('reply', (message, failure) => error('NOT_FOUND', message, {id: failure.id})),
+          ),
+        ),
+      ),
+    'canvasReplies.remove': ({room, id}) =>
+      unreadable(store.replies.remove(room, id)).pipe(Effect.map((deleted) => ({deleted}))),
+    'elements.list': ({room, scope}) => unreadable(store.listElements(scope, room)),
+    'elements.get': ({room, scope, elementId}, {error}) =>
+      unreadable(store.getElement(scope, room, elementId)).pipe(
+        Effect.flatMap((row) =>
+          row
+            ? Effect.succeed(row)
+            : Effect.fail(error('NOT_FOUND', `no element ${elementId} in this room`, {id: elementId})),
+        ),
+      ),
+    'elements.upsert': ({room, scope, row}, {error}) =>
+      unreadable(
+        store
+          .upsertElement(scope, {...row, room})
+          .pipe(
+            Effect.catchTag('VersionConflict', ({current}) =>
+              Effect.fail(error('CONFLICT', 'element version conflict', {current})),
+            ),
+          ),
+      ),
     'elements.bulkUpsert': ({room, scope, rows}) =>
-      Effect.promise(async () => ({
-        rows: await store.upsertElements(
+      unreadable(
+        store.upsertElements(
           scope,
           rows.map((row) => ({...row, room})),
         ),
-      })),
+      ).pipe(Effect.map((saved) => ({rows: saved}))),
     'elements.bulkDelete': ({room, scope, elementIds}) =>
-      Effect.promise(async () => ({deleted: await store.deleteElements(scope, room, elementIds)})),
-    since: ({room, cursor}) => Effect.promise(() => store.since(room, cursor)),
+      unreadable(store.deleteElements(scope, room, elementIds)).pipe(Effect.map((deleted) => ({deleted}))),
+    since: ({room, cursor}) => unreadable(store.since(room, cursor)),
   }
 }

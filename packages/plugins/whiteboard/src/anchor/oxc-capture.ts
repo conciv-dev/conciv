@@ -1,7 +1,7 @@
-import {readFile} from 'node:fs/promises'
 import {isPlainObject} from 'es-toolkit'
 import {parseSync} from 'oxc-parser'
-import {confineToRoot, isSecretPath, redactSnippet} from './confine.js'
+import {Effect} from 'effect'
+import {isSecretPath, readSource, redactSnippet} from './confine.js'
 
 export type SourceAnchor = {
   file: string
@@ -148,15 +148,14 @@ export function scanElements(source: string): ElementFingerprint[] {
   return out
 }
 
-export async function captureSource(opts: {
+export const captureSource = Effect.fn('whiteboard.anchor.captureSource')(function* (opts: {
   root: string
   file: string
   line: number
   column: number
   commit: string | null
-}): Promise<SourceAnchor> {
-  const abs = await confineToRoot(opts.root, opts.file)
-  const source = await readFile(abs, 'utf8')
+}) {
+  const source = yield* readSource(opts.root, opts.file)
   const {hash, salt, component, snippet} = hashAt(source, opts.line, opts.column)
   return {
     file: opts.file,
@@ -167,5 +166,5 @@ export async function captureSource(opts: {
     salt,
     snippet: isSecretPath(opts.file) ? '' : snippet,
     commit: opts.commit,
-  }
-}
+  } satisfies SourceAnchor
+})
