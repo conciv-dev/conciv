@@ -1,11 +1,10 @@
-import {createUniqueId, For, onCleanup, Show, type JSX} from 'solid-js'
+import {createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {createStore, reconcile, unwrap} from 'solid-js/store'
 import {createKeyed, Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {MetaToolCard, parseResultPayload, StatusVisual, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
-import {TestRunner} from '@conciv/plugin-test-runner/rpc'
 import {
   countLabel,
   counts,
@@ -231,21 +230,32 @@ function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.E
   const [run, setRun] = createStore(initialRunState)
   const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
 
-  const read = async (client: Client, signal: AbortSignal) => {
-    const current = await client.rpc(TestRunner).current(undefined, {signal})
-    if (!signal.aborted) dispatch({type: 'current', ...current})
-  }
-
   createKeyed(
     () => props.client(),
     (client) => {
       const controller = new AbortController()
       onCleanup(() => controller.abort())
-      void followTestRun(client, controller.signal, {dispatch, read})
+      void followTestRun(client, controller.signal, dispatch)
     },
   )
 
-  return <RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase !== 'done'} />
+  return (
+    <Switch fallback={<RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase === 'running'} />}>
+      <Match when={run.phase === 'unavailable'}>
+        <div class="flex flex-col gap-1">
+          <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+            The test runner is unavailable
+          </p>
+          <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{run.reason}</p>
+        </div>
+      </Match>
+      <Match when={run.phase === 'idle'}>
+        <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+          No test run yet
+        </p>
+      </Match>
+    </Switch>
+  )
 }
 
 function openFailure(ctx: Context, error: TestError): void {

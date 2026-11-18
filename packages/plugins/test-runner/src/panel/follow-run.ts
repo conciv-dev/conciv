@@ -1,4 +1,5 @@
 import type {Context} from '@conciv/plugin/experimental'
+import {TestRunner} from '../rpc.js'
 import {TestEventSchema} from '../shared/events.js'
 import type {RunAction} from './run-state.js'
 
@@ -7,14 +8,15 @@ type Client = Context['client']
 export async function followTestRun(
   client: Client,
   signal: AbortSignal,
-  handlers: {
-    readonly dispatch: (action: RunAction) => void
-    readonly read: (client: Client, signal: AbortSignal) => Promise<void>
-  },
+  dispatch: (action: RunAction) => void,
 ): Promise<void> {
   const read = async () => {
     try {
-      await handlers.read(client, signal)
+      const runner = client.rpc(TestRunner)
+      const result = await runner.status(undefined, {signal})
+      if (!signal.aborted) dispatch({type: 'status', result})
+      const current = await runner.current(undefined, {signal})
+      if (!signal.aborted) dispatch({type: 'current', ...current})
     } catch (error) {
       if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
     }
@@ -22,12 +24,12 @@ export async function followTestRun(
   try {
     for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
       if (event.type === 'server.connected') {
-        handlers.dispatch({type: 'connected'})
+        dispatch({type: 'connected'})
         void read()
         continue
       }
       const parsed = TestEventSchema.safeParse(event.data)
-      if (parsed.success) handlers.dispatch(parsed.data)
+      if (parsed.success) dispatch(parsed.data)
       else console.error('[test-runner] a live test event did not match its schema', parsed.error)
     }
   } catch (error) {

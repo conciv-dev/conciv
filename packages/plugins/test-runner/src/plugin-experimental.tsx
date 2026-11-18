@@ -4,19 +4,15 @@ import {
   createKeyed,
   Panel,
   Plugin,
-  type Context,
   type PanelTab,
   type SessionRef,
   type SessionScreen,
 } from '@conciv/plugin/experimental'
-import {TestRunner} from './rpc.js'
 import type {TestError} from './shared/events.js'
 import {initialRunState, transitionRun, type RunAction} from './panel/run-state.js'
 import {followTestRun} from './panel/follow-run.js'
 import {TestsPanel} from './panel/tests-panel.js'
 import {fixPrompt, relativePath} from './view.js'
-
-type Client = Context['client']
 
 export default Plugin.define({
   setup(ctx) {
@@ -34,20 +30,12 @@ export default Plugin.define({
     const [run, setRun] = createStore(initialRunState)
     const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
 
-    const read = async (client: Client, signal: AbortSignal) => {
-      const runner = client.rpc(TestRunner)
-      const result = await runner.status(undefined, {signal})
-      if (!signal.aborted) dispatch({type: 'status', result})
-      const current = await runner.current(undefined, {signal})
-      if (!signal.aborted) dispatch({type: 'current', ...current})
-    }
-
     createKeyed(
       () => ctx.client,
       (client) => {
         const controller = new AbortController()
         onCleanup(() => controller.abort())
-        void followTestRun(client, controller.signal, {dispatch, read})
+        void followTestRun(client, controller.signal, dispatch)
       },
     )
 
