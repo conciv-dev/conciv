@@ -270,9 +270,9 @@ export const terminal = defineExtension({
 ```
 
 `getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
-uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `usePopover`, `useSessionId`,
-`useGrab`, `useComposerInsert`, `useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`,
-`useOpenEditor`, `useConnect`, `useViewLock`, `useLeaveView`, plus the `Suppress`/`YieldFocus`
+uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `useSessionId`, `useGrab`,
+`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useConnect`, `useViewLock`,
+`useLeaveView`, `useScope`, `useColorScheme`, plus the `Suppress`/`YieldFocus`
 layer-gate components — and adds `useContext`, scoped to the extension you named. Each hook throws
 with a clear "used outside a host that provides…" message if called where the host never wired that
 value — that error means the component rendered outside

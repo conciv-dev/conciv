@@ -9,7 +9,8 @@
   "scripts": {
     "plugin:build": "vite build --config conciv/plugins/deploy/vite.config.ts",
     "plugin:watch": "vite build --watch --config conciv/plugins/deploy/vite.config.ts",
-    "dev": "pnpm run plugin:build && vite dev --port 3000",
+    "dev": "pnpm run plugin:build && pnpm run \"/^(plugin:watch|dev:vite)$/\"",
+    "dev:vite": "vite dev --port 3000",
     "generate-routes": "tsr generate",
     "build": "pnpm run plugin:build && vite build",
     "preview": "vite preview",
@@ -21,7 +22,6 @@
     "@conciv/embed": "workspace:*",
     "@conciv/extension-recorder": "workspace:*",
     "@conciv/extension-tanstack": "workspace:*",
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",

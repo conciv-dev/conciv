@@ -14,31 +14,30 @@ import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
 import getPort from 'get-port'
 import {z} from 'zod'
-import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
+import {makeRpcClient} from '@conciv/contract'
+import {
+  collectFailures,
+  expectPluginBundleReloadsInPlace,
+  expectWidgetBoots,
+  loginWidget,
+  trustedEngineBase,
+} from '@conciv/e2e-utils/widget'
 import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, run} from '@conciv/vitest-config/pack'
 import {stopNext, waitFor, type NextHandle} from '../packed/harness.js'
 
-const CreatedSchema = z.object({json: z.object({sessionId: z.string()})})
-
-test('widget boots from dist in a nextjs app with the terminal extension tab its config installs', async ({page}) => {
+test('widget boots from dist in a nextjs app with the built-in Terminal tab', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
-  await expect(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('tab', {name: 'Terminal'})).toBeVisible()
+  const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
+  await chat.getByRole('tab', {name: 'Terminal'}).click()
+  await expect(chat.getByRole('button', {name: 'New terminal'})).toBeVisible()
 })
 
-test('the terminal server extension installed in next.config loaded and answers for a session', async ({page}) => {
-  const base = await trustedEngineBase(page)
-  const post = async (path: string, json: unknown): Promise<unknown> =>
-    (
-      await fetch(`${base}/rpc/${path}`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({json}),
-      })
-    ).json()
-  const {sessionId} = CreatedSchema.parse(await post('sessions/create', undefined)).json
-  expect(await post('ext/terminal/state', {sessionId})).toEqual({json: {alive: false, busy: false}})
+test('the engine started by next.config offers its built-in terminal for a session', async ({page}) => {
+  const client = makeRpcClient(await trustedEngineBase(page))
+  const {sessionId} = await client.sessions.create()
+  expect((await client.meta.models({sessionId})).harness.persistentPty).toBe(true)
 })
 
 function writeLinkedApp(appDir: string, enginePort: number): void {
@@ -124,4 +123,14 @@ test.describe('a workspace-linked @conciv/it under next dev and then next build'
       rmSync(appDir, {recursive: true, force: true})
     }
   })
+})
+
+test('a rebuilt project plugin bundle reloads in the open widget without a page reload', async ({page}) => {
+  const failures = collectFailures(page)
+  await loginWidget(page)
+  await expectPluginBundleReloadsInPlace(
+    page,
+    failures,
+    join(import.meta.dirname, '../conciv/plugins/live-line/plugin-experimental.js'),
+  )
 })

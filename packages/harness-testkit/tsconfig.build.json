@@ -1,0 +1,1 @@
+{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}

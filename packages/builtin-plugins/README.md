@@ -111,6 +111,13 @@ body) and after it finishes. The cards are built from `@conciv/ui-kit-chat/tools
 widget already bundles, so the embed keeps one copy of each. The old TanStack extension keeps its own copy until that
 extension is deleted.
 
+## recorder-card
+
+The recorder tools (`recording_start`, `recording_stop`, `recording_pull`) share one card claim that draws the whole
+card: the started capture's id, the pulled or stopped window's action list with its window, action and keyframe
+counts, and a failed call's error. It lives here, not in `@conciv/plugin-recorder`, because a whole-card claim is for
+built-in plugins only and a plugin's own bundle may not import the kit the widget bundles.
+
 ## terminal
 
 The session's CLI in a terminal (built-in id `terminal`, a pinned Terminal tab in the session's pane): listed for a

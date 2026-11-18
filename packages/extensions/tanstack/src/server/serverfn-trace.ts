@@ -1,20 +1,20 @@
-import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ServerFnInfo, ServerFnTrace} from '@conciv/contract'
 
 export type ServerFnTraceRing = {
-  observe: (diagnostic: BundlerDiagnostic) => void
+  observe: (diagnostic: Bundler.Diagnostic) => void
   traces: (count?: number) => ServerFnTrace[]
   functions: () => ServerFnInfo[]
 }
 
-type RequestTraceDiagnostic = Extract<BundlerDiagnostic, {kind: 'request-trace'}>
+type RequestTraceDiagnostic = Extract<Bundler.Diagnostic, {kind: 'request-trace'}>
 
 type DecodedServerFn = {file: string; export: string}
 
 const SERVER_FN_PREFIX = '/_serverFn/'
 const DEFAULT_CAPACITY = 100
 
-function isRequestTrace(diagnostic: BundlerDiagnostic): diagnostic is RequestTraceDiagnostic {
+function isRequestTrace(diagnostic: Bundler.Diagnostic): diagnostic is RequestTraceDiagnostic {
   return diagnostic.kind === 'request-trace'
 }
 
