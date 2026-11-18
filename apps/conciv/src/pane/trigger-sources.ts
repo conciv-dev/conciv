@@ -200,11 +200,14 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Context',
       items: async (query) => {
-        const [skills, agents] = await Promise.all([
+        const [skills, agents] = await Promise.allSettled([
           queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
           queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
         ])
-        const entries = uniqBy([...skills.data.map(skillEntry), ...agentEntries(agents.data)], (entry) => entry.id)
+        if (skills.status === 'rejected' && agents.status === 'rejected') throw skills.reason
+        const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
+        const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
+        const entries = uniqBy([...skillList, ...agentList], (entry) => entry.id)
         return matchingItems(entries, query, matcher())
       },
     },

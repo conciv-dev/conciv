@@ -1479,7 +1479,9 @@ export default {
     await expect.element(mention('@build')).not.toBeInTheDocument()
     await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
 
-    await userEvent.keyboard('review{Enter}')
+    await userEvent.keyboard('review')
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName('@reviewer')
+    await userEvent.keyboard('{Enter}')
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@reviewer')).toBeVisible()
