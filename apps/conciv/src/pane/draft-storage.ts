@@ -89,7 +89,7 @@ function joinDraftText(saved: string, text: string, place: DraftPlace): string {
   return place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
 }
 
-async function keepInDraft(
+async function saveKeptDraft(
   appData: AppData,
   sessionId: string,
   kept: {text: string; items: readonly DraftItem[]},
@@ -109,6 +109,19 @@ async function keepInDraft(
     attachments: row?.attachments ?? [],
     items: uniqBy([...(row?.items ?? []), ...kept.items], (item) => item.key),
   })
+}
+
+const keptDrafts = {written: Promise.resolve()}
+
+function keepInDraft(
+  appData: AppData,
+  sessionId: string,
+  kept: {text: string; items: readonly DraftItem[]},
+  place: DraftPlace,
+): Promise<void> {
+  const write = keptDrafts.written.then(() => saveKeptDraft(appData, sessionId, kept, place))
+  keptDrafts.written = write.catch(() => undefined)
+  return write
 }
 
 export function appendDraft(

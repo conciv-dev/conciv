@@ -11,7 +11,7 @@ import {
   type ValidComponent,
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {uniqBy} from 'es-toolkit'
+import {differenceWith, isEqual, uniqBy} from 'es-toolkit'
 import {Dynamic} from 'solid-js/web'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
@@ -287,10 +287,12 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', [original.draft, chat.view.draft].filter((text) => text !== '').join('\n'))
     setState('quote', (current) => current ?? original.quote)
   }
-  const clearDraft = () => {
+  const clearSent = (sent: ComposerDraft) => {
     chat.setView('draft', '')
-    setState({attachments: [], quote: null, items: []})
+    setState({attachments: [], quote: null})
+    setState('items', (current) => differenceWith(current, sent.items, isEqual))
   }
+  const clearDraft = () => clearSent(snapshotDraft())
   const addItem = (item: DraftItem) => {
     if (state.items.some((value) => value.key === item.key)) return
     setState('items', (current) => [...current, item])
@@ -338,7 +340,7 @@ function Root(props: FormProps): JSX.Element {
     setState('sendingAttachments', true)
     const content = await completedContent(original)
     if (content === null) return
-    clearDraft()
+    clearSent(original)
     const outcome = await runSend(content, original)
     if (!outcome.failure) return
     if (!outcome.left) putBackUnsentMessage(original)

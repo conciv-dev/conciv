@@ -2,11 +2,11 @@ import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
-import {isNil} from 'es-toolkit'
+import {isEqual, isNil} from 'es-toolkit'
 import {Button, TruncatedText} from '@conciv/ui-kit-system'
 import {CornerRemoveButton, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
-import {usePluginHost} from '../runtime/plugin/host'
+import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {icons} from '../runtime/plugin/icons'
 import type {ChatMessage, NoteComment} from '@conciv/protocol/chat-message-types'
@@ -49,42 +49,56 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
   )
 }
 
+function DrawnNoteCard(props: {
+  claimant: Item<NoteCard>
+  note: Accessor<NoteComment>
+  session: MountedSession | undefined
+}): JSX.Element {
+  const [state, setState] = createStore({failed: false})
+  const pluginNote = createMemo((): NoteCardProps['note'] => ({...props.note(), icon: noteIcon(props.note().icon)}))
+
+  return (
+    <Show when={!state.failed} fallback={<NoteChip note={props.note()} />}>
+      <Contribution plugin={props.claimant.plugin} failed={() => setState('failed', true)}>
+        {() => {
+          const drawn = props.claimant.value.render({
+            get note() {
+              return pluginNote()
+            },
+            get session() {
+              return props.session
+            },
+          })
+
+          return (
+            <Show when={!isNil(drawn)} fallback={<NoteChip note={props.note()} />}>
+              {drawn}
+            </Show>
+          )
+        }}
+      </Contribution>
+    </Show>
+  )
+}
+
 function PluginNoteCard(props: {
   note: NoteComment
   session: MountedSession | undefined
   remove?: {label: string; onRemove: () => void}
 }): JSX.Element {
   const host = usePluginHost()
-  const [state, setState] = createStore({declined: false})
-  const decline = () => setState('declined', true)
-  const pluginNote = createMemo((): NoteCardProps['note'] => ({...props.note, icon: noteIcon(props.note.icon)}))
-  const claimant = createMemo(() =>
-    state.declined ? undefined : host.items(NoteCard).find((item) => item.value.origins.includes(props.note.origin)),
-  )
+  const note = createMemo(() => props.note, undefined, {equals: isEqual})
+  const attempt = createMemo(() => {
+    const current = note()
+    const claimant = host.items(NoteCard).find((item) => item.value.origins.includes(current.origin))
+
+    return claimant && {claimant, note: current}
+  })
 
   return (
     <div class={`${FRAME} ${props.remove ? 'pe-8' : ''}`}>
-      <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
-        {(item) => (
-          <Contribution plugin={item.plugin} failed={decline}>
-            {() => {
-              const drawn = item.value.render({
-                get note() {
-                  return pluginNote()
-                },
-                get session() {
-                  return props.session
-                },
-              })
-
-              return (
-                <Show when={!isNil(drawn)} fallback={<NoteChip note={props.note} />}>
-                  {drawn}
-                </Show>
-              )
-            }}
-          </Contribution>
-        )}
+      <Show when={attempt()} keyed fallback={<NoteChip note={props.note} />}>
+        {(current) => <DrawnNoteCard claimant={current.claimant} note={note} session={props.session} />}
       </Show>
       <Show when={props.remove}>
         {(remove) => <CornerRemoveButton label={remove().label} onRemove={remove().onRemove} />}
