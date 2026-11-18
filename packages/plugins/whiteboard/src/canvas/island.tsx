@@ -244,7 +244,7 @@ export function Island(props: {
     const blob = await exportToBlob({
       elements,
       files: api?.getFiles() ?? {},
-      appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
+      appState: {exportBackground: true},
     })
     return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))}
   }
@@ -328,7 +328,7 @@ export function Island(props: {
         IslandBoundary,
         {onError: reportMountError},
         createElement(ThemedExcalidraw, {
-          initialData: {elements: [], appState: {viewBackgroundColor: 'transparent'}},
+          initialData: {elements: []},
           zenModeEnabled: true,
           viewModeEnabled: false,
           isCollaborating: true,
