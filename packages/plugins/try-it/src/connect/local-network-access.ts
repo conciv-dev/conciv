@@ -1,5 +1,5 @@
-import {makeEventListener} from '@solid-primitives/event-listener'
-import {createResource, getOwner, runWithOwner, type Accessor} from 'solid-js'
+import {createEventSignal} from '@solid-primitives/event-listener'
+import {createResource, type Accessor} from 'solid-js'
 
 declare global {
   interface Permissions {
@@ -9,20 +9,20 @@ declare global {
 
 export type LocalNetworkAccessState = 'unknown' | 'unsupported' | 'prompt' | 'granted' | 'denied'
 
-type ResolvedState = Exclude<LocalNetworkAccessState, 'unknown'>
+function queryLocalNetworkAccess(): Promise<PermissionStatus | null> {
+  if (!navigator.permissions) return Promise.resolve(null)
+  return navigator.permissions.query({name: 'local-network-access'}).catch(() => null)
+}
 
 export function useLocalNetworkAccessPermission(): Accessor<LocalNetworkAccessState> {
-  const owner = getOwner()
-  const watched = new WeakSet<PermissionStatus>()
-  const [state, {refetch}] = createResource<ResolvedState>(async () => {
-    if (!navigator.permissions) return 'unsupported'
-    const status = await navigator.permissions.query({name: 'local-network-access'}).catch(() => null)
-    if (!status) return 'unsupported'
-    if (!watched.has(status)) {
-      watched.add(status)
-      runWithOwner(owner, () => makeEventListener(status, 'change', () => void refetch()))
-    }
-    return status.state
-  })
-  return () => state() ?? 'unknown'
+  const [status] = createResource(queryLocalNetworkAccess)
+  const changed = createEventSignal<{change: Event}>(() => {
+    const current = status()
+    return current ? [current] : []
+  }, 'change')
+  return () => {
+    changed()
+    if (status.loading) return 'unknown'
+    return status()?.state ?? 'unsupported'
+  }
 }
