@@ -2,10 +2,9 @@ import {afterAll, beforeAll, describe, expect, it, onTestFinished, test, vi} fro
 import {cdp, page, server, userEvent} from 'vitest/browser'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createSignal, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
-import type {ToolCardProps, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {ActCard} from '../src/page/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
@@ -39,12 +38,11 @@ import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/a
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {makeHighlight} from '../src/page/highlight.js'
-import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {INERT_TOOL_CTX, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
-import type {Registry} from '@conciv/plugin/experimental'
+import type {Registry, ToolProps} from '@conciv/plugin/experimental'
 import {tanstackCards} from '../src/tanstack/cards.js'
-import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -2454,14 +2452,6 @@ describe('the tanstack cards', () => {
     single?: string
   }
 
-  const cardContext: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'claude',
-    sendMessage: () => {},
-    addResult: () => Promise.resolve(),
-    catalog: {loaded: () => true, meta: builtinToolMeta},
-  }
-
   const failure = 'tab_unavailable: no TanStack page is attached to this session'
 
   function routeMatch(routeId: string, search: Record<string, unknown>) {
@@ -2594,25 +2584,22 @@ describe('the tanstack cards', () => {
     },
   ]
 
-  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
-    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
-  }
+  const lookupCard = (name: string) => Object.entries(tanstackCards).find(([tool]) => tool === name)?.[1]
 
-  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined) {
-    const part: ToolCallPart = {
-      type: 'tool-call',
-      id: `call-${tool}`,
-      name: tool,
-      arguments: JSON.stringify(input),
-      state: 'input-complete',
-    }
-    const [props, setProps] = createStore<ToolCardProps>({
-      part,
-      result,
-      ctx: cardContext,
-      addResult: () => Promise.resolve(),
+  function mountCard(
+    tool: Tool,
+    input: Record<string, unknown>,
+    settled?: {output: string; status: 'completed' | 'error'},
+  ) {
+    const [props, setProps] = createStore<ToolProps>({
+      tool,
+      input,
+      metadata: {},
+      status: settled?.status ?? 'running',
+      output: settled?.status === 'completed' ? settled.output : undefined,
+      error: settled?.status === 'error' ? settled.output : undefined,
     })
-    render(() => <Dynamic component={tanstackCards[tool].render} {...props} />)
+    render(() => <ToolDisplay id={`call-${tool}`} render={lookupCard} {...props} />)
     return setProps
   }
 
@@ -2622,7 +2609,7 @@ describe('the tanstack cards', () => {
   it("draws each tool's card on success, the error state, and the running row before the card", async () => {
     onTestFinished(cleanup)
     for (const call of cases) {
-      mountCard(call.tool, call.input ?? {}, resultPart(call.tool, JSON.stringify(call.output), 'complete'))
+      mountCard(call.tool, call.input ?? {}, {output: JSON.stringify(call.output), status: 'completed'})
       await expect.element(exactText(call.summary)).toBeVisible()
       await expect.element(header(call.title)).toBeVisible()
       if (call.detail !== undefined) {
@@ -2640,7 +2627,7 @@ describe('the tanstack cards', () => {
     mountCard(
       'tanstack_loader_data',
       {},
-      resultPart('tanstack_loader_data', JSON.stringify({routeId: '/about', data: markers}), 'complete'),
+      {output: JSON.stringify({routeId: '/about', data: markers}), status: 'completed'},
     )
     await header('Read the loader data').click()
     await expect.element(exactText('Array(3)')).toBeVisible()
@@ -2648,40 +2635,23 @@ describe('the tanstack cards', () => {
     await expect.element(page.getByText(/__conciv/)).not.toBeInTheDocument()
     cleanup()
 
-    const backPart: ToolCallPart = {
-      type: 'tool-call',
-      id: 'call-tanstack_back',
-      name: 'tanstack_back',
-      arguments: '{}',
-      state: 'input-complete',
-    }
-    render(() => (
-      <ul>
-        <ToolTraceRow
-          part={backPart}
-          result={resultPart('tanstack_back', JSON.stringify({ok: true}), 'complete')}
-          ctx={cardContext}
-          tools={() => [{names: ['tanstack_back'], ...tanstackCards.tanstack_back}]}
-        />
-      </ul>
-    ))
-    await expect.element(page.getByRole('listitem').getByRole('button').first()).toBeDisabled()
+    mountCard('tanstack_back', {}, {output: JSON.stringify({ok: true}), status: 'completed'})
+    await expect.element(header('Went back')).toBeDisabled()
     cleanup()
 
-    mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
-    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
-    await header('Read the router state').click()
+    mountCard('tanstack_router_state', {}, {output: failure, status: 'error'})
+    await header('tanstack_router_state').click()
     await expect.element(page.getByText(failure)).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
     cleanup()
 
-    const finish = mountCard('tanstack_router_state', {}, undefined)
+    const finish = mountCard('tanstack_router_state', {})
     await expect.element(header('Reading the router state')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
-    finish('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
+    finish({status: 'completed', output: JSON.stringify(routerState)})
     await expect.element(exactText('/about · 2 matches')).toBeVisible()
-    await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'succeeded'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
   })
 })

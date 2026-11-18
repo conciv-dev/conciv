@@ -1,5 +1,5 @@
 import {mapKeys} from 'es-toolkit'
-import type {ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent} from '@conciv/plugin/experimental'
 import type {Method} from '@conciv/plugin-tanstack/rpc'
 import {backCard} from './back-card.js'
 import {buildErrorsCard} from './build-errors-card.js'
@@ -25,11 +25,11 @@ const operationCards = {
   navigate: navigateCard,
   router_invalidate: routerInvalidateCard,
   back: backCard,
-} satisfies Partial<Record<Method, ToolCardView>>
+} satisfies Partial<Record<Method, ToolComponent>>
 
 export const tanstackCards = {
   ...mapKeys(operationCards, (_card, operation) => tanstackToolName(operation)),
   tanstack_build_errors: buildErrorsCard,
   tanstack_route_manifest: routeManifestCard,
   tanstack_server_fn_trace: serverFnTraceCard,
-} satisfies Record<string, ToolCardView>
+} satisfies Record<string, ToolComponent>

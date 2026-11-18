@@ -2,10 +2,10 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {ServerFnTraces} from '@conciv/plugin-tanstack/rpc'
 import {keyBy} from 'es-toolkit'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
-import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
+import {Chip} from '@conciv/ui-kit-chat/tools'
+import {CardNote, CardRow, CardRows, InspectionCard, countLabel, parseOutput} from './card-shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 
@@ -20,8 +20,8 @@ const PayloadSchema = ServerFnTraces.extend({
   functions: z.array(FunctionSchema),
 })
 
-function parsePayload(result: ToolCardProps['result']): TraceRow[] | null {
-  const parsed = PayloadSchema.safeParse(parseResultPayload(result))
+function parsePayload(result: string | undefined): TraceRow[] | null {
+  const parsed = PayloadSchema.safeParse(parseOutput(result))
   if (!parsed.success) return null
   const functionById = keyBy(parsed.data.functions, (serverFunction) => serverFunction.id)
   return parsed.data.traces.map((trace) => ({
@@ -32,8 +32,8 @@ function parsePayload(result: ToolCardProps['result']): TraceRow[] | null {
   }))
 }
 
-function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
-  const traces = () => parsePayload(props.result)
+function ServerFnTraceCard(props: ToolProps): JSX.Element {
+  const traces = () => parsePayload(props.output)
   const summary = () => {
     const list = traces()
     if (!list) return ''
@@ -41,7 +41,7 @@ function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
     return countLabel(list.length, 'call', 'calls')
   }
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} hasContent={true}>
       <Show when={traces()?.length} fallback={<CardNote>No server-fn calls</CardNote>}>
         <CardRows>
           <For each={traces()}>
@@ -63,7 +63,4 @@ function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const serverFnTraceCard: ToolCardView = {
-  render: ServerFnTraceCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, true),
-}
+export const serverFnTraceCard: ToolComponent = ServerFnTraceCard

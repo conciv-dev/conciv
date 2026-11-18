@@ -1,10 +1,10 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {AppError} from '@conciv/plugin-tanstack/rpc'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {ErrorBlock} from '@conciv/ui-kit-chat/tools'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CardNote, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
+import {CardNote, InspectionCard, countLabel, parseOutput} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
@@ -20,14 +20,14 @@ function formatLocation(source: {file: string; line: number} | null | undefined)
   return `${source.file}:${source.line}`
 }
 
-function parseErrors(result: ToolCardProps['result']): BuildError[] | null {
-  const parsed = AppErrorsSchema.safeParse(parseResultPayload(result))
+function parseErrors(result: string | undefined): BuildError[] | null {
+  const parsed = AppErrorsSchema.safeParse(parseOutput(result))
   if (!parsed.success) return null
   return parsed.data.map((error) => ({message: error.message, where: formatLocation(error.source)}))
 }
 
-function BuildErrorsCard(props: ToolCardProps): JSX.Element {
-  const errors = () => parseErrors(props.result)
+function BuildErrorsCard(props: ToolProps): JSX.Element {
+  const errors = () => parseErrors(props.output)
   const summary = () => {
     const list = errors()
     if (!list) return ''
@@ -36,7 +36,7 @@ function BuildErrorsCard(props: ToolCardProps): JSX.Element {
   }
   const failed = () => (errors()?.length ?? 0) > 0
   return (
-    <InspectionCard {...props} summary={summary()} failed={failed()}>
+    <InspectionCard {...props} summary={summary()} hasContent={true} failed={failed()}>
       <Show when={errors()?.length} fallback={<CardNote>No build errors</CardNote>}>
         <div class="flex flex-col gap-1.5">
           <For each={errors()}>
@@ -53,7 +53,4 @@ function BuildErrorsCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const buildErrorsCard: ToolCardView = {
-  render: BuildErrorsCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, true),
-}
+export const buildErrorsCard: ToolComponent = BuildErrorsCard

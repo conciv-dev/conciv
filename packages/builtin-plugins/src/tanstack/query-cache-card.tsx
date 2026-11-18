@@ -1,10 +1,10 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {CacheEntry} from '@conciv/plugin-tanstack/rpc'
-import {Chip, ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import {Chip, ErrorBlock} from '@conciv/ui-kit-chat/tools'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
-import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue, countLabel} from './card-shared.js'
+import {CardNote, CardRow, CardRows, InspectionCard, JsonValue, countLabel, parseOutput} from './card-shared.js'
 
 const EntrySchema = CacheEntry.extend({
   state: CacheEntry.shape.state.default('fresh'),
@@ -21,8 +21,8 @@ const QueryCacheSchema = z.object({
 
 type Entry = z.infer<typeof EntrySchema>
 
-function parseCache(result: ToolCardProps['result']): {queries: Entry[]; mutations: Entry[]} | null {
-  const parsed = QueryCacheSchema.safeParse(parseResultPayload(result))
+function parseCache(result: string | undefined): {queries: Entry[]; mutations: Entry[]} | null {
+  const parsed = QueryCacheSchema.safeParse(parseOutput(result))
   return parsed.success ? parsed.data : null
 }
 
@@ -47,8 +47,8 @@ function EntryRow(props: {entry: Entry}): JSX.Element {
   )
 }
 
-function QueryCacheCard(props: ToolCardProps): JSX.Element {
-  const cache = () => parseCache(props.result)
+function QueryCacheCard(props: ToolProps): JSX.Element {
+  const cache = () => parseCache(props.output)
   const summary = () => {
     const value = cache()
     if (!value) return ''
@@ -58,7 +58,7 @@ function QueryCacheCard(props: ToolCardProps): JSX.Element {
     return `${queries} · ${countLabel(mutationCount, 'mutation', 'mutations')}`
   }
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} hasContent={parseCache(props.output) !== null}>
       <Show when={cache()}>
         {(value) => (
           <CardRows>
@@ -80,7 +80,4 @@ function QueryCacheCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const queryCacheCard: ToolCardView = {
-  render: QueryCacheCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseCache(result) !== null),
-}
+export const queryCacheCard: ToolComponent = QueryCacheCard
