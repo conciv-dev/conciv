@@ -13,11 +13,12 @@ import {HostApisProvider, useHostApis} from './host-apis-context'
 import {createContext, useContext} from 'solid-js'
 
 const PluginsContext = createContext<{
+  address: () => string | undefined
   source: () => PluginExperimentalSource | undefined
   client: () => ConcivClient | undefined
   manager: () => PluginManager | undefined
   onPluginListChange: (listener: () => void) => () => void
-  set: (source: PluginExperimentalSource, plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
+  set: (address: string, plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
   reported: () => readonly string[] | undefined
 }>()
@@ -55,21 +56,6 @@ export function usePluginsKnown() {
   })
 }
 
-function createPluginEngine(base: string, created: BundleSource) {
-  const listeners = new Set<Parameters<PluginExperimentalSource['on']>[0]>()
-  const latest = {bundle: created}
-  const source: PluginExperimentalSource = {
-    pluginExperimentals: () => latest.bundle.pluginExperimentals(),
-    on(listener) {
-      listeners.add(listener)
-
-      return () => listeners.delete(listener)
-    },
-  }
-
-  return {base, latest, listeners, source}
-}
-
 export function PluginRoot(props: ParentProps) {
   const apis = createHostApis()
   const apiBase = useApiBase()
@@ -92,6 +78,10 @@ export function PluginRoot(props: ParentProps) {
 
     return trusted() && connected() ? base : undefined
   })
+
+  const engineAddress = createMemo<string | undefined>(
+    (previous) => engineBase() ?? (previous === apiBase() ? previous : undefined),
+  )
 
   const bundle = createMemo(
     on(engineBase, (base) => {
@@ -124,29 +114,16 @@ export function PluginRoot(props: ParentProps) {
     },
   }
 
-  const engine = createMemo<ReturnType<typeof createPluginEngine> | undefined>((previous) => {
-    const created = bundle()
-    const base = apiBase()
-    const current = previous?.base === base ? previous : created && createPluginEngine(base, created)
-
-    if (current === undefined || created === undefined) return current
-
-    current.latest.bundle = created
-    onCleanup(created.on((message) => current.listeners.forEach((listener) => listener(message))))
-
-    return current
-  })
-
   const [published, setPublished] = createSignal<{
-    source: PluginExperimentalSource | undefined
+    address: string | undefined
     plugins: readonly PluginExperimental[]
     reserved: readonly string[]
-  }>({source: undefined, plugins: [], reserved: []})
+  }>({address: undefined, plugins: [], reserved: []})
 
   const loaded = createMemo(() => {
     const current = published()
 
-    return current.source !== undefined && current.source === engine()?.source
+    return current.address !== undefined && current.address === engineAddress()
       ? {settled: true, plugins: current.plugins, reserved: current.reserved}
       : {settled: false, plugins: [], reserved: []}
   })
@@ -165,7 +142,8 @@ export function PluginRoot(props: ParentProps) {
     <HostApisProvider value={apis}>
       <PluginsContext.Provider
         value={{
-          source: () => engine()?.source,
+          address: engineAddress,
+          source: bundle,
           client: () => apis.engine.client,
           manager: () => bundle()?.manager,
           onPluginListChange(listener) {
@@ -173,7 +151,7 @@ export function PluginRoot(props: ParentProps) {
 
             return () => pluginListListeners.delete(listener)
           },
-          set: (source, plugins, reserved) => setPublished({source, plugins, reserved}),
+          set: (address, plugins, reserved) => setPublished({address, plugins, reserved}),
           reserved: () => loaded().reserved,
           reported: () => {
             if ((login()?.status() ?? 'trusted') !== 'trusted') return undefined
@@ -210,12 +188,12 @@ export function PluginAttachment(props: ParentProps) {
 
   return (
     <PluginAttachmentProvider value={attachment}>
-      <Show when={plugins?.source()} keyed>
-        {(source) => (
+      <Show when={plugins?.address()} keyed>
+        {(address) => (
           <PluginExperimentalLoader
-            source={source}
+            source={plugins?.source ?? (() => undefined)}
             client={plugins?.client ?? (() => undefined)}
-            onChange={(loaded, reserved) => plugins?.set(source, loaded, reserved)}
+            onChange={(loaded, reserved) => plugins?.set(address, loaded, reserved)}
           />
         )}
       </Show>
