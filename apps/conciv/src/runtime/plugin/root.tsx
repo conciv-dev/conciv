@@ -55,6 +55,21 @@ export function usePluginsKnown() {
   })
 }
 
+function createPluginEngine(base: string, created: BundleSource) {
+  const listeners = new Set<Parameters<PluginExperimentalSource['on']>[0]>()
+  const latest = {bundle: created}
+  const source: PluginExperimentalSource = {
+    pluginExperimentals: () => latest.bundle.pluginExperimentals(),
+    on(listener) {
+      listeners.add(listener)
+
+      return () => listeners.delete(listener)
+    },
+  }
+
+  return {base, latest, listeners, source}
+}
+
 export function PluginRoot(props: ParentProps) {
   const apis = createHostApis()
   const apiBase = useApiBase()
@@ -109,6 +124,19 @@ export function PluginRoot(props: ParentProps) {
     },
   }
 
+  const engine = createMemo<ReturnType<typeof createPluginEngine> | undefined>((previous) => {
+    const created = bundle()
+    const base = apiBase()
+    const current = previous?.base === base ? previous : created && createPluginEngine(base, created)
+
+    if (current === undefined || created === undefined) return current
+
+    current.latest.bundle = created
+    onCleanup(created.on((message) => current.listeners.forEach((listener) => listener(message))))
+
+    return current
+  })
+
   const [published, setPublished] = createSignal<{
     source: PluginExperimentalSource | undefined
     plugins: readonly PluginExperimental[]
@@ -118,7 +146,7 @@ export function PluginRoot(props: ParentProps) {
   const loaded = createMemo(() => {
     const current = published()
 
-    return current.source !== undefined && current.source === bundle()
+    return current.source !== undefined && current.source === engine()?.source
       ? {settled: true, plugins: current.plugins, reserved: current.reserved}
       : {settled: false, plugins: [], reserved: []}
   })
@@ -137,7 +165,7 @@ export function PluginRoot(props: ParentProps) {
     <HostApisProvider value={apis}>
       <PluginsContext.Provider
         value={{
-          source: bundle,
+          source: () => engine()?.source,
           client: () => apis.engine.client,
           manager: () => bundle()?.manager,
           onPluginListChange(listener) {
