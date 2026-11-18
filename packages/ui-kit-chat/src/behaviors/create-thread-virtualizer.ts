@@ -100,6 +100,14 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     elementScroll(offset, {adjustments: undefined, behavior}, instance)
   }
 
+  const landAt = (element: HTMLElement, offset: number): void => {
+    writeScroll(offset, 'auto')
+    landedOffset = element.scrollTop
+    instance.scrollOffset = landedOffset
+    restingAnchor = {mode: 'resume-following'}
+    syncAtEnd()
+  }
+
   const landOnEnd = (): void => {
     const lastIndex = config.count() - 1
     if (lastIndex < 0) return
@@ -107,11 +115,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     if (!element?.isConnected) return
     const target = instance.getOffsetForIndex(lastIndex, 'end')
     if (!target) return
-    writeScroll(target[0], 'auto')
-    landedOffset = element.scrollTop
-    instance.scrollOffset = landedOffset
-    restingAnchor = {mode: 'resume-following'}
-    syncAtEnd()
+    landAt(element, target[0])
   }
 
   const returnToEnd = (): void => {
@@ -302,7 +306,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       syncAtEnd()
       return
     }
-    landOnEnd()
+    landAt(element, element.scrollHeight - element.clientHeight)
   }
 
   const sync = () => {
