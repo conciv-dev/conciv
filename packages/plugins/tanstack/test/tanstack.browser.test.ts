@@ -37,7 +37,7 @@ async function toolFailure(pending: Promise<unknown>): Promise<string> {
   return ExecuteFailureSchema.parse(JSON.parse(failure.message)).error.message
 }
 
-async function hostFolder(apiBase: string, withApp: boolean): Promise<string> {
+async function hostFolder(apiBase: string, withApp: boolean, title: string): Promise<string> {
   const folder = tempDir('conciv-tanstack-host-')
   if (withApp)
     await build({
@@ -56,7 +56,7 @@ async function hostFolder(apiBase: string, withApp: boolean): Promise<string> {
     join(folder, 'index.html'),
     `<!doctype html><html><head>
     <meta charset="utf-8">
-    <title>TanStack host</title>
+    <title>${title}</title>
     <meta name="conciv-api-base" content="${apiBase}">
     <meta name="conciv-widget" content='{}'>
   </head><body>
@@ -82,15 +82,19 @@ async function attachedControls(kit: CoreKit): Promise<() => Promise<string>> {
   return next
 }
 
-async function openHost(browser: Browser, kit: CoreKit, withApp: boolean, search: string, hash: string) {
-  const host = await serveStaticDir(await hostFolder(kit.origin, withApp))
+async function openHost(
+  browser: Browser,
+  kit: CoreKit,
+  page: {withApp: boolean; title: string; search: string; hash: string},
+) {
+  const host = await serveStaticDir(await hostFolder(kit.origin, page.withApp, page.title))
   onTestFinished(() => host.close())
-  const page = await browser.newPage()
-  onTestFinished(() => page.close())
-  const link = new URL(await magicLink(kit.base, `${host.base}/${search}`))
-  link.hash = [hash, link.hash.slice(1)].filter(Boolean).join('&')
-  await page.goto(link.href, {waitUntil: 'domcontentloaded'})
-  return {page, base: host.base}
+  const opened = await browser.newPage()
+  onTestFinished(() => opened.close())
+  const link = new URL(await magicLink(kit.base, `${host.base}/${page.search}`))
+  link.hash = [page.hash, link.hash.slice(1)].filter(Boolean).join('&')
+  await opened.goto(link.href, {waitUntil: 'domcontentloaded'})
+  return {page: opened, base: host.base}
 }
 
 function tabSecrets(tab: {url: string}) {
@@ -99,7 +103,7 @@ function tabSecrets(tab: {url: string}) {
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates and lists the new tab url, refetches and invalidates one exact query, refetches every query a redacted key names or the one its raw key names, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
+  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates and lists the new tab url, refetches and invalidates one exact query, refetches every query a redacted key names or the one its raw key names, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page with a title past the cap', async ({
     browser,
   }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -109,7 +113,12 @@ describe('the tanstack plugin in the page', () => {
     const call = (name: string, input: unknown) => kit.callTool(name, input, draft)
     await kit.rpc.navigation.set({entries: [{href: `/panel/${draft}?open=true`}], index: 0, updatedAt: Date.now()})
 
-    const {page} = await openHost(browser, kit, true, '?token=tab-search-secret', 'access_token=tab-hash-secret')
+    const {page} = await openHost(browser, kit, {
+      withApp: true,
+      title: 'TanStack host',
+      search: '?token=tab-search-secret',
+      hash: 'access_token=tab-hash-secret',
+    })
     await expect(page.getByRole('heading', {name: 'TanStack inspection home'})).toBeVisible({timeout: 30_000})
     await expect(page.getByRole('status', {name: CHIP})).toBeVisible({timeout: 30_000})
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -223,7 +232,12 @@ describe('the tanstack plugin in the page', () => {
     expect(indices.at(-1)).toBe(49)
     expect(indices).toEqual(Array.from({length: indices.length}, (_, offset) => 50 - indices.length + offset))
 
-    const bare = await openHost(browser, kit, false, '?token=bare-search-secret', 'access_token=bare-hash-secret')
+    const bare = await openHost(browser, kit, {
+      withApp: false,
+      title: `Long ${'title '.repeat(500)}`,
+      search: '?token=bare-search-secret',
+      hash: 'access_token=bare-hash-secret',
+    })
     await expect(bare.page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
     await expect(bare.page.getByRole('status', {name: CHIP})).toBeVisible({timeout: 30_000})
     await attached()
