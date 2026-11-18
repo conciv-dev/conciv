@@ -7563,6 +7563,11 @@ describe('terminal panel', () => {
       {id: 'busy-model', name: 'Busy model'},
     ],
     alternates: [{id: 'plain', displayName: 'Plain'}],
+    files: {
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'}),
+    },
   })
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
@@ -7702,6 +7707,22 @@ describe('terminal panel', () => {
     await expect.element(page.getByText('Could not select that element', {exact: true})).toBeVisible()
   }, 60_000)
 
+  test('a grab picked in the terminal is grounded in place, and its Remove takes it away', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const unsourced: Grab = {...HERO_GRAB, source: null, frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(unsourced)})
+
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('in src/app.tsx:1'), {timeout: 15_000}).toBeVisible()
+
+    await removeGrab().click()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+  }, 60_000)
+
   test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
@@ -7731,7 +7752,7 @@ describe('terminal panel', () => {
     await expect.element(output('got[]')).not.toBeInTheDocument()
     await expect.element(removeGrab()).not.toBeInTheDocument()
 
-    await typeLine('read -r line; echo "got[[$line]"')
+    await typeLine('read -r line; echo "second($line)"')
     await pickButton().click()
     await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
     await pickButton().click()
@@ -7739,10 +7760,10 @@ describe('terminal panel', () => {
     await terminalPanel().click()
     await expect.element(terminalInput()).toHaveFocus()
     await userEvent.keyboard('{Enter}')
-    await expect.element(output('got[<button> Save </button> <a>Next</a>]'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('second(<button> Save </button> <a>Next</a>)'), {timeout: 15_000}).toBeInTheDocument()
     await typeLine('echo $((5*5))')
     await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
-    await expect.element(output('got[]')).not.toBeInTheDocument()
+    await expect.element(output('second()')).not.toBeInTheDocument()
     await expect.element(terminalPanel().getByText(/^bash: /)).not.toBeInTheDocument()
     await expect.element(removeGrab()).not.toBeInTheDocument()
 
