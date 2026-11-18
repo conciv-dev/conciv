@@ -4,21 +4,25 @@ import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types
 import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from './page-result-views.js'
 import {pageOperation} from './page-tool-names.js'
-import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError} from './shared.js'
+import {
+  LIST_ROW_CLASS,
+  QUIET_TEXT_CLASS,
+  cardErrorMessage,
+  cardPayload,
+  countLabel,
+  hasPayloadOrError,
+} from './shared.js'
 
 const ConsolePayload = pageOperation('console').output
 
-const LINE_FORMAT = new Intl.NumberFormat()
-const LINE_PLURAL = new Intl.PluralRules('en')
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
 const LIST =
   'm-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 const LEVEL = 'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [font-family:var(--chat-mono)]'
-const LEVEL_QUIET = `${LEVEL} [color:var(--chat-text-3)]`
+const LEVEL_QUIET = `${LEVEL} text-chat-text-3`
 const LEVEL_DANGER = `${LEVEL} text-chat-danger`
-const TIME =
-  'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-text-3)] [font-family:var(--chat-mono)] tabular-nums'
+const TIME = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-3 [font-family:var(--chat-mono)] tabular-nums'
 const TEXT =
   'text-[length:var(--chat-text-sm)] flex-1 min-w-0 whitespace-pre-wrap [color:var(--chat-text)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]'
 const TEXT_DANGER = `${DANGER_TEXT_CLASS} flex-1 min-w-0 [overflow-wrap:anywhere]`
@@ -33,7 +37,7 @@ function readLines(payload: unknown): readonly ConsoleLine[] | undefined {
 }
 
 function lineLabel(count: number): string {
-  return `${LINE_FORMAT.format(count)} ${LINE_PLURAL.select(count) === 'one' ? 'line' : 'lines'}`
+  return countLabel(count, {one: 'line', other: 'lines'})
 }
 
 function isErrorLevel(level: string): boolean {
