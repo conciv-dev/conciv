@@ -3,6 +3,9 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {uniq} from 'es-toolkit'
+import {createElement} from 'react'
+import {createRoot as createReactRoot} from 'react-dom/client'
+import {installReactBridge} from '@conciv/page'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
@@ -530,7 +533,7 @@ describe('chat pane', () => {
 
     await expect.element(input()).toHaveTextContent('kept across the reload')
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 
   describe('the composer never waits on the server draft', () => {
@@ -1985,7 +1988,7 @@ describe('grab staging', () => {
     api.stage(HERO_GRAB)
 
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
 
     api.clear()
@@ -2013,7 +2016,7 @@ describe('grab staging', () => {
     await pickFromOverflow()
 
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await userEvent.click(removeGrab())
     await expect.element(removeGrab()).not.toBeInTheDocument()
 
@@ -2038,7 +2041,7 @@ describe('grab staging', () => {
     await expect.element(thread.getByText('what is this element')).toBeVisible()
     await expect.element(removeGrab()).not.toBeInTheDocument()
     await expect.element(thread.getByTitle('Grabbed element snapshot')).toBeVisible()
-    await expect.element(thread.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(thread.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 })
 
@@ -7325,7 +7328,7 @@ module.exports = {default: {setup(ctx) {
     await stage.click()
 
     await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
 
@@ -7346,7 +7349,7 @@ module.exports = {default: {setup(ctx) {
     await page.getByRole('tab', {name: 'Chat', exact: true}).click()
 
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
   }, 30_000)
 })
@@ -9807,6 +9810,34 @@ export default {
     expect(typed).toEqual([])
     expect([await replied(before), await replied(after)]).toEqual([0, 2])
     await cut
+  }, 60_000)
+
+  test('holding Alt and clicking a React element opens its source in the editor through the engine', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    installReactBridge()
+    const reactRoot = createReactRoot(mount)
+    reactRoot.render(createElement('span', {'data-tsd-source': 'src/app.tsx:12:4'}, 'React source probe'))
+    onTestFinished(() => {
+      reactRoot.unmount()
+      mount.remove()
+    })
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+    const probe = page.getByText('React source probe', {exact: true})
+
+    await userEvent.click(probe, {force: true})
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).not.toHaveFocus()
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.hover(probe, {force: true})
+    await userEvent.click(probe, {force: true})
+    await expect.element(page.getByText('Opened src/app.tsx', {exact: true})).toBeVisible()
+    expect(await coreControl.editorOpened()).toEqual([{file: 'src/app.tsx', line: 12, column: 4}])
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
   }, 60_000)
 
   test('an eval card offers no Always, so a later eval with other code is asked again', async () => {

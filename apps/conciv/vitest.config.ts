@@ -21,6 +21,7 @@ const SHELL_DEPS = [
   'semver/functions/lt',
   'semver/functions/valid',
 ]
+const REACT_PAGE_DEPS = ['react', 'react-dom/client']
 const BUILT_PACKAGE = /\/packages\/.+\/dist\//
 const BROWSER_SUITES = [
   'test/**/*.browser.test.ts',
@@ -42,7 +43,7 @@ function browserProject(
 ): TestProjectInlineConfiguration {
   return {
     plugins: [UnoCSS(), solidPlugin()],
-    optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS]),
+    optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS, ...REACT_PAGE_DEPS]),
     test: {
       ...ciTestSolidBrowser(),
       name,
