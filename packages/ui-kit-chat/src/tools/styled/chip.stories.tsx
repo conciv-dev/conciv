@@ -78,3 +78,19 @@ export const PillLongValue: Story = {
     await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
   },
 }
+
+export const FieldLongValue: Story = {
+  render: () =>
+    frame(
+      <div class="w-48">
+        <ChipRow>
+          <Chip kind="field" name="url" value={LONG_PILL} />
+        </ChipRow>
+      </div>,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByText(LONG_PILL))
+    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
+  },
+}
