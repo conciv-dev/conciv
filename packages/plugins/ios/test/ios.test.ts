@@ -127,6 +127,16 @@ describe('the ios plugin in an engine', () => {
     expect(await directTool(kit, 'ios_run')).toEqual(NOT_CONFIGURED)
   })
 
+  it('fails to load with a tagged InvalidOptions naming the bad option when the options do not parse', async () => {
+    const kit = await boot({projectRoot: 'PayApp'})
+
+    const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'ios')
+    expect(plugin?.state).toEqual({
+      status: 'failed',
+      error: expect.stringMatching(/^failed to load plugin: InvalidOptions: .*bundleId/s),
+    })
+  })
+
   it('asks before building or running a configured app, and a denial runs nothing', async () => {
     const kit = await boot({projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'})
 
@@ -393,6 +403,7 @@ describe('the ios tools against a fake simctl', () => {
     const twoRoots = join(parent, 'ConcivDemo')
     mkdirSync(join(twoRoots, 'Sources'), {recursive: true})
     writeFileSync(join(twoRoots, 'Sources', 'App.swift'), 'let app = 1\n')
+    mkdirSync(join(twoRoots, 'Sources', 'Generated.swift'))
     writeFileSync(join(twoRoots, 'Info.plist'), '<plist></plist>')
     const extraSourceDir = join(parent, 'ConcivWidget', 'Sources', 'ConcivWidget')
     mkdirSync(extraSourceDir, {recursive: true})
@@ -403,6 +414,7 @@ describe('the ios tools against a fake simctl', () => {
     const twoRootCompile = extra.calls.find((call) => has(call, 'swiftc'))
     expect(twoRootCompile?.args).toContain(join(twoRoots, 'Sources', 'App.swift'))
     expect(twoRootCompile?.args).toContain(join(extraSourceDir, 'Overlay.swift'))
+    expect(twoRootCompile?.args).not.toContain(join(twoRoots, 'Sources', 'Generated.swift'))
 
     const root = tempSwiftProject()
     const clean = fakeSimctl([SDK])
