@@ -1,7 +1,7 @@
 import {expect} from 'vitest'
 import {writeFile} from 'node:fs/promises'
 import nodePath from 'node:path'
-import {Deferred, Effect, Exit, FileSystem, Fiber, Path, Schema} from 'effect'
+import {Data, Deferred, Effect, Exit, FileSystem, Fiber, Option, Path, Schema, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import {Bus} from '../../src/core/bus.js'
 import {Plugin} from '../../src/core/plugin.js'
@@ -339,5 +339,100 @@ it.live("gives a plugin's effect the host's FileSystem, Path and ChildProcessSpa
 
     expect((yield* plugins.list()).map((plugin) => plugin.state)).toEqual([{status: 'active'}])
     expect(yield* rpc.call('platform', 'read', {})).toEqual(['fixture content', 'spawned'])
+  }),
+)
+
+it.live('stops a plugin child process when the plugin is removed while the host stays up', () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const rpc = yield* Rpc.Service
+    const ChildInfo = Schema.Struct({pid: Schema.Number, ready: Schema.String})
+    const healthy: Plugin.Generation = {
+      id: 'healthy',
+      revision: '1',
+      effect: (ctx) =>
+        ctx.rpc
+          .register(
+            Rpc.define({
+              id: 'healthy',
+              methods: {check: {input: Schema.Struct({}), output: Schema.String}},
+              events: {},
+            }),
+            {check: () => Effect.succeed('healthy')},
+          )
+          .pipe(Effect.orDie),
+    }
+    yield* plugins.activate([
+      healthy,
+      {
+        id: 'spawner',
+        revision: '1',
+        effect: (ctx) =>
+          Effect.gen(function* () {
+            const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+            const child = yield* spawner.spawn(
+              ChildProcess.make('node', ['-e', "process.stdout.write('ready'); setInterval(() => {}, 1000)"]),
+            )
+            const ready = yield* child.stdout.pipe(Stream.decodeText(), Stream.runHead)
+            yield* ctx.rpc.register(
+              Rpc.define({
+                id: 'spawner',
+                methods: {child: {input: Schema.Struct({}), output: ChildInfo}},
+                events: {},
+              }),
+              {child: () => Effect.succeed({pid: child.pid, ready: ready.pipe(Option.getOrElse(() => ''))})},
+            )
+          }).pipe(Effect.orDie),
+      },
+    ])
+    const child = yield* rpc.call('spawner', 'child', {}).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ChildInfo)))
+    expect(child.ready).toBe('ready')
+    expect(process.kill(child.pid, 0)).toBe(true)
+
+    yield* plugins.activate([healthy])
+
+    expect(() => process.kill(child.pid, 0)).toThrow(expect.objectContaining({code: 'ESRCH'}))
+    expect(yield* rpc.call('spawner', 'child', {}).pipe(Effect.flip)).toMatchObject({type: 'rpc.unavailable'})
+    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
+    expect(yield* plugins.list()).toMatchObject([{id: 'healthy', state: {status: 'active'}}])
+  }),
+)
+
+it.live('reports a plugin whose effect fails with a tagged error and keeps loading the others', () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const rpc = yield* Rpc.Service
+    class ConfigInvalid extends Data.TaggedError('ConfigInvalid')<{readonly message: string}> {}
+    yield* plugins.activate([
+      {
+        id: 'misconfigured',
+        revision: '1',
+        effect: () => Effect.fail(new ConfigInvalid({message: 'the api key is missing'})),
+      },
+      {
+        id: 'healthy',
+        revision: '1',
+        effect: (ctx) =>
+          ctx.rpc
+            .register(
+              Rpc.define({
+                id: 'healthy',
+                methods: {check: {input: Schema.Struct({}), output: Schema.String}},
+                events: {},
+              }),
+              {check: () => Effect.succeed('healthy')},
+            )
+            .pipe(Effect.orDie),
+      },
+    ])
+
+    expect(yield* plugins.list()).toMatchObject([
+      {
+        id: 'misconfigured',
+        state: {status: 'failed', error: 'failed to load plugin: ConfigInvalid: the api key is missing'},
+      },
+      {id: 'healthy', state: {status: 'active'}},
+    ])
+    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
   }),
 )

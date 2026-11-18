@@ -1,6 +1,6 @@
 export * as SkillPlugin from './skill.js'
 
-import type {Context} from '@conciv/plugin/effect/plugin'
+import {define, type Context} from '@conciv/plugin/effect/plugin'
 import {Effect} from 'effect'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Skill} from '../skill.js'
@@ -14,9 +14,9 @@ const CONCIV_DESCRIPTION =
 const REPORT_DESCRIPTION =
   'Use when the user wants to report a conciv issue or bug. Collect standard diagnostics, add user-specific reproduction context, and publish the issue with GitHub CLI.'
 
-export const Plugin = {
+export const Plugin = define({
   id: 'conciv.skill',
-  effect: Effect.fn(function* (ctx: Context) {
+  effect: Effect.fn(function* (ctx) {
     const report = yield* reportContentWithDiagnostics(ctx.app)
     yield* ctx.skill.transform((editor) => {
       editor.add(
@@ -39,7 +39,7 @@ export const Plugin = {
       )
     })
   }),
-}
+})
 
 const reportContentWithDiagnostics = Effect.fn('SkillPlugin.reportContentWithDiagnostics')(function* (
   app: Context['app'],
