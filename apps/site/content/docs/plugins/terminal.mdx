@@ -1,0 +1,66 @@
+---
+title: Calling a plugin from the terminal
+description: conciv plugin call runs a plugin's RPC method on the running engine and prints its output.
+---
+
+`conciv plugin call` calls one RPC method a plugin registered, on the running conciv engine, and prints the answer as
+JSON:
+
+```bash
+conciv plugin call <rpcId> <method> [--data <json>]
+```
+
+<TypeTable
+  type={{
+    rpcId: {type: 'argument', description: 'The `id` of the plugin\'s RPC contract (`Rpc.define({id})`), for example `test-runner`.'},
+    method: {type: 'argument', description: 'The method name, for example `status`.'},
+    '--data, -d': {type: 'JSON', description: "The method's input. Omit it to send no input."},
+  }}
+/>
+
+## Examples
+
+Read the test runner's last result, then run the tests whose path matches `math`. The methods come from its
+contract in `packages/plugins/test-runner/src/rpc.ts`:
+
+```bash
+conciv plugin call test-runner status
+conciv plugin call test-runner run --data '{"patterns":["math"]}'
+```
+
+Ask the dev server where it listens, through the server plugin. See [Dev server](/docs/usage/dev-server):
+
+```bash
+conciv plugin call server urls
+```
+
+## Output
+
+A method that answers prints one envelope and exits `0`:
+
+```json
+{"ok": true, "data": "hi"}
+```
+
+A failure prints `{"ok": false, "error": ...}` and exits `1`. A method's declared error carries its name as `type`,
+its `message` and its `data`:
+
+```json
+{
+  "ok": false,
+  "error": {"kind": "user", "code": "PLUGIN_RPC", "type": "limited", "message": "try later", "data": {"retryAfter": 5}}
+}
+```
+
+| `type`                | Cause                                       |
+| --------------------- | ------------------------------------------- |
+| `rpc.unavailable`     | No plugin registered that `rpcId`.          |
+| `rpc.method_not_found`| The contract has no such method.            |
+| `rpc.invalid_input`   | `--data` does not match the method's input. |
+
+`--data` that is not JSON is refused before anything is sent.
+
+## Which engine answers
+
+The command finds the engine of the project you run it in. Outside a project it uses a running engine registered on
+this machine. It calls as the project's owner, outside any session. It takes no `--tab`.
