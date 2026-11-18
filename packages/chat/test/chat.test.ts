@@ -98,6 +98,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     attachmentExpanders: {},
     prompt: async (event) => event,
     promptHooked: async () => false,
+    context: async (_name, request) => request,
     pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
     driver,
