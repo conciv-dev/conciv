@@ -1375,12 +1375,17 @@ export default {
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
-        <>
+        <div class="flex flex-col flex-1 min-h-0 relative">
           <ul>
             <For each={requests()}>{(request) => <li>{`the pane requested ${request}`}</li>}</For>
           </ul>
           <ChatPane sessionId={sessionId} />
-        </>
+          <aside class="absolute start-full bottom-0 flex h-40 w-15">
+            <button type="button" class="flex-1" onClick={() => setRequests((current) => [...current, 'nothing'])}>
+              The neighbour pane
+            </button>
+          </aside>
+        </div>
       ),
     )
     keep(mount)
@@ -1469,6 +1474,8 @@ export default {
   })
 
   test('the @ list offers the skills, then the agents that are neither primary nor hidden, then the other sessions, and no tool', async () => {
+    await page.viewport(WIDE_PX + 60, 900)
+    onTestFinished(() => page.viewport(1000, 900))
     const rpc = coreRpc(core())
     const ledgerId = await createSession(rpc)
     await rpc.sessions.rename({sessionId: ledgerId, title: 'Review ledger'})
@@ -1482,6 +1489,11 @@ export default {
     await userEvent.click(input())
     await userEvent.keyboard('@')
 
+    await expect.element(context().getByRole('option').first()).toBeInViewport({ratio: 1})
+    await expect.element(mention('@mention-guide').getByText('How mentions are written')).toBeInViewport({ratio: 1})
+    await userEvent.click(page.getByRole('button', {name: 'The neighbour pane'}), {timeout: 3_000})
+    await expect.element(page.getByText('the pane requested nothing')).toBeVisible()
+    await userEvent.click(input())
     await expect.element(mention('@mention-guide')).toHaveTextContent('@mention-guideHow mentions are written')
     await expect.element(mention('@reviewer')).toBeVisible()
     await expect.element(mention('@mention-guide').getByRole('img', {name: 'Skill'})).toBeVisible()

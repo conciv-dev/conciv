@@ -189,6 +189,7 @@ export function RichTextField(props: {
   onReady?: (handle: RichTextFieldHandle) => void
   slashTrigger?: RichTextFieldTriggerSource
   mentionTrigger?: RichTextFieldTriggerSource
+  menuBoundary?: () => Element | undefined
 }): JSX.Element {
   let host: HTMLDivElement | undefined
   let editorView: EditorView | undefined
@@ -310,7 +311,12 @@ export function RichTextField(props: {
         </ScrollArea.Scrollbar>
       </ScrollArea.Root>
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <TriggerMenu menu={menu} onDismiss={dismissMenu} onRefocus={() => editorInstance?.commands.focus()} />
+      <TriggerMenu
+        menu={menu}
+        onDismiss={dismissMenu}
+        onRefocus={() => editorInstance?.commands.focus()}
+        boundary={props.menuBoundary}
+      />
     </div>
   )
 }

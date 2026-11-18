@@ -106,6 +106,7 @@ function MenuPanel(props: {
   onDismiss: (char: string) => void
   onRefocus: () => void
   itemContent: TriggerMenuItemContent | undefined
+  boundary: (() => Element | undefined) | undefined
 }): JSX.Element {
   const dispatch = () => props.state.dispatch
   const activeCategory = () =>
@@ -173,6 +174,7 @@ function MenuPanel(props: {
       onSelect={select}
       onDismiss={() => props.onDismiss(dispatch().char)}
       onReady={props.setListbox}
+      boundary={props.boundary}
     >
       <AnchoredListbox.Label>{dispatch().sourceLabel}</AnchoredListbox.Label>
       <Show when={activeCategory()}>
@@ -219,6 +221,7 @@ export function TriggerMenu(props: {
   menu: TriggerMenuController
   onDismiss: (char: string) => void
   onRefocus: () => void
+  boundary?: () => Element | undefined
   children?: TriggerMenuItemContent
 }): JSX.Element {
   return (
@@ -231,6 +234,7 @@ export function TriggerMenu(props: {
           onDismiss={props.onDismiss}
           onRefocus={props.onRefocus}
           itemContent={props.children}
+          boundary={props.boundary}
         />
       )}
     </Show>
