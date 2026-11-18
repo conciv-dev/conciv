@@ -487,6 +487,7 @@ describe('the recording tools', () => {
       'external_recording_stop',
       'external_recording_pull',
     ])
+    for (const tool of discovered.tools) expect(tool.description).toContain('recording')
 
     expect(await toolFailure(useTool(kit, 'start'))).toBe(
       'no page client attached within 5s; the app page with the widget must be open to record',
@@ -574,6 +575,35 @@ describe('the recording tools', () => {
           : [],
       ),
     )
+  })
+})
+
+describe('a pulled window with no full snapshot', () => {
+  it('answers the log with the keyframes skipped when the window holds no full snapshot to render', async () => {
+    const kit = await bootRecorder()
+    const base = Date.now() - 2000
+    await call(kit, 'flush', {
+      clientId: 'no-snapshot',
+      events: [
+        {type: 4, data: {href: 'http://localhost/app', width: 640, height: 480}, timestamp: base},
+        {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: base + 1000},
+      ],
+    })
+    const pulled = z.string().parse(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2}))
+    expect(pulled).toContain('[navigation] http://localhost/app')
+    expect(pulled).toMatch(/\(keyframes skipped: no renderer available\)$/)
+  })
+})
+
+describe('a saved recording that fits the size cap', () => {
+  it('is kept whole, also with a fresh full snapshot at its tail', async () => {
+    const kit = await bootRecorder()
+    const base = Date.now()
+    const snapshot = (timestamp: number): RrwebEvent => ({type: 2, data: {node: pageFixture([])}, timestamp})
+    const click = (timestamp: number): RrwebEvent => ({type: 3, data: {source: 2, type: 2, id: 3}, timestamp})
+    const events = [snapshot(base), click(base + 1), click(base + 2), snapshot(base + 3)]
+    const saved = await flushAndSave(kit, 'tail-snapshot', events)
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events})
   })
 })
 
