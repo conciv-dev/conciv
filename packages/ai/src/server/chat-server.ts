@@ -38,7 +38,7 @@ import {
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
-import {childCards} from './child-cards.js'
+import {childCards, withoutChildCalls} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
@@ -484,7 +484,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             (draft, signal) => untilAborted(plan.context(draft, signal), signal),
             {
               system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
-              messages: [...prepared.provider, ...current.messages.slice(prepared.sent)],
+              messages: [...prepared.provider, ...withoutChildCalls(current.messages).slice(prepared.sent)],
               options: requestOptions(plan.modelOptions),
               tools: next.tools,
             },
@@ -508,7 +508,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           ...(next.preface === null ? [] : [next.preface]),
           ...current.systemPrompts,
         ]
-        const expanded = await plan.expand(current.messages)
+        const expanded = await plan.expand(withoutChildCalls(current.messages))
         prepared.sent = expanded.length
         prepared.provider = await plan.providerMessages(expanded)
         return {
