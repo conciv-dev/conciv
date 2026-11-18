@@ -7649,6 +7649,12 @@ describe('terminal panel', () => {
     await expect.element(picker()).toBeDisabled()
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('interrupted')).not.toBeInTheDocument()
+
+    await terminalPanel().click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(output('interrupted'), {timeout: 15_000}).toBeInTheDocument()
+    await pick('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
   }, 60_000)
 
   test('the model picker says Models… while the list is read, then lists the models', async () => {
