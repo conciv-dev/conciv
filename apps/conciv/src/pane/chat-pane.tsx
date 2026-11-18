@@ -536,13 +536,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   return (
-    <HostApiProvider
-      sessionId={() => sessionId}
-      grab={paneGrab}
-      insert={insert}
-      attach={attach}
-      newSession={() => pane.newSession()}
-    >
+    <HostApiProvider sessionId={() => sessionId} grab={paneGrab} attach={attach} newSession={() => pane.newSession()}>
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider

@@ -17,7 +17,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `collectClientTools` / `collectClientEffects` / `collectToolRenderers` / `collectAttachmentCards` / `resolveCaptureMode` (`collect-client.ts`)
 - `getExtensionApi` (`extension-api.ts`)
 - `useScope` (`use-scope.ts`): an `ExtensionScope` whose `settings` follow the engine over `settings.changes`; the stream closes on owner cleanup
-- `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
+- `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useDialog, useSessionId, useGrab, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
 - `HostWiring` / `HostApiContext` / `use` / `useExtensionValue` (`host-context.ts`)
 - `MountedExtension` / `MountedSurface` / `MountedView` (`mount-extension.tsx`)
 - `ensureEffectsSurface` / `openSource` (`client-host.ts`); `EFFECTS_SURFACE_ATTR` / `CONCIV_UI_SELECTOR` re-exported from `@conciv/protocol/page-types`
