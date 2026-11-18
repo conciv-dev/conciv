@@ -98,12 +98,9 @@ export type SavedDraft = {
 async function saveEditedDraft(
   appData: AppData,
   sessionId: string,
+  row: DraftRow | null,
   edit: (draft: SavedDraft) => SavedDraft,
 ): Promise<void> {
-  const row = await appData.readDraft(sessionId).catch((error: unknown) => {
-    console.error('[conciv] could not read the saved draft', error)
-    return null
-  })
   const text = row?.text ?? ''
   const edited = edit({
     text,
@@ -122,17 +119,17 @@ async function saveEditedDraft(
 
 const keptDraftLock = new Mutex()
 
-export async function editDraft(
-  appData: AppData,
-  sessionId: string,
-  edit: (draft: SavedDraft) => SavedDraft,
-): Promise<void> {
+async function withDraftLock(write: () => Promise<void>): Promise<void> {
   await keptDraftLock.acquire()
   try {
-    await saveEditedDraft(appData, sessionId, edit)
+    await write()
   } finally {
     keptDraftLock.release()
   }
+}
+
+export function editDraft(appData: AppData, sessionId: string, edit: (draft: SavedDraft) => SavedDraft): Promise<void> {
+  return withDraftLock(async () => saveEditedDraft(appData, sessionId, await appData.readDraft(sessionId), edit))
 }
 
 function keepInDraft(
@@ -141,15 +138,21 @@ function keepInDraft(
   kept: {text: string; items: readonly DraftItem[]},
   place: DraftPlace,
 ): Promise<void> {
-  return editDraft(appData, sessionId, (draft) => {
-    const text = joinDraftText(draft.text, kept.text, place)
-    const caret = place === 'first' ? kept.text.length : text.length
+  return withDraftLock(async () => {
+    const row = await appData.readDraft(sessionId).catch((error: unknown) => {
+      console.error('[conciv] could not read the saved draft', error)
+      return null
+    })
+    await saveEditedDraft(appData, sessionId, row, (draft) => {
+      const text = joinDraftText(draft.text, kept.text, place)
+      const caret = place === 'first' ? kept.text.length : text.length
 
-    return {
-      text,
-      selection: {start: caret, end: caret},
-      items: uniqBy([...draft.items, ...kept.items], (item) => item.key),
-    }
+      return {
+        text,
+        selection: {start: caret, end: caret},
+        items: uniqBy([...draft.items, ...kept.items], (item) => item.key),
+      }
+    })
   })
 }
 

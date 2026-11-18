@@ -37,6 +37,12 @@ export function formatNoteComment(input: NoteComment) {
   return `The user made the following comment regarding ${input.live?.subject ?? input.subject}: ${input.comment}`
 }
 
+function shownText(content: string | SendContent): string {
+  if (typeof content === 'string') return content
+  if (typeof content.content === 'string') return content.content
+  return content.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
+}
+
 export function promptWithNotes(content: string | SendContent, draft: ComposerDraft): string | SendContent {
   const notes = decodeNotes(draft.items).map((entry) => entry.note)
 
@@ -44,7 +50,7 @@ export function promptWithNotes(content: string | SendContent, draft: ComposerDr
 
   const comments = notes.map((note) => noteComment(note, note.comment.trim()))
   const sentences = comments.map(formatNoteComment)
-  const displayText = (typeof content === 'string' ? content : draft.draft).trim()
+  const displayText = shownText(content).trim()
   const metadata = {displayText, comments, attachments: []}
 
   if (typeof content === 'string') return {content: [displayText, ...sentences].filter(Boolean).join('\n'), metadata}
