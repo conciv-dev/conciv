@@ -5,7 +5,8 @@ import {sumBy} from 'es-toolkit'
 import CornerDownRight from 'lucide-solid/icons/corner-down-right'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CardRow, CardRows, InspectionCard, countLabel, parseOutput} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 const RouteBranchSchema = RouteNode.pick({id: true})
   .extend({

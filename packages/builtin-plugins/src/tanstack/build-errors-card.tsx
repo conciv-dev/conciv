@@ -4,7 +4,8 @@ import {AppError} from '@conciv/plugin-tanstack/rpc'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {ErrorBlock} from '@conciv/ui-kit-chat/tools'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CardNote, InspectionCard, countLabel, parseOutput} from './card-shared.js'
+import {CardNote, InspectionCard, parseOutput} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 type BuildError = {message: string; where: string | null}
 

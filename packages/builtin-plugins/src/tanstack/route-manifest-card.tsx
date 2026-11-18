@@ -3,7 +3,8 @@ import {z} from 'zod'
 import {RouteInfo} from '@conciv/plugin-tanstack/rpc'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CardRow, CardRows, InspectionCard, countLabel, parseOutput} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
 

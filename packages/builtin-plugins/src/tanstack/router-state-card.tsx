@@ -4,7 +4,8 @@ import {RouteMatch, RouterCurrent} from '@conciv/plugin-tanstack/rpc'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {Chip} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, countLabel, parseOutput} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 const MatchSchema = RouteMatch.pick({routeId: true, status: true})
   .partial({status: true})

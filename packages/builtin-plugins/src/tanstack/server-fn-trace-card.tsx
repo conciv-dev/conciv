@@ -5,7 +5,8 @@ import {keyBy} from 'es-toolkit'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {Chip} from '@conciv/ui-kit-chat/tools'
-import {CardNote, CardRow, CardRows, InspectionCard, countLabel, parseOutput} from './card-shared.js'
+import {CardNote, CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 

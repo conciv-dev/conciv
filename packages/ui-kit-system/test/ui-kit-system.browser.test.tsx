@@ -16,6 +16,7 @@ import type {SchemePair, Skin} from '../src/skin-contract.js'
 import {contrastRatio, type SkinSchemeAnchorName} from './wcag.js'
 import {TextArea} from '../src/text-field.js'
 import {Menu} from '../src/menu.js'
+import {AnchoredListbox} from '../src/anchored-listbox.js'
 import {TooltipIconButton, TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
 import {TruncatedText, TruncatedTextGroup} from '../src/truncated-text.js'
 import {Tooltip} from '../src/tooltip.js'
@@ -274,6 +275,38 @@ describe('clipboard', () => {
     await copyButton().click()
 
     await expect.element(page.getByText('the caller was told')).toBeVisible()
+  })
+})
+
+describe('anchored listbox placement', () => {
+  const COMMANDS = ['clear', 'compact', 'context', 'deploy', 'review']
+
+  test('a field near the top of the viewport opens its list below, every entry in view', async () => {
+    await page.viewport(480, 800)
+    const collection = createListCollection({items: COMMANDS})
+    render(() => (
+      <AnchoredListbox.Root
+        anchor={{x: 24, y: 96, width: 2, height: 20}}
+        collection={collection}
+        onSelect={() => undefined}
+        onDismiss={() => undefined}
+      >
+        <AnchoredListbox.Label>Commands</AnchoredListbox.Label>
+        <AnchoredListbox.Content>
+          <For each={COMMANDS}>
+            {(name) => (
+              <AnchoredListbox.Item item={name} name={`/${name}`}>
+                <AnchoredListbox.ItemText>{`/${name}`}</AnchoredListbox.ItemText>
+              </AnchoredListbox.Item>
+            )}
+          </For>
+        </AnchoredListbox.Content>
+      </AnchoredListbox.Root>
+    ))
+
+    for (const name of COMMANDS) {
+      await expect.element(page.getByRole('option', {name: `/${name}`, exact: true})).toBeInViewport({ratio: 1})
+    }
   })
 })
 

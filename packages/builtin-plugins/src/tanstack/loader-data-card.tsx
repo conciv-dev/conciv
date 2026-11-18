@@ -3,7 +3,8 @@ import {z} from 'zod'
 import {isPlainObject} from 'es-toolkit'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CardRow, CardRows, InspectionCard, JsonValue, countLabel, parseOutput} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, JsonValue, parseOutput} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 type Entry = {key: string; preview: string; value: unknown}
 

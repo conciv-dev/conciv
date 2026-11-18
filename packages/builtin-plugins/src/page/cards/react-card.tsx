@@ -10,6 +10,7 @@ import {
   QUIET_TEXT_CLASS,
   cardErrorMessage,
   cardPayload,
+  countLabel,
   elementChip,
   hasPayloadOrError,
   mutatingBadge,
@@ -25,16 +26,13 @@ const TrackPayload: z.ZodType<Pick<TrackReport, 'components' | 'note'>> = z.loos
   note: z.string().optional(),
 })
 
-const RENDER_FORMAT = new Intl.NumberFormat()
-const RENDER_PLURAL = new Intl.PluralRules('en')
-
 const HEADLINE = 'text-[length:var(--chat-text-sm)] m-0 flex flex-wrap gap-x-2 gap-y-0.5 items-baseline'
 const COMPONENT_NAME = '[color:var(--chat-text-hi)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
 const SOURCE_LOCATION =
-  'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
+  'text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
 
 function renderLabel(renders: number): string {
-  return `${RENDER_FORMAT.format(renders)} ${RENDER_PLURAL.select(renders) === 'one' ? 'render' : 'renders'}`
+  return countLabel(renders, 'render', 'renders')
 }
 
 function locationLabel(file: string, line: number | undefined): string {
