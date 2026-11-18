@@ -109,7 +109,11 @@ export const createStore = async (dataDir: string) => {
 
   const listElements = (scope: ElementScope, room: string): Promise<ElementRow[]> => {
     const table = elementTable(scope)
-    return db.select().from(table).where(eq(table.room, room))
+    return db
+      .select()
+      .from(table)
+      .where(eq(table.room, room))
+      .orderBy(sql`json_extract(${table.data}, '$.index')`, asc(table.elementId))
   }
 
   const getElement = (scope: ElementScope, room: string, elementId: string): Promise<ElementRow | undefined> => {

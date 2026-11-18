@@ -35,6 +35,9 @@ const Exported = z.tuple([
 const CanvasRead = z.object({elements: z.array(z.object({id: z.string(), type: z.string()}).loose())})
 const ShownElement = z.object({version: z.number(), index: z.string()}).loose()
 const PlacedElement = ShownElement.extend({id: z.string(), x: z.number(), y: z.number()})
+const DrawnBox = z.object({x: z.number(), y: z.number(), width: z.number(), height: z.number()}).loose()
+const ELEMENT_WRITE_THROTTLE_MS = 50
+const DRAG_DISTANCE = 200
 const TIE_BREAK_MARKER = 'tie-break-marker'
 const MOVED_DIAMOND_WRITE = {
   path: WHITEBOARD_CALL,
@@ -50,10 +53,20 @@ const ThreadRead = z.object({
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
 })
 const CommentList = z.object({comments: z.array(z.object({cid: z.string()}).loose())})
+const QUIET_WRITE = {
+  path: WHITEBOARD_CALL,
+  input: {
+    rpcId: 'whiteboard',
+    method: /^(?!.*\.(list|get|since)$)/,
+  },
+}
 
 const MALFORMED_SVG = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10'></svg>"
 const UNDRAWABLE_SVG = "<svg viewBox='0 0 10 10'><g></g></svg>"
 const SCRIPT_MARKER = 'svg markup ran as script'
+const DENSE_SVG = `<svg viewBox='0 0 100 100'><path d="${'M0 0 L5 5 '.repeat(2000)}" stroke='#000'/></svg>`
+const DEGENERATE_SVG =
+  "<svg viewBox='0 0 100 100'><path d='M z'/><rect x='10' y='10' width='20' height='20' fill='#ccc'/></svg>"
 const HOSTILE_SVG = `<svg viewBox='0 0 100 50' onload="document.title='${SCRIPT_MARKER}'"><image href='missing.png' onerror="document.title='${SCRIPT_MARKER}'"/><rect x='0' y='0' width='100' height='50' fill='#e03131'/></svg>`
 
 async function canvasElements(kit: CoreKit, scope: 'live' | 'draft'): Promise<{id: string; type: string}[]> {
@@ -64,6 +77,23 @@ async function canvasElements(kit: CoreKit, scope: 'live' | 'draft'): Promise<{i
 async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Promise<string[]> {
   const read = CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {scope}))
   return read.elements.map((element) => element.type)
+}
+
+async function drawnBoxes(kit: CoreKit): Promise<z.infer<typeof DrawnBox>[]> {
+  return DrawnBox.array().parse(CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {})).elements)
+}
+
+function writeBudget(dragMs: number): number {
+  return Math.ceil(dragMs / ELEMENT_WRITE_THROTTLE_MS) + 2
+}
+
+async function pointerDrag(page: Page, from: {x: number; y: number}, to: {x: number; y: number}): Promise<number> {
+  const startedAt = Date.now()
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, {steps: 90})
+  await page.mouse.up()
+  return Date.now() - startedAt
 }
 
 async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise<unknown> {
@@ -98,7 +128,7 @@ async function dragPin(page: Page, pin: Locator, to: {x: number; y: number}): Pr
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer, closes on Escape and still takes what the agent draws, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer at its real size, drags one shape the full distance in few writes and a selected group in bulk writes, closes on Escape and still takes what the agent draws, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, caps a dense svg and skips a broken node, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -123,14 +153,50 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await page.mouse.click(120, 640)
       await page.keyboard.press('r')
       await expect(rectangleTool).toBeChecked()
-      const drawn = observer.mark()
       await dragRectangle(page, {x: 200, y: 200}, {x: 360, y: 320})
-      await observer.completed({
-        path: WHITEBOARD_CALL,
-        input: {rpcId: 'whiteboard', method: 'elements.upsert'},
-        since: drawn,
-      })
+      await expect
+        .poll(async () => (await drawnBoxes(widget.kit)).map((box) => ({width: box.width, height: box.height})))
+        .toEqual([{width: 160, height: 120}])
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
+      const [drawnBox] = await drawnBoxes(widget.kit)
+      const startX = drawnBox?.x ?? 0
+
+      const elementWrite = (method: string, since: number) => ({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method},
+        since,
+      })
+      const selectionTool = page.getByRole('radio', {name: /Selection/})
+      await expect(selectionTool).toBeChecked()
+      const singleDrag = observer.mark()
+      const singleDragMs = await pointerDrag(page, {x: 280, y: 260}, {x: 280 + DRAG_DISTANCE, y: 260})
+      await expect.poll(async () => (await drawnBoxes(widget.kit))[0]?.x).toBe(startX + DRAG_DISTANCE)
+      const singleWrites = observer.startedCount(elementWrite('elements.upsert', singleDrag))
+      expect(singleWrites).toBeGreaterThan(1)
+      expect(singleWrites).toBeLessThanOrEqual(writeBudget(singleDragMs))
+      expect(observer.startedCount(elementWrite('elements.bulkUpsert', singleDrag))).toBe(0)
+      expect((await drawnBoxes(widget.kit))[0]).toMatchObject({width: 160, height: 120})
+
+      await page.keyboard.press('r')
+      await expect(rectangleTool).toBeChecked()
+      const secondDrawn = observer.mark()
+      await dragRectangle(page, {x: 640, y: 200}, {x: 760, y: 320})
+      await observer.completed(elementWrite('elements.upsert', secondDrawn))
+      const beforeGroupDrag = await drawnBoxes(widget.kit)
+      expect(beforeGroupDrag).toHaveLength(2)
+      await expect(selectionTool).toBeChecked()
+      await dragRectangle(page, {x: 380, y: 170}, {x: 800, y: 350})
+      const groupDrag = observer.mark()
+      const groupDragMs = await pointerDrag(page, {x: 480, y: 260}, {x: 480, y: 260 + DRAG_DISTANCE})
+      await expect
+        .poll(async () => (await drawnBoxes(widget.kit)).map((box) => box.y))
+        .toEqual(beforeGroupDrag.map((box) => box.y + DRAG_DISTANCE))
+      const groupBulkWrites = observer.startedCount(elementWrite('elements.bulkUpsert', groupDrag))
+      expect(groupBulkWrites).toBeGreaterThan(0)
+      expect(groupBulkWrites + observer.startedCount(elementWrite('elements.upsert', groupDrag))).toBeLessThanOrEqual(
+        writeBudget(groupDragMs),
+      )
+      expect((await drawnBoxes(widget.kit))[0]).toMatchObject({width: 160, height: 120})
 
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
       const stop = page.getByRole('button', {name: 'Stop generating'})
@@ -164,7 +230,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(rectangleTool).toBeVisible({timeout: 10_000})
       await expect(page.getByRole('button', {name: 'Zoom in'})).toBeVisible()
       await expect(rectangleTool).not.toBeChecked()
-      expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
+      expect(await canvasTypes(widget.kit)).toEqual(['rectangle', 'rectangle'])
 
       const chatLayers = [
         {
@@ -303,7 +369,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       )
       expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(false)
       expect(await canvasElements(widget.kit, 'draft')).toEqual(draftBeforeCommit)
-      expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
+      expect(await canvasTypes(widget.kit)).toEqual(['rectangle', 'rectangle'])
       await Promise.all(liveWrites.map((fault) => fault.dispose()))
 
       expect(Committed.parse(await widget.kit.callTool('whiteboard_canvas_commit', {})).committed).toBe(true)
@@ -319,6 +385,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         'rectangle',
         'rectangle',
         'rectangle',
+        'rectangle',
         'text',
         'text',
       ])
@@ -326,6 +393,23 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       const [, image] = Exported.parse(await widget.kit.callTool('whiteboard_canvas_export', {format: 'png'}))
       expect(image.source.mimeType).toBe('image/png')
       expect(image.source.value).toMatch(/^iVBORw0KGgo/)
+
+      Pending.parse(await widget.kit.callTool('whiteboard_canvas_svg', {svg: DENSE_SVG, x: 0, y: 0, width: 200}))
+      expect(
+        z
+          .array(z.unknown())
+          .parse(
+            await widget.kit.rpc.plugin.call(
+              {rpcId: 'whiteboard', method: 'elements.list', input: {room, scope: 'draft'}},
+              {signal: AbortSignal.timeout(10_000)},
+            ),
+          ),
+      ).toHaveLength(500)
+      await widget.kit.callTool('whiteboard_canvas_discard', {})
+      Pending.parse(await widget.kit.callTool('whiteboard_canvas_svg', {svg: DEGENERATE_SVG, x: 0, y: 0, width: 200}))
+      expect(await canvasTypes(widget.kit, 'draft')).toEqual(['rectangle'])
+      await widget.kit.callTool('whiteboard_canvas_discard', {})
+      expect(await canvasTypes(widget.kit, 'draft')).toEqual([])
 
       const second = await browser.newPage()
       try {
@@ -552,7 +636,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, a dragged pin lands on the engine, only comments from others make a thread unread again, and Escape on a thread stepped to its first closes only the thread', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, and Escape on a thread stepped to its first closes only the thread', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -570,6 +654,13 @@ describe('the comments of the whiteboard plugin', () => {
       await openChat(page)
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+      await page.mouse.click(120, 700)
+      await page.keyboard.press('r')
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeChecked()
+      await dragRectangle(page, {x: 180, y: 560}, {x: 460, y: 640})
+      await expect
+        .poll(async () => (await drawnBoxes(widget.kit)).map((box) => ({width: box.width, height: box.height})))
+        .toEqual([{width: 280, height: 80}])
 
       await widget.kit.callTool('whiteboard_comment_create', {
         cid: 'agent-first',
@@ -581,12 +672,23 @@ describe('the comments of the whiteboard plugin', () => {
       })
       const pin = page.getByRole('button', {name: 'AI comment, open, unread'})
       await expect(pin).toBeVisible({timeout: 30_000})
+      const opened = observer.mark()
       await pin.click()
       const thread = page.getByRole('dialog', {name: 'Comment thread'})
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
       const readPin = page.getByRole('button', {name: 'AI comment, open', exact: true})
       await expect(readPin).toBeVisible()
+      await observer.completed({
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'reads.insert'},
+        since: opened,
+      })
 
+      const quiet = observer.mark()
+      for (let step = 0; step < 24; step += 1) {
+        await page.mouse.move(200 + step * 10, 600 + (step % 2 === 0 ? -8 : 8))
+      }
+      expect(observer.startedCount({...QUIET_WRITE, since: quiet})).toBe(0)
       await page.getByRole('button', {name: 'Zoom in'}).click()
       await page.getByRole('button', {name: 'Zoom in'}).click()
       await expect(page.getByRole('button', {name: 'Reset zoom'})).toHaveText('120%')
@@ -597,6 +699,14 @@ describe('the comments of the whiteboard plugin', () => {
         input: {rpcId: 'whiteboard', method: 'pins.update'},
         since: dragged,
       })
+      expect(observer.startedCount({...QUIET_WRITE, since: quiet})).toBe(1)
+      expect(
+        observer.startedCount({
+          path: WHITEBOARD_CALL,
+          input: {rpcId: 'whiteboard', method: 'pins.update'},
+          since: quiet,
+        }),
+      ).toBe(1)
       const room = await widget.kit.session()
       const moved = PinRows.parse(
         await widget.kit.rpc.plugin.call(
@@ -682,7 +792,7 @@ describe('the comments of the whiteboard plugin', () => {
     }
   }, 120_000)
 
-  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, and a dropped source-linked pin asks before it drifts', async ({
+  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -846,6 +956,13 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByText('Could not save your whiteboard change. Try again.')).toBeVisible()
       await expect(readPin).toBeVisible()
       await refused.dispose()
+
+      await readPin.click()
+      await expect(thread.getByText('this label is off by one')).toBeVisible()
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'linked'})
+      await expect(thread).toBeHidden()
+      await expect(page.getByRole('button', {name: 'Close thread'})).toHaveCount(0)
+      await expect(page.getByRole('button', {name: 'Resolve thread'})).toHaveCount(0)
     } finally {
       await widget.close()
     }
