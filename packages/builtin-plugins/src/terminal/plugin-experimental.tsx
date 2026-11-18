@@ -13,10 +13,10 @@ const tab: PanelTab = {
   title: 'Terminal',
   pinned: true,
   label: () => (
-    <span class="flex gap-1 items-center">
-      <TerminalIcon class="shrink-0 size-3" aria-hidden="true" />
+    <>
+      <TerminalIcon aria-hidden="true" />
       Terminal
-    </span>
+    </>
   ),
 }
 
