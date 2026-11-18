@@ -7809,6 +7809,7 @@ module.exports = {default: {setup(ctx) {
   }, 45_000)
 
   test("a plugin command with a slash name joins the composer's slash list after /model in plugin order, honouring after, and runs from the keyboard while a throwing one leaves the composer working", async () => {
+    await page.viewport(520, 760)
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
     const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -7824,7 +7825,14 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('option').nth(1)).toHaveTextContent('/tallyCount one more tally')
     await expect.element(page.getByRole('option').nth(2)).toHaveTextContent('/recountCount the tallies again')
     await expect.element(page.getByRole('option').nth(3)).toHaveTextContent('/brokenA command that throws')
+    await expect.element(page.getByRole('option').nth(4)).toHaveTextContent('/renameRename the tally')
     await expect.element(option('unslashed')).not.toBeInTheDocument()
+    await expect.element(option('model')).toBeInViewport({ratio: 1})
+    await expect.element(option('tally')).toBeInViewport({ratio: 1})
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}')
+    await expect.element(option('rename')).toBeInViewport({ratio: 1})
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}')
+    await expect.element(option('model')).toBeInViewport({ratio: 1})
 
     await userEvent.keyboard('broken')
     await expect.element(page.getByRole('option').first()).toHaveTextContent('/brokenA command that throws')
