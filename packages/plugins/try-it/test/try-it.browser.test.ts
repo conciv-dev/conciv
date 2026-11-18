@@ -1,4 +1,4 @@
-import {createServer as createHttpServer, type Server as HttpServer} from 'node:http'
+import {createServer as createHttpServer, type IncomingMessage, type Server as HttpServer} from 'node:http'
 import {
   connect as connectSocket,
   createServer as createTcpServer,
@@ -23,7 +23,6 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 const HOST_ENTRY = fileURLToPath(new URL('./host/app.ts', import.meta.url))
 const LNA_STUB = fileURLToPath(new URL('./fixture/local-network-access-stub.js', import.meta.url))
 const WIDGET_DIR = dirname(createRequire(import.meta.url).resolve('@conciv/embed'))
-const PROBE_MS = 100
 
 const WAITING = 'Waiting for your agent…'
 const BLOCKED_STEP =
@@ -52,7 +51,18 @@ function probeLedger() {
     response.writeHead(404)
     response.end()
   })
-  return {server, count: (token: string) => probes.get(token) ?? 0}
+  const probed = (token: string, more: number): Promise<void> => {
+    const target = (probes.get(token) ?? 0) + more
+    return new Promise((resolve) => {
+      const check = (request: IncomingMessage): void => {
+        if (!request.url?.startsWith(`/t/${token}/`) || (probes.get(token) ?? 0) < target) return
+        server.off('request', check)
+        resolve()
+      }
+      server.on('request', check)
+    })
+  }
+  return {server, count: (token: string) => probes.get(token) ?? 0, probed}
 }
 
 function forwardTo(port: number): {server: TcpServer; sockets: Set<Socket>} {
@@ -112,17 +122,26 @@ describe('try-it composed into the widget', () => {
     const kit = held.kit
     if (!kit) throw new Error('the core did not boot')
     const token = new URL(kit.base).pathname.split('/')[2] ?? ''
+    const forward = forwardTo(Number(new URL(kit.base).port))
+    const holdingPage = await browser.newPage()
+    const holding = holdingPage.getByRole('dialog', {name: 'conciv chat agent'})
     const page = await browser.newPage()
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
-    await page.goto(`${site()}/?token=${token}`, {waitUntil: 'domcontentloaded'})
-    await expect(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
-    await expect(panel.getByText(WAITING)).toBeVisible()
-    await expect(panel.getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
-
-    const forward = forwardTo(Number(new URL(kit.base).port))
-    const forwarder = await onConnectPort(forward.server)
+    const forwarder: {current?: Listening} = {}
     try {
-      await expect(panel.getByText('Agent connected', {exact: true})).toBeVisible({timeout: 10_000})
+      await holdingPage.goto(`${site()}/?token=${token}&holdMs=600000`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${site()}/?token=${token}&holdMs=1`, {waitUntil: 'domcontentloaded'})
+      await expect(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
+      await expect(panel.getByText(WAITING)).toBeVisible()
+      await expect(panel.getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
+      await expect(holding.getByText(WAITING)).toBeVisible({timeout: 20_000})
+
+      forwarder.current = await onConnectPort(forward.server)
+
+      await expect(holding.getByText('Agent connected', {exact: true})).toBeVisible({timeout: 10_000})
+      await expect(holding.getByText('Drive this page with your agent.')).toBeVisible()
+      await expect(holding.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveCount(0)
+
       await expect(panel.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 20_000})
       await expect(panel.getByText(HANDED_OFF)).toBeVisible()
       await expect(panel.getByText('Drive this page with your agent.')).toBeHidden()
@@ -130,9 +149,10 @@ describe('try-it composed into the widget', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(panel.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 20_000})
     } finally {
+      await holdingPage.close()
       await page.close()
       forward.sockets.forEach((socket) => socket.destroy())
-      await forwarder.close()
+      await forwarder.current?.close()
     }
   }, 120_000)
 
@@ -147,9 +167,7 @@ describe('try-it composed into the widget', () => {
     await expect(panel.getByText(BLOCKED_STATUS)).toBeVisible()
     await expect(panel.getByText(WAITING)).toBeHidden()
 
-    await page.evaluate(() =>
-      document.dispatchEvent(new CustomEvent('local-network-access-state', {detail: 'granted'})),
-    )
+    await page.getByRole('button', {name: 'Grant local network access'}).click()
     await expect(panel.getByText(WAITING)).toBeVisible()
     await expect(panel.getByRole('alert')).toHaveCount(0)
     await page.close()
@@ -164,8 +182,13 @@ describe('try-it composed into the widget', () => {
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toHaveCount(0)
 
     const sealed = ledger.count(token)
-    await page.waitForTimeout(PROBE_MS * 10)
+    const witness = randomUUID()
+    const watching = await browser.newPage()
+    const swept = ledger.probed(witness, 3)
+    await watching.goto(`${site()}/?token=${witness}`, {waitUntil: 'domcontentloaded'})
+    await swept
     expectValue(ledger.count(token)).toBe(sealed)
+    await watching.close()
     await page.close()
   }, 60_000)
 })

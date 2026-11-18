@@ -11,9 +11,11 @@ Only a host composes it, with the pairing token as its option:
 
 ```ts
 import {compose} from '@conciv/plugin/experimental/host'
+import type {Plugin} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
 
-const plugins = compose({'try-it': {windowEntry: async () => ({default: (ctx: never) => tryIt.setup?.(ctx)})}}).map(
+const setup: Plugin.Setup<typeof tryIt> = (ctx) => tryIt.setup?.(ctx)
+const plugins = compose({'try-it': {windowEntry: async () => ({default: setup})}}).map(
   (entry) => [entry, {token}] as const,
 )
 mountConciv([], plugins)

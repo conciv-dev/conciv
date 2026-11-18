@@ -41,6 +41,7 @@
   "dependencies": {
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@solid-primitives/autofocus": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "effect": "catalog:",
     "lucide-solid": "catalog:",

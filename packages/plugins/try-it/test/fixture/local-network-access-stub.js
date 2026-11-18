@@ -9,7 +9,16 @@ navigator.permissions.query = (descriptor) => {
   return Promise.resolve(status)
 }
 
-document.addEventListener('local-network-access-state', (event) => {
-  currentState = event.detail
-  handedOut.forEach((status) => status.dispatchEvent(new Event('change')))
+document.addEventListener('DOMContentLoaded', () => {
+  const grant = document.createElement('button')
+  grant.type = 'button'
+  grant.textContent = 'Grant local network access'
+  grant.addEventListener('click', () => {
+    currentState = 'granted'
+    handedOut.forEach((status) => {
+      status.state = currentState
+      status.dispatchEvent(new Event('change'))
+    })
+  })
+  document.body.appendChild(grant)
 })

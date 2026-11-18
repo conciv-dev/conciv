@@ -126,6 +126,9 @@ catalogs:
     '@silvia-odwyer/photon-node':
       specifier: 0.3.4
       version: 0.3.4
+    '@solid-primitives/autofocus':
+      specifier: ^0.1.5
+      version: 0.1.5
     '@solid-primitives/date':
       specifier: ^2.1.8
       version: 2.1.8
@@ -5004,6 +5007,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@solid-primitives/autofocus':
+        specifier: 'catalog:'
+        version: 0.1.5(solid-js@1.9.17)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -11904,6 +11910,11 @@ packages:
 
   '@solid-primitives/active-element@2.1.6':
     resolution: {integrity: sha512-kChC9c21g+/n0bfy2b5pkcGAgfiA4G/wcCSxVbrCXlnHfROw9PJi8x4ilYxOYSAnWvpI5pZXvK2McPXYE0y0oA==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
+  '@solid-primitives/autofocus@0.1.5':
+    resolution: {integrity: sha512-6wXoS9GlvSz8KEyJVlKUTsCKtoMS01vb2rUIQxd5LxwyWgfnaQqjVWSNIj1vRXEhX2vrMezk8YNFAHVUI3k4WQ==}
     peerDependencies:
       solid-js: ^1.6.12
 
@@ -25599,6 +25610,11 @@ snapshots:
   '@solid-primitives/active-element@2.1.6(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
+
+  '@solid-primitives/autofocus@0.1.5(solid-js@1.9.17)':
+    dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
       solid-js: 1.9.17
 

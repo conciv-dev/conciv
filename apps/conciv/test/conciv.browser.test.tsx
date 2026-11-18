@@ -83,6 +83,7 @@ import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
 import {compose} from '@conciv/plugin/experimental/host'
+import type {Plugin} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
 import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {
@@ -3784,10 +3785,13 @@ describe('panel connect', () => {
   }, 30_000)
 })
 
-function tryItPlugins(token: string): ComposedPlugin[] {
-  return compose({'try-it': {windowEntry: async () => ({default: (ctx: never) => tryIt.setup?.(ctx)})}}).map(
-    (entry): ComposedPlugin => [entry, {token, probeMs: 100, holdMs: 2_000}],
-  )
+const tryItSetup: Plugin.Setup<typeof tryIt> = (ctx) => tryIt.setup?.(ctx)
+
+function tryItPlugins(token: string, holdMs: number): ComposedPlugin[] {
+  return compose({'try-it': {windowEntry: async () => ({default: tryItSetup})}}).map((entry): ComposedPlugin => [
+    entry,
+    {token, probeMs: 100, holdMs},
+  ])
 }
 
 describe('server cover', () => {
@@ -3803,9 +3807,9 @@ describe('server cover', () => {
   const connectSteps = () => panel().getByText('Drive this page with your agent.')
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-  test('a composed plugin covers the panel until its server is ready, then the panel binds to it in place', async () => {
+  test('a composed plugin covers the panel until its server is ready, holds there while it says so, then the panel binds to it in place', async () => {
     const token = new URL(core()).pathname.split('/')[2] ?? ''
-    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token)})
+    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 600_000)})
 
     await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
     await expect.element(panel().getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
@@ -3814,6 +3818,18 @@ describe('server cover', () => {
     await coreControl.forwardConnectPort()
 
     await expect.element(panel().getByText('Agent connected', {exact: true}), {timeout: 10_000}).toBeVisible()
+    await expect.element(connectSteps()).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    harness.dispose()
+    await coreControl.closeConnectForward()
+    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 1)})
+
+    await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await coreControl.forwardConnectPort()
+
     await expect.element(editor(), {timeout: 15_000}).toBeVisible()
     await expect.element(panel().getByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
     await expect.element(connectSteps()).not.toBeInTheDocument()

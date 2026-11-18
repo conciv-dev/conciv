@@ -405,6 +405,25 @@ export type ShellMountOptions = {
   plugins?: readonly ComposedPlugin[]
 }
 
+function shellLogin(
+  options: ShellMountOptions['login'],
+  onDispose: (dispose: () => void) => void,
+): ReturnType<typeof createEngineLogin> | undefined {
+  if (!options) return undefined
+  const login = createRoot((dispose) => {
+    onDispose(dispose)
+    return createEngineLogin({apiBase: () => options.apiBase, tokenSource: options.tokenSource})
+  })
+  void startEngineLogin(login)
+  return login
+}
+
+function shellSettings(options: ShellMountOptions) {
+  return parseConcivSettings(
+    JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
+  )
+}
+
 function shellClient(apiBase: string | undefined, session: () => string | null) {
   const client = makeBrowserRpcClient(apiBase ?? (() => null), {session})
   const [boundBase, setBoundBase] = createSignal(apiBase ?? '')
@@ -466,14 +485,9 @@ export function createShellHarness(base: () => string): ShellHarness {
     options: ShellMountOptions = {},
   ): void => {
     const apiBase = options.login?.apiBase ?? base()
-    const loginOptions = options.login
-    const login =
-      loginOptions &&
-      createRoot((disposeLogin) => {
-        mounted.disposeLogin = disposeLogin
-        return createEngineLogin({apiBase: () => apiBase, tokenSource: loginOptions.tokenSource})
-      })
-    if (login) void startEngineLogin(login)
+    const login = shellLogin(options.login, (dispose) => {
+      mounted.disposeLogin = dispose
+    })
     const activeSession: {read: () => string | null} = {read: () => null}
     const servers = options.plugins !== undefined
     const {client, boundBase, bindApiBase} = shellClient(servers ? undefined : apiBase, () => activeSession.read())
@@ -484,9 +498,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: shell.root ?? document, document},
-      settings: parseConcivSettings(
-        JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
-      ),
+      settings: shellSettings(options),
       apiBase: options.apiBase ?? boundBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
       connectionGeneration: () => 0,

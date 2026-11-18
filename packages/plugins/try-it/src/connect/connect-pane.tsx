@@ -1,7 +1,8 @@
 import {ClipboardCopyButton, Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import Check from 'lucide-solid/icons/check'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {createSignal, onMount, Show, type Accessor, type JSX} from 'solid-js'
+import {autofocus} from '@solid-primitives/autofocus'
+import {createSignal, Show, type Accessor, type JSX} from 'solid-js'
 import type {ConnectState} from './connect-model.js'
 import {useLocalNetworkAccessPermission} from './local-network-access.js'
 import {stepStates, type StepState, type TryStep} from './try-steps.js'
@@ -86,17 +87,8 @@ export function ConnectPane(props: {token: string; state: Accessor<ConnectState 
   const npxText = () => `npx @conciv/try --token ${props.token}`
   const markCopied = () => setCopied(true)
 
-  let paneEl: HTMLDivElement | undefined
-  onMount(() => paneEl?.focus())
-
   return (
-    <div
-      ref={(el) => {
-        paneEl = el
-      }}
-      tabindex={-1}
-      class="p-5 outline-none flex flex-col gap-3.5 h-full"
-    >
+    <div ref={autofocus} autofocus tabindex={-1} class="p-5 outline-none flex flex-col gap-3.5 h-full">
       <div class="flex shrink-0 flex-col gap-1.5 anim-rise">
         <h2 class="text-[15px] text-chat-text-hi font-semibold">Drive this page with your agent.</h2>
         <p class="text-[13px] text-chat-text-2 leading-relaxed">
