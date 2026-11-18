@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Mutex, keyBy, uniqBy} from 'es-toolkit'
+import {Mutex, uniqBy} from 'es-toolkit'
 import type {DraftRow} from '@conciv/contract'
 import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {WebStorage} from '@conciv/storage-history'
@@ -53,10 +53,10 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
 const ClaimsNoteSchema = z.object({type: z.literal('note')})
 
 function durableItems(items: readonly DraftItem[]): DraftItem[] {
-  const notes = keyBy(decodeNotes(items), (entry) => entry.key)
+  const notes = new Map(decodeNotes(items).map((entry) => [entry.key, entry]))
 
   return items.flatMap((item) => {
-    const note = notes[item.key]
+    const note = notes.get(item.key)
 
     if (note) return [{key: item.key, value: noteValue(durableNote(note.note))}]
 
@@ -212,7 +212,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         attachments: draft.attachments,
         items: draft.items,
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => console.error('[conciv] could not save the draft', error))
   }
   const cached = () => (cache === null ? null : parseDraft(cache))
   return {

@@ -19,7 +19,10 @@ const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
   quote: z.string().nullable().catch(null),
   attachments: z.array(PersistedAttachmentSchema).catch([]),
-  items: z.array(DraftItemSchema).catch([]),
+  items: z
+    .array(z.unknown())
+    .catch([])
+    .transform((entries) => entries.flatMap((entry) => DraftItemSchema.safeParse(entry).data ?? [])),
 })
 
 export type PersistedComposerDraft = z.infer<typeof PersistedDraftSchema>

@@ -203,7 +203,8 @@ function Root(props: FormProps): JSX.Element {
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
   const attachments = () => state.attachments
-  const staged = createMemo(() => state.attachments.length + state.items.length)
+  const deliversItems = () => handlers.onSend !== undefined
+  const staged = createMemo(() => state.attachments.length + (deliversItems() ? state.items.length : 0))
   const draftKey = () => local.draftKey ?? DEFAULT_DRAFT_KEY
   const upsertAttachment = (attachment: PendingAttachment) => {
     if (removedIds.has(attachment.id)) return
@@ -340,7 +341,7 @@ function Root(props: FormProps): JSX.Element {
     setState('sendingAttachments', true)
     const content = await completedContent(original)
     if (content === null) return
-    clearSent(original)
+    clearSent(deliversItems() ? original : {...original, items: []})
     const outcome = await runSend(content, original)
     if (!outcome.failure) return
     if (!outcome.left) putBackUnsentMessage(original)
