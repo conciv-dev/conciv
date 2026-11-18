@@ -42,7 +42,6 @@ export function createPinDrag(model: CommentsModel) {
     state.prompt ? model.pinButton(state.prompt.cid) : undefined
 
   const grab = (view: Viewport, pin: PinRow, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
-    event.preventDefault()
     const down = screenToScene(view, event.clientX, event.clientY)
     setState('drag', {
       cid: pin.cid,
