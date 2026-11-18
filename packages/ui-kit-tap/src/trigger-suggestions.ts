@@ -1,3 +1,4 @@
+import type {Component} from 'solid-js'
 import {Extension} from '@tiptap/core'
 import {PluginKey} from '@tiptap/pm/state'
 import type {EditorView} from '@tiptap/pm/view'
@@ -11,6 +12,7 @@ export type RichTextFieldTriggerItem = {
   description?: string
   group?: string
   categoryId?: string
+  icon?: {component: Component<{class?: string}>; name: string}
   run?: () => void
 }
 
