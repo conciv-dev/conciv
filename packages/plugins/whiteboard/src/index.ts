@@ -7,7 +7,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {Whiteboard} from './rpc.js'
 import {autoCommitDraft} from './server/auto-commit.js'
 import {createStore} from './server/db/store.js'
-import {startCommentEnrichment} from './server/enrich-worker.js'
+import {enrichComments} from './server/enrich-worker.js'
 import {whiteboardHandlers} from './server/rpc-handlers.js'
 import {info} from './skill.js'
 import {CONFIRMATION_RULES} from './tool/refusal.js'
@@ -61,10 +61,7 @@ export default Plugin.define({
         ),
         Effect.forkScoped({startImmediately: true}),
       )
-      yield* Effect.acquireRelease(
-        Effect.sync(() => startCommentEnrichment(store, directory)),
-        (stopEnrichment) => Effect.promise(stopEnrichment),
-      )
+      yield* enrichComments(store, directory)
       yield* ctx.agent.transform((editor) =>
         editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
       )
