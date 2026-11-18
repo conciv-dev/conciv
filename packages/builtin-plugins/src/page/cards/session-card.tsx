@@ -84,7 +84,7 @@ const ROW_GLYPH_ERROR = `${ROW_GLYPH} [border:1px_solid_var(--chat-danger-line)]
 const ROW_GLYPH_ACTIVE = `${ROW_GLYPH} [border:1px_solid_color-mix(in_srgb,var(--chat-accent)_50%,transparent)]`
 const ROW_VERB =
   'inline-flex items-center gap-1 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [transition:color_140ms_var(--chat-ease)]'
-const ROW_VERB_NEUTRAL = `${ROW_VERB} text-chat-text-3 group-hover:[color:var(--chat-text-2)]`
+const ROW_VERB_NEUTRAL = `${ROW_VERB} text-chat-text-3 group-hover:text-chat-text-2`
 const ROW_VERB_DONE = `${ROW_VERB} [color:var(--chat-success)]`
 const ROW_VERB_ERROR = `${ROW_VERB} [color:var(--chat-danger)]`
 const ROW_VERB_LABEL = 'min-w-0 truncate whitespace-nowrap'

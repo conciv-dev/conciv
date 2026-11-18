@@ -1,4 +1,4 @@
-import {createResource, onMount, type JSX} from 'solid-js'
+import {createSignal, onMount, type JSX} from 'solid-js'
 
 const CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline' data:; font-src data:"
 
@@ -32,13 +32,16 @@ function documentFor(html: string, surface: Surface): string {
 }
 
 export function GrabSnapshotFrame(props: {html: string; width: number; height: number; class: string}): JSX.Element {
-  const [surface, {refetch}] = createResource<Surface, Element>(
-    (_, info) => (typeof info.refetching === 'boolean' ? DEFAULT_SURFACE : readSurface(info.refetching)),
-    {initialValue: DEFAULT_SURFACE},
-  )
+  const [surface, setSurface] = createSignal<Surface>(DEFAULT_SURFACE)
+  let node: SVGSVGElement | undefined
+  onMount(() => {
+    if (node) setSurface(readSurface(node))
+  })
   return (
     <svg
-      ref={(element) => onMount(() => refetch(element))}
+      ref={(element) => {
+        node = element
+      }}
       class={props.class}
       width={props.width}
       height={props.height}
