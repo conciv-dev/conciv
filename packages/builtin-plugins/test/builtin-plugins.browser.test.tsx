@@ -2531,6 +2531,7 @@ describe('the tanstack cards', () => {
     cleanup()
 
     mountCard('tanstack_router_state', {}, {output: failure, status: 'error'})
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
     await header('tanstack_router_state').click()
     await expect.element(page.getByText(failure)).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()

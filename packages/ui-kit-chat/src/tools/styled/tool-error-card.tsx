@@ -53,8 +53,8 @@ export function ToolErrorCard(props: ToolErrorCardProps): JSX.Element {
       class="min-w-0 w-full"
     >
       <Collapsible.Trigger class={ROW}>
-        <span class={ICON} aria-hidden="true">
-          <OctagonAlert class="size-3" />
+        <span class={ICON} role="img" aria-label="error">
+          <OctagonAlert class="size-3" aria-hidden="true" />
         </span>
         <span class={TITLE}>{name()}</span>
         <Show when={props.subtitle}>{(subtitle) => <TruncatedText class={SUBTITLE} text={subtitle()} />}</Show>
