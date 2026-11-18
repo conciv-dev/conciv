@@ -29,6 +29,8 @@ const STATUS: Record<ToolStatus, string> = {
 
 const ToolInputSchema = z.record(z.string(), z.unknown())
 
+const ToolMetadataSchema = z.record(z.string(), z.unknown()).catch({})
+
 function toolOutput(part: ToolCallPart, result: ToolResultPart | undefined): string | undefined {
   if (result !== undefined) return resultText(result)
   if (part.output === undefined) return undefined
@@ -53,13 +55,14 @@ export function ToolPartRow(props: {
   const settled = () => status() !== 'running' && status() !== 'pending'
   const output = () => (settled() ? toolOutput(props.part, props.result) : undefined)
   const input = createMemo(() => parseInput(ToolInputSchema, props.part) ?? {})
+  const metadata = createMemo(() => ToolMetadataSchema.parse(props.part.metadata ?? {}))
   const durationMs = () => toolCallDuration(props.part)
   const display = (): JSX.Element => (
     <ToolDisplay
       id={props.part.id}
       tool={props.part.name}
       input={input()}
-      metadata={{}}
+      metadata={metadata()}
       output={output()}
       error={status() === 'error' ? output() : undefined}
       status={status()}

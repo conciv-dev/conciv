@@ -1,16 +1,10 @@
 import {createMemo, Show, type JSX} from 'solid-js'
 import OctagonAlert from 'lucide-solid/icons/octagon-alert'
 import {ClipboardCopyButton, Collapsible, TruncatedText} from '@conciv/ui-kit-system'
-import {
-  BLOCK,
-  FOLD_ROW,
-  FoldIndicator,
-  TRACE_HOVER_INDENT,
-  TRACE_LINE,
-  TRACE_MICROLABEL,
-} from '../../styled/trace/trace-row.js'
+import {BLOCK, FOLD_ROW, FoldIndicator, TRACE_HOVER_INDENT, TRACE_LINE} from '../../styled/trace/trace-row.js'
 import {TraceBodyFrame} from '../../styled/trace/output-block.js'
 import {OUTCOME_TONE} from '../primitives/tool-presentation.js'
+import {toolErrorTitle} from '../primitives/tool-error-subtitle.js'
 
 export interface ToolErrorCardProps {
   tool: string
@@ -24,17 +18,18 @@ export interface ToolErrorCardProps {
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT} ${FOLD_ROW}`
 const ICON = `flex-none inline-flex w-chat-mark justify-center ${OUTCOME_TONE.error.text}`
-const TITLE = `${TRACE_MICROLABEL} min-w-10 ${OUTCOME_TONE.error.text}`
+const TITLE = 'flex-none min-w-0 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] text-chat-target'
 const SUBTITLE =
-  'flex-none min-w-0 max-w-1/2 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] text-chat-target'
-const SUMMARY = `flex-1 min-w-0 truncate text-chat-xs leading-none [font-family:var(--chat-mono)] ${OUTCOME_TONE.error.text}`
-const COPY_ROW = 'flex justify-end'
+  'flex-initial min-w-0 max-w-1/2 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] text-chat-text-2'
+const SUMMARY = `flex-1 min-w-0 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] ${OUTCOME_TONE.error.text}`
+const CONTENT = 'relative pe-8'
+const COPY = 'absolute top-0 end-0'
 const COPY_RESET_MS = 3000
 const COPY_LABELS = {copied: 'Copied the error', failed: 'Could not copy the error'}
 const COPY_TOOLTIPS = {idle: 'Copy error'}
 
 export function ToolErrorCard(props: ToolErrorCardProps): JSX.Element {
-  const name = () => props.title ?? props.tool
+  const name = () => props.title || toolErrorTitle(props.tool)
   const cleaned = createMemo(() => props.error.replace(/^Error:\s*/, '').trim())
   const tail = createMemo(() => {
     const prefix = `${props.tool} `
@@ -70,16 +65,24 @@ export function ToolErrorCard(props: ToolErrorCardProps): JSX.Element {
       <Collapsible.Content>
         <div class={BLOCK}>
           <TraceBodyFrame tone="error">
-            <div class={COPY_ROW}>
-              <ClipboardCopyButton
-                text={cleaned()}
-                resetMs={COPY_RESET_MS}
-                labels={COPY_LABELS}
-                tooltips={COPY_TOOLTIPS}
-                class="shrink-0 size-6"
-              />
+            <div class={CONTENT}>
+              <Collapsible.Context>
+                {(collapsible) => (
+                  <Show when={collapsible().open}>
+                    <div class={COPY}>
+                      <ClipboardCopyButton
+                        text={cleaned()}
+                        resetMs={COPY_RESET_MS}
+                        labels={COPY_LABELS}
+                        tooltips={COPY_TOOLTIPS}
+                        class="shrink-0 size-6"
+                      />
+                    </div>
+                  </Show>
+                )}
+              </Collapsible.Context>
+              <p class="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{cleaned()}</p>
             </div>
-            <p class="m-0 whitespace-pre-wrap">{cleaned()}</p>
           </TraceBodyFrame>
         </div>
       </Collapsible.Content>

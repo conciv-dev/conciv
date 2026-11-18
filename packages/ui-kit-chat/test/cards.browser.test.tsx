@@ -25,6 +25,7 @@ import {PermissionCard} from '../src/tools/styled/permission-card.js'
 import {ToolCallCard, ToolTraceRow} from '../src/tools/styled/tool-call-card.js'
 import {createSignal, type JSX} from 'solid-js'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
+import {ToolDisplay} from '../src/tools/styled/tool-display.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
 import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 
@@ -1153,5 +1154,49 @@ describe('trace row card header', () => {
     await expect.element(page.getByText('the command output')).toBeVisible()
     await expect.element(page.getByText('rm -rf tmp')).toBeVisible()
     await expect.element(page.getByText('page edit')).toBeVisible()
+  })
+})
+
+describe('a failed tool row', () => {
+  it('reads its title, subtitle and error summary, and opens to the error with its copy button', async () => {
+    mountView(() => (
+      <>
+        <section aria-label="failed shell">
+          <ToolDisplay
+            id="shell-1"
+            tool="shell"
+            input={{command: 'cargo build'}}
+            metadata={{}}
+            status="error"
+            error="Error: exit code 1: two crates failed"
+          />
+        </section>
+        <section aria-label="failed search">
+          <ToolDisplay
+            id="search-1"
+            tool="websearch"
+            input={{query: 'solid stores'}}
+            metadata={{provider: 'tinyfish'}}
+            status="error"
+            error="rate limited"
+          />
+        </section>
+      </>
+    ))
+
+    const shell = page.getByRole('region', {name: 'failed shell', exact: true})
+    const shellRow = shell.getByRole('button', {name: /Shell cargo build Exit code 1/})
+    await expect.element(shellRow).toBeVisible()
+    await expect.element(shell.getByRole('img', {name: 'error'})).toBeVisible()
+    await expect.element(shell.getByRole('button', {name: 'Copy error'})).not.toBeInTheDocument()
+    await userEvent.click(shellRow)
+    await expect.element(shell.getByText('exit code 1: two crates failed', {exact: true})).toBeVisible()
+    await expect.element(shell.getByText('Exit code 1', {exact: true})).not.toBeInTheDocument()
+    await expect.element(shell.getByRole('button', {name: 'Copy error'})).toBeVisible()
+
+    const search = page.getByRole('region', {name: 'failed search', exact: true})
+    await expect
+      .element(search.getByRole('button', {name: /TinyFish Web Search solid stores Rate limited/}))
+      .toBeVisible()
   })
 })
