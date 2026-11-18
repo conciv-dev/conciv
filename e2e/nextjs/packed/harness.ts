@@ -58,6 +58,7 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
       '@conciv/it': dep('@conciv/it'),
       '@conciv/extension': dep('@conciv/extension'),
       '@conciv/extension-compiler': dep('@conciv/extension-compiler'),
+      '@conciv/plugin': dep('@conciv/plugin'),
       '@conciv/plugin-tanstack': dep('@conciv/plugin-tanstack'),
       next: '16.2.10',
       react: '19.2.4',
