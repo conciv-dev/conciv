@@ -31,7 +31,7 @@ const Targeted = z.object({tabId: TabId.optional()})
 
 type Page = RpcClient<typeof PageDefinition, SystemError>
 
-type PageError = Effect.Error<ReturnType<Page['run']>> | Effect.Error<ReturnType<Page['tabs.list']>>
+type PageError = Effect.Error<ReturnType<Page['operate']>> | Effect.Error<ReturnType<Page['tabs.list']>>
 
 const UNTRUSTED = {type: 'text' as const, text: UNTRUSTED_NOTE}
 
@@ -124,7 +124,7 @@ export const register = Effect.fn('TanstackTools.register')(function* (
       catch: (error) => Tool.toolError({message: `Invalid input for tanstack.${operation.name}.`, error}),
     })
     const value = yield* page
-      .run({
+      .operate({
         sessionId: tool.sessionId,
         tabId: Targeted.parse(fields).tabId,
         name: `tanstack.${operation.name}`,
