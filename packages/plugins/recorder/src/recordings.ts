@@ -11,7 +11,9 @@ const MAX_RECORDING_BYTES = 16 * 1024 * 1024
 const MAX_TOTAL_RECORDING_BYTES = 200 * 1024 * 1024
 const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-type SaveResult = {saved: true; recordingId: string} | {saved: false; error: 'too-large' | 'empty' | 'io-error'}
+type SaveResult =
+  | {saved: true; recordingId: string; events: RrwebEvent[]}
+  | {saved: false; error: 'too-large' | 'empty' | 'io-error'}
 
 export type ReadResult = {kind: 'found'; events: RrwebEvent[]} | {kind: 'expired'} | {kind: 'missing'}
 
@@ -92,13 +94,13 @@ async function clearStrayTmp(dir: string): Promise<void> {
 export function createRecordingStore(dir: string): RecordingStore {
   let sequence = 0
   const changes = new PQueue({concurrency: 1})
-  const publish = async (payload: string): Promise<SaveResult> => {
+  const publish = async (events: RrwebEvent[]): Promise<SaveResult> => {
     sequence += 1
     const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
     const target = join(dir, `${recordingId}.json`)
     try {
       await mkdir(dir, {recursive: true})
-      await writeFile(`${target}.tmp`, payload, 'utf8')
+      await writeFile(`${target}.tmp`, JSON.stringify({events}), 'utf8')
       await rename(`${target}.tmp`, target)
     } catch {
       await unlink(`${target}.tmp`).catch(() => {})
@@ -107,15 +109,14 @@ export function createRecordingStore(dir: string): RecordingStore {
     await prune(dir).catch((error: unknown) => {
       console.error(`[recorder] pruning old recordings failed: ${String(error)}`)
     })
-    return {saved: true, recordingId}
+    return {saved: true, recordingId, events}
   }
   return {
     async save(events) {
       if (events.length < 2) return {saved: false, error: 'empty'}
       const trimmed = trimToCap(events)
       if (!trimmed || trimmed.length < 2) return {saved: false, error: 'too-large'}
-      const payload = JSON.stringify({events: trimmed})
-      return changes.add(() => publish(payload))
+      return changes.add(() => publish(trimmed))
     },
     async get(id) {
       if (!RECORDING_ID.test(id)) return MISSING

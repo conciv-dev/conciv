@@ -5,7 +5,7 @@ import {makeTimer} from '@solid-primitives/timer'
 import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
-import {REPLAY_MIN_EVENTS, recordingPoster, type RrwebEvent} from '../protocol.js'
+import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../protocol.js'
 import type {CaptureState} from './boot.js'
 import {ExportVideoButton} from './export-video-button.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
@@ -125,16 +125,12 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const sendToAgent = async (): Promise<void> => {
     setState('sending', true)
     try {
-      const [stored, log] = await Promise.all([
-        recorder()['recordings.save']({clientId: props.clientId}),
-        recorder().log({clientId: props.clientId}),
-      ])
+      const stored = await recorder()['recordings.save']({clientId: props.clientId})
       if (!stored.saved) {
         saveFailed(stored.error)
         return
       }
-      const {recordingId} = stored
-      const poster = recordingPoster(log.entries)
+      const {recordingId, poster} = stored
       props.panel.screen.composer.attach({
         type: 'note',
         origin: ctx.id,

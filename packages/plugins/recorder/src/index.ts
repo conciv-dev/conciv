@@ -11,7 +11,7 @@ import {createRendererCache} from './renderer-cache.js'
 import {createClientRings} from './rings.js'
 import {readVideoPiece, renderedVideo} from './video.js'
 import type {RecorderRuntime} from './runtime.js'
-import {recorderConfig} from './protocol.js'
+import {recorderConfig, recordingPoster} from './protocol.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
 
@@ -72,7 +72,13 @@ function registerRpc(rpc: Context['rpc'], runtime: RecorderRuntime, announce: An
       }),
     log: (input) => Effect.sync(() => ({entries: distill(runtime.rings.window(input, input.clientId))})),
     'recordings.save': (input) =>
-      Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))),
+      Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))).pipe(
+        Effect.map((stored) =>
+          stored.saved
+            ? {saved: true, recordingId: stored.recordingId, poster: recordingPoster(distill(stored.events))}
+            : stored,
+        ),
+      ),
     'recordings.get': (input) => Effect.promise(() => runtime.recordings.get(input.recordingId)),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {
