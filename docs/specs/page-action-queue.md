@@ -48,8 +48,8 @@ Two registry tools in the page extension, so they appear in the sandbox as `exte
 `external_page_queue_async` for every caller, in-page and outside alike (the hub adds no MCP tools of its own:
 revision 5).
 
-- Defined in `packages/plugin-page/src/tools.ts` next to the act defs, through `pageTool()`, category
-  `act`, `mutating: true`.
+- Defined next to the act tools, now in `packages/plugin-page/src/tools.ts` (first in the old page extension's
+  defs, through `pageTool()`), category `act`, `mutating: true`.
 - Input: `{actions: Action[]}`, where `Action` is a discriminated union on `tool` over the act defs, each reusing that
   def's own `inputSchema`: `page_click`, `page_hover`, `page_fill`, `page_select`, `page_check`, `page_uncheck`,
   `page_press`, `page_scroll`. The `page_submit` tool, reads, edit-live and reload are rejected by the schema; a

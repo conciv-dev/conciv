@@ -203,7 +203,7 @@ Response zod schema in `@conciv/protocol`:
 
 ### `route` page tool
 
-`packages/plugin-page/src/tools.ts` `routeDef` output gains `title` (`document.title`) and `state`:
+The `route` page tool (`packages/plugin-page/src/tools.ts`) output gains `title` (`document.title`) and `state`:
 `'visible'` when `document.visibilityState === 'visible'`, else `'hidden'`. (No `focused`: while the user types in a
 terminal no browser tab has focus.) The page-side body in `packages/builtin-plugins/src/page/operations.ts` fills both.
 
