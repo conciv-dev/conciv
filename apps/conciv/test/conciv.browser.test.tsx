@@ -1471,13 +1471,17 @@ export default {
 
     await expect.element(mention('@mention-guide')).toHaveTextContent('@mention-guideHow mentions are written')
     await expect.element(mention('@reviewer')).toBeVisible()
+    await expect.element(mention('@mention-guide').getByRole('img', {name: 'Skill'})).toBeVisible()
+    await expect.element(mention('@reviewer').getByRole('img', {name: 'Agent'})).toBeVisible()
     await expect.element(context().getByRole('option').last()).toHaveTextContent('@reviewer')
     await expect.element(mention('@lurker')).not.toBeInTheDocument()
     await expect.element(mention('@planner')).not.toBeInTheDocument()
     await expect.element(mention('@build')).not.toBeInTheDocument()
     await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
 
-    await userEvent.keyboard('review{Enter}')
+    await userEvent.keyboard('review')
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName('@reviewer')
+    await userEvent.keyboard('{Enter}')
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@reviewer')).toBeVisible()

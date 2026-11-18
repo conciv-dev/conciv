@@ -1,6 +1,8 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {uniqBy} from 'es-toolkit'
+import BookOpen from 'lucide-solid/icons/book-open'
+import Brain from 'lucide-solid/icons/brain'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
@@ -105,14 +107,18 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
 
 type RpcOutputs = InferClientOutputs<RpcClient>
 
+const SKILL_ICON: RichTextFieldTriggerItem['icon'] = {component: BookOpen, name: 'Skill'}
+
+const AGENT_ICON: RichTextFieldTriggerItem['icon'] = {component: Brain, name: 'Agent', tone: 'chat-agent'}
+
 function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
-  return {id: skill.id, label: `@${skill.id}`, description: skill.description}
+  return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}
 }
 
 function agentEntries(agents: RpcOutputs['agent']['list']['data']): RichTextFieldTriggerItem[] {
   return agents
     .filter((agent) => agent.mode !== 'primary' && !agent.hidden)
-    .map((agent) => ({id: agent.name, label: `@${agent.name}`}))
+    .map((agent) => ({id: agent.name, label: `@${agent.name}`, icon: AGENT_ICON}))
 }
 
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
@@ -194,11 +200,14 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Context',
       items: async (query) => {
-        const [skills, agents] = await Promise.all([
+        const [skills, agents] = await Promise.allSettled([
           queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
           queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
         ])
-        const entries = uniqBy([...skills.data.map(skillEntry), ...agentEntries(agents.data)], (entry) => entry.id)
+        if (skills.status === 'rejected' && agents.status === 'rejected') throw skills.reason
+        const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
+        const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
+        const entries = uniqBy([...skillList, ...agentList], (entry) => entry.id)
         return matchingItems(entries, query, matcher())
       },
     },
