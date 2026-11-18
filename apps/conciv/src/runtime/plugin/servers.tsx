@@ -54,7 +54,15 @@ function createPluginServers(servers: boolean) {
         .forEach((definition) => host.reload(definition.id)),
   )
 
-  const routed = createMemo(() => (servers ? entries()[0] : undefined))
+  const routed = createMemo(() => {
+    if (!servers) return
+
+    const url = apiBase()
+
+    if (url !== '') return entries().find((item) => item.entry.http?.url === url)
+
+    return entries().find((item) => item.entry.state === 'ready' && item.entry.http) ?? entries()[0]
+  })
 
   const bound = createMemo(() => {
     const current = routed()

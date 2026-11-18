@@ -13,7 +13,7 @@ import {createInstances} from './extension/create-instances.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 import {becameTrusted, type EngineLogin} from './app/engine-login.js'
-import type {ComposedPlugin} from './runtime/plugin/root.js'
+import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
@@ -163,7 +163,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       extensions,
       instances,
       connected,
-      plugins: config.plugins ?? [],
+      plugins: reserveComposedPlugins(config.plugins ?? []),
       servers: config.servers ?? false,
       bindApiBase: config.bindApiBase,
       grabProvider: config.grabProvider,

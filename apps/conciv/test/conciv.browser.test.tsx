@@ -84,7 +84,7 @@ import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
 import {compose} from '@conciv/plugin/experimental/host'
-import type {Plugin} from '@conciv/plugin/experimental'
+import {Server, type Plugin} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
 import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {
@@ -123,6 +123,7 @@ import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {builtins} from '../src/runtime/plugin/builtins.js'
 import {Persist, persisted, removePersisted} from '../src/runtime/persistence/storage.js'
 import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
 import {selectDisabled} from '../src/runtime/plugin/machine.js'
@@ -3804,8 +3805,24 @@ function tryItPlugins(token: string, holdMs: number): ComposedPlugin[] {
   ])
 }
 
+const LAYOUT_BUNDLE = `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  const shown = document.createElement('p')
+  shown.textContent = 'The layout plugin is running'
+  ctx.add(Slot, {at: 'window.bottom', render: () => shown})
+}}}
+`
+
 describe('server cover', () => {
-  const core = bootedCore('server-cover')
+  const core = bootedCore('server-cover', {
+    plugins: ['./layout', './engine-try-it'],
+    files: {
+      'layout/index.ts': "export default {id: 'layout', async setup() {}}\n",
+      'layout/plugin-experimental.js': LAYOUT_BUNDLE,
+      'engine-try-it/index.ts': "export default {id: 'try-it', async setup() {}}\n",
+      'engine-try-it/plugin-experimental.js': 'module.exports = {default: {setup() {}}}\n',
+    },
+  })
   const harness = createShellHarness(core)
 
   afterEach(async () => {
@@ -3816,9 +3833,39 @@ describe('server cover', () => {
   const panel = () => page.getByRole('dialog', {name: 'conciv chat agent'})
   const connectSteps = () => panel().getByText('Drive this page with your agent.')
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const layoutRunning = () => page.getByText('The layout plugin is running', {exact: true})
+  const layoutSwitch = () => page.getByRole('switch', {name: 'layout'})
+  const firstServerCover = () => page.getByText('The first server is starting', {exact: true})
+  const twoServers: Plugin.Setup = (ctx) => {
+    ctx.add(Server, (): Server => ({
+      ready: true,
+      order: 0,
+      entries: [
+        {id: 'first', name: 'first', state: 'starting', cover: () => 'The first server is starting'},
+        {id: 'second', name: 'second', state: 'ready', http: {url: core()}},
+      ],
+    }))
+  }
 
-  test('a composed plugin covers the panel until its server is ready, holds there while it says so, then the panel binds to it in place', async () => {
+  test('a composed plugin covers the panel until its server is ready, holds there while it says so, then the panel binds to it in place, keeps its id from the engine, and follows the engine plugin switches', async () => {
     const token = new URL(core()).pathname.split('/')[2] ?? ''
+    expect(() =>
+      harness.mountShell('/panel/connect?open=true', [], {
+        plugins: [...tryItPlugins(token, 1), ...tryItPlugins(token, 1)],
+      }),
+    ).toThrow('The plugin id "try-it" is already taken')
+    harness.dispose()
+    expect(() =>
+      harness.mountShell('/panel/connect?open=true', [], {
+        plugins: compose({grab: {windowEntry: async () => ({default: tryItSetup})}}).map((entry): ComposedPlugin => [
+          entry,
+          {token},
+        ]),
+      }),
+    ).toThrow('The plugin id "grab" is already taken')
+    harness.dispose()
+
+    await coreRpc(core()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'layout', value: false})
     harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 600_000)})
 
     await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
@@ -3844,7 +3891,32 @@ describe('server cover', () => {
     await expect.element(panel().getByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
     await expect.element(connectSteps()).not.toBeInTheDocument()
     await expect.element(panel()).toBeVisible()
-  }, 60_000)
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect
+      .element(page.getByText('Not loaded. A built-in plugin already uses this ID.'), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(layoutSwitch(), {timeout: 15_000}).not.toBeChecked()
+    await expect.element(layoutRunning()).not.toBeInTheDocument()
+    await userEvent.click(layoutSwitch(), {force: true})
+    await expect.element(layoutSwitch()).toBeChecked()
+    await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+    await expect.element(editor()).toBeVisible()
+    await expect.element(layoutRunning(), {timeout: 15_000}).toBeVisible()
+
+    harness.dispose()
+    await coreControl.closeConnectForward()
+    harness.mountShell('/panel/connect?open=true', [], {
+      plugins: compose({servers: {windowEntry: async () => ({default: twoServers})}}).map((entry): ComposedPlugin => [
+        entry,
+        {},
+      ]),
+    })
+
+    await expect.element(editor(), {timeout: 15_000}).toBeVisible()
+    await expect.element(firstServerCover()).not.toBeInTheDocument()
+  }, 90_000)
 })
 
 describe('panel escape', () => {
@@ -7066,7 +7138,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base})
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base, builtins})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
