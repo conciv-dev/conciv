@@ -5965,6 +5965,30 @@ describe('a deleted session', () => {
     expect(await readLocalCopy(deletedId)).toBeNull()
   }, 40_000)
 
+  test('New session shows the moved text while the engine is still clearing the deleted session draft', async () => {
+    const MOVED = 'moved while the engine clears'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: MOVED})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+    const clear = await faults.install({kind: 'gate', path: ['drafts', 'set'], input: {sessionId: deletedId, text: ''}})
+
+    await userEvent.click(newSessionButton())
+    await coreControl.awaitFaultPending(clear, 1)
+
+    await expect.element(editor().getByText(MOVED), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    expect(await readLocalCopy(deletedId)).toBeNull()
+
+    await coreControl.releaseFault(clear)
+    await coreControl.awaitFaultAnswered(clear)
+
+    expect(await rpc.drafts.get({sessionId: deletedId})).toEqual(expect.objectContaining({text: ''}))
+  }, 40_000)
+
   test('text kept only in this browser moves with New session, and the deleted session keeps no local copy', async () => {
     const KEPT = 'kept only in this browser'
     const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
