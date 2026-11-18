@@ -1,29 +1,59 @@
 {
   "name": "@conciv/harness-testkit",
   "version": "0.0.22",
-  "private": true,
+  "description": "Boots the real conciv engine with a scripted fake harness for tests, and talks to it the way the product callers do.",
+  "keywords": [
+    "conciv",
+    "harness",
+    "testing",
+    "testkit"
+  ],
   "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/harness-testkit"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
-    ".": "./src/testkit.ts",
-    "./until": "./src/until.ts",
-    "./login": "./src/login.ts",
-    "./rpc-mounts": "./src/rpc-mounts.ts"
+    ".": {
+      "types": "./dist/testkit.d.ts",
+      "import": "./dist/testkit.js"
+    },
+    "./until": {
+      "types": "./dist/until.d.ts",
+      "import": "./dist/until.js"
+    },
+    "./login": {
+      "types": "./dist/login.d.ts",
+      "import": "./dist/login.js"
+    },
+    "./rpc-mounts": {
+      "types": "./dist/rpc-mounts.d.ts",
+      "import": "./dist/rpc-mounts.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
+    "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@modelcontextprotocol/sdk": "catalog:",
@@ -34,11 +64,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/harness": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

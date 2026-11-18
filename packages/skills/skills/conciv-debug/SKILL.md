@@ -120,13 +120,11 @@ rather than one subscribe call:
 - **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:314`), served by
   the plane's `hydrate` (`packages/chat/src/index.ts:114-127`). It resolves once with messages, the
   active run, the last run lifecycle, and any pending approvals; it never streams.
-- **The turn itself streams over the delivery routes**, WebSocket at `CHAT_WS_PATH` and Server-Sent
-  Events at `CHAT_SSE_PATH` (`packages/chat/src/index.ts:130-146`). A socket frame or a POST starts
-  the turn; the run drains into its durable log on its own, so a closed socket or a cancelled
-  response never stops it (the socket only tails that log, `serveSocket`,
-  `packages/ai/src/server/delivery.ts:69-86`). A GET with a resume offset REPLAYS a run from its
-  durable log instead of starting one (`resume`, `packages/ai/src/server/delivery.ts:130-135`),
-  which is how a reload rejoins a run already in flight.
+- **The turn itself streams over the rpc socket**: `chat.send` starts a run once and streams it, and
+  `chat.join` streams a run from an event id (`packages/contract/src/contract.ts:456-457`). The run
+  drains into its durable log on its own, so an aborted stream never stops it, and a resend of a known
+  run id or a `chat.join` with a resume offset REPLAYS the run from its durable log instead of starting
+  one, which is how a reload rejoins a run already in flight.
 - **Out-of-band session events** ride the `chat.events` iterator, which is the session bus's `events`
   generator and lives until its `AbortSignal` fires
   (`packages/core/src/sessions/session-bus.ts:24-46`).
