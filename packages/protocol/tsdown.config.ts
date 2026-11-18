@@ -27,6 +27,7 @@ export default defineConfig({
     'src/state-types.ts',
     'src/engine-trust.ts',
     'src/event-bus.ts',
+    'src/tool-call-types.ts',
   ],
   format: 'esm',
   fixedExtension: false,

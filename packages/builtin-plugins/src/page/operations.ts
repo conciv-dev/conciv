@@ -16,7 +16,7 @@ import type {
   PageCaptureBundle,
   ToolCaptureMode,
 } from '@conciv/protocol/element-capture-types'
-import {toolError} from '@conciv/extension'
+import {toolError} from '@conciv/protocol/tool-call-types'
 import type {BaseContext} from '@conciv/plugin/experimental'
 import {PageEffect} from '@conciv/plugin/experimental/page'
 import {
