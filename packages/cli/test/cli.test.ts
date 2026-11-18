@@ -111,7 +111,7 @@ const elementTarget = {
 
 const servedCalls: SeenQuery[] = []
 
-function serve(name: string, input: Record<string, unknown>, output: {ok: boolean}): {ok: boolean} {
+function serve<Output>(name: string, input: Record<string, unknown>, output: Output): Output {
   servedCalls.push({name, input})
   return output
 }
@@ -366,7 +366,7 @@ describe('cli', () => {
         label: {running: 'Raising the beacon', done: 'Raised the beacon'},
         mutating: true,
       },
-    }).server(() => ({raised: true}))
+    }).server((input) => serve('acme_beacon', input, {raised: true}))
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
 
@@ -376,7 +376,7 @@ describe('cli', () => {
       inputSchema: z.object({}),
       outputSchema: z.object({green: z.boolean()}),
       meta: {summary: 'report the acme status board', mutating: false},
-    }).server(() => ({green: true}))
+    }).server((input) => serve('server_status', input, {green: true}))
 
     const paint = defineTool({
       name: 'acme_paint',
@@ -391,7 +391,7 @@ describe('cli', () => {
       }),
       outputSchema: z.object({painted: z.boolean()}),
       meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
-    }).server(() => ({painted: true}))
+    }).server((input) => serve('acme_paint', input, {painted: true}))
 
     const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
 
