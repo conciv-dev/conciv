@@ -7749,7 +7749,7 @@ describe('terminal panel', () => {
     await terminalPanel().click()
     await userEvent.keyboard('echo $((3*3))')
     await userEvent.keyboard('{Enter}')
-    await expect.element(output('9').first(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
 
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
