@@ -34,7 +34,10 @@ const chatLayerOpen = (event: KeyboardEvent, layer: HTMLElement): boolean =>
   layerOpenBeside(event.composedPath()[0]) || layerOpenBeside(layer)
 
 const escapeLeftToOthers = (event: KeyboardEvent, layer: HTMLElement): boolean =>
-  event.key !== 'Escape' || insideExcalidraw(event) || chatLayerOpen(event, layer)
+  event.key !== 'Escape' ||
+  insideExcalidraw(event) ||
+  event.composedPath().includes(layer) ||
+  chatLayerOpen(event, layer)
 
 type SurfaceProps = {
   client: Context['client']

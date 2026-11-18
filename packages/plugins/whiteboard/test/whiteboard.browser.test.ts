@@ -618,6 +618,13 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
 
+      const focusedPin = page.getByRole('button', {name: 'AI comment, open', exact: true}).first()
+      await focusedPin.focus()
+      await expect(focusedPin).toBeFocused()
+      await page.keyboard.press('Escape')
+      await expect(focusedPin).not.toBeFocused()
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
+
       await page.getByRole('button', {name: 'AI comment, open', exact: true}).first().click()
       await expect(thread).toBeVisible()
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})

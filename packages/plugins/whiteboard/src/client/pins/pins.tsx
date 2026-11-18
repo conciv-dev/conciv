@@ -139,6 +139,7 @@ export function PinsLayer(): JSX.Element {
                       onPointerUp={() => drop(pin, comment())}
                       onPointerCancel={() => setState('drag', null)}
                       onClick={(event) => event.detail === 0 && model.toggleThread(pin.cid)}
+                      onKeyDown={(event) => event.key === 'Escape' && event.currentTarget.blur()}
                     >
                       <span class={`${PIN_MARK}  ${STATUS_FILL[status()]}`}>
                         <Show when={model.isUnread(pin.cid)}>
