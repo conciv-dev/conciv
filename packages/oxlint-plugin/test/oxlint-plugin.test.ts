@@ -1,6 +1,14 @@
 import {describe, expect, test} from 'vitest'
 import {lintDiagnostics, lintFix, isRecord} from './run-lint.js'
 
+function firstLine(diagnostic: Record<string, unknown>): number {
+  const labels = diagnostic.labels
+  if (!Array.isArray(labels)) return 0
+  const [label] = labels
+  if (!isRecord(label) || !isRecord(label.span) || typeof label.span.line !== 'number') return 0
+  return label.span.line
+}
+
 describe('lucide per icon', () => {
   async function lintFixture(fixture: string): Promise<string[]> {
     const diagnostics = await lintDiagnostics('test/oxlintrc-lucide-per-icon.json', `test/fixtures/${fixture}`)
@@ -101,14 +109,6 @@ describe('no signal ref', () => {
 describe('router idioms', () => {
   type Finding = {message: string; line: number}
 
-  function firstLine(diagnostic: Record<string, unknown>): number {
-    const labels = diagnostic.labels
-    if (!Array.isArray(labels)) return 0
-    const [label] = labels
-    if (!isRecord(label) || !isRecord(label.span) || typeof label.span.line !== 'number') return 0
-    return label.span.line
-  }
-
   async function lintFixture(fixture: string): Promise<Finding[]> {
     const diagnostics = await lintDiagnostics('test/oxlintrc.json', `test/fixtures/${fixture}`)
     return diagnostics
@@ -167,6 +167,34 @@ describe('router idioms', () => {
     test('accepts fields that carry .catch()', async () => {
       expect(await lintFixture('src/lib/search-schemas.ts')).toEqual([])
     })
+  })
+})
+
+describe('plugin view reads through query', () => {
+  type Finding = {message: string; line: number}
+
+  async function lintFixture(fixture: string): Promise<Finding[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc.json', `test/fixtures/plugin-view/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(plugin-view-reads-through-query)')
+      .map((diagnostic) => ({message: String(diagnostic.message), line: firstLine(diagnostic)}))
+  }
+
+  test('flags createResource, a destructured client, and every plain method call on a client held, made or returned', async () => {
+    const findings = await lintFixture('plain-calls.tsx')
+    expect(findings.map((finding) => finding.line)).toEqual([1, 9, 10, 11, 12, 13])
+    expect(findings.map((finding) => finding.message)).toEqual([
+      expect.stringContaining('never uses createResource'),
+      expect.stringContaining("'search'"),
+      expect.stringContaining('takes methods out of an rpc client'),
+      expect.stringContaining("'save'"),
+      expect.stringContaining("'items.list'"),
+      expect.stringContaining("'reset'"),
+    ])
+  })
+
+  test('accepts reads through queryOptions, writes through mutationOptions, and event invalidation by key', async () => {
+    expect(await lintFixture('query-reads.tsx')).toEqual([])
   })
 })
 

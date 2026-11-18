@@ -1,0 +1,15 @@
+import {createResource} from 'solid-js'
+import {usePlugin} from '@conciv/plugin/experimental'
+import {Acme} from './rpc.js'
+
+export function AcmeView() {
+  const ctx = usePlugin()
+  const acme = () => ctx.client.rpc(Acme)
+  const held = ctx.client.rpc(Acme)
+  const [found] = createResource(() => acme().search({query: 'a'}))
+  const {search} = ctx.client.rpc(Acme)
+  void held.save({id: 'a'}).then(() => undefined)
+  void acme()['items.list']({})
+  void ctx.client.rpc(Acme).reset({})
+  return <p>{String(found())}{String(search)}</p>
+}

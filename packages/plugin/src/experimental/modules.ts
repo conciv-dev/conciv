@@ -4,6 +4,7 @@ export const pluginWindowModules = [
   'solid-js',
   'solid-js/web',
   'solid-js/store',
+  '@tanstack/solid-query',
   '@conciv/plugin/experimental/page',
   '@conciv/plugin/experimental/grab',
 ] as const

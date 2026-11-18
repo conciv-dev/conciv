@@ -14,7 +14,7 @@ import {optional, PositiveInt} from '../schema/schema.js'
 import {Event} from '../schema/event.js'
 import type {SelectedEvent, SubscribeOptions} from '../client/promise/api.js'
 import type {ConcivEvent} from '../client/promise/index.js'
-import type {RpcCallOptions, RpcEventPayload} from '../client/promise/rpc.js'
+import {rpcMethod, type RpcCallOptions, type RpcEventPayload} from '../client/promise/rpc.js'
 import type * as Plugin from './plugin.js'
 import type {RpcDomain, RpcHandlers} from './rpc.js'
 import type {Info} from './tool.js'
@@ -189,10 +189,10 @@ const rpcFromEffect = Effect.fn('Plugin.Rpc.fromEffect')(function* (host: HostRp
       Object.fromEntries(
         Object.keys(definition.methods).map((name) => [
           name,
-          (input: unknown, options?: Pick<RpcCallOptions, 'signal'>) => {
+          rpcMethod(definition.id, name, (input, options) => {
             const method = local[name] as (input: unknown) => Effect.Effect<unknown, unknown>
             return run(method(input), {signal: options?.signal})
-          },
+          }),
         ]),
       ),
       {

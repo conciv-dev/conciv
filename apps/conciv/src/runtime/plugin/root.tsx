@@ -171,6 +171,7 @@ export function PluginRoot(props: ParentProps) {
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
           unavailableClient={apis.unavailableClient}
+          queryClient={apis.queryClient}
         >
           {PluginHotReload && (
             <Suspense>

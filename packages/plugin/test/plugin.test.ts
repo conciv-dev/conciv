@@ -7,6 +7,8 @@ import * as SolidJs from 'solid-js'
 import * as SolidStore from 'solid-js/store'
 import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
+import * as SolidQuery from '@tanstack/solid-query'
+import {useMutation, useQuery} from '@tanstack/solid-query'
 import * as Zod from 'zod'
 import * as Effect from 'effect'
 import {z} from 'zod'
@@ -29,6 +31,7 @@ import {
   type RpcDomain,
   type RpcEventPayload,
   type RpcHandlers,
+  type RpcQueryKey,
   type ToolContext,
   type Transform,
 } from '../src/promise/index.js'
@@ -218,6 +221,28 @@ describe('Rpc', () => {
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
     expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
     expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi & {call: ServerRef['client']['plugin']['call']}>()
+  })
+
+  it('gives each method a key, queryOptions and mutationOptions that solid-query takes as they are', () => {
+    type Client = RpcClient<typeof Acme>
+    type SearchInput = {query: string; limit?: number | undefined}
+    expectTypeOf<Parameters<Client['search']['queryOptions']>>().toEqualTypeOf<
+      [options: {readonly input: SearchInput}]
+    >()
+    expectTypeOf<ReturnType<Client['search']['key']>>().toEqualTypeOf<RpcQueryKey<typeof Acme, 'search', SearchInput>>()
+    const Pinger = Rpc.define({
+      id: 'pinger',
+      methods: {ping: {input: z.object({}).optional(), output: z.number()}},
+      events: {},
+    })
+    expectTypeOf<RpcClient<typeof Pinger>['ping']['queryOptions']>().toBeCallableWith()
+    expectTypeOf<RpcClient<typeof Pinger>['ping']>().toBeCallableWith()
+    const views = (client: Client) => ({
+      found: useQuery(() => client.search.queryOptions({input: {query: 'a'}})),
+      saved: useMutation(() => client.search.mutationOptions()),
+    })
+    expectTypeOf<ReturnType<typeof views>['found']['data']>().toEqualTypeOf<{hits: string[]} | undefined>()
+    expectTypeOf<Parameters<ReturnType<typeof views>['saved']['mutate']>[0]>().toEqualTypeOf<SearchInput>()
   })
 
   it("types a contract's methods, errors and events from any Standard Schema or a raw JSON Schema", () => {
@@ -979,6 +1004,7 @@ describe('experimental() build', () => {
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
+    '@tanstack/solid-query': SolidQuery,
     '@conciv/plugin/experimental/page': PageModule,
     '@conciv/plugin/experimental/grab': GrabModule,
   }

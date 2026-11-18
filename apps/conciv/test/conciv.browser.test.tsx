@@ -8532,6 +8532,81 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('a plugin view reads through the host query cache', () => {
+  const tallyDefinition = `{
+  id: 'tally',
+  methods: {
+    count: {input: {type: 'object'}, output: {type: 'object'}},
+    bump: {input: {type: 'object'}, output: {type: 'object'}},
+  },
+  events: {bumped: {schema: {type: 'object'}}},
+}`
+  const tallyEngine = `const Tally = ${tallyDefinition}
+export default {
+  id: 'tally',
+  async setup(ctx) {
+    const tally = {count: 0}
+    const registration = await ctx.rpc.register(Tally, {
+      count: async () => ({count: tally.count}),
+      bump: async () => {
+        tally.count += 1
+        await registration.events.emit('bumped', {count: tally.count})
+        return {count: tally.count}
+      },
+    })
+  },
+}
+`
+  const tallyBundle = `const {Panel} = require('@conciv/plugin/experimental')
+const {useMutation, useQuery} = require('@tanstack/solid-query')
+const {createComponent, insert} = require('solid-js/web')
+const Tally = ${tallyDefinition}
+module.exports = {default: {setup(ctx) {
+  const tally = () => ctx.client.rpc(Tally)
+  tally().events.on('bumped', () => ctx.queryClient.invalidateQueries({queryKey: tally().count.key()}), {signal: ctx.signal})
+  function TallyView() {
+    const count = useQuery(() => tally().count.queryOptions({input: {}}))
+    const bump = useMutation(() => tally().bump.mutationOptions())
+    const body = document.createElement('div')
+    const shown = document.createElement('p')
+    insert(shown, () => (count.isSuccess ? 'Tally ' + count.data.count : 'Counting'))
+    insert(body, [createComponent(ctx.ui.Button, {onClick: () => bump.mutate({}), children: 'Bump the tally'}), shown])
+    return body
+  }
+  ctx.add(Panel, {
+    id: 'tally',
+    region: 'pane',
+    list: () => [{id: 'tally', title: 'Tally', pinned: true}],
+    render: () => createComponent(TallyView, {}),
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-view-query', {
+    plugins: ['./tally'],
+    files: {'tally/index.ts': tallyEngine, 'tally/plugin-experimental.js': tallyBundle},
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin view reads its engine method through queryOptions, writes through mutationOptions, and shows the fresh value each time the engine announces a change', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const tab = page.getByRole('tab', {name: 'Tally', exact: true})
+    await expect.element(tab, {timeout: 15_000}).toBeVisible()
+    await tab.click()
+    await expect.element(page.getByText('Tally 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Bump the tally', exact: true}).click()
+    await expect.element(page.getByText('Tally 1', {exact: true})).toBeVisible()
+
+    await rpc.plugin.call({rpcId: 'tally', method: 'bump', input: {}})
+    await expect.element(page.getByText('Tally 2', {exact: true})).toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const {insert} = require('solid-js/web')

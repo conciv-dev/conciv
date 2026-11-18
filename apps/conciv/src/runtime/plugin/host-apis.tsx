@@ -409,6 +409,7 @@ export function createHostApis() {
     engine,
     grab,
     unavailableClient: (): ConcivClient => unavailable,
+    queryClient: useAppQueryClient(),
     whenMounted: (run: () => void) => write(() => run()),
     attach(value: Attached) {
       dispatchAttach({type: 'attach', attached: value})

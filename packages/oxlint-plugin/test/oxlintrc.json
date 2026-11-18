@@ -2,5 +2,5 @@
   "plugins": [],
   "jsPlugins": [{"name": "conciv", "specifier": "../src/plugin.js"}],
   "categories": {},
-  "rules": {"conciv/router-idioms": "error"}
+  "rules": {"conciv/router-idioms": "error", "conciv/plugin-view-reads-through-query": "error"}
 }
