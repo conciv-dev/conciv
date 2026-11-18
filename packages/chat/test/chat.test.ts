@@ -434,6 +434,55 @@ describe('plugin tools in code mode', () => {
       runner?.code?.run('return await external_bulk_zz_quasar({region: "north"})', 'parent'),
     ).resolves.toMatchObject({result: 'bright north'})
   })
+
+  it('a nested call in a resent unfinished message stays shown but out of what the model reads next', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_nested_history')
+    const chat = await chatPlane(db, root)
+    const read: ModelMessage[][] = []
+    model.setResponses([
+      ({request}) => {
+        read.push(request.messages)
+        return {text: 'read'}
+      },
+    ])
+    const response = await chat.routes(defineWebSocketHelper(async () => undefined)).request(CHAT_SSE_PATH, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: sessionId,
+        runId: 'run-resent',
+        tools: [],
+        context: [],
+        messages: [
+          {
+            id: 'resent-assistant',
+            role: 'assistant',
+            metadata: {tanstack: {toolCallMetadata: {nested_resent: {parentToolCallId: 'call_resent'}}}},
+            toolCalls: [
+              {id: 'call_resent', type: 'function', function: {name: 'execute_typescript', arguments: '{}'}},
+              {id: 'nested_resent', type: 'function', function: {name: 'unit_snap', arguments: '{}'}},
+            ],
+          },
+          {role: 'tool', id: 'tool-nested_resent', toolCallId: 'nested_resent', content: '"page data"'},
+          {role: 'tool', id: 'tool-call_resent', toolCallId: 'call_resent', content: '"snapped"'},
+          {id: 'resent-user', role: 'user', content: 'and again'},
+        ],
+      }),
+    })
+    await response.text()
+    expect(
+      read[0]?.flatMap((message) => [
+        ...(message.toolCalls ?? []).map((call) => call.function.name),
+        ...(message.role === 'tool' ? [JSON.stringify(message.content)] : []),
+      ]),
+    ).toEqual(['execute_typescript', JSON.stringify('"snapped"')])
+    expect(
+      (await chat.history(sessionId)).flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
+      ),
+    ).toEqual(['execute_typescript', 'unit_snap'])
+  })
 })
 
 describe('refusal text', () => {
