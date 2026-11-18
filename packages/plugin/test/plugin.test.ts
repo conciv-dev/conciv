@@ -939,18 +939,11 @@ describe('published declarations', () => {
 })
 
 describe('page and grab contracts', () => {
-  it('page provides the page and React tree contracts, grab its own, and both open a registry', () => {
-    const tokens = [
-      PageModule.Page,
-      PageModule.ReactTree,
-      PageModule.PageEffect,
-      GrabModule.GrabApi,
-      GrabModule.GrabPicker,
-    ]
+  it('page provides the page and React tree contracts, grab its own, and grab opens a registry', () => {
+    const tokens = [PageModule.Page, PageModule.ReactTree, GrabModule.GrabApi, GrabModule.GrabPicker]
     expect(tokens.map((token) => `${token.kind} ${token.id}`)).toEqual([
       'contract page',
       'contract page.react',
-      'registry page.effect',
       'contract grab',
       'registry grab.picker',
     ])

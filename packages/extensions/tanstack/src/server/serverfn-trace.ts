@@ -1,5 +1,5 @@
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {ServerFnInfo, ServerFnTrace} from '@conciv/protocol/framework-types'
+import type {ServerFnInfo, ServerFnTrace} from '@conciv/contract'
 
 export type ServerFnTraceRing = {
   observe: (diagnostic: Bundler.Diagnostic) => void

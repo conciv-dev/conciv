@@ -10,7 +10,7 @@ import {
   type ServerFnTrace,
   type ServerRouteInfo,
   type Unsubscribe,
-} from '@conciv/protocol/framework-types'
+} from '@conciv/contract'
 import {
   backDef,
   dataEntriesDef,

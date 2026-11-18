@@ -1,5 +1,5 @@
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {AppError} from '@conciv/protocol/framework-types'
+import type {AppError} from '@conciv/contract'
 
 export type DiagnosticsRing = {
   push: (error: AppError) => void
