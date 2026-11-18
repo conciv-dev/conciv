@@ -19,8 +19,6 @@ const RESET_SNAPSHOT_WAIT_MS = 1500
 
 const OK: {ok: true} = {ok: true}
 
-const EXPIRED: {expired: true} = {expired: true}
-
 const VIDEO: {name: 'recording.webm'; mime: 'video/webm'} = {name: 'recording.webm', mime: 'video/webm'}
 
 function recordingsDirectory(projectDirectory: string): string {
@@ -75,16 +73,15 @@ function registerRpc(rpc: Context['rpc'], runtime: RecorderRuntime, announce: An
     log: (input) => Effect.sync(() => ({entries: distill(runtime.rings.window(input, input.clientId))})),
     'recordings.save': (input) =>
       Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))),
-    'recordings.get': (input) =>
-      Effect.promise(() => runtime.recordings.get(input.recordingId)).pipe(
-        Effect.map((recording) => (recording.kind === 'found' ? {expired: false, events: recording.events} : EXPIRED)),
-      ),
+    'recordings.get': (input) => Effect.promise(() => runtime.recordings.get(input.recordingId)),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {
         const file = runtime.recordings.videoFile(input.id)
         const recording = yield* Effect.promise(() => runtime.recordings.get(input.id))
-        if (!file || recording.kind !== 'found')
+        if (recording.kind === 'expired')
           return yield* Effect.fail(call.error('expired', `The recording ${input.id} has expired`))
+        if (!file || recording.kind === 'missing')
+          return yield* Effect.fail(call.error('missing', `There is no saved recording ${input.id}`))
         const rendered = yield* Effect.promise(() => renderedVideo(file, recording.events, runtime.useRenderer))
         if (!rendered)
           return yield* Effect.fail(
