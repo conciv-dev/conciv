@@ -5,11 +5,10 @@ import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
-import {defineWebSocketHelper} from 'hono/ws'
 import {
   Agent,
   Bus,
@@ -770,20 +769,10 @@ describe('the session prompt hook', () => {
       sent.push(request.messages.findLast((message) => message.role === 'user')?.content)
       return {text: 'done'}
     }
-    const routes = chat.routes(defineWebSocketHelper(async () => undefined))
     const say = async (runId: string, text: string) => {
-      const response = await routes.request(CHAT_SSE_PATH, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({
-          threadId: sessionId,
-          runId,
-          messages: [{id: `${runId}-user`, role: 'user', content: text}],
-          tools: [],
-          context: [],
-        }),
-      })
-      await response.text()
+      await collected(
+        chat.send({threadId: sessionId, runId, messages: [{id: `${runId}-user`, role: 'user', content: text}]}),
+      )
     }
 
     model.setResponses([recorded])
@@ -846,3 +835,9 @@ describe('stopping a run', () => {
     expect(chat.driving(sessionId)).toBe(false)
   })
 })
+
+async function collected<T>(source: AsyncIterable<T>): Promise<T[]> {
+  const seen: T[] = []
+  for await (const value of source) seen.push(value)
+  return seen
+}

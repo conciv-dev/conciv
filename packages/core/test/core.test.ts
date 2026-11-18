@@ -21,7 +21,6 @@ import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {webSocket} from '@conciv/ai/client'
 import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
@@ -82,8 +81,6 @@ import {
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
-  CHAT_SSE_PATH,
-  CHAT_WS_PATH,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
@@ -123,7 +120,8 @@ import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, once as onceOnly} from 'es-toolkit'
-import {WSContext, defineWebSocketHelper} from 'hono/ws'
+import {WSContext} from 'hono/ws'
+import {rpcStream} from '@conciv/ai/client'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
@@ -163,6 +161,7 @@ import {
   exchangePrintedCode,
   loginThroughTerminal,
   requestPrintedCode,
+  type Kit,
 } from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
 import {createORPCClient, ORPCError} from '@orpc/client'
@@ -717,11 +716,7 @@ describe('chat plane', () => {
     const cli = fakeCli('streaming')
     const written = vi.spyOn(process.stderr, 'write')
     const engine = await bootEngine(root, {harness: cliHarness(cli)})
-    const turn = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: turnBody(sessionId('engine-stop'), 'engine-stop-run', 'keep talking'),
-    })
+    const turn = await engineTurn(engine, sessionId('engine-stop'), 'engine-stop-run')
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
     const stopping = engine.stop()
     const late = await rawRequest(engine.port, '/health')
@@ -744,11 +739,7 @@ describe('chat plane', () => {
       cli.release()
       await died.stop()
     })
-    const turn = await fetch(`http://127.0.0.1:${died.port}/t/${died.agentToken}${CHAT_SSE_PATH}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: turnBody(sessionId('cut-short'), 'cut-short-run', 'keep talking'),
-    })
+    const turn = await engineTurn(died, sessionId('cut-short'), 'cut-short-run')
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
     const db = openDatabase(root)
     const runRows = () =>
@@ -771,11 +762,7 @@ describe('chat plane', () => {
       await engine.stop()
     })
     const id = sessionId('late-push')
-    const turn = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: turnBody(id, 'late-push-run', 'keep talking'),
-    })
+    const turn = await engineTurn(engine, id, 'late-push-run')
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
     const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`)
     websocket.addEventListener('open', () =>
@@ -970,40 +957,40 @@ describe('chat plane', () => {
     return driver
   }
 
-  const noUpgrade = defineWebSocketHelper(async () => undefined)
-
   const ChunkSchema = z.object({type: z.string(), delta: z.string().optional()}).loose()
 
   type WireChunk = z.infer<typeof ChunkSchema>
 
-  function turnBody(threadId: string, runId: string, text: string): string {
-    const messages = [{id: `${runId}-user`, role: 'user', content: text}]
-    return JSON.stringify({threadId, runId, messages, tools: [], context: []})
+  function turnMessages(runId: string, text: string) {
+    return [{id: `${runId}-user`, role: 'user', content: text}]
   }
 
-  async function startTurn(chat: ChatPlane, threadId: string, runId: string, text: string): Promise<Response> {
-    return chat.routes(noUpgrade).request(CHAT_SSE_PATH, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: turnBody(threadId, runId, text),
+  async function startTurn(chat: ChatPlane, threadId: string, runId: string, text: string) {
+    return chat.send({threadId, runId, messages: turnMessages(runId, text)})
+  }
+
+  function engineTurn(engine: {port: number; agentToken: string}, session: SessionId, runId: string) {
+    return makeRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`).chat.send({
+      sessionId: session,
+      runId,
+      messages: turnMessages(runId, 'keep talking'),
     })
   }
 
-  async function readChunks(response: Response, enough: (seen: WireChunk[]) => boolean): Promise<WireChunk[]> {
+  async function readChunks(
+    turn: AsyncIterable<ChatEvent>,
+    enough: (seen: WireChunk[]) => boolean,
+  ): Promise<WireChunk[]> {
     const seen: WireChunk[] = []
-    const buffer = {text: ''}
-    for await (const text of response.body?.pipeThrough(new TextDecoderStream()) ?? []) {
-      const frames = (buffer.text + text).split('\n\n')
-      buffer.text = frames.pop() ?? ''
-      const lines = frames.flatMap((frame) => frame.split('\n')).filter((line) => line.startsWith('data: '))
-      seen.push(...lines.flatMap((line) => ChunkSchema.safeParse(JSON.parse(line.slice(6))).data ?? []))
+    for await (const chunk of turn) {
+      seen.push(ChunkSchema.parse(chunk))
       if (enough(seen)) break
     }
     return seen
   }
 
-  async function readUntil(response: Response, type: ChatEvent['type'] | 'end'): Promise<string[]> {
-    const seen = await readChunks(response, (chunks) => type !== 'end' && chunks.some((chunk) => chunk.type === type))
+  async function readUntil(turn: AsyncIterable<ChatEvent>, type: ChatEvent['type'] | 'end'): Promise<string[]> {
+    const seen = await readChunks(turn, (chunks) => type !== 'end' && chunks.some((chunk) => chunk.type === type))
     return seen.map((chunk) => chunk.type)
   }
 
@@ -2663,9 +2650,7 @@ describe('engine login', () => {
         method: route.method === 'ALL' ? 'GET' : route.method,
         path: route.path.replaceAll(/:[^/]+|\*/g, 'x'),
       }))
-      expect(routes.map((route) => route.path)).toEqual(
-        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', RPC_WS_PATH]),
-      )
+      expect(routes.map((route) => route.path)).toEqual(expect.arrayContaining(['/api/ext/probe/ping', RPC_WS_PATH]))
       const versions = new Set<string | null>()
       const sent = async (url: string, init: RequestInit = {}) => {
         const response = await fetch(url, init)
@@ -3762,27 +3747,19 @@ describe('plugin host bus', () => {
         chunk.type === ChatEventType.RUN_ERROR ? [{message: chunk.message, code: chunk.code}] : [],
       ),
     ).toEqual([{message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE}])
-    const sseRefusal = await kit.post(
-      CHAT_SSE_PATH,
-      {
-        threadId: refused,
-        runId: 'refused-sse-run',
-        messages: [{id: 'refused-sse-user', role: 'user', content: 'sent over SSE to a deleted session'}],
-        tools: [],
-        context: [],
-      },
-      refused,
-    )
-    const sseFrame = z.object({
+    const httpRefusal = await makeRpcClient(kit.base).chat.send({
+      sessionId: refused,
+      runId: 'refused-http-run',
+      messages: [{id: 'refused-http-user', role: 'user', content: 'sent over http rpc to a deleted session'}],
+    })
+    const refusalFrame = z.object({
       type: z.string(),
       name: z.string().optional(),
       message: z.string().optional(),
       code: z.string().optional(),
     })
-    const sseFrames = (await sseRefusal.text())
-      .split('\n')
-      .flatMap((line) => (line.startsWith('data: ') ? [sseFrame.parse(JSON.parse(line.slice('data: '.length)))] : []))
-    expect(sseFrames).toEqual([
+    const refusalFrames = (await collected(httpRefusal)).map((chunk) => refusalFrame.parse(chunk))
+    expect(refusalFrames).toEqual([
       {type: ChatEventType.CUSTOM, name: 'run.accepted'},
       {type: ChatEventType.RUN_ERROR, message: `session "${refused}" does not exist`, code: SESSION_DELETED_CODE},
     ])
@@ -4200,13 +4177,17 @@ describe('session prompt hook', () => {
     ],
   }
 
-  async function sentPartForPart(wsBase: string, session: string, message: ChatMessage = partForPart) {
+  async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenerator<ChatEvent> {
+    yield* await opened
+  }
+
+  async function sentPartForPart(kit: Kit, session: string, message: ChatMessage = partForPart) {
     const abort = new AbortController()
     onTestFinished(() => abort.abort())
-    const connection = webSocket(`${wsBase}${CHAT_WS_PATH}`)
-    const chunks = connection.subscribe(abort.signal)
-    void connection.send([message], {}, abort.signal, {threadId: session, runId: randomUUID()}).catch(() => {})
-    for await (const chunk of chunks) {
+    const turns = rpcStream((_messages, _data, signal, input) =>
+      streamed(kit.rpc.chat.send({sessionId: input.threadId, runId: input.runId, messages: input.messages}, {signal})),
+    )
+    for await (const chunk of turns.connect([message], {}, abort.signal, {threadId: session, runId: randomUUID()})) {
       if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) return chunk.type
     }
     return 'closed'
@@ -4216,7 +4197,7 @@ describe('session prompt hook', () => {
     const {kit, asked} = await promptKit([])
     const session = await kit.session()
 
-    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect(await sentPartForPart(kit, session)).toBe(ChatEventType.RUN_FINISHED)
     expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
     expect(asked).toEqual([partForPart.parts])
   })
@@ -4234,7 +4215,7 @@ describe('session prompt hook', () => {
     const {kit, asked} = await promptKit([plugin])
     const session = await kit.session()
 
-    expect(await sentPartForPart(kit.wsBase, session)).toBe(ChatEventType.RUN_FINISHED)
+    expect(await sentPartForPart(kit, session)).toBe(ChatEventType.RUN_FINISHED)
     expect(seen).toEqual(['first line\nsecond line'])
     expect((await kit.hydrate(session)).messages[0]?.parts).toEqual(partForPart.parts)
     expect(asked).toEqual([partForPart.parts])
@@ -4258,11 +4239,11 @@ describe('session prompt hook', () => {
     const storedMetadata = async (id: string) =>
       (await kit.hydrate(session)).messages.find((message) => message.id === id)?.metadata
 
-    expect(await sentPartForPart(kit.wsBase, session, sent)).toBe(ChatEventType.RUN_FINISHED)
+    expect(await sentPartForPart(kit, session, sent)).toBe(ChatEventType.RUN_FINISHED)
     expect(seen).toEqual([{note: 'from the client'}])
     expect(await storedMetadata('message-metadata')).toEqual({note: 'from the client', tagged: 'by the hook'})
 
-    expect(await sentPartForPart(kit.wsBase, session, untouched)).toBe(ChatEventType.RUN_FINISHED)
+    expect(await sentPartForPart(kit, session, untouched)).toBe(ChatEventType.RUN_FINISHED)
     expect(seen).toEqual([{note: 'from the client'}, {note: 'left alone'}])
     expect(await storedMetadata('message-untouched')).toEqual({note: 'left alone'})
   })
@@ -5484,3 +5465,9 @@ describe('pty sessions', () => {
     })
   })
 })
+
+async function collected<T>(source: AsyncIterable<T>): Promise<T[]> {
+  const seen: T[] = []
+  for await (const value of source) seen.push(value)
+  return seen
+}

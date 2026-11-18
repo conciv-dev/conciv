@@ -1,9 +1,4 @@
-import {
-  fetchServerSentEvents,
-  webSocket,
-  type ResumableConnectConnectionAdapter,
-  type SubscribeConnectionAdapter,
-} from '@conciv/ai/client'
+import {rpcStream, type ConnectConnectionAdapter, type SubscribeConnectionAdapter} from '@conciv/ai/client'
 import {type ModelMessage, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   type ChatEvent,
@@ -16,25 +11,12 @@ import {
   readApprovalSettled,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
-import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import {
-  engineHeaders,
-  engineWebSocket,
-  type ChatHistoryWindow,
-  type ChatHydration,
-  type RpcClient,
-} from '@conciv/contract'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
+import {type ChatHistoryWindow, type ChatHydration, type RpcClient} from '@conciv/contract'
 import {readingValues, relayedValues} from './stream-relay.js'
 
-export type ChatTransport = 'websocket' | 'fetch'
-
-export type ChatTransportPreference = 'auto' | ChatTransport
-
 export type ChatConnectionOptions = {
-  transport?: ChatTransportPreference
-  probeTimeoutMs?: number
   onLifecycle?: (lifecycle: RunLifecycle) => void
-  onTransport?: (transport: ChatTransport) => void
   onHydrated?: (hydration: ChatHydration) => void
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onApprovalSettled?: (approvalId: string) => void
@@ -45,69 +27,46 @@ export type ChatConnectionOptions = {
 export type ChatConnection = SubscribeConnectionAdapter & {
   joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
   hydrate: (threadId: string, window?: ChatHistoryWindow) => Promise<ChatHydration>
-  transport: () => ChatTransport | null
   refresh: (before?: string) => Promise<ChatHydration>
   close: () => void
 }
 
 type SessionEvents = (abortSignal: AbortSignal) => AsyncIterable<ChatEvent>
 
-const PROBE_TIMEOUT_MS = 2_000
-
-function absoluteUrl(apiBase: string, path: string): string {
-  const origin = typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.href
-  return new URL(`${apiBase}${path}`, origin).toString()
-}
-
-export function chatSocketUrl(apiBase: string): string {
-  const url = new URL(absoluteUrl(apiBase, CHAT_WS_PATH))
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  return url.toString()
-}
-
-export function chatEventsUrl(apiBase: string): string {
-  return absoluteUrl(apiBase, CHAT_SSE_PATH)
-}
-
-export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
-  if (typeof WebSocket === 'undefined') return Promise.resolve(false)
-  return new Promise<boolean>((resolve) => {
-    const socket = new WebSocket(url)
-    const settle = (opened: boolean): void => {
-      clearTimeout(timer)
-      socket.onopen = null
-      socket.onerror = null
-      socket.onclose = null
-      if (socket.readyState <= 1) socket.close()
-      resolve(opened)
-    }
-    const timer = setTimeout(() => settle(false), timeoutMs)
-    socket.onopen = () => settle(true)
-    socket.onerror = () => settle(false)
-    socket.onclose = () => settle(false)
-  })
-}
-
-type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
 
-function trackingWebSocketImpl(apiBase: string, live: Set<WebSocket>): typeof WebSocket {
-  return new Proxy(engineWebSocket(apiBase), {
-    construct: (target, args) => {
-      const socket: WebSocket = Reflect.construct(target, args)
-      live.add(socket)
-      socket.addEventListener('close', () => live.delete(socket), {once: true})
-      return socket
-    },
-  })
+type Turns = {adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
+
+function within(lifetime: AbortSignal, abortSignal: AbortSignal | undefined): AbortSignal {
+  return abortSignal === undefined ? lifetime : AbortSignal.any([lifetime, abortSignal])
 }
 
-function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
-  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(apiBase, live)})
-  return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
+async function* streamed(
+  opened: (signal: AbortSignal) => Promise<AsyncIterable<ChatEvent>>,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  try {
+    yield* await opened(signal)
+  } catch (error) {
+    if (!signal.aborted) throw error
+  }
 }
 
-function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
+function overRpc(rpc: RpcClient, sessionId: string, lifetime: AbortSignal): Turns {
+  const joinRun: JoinRun = (runId, abortSignal) =>
+    streamed((signal) => rpc.chat.join({runId}, {signal}), within(lifetime, abortSignal))
+  const turns = rpcStream(
+    (_messages, _data, abortSignal, input) =>
+      streamed(
+        (signal) => rpc.chat.send({sessionId, runId: input.runId, messages: input.messages}, {signal}),
+        within(lifetime, abortSignal),
+      ),
+    {joinRun},
+  )
+  return {adapter: subscribeOver(turns), joinRun}
+}
+
+function subscribeOver(adapter: ConnectConnectionAdapter): SubscribeConnectionAdapter {
   const listeners = new Set<(chunk: ChatEvent) => void>()
   return {
     subscribe: (abortSignal) =>
@@ -121,23 +80,6 @@ function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeCon
       }
     },
   }
-}
-
-function overEvents(apiBase: string): Selected {
-  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase), () => ({headers: engineHeaders(apiBase)}))
-  return {
-    transport: 'fetch',
-    adapter: subscribeOver(adapter),
-    joinRun: (runId, signal) => adapter.joinRun(runId, signal),
-  }
-}
-
-async function select(apiBase: string, options: ChatConnectionOptions, live: Set<WebSocket>): Promise<Selected> {
-  const preference = options.transport ?? 'auto'
-  if (preference === 'fetch') return overEvents(apiBase)
-  if (preference === 'websocket') return overSocket(apiBase, live)
-  const opened = await socketOpens(chatSocketUrl(apiBase), options.probeTimeoutMs ?? PROBE_TIMEOUT_MS)
-  return opened ? overSocket(apiBase, live) : overEvents(apiBase)
 }
 
 type Source<T> = (abortSignal: AbortSignal) => AsyncIterable<T>
@@ -171,7 +113,7 @@ function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | und
 }
 
 async function* announcedRuns(
-  chosen: Selected,
+  turns: Turns,
   events: SessionEvents,
   options: ChatConnectionOptions,
   scope: AbortSignal,
@@ -181,7 +123,7 @@ async function* announcedRuns(
     if (scope.aborted) return
     const announced = sessionRunEvent.parse(chunk)
     if (announced === null || !(await options.joinsRun?.(announced.runId))) continue
-    yield* finishedOnItsLifecycle(chosen.joinRun(announced.runId, scope), threadId, announced.runId)
+    yield* finishedOnItsLifecycle(turns.joinRun(announced.runId, scope), threadId, announced.runId)
   }
 }
 
@@ -199,28 +141,19 @@ async function* finishedOnItsLifecycle(
   }
 }
 
-async function* watching(
-  selected: Promise<Selected>,
+function watching(
+  turns: Turns,
   events: SessionEvents,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
-  const chosen = await selected
   const sources: Source<ChatEvent>[] = [
-    (scope) => chosen.adapter.subscribe(scope),
+    (scope) => turns.adapter.subscribe(scope),
     events,
-    (scope) => announcedRuns(chosen, events, options, scope, threadId),
+    (scope) => announcedRuns(turns, events, options, scope, threadId),
   ]
-  yield* noticing(merged(sources, abortSignal), options)
-}
-
-async function* sessionEvents(rpc: RpcClient, sessionId: string, signal: AbortSignal): AsyncGenerator<ChatEvent> {
-  try {
-    yield* await rpc.chat.events({sessionId}, {signal})
-  } catch (error) {
-    if (!signal.aborted) throw error
-  }
+  return noticing(merged(sources, abortSignal), options)
 }
 
 function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
@@ -249,55 +182,34 @@ function lastTurn<Message extends {role: string}>(messages: Message[]): Message[
   )
 }
 
-async function* joining(
-  selected: Promise<Selected>,
-  threadId: string,
-  runId: string,
-  abortSignal?: AbortSignal,
-): AsyncGenerator<ChatEvent> {
-  yield* finishedOnItsLifecycle((await selected).joinRun(runId, abortSignal), threadId, runId)
-}
-
-export function chatConnection(
-  rpc: RpcClient,
-  apiBase: string,
-  sessionId: string,
-  options: ChatConnectionOptions = {},
-): ChatConnection {
-  const events: SessionEvents = (signal) => sessionEvents(rpc, sessionId, signal)
-  const live = new Set<WebSocket>()
-  const chosen: {transport: ChatTransport | null} = {transport: null}
-  const selected = select(apiBase, options, live).then((choice) => {
-    chosen.transport = choice.transport
-    options.onTransport?.(choice.transport)
-    return choice
-  })
+export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatConnectionOptions = {}): ChatConnection {
+  const lifetime = new AbortController()
+  const turns = overRpc(rpc, sessionId, lifetime.signal)
+  const events: SessionEvents = (abortSignal) =>
+    streamed((signal) => rpc.chat.events({sessionId}, {signal}), within(lifetime.signal, abortSignal))
   const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(selected, events, options, abortSignal, sessionId),
+    subscribe: (abortSignal) => watching(turns, events, options, abortSignal, sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
-      const {adapter} = await selected
+      const {adapter} = turns
       if (messages.every((message) => 'parts' in message)) {
         await adapter.send(lastTurn(messages), data, abortSignal, runContext)
         return
       }
       await adapter.send(messages, data, abortSignal, runContext)
     },
-    joinRun: (runId, abortSignal) => noticing(joining(selected, sessionId, runId, abortSignal), options),
+    joinRun: (runId, abortSignal) =>
+      noticing(finishedOnItsLifecycle(turns.joinRun(runId, abortSignal), sessionId, runId), options),
     hydrate,
-    transport: () => chosen.transport,
     refresh: (before) =>
       hydrate(
         sessionId,
         before === undefined ? {limit: CHAT_HISTORY_PAGE_SIZE} : {limit: CHAT_HISTORY_PAGE_SIZE, before},
       ),
-    close: () => {
-      for (const socket of live) socket.close()
-      live.clear()
-    },
+    close: () => lifetime.abort(),
   }
 }

@@ -360,22 +360,13 @@ const watched = require('node:net').connect(data.socket, () => {
       {timeout: 10_000},
       async () => {
         const agent = await cliAgent({silentMs: 0, afterSilence: 'gate'})
-        const response = await agent.server.events(
-          new Request('http://conciv.local/chat', {
-            method: 'POST',
-            headers: {'content-type': 'application/json'},
-            body: JSON.stringify({
-              threadId: 'left',
-              runId: 'left',
-              messages: [{id: 'user-hi', role: 'user', content: 'hi'}],
-              tools: [],
-              context: [],
-            }),
-          }),
-        )
         const live = {text: ''}
-        for await (const text of response.body?.pipeThrough(new TextDecoderStream()) ?? []) {
-          live.text += text
+        for await (const chunk of agent.server.send({
+          threadId: 'left',
+          runId: 'left',
+          messages: [{id: 'user-hi', role: 'user', content: 'hi'}],
+        })) {
+          live.text += JSON.stringify(chunk)
           if (live.text.includes(SESSION)) break
         }
         agent.open()
@@ -559,10 +550,7 @@ const watched = require('node:net').connect(data.socket, () => {
   }
 
   async function replayed(server: ChatServer, runId: string) {
-    const replay = server.resume(new Request(`http://conciv.local/chat?runId=${runId}&offset=-1`))
-    return ((await replay?.text()) ?? '')
-      .split('\n')
-      .flatMap((line) => (line.startsWith('data: ') ? [ReplayedChunkSchema.parse(JSON.parse(line.slice(6)))] : []))
+    return (await collected(server.join({runId}))).map((chunk) => ReplayedChunkSchema.parse(chunk))
   }
 
   async function replayEnd(server: ChatServer, runId: string) {
@@ -1119,3 +1107,9 @@ describe('dist externals', () => {
     })
   })
 })
+
+async function collected<T>(source: AsyncIterable<T>): Promise<T[]> {
+  const seen: T[] = []
+  for await (const value of source) seen.push(value)
+  return seen
+}

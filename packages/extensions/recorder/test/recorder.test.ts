@@ -9,16 +9,14 @@ import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright-core'
 import {z} from 'zod'
 import {call, type RouterClient} from '@orpc/server'
-import {fetchServerSentEvents} from '@conciv/ai/client'
 import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 import {failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor, type RpcSocketCall} from '@conciv/plugin-testkit/rpc-socket'
-import {connectMcpClient, createFakeHarness, makeDiscoverTools} from '@conciv/harness-testkit'
+import {connectMcpClient, createFakeHarness, makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
 import {until} from '@conciv/harness-testkit/until'
-import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import recorderExtension, {makeRecorderRouter, type RecorderRouter} from '../src/server.js'
 import {createFlusher} from '../src/client/flusher.js'
 import {createCaptureControl} from '../src/server/capture-control.js'
@@ -42,12 +40,9 @@ describe('capture survives run end', () => {
 
   async function runAgentTurnToCompletion(): Promise<void> {
     const abort = new AbortController()
-    const connection = fetchServerSentEvents(`${api().apiBase}${CHAT_SSE_PATH}`)
-    const turn = connection.connect(
-      [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello'}]}],
-      {},
-      abort.signal,
-      {threadId: api().session, runId: randomUUID()},
+    const turn = await makeRpcClient(api().apiBase).chat.send(
+      {sessionId: api().session, runId: randomUUID(), messages: [{id: randomUUID(), role: 'user', content: 'hello'}]},
+      {signal: abort.signal},
     )
     for await (const chunk of turn) {
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') break
