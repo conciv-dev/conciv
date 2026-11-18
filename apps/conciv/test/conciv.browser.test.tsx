@@ -16,6 +16,7 @@ import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {appendDraft, draftCacheSink} from '../src/pane/draft-storage.js'
 import {createBrowserDraftStore, type DraftStore} from '../src/runtime/persistence/drafts.js'
 import {persistStore} from '../src/runtime/persistence/persist.js'
 import {
@@ -640,6 +641,28 @@ describe('chat pane', () => {
     window.dispatchEvent(new PageTransitionEvent('pagehide'))
 
     expect(await readLocalCopy()).toMatchObject({text: TEXT})
+  })
+
+  test('a queue returned while no pane is open keeps no stamp once its save is answered or refused', async () => {
+    const {rpc, sessionId} = await newSession()
+    const readLocalCopy = async (): Promise<unknown> => {
+      const kept = await createBrowserDraftStore().getItem(sessionId)
+      return kept === null ? null : JSON.parse(kept)
+    }
+    const mount = mountPane({base: core(), sessionId}, () => <></>)
+    active.pane = mount
+    const sink = draftCacheSink(mount.keepDraft, mount.data, sessionId, appendDraft)
+
+    sink.insert('returned and saved')
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId, text: 'returned and saved'})
+    const saved = await rpc.drafts.get({sessionId})
+    await expect.poll(readLocalCopy).toMatchObject({text: 'returned and saved', syncedAt: saved?.updatedAt, sent: []})
+
+    await faults.install({kind: 'fail', path: ['drafts', 'set'], status: 400})
+    sink.insert('returned and refused')
+    await expect
+      .poll(readLocalCopy)
+      .toMatchObject({text: 'returned and saved\nreturned and refused', syncedAt: saved?.updatedAt, sent: []})
   })
 
   describe('the local draft when the engine read fails, lags, or misses an answer', () => {
