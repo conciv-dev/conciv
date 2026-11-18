@@ -337,7 +337,7 @@ export function turnHooks(
             messages: event.messages,
             options: event.options,
             tools: event.tools,
-            ...(event.result === undefined ? {} : {result: event.result}),
+            ...(turn.kind !== 'compact' || event.result === undefined ? {} : {result: event.result}),
           }
         },
         tools: toolSet,
