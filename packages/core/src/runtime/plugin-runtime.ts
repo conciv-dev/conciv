@@ -46,7 +46,6 @@ import {
   provideEditorSource,
   provideExtensionSlugs,
   provideGlobalRoots,
-  provideHarnessSource,
 } from './plugin-sources.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
@@ -63,7 +62,6 @@ export type PluginRuntimeInput = {
   post: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
   signal: AbortSignal
-  harnessSource: Parameters<typeof provideHarnessSource>[0]
   bundler: BundlerBridge | undefined
   openInEditor: (file: string, line?: number, column?: number) => void
   extensionSlugs: ReadonlyArray<string>
@@ -121,7 +119,6 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         locationLayer(input.cwd),
         provideApp(),
         provideServersSource({home: input.home, engineId: input.engineId}),
-        provideHarnessSource(input.harnessSource),
         provideBundlerSource(input.bundler),
         provideEditorSource(input.openInEditor),
         provideExtensionSlugs(input.extensionSlugs),

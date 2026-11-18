@@ -7,7 +7,7 @@ import {EventManifest} from '@conciv/plugin/schema/event-manifest'
 import type {Event} from '@conciv/plugin/schema/event'
 import {App} from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
-import type {BundlerDomain, HarnessDomain, Servers} from '@conciv/plugin'
+import type {BundlerDomain, Servers} from '@conciv/plugin'
 import {Agent} from '../agent.js'
 import {Bus} from '../bus.js'
 import {KV} from '../kv.js'
@@ -36,7 +36,6 @@ const isPublicEvent = (event: Event.Payload): event is EventManifest.ServerEvent
   EventManifest.isServer(event) || isRpcEvent(event)
 
 export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
-export const HarnessSource = Context.Service<HarnessDomain>('@conciv/HarnessSource')
 export const BundlerSource = Context.Service<BundlerDomain | undefined>('@conciv/BundlerSource')
 export const ExtensionSlugs = Context.Service<ReadonlyArray<string>>('@conciv/ExtensionSlugs')
 export const EditorSource =
@@ -57,7 +56,6 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const sessions = yield* Session.Service
   const instructionEntries = yield* InstructionEntry.Service
   const servers = yield* ServersSource
-  const harness = yield* HarnessSource
   const bundler = yield* BundlerSource
   const extensionSlugs = yield* ExtensionSlugs
   const global = yield* Global.Service
@@ -231,7 +229,6 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
       },
     },
     servers,
-    harness,
     bundler,
   }
   return context

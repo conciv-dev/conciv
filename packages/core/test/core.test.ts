@@ -178,7 +178,6 @@ import {
   currentRow,
   ensureRow,
   isDeletedRow,
-  nativeIdFor,
   recordNativeId,
   rowById,
   setMetadata,
@@ -194,7 +193,6 @@ import {
   provideConfiguredPolicies,
   provideExtensionSlugs,
   provideGlobalRoots,
-  provideHarnessSource,
 } from '../src/runtime/plugin-sources.js'
 import {
   answerPermission,
@@ -4884,7 +4882,6 @@ describe('plugin context keys provided by core', () => {
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
-    const base: {current: string | undefined} = {current: undefined}
     const devServer = defineBundlerBridge({
       id: 'unit-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
@@ -4899,14 +4896,6 @@ describe('plugin context keys provided by core', () => {
         SkillInstructions.layer,
         SessionProjector.layer,
         provideInstructionEntries,
-        provideHarnessSource({
-          harness: (sessionId) => ({id: `fake-cli:${sessionId}`}),
-          sessions: {
-            resumeToken: (sessionId) => nativeIdFor(db, sessionId),
-            recordToken: (sessionId, token) => recordNativeId(db, sessionId, 'fake-cli', token),
-          },
-          tokenScopedBase: () => base.current,
-        }),
         provideBundlerSource(devServer),
         provideExtensionSlugs(['page']),
         provideApp(),
@@ -4964,14 +4953,6 @@ describe('plugin context keys provided by core', () => {
     expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
       {key: 'brief', value: 'ship it'},
     ])
-
-    const harness = await host.runPromise(PluginHost.HarnessSource)
-    expect(harness.mcpUrl).toBeUndefined()
-    base.current = 'http://127.0.0.1:4100/agent-token'
-    expect(harness.mcpUrl).toBe('http://127.0.0.1:4100/agent-token/api/mcp')
-    expect(harness.get(id).id).toBe(`fake-cli:${id}`)
-    await harness.recordToken(id, HarnessSessionId.parse('native-entries'))
-    expect(await harness.resumeToken(id)).toBe('native-entries')
 
     const bundler = await host.runPromise(PluginHost.BundlerSource)
     expect(bundler?.config().root).toBe(root)

@@ -7,7 +7,6 @@ import type {Info, PublicRef} from '../schema/location.js'
 import type {AgentDomain} from './agent.js'
 import type {BundlerDomain} from './bundler.js'
 import type {EventDomain} from './event.js'
-import type {HarnessDomain} from './harness.js'
 import type {ModelDomain} from './model.js'
 import type {PermissionDomain} from './permission.js'
 import type {RpcDomain} from './rpc.js'
@@ -38,7 +37,6 @@ export interface Context {
   readonly storage: StorageDomain
   readonly tool: ToolDomain
   readonly servers: Servers
-  readonly harness: HarnessDomain
   readonly bundler: BundlerDomain | undefined
 }
 

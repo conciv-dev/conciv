@@ -12,7 +12,7 @@ import * as Effect from 'effect'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {
   Agent,
   Plugin,
@@ -99,9 +99,6 @@ describe('define', () => {
         const sessionId = SessionId.parse('conciv_session')
         await context.permission.assert({sessionId, action: 'acme', resources: ['page']})
         const registration = await context.rpc.register(Echo, {echo: async (input) => ({text: input.text})})
-        const token = await context.harness.resumeToken(sessionId)
-        if (token) await context.harness.recordToken(sessionId, token)
-        expectTypeOf(context.harness.mcpUrl).toEqualTypeOf<string | undefined>()
         return () => registration.dispose()
       },
     })
@@ -118,9 +115,6 @@ describe('define', () => {
     expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
     expectTypeOf<Agent.Info['permissions']>().toEqualTypeOf<Ruleset>()
     expectTypeOf<Ruleset[number]>().toEqualTypeOf<Rule>()
-    expectTypeOf<Plugin.Context['harness']['resumeToken']>().returns.toEqualTypeOf<Promise<HarnessSessionId | null>>()
-    expectTypeOf<Plugin.Context['harness']['recordToken']>().parameter(1).toEqualTypeOf<HarnessSessionId>()
-    expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string | undefined>()
     expectTypeOf<Awaited<ReturnType<Plugin.Context['permission']['get']>>['resources']>().toEqualTypeOf<
       readonly string[]
     >()

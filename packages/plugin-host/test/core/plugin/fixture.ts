@@ -20,13 +20,7 @@ import {PluginHooks} from '../../../src/core/plugin/hooks.js'
 import {InstancePlugins} from '../../../src/core/plugin/instance.js'
 import {PluginSupervisor} from '../../../src/core/plugin/supervisor.js'
 import {PluginUpdate} from '../../../src/core/plugin/update.js'
-import {
-  BundlerSource,
-  EditorSource,
-  ExtensionSlugs,
-  HarnessSource,
-  ServersSource,
-} from '../../../src/core/plugin/host.js'
+import {BundlerSource, EditorSource, ExtensionSlugs, ServersSource} from '../../../src/core/plugin/host.js'
 import {Rpc} from '../../../src/core/rpc.js'
 import {Session} from '../../../src/core/session.js'
 import {SessionErrors} from '../../../src/core/session/error.js'
@@ -192,12 +186,6 @@ const sourcesLayer = (bundler: BundlerDomain | undefined) =>
   Layer.mergeAll(
     Layer.succeed(App.Service, App.make()),
     Layer.succeed(ServersSource, {list: () => [], get: () => undefined}),
-    Layer.succeed(HarnessSource, {
-      get: () => ({id: 'fixture'}),
-      resumeToken: () => Promise.resolve(null),
-      recordToken: () => Promise.resolve(),
-      mcpUrl: undefined,
-    }),
     Layer.succeed(BundlerSource, bundler),
     Layer.succeed(ExtensionSlugs, []),
     Layer.succeed(EditorSource, () => {}),

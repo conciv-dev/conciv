@@ -6581,7 +6581,6 @@ const Seer = {
 export default {
   id: 'seer',
   async setup(ctx) {
-    const mcpUrl = ctx.harness.mcpUrl
     await ctx.tool.transform((tools) => {
       tools.add({
         name: 'seer_echo',
@@ -6627,7 +6626,6 @@ export default {
     })
     const registration = await ctx.rpc.register(Seer, {
       seen: async () => ({
-        mcpUrl,
         app: ctx.app,
         directory: ctx.location.directory,
         servers: ctx.servers.list(),
@@ -6806,7 +6804,6 @@ export default {
 
     const seen = z
       .object({
-        mcpUrl: z.string(),
         app: z.object({name: z.string()}),
         directory: z.string(),
         servers: z.array(z.string()),
@@ -6819,7 +6816,6 @@ export default {
         ),
       })
       .parse(await call(base, 'seer', 'seen'))
-    expect(seen.mcpUrl).toBe(`${base}/api/mcp`)
     expect(seen.app.name).toBe('conciv')
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
@@ -7020,9 +7016,7 @@ export default {
     const again = await bootWithPlugins(home, root)
     onTestFinished(() => again.stop())
     const againBase = `http://127.0.0.1:${again.port}/t/${again.agentToken}`
-    expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
-      `${againBase}/api/mcp`,
-    )
+    expect(z.object({directory: z.string()}).parse(await call(againBase, 'seer', 'seen')).directory).toBe(root)
   })
 
   it('an engine with no plugin offers its built-in conciv and report skills and a skill added to the project conciv/skills folder', async () => {

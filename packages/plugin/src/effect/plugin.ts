@@ -4,7 +4,6 @@ import type {Effect, Scope} from 'effect'
 import type {App} from '../app.js'
 import type {PluginOptions} from '../options.js'
 import type {BundlerDomain} from '../promise/bundler.js'
-import type {HarnessDomain} from '../promise/harness.js'
 import type {Servers} from '../promise/servers.js'
 import type {AgentDomain} from './agent.js'
 import type {EventDomain} from './event.js'
@@ -41,7 +40,6 @@ export interface Context {
   readonly storage: StorageDomain
   readonly tool: ToolDomain
   readonly servers: Servers
-  readonly harness: HarnessDomain
   readonly bundler: BundlerDomain | undefined
 }
 

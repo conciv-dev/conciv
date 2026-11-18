@@ -662,11 +662,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ],
     harness,
     signal: engineLife.signal,
-    harnessSource: {
-      harness: serverHarness,
-      sessions: serverSessions,
-      tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
-    },
     bundler: opts.bridge,
     openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
