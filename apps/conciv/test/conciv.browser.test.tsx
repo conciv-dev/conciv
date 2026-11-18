@@ -6950,7 +6950,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: base})
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
