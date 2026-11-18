@@ -7490,7 +7490,7 @@ describe('terminal panel', () => {
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
-  const output = (text: string) => page.getByText(text, {exact: true})
+  const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -7763,6 +7763,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('echo $((3*3))')
     await userEvent.keyboard('{Enter}')
     await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).toBeInTheDocument()
     await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
 
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
