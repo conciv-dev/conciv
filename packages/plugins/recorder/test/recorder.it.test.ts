@@ -1,6 +1,6 @@
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {describe, onTestFinished} from 'vitest'
+import {describe, onTestFinished, vi} from 'vitest'
 import {z} from 'zod'
 import type {Browser, Page} from 'playwright'
 import {expect} from 'playwright/test'
@@ -572,5 +572,88 @@ describe('the replay in the Recorder tab', () => {
     await expect(replayed(page, 'Pressed 4')).toBeAttached({timeout: 30_000})
     await expect(live).toBeVisible({timeout: 10_000})
     expect(storeWrites).toEqual([])
+  }, 120_000)
+})
+
+const RecorderChunkFileInput = z.object({file: z.string()})
+
+function isChunk(call: RpcSocketCall, prefix: string): boolean {
+  const parsed = RecorderChunkFileInput.safeParse(call.input)
+  return isRecorderChunk(call) && parsed.success && parsed.data.file.startsWith(prefix)
+}
+
+describe('the page capture behind a slow capture library', () => {
+  test('answers a start that outlasts the page attach deadline as unattached, and records a later start once the library has loaded', async ({
+    browser,
+  }) => {
+    const {widget, page, socket} = await openRecorderPage(browser, {
+      id: 'recorder-slow-library',
+      body: '<button type="button" onclick="this.textContent = \'Pressed by the user\'">Press me</button>',
+    })
+    const libraryRequested = Promise.withResolvers<void>()
+    const libraryReleased = Promise.withResolvers<void>()
+    const stopHolding = socket.rule((call) => {
+      if (!isChunk(call, 'rrweb-') || isChunk(call, 'rrweb-player-')) return 'pass'
+      libraryRequested.resolve()
+      void libraryReleased.promise.then(() => call.forward())
+      return 'handled'
+    })
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const timedOut = widget.kit.callTool('recording_start', {}).then(
+      () => 'the start answered',
+      (error: unknown) => String(error),
+    )
+    await libraryRequested.promise
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(await timedOut).toContain('no page client attached within 5s')
+    vi.useRealTimers()
+
+    stopHolding()
+    libraryReleased.resolve()
+    const captureId = await startRecording(widget)
+    await page.getByRole('button', {name: 'Press me', exact: true}).click()
+    await expect(page.getByRole('button', {name: 'Pressed by the user', exact: true})).toBeVisible()
+    expect(await stopRecording(widget, captureId)).toContain('[click] clicked button "Press me"')
+  }, 120_000)
+})
+
+describe('the Recorder tab when a page library fails to load', () => {
+  test('tells the user that recording is unavailable when the capture library fails to load', async ({browser}) => {
+    const {page, socket} = await openRecorderPage(browser, {id: 'recorder-capture-failed', body: '<p>Fixture</p>'})
+    socket.rule((call) => {
+      if (!isChunk(call, 'rrweb-plugin-console-record-')) return 'pass'
+      void call.reply(500)
+      return 'handled'
+    })
+    await showRecorderTab(page)
+    await expect(
+      page.getByText('Recording is unavailable: capture failed to start on this page.', {exact: true}),
+    ).toBeVisible({timeout: 30_000})
+  }, 120_000)
+
+  test('tells the user that the player could not load with a Retry, and Retry replays the page once the player loads', async ({
+    browser,
+  }) => {
+    const {page, socket} = await openRecorderPage(browser, {
+      id: 'recorder-player-failed',
+      body: '<p>Recorded fixture</p>',
+    })
+    const stopFailing = socket.rule((call) => {
+      if (!isChunk(call, 'rrweb-player-')) return 'pass'
+      void call.reply(500)
+      return 'handled'
+    })
+    await showRecorderTab(page)
+    const failure = page.getByRole('alert').filter({hasText: 'Could not load the player.'})
+    await expect(failure).toBeVisible({timeout: 30_000})
+    stopFailing()
+    await failure.getByRole('button', {name: 'Retry', exact: true}).click()
+    await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+    await page.getByRole('tab', {name: 'Recorder', exact: true}).click({timeout: 30_000})
+    await expect(replayed(page, 'Recorded fixture')).toBeAttached({timeout: 30_000})
+    await expect(page.getByText('Could not load the player.', {exact: true})).toHaveCount(0)
   }, 120_000)
 })
