@@ -1,4 +1,4 @@
-import {Cause, Deferred, Duration, Effect, Exit, Option, Scope, Semaphore, Stream} from 'effect'
+import {Cause, Deferred, Duration, Effect, Exit, Option, Predicate, Scope, Semaphore, Stream} from 'effect'
 import {z} from 'zod'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcHandlers, RpcRegistration} from '@conciv/plugin/effect/rpc'
@@ -19,11 +19,16 @@ import {
   type ConnectionEffect,
   type ConnectionEvent,
 } from './machine.js'
+import {ENGINE_CODES} from './failures.js'
 import {Definition, type Action, type Result} from './rpc.js'
 
 const Options = z.object({replyTimeoutMs: z.number().int().positive().default(5000)})
 
-const TRANSPORT_CODES: readonly string[] = ['disconnected', 'connecting', 'timeout', 'tab_unavailable']
+function unavailableReason(sessionId: SessionId, error: unknown): Effect.Effect<string> {
+  return Effect.logWarning(`TanStack could not open session ${sessionId}`, error).pipe(
+    Effect.as(`Session ${sessionId} could not be opened: ${error instanceof Error ? error.message : String(error)}`),
+  )
+}
 
 type SyncEffect = Extract<ConnectionEffect, {readonly type: 'sync-permissions'}>
 
@@ -118,9 +123,16 @@ export const make = Effect.fn('TanstackConnection.make')(function* (
       ...engine,
       attach: (input, call) =>
         Effect.gen(function* () {
-          const session = yield* ctx.session
-            .get({sessionId: input.sessionId})
-            .pipe(Effect.mapError(() => call.error('unavailable', 'Session not found.', {})))
+          const session = yield* ctx.session.get({sessionId: input.sessionId}).pipe(
+            Effect.catchIf(
+              Predicate.isTagged('Session.NotFoundError'),
+              () => Effect.fail(call.error('missing', `session "${input.sessionId}" does not exist`, {})),
+              (error) =>
+                unavailableReason(input.sessionId, error).pipe(
+                  Effect.flatMap((reason) => Effect.fail(call.error('unavailable', reason, {}))),
+                ),
+            ),
+          )
           if (session.location.directory !== ctx.location.directory)
             return yield* Effect.fail(call.error('unavailable', 'Session belongs to another location.', {}))
           return yield* Effect.acquireUseRelease(
@@ -166,7 +178,7 @@ export const make = Effect.fn('TanstackConnection.make')(function* (
         }),
       result: (input, call) =>
         Effect.suspend(() => {
-          if (input.outcome.type === 'failure' && TRANSPORT_CODES.includes(input.outcome.code))
+          if (input.outcome.type === 'failure' && ENGINE_CODES.includes(input.outcome.code))
             return Effect.fail(
               call.error('unavailable', `The page cannot report ${input.outcome.code}; only the engine does.`, {}),
             )

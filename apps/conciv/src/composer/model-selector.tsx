@@ -7,6 +7,7 @@ import {
   Button,
   Collapsible,
   createListCollection,
+  Dialog,
   LIST_PANEL_GROUP_LABEL,
   Listbox,
   Popover,
@@ -14,7 +15,6 @@ import {
   usePopover,
   type PopoverMachine,
 } from '@conciv/ui-kit-system'
-import {getHostApi} from '@conciv/extension/host'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
 import Check from 'lucide-solid/icons/check'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
@@ -26,7 +26,7 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
-import {useAnnounce, useAppData, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useLayers, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {useRefetchSessionHarness, useSessionModels} from '../data/harness-meta.js'
 import {useNotices} from '../shell/notice-context.js'
@@ -372,12 +372,12 @@ function SwitchConfirm(props: {
   onConfirm: (target: SwitchTarget) => void
 }): JSX.Element {
   const [local] = splitProps(props, ['target', 'messages', 'onSettle', 'onConfirm'])
-  const Dialog = getHostApi().useDialog()
+  const LayeredDialog = useLayers().track(Dialog)
   const changeOpen = (open: boolean) => {
     if (!open) local.onSettle()
   }
   return (
-    <Dialog
+    <LayeredDialog
       open
       onOpenChange={changeOpen}
       title="Switch harness?"
@@ -397,7 +397,7 @@ function SwitchConfirm(props: {
         Switching to {local.target.harness.name} sends this chat’s history (about{' '}
         {tokensLabel(estimatedTokens(local.messages))}).
       </p>
-    </Dialog>
+    </LayeredDialog>
   )
 }
 

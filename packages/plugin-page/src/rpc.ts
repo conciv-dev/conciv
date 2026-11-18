@@ -14,6 +14,7 @@ import {
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
+  PageRaisedErrorSchema,
   SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
@@ -252,7 +253,7 @@ export const Operations = [
       component: z.string().nullable().optional(),
       stack: z.array(z.string()).optional(),
       frames: z.array(AnyRecord).optional(),
-      source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
+      source: SourceLocSchema.nullish(),
     }),
     reading,
   ),
@@ -510,7 +511,7 @@ export const Outcome = z.discriminatedUnion('type', [
     type: z.literal('failure'),
     code: short,
     message: short,
-    raised: z.object({code: z.string().min(1), message: z.string(), data: z.unknown().optional()}).optional(),
+    raised: PageRaisedErrorSchema.optional(),
   }),
 ])
 export type Outcome = z.infer<typeof Outcome>

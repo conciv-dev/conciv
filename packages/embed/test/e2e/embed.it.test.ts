@@ -1517,7 +1517,7 @@ test.describe('page dispatch parity', () => {
       await expectClickDispatched(kit, page)
     })
 
-    test('page_effect enable shows the highlight inspector the widget registers, disable reverts, toggle flips', async () => {
+    test('page_effect enable shows the highlight inspector the page plugin registers, disable reverts, toggle flips', async () => {
       await expect(pageRun(kit, {type: 'effect', action: 'enable', effect: 'highlight'})).resolves.toMatchObject({
         effect: 'highlight',
         enabled: true,
