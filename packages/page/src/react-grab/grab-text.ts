@@ -1,5 +1,5 @@
 import {composeGrabText} from '@conciv/grab'
-import type {SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {SourceLoc} from '@conciv/plugin/experimental/page'
 import {sourceFromAttr} from '../source-attr.js'
 
 const MAX_TEXT = 80

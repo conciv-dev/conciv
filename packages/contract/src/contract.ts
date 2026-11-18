@@ -23,19 +23,18 @@ import {
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
   OpenSourceResultSchema,
-  OpenSourceSchema,
   PageChangeEntrySchema,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
   PageReplySchema,
-  SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
+import {OpenSourceSchema, SourceLocSchema} from './source-location.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 

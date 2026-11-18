@@ -12,7 +12,7 @@ import {resolveConfig} from '@conciv/core/config'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {
   HarnessCapabilities,
   HarnessCommand,
@@ -61,7 +61,7 @@ export async function bootCoreKit(
     plugins?: NonNullable<ConcivConfig['plugins']>
     files?: Readonly<Record<string, string>>
     stateRoot?: string
-    bundler?: BundlerBridge
+    bundler?: Bundler.BundlerBridge
     tty?: {command(context: HarnessConnectContext): TtyCommand}
   },
 ): Promise<CoreKit> {

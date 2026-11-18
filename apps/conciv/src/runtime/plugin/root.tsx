@@ -68,7 +68,7 @@ export function usePluginsKnown() {
 
 export function PluginRoot(props: ParentProps) {
   const apis = createHostApis()
-  const apiBase = untrack(useApiBase())
+  const apiBase = useApiBase()
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const trusted = createMemo(() => {
@@ -200,8 +200,8 @@ export function PluginAttachment(props: ParentProps) {
           />
         )}
       </Show>
-      <Show when={host.ready()}>
-        <MountedInterface attach={attachment.attach} />
+      <Show when={host.ready() ? attachment.root() : undefined}>
+        {(root) => <MountedInterface attach={() => attachment.attach(root())} />}
       </Show>
       {props.children}
     </PluginAttachmentProvider>

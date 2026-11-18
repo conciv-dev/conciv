@@ -250,8 +250,8 @@ tool `.server` handlers get typed context.
 
 ## Widget UI: `Component`, `Surface`, `views`
 
-- **`Component`** mounts once per slot (`header`, `footer`, `composer`, `empty`, `status`,
-  `widget`, `surface`, `connect`); branch on `getExtensionApi(YOUR_NAME).useSlot()` inside it, as
+- **`Component`** mounts once per slot (`composer`, `empty`, `status`, `widget`,
+  `surface`, `connect`); branch on `getExtensionApi(YOUR_NAME).useSlot()` inside it, as
   `deploy-button.tsx` does above. The host wraps it in `MountedExtension` — you normally never call
   that directly; it exists for custom hosts (see Testing below).
 - **`Surface`** is a second, always-mounted component for the dedicated `'surface'` slot — used for
@@ -270,9 +270,9 @@ export const terminal = defineExtension({
 ```
 
 `getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
-uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `usePopover`, `useSessionId`,
-`useGrab`, `useComposerInsert`, `useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`,
-`useOpenEditor`, `useConnect`, `useViewLock`, `useLeaveView`, plus the `Suppress`/`YieldFocus`
+uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `useSessionId`, `useGrab`,
+`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useConnect`, `useViewLock`,
+`useLeaveView`, `useScope`, `useColorScheme`, plus the `Suppress`/`YieldFocus`
 layer-gate components — and adds `useContext`, scoped to the extension you named. Each hook throws
 with a clear "used outside a host that provides…" message if called where the host never wired that
 value — that error means the component rendered outside
