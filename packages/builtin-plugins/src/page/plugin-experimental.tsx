@@ -4,7 +4,7 @@ import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/exp
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition} from '@conciv/plugin-page/rpc'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import type {LocateResult} from '@conciv/plugin/experimental/page'
 import {openAttachment} from './attachment.js'
 import {makeHighlight, type OpenedSource} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'

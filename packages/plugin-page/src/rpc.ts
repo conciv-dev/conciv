@@ -15,9 +15,9 @@ import {
   PageQueueProgressSchema,
   PageQueueResultSchema,
   PageRaisedErrorSchema,
-  SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
+import {SourceLocSchema} from '@conciv/contract'
 
 export const PAGE_NAMESPACE = 'page'
 export const MAX_FILE_BYTES = 5 * 1024 * 1024

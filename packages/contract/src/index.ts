@@ -1,4 +1,5 @@
 export * from './rows.js'
+export * from './source-location.js'
 export * from './contract.js'
 export * from './client.js'
 export * from './code-reply.js'

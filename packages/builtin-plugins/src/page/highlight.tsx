@@ -6,7 +6,7 @@ import {render} from 'solid-js/web'
 import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
 import type {PageEffect} from '@conciv/plugin/experimental/page'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import type {LocateResult} from '@conciv/plugin/experimental/page'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
