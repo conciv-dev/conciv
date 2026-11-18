@@ -1059,12 +1059,23 @@ describe('chat pane', () => {
       await expect.element(unsaved).not.toBeInTheDocument()
       await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, saves + 1, [])
 
-      const sessionSaves = mount.queryClient.getMutationCache().findAll({
-        mutationKey: mount.data.utils.drafts.set.mutationKey(),
-        predicate: (mutation) =>
-          z.object({sessionId: z.string()}).safeParse(mutation.state.variables).data?.sessionId === sessionId,
+      const mutationCache = mount.queryClient.getMutationCache()
+      const sessionSaves = () =>
+        mutationCache.findAll({
+          mutationKey: mount.data.utils.drafts.set.mutationKey(),
+          predicate: (mutation) =>
+            z.object({sessionId: z.string()}).safeParse(mutation.state.variables).data?.sessionId === sessionId,
+        })
+      const savesSettled = () => sessionSaves().every((mutation) => mutation.state.status !== 'pending')
+      await new Promise<void>((resolve) => {
+        if (savesSettled()) return resolve()
+        const stop = mutationCache.subscribe(() => {
+          if (!savesSettled()) return
+          stop()
+          resolve()
+        })
       })
-      expect(sessionSaves).toHaveLength(1)
+      expect(sessionSaves()).toHaveLength(1)
     })
 
     test('a restored draft is not saved back to the engine, while the next edit is', async () => {
