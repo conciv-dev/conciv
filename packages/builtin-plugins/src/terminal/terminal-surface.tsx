@@ -128,7 +128,8 @@ export default function TerminalSurface(props: {
     if (live.status !== 'active' || model.status() !== 'open') return true
     const staged = live.value.staged()
     if (staged.length === 0) return true
-    model.paste(`\n\n${staged.map((entry) => entry.text).join('\n\n')}`)
+    const block = staged.map((entry) => entry.text).join('\n\n')
+    model.paste(model.terminal.modes.bracketedPasteMode ? block : block.replaceAll(/[\r\n]+/g, ' '))
     model.sendInput('\r')
     live.value.clear()
     return false

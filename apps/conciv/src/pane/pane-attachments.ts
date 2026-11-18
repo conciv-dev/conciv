@@ -17,7 +17,7 @@ import {guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 const TEXT_ATTACHMENT_ADAPTER = createTextAttachmentAdapter()
 
-export function attachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
+function attachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
   const extensionCards = guardedAttachmentCards(extensions, fallback).filter(
     (entry) => !pageAttachmentCards.some((card) => card.mime === entry.mime),
   )
