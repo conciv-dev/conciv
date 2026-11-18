@@ -3441,6 +3441,84 @@ describe('page session card', () => {
   })
 })
 
+describe('tool registry', () => {
+  const cardBundle = (who: string) => `const {ToolRegistry} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ToolRegistry, {
+    name: 'registry_probe',
+    render(props) {
+      const card = document.createElement('p')
+      card.textContent = '${who} probe card for ' + props.input.target + (props.status === 'completed' ? ', ' + props.output : ', ' + props.status)
+      return card
+    },
+  })
+}}}
+`
+  const coreBase = bootedCore('tool-registry', {
+    plugins: ['./earlier-cards', './later-cards'],
+    files: {
+      'earlier-cards/index.ts': `export default {id: 'earlier-cards', async setup() {}}
+`,
+      'earlier-cards/plugin-experimental.js': cardBundle('Earlier'),
+      'later-cards/index.ts': `export default {id: 'later-cards', async setup() {}}
+`,
+      'later-cards/plugin-experimental.js': cardBundle('Later'),
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.releaseResults()
+    await coreControl.clearScript()
+  })
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+
+  test('a plugin draws its registered card in the thread, the later plugin wins a name until it is turned off, an unclaimed call reads Called and an error reads on the error card', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'registry_probe', input: {target: 'hero'}, result: 'drawn'},
+        {name: 'mystery_tool', input: {path: 'src/a.ts', mode: 'fast'}, result: {done: true}},
+        {name: 'registry_probe', input: {target: 'footer'}, error: 'the probe exploded'},
+      ],
+      text: 'the registry calls are done',
+    })
+    await coreControl.holdResults()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the registry calls{Enter}')
+    await expect
+      .element(page.getByText('Later probe card for hero, running', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('the registry calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Later probe card for hero, drawn', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Earlier probe card for hero', {exact: false})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Called mystery_tool', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('mode=fast', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Later probe card for footer', {exact: false})).not.toBeInTheDocument()
+    await page.getByRole('button', {name: /registry_probe/}).click()
+    await expect.element(page.getByText('the probe exploded', {exact: true})).toBeVisible()
+
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await page.getByRole('tab', {name: 'Plugins', exact: true}).click()
+    const later = page.getByRole('switch', {name: 'later-cards', exact: true})
+    await later.click()
+    await expect.element(later).not.toBeChecked()
+    await page.getByRole('button', {name: 'Back to chat'}).click()
+
+    await expect
+      .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(page.getByText('Later probe card for hero', {exact: false})).not.toBeInTheDocument()
+  }, 60_000)
+})
+
 describe('pane composer stopping', () => {
   function lifecycleSourceAt(phase: RunClockSource['lifecycle']['phase']): RunClockSource {
     return {

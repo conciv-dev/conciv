@@ -2,7 +2,7 @@ import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {createReasoningChunks, createToolCallChunks, createToolResultChunk} from '@conciv/ai/testkit'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 
-export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unknown}
+export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unknown; error?: string}
 
 export type PacedText = {chunk: number; everyMs: number}
 
@@ -34,7 +34,7 @@ export type ScriptedRun = {
   clearScript: () => void
 }
 
-type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown}
+type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown; error?: string}
 
 type QueuedTurn = {
   toolCalls: QueuedToolCall[]
@@ -69,8 +69,9 @@ function stringifyToolResult(result: unknown): string {
   return JSON.stringify(result)
 }
 
-function resultChunk(toolCallId: string, result: unknown): ChatEvent {
-  return createToolResultChunk(toolCallId, stringifyToolResult(result))
+function resultChunk(call: QueuedToolCall): ChatEvent {
+  if (call.error !== undefined) return createToolResultChunk(call.id, call.error, {state: 'output-error'})
+  return createToolResultChunk(call.id, stringifyToolResult(call.result))
 }
 
 function thinkingChunks(text: string | undefined, messageId: string): ChatEvent[] {
@@ -114,7 +115,7 @@ async function* turnChunks(
     if (turn.blocking) continue
     await results.wait(signal)
     if (isAborted(signal)) return
-    yield resultChunk(call.id, call.result)
+    yield resultChunk(call)
   }
 }
 
@@ -206,7 +207,13 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const scriptTurn = (turn: ScriptedTurn) => {
     const calls = turn.toolCalls.map((call) => {
       toolCalls.count += 1
-      return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: scriptedResult(call)}
+      return {
+        id: `tc-${toolCalls.count}`,
+        name: call.name,
+        input: call.input,
+        result: scriptedResult(call),
+        error: call.error,
+      }
     })
     queuedTurns.push({
       toolCalls: calls,
