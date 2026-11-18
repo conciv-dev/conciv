@@ -40,7 +40,7 @@ export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; r
   return (
     <Show when={card()} fallback={<AttachmentUI removable={props.removable} />}>
       {(entry) => (
-        <Attachment.Root class="group">
+        <Attachment.Root class={props.removable ? 'group pt-3 pe-3' : undefined}>
           <Dynamic component={entry().render} remove={props.removable ? <RemoveCardButton /> : undefined} />
         </Attachment.Root>
       )}
