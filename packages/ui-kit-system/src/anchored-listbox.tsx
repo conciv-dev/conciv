@@ -38,6 +38,7 @@ function Root(props: {
   onSelect: (value: string) => void
   onDismiss: () => void
   onReady?: (handle: AnchoredListboxHandle | null) => void
+  boundary?: () => Element | undefined
 }): JSX.Element {
   let inputElement: HTMLInputElement | undefined
   const listboxId = createUniqueId()
@@ -93,7 +94,13 @@ function Root(props: {
         event.stopPropagation()
         props.onDismiss()
       }}
-      positioning={{strategy: 'fixed', placement: 'top-start', gutter: 4, getAnchorRect: () => props.anchor}}
+      positioning={{
+        strategy: 'fixed',
+        placement: 'top-start',
+        gutter: 4,
+        getAnchorRect: () => props.anchor,
+        boundary: () => props.boundary?.() ?? 'clippingAncestors',
+      }}
     >
       <Popover.Context>
         {(popover) => {
