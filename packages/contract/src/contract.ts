@@ -429,10 +429,7 @@ export const contract = {
   },
   drafts: {
     get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc
-      .errors(approvalDenied)
-      .input(DraftRowSchema.omit({updatedAt: true}))
-      .output(Ok),
+    set: oc.errors(approvalDenied).input(DraftRowSchema).output(Ok),
   },
   markers: {
     list: oc.errors(approvalDenied).input(SessionIdInput).output(z.array(MarkerRowSchema)),

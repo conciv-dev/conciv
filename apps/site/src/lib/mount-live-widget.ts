@@ -48,13 +48,9 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; router: Regist
     shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam, dismissed, widgetPresent: false}) || tryParam
   ensureWidgetMeta(defaultOpen)
 
-  const [embed, terminal, tryItModule] = await Promise.all([
-    import('@conciv/embed'),
-    import('@conciv/extension-terminal/client'),
-    import('@conciv/extension-try-it/client'),
-  ])
+  const [embed, tryItModule] = await Promise.all([import('@conciv/embed'), import('@conciv/extension-try-it/client')])
   if (document.querySelector('[data-conciv-root]')) return
-  await embed.mountConciv([terminal.default, tryItModule.tryIt({token})])
+  await embed.mountConciv([tryItModule.tryIt({token})])
 
   let hasBeenOpen = false
   window.addEventListener(PANEL_TOGGLED_EVENT, (event) => {
