@@ -3,8 +3,9 @@ export * as PluginHost from './host.js'
 import {mkdirSync} from 'node:fs'
 import path from 'node:path'
 import {Plugin} from '@conciv/plugin/effect'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {EventManifest} from '@conciv/plugin/schema/event-manifest'
-import type {Event} from '@conciv/plugin/schema/event'
+import {Event} from '@conciv/plugin/schema/event'
 import {App} from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
 import type {Servers} from '@conciv/plugin'
@@ -57,6 +58,7 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const sessions = yield* Session.Service
   const instructionEntries = yield* InstructionEntry.Service
   const servers = yield* ServersSource
+  const bundler = yield* BundlerSource
   const extensionSlugs = yield* ExtensionSlugs
   const global = yield* Global.Service
   const locationInfo = (current: Location.Interface = location) =>
@@ -111,7 +113,13 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
     },
     event: {
       subscribe: ((input?: {readonly types?: ReadonlyArray<string>}) => {
-        if (!input?.types?.length) return bus.subscribe().pipe(Stream.filter(isPublicEvent))
+        const status = Stream.sync((): Event.Payload<typeof Bundler.Event.Status> => ({
+          id: Event.Id.create(),
+          created: Date.now(),
+          type: Bundler.Event.Status.type,
+          data: {status: bundler === undefined ? 'disconnected' : 'connected'},
+        }))
+        if (!input?.types?.length) return Stream.concat(status, bus.subscribe().pipe(Stream.filter(isPublicEvent)))
         const unknown = new Array<string>()
         const [first, ...rest] = input.types.flatMap((type) => {
           if (isRpcType(type)) return [Rpc.eventDefinition(type)]
@@ -119,7 +127,8 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
           if (!definition) unknown.push(type)
           return definition ? [definition] : []
         })
-        const events = first ? bus.subscribe([first, ...rest]) : Stream.never
+        const live = first ? bus.subscribe([first, ...rest]) : Stream.never
+        const events = input.types.includes(Bundler.Event.Status.type) ? Stream.concat(status, live) : live
         if (unknown.length === 0) return events
         return Stream.unwrap(
           Effect.logWarning('ignoring unknown event types', {pluginId, types: unknown}).pipe(Effect.as(events)),

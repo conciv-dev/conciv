@@ -340,6 +340,15 @@ type BundlerDiagnostic = {
   }
 }
 
+type BundlerStatus = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'bundler.status'
+  location?: LocationRef
+  data: {status: 'connected' | 'disconnected'}
+}
+
 type PermissionAsked = {
   id: string
   created: number
@@ -419,6 +428,7 @@ export type EventSubscribeOutput =
   | SkillUpdated
   | PluginUpdated
   | BundlerDiagnostic
+  | BundlerStatus
   | PermissionAsked
   | PermissionReplied
   | SessionCreated

@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Effect, Stream} from 'effect'
+import {Deferred, Effect, Stream} from 'effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {Connection} from './connection.js'
@@ -33,17 +33,26 @@ export const capabilities = Effect.fn('TanstackTools.capabilities')(function* (
 ) {
   const ring = makeDiagnosticsRing()
   const serverFnRing = makeServerFnTraceRing()
-  yield* ctx.event.subscribe({types: ['bundler.diagnostic']}).pipe(
-    Stream.runForEach(({data: {diagnostic}}) =>
-      Effect.sync(() => {
-        if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
-        serverFnRing.observe(diagnostic)
-      }),
-    ),
+  const attached = yield* Deferred.make<boolean>()
+  yield* ctx.event.subscribe({types: ['bundler.status', 'bundler.diagnostic']}).pipe(
+    Stream.runForEach((event) => {
+      if (event.type === 'bundler.status') return Deferred.succeed(attached, event.data.status === 'connected')
+      return Effect.sync(() => {
+        if (event.data.diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(event.data.diagnostic))
+        serverFnRing.observe(event.data.diagnostic)
+      })
+    }),
     Effect.forkScoped({startImmediately: true}),
   )
   return {
-    buildErrors: (): Effect.Effect<AppError[], Failure> => Effect.sync(() => ring.list()),
+    buildErrors: (): Effect.Effect<AppError[], Failure> =>
+      Deferred.await(attached).pipe(
+        Effect.flatMap((available) =>
+          available
+            ? Effect.sync(() => ring.list())
+            : Effect.fail(toFailure('BUNDLER_UNAVAILABLE')(new Error('bundler bridge unavailable'))),
+        ),
+      ),
     routeManifest: () =>
       readRouteManifest(ctx.location.directory).pipe(Effect.mapError(toFailure('MANIFEST_UNREADABLE'))),
     serverFnTrace: (count: number | undefined) => ({

@@ -33,5 +33,13 @@ export const Diagnostic = Schema.Union([BuildError, HmrUpdate, RequestTrace]).an
 })
 export type Diagnostic = typeof Diagnostic.Type
 
+export const Status = Schema.Literals(['connected', 'disconnected']).annotate({identifier: 'Bundler.Status'})
+export type Status = typeof Status.Type
+
 const DiagnosticEvent = ephemeral({type: 'bundler.diagnostic', schema: {diagnostic: Diagnostic}})
-export const Event = {Diagnostic: DiagnosticEvent, Definitions: inventory(DiagnosticEvent)}
+const StatusEvent = ephemeral({type: 'bundler.status', schema: {status: Status}})
+export const Event = {
+  Diagnostic: DiagnosticEvent,
+  Status: StatusEvent,
+  Definitions: inventory(DiagnosticEvent, StatusEvent),
+}
