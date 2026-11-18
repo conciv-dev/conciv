@@ -146,7 +146,7 @@ describe('the ios plugin in an engine', () => {
     expect(rules).toContain(`Your working directory is ${configured.kit.stateRoot}`)
 
     const unconfigured = await systemPromptsSent()
-    expect(unconfigured.system.filter((text) => text.includes('ios_screenshot'))).toEqual([])
+    expect(unconfigured.system.filter((text) => text.includes('transparent WebView'))).toEqual([])
   })
 })
 
