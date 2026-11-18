@@ -2,7 +2,7 @@ import {createResource, Show, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import {Button} from '@conciv/ui-kit-system'
 import {useAnnounce, useAppData, useLiveSessions} from '../app/context.js'
-import {clearMovedDraft, prependDraft, readMovedDraft} from './draft-storage.js'
+import {carryMovedDraft, clearMovedDraft, movesNothing, readMovedDraft, type MovedDraft} from './draft-storage.js'
 import {useStartSession} from '../app/start-session.js'
 import {usePane} from '../app/pane-context.js'
 
@@ -18,9 +18,9 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
   const [carried] = createResource(
     () => props.sessionId,
     (sessionId) =>
-      readMovedDraft(appData, keepDraft, sessionId).catch((error: unknown) => {
+      readMovedDraft(appData, keepDraft, sessionId).catch((error: unknown): MovedDraft | undefined => {
         console.error('[conciv] could not read the deleted session draft', error)
-        return ''
+        return undefined
       }),
   )
 
@@ -32,9 +32,9 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
 
   const move = useMutation(() => ({
     mutationFn: async () => {
-      const text = await logMoveFailure(readMovedDraft(appData, keepDraft, props.sessionId))
+      const moved = await logMoveFailure(readMovedDraft(appData, keepDraft, props.sessionId))
       const {sessionId} = await startSession()
-      if (text !== '') await logMoveFailure(prependDraft(appData, sessionId, text))
+      if (!movesNothing(moved)) await logMoveFailure(carryMovedDraft(appData, keepDraft, sessionId, moved))
       await clearMovedDraft(appData, keepDraft, props.sessionId)
       return sessionId
     },
@@ -49,8 +49,8 @@ export function DeletedSessionPanel(props: {sessionId: string}): JSX.Element {
       <p class="font-semibold" role="status">
         This session was deleted.
       </p>
-      <Show when={carried.state === 'ready' && carried() !== ''}>
-        <p class="text-chat-text-2">Your text moves to the new session.</p>
+      <Show when={carried.state === 'ready' && !movesNothing(carried())}>
+        <p class="text-chat-text-2">Your draft moves to the new session.</p>
       </Show>
       <Button
         variant="outline"

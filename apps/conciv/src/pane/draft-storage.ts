@@ -142,6 +142,8 @@ function readLocalFiles(attachment: LocalAttachment): Promise<AttachmentState[]>
 
 const MAX_INLINE_BYTES = 20 * 1024 * 1024
 
+const UNSENT = Promise.resolve(false)
+
 const NoLocalHydration = {getItem: () => null, setItem: () => {}, removeItem: () => {}}
 
 function localAttachment(attachment: AttachmentState): LocalAttachment {
@@ -218,23 +220,28 @@ function makeLocalDraftWriter(
     if (!current || !sameContent(current, recorded) || appData.sessionDeleted(sessionId)) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => [...sent, updatedAt])
-    void keep(writeDocument)
-      .catch((error: unknown) => {
-        console.error('[conciv] could not keep the draft stamp in the local draft', error)
-      })
-      .then(() => {
-        const latest = document.draft
-        if (!latest || !sameContent(latest, recorded)) return false
-        if (kind === 'feed' && sameAsRow({...recorded, attachments}, appData.cachedDraft(sessionId))) return false
-        return appData.saveDraft({
-          sessionId,
-          text: recorded.text,
-          selectionStart: recorded.selectionStart,
-          selectionEnd: recorded.selectionEnd,
-          attachments,
-          updatedAt,
+    void keep(() =>
+      writeDocument()
+        .catch((error: unknown) => {
+          console.error('[conciv] could not keep the draft stamp in the local draft', error)
         })
-      })
+        .then(() => {
+          const latest = document.draft
+          if (!latest || !sameContent(latest, recorded)) return {saving: UNSENT}
+          if (kind === 'feed' && sameAsRow({...recorded, attachments}, appData.cachedDraft(sessionId)))
+            return {saving: UNSENT}
+          const saving = appData.saveDraft({
+            sessionId,
+            text: recorded.text,
+            selectionStart: recorded.selectionStart,
+            selectionEnd: recorded.selectionEnd,
+            attachments,
+            updatedAt,
+          })
+          return {saving}
+        }),
+    )
+      .then(({saving}) => saving)
       .then((saved) => {
         persisted.setStore('draft', (latest) => latest && settledDraft(latest, updatedAt, saved))
       })
@@ -422,10 +429,9 @@ function isEmptied(typed: DraftContent): boolean {
   return typed.text === '' && typed.attachments.length === 0
 }
 
-async function readKeptBase(
-  appData: AppData,
-  sessionId: string,
-): Promise<{base: LocalDraft; encoded: DraftRow['attachments']}> {
+type KeptBase = {base: LocalDraft; encoded: DraftRow['attachments'] | undefined}
+
+async function readKeptBase(appData: AppData, sessionId: string): Promise<KeptBase> {
   const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
   if (!stored) {
     const row = await appData.readDraft(sessionId).catch((error: unknown) => {
@@ -435,9 +441,9 @@ async function readKeptBase(
     return row ? {base: rowLocalDraft(row), encoded: row.attachments} : {base: EMPTY_LOCAL_DRAFT, encoded: []}
   }
   const row = appData.cachedDraft(sessionId)
-  const encoded = row?.attachments ?? []
-  if (stored.syncedAt !== undefined && row === null) return {base: EMPTY_LOCAL_DRAFT, encoded}
-  return {base: stored, encoded}
+  if (row === undefined) return {base: stored, encoded: undefined}
+  if (stored.syncedAt !== undefined && row === null) return {base: EMPTY_LOCAL_DRAFT, encoded: []}
+  return {base: stored, encoded: row?.attachments ?? []}
 }
 
 function joinReturned(saved: string, text: string, place: DraftPlace): {text: string; caret: number} {
@@ -447,36 +453,73 @@ function joinReturned(saved: string, text: string, place: DraftPlace): {text: st
   return {text: joined, caret: joined.length}
 }
 
-function keepLocally(drafts: DraftStore, sessionId: string, draft: LocalDraft): Promise<void> {
-  return drafts.setDocument(sessionId, draft).catch((error: unknown) => {
-    console.error('[conciv] could not keep the returned text in the local draft', error)
-  })
+function keepLocally(drafts: DraftStore, sessionId: string, draft: LocalDraft): Promise<boolean> {
+  return drafts.setDocument(sessionId, draft).then(
+    () => true,
+    (error: unknown) => {
+      console.error('[conciv] could not keep the returned text in the local draft', error)
+      return false
+    },
+  )
 }
 
-type KeptSave = {updatedAt: number; saving: Promise<boolean>}
+export type MovedDraft = {text: string; attachments: LocalAttachment[]; encoded: DraftRow['attachments']}
 
-async function keepInDraft(
+const NOTHING_MOVED: MovedDraft = {text: '', attachments: [], encoded: []}
+
+export function movesNothing(moved: MovedDraft | undefined): boolean {
+  return !moved || isEmptied(moved)
+}
+
+function addToDraft(base: LocalDraft, added: MovedDraft, place: DraftPlace): LocalDraft {
+  const attachments = [...base.attachments, ...added.attachments]
+  if (added.text === '') return {...base, attachments}
+  const {text, caret} = joinReturned(base.text, added.text, place)
+  return {...base, text, selectionStart: caret, selectionEnd: caret, attachments}
+}
+
+type KeptSave = {updatedAt: number; keptLocally: boolean; saving: Promise<boolean>}
+
+function keepInDraft(
   appData: AppData,
+  keep: DraftWriteChain,
   sessionId: string,
-  text: string,
   place: DraftPlace,
-): Promise<KeptSave | undefined> {
-  const drafts = appData.drafts
-  const {base, encoded} = await readKeptBase(appData, sessionId)
-  const {text: nextText, caret} = joinReturned(base.text, text, place)
-  const selection = {text: nextText, selectionStart: caret, selectionEnd: caret}
-  const updatedAt = Date.now()
-  if (drafts) await keepLocally(drafts, sessionId, withSent({...base, ...selection}, updatedAt))
-  const saving = appData.saveDraft({sessionId, ...selection, attachments: encoded, updatedAt})
-  if (drafts) return {updatedAt, saving}
-  await saving
-  return undefined
+  readAdded: () => Promise<MovedDraft>,
+): Promise<KeptSave> {
+  return keep(async () => {
+    const drafts = appData.drafts
+    const {base, encoded} = await readKeptBase(appData, sessionId)
+    const added = await readAdded()
+    const draft = addToDraft(base, added, place)
+    const updatedAt = Date.now()
+    if (encoded === undefined) {
+      const keptLocally = drafts ? await keepLocally(drafts, sessionId, draft) : false
+      return {updatedAt, keptLocally, saving: UNSENT}
+    }
+    const keptLocally = drafts ? await keepLocally(drafts, sessionId, withSent(draft, updatedAt)) : false
+    const saving = appData.saveDraft({
+      sessionId,
+      text: draft.text,
+      selectionStart: draft.selectionStart,
+      selectionEnd: draft.selectionEnd,
+      attachments: [...encoded, ...added.encoded],
+      updatedAt,
+    })
+    return {updatedAt, keptLocally, saving}
+  })
 }
 
 async function settleKept(drafts: DraftStore, sessionId: string, updatedAt: number, saved: boolean): Promise<void> {
   const stored = await readLocalDraft(drafts, sessionId)
   if (!stored?.sent.includes(updatedAt)) return
   await keepLocally(drafts, sessionId, settledDraft(stored, updatedAt, saved))
+}
+
+export function settleKeptSave(appData: AppData, keep: DraftWriteChain, sessionId: string, kept: KeptSave): void {
+  const drafts = appData.drafts
+  if (!drafts) return
+  void kept.saving.then((saved) => keep(() => settleKept(drafts, sessionId, kept.updatedAt, saved)))
 }
 
 export async function keepDraftImage(drafts: DraftStore, file: File): Promise<BlobReference | undefined> {
@@ -490,37 +533,47 @@ export async function keepDraftImage(drafts: DraftStore, file: File): Promise<Bl
   })
 }
 
-async function keepImageInDraft(appData: AppData, sessionId: string, file: File): Promise<KeptSave | undefined> {
-  const drafts = appData.drafts
-  const {base, encoded} = await readKeptBase(appData, sessionId)
+async function readAddedImage(drafts: DraftStore | null, file: File): Promise<MovedDraft> {
   const attachment = {id: crypto.randomUUID(), type: 'image', name: file.name}
-  const updatedAt = Date.now()
-  if (drafts) {
-    const blob = await keepDraftImage(drafts, file)
-    const local = {...attachment, contentType: file.type}
-    const kept = blob ? {...local, blob: {id: blob.id}} : local
-    await keepLocally(drafts, sessionId, withSent({...base, attachments: [...base.attachments, kept]}, updatedAt))
+  const blob = drafts ? await keepDraftImage(drafts, file) : undefined
+  const local = {...attachment, contentType: file.type}
+  return {
+    text: '',
+    attachments: [blob ? {...local, blob: {id: blob.id}} : local],
+    encoded: await encodeAttachments([{...attachment, file}]),
   }
-  const {text, selectionStart, selectionEnd} = base
-  const added = await encodeAttachments([{...attachment, file}])
-  const saving = appData.saveDraft({
-    sessionId,
-    text,
-    selectionStart,
-    selectionEnd,
-    attachments: [...encoded, ...added],
-    updatedAt,
-  })
-  if (drafts) return {updatedAt, saving}
-  await saving
-  return undefined
 }
 
-export async function readMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<string> {
+function keepImageInDraft(appData: AppData, keep: DraftWriteChain, sessionId: string, file: File): Promise<KeptSave> {
+  return keepInDraft(appData, keep, sessionId, 'last', () => readAddedImage(appData.drafts, file))
+}
+
+function readRowMoved(row: DraftRow | null): MovedDraft {
+  if (!row) return NOTHING_MOVED
+  return {text: row.text, attachments: rowLocalDraft(row).attachments, encoded: row.attachments}
+}
+
+async function readStoredMoved(appData: AppData, sessionId: string, stored: LocalDraft): Promise<MovedDraft> {
+  const files = (await readKeptFiles(stored)).flatMap(({id, type, name, file}) =>
+    file ? [{id, type, name, file}] : [],
+  )
+  const unfiled = differenceBy(stored.attachments, files, (attachment) => attachment.id)
+  const row =
+    unfiled.length === 0
+      ? null
+      : await appData.readDraft(sessionId).catch((error: unknown) => {
+          console.error('[conciv] could not read the saved images of the deleted session draft', error)
+          return null
+        })
+  const encoded = sendableAttachments(stored, files, await encodeAttachments(files), row)
+  return {text: stored.text, attachments: stored.attachments, encoded}
+}
+
+export async function readMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<MovedDraft> {
   const {drafts} = appData
   const stored = drafts ? await keep(() => readLocalDraft(drafts, sessionId)) : null
-  if (stored) return stored.text
-  return (await appData.readDraft(sessionId))?.text ?? ''
+  if (stored) return readStoredMoved(appData, sessionId, stored)
+  return readRowMoved(await appData.readDraft(sessionId))
 }
 
 export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<void> {
@@ -541,15 +594,39 @@ export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, s
   })
 }
 
-export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<KeptSave | undefined> {
-  return keepInDraft(appData, sessionId, text, 'last')
+export async function carryMovedDraft(
+  appData: AppData,
+  keep: DraftWriteChain,
+  sessionId: string,
+  moved: MovedDraft,
+): Promise<void> {
+  const kept = await keepInDraft(appData, keep, sessionId, 'first', () => Promise.resolve(moved))
+  settleKeptSave(appData, keep, sessionId, kept)
+  if (kept.keptLocally || (await kept.saving)) return
+  throw new Error('neither this browser nor the engine holds the moved draft')
 }
 
-export function prependDraft(appData: AppData, sessionId: string, text: string): Promise<KeptSave | undefined> {
-  return keepInDraft(appData, sessionId, text, 'first')
+const textAdded = (text: string) => (): Promise<MovedDraft> => Promise.resolve({...NOTHING_MOVED, text})
+
+export function appendDraft(
+  appData: AppData,
+  keep: DraftWriteChain,
+  sessionId: string,
+  text: string,
+): Promise<KeptSave> {
+  return keepInDraft(appData, keep, sessionId, 'last', textAdded(text))
 }
 
-type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<KeptSave | undefined>
+export function prependDraft(
+  appData: AppData,
+  keep: DraftWriteChain,
+  sessionId: string,
+  text: string,
+): Promise<KeptSave> {
+  return keepInDraft(appData, keep, sessionId, 'first', textAdded(text))
+}
+
+type DraftWrite = (appData: AppData, keep: DraftWriteChain, sessionId: string, text: string) => Promise<KeptSave>
 
 export type DraftWriteChain = <T>(step: () => Promise<T>) => Promise<T>
 
@@ -570,14 +647,10 @@ export function draftCacheSink(
 ): DraftSink {
   const logKeepFailure = (error: unknown) =>
     console.error('[conciv] could not keep the queued message as a draft', error)
-  const settleLater = (kept: KeptSave | undefined): void => {
-    const drafts = appData.drafts
-    if (!kept || !drafts) return
-    void kept.saving.then((saved) => keep(() => settleKept(drafts, sessionId, kept.updatedAt, saved)))
-  }
+  const settleLater = (kept: KeptSave): void => settleKeptSave(appData, keep, sessionId, kept)
   return {
-    insert: (text) => keep(() => write(appData, sessionId, text).then(settleLater).catch(logKeepFailure)),
-    addFile: (file) => keep(() => keepImageInDraft(appData, sessionId, file).then(settleLater).catch(logKeepFailure)),
+    insert: (text) => void write(appData, keep, sessionId, text).then(settleLater).catch(logKeepFailure),
+    addFile: (file) => void keepImageInDraft(appData, keep, sessionId, file).then(settleLater).catch(logKeepFailure),
   }
 }
 

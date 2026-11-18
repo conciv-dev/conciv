@@ -5659,7 +5659,7 @@ describe('a deleted session', () => {
   const START_FAILED = 'Could not start a new session. Check that the engine is running, then try again.'
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const deletedTitle = () => page.getByText('This session was deleted.', {exact: true})
-  const movesLine = () => page.getByText('Your text moves to the new session.', {exact: true})
+  const movesLine = () => page.getByText('Your draft moves to the new session.', {exact: true})
   const newSessionButton = () => page.getByRole('button', {name: 'New session', exact: true})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
   const notifications = () => page.getByRole('region', {name: /Notifications/})

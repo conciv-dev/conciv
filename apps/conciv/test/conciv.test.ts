@@ -138,7 +138,9 @@ describe('draft storage', () => {
   test('appends to the stored draft on a new line with the caret at the end', async ({kit, sessionId, app}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'a first line'})
 
-    await appendDraft(app, sessionId, 'a second line')
+    await (
+      await appendDraft(app, makeDraftWriteChain(), sessionId, 'a second line')
+    ).saving
 
     expect(await storedDraft(kit.rpc, sessionId)).toEqual({
       sessionId,
