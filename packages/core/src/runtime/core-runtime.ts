@@ -98,6 +98,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
       queries: (signal, focus) => pageQueryStream(page.bus, id, signal, focus),
+      focus: (browserTab, report) => page.bus.focus(id, browserTab, report),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
       changes: () => page.journal.list(id),
@@ -159,6 +160,7 @@ function established(raw: SessionScope): SessionScope {
       ...raw.page,
       ask: inScope(raw.page.ask),
       queries: inScope(raw.page.queries),
+      focus: inScope(raw.page.focus),
       reply: inScope(raw.page.reply),
       changes: inScope(raw.page.changes),
       clearChanges: inScope(raw.page.clearChanges),
