@@ -1,5 +1,6 @@
 import {For, onCleanup, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
+import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {sceneToScreen, screenToScene, type Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow} from '../../shared/rows.js'
@@ -19,7 +20,11 @@ const PIN = 'size-11 grid place-items-center rounded-full cursor-grab touch-none
 const PIN_MARK = 'relative size-6 rounded-full rounded-bl-none border-2 border-chat-text-hi shadow-chat'
 const UNREAD_DOT = 'absolute -top-1 -right-1 size-2.5 rounded-chat-pill bg-chat-accent ring-2 ring-chat-panel'
 
+const ANCHOR_TAG =
+  'absolute start-9.5 top-3.5 font-chat-mono text-chat-micro text-chat-text-2 bg-chat-panel border border-chat-line rounded-chat-surface-sm px-1 py-px pointer-events-none whitespace-nowrap'
+
 const DRAG_THRESHOLD = 4
+const AnchorLine = z.object({source: z.object({line: z.number().nullable().optional()})})
 
 type Drag = {cid: string; grabX: number; grabY: number; originX: number; originY: number; x: number; y: number}
 type Prompt = {cid: string; x: number; y: number; originX: number; originY: number}
@@ -29,6 +34,15 @@ const authorLabel = (kind: CommentRow['authorKind'] | undefined): string =>
 
 const pinLabel = (comment: CommentRow | undefined, status: CommentStatus, unread: boolean): string =>
   `${authorLabel(comment?.authorKind)} comment, ${status}${unread ? ', unread' : ''}`
+
+const basename = (path: string): string => path.split('/').pop() ?? path
+
+const anchorLabel = (comment: CommentRow | undefined): string | undefined => {
+  if (!comment?.anchorFile) return undefined
+  const parsed = AnchorLine.safeParse(comment.anchor)
+  const line = parsed.success ? parsed.data.source.line : null
+  return line == null ? basename(comment.anchorFile) : `${basename(comment.anchorFile)}:${line}`
+}
 
 const movedPastThreshold = (drag: Drag): boolean =>
   Math.abs(drag.x - drag.originX) > DRAG_THRESHOLD || Math.abs(drag.y - drag.originY) > DRAG_THRESHOLD
@@ -133,6 +147,7 @@ export function PinsLayer(): JSX.Element {
                       </span>
                     </button>
                   </ui.Tooltip>
+                  <Show when={anchorLabel(comment())}>{(tag) => <span class={ANCHOR_TAG}>{tag()}</span>}</Show>
                 </div>
               )
             }}

@@ -752,6 +752,7 @@ describe('the comments of the whiteboard plugin', () => {
         authorKind: 'ai',
       })
       await expect(unreadPin).toBeVisible({timeout: 30_000})
+      await expect(page.getByText('app.tsx:3', {exact: true})).toBeVisible()
       await expect(readPin).toHaveCount(0)
       await dragPin(page, unreadPin, {x: 300, y: 580})
       const drift = page.getByRole('dialog', {name: 'Pin drift'})
