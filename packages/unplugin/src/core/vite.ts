@@ -9,7 +9,7 @@ import {installConcivBinShim} from './bin-shim.js'
 import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
-import {makeViteBridge} from '@conciv/extension/vite'
+import {makeViteBridge} from './vite-bridge.js'
 import {type Builtins, loadExtensionPackages, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,

@@ -33,7 +33,7 @@ const STOP_CONFIRM_MS = 3000
 const HIDE_MS = 800
 const BLOCKED_EVENTS = ['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup']
 const XHTML = 'http://www.w3.org/1999/xhtml'
-const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
+export const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
 const PRIMARY_BUTTON = 0
 const GLOW_COLORS: [CSSRgbString, CSSRgbString, CSSRgbString, CSSRgbString] = [
   AGENT_BLUE,
@@ -108,7 +108,7 @@ function warnUnlessCanceled(reason: unknown): void {
   console.warn('[conciv] agent glow fade failed', reason)
 }
 
-function isHtml(element: Element): element is HTMLElement {
+export function isHtml(element: Element): element is HTMLElement {
   return element.namespaceURI === XHTML
 }
 
@@ -341,7 +341,7 @@ function ripple(agent: string): void {
   pressCursor({id: agent})
 }
 
-function measureCenter(element: Element): Point {
+export function measureCenter(element: Element): Point {
   const rect = element.getBoundingClientRect()
   return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
 }

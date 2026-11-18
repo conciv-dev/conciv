@@ -8375,6 +8375,15 @@ module.exports = {default: {stores: {
     },
   })
   ctx.add(Panel, {
+    id: 'people',
+    region: 'pane',
+    list: (input) => (input.open.includes('people') ? [{id: 'people', title: 'Fixture people'}] : []),
+    render: () => [
+      createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
+      createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
+    ],
+  })
+  ctx.add(Panel, {
     id: 'opened',
     region: 'pane',
     list: (input) => (input.open.includes('opened') ? [opened] : []),
@@ -8625,6 +8634,19 @@ module.exports = {default: {setup(ctx) {
       await userEvent.keyboard('{Escape}')
       await expect.element(dialog('Comment actions')).not.toBeInTheDocument()
       await expect.element(control('Comment actions')).toHaveFocus()
+    })
+  })
+
+  describe('its ctx.ui.RelativeTime and ctx.ui.Avatar', () => {
+    test('show how long ago a time was and a person by name with their initials when there is no image', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
+      await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture people').click()
+
+      await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
+      await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
+      await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
     })
   })
 

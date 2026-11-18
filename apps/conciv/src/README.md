@@ -12,7 +12,7 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 - `routeTree` (`routeTree.gen.ts`): generated; full paths `/`, `/panel`, `/quick`, `/panel/$sessionId`, `/panel/connect`, `/panel/latest`, `/pip/$sessionId`, `/panel/$sessionId/`, `/panel/$sessionId/$view`, `/panel/$sessionId/settings` and its tab routes
 - `start` (`entry-standalone.tsx`): reads `?settings` and `?core`, builds the router with `makeBrowserRpcClient` and the page extension, renders into `#app`
 - `css.d.ts`: `*.css?inline` and `*.woff2?inline` string module declarations
-- Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data](./data/README.md), [extension](./extension/README.md), [extensions](./extensions/README.md), [lib](./lib/README.md), [pane](./pane/README.md), [routes](./routes/README.md), [settings](./settings/README.md), [shell](./shell/README.md)
+- Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data](./data/README.md), [extension](./extension/README.md), [lib](./lib/README.md), [pane](./pane/README.md), [routes](./routes/README.md), [settings](./settings/README.md), [shell](./shell/README.md)
 
 ## Invariants
 
