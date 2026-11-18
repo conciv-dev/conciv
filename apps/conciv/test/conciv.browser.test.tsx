@@ -7649,6 +7649,39 @@ describe('terminal panel', () => {
     await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
   }, 60_000)
 
+  test('a pick that lands after the user moved to another session stages nothing in that session', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const release: {pick: (grab: Grab) => void} = {pick: () => {}}
+    const held = new Promise<Grab>((resolve) => {
+      release.pick = resolve
+    })
+    const heldPick = () => held
+    const rpc = coreRpc(coreBase())
+    const otherSession = await createSession(rpc)
+    const sessionId = await createSession(rpc)
+    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], [], {
+      grabProvider: () => ({pick: heldPick, comment: heldPick, cancel: () => {}, isActive: () => false}),
+    })
+
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    harness.back()
+    await expect.element(output('42'), {timeout: 15_000}).not.toBeInTheDocument()
+    await terminalPanel().click()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(harness.pathname()).toContain(otherSession)
+
+    release.pick({...HERO_GRAB, text: 'echo "leaked[grab]"'})
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((4*4))')
+    await expect.element(output('16'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('leaked[grab]')).not.toBeInTheDocument()
+  }, 60_000)
+
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
     const pageScheme = document.documentElement.classList
     onTestFinished(() => pageScheme.remove('dark'))

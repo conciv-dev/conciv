@@ -1,4 +1,4 @@
-import {createMemo, Show, type JSX} from 'solid-js'
+import {createMemo, onCleanup, Show, type JSX} from 'solid-js'
 import {ModelSelector, type ModelOption} from '@conciv/ui-kit-chat'
 import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
@@ -22,7 +22,9 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
   })
   return (
     <div class="flex gap-1 items-center">
-      <Show when={grab()}>{(contract) => <PickElementButton grab={contract()} />}</Show>
+      <Show when={props.session.id} keyed>
+        <Show when={grab()}>{(contract) => <PickElementButton grab={contract()} />}</Show>
+      </Show>
       <Show when={options().length > 0}>
         <ModelSelector.Root
           models={options()}
@@ -52,10 +54,14 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
 
 function PickElementButton(props: {grab: GrabApi}): JSX.Element {
   const ctx = usePlugin()
+  const shown = {current: true}
+  onCleanup(() => {
+    shown.current = false
+  })
   const pickElement = async () => {
     try {
       const picked = await props.grab.pick()
-      if (picked) props.grab.stage(picked)
+      if (picked && shown.current) props.grab.stage(picked)
     } catch (cause) {
       console.error('[terminal] picking an element failed', cause)
       void ctx.toast.show({title: 'Could not select that element', variant: 'error'})
