@@ -380,6 +380,10 @@ export interface SlotMap {
     readonly session: MountedSession
   }
   readonly 'page.overlay': Record<string, never>
+  readonly 'session.panel.end': {
+    readonly screen: SessionScreen
+    readonly session: MountedSession
+  }
 }
 
 export type Slot = {
@@ -402,6 +406,7 @@ interface SlotExtras {
   readonly 'window.bottom': unknown
   readonly 'session.header': unknown
   readonly 'session.status': unknown
+  readonly 'session.panel.end': unknown
   readonly 'page.overlay': {
     readonly hides?: boolean
   }

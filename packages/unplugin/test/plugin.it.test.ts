@@ -1,6 +1,6 @@
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {execFile, execFileSync} from 'node:child_process'
-import {cp, readdir, readFile, realpath, writeFile} from 'node:fs/promises'
+import {cp, mkdir, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
 import {
   appendFileSync,
   existsSync,
@@ -47,7 +47,7 @@ import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
 import {watchExtensionsDir} from '../src/core/extensions-watch.js'
 import {CONCIV_DEFAULT_PORT, register, withConciv} from '../src/core/nextjs.js'
-import {makeViteBridge} from '@conciv/extension/vite'
+import {makeViteBridge} from '../src/core/vite-bridge.js'
 import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {
@@ -2471,4 +2471,43 @@ describe('extension load isolation', () => {
     await shown
     await page.close()
   }, 60_000)
+})
+
+describe('vite bridge', () => {
+  it('finds a module by a path relative to the project, by its /src url and by its absolute path, and names a file it does not know', async () => {
+    const root = await realpath(tempDir('conciv-vite-bridge-'))
+    await mkdir(join(root, 'src'))
+    await writeFile(join(root, 'index.html'), '<!doctype html><script type="module" src="/src/main.ts"></script>')
+    await writeFile(join(root, 'src/main.ts'), "import {dep} from './dep'\nexport const main = dep\n")
+    await writeFile(join(root, 'src/dep.ts'), 'export const dep = 1\n')
+    const nestedDep = join(root, root, 'src/dep.ts')
+    await mkdir(dirname(nestedDep), {recursive: true})
+    await writeFile(nestedDep, 'export const dep = 2\n')
+    const server = await createServer({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      server: {host: '127.0.0.1', port: 0},
+    })
+    try {
+      await server.listen()
+      const address = server.httpServer?.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      await fetch(`http://127.0.0.1:${port}/src/main.ts`).then((response) => response.text())
+      await fetch(`http://127.0.0.1:${port}/src/dep.ts`).then((response) => response.text())
+      await fetch(`http://127.0.0.1:${port}/@fs${nestedDep}`).then((response) => response.text())
+      const bridge = makeViteBridge(server)
+      const depNode = {url: '/src/dep.ts', importers: ['/src/main.ts'], importedModules: []}
+
+      expect(bridge.moduleGraph('src/dep.ts')).toEqual([depNode])
+      expect(bridge.moduleGraph('/src/dep.ts')).toEqual([depNode])
+      expect(bridge.moduleGraph(join(root, 'src/dep.ts'))).toEqual([depNode])
+      expect(() => bridge.moduleGraph('src/missing.ts')).toThrow(
+        "no module for src/missing.ts in the dev server's module graph",
+      )
+    } finally {
+      await server.close()
+      await rm(root, {recursive: true, force: true})
+    }
+  })
 })

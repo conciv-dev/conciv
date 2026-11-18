@@ -42,8 +42,7 @@ every host hook.
 
 ## Your first extension, trimmed for brevity
 
-The example below is the whole file, shown inline. One real extension remains in this repo,
-`apps/conciv/src/extensions/highlight.tsx`. Read both before writing your own:
+The example below is the whole file, shown inline:
 
 ```tsx title="conciv/extensions/deploy-button.tsx"
 import {z} from 'zod'

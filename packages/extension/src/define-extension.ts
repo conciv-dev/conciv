@@ -16,14 +16,12 @@ import type {
   ServerResult,
   InferSettings,
   SettingsReader,
-  SettingsStore,
   SystemPromptFactory,
   SystemPromptResolver,
 } from './types.js'
 import {useExtensionValue} from './host-context.js'
 import {useScope} from './use-scope.js'
-import {mergeSettings} from './merge-settings.js'
-import type {SettingsScope} from '@conciv/contract'
+import {mergeSettings, type SettingsScope, type SettingsStore} from '@conciv/contract'
 
 export type AnyToolBuilder = ToolBuilder<
   string,

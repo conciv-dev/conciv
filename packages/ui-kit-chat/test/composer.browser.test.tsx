@@ -63,6 +63,7 @@ import {
 } from '../src/tools/element-capture.fixtures.js'
 import {ElementPreview} from '../src/tools/styled/element-preview.js'
 import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
+import {ModelSelector as StyledModelSelector} from '../src/styled/model-selector.js'
 import {Thread as ThreadPrimitive} from '../src/primitives/thread/thread.js'
 import {Suggestion} from '../src/primitives/suggestion/suggestion.js'
 
@@ -1799,6 +1800,35 @@ describe('model selector', () => {
 
     await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
     await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
+  })
+
+  it('keeps every option wholly on screen and clickable when a narrow trigger sits at the right edge', async () => {
+    const models: readonly ModelOption[] = [
+      {id: 'nano', name: 'Nano', description: 'Smallest and quickest'},
+      {id: 'mini', name: 'Mini', description: 'Small and balanced'},
+      {id: 'max', name: 'Max', description: 'Largest and most careful'},
+    ]
+    const [value, setValue] = createSignal('nano')
+    mountView(() => (
+      <div class="flex justify-end">
+        <StyledModelSelector.Root models={models} value={value()} onValueChange={setValue}>
+          <StyledModelSelector.Trigger />
+          <StyledModelSelector.Content>
+            <StyledModelSelector.Search />
+            <StyledModelSelector.List />
+          </StyledModelSelector.Content>
+        </StyledModelSelector.Root>
+      </div>
+    ))
+    const trigger = page.getByRole('button', {name: 'Select model'})
+
+    for (const model of models) {
+      const option = page.getByRole('option', {name: `${model.name} ${model.description}`})
+      await userEvent.click(trigger)
+      await expect.element(option, {timeout: 2000}).toBeInViewport({ratio: 1})
+      await userEvent.click(option, {timeout: 2000})
+      await expect.element(trigger).toHaveTextContent(model.name)
+    }
   })
 })
 

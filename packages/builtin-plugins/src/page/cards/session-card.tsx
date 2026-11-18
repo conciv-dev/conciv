@@ -1,16 +1,6 @@
 import {z} from 'zod'
 import {createMemo, Index, Match, Show, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import Code from 'lucide-solid/icons/code'
-import Compass from 'lucide-solid/icons/compass'
-import ListChecks from 'lucide-solid/icons/list-checks'
-import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
-import Palette from 'lucide-solid/icons/palette'
-import Pointer from 'lucide-solid/icons/pointer'
-import Sparkles from 'lucide-solid/icons/sparkles'
-import SquareCheck from 'lucide-solid/icons/square-check'
-import TextCursorInput from 'lucide-solid/icons/text-cursor-input'
-import type {LucideIcon} from 'lucide-solid'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {
   pageSessionCallParts,
@@ -34,9 +24,16 @@ import {
   SHIMMER,
   StatusVisual,
   ToolCard,
+  toolIconRender,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageVerbGerund} from './page-tool-names.js'
+import {
+  builtinToolMeta,
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_PREFIX,
+  pageOperation,
+  pageVerbGerund,
+} from './page-tool-names.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
@@ -56,18 +53,6 @@ const SESSION_META: ToolViewMeta = {
 const ACTION_FORMAT = new Intl.NumberFormat()
 const ACTION_PLURAL = new Intl.PluralRules('en')
 
-const VERB_ICONS: Record<string, LucideIcon> = {
-  fill: TextCursorInput,
-  click: MousePointerClick,
-  check: SquareCheck,
-  uncheck: SquareCheck,
-  select: ListChecks,
-  css: Palette,
-  eval: Code,
-  effect: Sparkles,
-  route: Compass,
-}
-
 const HEAD = 'flex flex-1 items-center gap-2 min-w-0 ps-4 h-9'
 const HEAD_DOTS = 'flex gap-2 flex-none'
 const HEAD_DOT = 'size-2.5 rounded-full'
@@ -83,7 +68,7 @@ const HEAD_STATE_SETTLED = '[color:var(--chat-text-3)]'
 const ACTING_LABEL = 'acting'
 
 const RAIL =
-  'm-0 p-0 list-none grid grid-cols-[auto_5rem_1fr_minmax(0,max-content)] gap-x-2.5 w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
+  'm-0 p-0 list-none grid grid-cols-[auto_minmax(5rem,max-content)_1fr_minmax(0,max-content)] gap-x-2.5 w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
 const ROW =
   'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
 const ROW_ENTRANCE = '[[data-state=open]_&]:anim-msg animate-fill-backwards'
@@ -114,7 +99,7 @@ const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text
 const ROW_TARGET_ACTIVE = `flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] ${SHIMMER}`
 const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo min-w-0 leading-none'
 
-const RoutePayload = z.looseObject({href: z.string()})
+const RoutePayload = pageOperation('route').output.pick({href: true})
 
 function actionsLabel(count: number): string {
   return `${ACTION_FORMAT.format(count)} ${ACTION_PLURAL.select(count) === 'one' ? 'action' : 'actions'}`
@@ -226,13 +211,21 @@ function rowTargetClass(state: PageSessionStep['state']): string {
   return ROW_TARGET
 }
 
+function stepLabel(step: PageSessionStep, view: ToolViewMeta | undefined): string {
+  if (view?.label === undefined) return step.verb
+  return step.state === 'complete' ? view.label.done : view.label.running
+}
+
 function StepRow(props: {step: PageSessionStep; index: number; streaming: boolean}): JSX.Element {
+  const view = () => builtinToolMeta(`${PAGE_TOOL_PREFIX}${props.step.verb}`)
   return (
     <li class={rowClass(props.index)}>
       <StepGlyph step={props.step} ordinal={props.index + 1} streaming={props.streaming} />
       <span class={rowVerbClass(props.step.state, props.streaming)}>
-        <Dynamic component={VERB_ICONS[props.step.verb] ?? Pointer} size={12} aria-hidden="true" class="shrink-0" />
-        <span class={ROW_VERB_LABEL}>{props.step.verb}</span>
+        <span class="inline-flex shrink-0" aria-hidden="true">
+          <Dynamic component={toolIconRender(view()?.icon)} size={12} />
+        </span>
+        <span class={ROW_VERB_LABEL}>{stepLabel(props.step, view())}</span>
       </span>
       <TruncatedText
         class={rowTargetClass(props.step.state)}
