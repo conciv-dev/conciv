@@ -7824,6 +7824,25 @@ describe('terminal panel', () => {
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('interrupted')).not.toBeInTheDocument()
   }, 60_000)
+
+  test('a control the user opened before the terminal starts keeps focus and stays open once the terminal starts', async () => {
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(terminalPanel(), {timeout: 15_000}).toBeVisible()
+    await coreControl.awaitFaultPending(modelsRead, 1)
+
+    await page
+      .getByRole('banner')
+      .getByRole('button', {name: /session options$/})
+      .click()
+    await expect.element(menu()).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(page.getByText(/^model /), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput()).not.toHaveFocus()
+    await expect.element(menu()).toBeVisible()
+  }, 60_000)
 })
 
 const TYPED_CONNECT_PROBE_NAME = 'typed-connect-probe'

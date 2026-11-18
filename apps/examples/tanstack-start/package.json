@@ -21,7 +21,6 @@
     "@conciv/embed": "workspace:*",
     "@conciv/extension-recorder": "workspace:*",
     "@conciv/extension-tanstack": "workspace:*",
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
