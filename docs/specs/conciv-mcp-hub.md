@@ -203,9 +203,9 @@ Response zod schema in `@conciv/protocol`:
 
 ### `route` page tool
 
-`packages/extensions/page/src/shared/defs.ts` `routeDef` output gains `title` (`document.title`) and `state`:
+`packages/plugin-page/src/tools.ts` `routeDef` output gains `title` (`document.title`) and `state`:
 `'visible'` when `document.visibilityState === 'visible'`, else `'hidden'`. (No `focused`: while the user types in a
-terminal no browser tab has focus.) The page-side body in `packages/extensions/page/src/client/bodies.ts` fills both.
+terminal no browser tab has focus.) The page-side body in `packages/builtin-plugins/src/page/operations.ts` fills both.
 
 ### Several browser tabs
 
@@ -491,7 +491,7 @@ Causes, each confirmed in code:
    the first reply. With two browser tabs, reads come from either one, actions run in both, and a ref taken from
    one tab's snapshot is stale in the other, so the fast tab answers "stale ref" while the slow one performs the
    action.
-6. Page actions wait on the simulated pointer (`packages/extensions/page/src/client/simulator.ts`): smooth scroll
+6. Page actions wait on the simulated pointer (`packages/builtin-plugins/src/page/simulator.ts`): smooth scroll
    and a wait for `scrollend` (1500 ms fallback), 300 ms pointer move, 100 ms ripple, 200 ms click, 100 ms after
    input. A hidden browser tab throttles those timers and never fires `scrollend`, which is the likely cause of
    the `PAGE_TIMEOUT` (5 s bus limit) seen on a fill whose text still landed. Not yet reproduced.
@@ -561,7 +561,7 @@ error codes, `HANDLER_ERROR` wrapping), since the CLI's `--tab` uses it.
 Queued actions play toolbar style again, without the agent waiting: see `docs/specs/page-action-queue.md`.
 
 - Today the action happens after the pointer animation and the reply after that
-  (`packages/extensions/page/src/client/simulator.ts`). Now the action and the reply happen at once, for the in-page
+  (`packages/builtin-plugins/src/page/simulator.ts`). Now the action and the reply happen at once, for the in-page
   agent and outside callers alike. The field fills before the pointer arrives; that is accepted.
 - An element that is out of view is scrolled to instantly (the path reduced motion already takes), so the hit point
   is known without waiting for `scrollend`. `SCROLL_SETTLE_MS` and `scrollEnded` are deleted.
@@ -623,7 +623,7 @@ the code inside an engine and is not changed.
 Everything is on localhost, so the tab's socket closes only when one side is really gone: the tab closed,
 reloaded or navigated, or the engine restarted. Part 4 fails the in-flight query at once in that case. A reload
 is the common one (a dev server full reload, or a click that navigates), so the engine does one more thing,
-decided by the tool's existing `mutating` mark (`packages/extensions/page/src/shared/defs.ts`):
+decided by the tool's existing `mutating` mark (`packages/plugin-page/src/tools.ts`):
 
 - **Reading tools (`mutating` false: route, snapshot, text and the like):** the engine waits for a browser tab
   of the same session to serve again and sends the query once more, to that tab. It reacts to the tab's
@@ -757,7 +757,7 @@ engine.
   that tab and is refused until allow; an invalid `--tab` fails with a clear message; inside a project folder with
   no `--tab` the call goes to that folder's engine exactly as today.
 - `packages/core/test/core-api.it.test.ts`: an in-page `execute_typescript` can call `external_tabs({})`.
-- `packages/extensions/page/test/page.browser.test.tsx` (702 lines): `page_route` returns `title` and `state`.
+- the old page extension browser test (deleted in #988): `page_route` returns `title` and `state`.
 - `apps/conciv/test/conciv.browser.test.tsx` (over 1000; pay for additions; the deleted launch tests pay most of
   it): the menu lists a harness found by detection with no `hub_connections` row; a real pointer click on its item
   calls the install, and the item leaves on success; a failing install shows the CLI's message. The browser test
