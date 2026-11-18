@@ -3,7 +3,6 @@ import FileText from 'lucide-solid/icons/file-text'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {Tooltip, ZoomableImage} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
-import {useComposerContext} from '../primitives/composer/composer-context.js'
 import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/attachment/attachment-adapter.js'
 import {FOCUS_INSET} from './classes.js'
 import {CornerRemoveButton} from './corner-remove-button.js'
@@ -56,18 +55,9 @@ function refusalReason(attachment: AttachmentState): string | undefined {
   return attachment.status.message || `${attachment.name} could not be attached`
 }
 
-export function RemoveAttachmentButton(): JSX.Element {
-  const attachment = useAttachment()
-  const composer = useComposerContext()
-  return (
-    <CornerRemoveButton
-      label={`Remove ${attachment.name}`}
-      onRemove={() => void composer.removeAttachment(attachment.id)}
-    />
-  )
-}
+export type RemoveAttachment = (id: string) => void
 
-export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
+export function AttachmentUI(props: {onRemove?: RemoveAttachment; failure?: string}): JSX.Element {
   const draft = useAttachment()
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
@@ -106,8 +96,8 @@ export function AttachmentUI(props: {removable?: boolean; failure?: string}): JS
             )}
           </Show>
         </div>
-        <Show when={props.removable}>
-          <RemoveAttachmentButton />
+        <Show when={props.onRemove}>
+          {(remove) => <CornerRemoveButton label={`Remove ${draft.name}`} onRemove={() => remove()(draft.id)} />}
         </Show>
       </Attachment.Root>
       <Tooltip.Positioner>

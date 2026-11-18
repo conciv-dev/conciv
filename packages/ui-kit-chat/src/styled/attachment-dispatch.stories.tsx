@@ -37,6 +37,7 @@ function FakeRecordingCard(props: {remove?: JSX.Element}): JSX.Element {
 
 function Frame(): JSX.Element {
   const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
+  const remove = (id: string) => setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
   return (
     <ComposerProvider
       value={{
@@ -69,7 +70,7 @@ function Frame(): JSX.Element {
         <For each={attachments()}>
           {(draft) => (
             <AttachmentProvider value={draft}>
-              <AttachmentByMime cards={[{mime: RECORDING_MIME, render: FakeRecordingCard}]} removable />
+              <AttachmentByMime cards={[{mime: RECORDING_MIME, render: FakeRecordingCard}]} onRemove={remove} />
             </AttachmentProvider>
           )}
         </For>
