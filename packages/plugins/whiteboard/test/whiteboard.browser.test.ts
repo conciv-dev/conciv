@@ -771,8 +771,9 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
 
-      const focusedPin = page.getByRole('button', {name: 'AI comment, open', exact: true}).first()
-      await focusedPin.focus()
+      const focusedPin = page.getByRole('button', {name: 'AI comment, open', exact: true}).last()
+      await page.mouse.click(120, 700)
+      await page.keyboard.press('Shift+Tab')
       await expect(focusedPin).toBeFocused()
       const focusedTooltip = page.getByText('AI comment, open', {exact: true})
       await expect(focusedTooltip).toBeVisible()
