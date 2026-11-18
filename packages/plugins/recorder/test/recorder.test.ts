@@ -679,7 +679,7 @@ describe('a saved recording that fits the size cap', () => {
     const click = (timestamp: number): RrwebEvent => ({type: 3, data: {source: 2, type: 2, id: 3}, timestamp})
     const events = [snapshot(base), click(base + 1), click(base + 2), snapshot(base + 3)]
     const saved = await flushAndSave(kit, 'tail-snapshot', events)
-    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events})
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({kind: 'found', events})
   })
 })
 
