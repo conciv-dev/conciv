@@ -23,7 +23,8 @@ const SUBTITLE =
   'flex-initial min-w-0 max-w-1/2 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] text-chat-text-2'
 const SUMMARY = `flex-1 min-w-0 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] ${OUTCOME_TONE.error.text}`
 const CONTENT = 'relative pe-8'
-const COPY = 'absolute top-0 end-0'
+const COPY =
+  'absolute top-0 end-0 [transition:opacity_150ms_var(--chat-ease)] motion-reduce:[transition:none] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none [@media(hover:hover)]:group-hover/error:opacity-100 [@media(hover:hover)]:group-hover/error:pointer-events-auto [@media(hover:hover)]:group-focus-within/error:opacity-100 [@media(hover:hover)]:group-focus-within/error:pointer-events-auto'
 const COPY_RESET_MS = 3000
 const COPY_LABELS = {copied: 'Copied the error', failed: 'Could not copy the error'}
 const COPY_TOOLTIPS = {idle: 'Copy error'}
@@ -45,7 +46,7 @@ export function ToolErrorCard(props: ToolErrorCardProps): JSX.Element {
       open={props.open}
       defaultOpen={props.defaultOpen}
       onOpenChange={(details) => props.onOpenChange?.(details.open)}
-      class="min-w-0 w-full"
+      class="group/error min-w-0 w-full"
     >
       <Collapsible.Trigger class={ROW}>
         <span class={ICON} role="img" aria-label="error">
