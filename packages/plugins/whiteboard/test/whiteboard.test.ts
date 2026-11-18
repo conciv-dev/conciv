@@ -1,4 +1,4 @@
-import {execFileSync} from 'node:child_process'
+import {execFileSync, spawnSync} from 'node:child_process'
 import {existsSync, mkdirSync} from 'node:fs'
 import {open} from 'node:fs/promises'
 import {join} from 'node:path'
@@ -316,7 +316,7 @@ function pinRow(cid: string) {
 }
 
 describe('the whiteboard plugin', () => {
-  it('is active, serves its browser bundle and offers its twenty-two tools under the whiteboard namespace', async () => {
+  it('is active, serves its browser bundle, offers its twenty-two tools under the whiteboard namespace and ships migrations in step with its schema', async () => {
     const {kit, room} = await boot()
 
     const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'whiteboard')
@@ -330,6 +330,13 @@ describe('the whiteboard plugin', () => {
     expect(offered.errors).toBeUndefined()
     expect(offered.tools.map((tool) => tool.name).toSorted()).toEqual(OFFERED_TOOLS.map((name) => `external_${name}`))
     for (const tool of offered.tools) expect(tool.description, tool.name).not.toBe('')
+
+    const checked = spawnSync(join(PACKAGE_DIR, 'node_modules', '.bin', 'drizzle-kit'), ['check'], {
+      cwd: PACKAGE_DIR,
+      encoding: 'utf8',
+    })
+    expect(checked.stdout).toContain("Everything's fine")
+    expect(checked.status).toBe(0)
   })
 })
 
