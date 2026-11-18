@@ -83,6 +83,8 @@ type Answer = {value: unknown; files: File[]}
 
 const WAIT_POLL_MS = 100
 
+const OverrideRefusal = z.object({error: z.string()})
+
 export type PageOperations = {
   execute: (command: Command, signal?: AbortSignal) => Promise<Outcome>
   dispose: () => void
@@ -400,7 +402,8 @@ function perform(
         }
         const path = action.path ? action.path.split('.') : []
         const overridden = await reactBridge.override(el, action.target, path, value, action.hookId)
-        if ('error' in overridden) fail(overridden.error)
+        const refusal = OverrideRefusal.safeParse(overridden)
+        if (refusal.success) fail(refusal.data.error)
         return ok({target: action.target, path: action.path ?? '', ...(value === undefined ? {} : {value})})
       })
     case 'tree':
