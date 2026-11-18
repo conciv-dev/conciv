@@ -19,7 +19,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
 import {type ChatHistoryWindow, type ChatHydration, type RpcClient, type RpcClientContext} from '@conciv/contract'
-import {readingValues, relayedValues} from './stream-relay.js'
+import {readingValues, relayedValues, type RelaySink} from './stream-relay.js'
 
 export type ChatConnectionOptions = {
   onLifecycle?: (lifecycle: RunLifecycle) => void
@@ -110,16 +110,21 @@ function overRpc(rpc: RpcClient, sessionId: string, lifetime: AbortSignal): Turn
 }
 
 function subscribeOver(adapter: ConnectConnectionAdapter): SubscribeConnectionAdapter {
-  const listeners = new Set<(chunk: ChatEvent) => void>()
+  const listeners = new Set<RelaySink<ChatEvent>>()
   return {
     subscribe: (abortSignal) =>
-      relayedValues<ChatEvent>((emit) => {
-        listeners.add(emit)
-        return () => listeners.delete(emit)
+      relayedValues<ChatEvent>((sink) => {
+        listeners.add(sink)
+        return () => listeners.delete(sink)
       }, abortSignal),
     send: async (messages, data, abortSignal, runContext) => {
-      for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
-        for (const emit of listeners) emit(chunk)
+      try {
+        for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
+          for (const sink of listeners) sink.emit(chunk)
+        }
+      } catch (error) {
+        if (error instanceof StreamReconnectLimitError) for (const sink of listeners) sink.fail(error)
+        throw error
       }
     },
   }
