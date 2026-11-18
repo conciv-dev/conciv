@@ -8,7 +8,7 @@ CLI behind `npx @conciv/try --token <token>`. It boots a token-gated conciv core
 
 - [src/README.md](./src/README.md): `runCli`, `runConnect`, workspace seeding and the connect system prompt.
 - `bin["conciv-try"]` -> `./dist/bin.js`; `exports["."]` -> `dist/connect.js` (`package.json`).
-- Dependencies: `@clack/prompts`, `citty`, `@conciv/core`, `@conciv/extension-terminal`, `@conciv/harness`, `@conciv/protocol`.
+- Dependencies: `@clack/prompts`, `citty`, `@conciv/core`, `@conciv/harness`, `@conciv/protocol`.
 - Scripts: `build` (`tsdown && chmod +x dist/bin.js`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw`.
 
 ## Invariants

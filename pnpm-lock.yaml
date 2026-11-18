@@ -1033,9 +1033,6 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../packages/embed
-      '@conciv/extension-terminal':
-        specifier: workspace:*
-        version: link:../../packages/extensions/terminal
       '@conciv/extension-try-it':
         specifier: workspace:*
         version: link:../../packages/extensions/try-it
@@ -5591,9 +5588,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@conciv/extension-terminal':
-        specifier: workspace:^
-        version: link:../extensions/terminal
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -5604,9 +5598,6 @@ importers:
         specifier: 'catalog:'
         version: 0.2.2
     devDependencies:
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
