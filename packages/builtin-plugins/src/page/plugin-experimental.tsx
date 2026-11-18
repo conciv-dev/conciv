@@ -2,28 +2,21 @@ import {onCleanup} from 'solid-js'
 import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
-import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
-import {Definition, type Tab} from '@conciv/plugin-page/rpc'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import {Page, ReactTree} from '@conciv/plugin/experimental/page'
+import {Definition} from '@conciv/plugin-page/rpc'
 import {openAttachment} from './attachment.js'
-import {makeHighlight, type OpenedSource} from './highlight.js'
+import {makeHighlight} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCalls} from './cards/page-tool-cards.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
-
-const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
+import {readTab, reportChanges} from './tab.js'
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
 const RETRY_BASE_MS = 1000
 
 const RETRY_MAX_MS = 30_000
-
-function reportChanges(report: () => void, signal: AbortSignal) {
-  TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
-  document.addEventListener('visibilitychange', report, {signal})
-}
 
 function woken(signal: AbortSignal) {
   const woke = new AbortController()
@@ -40,16 +33,23 @@ export default Plugin.define({
   setup(ctx) {
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
-    const operations = makePageOperations(ctx)
     const routed = () => ctx.sessions.current()
 
-    const tab = (): Tab => ({
-      id: tabId,
-      url: location.href,
-      title: document.title,
-      focused: document.hasFocus(),
-      visible: document.visibilityState === 'visible',
+    const symbolicate = (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
+      const session = routed()
+
+      if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
+
+      return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
+    }
+
+    const highlight = makeHighlight({
+      opener: {symbolicate, desktop: ctx.desktop},
+      toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
+    const operations = makePageOperations([highlight.effect])
+
+    const tab = () => readTab(tabId)
 
     const keep = async (session: MountedSession, signal: AbortSignal) => {
       for (let refusals = 0; ;) {
@@ -124,37 +124,6 @@ export default Plugin.define({
       (session) => onCleanup(() => endRun(session.id)),
     )
 
-    const symbolicate = (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
-      const session = routed()
-
-      if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
-
-      return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
-    }
-
-    const openSource = async (located: LocateResult): Promise<OpenedSource> => {
-      const desktop = ctx.desktop
-
-      if (!desktop) return 'failed'
-      try {
-        const frames = located.frames.flatMap(({fileName, line, column}) =>
-          fileName === undefined || line === undefined ? [] : [{fileName, line, column}],
-        )
-        const source = located.source ?? (frames.length > 0 ? await symbolicate(frames) : null)
-
-        if (!source) return 'no-source'
-        await desktop.launch(source.file, {line: source.line, column: source.column})
-        return 'opened'
-      } catch {
-        return 'failed'
-      }
-    }
-
-    const highlight = makeHighlight({
-      open: openSource,
-      toast: (title, variant) => void ctx.toast.show({title, variant}),
-    })
-    ctx.add(PageEffect, highlight.effect)
     onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
 
     pageToolCalls.forEach((call) => ctx.add(ToolCall, call))

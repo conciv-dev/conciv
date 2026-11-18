@@ -3,6 +3,9 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {uniq} from 'es-toolkit'
+import {createElement} from 'react'
+import {createRoot as createReactRoot} from 'react-dom/client'
+import {installReactBridge} from '@conciv/page'
 import {HarnessSessionId, MAX_ATTACHMENT_RAW_BYTES, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
@@ -554,7 +557,7 @@ describe('chat pane', () => {
 
     await expect.element(input()).toHaveTextContent('kept across the reload')
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 
   test('a typed draft is kept on this device first and then on the engine with the stamp it sent; after a newer tab closes the device copy, the engine still gets each edit', async () => {
@@ -2523,13 +2526,42 @@ describe('grab staging', () => {
     api.stage(HERO_GRAB)
 
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
 
     api.clear()
 
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
+  })
+
+  test('the composer grab button stages the picked element, and a pick that fails says so and stages nothing', async () => {
+    let picks = 0
+    const pick = async (): Promise<Grab> => {
+      picks += 1
+      if (picks > 1) throw new Error('the page went away')
+      return HERO_GRAB
+    }
+    const grabProvider = () => ({pick, comment: pick, cancel: () => {}, isActive: () => false})
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, grabProvider}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+    const pickFromOverflow = async () => {
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    }
+
+    await pickFromOverflow()
+
+    await expect.element(snapshot()).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
+    await userEvent.click(removeGrab())
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await pickFromOverflow()
+
+    await expect.element(page.getByText('Couldn’t grab that element. Try again.')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
   })
 
   test('a grabbed element in a sent message shows its grab card', async () => {
@@ -2547,7 +2579,7 @@ describe('grab staging', () => {
     await expect.element(thread.getByText('what is this element')).toBeVisible()
     await expect.element(removeGrab()).not.toBeInTheDocument()
     await expect.element(thread.getByTitle('Grabbed element snapshot')).toBeVisible()
-    await expect.element(thread.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(thread.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 })
 
@@ -3792,6 +3824,55 @@ describe('page session card', () => {
     await page.getByRole('button', {name: /^page_click/}).click()
     await expect.element(page.getByText('#cta')).toBeVisible()
     expect(document.body.textContent).not.toContain('Called page_click')
+  })
+
+  test('a tanstack call draws the card the tanstack plugin claims, not the generic card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const routerState: ToolCallPart = {
+      type: 'tool-call',
+      id: 't1',
+      name: 'tanstack_router_state',
+      arguments: '{}',
+      input: {},
+      state: 'complete',
+    }
+    const match = (routeId: string) => ({
+      id: routeId,
+      routeId,
+      path: routeId,
+      params: {},
+      search: {},
+      status: 'success',
+      error: null,
+      loaderData: null,
+      updatedAt: null,
+      isFetching: false,
+    })
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 't1',
+      content: JSON.stringify({
+        location: {pathname: '/about', search: '', hash: ''},
+        matches: [match('__root__'), match('/about')],
+      }),
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={routerState}
+            result={result}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
   })
 
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
@@ -8267,6 +8348,94 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the grab contract reaches a plugin', () => {
+  const grabberBundle = `const {Panel, Slot, createKeyed} = require('@conciv/plugin/experimental')
+const {GrabApi} = require('@conciv/plugin/experimental/grab')
+const {createComponent, insert} = require('solid-js/web')
+const hero = () => ({
+  text: '<h1 class="title">Payroll Deposit</h1> at src/routes/index.tsx:12:9',
+  snippet: '<h1 class="title">Payroll Deposit</h1>',
+  preview: {kind: 'dom', html: '<p>Payroll Deposit clone</p>', width: 200, height: 40},
+  source: {componentName: 'Hero', filePath: 'src/routes/index.tsx', lineNumber: 12},
+  rect: {x: 0, y: 0, width: 200, height: 40},
+})
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const tab = document.createElement('div')
+  createKeyed(ctx.use(GrabApi), (grab) => {
+    const count = document.createElement('p')
+    insert(count, () => 'Staged ' + grab.staged().length)
+    insert(body, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage a grab'}),
+      createComponent(ctx.ui.Button, {onClick: () => grab.clear(), children: 'Clear the grabs'}),
+      count,
+    ])
+    const tabCount = document.createElement('p')
+    insert(tabCount, () => 'Tab staged ' + grab.staged().length)
+    insert(tab, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage from the tab'}),
+      tabCount,
+    ])
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => body})
+  ctx.add(Panel, {
+    id: 'grabs',
+    region: 'pane',
+    list: () => [{id: 'grabs', title: 'Grab tab', pinned: true}],
+    render: () => tab,
+  })
+}}}
+`
+  const coreBase = bootedCore('grab-contract', {
+    plugins: ['./grabber'],
+    files: {
+      'grabber/index.ts': `export default {id: 'grabber', async setup() {}}
+`,
+      'grabber/plugin-experimental.js': grabberBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that uses GrabApi stages a grab into the composer from beside the chat and from its own tab, reads it back and clears it', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
+    const stage = page.getByRole('button', {name: 'Stage a grab', exact: true})
+    await expect.element(stage, {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await stage.click()
+
+    await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Clear the grabs', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Grab tab'}).click()
+    const stageFromTab = page.getByRole('button', {name: 'Stage from the tab', exact: true})
+    await expect.element(stageFromTab).toBeVisible()
+    await expect.element(page.getByText('Tab staged 0', {exact: true})).toBeVisible()
+
+    await stageFromTab.click()
+
+    await expect.element(page.getByText('Tab staged 1', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const {insert} = require('solid-js/web')
@@ -8735,7 +8904,7 @@ describe('terminal panel', () => {
 })
 
 describe('plugin composer pills', () => {
-  const pillsBundle = `const {ComposerPill, Slot} = require('@conciv/plugin/experimental')
+  const pillsBundle = `const {Command, ComposerPill, Slot} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
 const {createSignal} = require('solid-js')
 module.exports = {default: {setup(ctx) {
@@ -8743,9 +8912,84 @@ module.exports = {default: {setup(ctx) {
   const [pinged, setPinged] = createSignal(false)
   ctx.add(Slot, {
     at: 'window.bottom',
-    render: () => createComponent(ctx.ui.Button, {onClick: () => setShown(true), children: 'Show the pills'}),
+    render: () =>
+      createComponent(ctx.ui.Button, {
+        onClick: () => {
+          setShown(true)
+          ctx.add(Command, {
+            id: 'ledger',
+            title: 'Ledger',
+            description: 'Open the ledger',
+            slash: {name: 'ledger'},
+            run: () => ctx.toast.show({title: 'The ledger opened'}),
+          })
+        },
+        children: 'Show the pills',
+      }),
   })
   ctx.add(ComposerPill, {id: 'never', order: 0, show: () => undefined})
+  ctx.add(Command, {
+    id: 'tally',
+    title: 'Tally',
+    description: 'Count one more tally',
+    slash: {name: 'tally'},
+    run: (input) =>
+      ctx.toast.show({title: input === undefined ? 'Tallied with no input' : 'Tallied with input ' + JSON.stringify(input)}),
+  })
+  ctx.add(Command, {
+    id: 'broken',
+    title: 'Broken',
+    description: 'A command that throws',
+    slash: {name: 'broken'},
+    run: () => {
+      throw new Error('the broken command broke')
+    },
+  })
+  ctx.add(Command, {
+    id: 'recount',
+    title: 'Recount',
+    description: 'Count the tallies again',
+    slash: {name: 'recount', after: 'tally'},
+    run: () => ctx.toast.show({title: 'Recounted from the slash list'}),
+  })
+  ctx.add(Command, {
+    id: 'rename',
+    title: 'Rename',
+    description: 'Rename the tally',
+    slash: {name: 'rename', arguments: true},
+    run: (input) => ctx.toast.show({title: 'Renamed to ' + input}),
+  })
+  ctx.add(Command, {id: 'unslashed', title: 'Unslashed', run: () => undefined})
+  ctx.add(Command, {
+    id: 'review',
+    title: 'Review',
+    description: 'Review with the plugin',
+    slash: {name: 'review'},
+    run: (input) =>
+      ctx.toast.show({title: input === undefined ? 'Reviewed with no input' : 'Reviewed ' + JSON.stringify(input)}),
+  })
+  ctx.add(Command, {
+    id: 'model',
+    title: 'Model',
+    description: 'A plugin model command',
+    slash: {name: 'model'},
+    run: () => ctx.toast.show({title: 'The plugin model command ran'}),
+  })
+  ctx.add(Command, {
+    id: 'hidden',
+    title: 'Hidden',
+    description: 'A disabled command',
+    enabled: false,
+    slash: {name: 'hidden'},
+    run: () => ctx.toast.show({title: 'The disabled command ran'}),
+  })
+  ctx.add(Command, {
+    id: 'sweep',
+    title: 'Sweep',
+    description: 'Sweep the tallies',
+    slash: {name: 'sweep', after: 'audit'},
+    run: () => ctx.toast.show({title: 'Swept the tallies'}),
+  })
   ctx.add(ComposerPill, {
     id: 'ping',
     order: 2,
@@ -8798,12 +9042,26 @@ module.exports = {default: {setup(ctx) {
   })
 }}}
 `
+  const secondBundle = `const {Command} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  const command = (name, description, after) =>
+    ctx.add(Command, {id: name, title: name, description, slash: {name, after}, run: () => ctx.toast.show({title: description})})
+  command('ledger', 'Open the second ledger')
+  command('sweep', 'Sweep with the second plugin')
+  command('audit', 'Audit the tallies')
+  command('recheck', 'Check the recount', 'recount')
+}}}
+`
   const coreBase = bootedCore('plugin-composer-pills', {
-    plugins: ['./pills'],
+    plugins: ['./pills', './second'],
+    commands: [{name: 'review', description: 'Review with the harness'}],
     files: {
       'pills/index.ts': `export default {id: 'pills', async setup() {}}
 `,
       'pills/plugin-experimental.js': pillsBundle,
+      'second/index.ts': `export default {id: 'second', async setup() {}}
+`,
+      'second/plugin-experimental.js': secondBundle,
     },
   })
   const harness = createShellHarness(coreBase)
@@ -8856,6 +9114,118 @@ module.exports = {default: {setup(ctx) {
     await expect.element(notes.getByText('Notes for the session', {exact: true})).toBeInViewport({ratio: 1})
     await notes.getByRole('button', {name: 'Done with the notes', exact: true}).click()
     await expect.element(notes).not.toBeInTheDocument()
+  }, 45_000)
+
+  test("a plugin command with a slash name joins the composer's slash list after /model in plugin order, honouring after, and runs from the keyboard while a throwing one leaves the composer working", async () => {
+    await page.viewport(520, 760)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const option = (name: string) => page.getByRole('option', {name: new RegExp(`^/${name}`)})
+
+    await expect
+      .element(page.getByRole('button', {name: 'Show the pills', exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    await composer.click()
+    await userEvent.keyboard('/')
+    await expect.element(option('tally')).toHaveTextContent('/tallyCount one more tally')
+    await expect.element(page.getByRole('option').nth(0)).toHaveTextContent('/modelSwitch the model')
+    await expect.element(page.getByRole('option').nth(1)).toHaveTextContent('/tallyCount one more tally')
+    await expect.element(page.getByRole('option').nth(2)).toHaveTextContent('/recountCount the tallies again')
+    await expect.element(page.getByRole('option').nth(3)).toHaveTextContent('/recheckCheck the recount')
+    await expect.element(page.getByRole('option').nth(4)).toHaveTextContent('/brokenA command that throws')
+    await expect.element(page.getByRole('option').nth(5)).toHaveTextContent('/renameRename the tally')
+    await expect.element(option('unslashed')).not.toBeInTheDocument()
+    await expect.element(option('model')).toBeInViewport({ratio: 1})
+    await expect.element(option('tally')).toBeInViewport({ratio: 1})
+    await userEvent.keyboard('{ArrowDown}'.repeat(5))
+    await expect.element(option('rename')).toBeInViewport({ratio: 0.99})
+    await userEvent.keyboard('{ArrowUp}'.repeat(5))
+    await expect.element(option('model')).toBeInViewport({ratio: 0.99})
+
+    await userEvent.keyboard('broken')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/brokenA command that throws')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(composer).not.toHaveTextContent()
+
+    await userEvent.keyboard('/tally')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/tallyCount one more tally')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(notifications().getByText('Tallied with no input', {exact: true})).toBeVisible()
+    await expect.element(composer).not.toHaveTextContent()
+
+    await userEvent.keyboard('/rename')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/renameRename the tally')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(composer).toHaveTextContent('/rename')
+    await userEvent.keyboard('tally two')
+    await expect.element(composer).toHaveTextContent('/rename tally two')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(notifications().getByText('Renamed to tally two', {exact: true})).toBeVisible()
+    await expect.element(composer).not.toHaveTextContent()
+  }, 45_000)
+
+  test('commands from two plugins keep plugin order, the first owner of a name wins it over a later plugin, the harness and /model, and a chained after is placed', async () => {
+    await page.viewport(520, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const entry = (position: number) => page.getByRole('option').nth(position)
+    const named = (name: string) => page.getByRole('option', {name: new RegExp(`^/${name}`)})
+
+    const reveal = page.getByRole('button', {name: 'Show the pills', exact: true})
+    await expect.element(reveal, {timeout: 15_000}).toBeVisible()
+    await reveal.click()
+    await expect.element(pill('Ping pill')).toBeVisible()
+    await composer.click()
+    await userEvent.keyboard('/')
+    await expect.element(entry(0)).toHaveTextContent('/modelSwitch the model')
+    await expect.element(entry(1)).toHaveTextContent('/tallyCount one more tally')
+    await expect.element(entry(2)).toHaveTextContent('/recountCount the tallies again')
+    await expect.element(entry(3)).toHaveTextContent('/recheckCheck the recount')
+    await expect.element(entry(4)).toHaveTextContent('/brokenA command that throws')
+    await expect.element(entry(5)).toHaveTextContent('/renameRename the tally')
+    await expect.element(entry(6)).toHaveTextContent('/reviewReview with the plugin')
+    await expect.element(entry(7)).toHaveTextContent('/ledgerOpen the ledger')
+    await expect.element(entry(8)).toHaveTextContent('/auditAudit the tallies')
+    await expect.element(entry(9)).toHaveTextContent('/sweepSweep the tallies')
+    await expect.element(entry(10)).not.toBeInTheDocument()
+    await expect.element(named('hidden')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('model')
+    await expect.element(entry(0)).toHaveTextContent('/modelSwitch the model')
+    await expect.element(entry(1)).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(entry(0)).not.toBeInTheDocument()
+    await userEvent.keyboard('{Backspace}'.repeat(6))
+    await expect.element(composer).not.toHaveTextContent()
+
+    await userEvent.keyboard('/review')
+    await expect.element(entry(0)).toHaveTextContent('/reviewReview with the plugin')
+    await expect.element(entry(1)).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(entry(0)).not.toBeInTheDocument()
+    await userEvent.keyboard(' the auth module')
+    await expect.element(composer).toHaveTextContent('/review the auth module')
+    await expect.element(entry(0)).not.toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    const reviewed = notifications().getByRole('status').filter({hasText: 'Reviewed with no input'})
+    await expect.element(reviewed).toBeVisible()
+    await expect.element(composer).not.toHaveTextContent()
+    await reviewed.getByRole('button', {name: 'Dismiss'}).click()
+    await expect.element(reviewed).not.toBeInTheDocument()
+
+    await composer.click()
+    await userEvent.keyboard('/review')
+    await expect.element(entry(0)).toHaveTextContent('/reviewReview with the plugin')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(entry(0)).not.toBeInTheDocument()
+    await expect.element(composer).toHaveTextContent('/review')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(reviewed).toBeVisible()
+    await expect.element(composer).not.toHaveTextContent()
   }, 45_000)
 })
 
@@ -9069,11 +9439,15 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
+  const builtinTanstackCard = {id: 'tanstack-card', builtin: true, enabled: true}
   const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
+  const builtinGrab = {id: 'grab', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
+    builtinTanstackCard,
     builtinTerminal,
+    builtinGrab,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
@@ -9240,6 +9614,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
     await expect.element(page.getByText('test-runner-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('tanstack-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'tanstack-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
@@ -10516,6 +10892,34 @@ export default {
     expect(typed).toEqual([])
     expect([await replied(before), await replied(after)]).toEqual([0, 2])
     await cut
+  }, 60_000)
+
+  test('holding Alt and clicking a React element opens its source in the editor through the engine', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    installReactBridge()
+    const reactRoot = createReactRoot(mount)
+    reactRoot.render(createElement('span', {'data-tsd-source': 'src/app.tsx:12:4'}, 'React source probe'))
+    onTestFinished(() => {
+      reactRoot.unmount()
+      mount.remove()
+    })
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+    const probe = page.getByText('React source probe', {exact: true})
+
+    await userEvent.click(probe, {force: true})
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).not.toHaveFocus()
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.hover(probe, {force: true})
+    await userEvent.click(probe, {force: true})
+    await expect.element(page.getByText('Opened src/app.tsx', {exact: true})).toBeVisible()
+    expect(await coreControl.editorOpened()).toEqual([{file: 'src/app.tsx', line: 12, column: 4}])
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
   }, 60_000)
 
   test('an eval card offers no Always, so a later eval with other code is asked again', async () => {

@@ -530,7 +530,6 @@
     "@conciv/client",
     "@conciv/embed",
     "@conciv/extension-compiler",
-    "@conciv/extension-page",
     "@conciv/extension-try-it",
     "@conciv/extension-whiteboard",
     "@conciv/grab",

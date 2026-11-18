@@ -1,15 +1,18 @@
 import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
-import type {ContentPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ContentPart} from '@conciv/protocol/chat-message-types'
 import type {AnyRouter, ErrorMap, Meta, Middleware, ORPCErrorConstructorMap} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
-import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
+import type {ToolRequest} from '@conciv/protocol/tool-call-types'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import type {Settings} from '@conciv/contract'
 import type {UpgradeWebSocket} from '@conciv/serve/rpc'
+
+export type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
+export type {ToolRequest} from '@conciv/protocol/tool-call-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -21,14 +24,6 @@ export type ExtensionView = {
   icon?: Component<{class?: string}>
   Component: Component
   actions?: Component
-}
-
-export type ToolRequest = {
-  sessionId: SessionId
-  agentId: string
-  model: string | null
-  toolCallId?: string
-  signal?: AbortSignal
 }
 
 export type ExtensionServerTool = {
@@ -87,22 +82,6 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
   value: ClientReturnValue
   effects?: readonly ClientEffect[]
   dispose?: () => void
-}
-
-export type ServerSessions = {
-  resumeToken(sessionId: SessionId): Promise<HarnessSessionId | null>
-  recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
-  chatBusy(sessionId: SessionId): Promise<boolean>
-  model(sessionId: SessionId): Promise<string | null>
-  onChatTurn(listener: (sessionId: SessionId) => void): void
-}
-
-export type ServerHarness = {
-  id: string
-  ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
-  release?: (sessionId: SessionId) => void
-  transcriptExists?: (token: HarnessSessionId) => boolean
-  transcriptMessages?: (token: HarnessSessionId) => Promise<ChatMessage[]>
 }
 
 export interface SettingsRegistry {}

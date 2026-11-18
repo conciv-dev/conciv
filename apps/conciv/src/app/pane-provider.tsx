@@ -12,6 +12,8 @@ import {
 } from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
+import {makePaneGrabApi} from '../pane/pane-grab.js'
+import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {useStartSession} from './start-session.js'
@@ -77,5 +79,12 @@ export function PaneProvider(props: {
     isRefreshing: coordinator.isRefreshing,
   }
 
-  return <PaneContext.Provider value={value}>{props.children}</PaneContext.Provider>
+  const paneGrab = makePaneGrabApi(value.grabStaging, grabProvider)
+
+  return (
+    <PaneContext.Provider value={value}>
+      <PaneGrabBinding sessionId={props.sessionId} grab={paneGrab} />
+      {props.children}
+    </PaneContext.Provider>
+  )
 }

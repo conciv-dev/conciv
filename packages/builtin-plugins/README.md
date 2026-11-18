@@ -104,6 +104,13 @@ last two path segments, a failing test closed until opened, and its failure with
 failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
 streams the live rows.
 
+## tanstack-card
+
+Each TanStack tool's card claim gives the whole card, so it draws while the call runs (the title and a running dot, no
+body) and after it finishes. The cards are built from `@conciv/ui-kit-chat/tools` and `@conciv/ui-kit-system`, which the
+widget already bundles, so the embed keeps one copy of each. The old TanStack extension keeps its own copy until that
+extension is deleted.
+
 ## terminal
 
 The session's CLI in a terminal (built-in id `terminal`, a pinned Terminal tab in the session's pane): listed for a

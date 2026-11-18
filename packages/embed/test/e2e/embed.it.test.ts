@@ -1565,8 +1565,12 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor, and two clicks on the page stop the agent', async () => {
       await expectClickDispatched(kit, page)
+      const agentMask = page.getByRole('status', {name: 'Agent is using this page'})
+      await agentMask.click()
+      await agentMask.click()
+      await expect(agentMask).toBeHidden()
     })
 
     test('page_effect enable shows the highlight inspector the page plugin registers, disable reverts, toggle flips', async () => {
@@ -1593,6 +1597,21 @@ test.describe('page dispatch parity', () => {
         enabled: false,
       })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
+    })
+
+    test('holding Alt and clicking a page element with no source says so', async () => {
+      const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+      const probe = page.getByText('page-bus-ok')
+
+      await probe.click()
+      await expect(hint).toHaveCount(0)
+      await page.keyboard.down('Alt')
+      await expect(hint).toBeVisible({timeout: 10_000})
+      await probe.hover({force: true})
+      await probe.click({force: true})
+      await expect(page.getByText('No source for this element')).toBeVisible({timeout: 10_000})
+      await page.keyboard.up('Alt')
+      await expect(hint).toHaveCount(0)
     })
   })
 
