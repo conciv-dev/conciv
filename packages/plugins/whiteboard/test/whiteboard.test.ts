@@ -14,7 +14,20 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {Cause, Effect, Exit, Fiber, Option, PubSub, Ref, Scope, Stream, SubscriptionRef, type Schema} from 'effect'
+import {
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  PubSub,
+  Ref,
+  Scope,
+  Stream,
+  SubscriptionRef,
+  type Schema,
+} from 'effect'
 import {TestClock} from 'effect/testing'
 import {
   makeChangeFeed,
@@ -26,6 +39,7 @@ import {
 import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/client/change-feed-machine.js'
 import {startDrain, transitionDrain, type DrainState} from '../src/canvas/drain-machine.js'
 import {makePendingDrain, RemoveFailed} from '../src/canvas/island-model.js'
+import {replayDraft} from '../src/canvas/replay.js'
 import type {PendingRow} from '../src/shared/rows.js'
 import {startPending, transitionPending, type PendingState} from '../src/server/pending-machine.js'
 import {makeWhiteboardStore} from '../src/server/store.js'
@@ -1149,5 +1163,32 @@ describe('the canvas drain driver on the test clock', () => {
         'remove refused',
       ],
     })
+  })
+})
+
+describe('the commit replay on the test clock', () => {
+  it('writes the first draft element at once, the next after a step, and the rest at once when skipped', async () => {
+    const result = await clocked(
+      Effect.gen(function* () {
+        const written = yield* Ref.make<readonly string[]>([])
+        const step = (elementId: string) => ({
+          elementId,
+          write: () => Effect.runSync(Ref.updateAndGet(written, (all) => [...all, elementId])),
+        })
+        const skipped = yield* Deferred.make<void>()
+        const replay = yield* Effect.forkChild(replayDraft([step('a'), step('b'), step('c'), step('d')], skipped), {
+          startImmediately: true,
+        })
+        const first = yield* Ref.get(written)
+        yield* TestClock.adjust(399)
+        const beforeStep = yield* Ref.get(written)
+        yield* TestClock.adjust(1)
+        const afterStep = yield* Ref.get(written)
+        yield* Deferred.succeed(skipped, undefined)
+        const results = yield* Fiber.join(replay)
+        return {first, beforeStep, afterStep, results: results.map((all) => all.at(-1))}
+      }),
+    )
+    expect(result).toEqual({first: ['a'], beforeStep: ['a'], afterStep: ['a', 'b'], results: ['a', 'b', 'c', 'd']})
   })
 })

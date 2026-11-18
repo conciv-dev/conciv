@@ -8,7 +8,7 @@ import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidr
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
-import {Effect, Exit, Ref, Scope} from 'effect'
+import {Deferred, Effect, Exit, Ref, Scope} from 'effect'
 import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
 import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
@@ -16,7 +16,7 @@ import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/
 import {validateSvg} from '../shared/svg-caps.js'
 import type {Viewport} from './coords.js'
 import {makePendingDrain, RemoveFailed} from './island-model.js'
-import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
+import {replayDraft, type ReplayStep} from './replay.js'
 
 type SceneElement = OrderedExcalidrawElement
 type ExportScope = 'live' | 'draft' | 'both'
@@ -194,25 +194,31 @@ export function Island(props: {
       }),
   })
 
-  const performCommit = async (row: PendingRow): Promise<void> => {
-    let handle: ReplayHandle<Transaction<ElementRow>> | undefined
-    const onPointerDown = (): void => handle?.skip()
-    try {
-      const drafts = await db.listElements('draft')
-      container?.addEventListener('pointerdown', onPointerDown, {once: true})
-      handle = replayDraft(drafts.map(commitStep))
-      const written = await handle.done
-      await Promise.all(written.map((transaction) => transaction.isPersisted.promise))
-      await db.bulkDeleteElements(
-        'draft',
-        drafts.map((draft) => draft.elementId),
-      )
-    } catch (error) {
-      console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
-    } finally {
-      container?.removeEventListener('pointerdown', onPointerDown)
-    }
+  const skipOnPointer = (skipped: Deferred.Deferred<void>) => {
+    const skip = (): void => void Effect.runSync(Deferred.succeed(skipped, undefined))
+    return Effect.acquireRelease(
+      Effect.sync(() => container?.addEventListener('pointerdown', skip, {once: true})),
+      () => Effect.sync(() => container?.removeEventListener('pointerdown', skip)),
+    )
   }
+
+  const commitPending = (row: PendingRow) =>
+    Effect.gen(function* () {
+      const drafts = yield* Effect.tryPromise(() => db.listElements('draft'))
+      const skipped = yield* Deferred.make<void>()
+      yield* skipOnPointer(skipped)
+      const written = yield* replayDraft(drafts.map(commitStep), skipped)
+      yield* Effect.tryPromise(() => Promise.all(written.map((transaction) => transaction.isPersisted.promise)))
+      yield* Effect.tryPromise(() =>
+        db.bulkDeleteElements(
+          'draft',
+          drafts.map((draft) => draft.elementId),
+        ),
+      )
+    }).pipe(
+      Effect.scoped,
+      Effect.tapError((failure) => Effect.logError(`committing pending ${row.id} failed`, failure)),
+    )
 
   const liveExportElements = (scope: ExportScope): readonly SceneElement[] =>
     scope === 'draft' ? [] : (Ref.getUnsafe(attached)?.getSceneElements() ?? [])
@@ -260,7 +266,7 @@ export function Island(props: {
     skeletons: drawPending,
     mermaid: drawPending,
     svg: drawPending,
-    commit: (row) => Effect.tryPromise(() => performCommit(row)),
+    commit: commitPending,
     export: exportPending,
   }
   const drain = Effect.runSync(
