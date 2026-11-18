@@ -510,7 +510,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, a dragged pin lands on the engine, and only comments from others make a thread unread again', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, a dragged pin lands on the engine, only comments from others make a thread unread again, and Escape on a thread stepped to its first closes only the thread', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -594,6 +594,14 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(thread.getByText('the button has no focus ring')).toBeVisible()
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
       await expect(unread).toHaveCount(0)
+
+      await thread.getByRole('button', {name: 'Previous thread'}).click()
+      await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
+      await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
     } finally {
       await widget.close()
     }
