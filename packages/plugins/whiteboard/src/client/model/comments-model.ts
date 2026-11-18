@@ -92,10 +92,11 @@ export function createCommentsModel(room: Accessor<string>) {
 
   const stepIndex = (): number => orderedThreads().findIndex((thread) => thread.cid === state.openCid)
   const stepThread = (delta: number): void => {
-    const target = orderedThreads()[stepIndex() + delta]
-    if (stepIndex() >= 0 && target) openThread(target.cid)
+    const threads = orderedThreads()
+    if (stepIndex() < 0) return
+    const target = threads[(stepIndex() + delta + threads.length) % threads.length]
+    if (target) openThread(target.cid)
   }
-  const canStep = (delta: number): boolean => stepIndex() >= 0 && orderedThreads()[stepIndex() + delta] !== undefined
   const openRoot = (): CommentRow | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
   const threadOpen = createMemo(() => openRoot() !== undefined)
 
@@ -133,7 +134,6 @@ export function createCommentsModel(room: Accessor<string>) {
     openRoot,
     threadOpen,
     stepThread,
-    canStep,
     reply,
     resolve,
     deleteThread,
