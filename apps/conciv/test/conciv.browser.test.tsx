@@ -7623,6 +7623,8 @@ describe('terminal panel', () => {
     await pickButton().click()
     await terminalPanel().click()
     await expect.element(terminalInput()).toHaveFocus()
+    const imeConfirm = {key: 'Enter', code: 'Enter', isComposing: true, bubbles: true, cancelable: true}
+    terminalInput().element().dispatchEvent(new KeyboardEvent('keydown', imeConfirm))
     await userEvent.keyboard('{Enter}')
     await userEvent.keyboard('once')
     await userEvent.keyboard('{Enter}')

@@ -59,6 +59,7 @@ function keepFocusInsideTheWidget(element: HTMLElement): void {
 }
 
 function isPlainEnter(event: KeyboardEvent): boolean {
+  if (event.isComposing || event.keyCode === 229) return false
   if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false
   return event.type === 'keydown' && event.key === 'Enter'
 }
