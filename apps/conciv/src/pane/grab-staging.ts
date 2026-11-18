@@ -197,8 +197,6 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
 
   const connect = (next: ComposerGrabPort): void => {
     setPort(() => next)
-    for (const entry of pending().filter((candidate) => candidate.id === null))
-      void ensureOnComposer(entry).catch(reportTo(ADD_FAILED))
   }
 
   const disconnect = (): void => {
