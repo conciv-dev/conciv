@@ -1,5 +1,6 @@
 import {createRouter} from '@tanstack/solid-router'
-import {once} from 'es-toolkit'
+import {once, uniq} from 'es-toolkit'
+import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability} from '@conciv/client'
 import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
@@ -7,6 +8,7 @@ import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
 import {routeTree} from './routeTree.gen'
+import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
@@ -15,6 +17,8 @@ import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 import {becameTrusted, engineLocked, type EngineLogin} from './app/engine-login.js'
 import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+
+const PaneParamsSchema = z.object({sessionId: z.string()})
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
@@ -165,17 +169,6 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
-  const engine = wireEngine(apiBase, {
-    rerunRefused: () => {
-      void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
-    },
-    trusted: once(() => {
-      void data.forgetGoneDrafts()
-    }),
-    lockedOut: () => {
-      void data.forgetLocalDrafts()
-    },
-  })
   const disposeInstances = makeGuardedDisposer(instances, () => {
     engine.dispose()
     data.dispose()
@@ -184,7 +177,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     onCleanup(disposeInstances)
     return <>{props.children}</>
   }
-  return createRouter({
+  const router = createRouter({
     routeTree,
     history: config.history,
     scrollRestoration: () => false,
@@ -215,6 +208,26 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       pluginPanels: createPluginPanels(),
     },
   })
+  const shownSessions = (): string[] =>
+    uniq(
+      router.matchRoutes(router.latestLocation).flatMap((match) => {
+        const shown = match.routeId === '/quick' ? quickPaneIds(QuickSearchSchema.parse(match.search)) : []
+        const opened = PaneParamsSchema.safeParse(match.params).data?.sessionId
+        return opened === undefined ? shown : [opened, ...shown]
+      }),
+    )
+  const engine = wireEngine(apiBase, {
+    rerunRefused: () => {
+      void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
+    },
+    trusted: once(() => {
+      void data.forgetGoneDrafts(shownSessions())
+    }),
+    lockedOut: () => {
+      void data.forgetLocalDrafts()
+    },
+  })
+  return router
 }
 
 export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {

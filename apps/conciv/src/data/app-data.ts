@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {difference} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
 import {
   QueryMutationObserver,
@@ -67,7 +68,7 @@ export type AppData = {
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (save: DraftSave) => Promise<boolean>
   sessionDeleted: (sessionId: string) => boolean
-  forgetGoneDrafts: () => Promise<void>
+  forgetGoneDrafts: (shown: readonly string[]) => Promise<void>
   forgetLocalDrafts: () => Promise<void>
   lockedOut: () => boolean
   dispose: () => void
@@ -186,13 +187,16 @@ export function makeAppData(
       console.error('[conciv] could not remove the local draft of a gone session', error)
     })
   }
-  const forgetGoneDrafts = async (): Promise<void> => {
+  const forgetGoneDrafts = async (shown: readonly string[]): Promise<void> => {
     if (!drafts) return
     const kept = await drafts.keys().catch((error: unknown) => {
       console.error('[conciv] could not list the local drafts', error)
       return []
     })
-    await kept.reduce((checked, sessionId) => checked.then(() => forgetGoneDraft(sessionId)), Promise.resolve())
+    await difference(kept, shown).reduce(
+      (checked, sessionId) => checked.then(() => forgetGoneDraft(sessionId)),
+      Promise.resolve(),
+    )
   }
   const forgetLocalDrafts = async (): Promise<void> => {
     queryClient.removeQueries({queryKey: utils.drafts.get.key()})
