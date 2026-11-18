@@ -7593,6 +7593,22 @@ describe('terminal panel', () => {
     await expect.element(picker()).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a pick that fails tells the user with a toast', async () => {
+    const failingPick = async (): Promise<Grab | null> => {
+      throw new Error('the page refused the pick')
+    }
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {
+      grabProvider: () => ({pick: failingPick, comment: failingPick, cancel: () => {}, isActive: () => false}),
+    })
+
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+
+    await expect.element(page.getByText('Could not select that element', {exact: true})).toBeVisible()
+  }, 60_000)
+
   test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})

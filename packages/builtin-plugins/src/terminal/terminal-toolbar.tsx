@@ -58,6 +58,7 @@ function PickElementButton(props: {grab: GrabApi}): JSX.Element {
       if (picked) props.grab.stage(picked)
     } catch (cause) {
       console.error('[terminal] picking an element failed', cause)
+      void ctx.toast.show({title: 'Could not select that element', variant: 'error'})
     }
   }
   const label = () => (props.grab.grabbable() ? 'Select an element from the page' : 'Nothing on this screen to select')
