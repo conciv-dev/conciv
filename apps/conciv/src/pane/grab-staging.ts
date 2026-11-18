@@ -31,7 +31,12 @@ export type GrabStaging = {
 
 type Deps = {
   ground: (grab: Grab) => Promise<Grab | null>
+  fail: (message: string, error: unknown) => void
 }
+
+const REMOVE_FAILED = 'Could not remove the grabbed element.'
+const ADD_FAILED = 'Could not add the grabbed element.'
+const LOAD_FAILED = 'Could not load a grabbed element.'
 
 type StagedEntry = {grab: Grab; id: string | null; grounded: Grab | null; placing: Promise<void> | null}
 
@@ -60,6 +65,11 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
   const [pending, setPending] = createSignal<readonly StagedEntry[]>([])
   const [port, setPort] = createSignal<ComposerGrabPort | null>(null)
 
+  const reportTo =
+    (message: string) =>
+    (error: unknown): void =>
+      deps.fail(message, error)
+
   const remember = (id: string, payload: GrabPayload): void => {
     setPlacedGrabs((current) => new Map(current).set(id, toGrab(payload)))
   }
@@ -81,7 +91,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       if (!isLive(entry, composer)) return
       const id = await composer.addAttachment(grabToFile(prepared))
       if (!isLive(entry, composer)) {
-        if (id) void composer.removeAttachment(id).catch(() => {})
+        if (id) void composer.removeAttachment(id).catch(reportTo(REMOVE_FAILED))
         return
       }
       entry.id = id
@@ -108,7 +118,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     if (!isLive(entry, composer)) return
     const replaced = await composer.replaceAttachment(entry.id, grabToFile(prepared))
     if (!isLive(entry, composer)) {
-      if (replaced) void composer.removeAttachment(replaced).catch(() => {})
+      if (replaced) void composer.removeAttachment(replaced).catch(reportTo(REMOVE_FAILED))
       return
     }
     forget(entry.id)
@@ -126,14 +136,14 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
   }
 
   const placeThenGround = async (entry: StagedEntry): Promise<void> => {
-    await ensureOnComposer(entry).catch(() => {})
+    await ensureOnComposer(entry).catch(reportTo(ADD_FAILED))
     await ground(entry)
   }
 
   const stage = (grab: Grab): void => {
     const entry: StagedEntry = {grab, id: null, grounded: null, placing: null}
     setPending((current) => [...current, entry])
-    void placeThenGround(entry).catch(() => {})
+    void placeThenGround(entry).catch(reportTo(ADD_FAILED))
   }
 
   const staged = (): readonly Grab[] => {
@@ -150,9 +160,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
   const remove = (grab: Grab): void => {
     const placed = [...placedGrabs()].find(([, known]) => known === grab)
     if (placed) {
-      void port()
-        ?.removeAttachment(placed[0])
-        .catch(() => {})
+      void port()?.removeAttachment(placed[0]).catch(reportTo(REMOVE_FAILED))
       return
     }
     const entry = pending().find(
@@ -166,7 +174,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     const composer = port()
     if (!composer) return
     for (const attachment of composer.attachments().filter(isGrabAttachment))
-      void composer.removeAttachment(attachment.id).catch(() => {})
+      void composer.removeAttachment(attachment.id).catch(reportTo(REMOVE_FAILED))
   }
 
   const hydrate = async (attachment: AttachmentState, file: File): Promise<void> => {
@@ -182,14 +190,14 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     for (const attachment of grabs) {
       const file = attachment.file
       if (placedGrabs().has(attachment.id) || !file) continue
-      void hydrate(attachment, file).catch(() => {})
+      void hydrate(attachment, file).catch(reportTo(LOAD_FAILED))
     }
   }
 
   const connect = (next: ComposerGrabPort): void => {
     setPort(() => next)
     for (const entry of pending().filter((candidate) => candidate.id === null))
-      void ensureOnComposer(entry).catch(() => {})
+      void ensureOnComposer(entry).catch(reportTo(ADD_FAILED))
   }
 
   const disconnect = (): void => {
