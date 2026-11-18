@@ -385,6 +385,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         'rectangle',
         'rectangle',
         'rectangle',
+        'rectangle',
         'text',
         'text',
       ])
