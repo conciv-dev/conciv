@@ -210,11 +210,11 @@ function pageCall(kit: CoreKit, method: string, input: unknown, signal?: AbortSi
 }
 
 function answered(value: unknown) {
-  return {type: 'success', result: {value: {value}, files: []}}
+  return {type: 'success', result: {value: {type: 'success', value}, files: []}}
 }
 
 function refused(code: string, message: string) {
-  return {type: 'success', result: {value: {failure: {code, message}}, files: []}}
+  return {type: 'success', result: {value: {type: 'failure', code, message}, files: []}}
 }
 
 describe('the tanstack plugin before a page attaches', () => {
@@ -368,10 +368,10 @@ describe('the tanstack plugin with a page attached', () => {
     const unfocused = await attachPage(kit, session, nextControl, false)
     const routed = useTool(kit, 'back', {tabId: unfocused.tab.id})
     expect(await nextControl()).toMatchObject({type: 'command', connectionId: unfocused.connectionId})
-    const defaulted = useTool(kit, 'router_invalidate')
-    expect(await nextControl()).toMatchObject({type: 'command', connectionId: again.connectionId})
     unfocused.detach()
     expect(await toolFailure(routed)).toContain('[tanstack.disconnected_after_dispatch] The page connection closed')
+    const defaulted = useTool(kit, 'router_invalidate')
+    expect(await nextControl()).toMatchObject({type: 'command', connectionId: again.connectionId})
 
     const replacing = new AbortController()
     onTestFinished(() => replacing.abort())

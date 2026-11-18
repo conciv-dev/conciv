@@ -142,21 +142,6 @@ function readLocation(tree: ReactTree, router: AnyRouter): RouterLocation {
   }
 }
 
-function prefixed(prefix: string, value: string): string {
-  return value ? `${prefix}${value}` : ''
-}
-
-export function redactedHref(tree: ReactTree): string {
-  const router = findRouter(tree)
-  if (!router) {
-    const search = redactedHash(tree, location.search.slice(1))
-    const hash = redactedHash(tree, location.hash.slice(1))
-    return `${location.origin}${location.pathname}${prefixed('?', search)}${prefixed('#', hash)}`
-  }
-  const redacted = readLocation(tree, router)
-  return `${location.origin}${redacted.pathname}${redacted.search}${prefixed('#', redacted.hash)}`
-}
-
 export function readRouterState(tree: ReactTree): RouterCurrent {
   const router = requireRouter(tree)
   return {

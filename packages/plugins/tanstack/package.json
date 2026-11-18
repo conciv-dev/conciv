@@ -51,7 +51,6 @@
   },
   "dependencies": {
     "@conciv/plugin-page": "workspace:^",
-    "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"
