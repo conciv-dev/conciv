@@ -1,8 +1,11 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {uniqBy} from 'es-toolkit'
+import {createAsyncDebouncer} from '@tanstack/solid-pacer'
 import BookOpen from 'lucide-solid/icons/book-open'
 import Brain from 'lucide-solid/icons/brain'
+import File from 'lucide-solid/icons/file'
+import Folder from 'lucide-solid/icons/folder'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
@@ -121,6 +124,20 @@ function agentEntries(agents: RpcOutputs['agent']['list']['data']): RichTextFiel
     .map((agent) => ({id: agent.name, label: `@${agent.name}`, icon: AGENT_ICON}))
 }
 
+const FILE_ICON: RichTextFieldTriggerItem['icon'] = {component: File, name: 'File'}
+
+const FOLDER_ICON: RichTextFieldTriggerItem['icon'] = {component: Folder, name: 'Folder'}
+
+const MENTION_FILE_DEBOUNCE_MS = 150
+
+function fileEntry(entry: RpcOutputs['fs']['find']['data'][number]): RichTextFieldTriggerItem {
+  return {id: `file:${entry.path}`, label: `@${entry.path}`, icon: entry.type === 'directory' ? FOLDER_ICON : FILE_ICON}
+}
+
+function searchesFiles(query: string): boolean {
+  return query.trim().length > 0 && !/\s/.test(query)
+}
+
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
 
 type TextMatch = (text: string, query: string) => boolean
@@ -182,6 +199,18 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     startsWith: filter().startsWith,
     contains: filter().contains,
   })
+  const fileSearch = createAsyncDebouncer(
+    (query: string) =>
+      queryClient
+        .ensureQueryData(appData.utils.fs.find.queryOptions({input: {query}}))
+        .then((found) => found.data.map(fileEntry))
+        .catch((): RichTextFieldTriggerItem[] => []),
+    {wait: MENTION_FILE_DEBOUNCE_MS},
+  )
+  const searchFiles = async (query: string): Promise<RichTextFieldTriggerItem[]> => {
+    if (!searchesFiles(query)) return []
+    return (await fileSearch.maybeExecute(query)) ?? []
+  }
   const triggers: ComposerTriggerSources = {
     slash: {
       label: 'Commands',
@@ -200,6 +229,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Context',
       items: async (query) => {
+        const files = searchFiles(query)
         const [skills, agents] = await Promise.allSettled([
           queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
           queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
@@ -207,8 +237,12 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
         if (skills.status === 'rejected' && agents.status === 'rejected') throw skills.reason
         const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
         const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
-        const entries = uniqBy([...skillList, ...agentList], (entry) => entry.id)
-        return matchingItems(entries, query, matcher())
+        const named = matchingItems(
+          uniqBy([...skillList, ...agentList], (entry) => entry.id),
+          query,
+          matcher(),
+        )
+        return uniqBy([...named, ...(await files)], (entry) => entry.id)
       },
     },
   }

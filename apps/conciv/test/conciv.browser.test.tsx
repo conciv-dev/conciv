@@ -1488,7 +1488,9 @@ export default {
 
     await userEvent.keyboard('@mentions')
 
-    await expect.element(mention('@mentions/').getByRole('img', {name: 'Folder'})).toBeVisible()
+    await expect
+      .element(context().getByRole('option', {name: '@mentions/', exact: true}).getByRole('img', {name: 'Folder'}))
+      .toBeVisible()
     await expect.element(mention('@mentions/index.ts').getByRole('img', {name: 'File'})).toBeVisible()
 
     await userEvent.click(mention('@mentions/index.ts'))
