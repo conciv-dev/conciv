@@ -6,7 +6,7 @@ import {installRuntimeErrorListeners} from './client/error-ring.js'
 import {InspectorChip} from './client/inspector-chip.js'
 import {makeTanstackOperations} from './client/operations.js'
 import {redactedHref, subscribeResolved} from './client/router-adapter.js'
-import type {Tab} from './rpc.js'
+import {SHORT_MAX, TAB_URL_MAX, type Tab} from './rpc.js'
 
 const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
 
@@ -49,8 +49,8 @@ export default Plugin.define({
 
     const tab = (): Tab => ({
       id: tabId,
-      url: tabUrl(),
-      title: document.title,
+      url: tabUrl().slice(0, TAB_URL_MAX),
+      title: document.title.slice(0, SHORT_MAX),
       focused: document.hasFocus(),
       visible: document.visibilityState === 'visible',
     })
