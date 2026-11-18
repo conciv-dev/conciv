@@ -5,6 +5,7 @@ import {createSignal, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {ActCard} from '../src/page/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
 import {ReactCard} from '../src/page/cards/react-card.js'
@@ -28,12 +29,14 @@ import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {makePageOperations, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX} from '@conciv/plugin-page/rpc'
+import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab} from '@conciv/plugin-page/rpc'
+import {readTab, reportChanges} from '../src/page/tab.js'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
+import {makeHighlight} from '../src/page/highlight.js'
 import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
@@ -1070,6 +1073,70 @@ describe('page effects', () => {
     expect(readValue(await driver.execute(command('effect', {action: 'list'})), 'effect')).toEqual({
       effects: [{name: 'banner', description: 'first banner', enabled: false}],
     })
+  })
+
+  it('holding Alt inspects the page until Alt is released or Esc is pressed, and not while typing in a textbox', async () => {
+    const highlight = makeHighlight({open: async () => 'no-source', toast: () => {}})
+    const layer = document.createElement('div')
+    const field = document.createElement('input')
+    field.setAttribute('aria-label', 'note')
+    document.body.append(layer, field)
+    const dispose = highlight.mount(layer)
+    onTestFinished(() => {
+      dispose()
+      layer.remove()
+      field.remove()
+    })
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+
+    expect(document.activeElement).toBe(document.body)
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hint).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+
+    await userEvent.click(page.getByRole('textbox', {name: 'note'}))
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+  })
+
+  it('holding Alt over conciv’s own interface picks the page element under it, never conciv’s own', async () => {
+    const highlight = makeHighlight({open: async () => 'no-source', toast: () => {}})
+    const layer = document.createElement('div')
+    layer.setAttribute(PLUGIN_OVERLAY_ATTR, '')
+    const surface = document.createElement('div')
+    surface.setAttribute(EFFECTS_SURFACE_ATTR, '')
+    surface.style.cssText = 'position:fixed;top:64px;left:32px;z-index:2147483000'
+    const effect = document.createElement('strong')
+    effect.textContent = 'conciv effect'
+    surface.append(effect)
+    const heading = document.createElement('h1')
+    heading.textContent = 'Page heading'
+    heading.style.cssText = 'position:fixed;top:0;left:0;margin:0;width:320px;height:160px'
+    document.body.append(layer, heading, surface)
+    const dispose = highlight.mount(layer)
+    onTestFinished(() => {
+      dispose()
+      layer.remove()
+      heading.remove()
+      surface.remove()
+    })
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.hover(page.getByText('conciv effect'), {force: true})
+    await expect.element(page.getByText('<h1>', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
   })
 })
 
@@ -2363,5 +2430,62 @@ describe('grab snapshot frame', () => {
 
     await expect.element(page.getByText('control escaped')).toBeVisible()
     await expect.element(page.getByText('snapshot escaped')).not.toBeInTheDocument()
+  })
+})
+
+describe('the page tab the agent sees', () => {
+  const tabId = `tab_${crypto.randomUUID()}`
+
+  function keepLocation() {
+    const href = location.href
+    const title = document.title
+    onTestFinished(() => {
+      history.replaceState(null, '', href)
+      document.title = title
+    })
+  }
+
+  it('hides secret search and hash values and keeps the rest', () => {
+    keepLocation()
+    history.replaceState(null, '', '/shop?token=abc&q=shoes#access_token=xyz')
+    const url = new URL(readTab(tabId).url)
+    expect({
+      path: url.origin + url.pathname,
+      search: [...url.searchParams],
+      hash: [...new URLSearchParams(url.hash.slice(1))],
+    }).toEqual({
+      path: `${location.origin}/shop`,
+      search: [
+        ['token', '[redacted]'],
+        ['q', 'shoes'],
+      ],
+      hash: [['access_token', '[redacted]']],
+    })
+  })
+
+  it('fits a very long url and title inside the rpc caps', () => {
+    keepLocation()
+    history.replaceState(null, '', `/long?q=${'a'.repeat(20_000)}`)
+    document.title = 't'.repeat(5_000)
+    const read = readTab(tabId)
+    expect(Tab.safeParse(read).success).toBe(true)
+    expect(read.url.startsWith(`${location.origin}/long?q=aaa`)).toBe(true)
+  })
+
+  it('reports again after a pushState navigation and a title change', async () => {
+    keepLocation()
+    const controller = new AbortController()
+    onTestFinished(() => controller.abort())
+    const reported = {current: Promise.withResolvers<void>()}
+    reportChanges(() => reported.current.resolve(), controller.signal)
+
+    history.pushState(null, '', '/next')
+    await reported.current.promise
+    expect(readTab(tabId).url).toBe(`${location.origin}/next`)
+
+    reported.current = Promise.withResolvers<void>()
+    document.title = 'the next page'
+    await reported.current.promise
+    expect(readTab(tabId).title).toBe('the next page')
   })
 })

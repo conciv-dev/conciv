@@ -1,16 +1,19 @@
 import {LETTER_KEYS, NUMBER_KEYS, PUNCTUATION_CODE_MAP, parseHotkey} from '@tanstack/hotkeys'
 import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
-import {setNativeValue, simulateClick, simulateFill, typeByCommands, typeByEvents} from './simulator.js'
+import {
+  isHtml,
+  measureCenter,
+  MOUSE_POINTER,
+  setNativeValue,
+  simulateClick,
+  simulateFill,
+  typeByCommands,
+  typeByEvents,
+} from './simulator.js'
 
-const XHTML = 'http://www.w3.org/1999/xhtml'
 const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor'
-const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
 const HOVER_EVENTS = ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']
-
-export function isHtml(element: Element): element is HTMLElement {
-  return element.namespaceURI === XHTML
-}
 
 function isInput(element: Element): element is HTMLInputElement {
   return element.localName === 'input'
@@ -40,19 +43,16 @@ export function actionable(element: Element): Element | string {
   return element
 }
 
-function center(element: Element): {clientX: number; clientY: number} {
-  const rect = element.getBoundingClientRect()
-  return {clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2}
-}
-
 function pointer(options: {element: Element; type: string}): void {
   const {element, type} = options
+  const point = measureCenter(element)
   const init = {
     bubbles: true,
     cancelable: true,
     composed: true,
     view: element.ownerDocument.defaultView,
-    ...center(element),
+    clientX: point.x,
+    clientY: point.y,
   }
   if (type.startsWith('pointer')) return void element.dispatchEvent(new PointerEvent(type, {...init, ...MOUSE_POINTER}))
   element.dispatchEvent(new MouseEvent(type, init))

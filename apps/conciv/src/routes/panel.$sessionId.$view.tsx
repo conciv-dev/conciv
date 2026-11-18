@@ -4,9 +4,9 @@ import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
 import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
-import {ExtensionBoundary} from '../extension/extension-boundary.js'
+import {PluginBoundary} from '../runtime/plugin/plugin-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
-import {makePaneGrabApi} from '../extension/pane-grab.js'
+import {makePaneGrabApi} from '../pane/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
 import {useStartSession} from '../app/start-session.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
@@ -93,9 +93,9 @@ function PanelView(): JSX.Element {
                 tabindex={-1}
                 class="flex flex-1 flex-col min-h-0 focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-2px]"
               >
-                <ExtensionBoundary name={mount.view.instance.extension.name} fallback="tab" focusAfterRetry={content}>
+                <PluginBoundary name={mount.view.instance.extension.name} fallback="tab" focusAfterRetry={content}>
                   <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
-                </ExtensionBoundary>
+                </PluginBoundary>
               </div>
             </div>
           </HostApiProvider>

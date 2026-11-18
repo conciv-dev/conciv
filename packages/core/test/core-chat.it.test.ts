@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {realpathSync, rmSync} from 'node:fs'
 import {describe, it, afterEach, afterAll, beforeAll, expect} from 'vitest'
-import {defineExtension, defineTool, toolError} from '@conciv/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
+import {toolError} from '@conciv/protocol/tool-call-types'
 import {
   harnessAvailable,
   createTestHarness,
