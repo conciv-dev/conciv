@@ -45,6 +45,7 @@ const MOVED_DIAMOND_WRITE = {
 }
 const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
+const DRAW_DEADLINE_MS = 2_000
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 const PinRows = z.array(z.object({cid: z.string(), pinState: z.string(), x: z.number(), y: z.number()}).loose())
 const ThreadRead = z.object({
@@ -132,7 +133,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
   }) => {
     const widget = await openPluginWidget(browser, {
       id: 'fake',
-      plugins: [[PACKAGE_DIR, {catchUpRetryMs: CATCH_UP_RETRY_MS}]],
+      plugins: [[PACKAGE_DIR, {catchUpRetryMs: CATCH_UP_RETRY_MS, drawDeadlineMs: DRAW_DEADLINE_MS}]],
       widgetBundle: WIDGET_BUNDLE,
       stateRoot: realpathSync(tempDir('conciv-whiteboard-canvas-')),
     })
@@ -333,6 +334,32 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(
         widget.kit.callTool('whiteboard_canvas_svg', {svg: UNDRAWABLE_SVG, x: 660, y: 540, width: 100}),
       ).rejects.toThrow('the svg had nothing drawable')
+
+      const slowDraftWrite = await gateRpcCalls(page, {
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'elements.bulkUpsert', input: {scope: 'draft'}},
+      })
+      const slowDrawing = widget.kit.callTool('whiteboard_canvas_svg', {
+        svg: "<svg viewBox='0 0 100 50'><rect x='0' y='0' width='100' height='50' fill='#2f9e44'/></svg>",
+        x: 900,
+        y: 300,
+        width: 200,
+      })
+      await slowDraftWrite.awaitCaptured(1)
+      await expect(
+        widget.kit.callTool(
+          'whiteboard_canvas_draw',
+          {elements: [{type: 'ellipse', x: 0, y: 0, width: 10, height: 10}]},
+          await widget.kit.session('a-session-with-no-canvas'),
+        ),
+      ).rejects.toThrow('no canvas is open to draw into')
+      await slowDraftWrite.release()
+      const slowPending = Pending.parse(await slowDrawing)
+      await slowDraftWrite.dispose()
+      expect(await canvasElements(widget.kit, 'draft')).toContainEqual({
+        id: `${slowPending.pending}-0`,
+        type: 'rectangle',
+      })
 
       const draftBeforeCommit = await canvasElements(widget.kit, 'draft')
       const liveWrites = await Promise.all(

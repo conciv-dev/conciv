@@ -1,5 +1,6 @@
 import {join} from 'node:path'
 import {Plugin} from '@conciv/plugin'
+import {z} from 'zod'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {Whiteboard} from './rpc.js'
 import {autoCommitDraft} from './server/auto-commit.js'
@@ -9,6 +10,11 @@ import {whiteboardHandlers} from './server/rpc-handlers.js'
 import {info} from './skill.js'
 import {CONFIRMATION_RULES} from './tool/refusal.js'
 import {register} from './tools.js'
+
+const DRAW_DEADLINE_MS = 8_000
+const WhiteboardOptions = z.object({
+  drawDeadlineMs: z.number().positive().default(DRAW_DEADLINE_MS).catch(DRAW_DEADLINE_MS),
+})
 
 function databaseDirectory(location: Plugin.Context['location']): string {
   return join(concivStateDir(location.directory), 'whiteboard')
@@ -48,7 +54,7 @@ export default Plugin.define({
       await ctx.agent.transform((editor) =>
         editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
       )
-      await register(ctx.tool, store, directory, ctx.permission)
+      await register(ctx.tool, store, directory, ctx.permission, WhiteboardOptions.parse(ctx.options).drawDeadlineMs)
       await ctx.skill.transform((editor) => editor.add(info))
       await ctx.session.hook('experimental.idle', async ({sessionId}) => {
         await autoCommitDraft(store, sessionId)
