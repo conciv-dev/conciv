@@ -1,6 +1,8 @@
 import {
   batch,
   createMemo,
+  createRenderEffect,
+  createRoot,
   createSignal,
   from,
   getOwner,
@@ -72,7 +74,7 @@ import {createMobileViews} from './mobile'
 import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
-import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
+import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
 import {ui} from './ui'
 
 type Attached = {
@@ -91,6 +93,7 @@ type Attached = {
   path: Accessor<string>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
+  directory: Accessor<string | undefined>
 }
 
 export type ComposerBinding = {
@@ -189,6 +192,25 @@ export function createHostApis() {
 
   if (getOwner()) onCleanup(() => dispatchAttach({type: 'disposed'}))
 
+  const project = createMemo(() => {
+    const directory = attached()?.directory()
+
+    return directory === undefined ? undefined : {directory}
+  })
+
+  const hostOwner = getOwner()
+
+  const whenProject = (run: (directory: string) => void) =>
+    createRoot((dispose) => {
+      createRenderEffect(
+        on(project, (value) => {
+          if (!value) return
+          dispose()
+          run(value.directory)
+        }),
+      )
+    }, hostOwner)
+
   const target = (
     plugin: string,
     key: string,
@@ -223,8 +245,14 @@ export function createHostApis() {
         const scope = options.scope
 
         return runWithOwner(getOwner() ?? owner, () => {
-          if (!scope || scope === 'global' || scope === 'project')
-            return open(globalStoreTarget(plugin, key, options.from, scope ?? 'global'))
+          if (!scope || scope === 'global') return open(globalStoreTarget(plugin, key, options.from))
+
+          if (scope === 'project')
+            return deferredHandle(
+              createMemo(
+                on(project, (value) => value && open(projectStoreTarget(plugin, key, options.from, value.directory))),
+              ),
+            )
 
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
@@ -258,8 +286,12 @@ export function createHostApis() {
       remove(key, options) {
         const scope = options?.scope
 
-        if (!scope || scope === 'global' || scope === 'project')
-          return removePersisted(globalStoreTarget(plugin, key, options?.from, scope ?? 'global'), rpc)
+        if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
+
+        if (scope === 'project')
+          return whenProject((directory) =>
+            removePersisted(projectStoreTarget(plugin, key, options?.from, directory), rpc),
+          )
 
         const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
 
@@ -594,6 +626,7 @@ export function createPluginAttachment(apis: HostApis) {
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
     servers: () => [engine.id],
     server: (id) => (id === engine.id ? engine : undefined),
+    directory: () => (project.isSuccess ? project.data?.project.root : undefined),
     settings(plugin, page) {
       const sessionId = untrack(route).routed
 
