@@ -1,0 +1,122 @@
+---
+title: Plugins
+description: What a plugin is, where conciv finds plugins, and the test-runner plugin as a worked example.
+---
+
+A plugin adds tools, skills and RPC methods to the engine, and panels, slots and pills to the widget. It has up to
+three parts:
+
+- **The engine part** runs inside the conciv engine. It adds tools the agent calls, skills it reads, and RPC methods.
+  See [Engine SDK](/docs/plugins/engine).
+- **The RPC contract** names the methods and events both parts share.
+- **The browser part** runs in the widget. It adds panels, slots, composer pills and settings pages. See
+  [Browser SDK](/docs/plugins/browser).
+
+You can call any plugin's RPC methods from a terminal with `conciv plugin call`. See
+[Calling a plugin from the terminal](/docs/plugins/terminal).
+
+## Add a plugin from your config
+
+List plugins in the `plugins` option of `conciv()`. An entry is a name, or `[name, options]`:
+
+```ts title="vite.config.ts"
+conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]})
+```
+
+- A package name loads the installed package.
+- A path that starts with `./` or `../` resolves from the project folder. A `file://` URL works too. A path must point
+  to a folder, not a file.
+- Every option value must be JSON: a string, number, boolean, null, array or object. The plugin reads them as
+  `ctx.options`.
+
+## Add a plugin in the project
+
+conciv also loads every plugin in a `conciv/plugins` (or `conciv/plugin`) folder at the project root. Each `.ts` or
+`.js` file there is a plugin, and so is each folder. No config entry is needed.
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="plugins" defaultOpen>
+      <Folder name="deploy" defaultOpen>
+        <File name="index.ts" />
+        <File name="rpc.ts" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+The engine watches these folders and the configured plugin paths, and reloads a plugin when its files change.
+
+## Where conciv looks inside a plugin
+
+| Part         | In a package                                  | In a folder                                 |
+| ------------ | --------------------------------------------- | ------------------------------------------- |
+| Engine part  | the `./server` export, else the main export   | a `server` file, else an `index` file       |
+| RPC contract | the `./rpc` export                            | an `rpc` file                               |
+| Browser part | the `./plugin-experimental` export (a `.cjs`) | `plugin-experimental.cjs` or `.js`          |
+
+A file in a folder can be `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.mjs`, `.cts` or `.cjs`. A folder whose
+`package.json` has a `name` and `exports` is read like a package.
+
+The test-runner package exports all three:
+
+```json title="packages/plugins/test-runner/package.json"
+"exports": {
+  ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
+  "./server": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
+  "./rpc": {"types": "./dist/rpc.d.ts", "import": "./dist/rpc.js"},
+  "./plugin-experimental": "./dist/plugin-experimental.cjs"
+}
+```
+
+## Worked example: the test runner
+
+[`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner) powers
+[live tests](/docs/usage/live-tests). Every part of it uses the public SDK.
+
+<Steps>
+<Step>
+
+**Options.** The engine part parses `ctx.options` with zod. `runner` defaults to `vitest`.
+
+```ts title="src/index.ts"
+const testRunnerConfig = z.object({
+  runner: z.enum(['vitest', 'jest', 'node-test', 'playwright']).default('vitest'),
+})
+```
+
+</Step>
+<Step>
+
+**Setup.** `Plugin.define` names the plugin and runs it when the engine loads it. It adds the tools, a skill and the
+RPC handlers. The test runner is written on the [promise entry](/docs/plugins/engine#the-promise-entry). For the
+Effect form, see [Define the plugin](/docs/plugins/engine#define-the-plugin).
+
+</Step>
+<Step>
+
+**Tools.** `test_runner_run` and `test_runner_status` are direct tools the agent calls by name. `list` stays in
+code mode as `external_test_runner_list`. See [Tools](/docs/plugins/engine#tools).
+
+</Step>
+<Step>
+
+**RPC.** The contract in `src/rpc.ts` declares `status`, `current`, `list`, `ui`, `run` and `stop`, and one `event`
+event. The Tests tab calls these methods and follows the events. See [RPC](/docs/plugins/engine#rpc).
+
+</Step>
+<Step>
+
+**Browser part.** `src/plugin-experimental.tsx` adds the Tests tab as a [panel](/docs/plugins/browser#panel).
+
+</Step>
+</Steps>
+
+## Next
+
+<Cards>
+  <Card title="Engine SDK" href="/docs/plugins/engine" description="Plugin.define, tools, skills and RPC." />
+  <Card title="Browser SDK" href="/docs/plugins/browser" description="Panels, slots, pills and settings pages." />
+  <Card title="From the terminal" href="/docs/plugins/terminal" description="conciv plugin call." />
+  <Card title="Skills" href="/docs/skills" description="Built-in skills and skills from a folder." />
+</Cards>

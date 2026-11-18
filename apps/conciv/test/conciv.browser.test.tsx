@@ -76,7 +76,7 @@ import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
 import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notice.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
-import {makePaneGrabApi} from '../src/extension/pane-grab.js'
+import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
 import {
@@ -1994,6 +1994,35 @@ describe('grab staging', () => {
     expect(api.staged()).toHaveLength(0)
   })
 
+  test('the composer grab button stages the picked element, and a pick that fails says so and stages nothing', async () => {
+    let picks = 0
+    const pick = async (): Promise<Grab> => {
+      picks += 1
+      if (picks > 1) throw new Error('the page went away')
+      return HERO_GRAB
+    }
+    const grabProvider = () => ({pick, comment: pick, cancel: () => {}, isActive: () => false})
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, grabProvider}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+    const pickFromOverflow = async () => {
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    }
+
+    await pickFromOverflow()
+
+    await expect.element(snapshot()).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await userEvent.click(removeGrab())
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await pickFromOverflow()
+
+    await expect.element(page.getByText('Couldn’t grab that element. Try again.')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+  })
+
   test('a grabbed element in a sent message shows its grab card', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
@@ -3254,6 +3283,55 @@ describe('page session card', () => {
     await page.getByRole('button', {name: /^page_click/}).click()
     await expect.element(page.getByText('#cta')).toBeVisible()
     expect(document.body.textContent).not.toContain('Called page_click')
+  })
+
+  test('a tanstack call draws the card the tanstack plugin claims, not the generic card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const routerState: ToolCallPart = {
+      type: 'tool-call',
+      id: 't1',
+      name: 'tanstack_router_state',
+      arguments: '{}',
+      input: {},
+      state: 'complete',
+    }
+    const match = (routeId: string) => ({
+      id: routeId,
+      routeId,
+      path: routeId,
+      params: {},
+      search: {},
+      status: 'success',
+      error: null,
+      loaderData: null,
+      updatedAt: null,
+      isFetching: false,
+    })
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 't1',
+      content: JSON.stringify({
+        location: {pathname: '/about', search: '', hash: ''},
+        matches: [match('__root__'), match('/about')],
+      }),
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={routerState}
+            result={result}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
   })
 
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
@@ -7185,6 +7263,94 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the grab contract reaches a plugin', () => {
+  const grabberBundle = `const {Panel, Slot, createKeyed} = require('@conciv/plugin/experimental')
+const {GrabApi} = require('@conciv/plugin/experimental/grab')
+const {createComponent, insert} = require('solid-js/web')
+const hero = () => ({
+  text: '<h1 class="title">Payroll Deposit</h1> at src/routes/index.tsx:12:9',
+  snippet: '<h1 class="title">Payroll Deposit</h1>',
+  preview: {kind: 'dom', html: '<p>Payroll Deposit clone</p>', width: 200, height: 40},
+  source: {componentName: 'Hero', filePath: 'src/routes/index.tsx', lineNumber: 12},
+  rect: {x: 0, y: 0, width: 200, height: 40},
+})
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const tab = document.createElement('div')
+  createKeyed(ctx.use(GrabApi), (grab) => {
+    const count = document.createElement('p')
+    insert(count, () => 'Staged ' + grab.staged().length)
+    insert(body, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage a grab'}),
+      createComponent(ctx.ui.Button, {onClick: () => grab.clear(), children: 'Clear the grabs'}),
+      count,
+    ])
+    const tabCount = document.createElement('p')
+    insert(tabCount, () => 'Tab staged ' + grab.staged().length)
+    insert(tab, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage from the tab'}),
+      tabCount,
+    ])
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => body})
+  ctx.add(Panel, {
+    id: 'grabs',
+    region: 'pane',
+    list: () => [{id: 'grabs', title: 'Grab tab', pinned: true}],
+    render: () => tab,
+  })
+}}}
+`
+  const coreBase = bootedCore('grab-contract', {
+    plugins: ['./grabber'],
+    files: {
+      'grabber/index.ts': `export default {id: 'grabber', async setup() {}}
+`,
+      'grabber/plugin-experimental.js': grabberBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that uses GrabApi stages a grab into the composer from beside the chat and from its own tab, reads it back and clears it', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
+    const stage = page.getByRole('button', {name: 'Stage a grab', exact: true})
+    await expect.element(stage, {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await stage.click()
+
+    await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Clear the grabs', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Grab tab'}).click()
+    const stageFromTab = page.getByRole('button', {name: 'Stage from the tab', exact: true})
+    await expect.element(stageFromTab).toBeVisible()
+    await expect.element(page.getByText('Tab staged 0', {exact: true})).toBeVisible()
+
+    await stageFromTab.click()
+
+    await expect.element(page.getByText('Tab staged 1', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const {insert} = require('solid-js/web')
@@ -7987,11 +8153,15 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
+  const builtinTanstackCard = {id: 'tanstack-card', builtin: true, enabled: true}
   const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
+  const builtinGrab = {id: 'grab', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
+    builtinTanstackCard,
     builtinTerminal,
+    builtinGrab,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
@@ -8158,6 +8328,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
     await expect.element(page.getByText('test-runner-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('tanstack-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'tanstack-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
