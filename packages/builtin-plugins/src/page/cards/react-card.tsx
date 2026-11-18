@@ -1,7 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {trackReport} from '@conciv/page'
-import {RawFrameSchema} from '@conciv/protocol/page-types'
+import {RawFrameSchema} from '@conciv/contract'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import {JsonTree} from '@conciv/ui-kit-chat/tools'
 import {

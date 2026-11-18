@@ -1,7 +1,7 @@
 import {Data, Effect} from 'effect'
 import type {Desktop} from '@conciv/plugin/experimental'
 import type {GrabFrame} from '@conciv/plugin/experimental/grab'
-import type {LocateResult, SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {LocateResult, SourceLoc} from '@conciv/plugin/experimental/page'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 

@@ -392,9 +392,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     }
     return (
       <div class="contents">
-        <ExtensionSurface name="header" instances={instances} />
         <SessionHeaderSlot pane={pluginSession} />
-        <ExtensionSurface name="widget" instances={instances} />
         <div
           {...viewTabPanelAttributes(props.viewTab)}
           onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
@@ -466,7 +464,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <ExtensionSurface name="status" instances={instances} />
                   <SessionStatusSlot pane={pluginSession} />
                   <SessionComposerPills pane={pluginSession} />
-                  <ExtensionSurface name="footer" instances={instances} />
                 </div>
                 <QueueStrip queue={chat.queue()} />
                 <Suspense>
@@ -525,13 +522,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   return (
-    <HostApiProvider
-      sessionId={() => sessionId}
-      grab={paneGrab}
-      insert={insert}
-      attach={attach}
-      newSession={() => pane.newSession()}
-    >
+    <HostApiProvider sessionId={() => sessionId} grab={paneGrab} attach={attach} newSession={() => pane.newSession()}>
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider

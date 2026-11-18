@@ -197,7 +197,7 @@ async function pickAgents(found: HarnessId[]): Promise<HarnessId[] | 'cancelled'
 }
 
 const docsPackQuestion =
-  'Add the @conciv/skills docs pack (setup/extension-authoring/debugging guides) and TanStack intent skill-loading guidance?'
+  'Add the @conciv/skills docs pack (setup, develop, debug and harness guides) and TanStack intent skill-loading guidance?'
 
 function frameworkQuestion(framework: Framework): string {
   if (framework === 'unknown') return 'No known framework detected — show manual wiring instructions?'

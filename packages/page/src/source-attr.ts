@@ -1,4 +1,4 @@
-import type {SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {SourceLoc} from '@conciv/plugin/experimental/page'
 
 export function sourceFromAttr(el: Element): SourceLoc | null {
   const raw = el.closest('[data-tsd-source]')?.getAttribute('data-tsd-source')
