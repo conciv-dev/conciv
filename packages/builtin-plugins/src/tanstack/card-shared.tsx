@@ -15,13 +15,6 @@ import {
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
 
-const COUNT_FORMAT = new Intl.NumberFormat()
-const COUNT_PLURAL = new Intl.PluralRules('en')
-
-export function countLabel(count: number, one: string, other: string): string {
-  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
-}
-
 export function tanstackOperation<const Name extends Operation['name']>(name: Name): Extract<Operation, {name: Name}> {
   const operation = Operations.find(
     (candidate): candidate is Extract<Operation, {name: Name}> => candidate.name === name,

@@ -6,7 +6,8 @@ import CornerDownRight from 'lucide-solid/icons/corner-down-right'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, settledCardBody, countLabel} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 const RouteBranchSchema = RouteNode.pick({id: true})
   .extend({

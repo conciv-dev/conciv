@@ -4,7 +4,8 @@ import {isPlainObject} from 'es-toolkit'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {TruncatedText} from '@conciv/ui-kit-system'
 import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue, countLabel} from './card-shared.js'
+import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 type Entry = {key: string; preview: string; value: unknown}
 
