@@ -14,6 +14,7 @@ import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Plugin} from '@conciv/plugin/schema/plugin'
+import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
 import {Hash} from '../util/hash.js'
 import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Queue, References, Scope, Semaphore} from 'effect'
 import {Bus} from './bus.js'
@@ -78,6 +79,9 @@ export const layer = Layer.effect(
       } satisfies Plugin.ExperimentalChunks
     })
     const hostContext = yield* Effect.context<Effect.Services<ReturnType<typeof PluginHost.make>>>()
+    const platform = yield* Layer.build(
+      NodeChildProcessSpawner.layer.pipe(Layer.provideMerge(Layer.merge(NodeFileSystem.layer, NodePath.layer))),
+    )
     const load = Effect.fnUntraced(function* (plugin: Generation) {
       const activation: Activation = {plugin, scope: yield* Scope.fork(scope)}
       const inherit = yield* State.inherit()
@@ -101,6 +105,7 @@ export const layer = Layer.effect(
         inherit,
         Effect.updateContext((context: Context.Context<never>) =>
           Context.make(Scope.Scope, activation.scope).pipe(
+            Context.merge(platform),
             Context.add(Logger.CurrentLoggers, Context.get(context, Logger.CurrentLoggers)),
             Context.add(References.MinimumLogLevel, Context.get(context, References.MinimumLogLevel)),
           ),
