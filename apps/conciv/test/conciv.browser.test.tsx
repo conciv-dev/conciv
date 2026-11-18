@@ -7598,6 +7598,9 @@ describe('terminal panel', () => {
     await terminalTab().click()
     await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
     await typeLine('echo $((6*7))')
+    await expect
+      .element(terminalPanel().getByRole('listitem').filter({hasText: 'conciv: resumed session'}))
+      .not.toBeInTheDocument()
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
 
@@ -7939,6 +7942,25 @@ describe('terminal panel', () => {
     await expect.element(picker()).toBeDisabled()
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('interrupted')).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a control the user opened before the terminal starts keeps focus and stays open once the terminal starts', async () => {
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(terminalPanel(), {timeout: 15_000}).toBeVisible()
+    await coreControl.awaitFaultPending(modelsRead, 1)
+
+    await page
+      .getByRole('banner')
+      .getByRole('button', {name: /session options$/})
+      .click()
+    await expect.element(menu()).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(page.getByText(/^model /), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput()).not.toHaveFocus()
+    await expect.element(menu()).toBeVisible()
   }, 60_000)
 })
 
