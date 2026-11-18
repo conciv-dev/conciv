@@ -7621,6 +7621,8 @@ describe('terminal panel', () => {
     await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
 
     await pickButton().click()
+    await expect.element(terminalPanel()).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
     await terminalPanel().click()
     await expect.element(terminalInput()).toHaveFocus()
     const imeConfirm = {key: 'Enter', code: 'Enter', isComposing: true, bubbles: true, cancelable: true}
@@ -7630,6 +7632,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(output('got[once]'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('got[]')).not.toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
 
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
