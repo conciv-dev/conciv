@@ -1,35 +1,36 @@
 import {Match, Switch, type JSX} from 'solid-js'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, ResultImage, cardHeader, parseResultMedia} from '@conciv/ui-kit-chat/tools'
-import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, cardPayload, elementChip, resultChips} from './shared.js'
+import type {ToolProps} from '@conciv/plugin/experimental'
+import {JsonTree, ResultImage} from '@conciv/ui-kit-chat/tools'
+import {
+  ChipRow,
+  ELEMENT_TARGET_KEYS,
+  PageTool,
+  elementTarget,
+  outputChips,
+  outputImageUrl,
+  outputPayload,
+  pageTitle,
+} from './shared.js'
 
 function payloadIsStructured(payload: unknown): boolean {
   return typeof payload === 'object' && payload !== null
 }
 
-export function ReadValueCard(props: ToolCardProps): JSX.Element {
-  const {meta, title} = cardHeader(props)
-  const payload = () => cardPayload(props.result)
+export function ReadValueCard(props: ToolProps): JSX.Element {
+  const payload = () => outputPayload(props.output)
   const nested = () => payloadIsStructured(payload())
-  const values = () => resultChips(props.result)
-  const errorMessage = () => cardErrorMessage(props.result)
-  const imageUrl = () => parseResultMedia(props.result).imageUrl
+  const values = () => outputChips(props.output)
+  const imageUrl = () => outputImageUrl(props.output)
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      chipSkip={ELEMENT_TARGET_KEYS}
-      leadChip={elementChip(props.part)}
+    <PageTool
+      {...props}
+      subtitle={elementTarget(props.input)}
+      skip={ELEMENT_TARGET_KEYS}
+      hasContent={imageUrl() !== undefined || nested() || values().length > 0}
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>
-            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
-          </Match>
-          <Match when={imageUrl()}>{(url) => <ResultImage src={url()} alt={title()} />}</Match>
+          <Match when={imageUrl()}>{(url) => <ResultImage src={url()} alt={pageTitle(props.tool, false)} />}</Match>
           <Match when={nested()}>
             <JsonTree data={payload()} />
           </Match>
@@ -38,14 +39,6 @@ export function ReadValueCard(props: ToolCardProps): JSX.Element {
           </Match>
         </Switch>
       </div>
-    </CardShell>
+    </PageTool>
   )
-}
-
-export const readValueCard: ToolCardView = {
-  render: ReadValueCard,
-  hasEmbeddedBody: (_part, result) =>
-    cardErrorMessage(result) !== undefined ||
-    (parseResultMedia(result).imageUrl === undefined &&
-      (payloadIsStructured(cardPayload(result)) || resultChips(result).length > 0)),
 }

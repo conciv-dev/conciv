@@ -65,11 +65,11 @@ import {useChatSession} from '@conciv/client'
 import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {PAGE_TOOL_PREFIX, builtinToolMeta} from '@conciv/builtin-plugins/renderer'
-import {createPluginToolCards} from '../src/pane/plugin-tool-cards.jsx'
+import {createToolRender} from '../src/pane/tool-registry-render.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -284,7 +284,6 @@ describe('approval replay', () => {
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
         durationFor: () => undefined,
-        captureFor: () => undefined,
       })
       render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
       const callbacks = announced[0]
@@ -354,7 +353,6 @@ describe('approval replay', () => {
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
         durationFor: () => undefined,
-        captureFor: () => undefined,
       })
       render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
       const callbacks = announced[0]
@@ -3254,46 +3252,29 @@ describe('page session card', () => {
   const keep = keptPane()
   const faults = trackedFaults()
 
-  test('a built-in page card wins over builtinToolCards for the same tool', async () => {
+  test('a page call draws the card the page plugin registers, not the generic card', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const click: ToolCallPart = {
-      type: 'tool-call',
-      id: 'd1',
-      name: 'page_click',
-      arguments: JSON.stringify({selector: '#cta'}),
-      input: {selector: '#cta'},
-      state: 'complete',
-    }
     keep(
-      mountPane({base: core(), sessionId}, () => {
-        const pluginCards = createPluginToolCards(() => undefined)
-
-        return (
-          <ToolCallCard
-            part={click}
-            result={undefined}
-            ctx={INERT_TOOL_CTX}
-            tools={() => [...pluginCards(), ...builtinToolCards]}
-          />
-        )
-      }),
+      mountPane({base: core(), sessionId}, () => (
+        <ToolDisplay
+          id="d1"
+          tool="page_click"
+          input={{selector: '#cta'}}
+          metadata={{}}
+          status="completed"
+          sessionID={sessionId}
+          render={createToolRender()}
+        />
+      )),
     )
 
-    await page.getByRole('button', {name: /^page_click/}).click()
-    await expect.element(page.getByText('#cta')).toBeVisible()
+    await expect.element(page.getByText('Clicked', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('#cta', {exact: true})).toBeVisible()
     expect(document.body.textContent).not.toContain('Called page_click')
   })
 
-  test('a tanstack call draws the card the tanstack plugin claims, not the generic card', async () => {
+  test('a tanstack call draws the card the tanstack plugin registers, not the generic card', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const routerState: ToolCallPart = {
-      type: 'tool-call',
-      id: 't1',
-      name: 'tanstack_router_state',
-      arguments: '{}',
-      input: {},
-      state: 'complete',
-    }
     const match = (routeId: string) => ({
       id: routeId,
       routeId,
@@ -3306,28 +3287,23 @@ describe('page session card', () => {
       updatedAt: null,
       isFetching: false,
     })
-    const result: ToolResultPart = {
-      type: 'tool-result',
-      toolCallId: 't1',
-      content: JSON.stringify({
-        location: {pathname: '/about', search: '', hash: ''},
-        matches: [match('__root__'), match('/about')],
-      }),
-      state: 'complete',
-    }
+    const output = JSON.stringify({
+      location: {pathname: '/about', search: '', hash: ''},
+      matches: [match('__root__'), match('/about')],
+    })
     keep(
-      mountPane({base: core(), sessionId}, () => {
-        const pluginCards = createPluginToolCards(() => undefined)
-
-        return (
-          <ToolCallCard
-            part={routerState}
-            result={result}
-            ctx={INERT_TOOL_CTX}
-            tools={() => [...pluginCards(), ...builtinToolCards]}
-          />
-        )
-      }),
+      mountPane({base: core(), sessionId}, () => (
+        <ToolDisplay
+          id="t1"
+          tool="tanstack_router_state"
+          input={{}}
+          metadata={{}}
+          status="completed"
+          output={output}
+          sessionID={sessionId}
+          render={createToolRender()}
+        />
+      )),
     )
 
     await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
@@ -3508,7 +3484,16 @@ module.exports = {default: {setup(ctx) {
     await page.getByRole('link', {name: 'Settings'}).click()
     await page.getByRole('tab', {name: 'Plugins', exact: true}).click()
     const later = page.getByRole('switch', {name: 'later-cards', exact: true})
-    await later.click()
+    await expect.element(later).toBeChecked()
+    await expect.element(page.getByRole('tab', {name: 'Plugins', exact: true})).toHaveFocus()
+    const tabToLater = async (left: number): Promise<void> => {
+      if (left === 0 || document.activeElement === later.element()) return
+      await userEvent.keyboard('{Tab}')
+      await tabToLater(left - 1)
+    }
+    await tabToLater(16)
+    await expect.element(later).toHaveFocus()
+    await userEvent.keyboard(' ')
     await expect.element(later).not.toBeChecked()
     await page.getByRole('button', {name: 'Back to chat'}).click()
 

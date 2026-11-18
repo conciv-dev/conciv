@@ -1,9 +1,9 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import type {ToolProps} from '@conciv/plugin/experimental'
+import {JsonTree} from '@conciv/ui-kit-chat/tools'
 import {pageOperation} from './page-tool-names.js'
-import {QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError, mutatingBadge} from './shared.js'
+import {PageTool, QUIET_TEXT_CLASS, outputPayload} from './shared.js'
 
 const [SingleEffect, EffectList] = pageOperation('effect').output.options
 
@@ -48,27 +48,14 @@ function EffectRowView(props: {row: EffectRow}): JSX.Element {
   )
 }
 
-function EffectCard(props: ToolCardProps): JSX.Element {
-  const {meta, title} = cardHeader(props)
-  const payload = () => cardPayload(props.result)
+export function EffectCard(props: ToolProps): JSX.Element {
+  const payload = () => outputPayload(props.output)
   const rows = () => readRows(payload())
-  const errorMessage = () => cardErrorMessage(props.result)
-  const chipSkip = () => (rows() === undefined ? undefined : EFFECT_NAME_KEYS)
+  const skip = () => (rows() === undefined ? undefined : EFFECT_NAME_KEYS)
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      metaBadge={mutatingBadge(meta())}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      chipSkip={chipSkip()}
-    >
+    <PageTool {...props} skip={skip()} hasContent={payload() !== undefined}>
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>
-            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
-          </Match>
           <Match when={rows()}>
             {(list) => (
               <Show when={list().length > 0} fallback={<p class={QUIET_TEXT_CLASS}>the page registered no effects</p>}>
@@ -89,11 +76,6 @@ function EffectCard(props: ToolCardProps): JSX.Element {
           </Match>
         </Switch>
       </div>
-    </CardShell>
+    </PageTool>
   )
-}
-
-export const effectCard: ToolCardView = {
-  render: EffectCard,
-  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

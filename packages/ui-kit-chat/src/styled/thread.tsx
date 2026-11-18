@@ -86,6 +86,7 @@ export type TurnPrefixSource = {key: string; role: Turn['role']; turn: Accessor<
 export type ThreadRootProps = ParentProps<{class?: string}>
 
 export type ThreadMessagesProps = {
+  sessionID?: string
   components?: ThreadComponents
   tools?: ToolCardEntry[]
   render?: ToolRender
@@ -297,6 +298,7 @@ function AssistantTurn(props: {
                     entries={props.entries}
                     render={props.render}
                     disclosure={disclosure}
+                    sessionID={config.sessionID()}
                     durationMs={durationMs()}
                     ring={branch.ring}
                     chain
@@ -362,6 +364,7 @@ function AssistantTurn(props: {
                     entries={props.entries}
                     render={props.render}
                     disclosure={disclosure}
+                    sessionID={config.sessionID()}
                     durationMs={durationMs()}
                     chain={false}
                   />
@@ -384,6 +387,7 @@ function AssistantTurn(props: {
                 node={group()}
                 parts={parts}
                 resultFor={turnParts.resultFor}
+                sessionID={config.sessionID()}
                 streaming={nodeLive(group())}
                 folded={folded()}
               >
@@ -464,6 +468,7 @@ function UserTurn(): JSX.Element {
 }
 
 type ThreadConfig = {
+  sessionID: () => string | undefined
   entries: () => ToolCardEntry[]
   render: () => ToolRender | undefined
   assistant: () => Component | undefined
@@ -477,6 +482,7 @@ type ThreadConfig = {
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
+  sessionID: () => undefined,
   entries: () => [],
   render: () => undefined,
   assistant: () => undefined,
@@ -593,6 +599,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   return (
     <ThreadConfigContext.Provider
       value={{
+        sessionID: () => props.sessionID,
         entries: () => props.tools ?? [],
         render: () => props.render,
         assistant: () => props.components?.AssistantMessage,

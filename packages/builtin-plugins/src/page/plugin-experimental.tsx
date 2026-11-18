@@ -1,14 +1,15 @@
 import {onCleanup} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
-import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
-import {ToolCall} from '@conciv/plugin/experimental/builtin'
+import {createKeyed, Plugin, Slot, ToolRegistry, type MountedSession} from '@conciv/plugin/experimental'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition} from '@conciv/plugin-page/rpc'
 import {openAttachment} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
-import {pageToolCalls} from './cards/page-tool-cards.js'
+import {pageToolCards} from './cards/page-tool-cards.js'
+import {SessionCaptures} from './session-captures.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
 import {readTab, reportChanges} from './tab.js'
 
@@ -126,7 +127,18 @@ export default Plugin.define({
     ctx.add(PageEffect, highlight.effect)
     onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
 
-    pageToolCalls.forEach((call) => ctx.add(ToolCall, call))
+    pageToolCards.forEach(({card, tools}) =>
+      tools.forEach((name) =>
+        ctx.add(ToolRegistry, {
+          name,
+          render: (props) => (
+            <SessionCaptures sessionID={props.sessionID}>
+              <Dynamic component={card} {...props} />
+            </SessionCaptures>
+          ),
+        }),
+      ),
+    )
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 

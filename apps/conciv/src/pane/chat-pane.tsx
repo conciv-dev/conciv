@@ -62,7 +62,6 @@ import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
-import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
@@ -84,9 +83,13 @@ import {
 } from './plugin-session-parts.js'
 import {createPluginToolCards} from './plugin-tool-cards.js'
 import {createToolRender} from './tool-registry-render.js'
+import {Contribution} from '../runtime/plugin/render'
 
 const PAGE_SESSION: PageSessionConfig = {
-  entry: pageSessionEntry,
+  entry: {
+    key: pageSessionEntry.key,
+    render: (props) => <Contribution plugin="page">{() => pageSessionEntry.render(props)}</Contribution>,
+  },
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }
@@ -260,7 +263,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
   }
-  const captures = useSessionCaptures(sessionId)
   const draftStorage = makeDraftStorage(appData, sessionId)
 
   const messaging = usePaneMessaging({
@@ -282,7 +284,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: messaging.onAnswer,
     durationFor: createToolDurations(chat.messages, Date.now),
-    captureFor: captures.lookup,
   })
 
   const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
@@ -419,6 +420,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       </Thread.Welcome>
                     </Show>
                     <Thread.Messages
+                      sessionID={sessionId}
                       tools={tools()}
                       attachmentCards={attachments().cards}
                       render={toolRender}

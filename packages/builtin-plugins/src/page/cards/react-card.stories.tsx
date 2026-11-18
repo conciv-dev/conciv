@@ -1,57 +1,26 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {ReactCard, reactCard} from './react-card.js'
-import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReactCard'}
 export default meta
 type Story = StoryObj
 
-const locateMeta: ToolViewMeta = {
-  summary: 'find the source location that rendered an element',
-  category: 'react',
-  icon: 'react',
-  label: {running: 'Locating the source', done: 'Located the source'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
-  outputSchema: {type: 'object', properties: {component: {type: 'string'}}},
-}
-
-const inspectMeta: ToolViewMeta = {
-  summary: 'read props, state, hooks and context of a live component',
-  category: 'react',
-  icon: 'react',
-  label: {running: 'Inspecting a component', done: 'Inspected a component'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
-  outputSchema: {type: 'object', properties: {component: {type: 'string'}}},
-}
-
-const trackMeta: ToolViewMeta = {
-  summary: 'record and report React re-renders',
-  category: 'react',
-  icon: 'react',
-  label: {running: 'Tracking renders', done: 'Tracked renders'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {action: {type: 'string'}}, required: []},
-  outputSchema: {type: 'object', properties: {components: {type: 'array'}}},
-}
-
 export const LocatedSource: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReactCard
-        part={storyPart('page_locate', {selector: '#checkout'})}
-        result={storyResult({
-          component: 'CheckoutButton',
-          stack: ['CheckoutButton', 'CheckoutForm'],
-          frames: [{fileName: 'src/checkout/button.tsx', line: 42, fn: 'CheckoutButton'}],
-          source: {file: 'src/checkout/button.tsx', line: 42, column: 3},
-        })}
-        ctx={storyCtx({page_locate: locateMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_locate',
+          {selector: '#checkout'},
+          {
+            component: 'CheckoutButton',
+            stack: ['CheckoutButton', 'CheckoutForm'],
+            frames: [{fileName: 'src/checkout/button.tsx', line: 42, fn: 'CheckoutButton'}],
+            source: {file: 'src/checkout/button.tsx', line: 42, column: 3},
+          },
+        )}
       />
     </div>
   ),
@@ -67,16 +36,17 @@ export const LocatedSource: Story = {
 export const InspectedProps: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReactCard
-        part={storyPart('page_inspect', {selector: '#checkout'})}
-        result={storyResult({
-          component: 'CheckoutButton',
-          props: {label: 'Ship it', disabled: false},
-          state: null,
-          hooks: [{id: 0, value: 'idle'}],
-        })}
-        ctx={storyCtx({page_inspect: inspectMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_inspect',
+          {selector: '#checkout'},
+          {
+            component: 'CheckoutButton',
+            props: {label: 'Ship it', disabled: false},
+            state: null,
+            hooks: [{id: 0, value: 'idle'}],
+          },
+        )}
       />
     </div>
   ),
@@ -91,20 +61,21 @@ export const InspectedProps: Story = {
 export const RenderCounts: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReactCard
-        part={storyPart('page_track', {action: 'report'})}
-        result={storyResult({
-          tracking: true,
-          tracked: 2,
-          timingsAvailable: false,
-          components: [
-            {component: 'CheckoutForm', renders: 12, lastReason: 'props changed'},
-            {component: 'PriceLabel', renders: 1, lastReason: 'parent render'},
-          ],
-          note: 'render durations need a profiling build (react-dom/profiling or <Profiler>)',
-        })}
-        ctx={storyCtx({page_track: trackMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_track',
+          {action: 'report'},
+          {
+            tracking: true,
+            tracked: 2,
+            timingsAvailable: false,
+            components: [
+              {component: 'CheckoutForm', renders: 12, lastReason: 'props changed'},
+              {component: 'PriceLabel', renders: 1, lastReason: 'parent render'},
+            ],
+            note: 'render durations need a profiling build (react-dom/profiling or <Profiler>)',
+          },
+        )}
       />
     </div>
   ),
@@ -119,11 +90,12 @@ export const RenderCounts: Story = {
 export const NoRenders: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReactCard
-        part={storyPart('page_track', {action: 'report'})}
-        result={storyResult({tracking: true, tracked: 0, timingsAvailable: true, components: []})}
-        ctx={storyCtx({page_track: trackMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_track',
+          {action: 'report'},
+          {tracking: true, tracked: 0, timingsAvailable: true, components: []},
+        )}
       />
     </div>
   ),
@@ -134,32 +106,32 @@ export const NoRenders: Story = {
   },
 }
 
-const reactTool: ToolCardEntry = {names: ['page_tree'], ...reactCard}
-
 export const Trace: Story = {
   render: () =>
     traceGallery('1 tree', [
       traceRow(
-        reactTool,
-        storyPart('page_tree', {selector: '#checkout'}),
-        storyResult({
-          nodes: [
-            {
-              component: 'CheckoutForm',
-              ref: 'e1',
-              children: [
-                {component: 'EmailField', ref: 'e2', children: []},
-                {component: 'SubmitButton', ref: 'e3', children: []},
-              ],
-            },
-          ],
-          truncated: 0,
-        }),
+        storyCall(
+          'page_tree',
+          {selector: '#checkout'},
+          {
+            nodes: [
+              {
+                component: 'CheckoutForm',
+                ref: 'e1',
+                children: [
+                  {component: 'EmailField', ref: 'e2', children: []},
+                  {component: 'SubmitButton', ref: 'e3', children: []},
+                ],
+              },
+            ],
+            truncated: 0,
+          },
+        ),
       ),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('tree')).toBeVisible()
+    await expect(canvas.getByText('Read the page tree')).toBeVisible()
     await expect(canvas.getByText('#checkout')).toBeVisible()
     await waitFor(() => expect(canvas.getByText(/nodes:/)).toBeVisible())
   },

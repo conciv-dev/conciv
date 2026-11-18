@@ -20,7 +20,7 @@ import {
 import {MetaToolCard, metaToolHasEmbeddedBody} from './meta-tool-card.js'
 import {toolFallbackHasEmbeddedBody} from './tool-fallback.js'
 import {genericToolRowProjection} from './generic-tool-headline.js'
-import {CardChromeProvider, ToolDurationProvider, type EmbeddedHeaderChannel} from './card-chrome.js'
+import {CardChromeProvider, ToolPartProvider, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
 import {TraceBodyFrame, type TraceOutputTone} from '../../styled/trace/output-block.js'
 
@@ -49,9 +49,9 @@ export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
   const duration = (): number | undefined => props.durationMs
   return (
-    <ToolDurationProvider value={duration}>
+    <ToolPartProvider callId={props.part.id} duration={duration}>
       <ToolCardView {...props} />
-    </ToolDurationProvider>
+    </ToolPartProvider>
   )
 }
 

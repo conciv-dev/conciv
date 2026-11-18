@@ -53,10 +53,11 @@ export {TraceMark, TraceRing, TraceRunRow, TraceToolRow} from './styled/trace/tr
 export {TraceBodyFrame, TraceOutputBlock, type TraceOutputTone} from './styled/trace/output-block.js'
 export {
   CardChromeProvider,
-  ToolDurationProvider,
+  ToolPartProvider,
   useCardChrome,
   useEmbeddedCard,
   useToolCallDuration,
+  useToolCallId,
   type CardChrome,
 } from './tools/styled/card-chrome.js'
 export {TraceActionRow} from './styled/trace/action-row.js'

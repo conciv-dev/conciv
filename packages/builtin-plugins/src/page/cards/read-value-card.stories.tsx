@@ -1,44 +1,16 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {ReadValueCard, readValueCard} from './read-value-card.js'
-import {
-  STORY_FRAME_CLASS,
-  storyAddResult,
-  storyCtx,
-  storyErrorResult,
-  storyPart,
-  storyResult,
-} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, StoryTool, storyCall, storyFailedCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReadValueCard'}
 export default meta
 type Story = StoryObj
 
-const textMeta: ToolViewMeta = {
-  summary: 'read the visible text of an element',
-  category: 'read',
-  icon: 'read',
-  label: {running: 'Reading text', done: 'Read the text'},
-  mutating: false,
-  inputSchema: {
-    type: 'object',
-    properties: {selector: {type: 'string'}, ref: {type: 'string'}, name: {type: 'string'}},
-    required: [],
-  },
-  outputSchema: {type: 'object', properties: {text: {type: 'string'}}},
-}
-
 export const ElementAndValue: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadValueCard
-        part={storyPart('page_text', {selector: '#headline'})}
-        result={storyResult({text: 'Ship it on Friday'})}
-        ctx={storyCtx({page_text: textMeta})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_text', {selector: '#headline'}, {text: 'Ship it on Friday'})} />
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -53,11 +25,8 @@ export const ElementAndValue: Story = {
 export const RootArray: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadValueCard
-        part={storyPart('page_text', {selector: '.item'})}
-        result={storyResult(['Ship the trace redesign', 'Write the session log spec'])}
-        ctx={storyCtx({})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall('page_text', {selector: '.item'}, ['Ship the trace redesign', 'Write the session log spec'])}
       />
     </div>
   ),
@@ -73,17 +42,18 @@ export const RootArray: Story = {
 export const RouteObject: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadValueCard
-        part={storyPart('page_route', {})}
-        result={storyResult({
-          pathname: '/checkout',
-          search: '?step=2',
-          href: 'https://shop.test/checkout?step=2',
-          title: 'Checkout',
-          state: 'visible',
-        })}
-        ctx={storyCtx({})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_route',
+          {},
+          {
+            pathname: '/checkout',
+            search: '?step=2',
+            href: 'https://shop.test/checkout?step=2',
+            title: 'Checkout',
+            state: 'visible',
+          },
+        )}
       />
     </div>
   ),
@@ -95,28 +65,15 @@ export const RouteObject: Story = {
   },
 }
 
-const readValueTool: ToolCardEntry = {
-  names: ['page_text', 'page_exists'],
-  ...readValueCard,
-}
-
 export const Trace: Story = {
   render: () =>
     traceGallery('2 reads', [
-      traceRow(
-        readValueTool,
-        storyPart('page_text', {selector: '#headline'}, 'complete', 'r1'),
-        storyResult({text: 'Ship it on Friday'}, 'complete', 'r1'),
-      ),
-      traceRow(
-        readValueTool,
-        storyPart('page_exists', {selector: '#missing'}, 'complete', 'r2'),
-        storyErrorResult('element not found: #missing', 'r2'),
-      ),
+      traceRow(storyCall('page_text', {selector: '#headline'}, {text: 'Ship it on Friday'}, 'r1')),
+      traceRow(storyFailedCall('page_exists', {selector: '#missing'}, 'element not found: #missing', 'r2')),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByText('text').length).toBeGreaterThan(0)
+    await expect(canvas.getAllByText('Read the text').length).toBeGreaterThan(0)
     await expect(canvas.getAllByText(/Ship it on Friday/).length).toBeGreaterThan(0)
   },
 }
