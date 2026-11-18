@@ -889,6 +889,7 @@ describe('the comments of the whiteboard plugin', () => {
       const deleted = observer.mark()
       await thread.getByRole('button', {name: 'Delete thread'}).click()
       const confirm = page.getByRole('dialog', {name: 'Delete this thread?'})
+      await expect(confirm.getByRole('button', {name: 'Cancel'})).toBeFocused()
       await confirm.getByRole('button', {name: 'Delete'}).click()
       await expect(confirm).toBeHidden()
       await expect(thread).toBeHidden()

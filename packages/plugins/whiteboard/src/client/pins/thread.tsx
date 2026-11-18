@@ -84,28 +84,17 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
   const model = useComments()
   const confirmDelete = (): void => {
     const root = props.root
-    ctx.dialogs.open((dialog) => (
-      <ui.Dialog
-        title="Delete this thread?"
-        description="This removes the comment, all its replies, and its pin."
-        footer={
-          <>
-            <ui.Button variant="ghost" onClick={() => dialog.close()}>
-              Cancel
-            </ui.Button>
-            <ui.Button
-              variant="danger"
-              onClick={() => {
-                model.deleteThread(root)
-                dialog.close()
-              }}
-            >
-              Delete
-            </ui.Button>
-          </>
-        }
-      />
-    ))
+    void ctx.dialogs
+      .confirm({
+        title: 'Delete this thread?',
+        description: 'This removes the comment, all its replies, and its pin.',
+        confirm: 'Delete',
+        danger: true,
+      })
+      .then(
+        (confirmed) => confirmed && model.deleteThread(root),
+        (error: unknown) => console.error('[whiteboard] the delete confirm failed', error),
+      )
   }
   return (
     <header class="pb-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
