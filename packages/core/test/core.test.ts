@@ -37,6 +37,7 @@ import {
   browserRpcConnection,
   cappedValue,
   heldBrowserRpcLink,
+  createClientSettings,
   makeBrowserRpcClient,
   makeRpcClient,
   safeStringify,
@@ -44,6 +45,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
   type HeldBrowserRpcLink,
+  type SettingsStore,
   type TrustStatus,
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
@@ -64,15 +66,7 @@ import {
   type ConcivDb,
 } from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {
-  createClientSettings,
-  defineTool,
-  defineExtension,
-  makeExtRpcClient,
-  type AnyExtension,
-  type ExtensionScope,
-  type SettingsStore,
-} from '@conciv/extension'
+import {defineTool, defineExtension, makeExtRpcClient, type AnyExtension, type ExtensionScope} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
 import {
@@ -4260,6 +4254,45 @@ describe('session prompt hook', () => {
     expect(retried.errors()).toEqual([])
     expect(later).toEqual(['Refused'])
     expect(userTexts(await kit.hydrate(session))).toEqual(['Refused'])
+  })
+
+  test('a grabbed element reaches the harness as its text, and an empty or unreadable grab adds nothing', async () => {
+    const grabMime = 'application/vnd.conciv.grab+json'
+    const encoded = (body: string) => Buffer.from(body).toString('base64')
+    const grabBody = (text: string) => JSON.stringify({text, source: null, rect: null, preview: null})
+    const grabbed = (value: string) => ({
+      role: 'user',
+      content: [
+        {type: 'text', content: 'look at this'},
+        {type: 'document', source: {type: 'data', mimeType: grabMime, value}},
+      ],
+    })
+    const sentDocument = (value: string) =>
+      expect.objectContaining({type: 'document', source: {type: 'data', mimeType: grabMime, value}})
+    const {kit, asked} = await promptKit([])
+    const session = await kit.session()
+    const element = encoded(grabBody('<button class="save">Save</button>\n  in src/form.tsx:12'))
+    const empty = encoded(grabBody(''))
+    const unreadable = encoded('not a grab payload')
+
+    expect((await (await kit.turn(grabbed(element), {session})).done()).errors()).toEqual([])
+    expect(asked).toEqual([
+      [
+        {type: 'text', content: 'look at this'},
+        sentDocument(element),
+        {
+          type: 'text',
+          content: '<button class="save">Save</button>\n  in src/form.tsx:12',
+          metadata: {modelOnly: true},
+        },
+      ],
+    ])
+
+    expect((await (await kit.turn(grabbed(empty), {session})).done()).errors()).toEqual([])
+    expect(asked[1]).toEqual([{type: 'text', content: 'look at this'}, sentDocument(empty)])
+
+    expect((await (await kit.turn(grabbed(unreadable), {session})).done()).errors()).toEqual([])
+    expect(asked[2]).toEqual([{type: 'text', content: 'look at this'}, sentDocument(unreadable)])
   })
 })
 

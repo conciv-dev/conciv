@@ -1,8 +1,17 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
-import UnoCSS from 'unocss/vite'
+import UnoCSS, {type VitePluginConfig} from 'unocss/vite'
 import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import unoConfig from './uno.config.js'
+
+const widgetStyles: VitePluginConfig = {
+  ...unoConfig,
+  configFile: false,
+  content: {
+    filesystem: ['src/**/*.{ts,tsx}', '../ui-kit-system/src/**/*.{ts,tsx}', '../ui-kit-chat/src/**/*.{ts,tsx}'],
+  },
+}
 
 const browserTest = {
   ...ciTestSolidBrowser(),
@@ -15,7 +24,7 @@ export default defineConfig({
     ...ciTest(),
     projects: [
       {
-        plugins: [solidPlugin(), UnoCSS()],
+        plugins: [solidPlugin(), UnoCSS(widgetStyles)],
         resolve: {conditions: ['browser', 'development']},
         optimizeDeps: {
           include: [
@@ -34,7 +43,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [solidPlugin(), UnoCSS()],
+        plugins: [solidPlugin(), UnoCSS(widgetStyles)],
         resolve: {conditions: ['browser', 'development']},
         optimizeDeps: {
           include: [

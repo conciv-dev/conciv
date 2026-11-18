@@ -33,6 +33,7 @@ type BrowserName = 'chromium' | 'firefox'
 
 const TIMEZONE = 'Pacific/Kiritimati'
 const PERMISSIONS: Record<BrowserName, string[]> = {chromium: ['clipboard-read', 'clipboard-write'], firefox: []}
+const LAUNCH_ARGS: Record<BrowserName, string[]> = {chromium: ['--disable-lcd-text'], firefox: []}
 
 function browserProject(
   name: string,
@@ -55,7 +56,10 @@ function browserProject(
         provider: playwright({contextOptions: {timezoneId: TIMEZONE}}),
         instances: browsers.map((browser) => ({
           browser,
-          provider: playwright({contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]}}),
+          provider: playwright({
+            launchOptions: {args: LAUNCH_ARGS[browser]},
+            contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]},
+          }),
         })),
         commands: coreCommands,
       },

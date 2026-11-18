@@ -1,6 +1,10 @@
-import {createUniqueId, For, Show, type JSX} from 'solid-js'
-import {Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
-import {ToolCall, type ToolCallProps} from '@conciv/plugin/experimental/builtin'
+import {createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
+import {createStore, reconcile, unwrap} from 'solid-js/store'
+import {createKeyed, Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
+import {ToolCall} from '@conciv/plugin/experimental/builtin'
+import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {MetaToolCard, parseResultPayload, StatusVisual, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {
   countLabel,
   counts,
@@ -8,16 +12,21 @@ import {
   failingLabel,
   failureLocation,
   fixPrompt,
-  groupByFile,
+  fileGroup,
+  followTestRun,
+  initialRunState,
   parseRunResult,
   pathTail,
   relativePath,
   shortDuration,
   STATE_LABEL,
+  testFiles,
+  transitionRun,
   type FileGroup,
+  type RunAction,
+  type Summary,
   type TestError,
   type TestRow,
-  type TestRunResult,
 } from '@conciv/plugin-test-runner/view'
 
 type Actions = {
@@ -178,29 +187,75 @@ function FileSection(props: Actions & {group: FileGroup; accordion: string}): JS
   )
 }
 
-function RunCard(props: Actions & {result: TestRunResult}): JSX.Element {
-  const summary = () => props.result.summary
+type RunView = {
+  readonly summary: Summary
+  readonly tests: readonly TestRow[]
+  readonly running: boolean
+}
+
+function RunCard(props: Actions & RunView): JSX.Element {
   const accordion = createUniqueId()
+  const sentence = () => `${props.running ? 'Test run in progress' : 'Test run finished'}: ${counts(props.summary)}`
   return (
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5 items-center" role="status" aria-live="polite">
-        <span class="sr-only">{`Test run finished: ${counts(summary())}`}</span>
+        <span class="sr-only">{sentence()}</span>
         <div class="flex flex-wrap gap-1.5 items-center" aria-hidden="true">
-          <Pill tone="success">{countLabel(summary().passed, 'passed')}</Pill>
-          <Show when={summary().failed > 0}>
-            <Pill tone="danger">{countLabel(summary().failed, 'failed')}</Pill>
+          <Show when={props.running}>
+            <span class="text-chat-xs text-chat-text-3 font-chat-mono inline-flex gap-1.25 items-center">
+              <StatusVisual status="running" form="dot" />
+              running
+            </span>
           </Show>
-          <Show when={summary().skipped > 0}>
-            <Pill tone="neutral">{countLabel(summary().skipped, 'skipped')}</Pill>
+          <Pill tone="success">{countLabel(props.summary.passed, 'passed')}</Pill>
+          <Show when={props.summary.failed > 0}>
+            <Pill tone="danger">{countLabel(props.summary.failed, 'failed')}</Pill>
+          </Show>
+          <Show when={props.summary.skipped > 0}>
+            <Pill tone="neutral">{countLabel(props.summary.skipped, 'skipped')}</Pill>
           </Show>
         </div>
       </div>
       <div class="flex flex-col gap-0.5">
-        <For each={groupByFile(props.result.tests)}>
-          {(group) => <FileSection {...props} group={group} accordion={accordion} />}
+        <For each={testFiles(props.tests)}>
+          {(file) => <FileSection {...props} group={fileGroup(props.tests, file)} accordion={accordion} />}
         </For>
       </div>
     </div>
+  )
+}
+
+type Client = Context['client']
+
+function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
+  const [run, setRun] = createStore(initialRunState)
+  const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
+
+  createKeyed(
+    () => props.client(),
+    (client) => {
+      const controller = new AbortController()
+      onCleanup(() => controller.abort())
+      void followTestRun(client, controller.signal, dispatch)
+    },
+  )
+
+  return (
+    <Switch fallback={<RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase === 'running'} />}>
+      <Match when={run.phase === 'unavailable'}>
+        <div class="flex flex-col gap-1">
+          <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+            The test runner is unavailable
+          </p>
+          <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{run.reason}</p>
+        </div>
+      </Match>
+      <Match when={run.phase === 'idle'}>
+        <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+          No test run yet
+        </p>
+      </Match>
+    </Switch>
   )
 }
 
@@ -214,27 +269,49 @@ function openFailure(ctx: Context, error: TestError): void {
   })
 }
 
-function renderRun(ctx: Context, call: ToolCallProps): JSX.Element | undefined {
-  const result = call.result.status === 'success' ? parseRunResult(call.result.output) : undefined
-  if (!result) return undefined
+function TestRunBody(
+  props: Actions & {status: ToolStatus; result: ToolResultPart | undefined; client: () => Client | undefined},
+): JSX.Element {
+  const finished = () => (props.status === 'complete' ? parseRunResult(parseResultPayload(props.result)) : undefined)
   return (
-    <RunCard
-      ui={ctx.ui}
-      result={result}
-      canOpen={ctx.desktop !== undefined}
-      onOpen={(error) => openFailure(ctx, error)}
-      onFix={(error) =>
-        ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, call.session.directory)))
-      }
-    />
+    <Show when={finished()} fallback={<LiveRunCard {...props} />}>
+      {(result) => <RunCard {...props} summary={result().summary} tests={result().tests} running={false} />}
+    </Show>
   )
+}
+
+function testRunCard(ctx: Context): (props: ToolCardProps) => JSX.Element {
+  const session = () => ctx.sessions.current()
+  const client = () => session()?.server.client
+  const actions: Actions = {
+    ui: ctx.ui,
+    canOpen: ctx.desktop !== undefined,
+    onOpen: (error) => openFailure(ctx, error),
+    onFix: (error) =>
+      ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, session()?.directory ?? ''))),
+  }
+  return (props) => {
+    const status = () => toolStatus(props.part, props.result)
+    const streams = () => props.part.name === 'test_runner_run' && status() === 'running'
+    const finished = () => status() === 'complete' && parseRunResult(parseResultPayload(props.result)) !== undefined
+    return (
+      <MetaToolCard
+        {...props}
+        body={
+          streams() || finished() ? (
+            <TestRunBody {...actions} status={status()} result={props.result} client={client} />
+          ) : undefined
+        }
+      />
+    )
+  }
 }
 
 export default Plugin.define({
   setup(ctx) {
     ctx.add(ToolCall, {
       tools: ['test_runner_run', 'test_runner_status'],
-      render: (call) => renderRun(ctx, call),
+      card: {render: testRunCard(ctx), hasEmbeddedBody: () => true},
     })
   },
 })

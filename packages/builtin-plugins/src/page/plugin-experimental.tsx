@@ -3,26 +3,20 @@ import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
-import {Definition, type Tab} from '@conciv/plugin-page/rpc'
+import {Definition} from '@conciv/plugin-page/rpc'
 import {openAttachment} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCalls} from './cards/page-tool-cards.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
-
-const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
+import {readTab, reportChanges} from './tab.js'
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
 const RETRY_BASE_MS = 1000
 
 const RETRY_MAX_MS = 30_000
-
-function reportChanges(report: () => void, signal: AbortSignal) {
-  TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
-  document.addEventListener('visibilitychange', report, {signal})
-}
 
 function woken(signal: AbortSignal) {
   const woke = new AbortController()
@@ -42,13 +36,7 @@ export default Plugin.define({
     const operations = makePageOperations(ctx)
     const routed = () => ctx.sessions.current()
 
-    const tab = (): Tab => ({
-      id: tabId,
-      url: location.href,
-      title: document.title,
-      focused: document.hasFocus(),
-      visible: document.visibilityState === 'visible',
-    })
+    const tab = () => readTab(tabId)
 
     const keep = async (session: MountedSession, signal: AbortSignal) => {
       for (let refusals = 0; ;) {

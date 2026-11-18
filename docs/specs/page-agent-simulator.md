@@ -6,7 +6,7 @@ When the agent acts on the live page (click, hover, fill, select, check, press, 
 a mask with the page-agent glow covers the page, the agent's cursor glides to each target, ripples on press, and
 the action then runs as a real browser input sequence. Two clicks on the mask stop the run.
 
-Today conciv has no visuals, and the act verbs in `packages/extensions/page/src/client/bodies.ts` dispatch thin
+Today conciv has no visuals, and the act verbs in `packages/builtin-plugins/src/page/page-act.ts` dispatch thin
 synthetic events (`el.click()` with no pointer sequence, `mouseover` with no coordinates, fill with no focus,
 `KeyboardEvent` without `composed`/`cancelable`). Menus that open on `pointerdown` (Ark/zag/Radix) never open.
 
@@ -65,7 +65,7 @@ The only allowed changes are the ones this spec lists.
 
 The simulator and cursor engine run in the host page, next to the page tool dispatcher: `packages/page/src`
 (Solid is fine there if the package already depends on it; otherwise say so before adding it). The act bodies in
-`packages/extensions/page/src/client/bodies.ts` call the ported `simulateClick`, `pointAt`, `hover`, `fill`,
+`packages/builtin-plugins/src/page/page-act.ts` call the ported `simulateClick`, `pointAt`, `hover`, `fill`,
 `select`, `setChecked`, `press`. Fewest files: fold small modules together rather than mirror the toolbar's file
 split. `ai-motion` is approved as a new dependency (use the pnpm catalog, pin `0.4.8` like the toolbar).
 

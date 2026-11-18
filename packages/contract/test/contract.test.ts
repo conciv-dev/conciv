@@ -12,6 +12,7 @@ import {decodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
+import {mergeSettings} from '../src/settings.js'
 
 describe('client', () => {
   describe('makeRpcClient', () => {
@@ -476,3 +477,22 @@ function takeMaskedFrames(pending: {buffer: Buffer}): MaskedFrame[] {
   )
   return [{opcode: buffer.readUInt8(0) & 0x0f, payload}, ...takeMaskedFrames(pending)]
 }
+
+describe('settings', () => {
+  it('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
+    const global = {
+      skin: 'terminal',
+      launcher: 'hidden',
+      docksHidden: ['notes', 'terminal'],
+      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+T']},
+    }
+    const project = {launcher: null, docksHidden: ['files'], commandShortcuts: {quickTerminal: ['Mod+K']}}
+    expect(mergeSettings(project, global)).toEqual({
+      skin: 'terminal',
+      launcher: 'hidden',
+      docksHidden: ['files'],
+      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+K']},
+    })
+    expect(mergeSettings({}, global)).toEqual(global)
+  })
+})

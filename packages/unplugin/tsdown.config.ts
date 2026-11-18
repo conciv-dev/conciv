@@ -15,6 +15,7 @@ export default defineConfig({
     'src/core/extensions-watch.ts',
     'src/core/widget-start.ts',
     'src/core/no-app-extensions.ts',
+    'src/core/vite-bridge.ts',
   ],
   format: 'esm',
   fixedExtension: false,
