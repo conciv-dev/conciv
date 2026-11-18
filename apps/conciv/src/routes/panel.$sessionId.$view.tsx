@@ -1,7 +1,10 @@
 import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstack/solid-router'
-import {Show, createMemo, createSignal, type JSX} from 'solid-js'
+import {For, Show, createMemo, createSignal, createUniqueId, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
+import {AttachmentByMime, AttachmentProvider, AttachmentRemoveProvider, type AttachmentState} from '@conciv/ui-kit-chat'
+import type {Grab} from '@conciv/grab'
+import {GRAB_MIME, grabToFile} from '@conciv/grab/grab-attachment'
 import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {PluginBoundary} from '../runtime/plugin/plugin-boundary.js'
@@ -12,6 +15,7 @@ import {useStartSession} from '../app/start-session.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
 import {isPluginView} from '../runtime/plugin/panel-keys.js'
 import {PluginTabContent} from '../shell/plugin-surfaces.js'
+import {attachmentCards} from '../pane/pane-attachments.js'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({
   beforeLoad: ({context, params}) => {
@@ -27,6 +31,44 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
   },
   component: PanelView,
 })
+
+function stagedGrabAttachment(grab: Grab): AttachmentState {
+  const file = grabToFile(grab)
+  return {
+    id: `staged-grab-${createUniqueId()}`,
+    type: 'document',
+    name: file.name,
+    contentType: GRAB_MIME,
+    file,
+    status: {type: 'requires-action', reason: 'composer-send'},
+  }
+}
+
+function StagedGrabStrip(): JSX.Element {
+  const instances = useInstances()
+  const pane = usePane()
+  const chips = createMemo(() =>
+    attachmentCards(
+      instances.map((instance) => instance.extension),
+      'chip',
+    ),
+  )
+  return (
+    <Show when={pane.grabStaging.staged().length > 0}>
+      <div class="px-3 pt-2 flex flex-wrap gap-1">
+        <For each={pane.grabStaging.staged()}>
+          {(grab) => (
+            <AttachmentProvider value={stagedGrabAttachment(grab)}>
+              <AttachmentRemoveProvider value={() => pane.grabStaging.remove(grab)}>
+                <AttachmentByMime cards={chips()} removable />
+              </AttachmentRemoveProvider>
+            </AttachmentProvider>
+          )}
+        </For>
+      </div>
+    </Show>
+  )
+}
 
 function PanelView(): JSX.Element {
   const params = Route.useParams()
@@ -62,6 +104,7 @@ function PanelView(): JSX.Element {
 
   return (
     <>
+      <StagedGrabStrip />
       <Show when={mountKey()} keyed>
         {(mount) => (
           <HostApiProvider

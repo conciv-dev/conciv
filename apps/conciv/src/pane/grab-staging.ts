@@ -22,6 +22,7 @@ export type ComposerGrabPort = {
 export type GrabStaging = {
   stage: (grab: Grab) => void
   staged: () => readonly Grab[]
+  remove: (grab: Grab) => void
   clear: () => void
   reconcile: (attachments: readonly AttachmentState[]) => void
   connect: (port: ComposerGrabPort) => void
@@ -55,16 +56,16 @@ async function fitted(grab: Grab): Promise<Grab> {
 }
 
 export function makeGrabStaging(deps: Deps): GrabStaging {
-  const [payloads, setPayloads] = createSignal<ReadonlyMap<string, GrabPayload>>(new Map())
+  const [placedGrabs, setPlacedGrabs] = createSignal<ReadonlyMap<string, Grab>>(new Map())
   const [pending, setPending] = createSignal<readonly StagedEntry[]>([])
   const [port, setPort] = createSignal<ComposerGrabPort | null>(null)
 
   const remember = (id: string, payload: GrabPayload): void => {
-    setPayloads((current) => new Map(current).set(id, payload))
+    setPlacedGrabs((current) => new Map(current).set(id, toGrab(payload)))
   }
 
   const forget = (id: string): void => {
-    setPayloads((current) => new Map([...current].filter(([known]) => known !== id)))
+    setPlacedGrabs((current) => new Map([...current].filter(([known]) => known !== id)))
   }
 
   const drop = (entry: StagedEntry): void => {
@@ -80,7 +81,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       if (!isLive(entry, composer)) return
       const id = await composer.addAttachment(grabToFile(prepared))
       if (!isLive(entry, composer)) {
-        if (id) void composer.removeAttachment(id)
+        if (id) void composer.removeAttachment(id).catch(() => {})
         return
       }
       entry.id = id
@@ -107,7 +108,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     if (!isLive(entry, composer)) return
     const replaced = await composer.replaceAttachment(entry.id, grabToFile(prepared))
     if (!isLive(entry, composer)) {
-      if (replaced) void composer.removeAttachment(replaced)
+      if (replaced) void composer.removeAttachment(replaced).catch(() => {})
       return
     }
     forget(entry.id)
@@ -137,13 +138,27 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
 
   const staged = (): readonly Grab[] => {
     const composer = port()
-    const known = payloads()
+    const known = placedGrabs()
     const placed = (composer?.attachments() ?? []).filter(isGrabAttachment).flatMap((attachment) => {
-      const payload = known.get(attachment.id)
-      return payload ? [toGrab(payload)] : []
+      const grab = known.get(attachment.id)
+      return grab ? [grab] : []
     })
     const waiting = pending().filter((entry) => entry.id === null)
     return [...placed, ...waiting.map((entry) => entry.grounded ?? entry.grab)]
+  }
+
+  const remove = (grab: Grab): void => {
+    const placed = [...placedGrabs()].find(([, known]) => known === grab)
+    if (placed) {
+      void port()
+        ?.removeAttachment(placed[0])
+        .catch(() => {})
+      return
+    }
+    const entry = pending().find(
+      (candidate) => candidate.id === null && (candidate.grounded ?? candidate.grab) === grab,
+    )
+    if (entry) drop(entry)
   }
 
   const clear = (): void => {
@@ -151,7 +166,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     const composer = port()
     if (!composer) return
     for (const attachment of composer.attachments().filter(isGrabAttachment))
-      void composer.removeAttachment(attachment.id)
+      void composer.removeAttachment(attachment.id).catch(() => {})
   }
 
   const hydrate = async (attachment: AttachmentState, file: File): Promise<void> => {
@@ -163,11 +178,11 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
   const reconcile = (attachments: readonly AttachmentState[]): void => {
     const grabs = attachments.filter(isGrabAttachment)
     const live = new Set(grabs.map((attachment) => attachment.id))
-    setPayloads((current) => new Map([...current].filter(([id]) => live.has(id))))
+    setPlacedGrabs((current) => new Map([...current].filter(([id]) => live.has(id))))
     for (const attachment of grabs) {
       const file = attachment.file
-      if (payloads().has(attachment.id) || !file) continue
-      void hydrate(attachment, file)
+      if (placedGrabs().has(attachment.id) || !file) continue
+      void hydrate(attachment, file).catch(() => {})
     }
   }
 
@@ -181,5 +196,5 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     setPort(null)
   }
 
-  return {stage, staged, clear, reconcile, connect, disconnect}
+  return {stage, staged, remove, clear, reconcile, connect, disconnect}
 }
