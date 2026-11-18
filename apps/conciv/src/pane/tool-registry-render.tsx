@@ -5,6 +5,7 @@ import {ToolRegistry, type ToolComponent, type ToolProps} from '@conciv/plugin/e
 import {GenericTool} from '@conciv/ui-kit-chat/tools'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
+import {usePluginsKnown} from '../runtime/plugin/root'
 
 function contributed(item: Item<ToolRegistry>, render: ToolComponent): ToolComponent {
   return (props: ToolProps): JSX.Element => (
@@ -14,13 +15,19 @@ function contributed(item: Item<ToolRegistry>, render: ToolComponent): ToolCompo
   )
 }
 
-export function createToolRender(): (name: string) => ToolComponent | undefined {
+export type ToolRender = {
+  ready: () => boolean
+  render: (name: string) => ToolComponent | undefined
+}
+
+export function createToolRender(): ToolRender {
   const host = usePluginHost()
+  const known = usePluginsKnown()
   const renders = createMemo(() =>
     mapValues(
       keyBy(host.items(ToolRegistry), (item) => item.value.name),
       (item) => (item.value.render === undefined ? undefined : contributed(item, item.value.render)),
     ),
   )
-  return (name) => renders()[name]
+  return {ready: () => host.ready() && known() === 'known', render: (name) => renders()[name]}
 }

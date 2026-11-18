@@ -3268,7 +3268,7 @@ describe('page session card', () => {
           metadata={{}}
           status="completed"
           sessionID={sessionId}
-          render={createToolRender()}
+          render={createToolRender().render}
         />
       )),
     )
@@ -3306,7 +3306,7 @@ describe('page session card', () => {
           status="completed"
           output={output}
           sessionID={sessionId}
-          render={createToolRender()}
+          render={createToolRender().render}
         />
       )),
     )
@@ -3506,6 +3506,19 @@ module.exports = {default: {setup(ctx) {
       .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
       .toBeVisible()
     await expect.element(page.getByText('Later probe card for hero', {exact: false})).not.toBeInTheDocument()
+
+    harness.dispose()
+    const reloaded = {generic: false}
+    const watch = new MutationObserver(() => {
+      if (document.body.textContent?.includes('Called registry_probe')) reloaded.generic = true
+    })
+    watch.observe(document.body, {childList: true, subtree: true, characterData: true})
+    onTestFinished(() => watch.disconnect())
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect
+      .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    expect(reloaded.generic).toBe(false)
   }, 60_000)
 })
 
