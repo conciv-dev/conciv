@@ -11,7 +11,7 @@ import type {
   RouteNodeKind,
   RouterCurrent,
   RouterLocation,
-} from '../rpc.js'
+} from './rpc.js'
 
 const MAX_FIBER_NODES = 50_000
 const MAX_TREE_DEPTH = 20

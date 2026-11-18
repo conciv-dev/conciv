@@ -1,7 +1,7 @@
 import type {Mutation, Query, QueryClient} from '@tanstack/react-query'
 import type {ReactFiber, ReactTree} from '@conciv/plugin/experimental/page'
 import {Predicate} from 'effect'
-import type {CacheEntry, CacheEntryState} from '../rpc.js'
+import type {CacheEntry, CacheEntryState} from './rpc.js'
 import {errorMessage, findInFibers} from './router-adapter.js'
 
 function isQueryClient(candidate: unknown): candidate is QueryClient {

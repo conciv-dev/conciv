@@ -2,7 +2,7 @@ import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import {Effect} from 'effect'
-import type {RouteInfo, RouteInfoKind} from '../rpc.js'
+import type {RouteInfo, RouteInfoKind} from './rpc.js'
 
 const FILE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const
 

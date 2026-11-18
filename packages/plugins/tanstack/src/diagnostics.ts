@@ -1,5 +1,5 @@
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {AppError} from '../rpc.js'
+import type {AppError} from './rpc.js'
 
 export type DiagnosticsRing = {
   push: (error: AppError) => void

@@ -1,5 +1,5 @@
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {ServerFnInfo, ServerFnTrace} from '../rpc.js'
+import type {ServerFnInfo, ServerFnTrace} from './rpc.js'
 
 export type ServerFnTraceRing = {
   observe: (diagnostic: Bundler.Diagnostic) => void

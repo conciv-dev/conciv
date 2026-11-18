@@ -1,4 +1,4 @@
-import type {AppError} from '../rpc.js'
+import type {AppError} from './rpc.js'
 
 const CAPACITY = 50
 

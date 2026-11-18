@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {Live} from '@conciv/plugin/experimental'
 import type {ReactTree} from '@conciv/plugin/experimental/page'
-import {Action, SHORT_MAX, type Method, type Reply} from '../rpc.js'
+import {Action, SHORT_MAX, type Method, type Reply} from './rpc.js'
 import {readRuntimeErrors} from './error-ring.js'
 import {invalidateQuery, readMutations, readQueryCache, refetchQuery} from './query-adapter.js'
 import {

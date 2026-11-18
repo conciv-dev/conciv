@@ -16,9 +16,9 @@ import {
   tabUnavailable,
 } from './failures.js'
 import {Action, Definition, Operations, Reply, type AppError, type Operation} from './rpc.js'
-import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
-import {readRouteManifest} from './server/route-manifest.js'
-import {makeServerFnTraceRing} from './server/serverfn-trace.js'
+import {buildErrorToAppError, makeDiagnosticsRing} from './diagnostics.js'
+import {readRouteManifest} from './route-manifest.js'
+import {makeServerFnTraceRing} from './serverfn-trace.js'
 import {info} from './skill.js'
 
 const options = {namespace: 'tanstack', codemode: true}
