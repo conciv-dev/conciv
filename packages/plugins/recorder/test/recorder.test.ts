@@ -19,7 +19,7 @@ const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestam
 const EventWindowSchema = z.object({events: z.array(RrwebEventSchema), cursor: z.number()})
 const LogSchema = z.object({entries: z.array(z.object({ts: z.number(), kind: z.string(), detail: z.string()}))})
 const SavedSchema = z.object({recordingId: z.string()})
-const SavedPosterSchema = z.object({recordingId: z.string(), poster: z.string()})
+const SavedSummarySchema = z.object({recordingId: z.string(), summary: z.string()})
 const RpcFailureSchema = z.object({data: z.object({type: z.string()})})
 const RpcErrorSchema = z.object({code: z.string(), status: z.number(), message: z.string(), data: z.unknown()})
 
@@ -372,8 +372,8 @@ describe('the recorder RPC', () => {
     expect(LogSchema.parse(await call(kit, 'log', {clientId: 'trim'})).entries.map((entry) => entry.kind)).toEqual([
       'click',
     ])
-    const trimmed = SavedPosterSchema.parse(await call(kit, 'recordings.save', {clientId: 'trim'}))
-    expect(trimmed.poster).toBe('Screen recording · 0 actions · 0s')
+    const trimmed = SavedSummarySchema.parse(await call(kit, 'recordings.save', {clientId: 'trim'}))
+    expect(trimmed.summary).toBe('0 actions · 0s')
     expect(await call(kit, 'recordings.get', {recordingId: trimmed.recordingId})).toEqual({
       kind: 'found',
       events: [keptSnapshot, keptTail],
