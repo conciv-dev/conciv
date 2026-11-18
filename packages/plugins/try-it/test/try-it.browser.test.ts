@@ -21,7 +21,6 @@ import {serveStaticDir, type ServedDir} from '@conciv/plugin-testkit/widget-suit
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 const HOST_ENTRY = fileURLToPath(new URL('./host/app.ts', import.meta.url))
-const LNA_STUB = fileURLToPath(new URL('./fixture/local-network-access-stub.js', import.meta.url))
 const WIDGET_DIR = dirname(createRequire(import.meta.url).resolve('@conciv/embed'))
 
 const WAITING = 'Waiting for your agent…'
@@ -161,15 +160,25 @@ describe('try-it composed into the widget', () => {
   }) => {
     const page = await browser.newPage()
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
-    await page.addInitScript({path: LNA_STUB})
+    const origin = new URL(site()).origin
+    const pageSession = await page.context().newCDPSession(page)
+    const {targetInfo} = await pageSession.send('Target.getTargetInfo')
+    const browserSession = await browser.newBrowserCDPSession()
+    await browserSession.send('Browser.setPermission', {
+      permission: {name: 'local-network-access'},
+      setting: 'denied',
+      origin,
+      browserContextId: targetInfo.browserContextId,
+    })
     await page.goto(`${site()}/?token=${randomUUID()}`, {waitUntil: 'domcontentloaded'})
     await expect(panel.getByRole('alert')).toHaveText(BLOCKED_STEP, {timeout: 20_000})
     await expect(panel.getByText(BLOCKED_STATUS)).toBeVisible()
     await expect(panel.getByText(WAITING)).toBeHidden()
 
-    await page.getByRole('button', {name: 'Grant local network access'}).click()
+    await page.context().grantPermissions(['local-network-access'], {origin})
     await expect(panel.getByText(WAITING)).toBeVisible()
     await expect(panel.getByRole('alert')).toHaveCount(0)
+    await browserSession.detach()
     await page.close()
   }, 60_000)
 
