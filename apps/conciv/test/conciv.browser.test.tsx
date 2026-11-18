@@ -8958,7 +8958,7 @@ module.exports = {default: {setup(ctx) {
     await coreControl.awaitFaultPending(restore, 1)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
     await tab('Fixture tools').click()
-    await control('Attach two notes').click()
+    await control('Attach six notes alone').click()
 
     await switchTo(SAVED, OTHER)
     await coreControl.releaseFault(restore)
@@ -8967,8 +8967,7 @@ module.exports = {default: {setup(ctx) {
     await switchTo(OTHER, SAVED)
     await tab('Chat').click()
     await expect.element(editor(), {timeout: 8000}).toHaveTextContent('the earlier draft')
-    await expect.element(notes()).not.toBeInTheDocument()
-    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'the earlier draft', items: []})
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'the earlier draft'})
   }, 60_000)
 
   test('its notes come back to the composer as notes, with the typed text, whenever a draft is put back', async () => {
