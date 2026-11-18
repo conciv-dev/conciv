@@ -588,19 +588,12 @@ describe('chat refresh', () => {
 })
 
 describe('session streams on the rpc socket', () => {
-  const SETTLE_MS = 150
-  const RECONNECT_MS = 1500
-
   let kit: ClientKit | undefined
 
   afterEach(async () => {
     await kit?.cleanup()
     kit = undefined
   })
-
-  function settled(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
 
   function textReply(text: string): PageReply {
     return {type: 'success', result: {value: {text}, files: []}}
@@ -647,25 +640,26 @@ describe('session streams on the rpc socket', () => {
       const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
       const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
       const warming = nextEvent(events)
-      await settled(SETTLE_MS)
-      await sendTurn(connection, sessionId, 'push-before')
+      booted.gate.hold()
+      const turningBefore = sendTurn(connection, sessionId, 'push-before')
       const before = await warming
-      if (before.type !== ChatEventType.CUSTOM)
-        throw new Error(`the chat stream served ${before.type}, not a session event`)
+      booted.gate.release()
+      await turningBefore
+      expect(sessionRunEvent.parse(before)).toEqual({runId: 'push-before'})
 
       await booted.restartServer()
       const seen: ChatEvent[] = []
-      const collecting = (async () => {
+      async function collect(): Promise<void> {
         for await (const chunk of events) seen.push(chunk)
-      })().catch(() => undefined)
-      await settled(RECONNECT_MS)
-      await sendTurn(connection, sessionId, 'push-after')
+      }
+      const collecting = collect().catch(() => undefined)
+      booted.gate.hold()
+      const turningAfter = sendTurn(connection, sessionId, 'push-after')
       await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
-      const frame = seen[0]
-      if (!frame) throw new Error('the resubscribed chat stream served no session event')
+      booted.gate.release()
+      await turningAfter
 
-      expect(frame).toMatchObject({type: ChatEventType.CUSTOM, name: before.name})
-      expect(seen).toHaveLength(1)
+      expect(seen.map((chunk) => sessionRunEvent.parse(chunk))).toEqual([{runId: 'push-after'}])
       abort.abort()
       await collecting
       browser.close()
