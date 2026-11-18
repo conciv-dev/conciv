@@ -76,7 +76,7 @@ import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
 import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notice.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
-import {makePaneGrabApi} from '../src/extension/pane-grab.js'
+import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
 import {
@@ -909,6 +909,28 @@ describe('chat pane', () => {
     await coreControl.releaseFault(gate)
 
     await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+  })
+
+  test('a first send while the marker rows still load keeps the conversation, the composer and the prompt on screen', async () => {
+    const {sessionId} = await newSession()
+    const markersHeld = await faults.install({kind: 'gate', path: ['markers', 'list']})
+    mountChatPane(sessionId)
+    await coreControl.awaitFaultPending(markersHeld, 1)
+
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('the first words')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('the first words', {exact: true})).toBeVisible()
+    await expect.element(skeleton()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
+
+    await coreControl.releaseFault(markersHeld)
+    await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    await expect.element(page.getByText('the first words', {exact: true})).toBeVisible()
     await expect.element(skeleton()).not.toBeInTheDocument()
   })
 
@@ -1970,6 +1992,35 @@ describe('grab staging', () => {
 
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
+  })
+
+  test('the composer grab button stages the picked element, and a pick that fails says so and stages nothing', async () => {
+    let picks = 0
+    const pick = async (): Promise<Grab> => {
+      picks += 1
+      if (picks > 1) throw new Error('the page went away')
+      return HERO_GRAB
+    }
+    const grabProvider = () => ({pick, comment: pick, cancel: () => {}, isActive: () => false})
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, grabProvider}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+    const pickFromOverflow = async () => {
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    }
+
+    await pickFromOverflow()
+
+    await expect.element(snapshot()).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await userEvent.click(removeGrab())
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await pickFromOverflow()
+
+    await expect.element(page.getByText('Couldn’t grab that element. Try again.')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
   })
 
   test('a grabbed element in a sent message shows its grab card', async () => {
@@ -3255,7 +3306,8 @@ describe('page session card', () => {
     await expect.element(page.getByText('Edited the page'), {timeout: 5000}).toBeVisible()
     await expect.element(page.getByText('The profile form is filled in.')).toBeVisible()
     expect(page.getByText('Edited the page').elements()).toHaveLength(1)
-    await expect.element(page.getByText('Typed')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('listitem').getByText('Typed', {exact: true}).nth(1)).toBeVisible()
+    expect(page.getByText('Typed', {exact: true}).elements()).toHaveLength(2)
     await expect.element(page.getByRole('button', {name: '2 steps'})).not.toBeInTheDocument()
   })
 
@@ -3283,7 +3335,7 @@ describe('page session card', () => {
     keep(mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />))
     const turn = await sendTurn(core(), sessionId, 'save the form')
     try {
-      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByRole('status').getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
     } finally {
       await coreControl.releaseResults()
       await turn.awaitTurnEnd()
@@ -3305,7 +3357,7 @@ describe('page session card', () => {
       await coreControl.awaitFaultPending(resolving, 1)
       await userEvent.click(page.getByRole('textbox', {name: 'Message the conciv agent'}))
       await faults.releaseAll()
-      await expect.element(page.getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByRole('status').getByText('Clicking', {exact: true}), {timeout: 8000}).toBeVisible()
       await userEvent.click(page.getByText('save the form', {exact: true}))
       await expect.element(page.getByText('save the form', {exact: true})).toBeVisible()
     } finally {
@@ -7162,6 +7214,94 @@ module.exports = {default: {setup(ctx) {
   }, 30_000)
 })
 
+describe('the grab contract reaches a plugin', () => {
+  const grabberBundle = `const {Panel, Slot, createKeyed} = require('@conciv/plugin/experimental')
+const {GrabApi} = require('@conciv/plugin/experimental/grab')
+const {createComponent, insert} = require('solid-js/web')
+const hero = () => ({
+  text: '<h1 class="title">Payroll Deposit</h1> at src/routes/index.tsx:12:9',
+  snippet: '<h1 class="title">Payroll Deposit</h1>',
+  preview: {kind: 'dom', html: '<p>Payroll Deposit clone</p>', width: 200, height: 40},
+  source: {componentName: 'Hero', filePath: 'src/routes/index.tsx', lineNumber: 12},
+  rect: {x: 0, y: 0, width: 200, height: 40},
+})
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const tab = document.createElement('div')
+  createKeyed(ctx.use(GrabApi), (grab) => {
+    const count = document.createElement('p')
+    insert(count, () => 'Staged ' + grab.staged().length)
+    insert(body, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage a grab'}),
+      createComponent(ctx.ui.Button, {onClick: () => grab.clear(), children: 'Clear the grabs'}),
+      count,
+    ])
+    const tabCount = document.createElement('p')
+    insert(tabCount, () => 'Tab staged ' + grab.staged().length)
+    insert(tab, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage from the tab'}),
+      tabCount,
+    ])
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => body})
+  ctx.add(Panel, {
+    id: 'grabs',
+    region: 'pane',
+    list: () => [{id: 'grabs', title: 'Grab tab', pinned: true}],
+    render: () => tab,
+  })
+}}}
+`
+  const coreBase = bootedCore('grab-contract', {
+    plugins: ['./grabber'],
+    files: {
+      'grabber/index.ts': `export default {id: 'grabber', async setup() {}}
+`,
+      'grabber/plugin-experimental.js': grabberBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that uses GrabApi stages a grab into the composer from beside the chat and from its own tab, reads it back and clears it', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
+    const stage = page.getByRole('button', {name: 'Stage a grab', exact: true})
+    await expect.element(stage, {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await stage.click()
+
+    await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Clear the grabs', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Grab tab'}).click()
+    const stageFromTab = page.getByRole('button', {name: 'Stage from the tab', exact: true})
+    await expect.element(stageFromTab).toBeVisible()
+    await expect.element(page.getByText('Tab staged 0', {exact: true})).toBeVisible()
+
+    await stageFromTab.click()
+
+    await expect.element(page.getByText('Tab staged 1', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+  }, 30_000)
+})
+
 describe('plugin tool cards', () => {
   const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
 const {insert} = require('solid-js/web')
@@ -7321,6 +7461,312 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('line=3 force=true', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Called server_urls', {exact: true})).toBeVisible()
   }, 45_000)
+})
+
+describe('the session panel end slot', () => {
+  const coreBase = bootedCore('plugin-panel-end', {
+    plugins: ['./panel-end'],
+    files: {
+      'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
+`,
+      'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {
+    at: 'session.panel.end',
+    render: (input) => Object.assign(document.createElement('span'), {textContent: 'Panel end of ' + input.session.id}),
+  })
+}}}
+`,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin slot at session.panel.end draws in the status bar beside the view tabs, for the routed session', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const bar = page.getByRole('toolbar', {name: 'Session status'})
+    await expect.element(bar.getByRole('tab', {name: 'Chat'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(bar.getByText(`Panel end of ${sessionId}`, {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 45_000)
+})
+
+describe('terminal panel', () => {
+  const coreBase = bootedCore('terminal-panel', {
+    tty: true,
+    models: [
+      {id: 'first-model', name: 'First model'},
+      {id: 'calm-model', name: 'Calm model'},
+      {id: 'busy-model', name: 'Busy model'},
+    ],
+    alternates: [{id: 'plain', displayName: 'Plain'}],
+  })
+  const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
+  const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
+  const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
+  const output = (text: string) => page.getByText(text, {exact: true})
+  const terminalRoute = (sessionId: string) =>
+    `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
+
+  const typeLine = async (line: string) => {
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    await userEvent.keyboard(line)
+    await userEvent.keyboard('{Enter}')
+  }
+
+  test('a session whose harness has a terminal lists a Terminal tab that starts the CLI only once opened, replays it after a reload, and a session without one lists none', async () => {
+    const rpc = coreRpc(coreBase())
+    const plain = await createSession(rpc)
+    await rpc.sessions.switchHarness({sessionId: plain, harnessId: 'plain'})
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    expect(await coreControl.projectFileExists('terminal-started')).toBe(false)
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((7*8))')
+    await expect.element(output('56'), {timeout: 15_000}).toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${plain}?open=true`)
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(terminalTab()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('the toolbar picks the CLI model and keeps it across a reload, starts a new terminal, locks while the CLI is busy, and shows only on the Terminal tab', async () => {
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const pick = async (name: string) => {
+      await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+      await picker().click()
+      await page.getByRole('option', {name}).click()
+    }
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    await pick('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((5*5))')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).not.toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+
+    const otherSession = await createSession(coreRpc(coreBase()))
+    const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    harness.dispose()
+    harness.mountShell(terminalRoute(otherSession))
+    await expect.element(page.getByRole('tabpanel', {name: 'Terminal'}), {timeout: 15_000}).toBeVisible()
+    await coreControl.awaitFaultPending(modelsRead, 1)
+    await faults.releaseAll()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model none')).not.toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+
+    await newTerminal().click()
+    await expect.element(output('25'), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((4*4))')
+    await expect.element(output('16'), {timeout: 15_000}).toBeInTheDocument()
+
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+    await expect.element(newTerminal()).toBeDisabled()
+    await expect.element(output('model busy-model')).toBeInTheDocument()
+
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(output('interrupted'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(picker()).toBeEnabled()
+    await expect.element(newTerminal()).toBeEnabled()
+
+    await pick('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toHaveTextContent('First model')
+
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    await expect.element(picker()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
+    const pageScheme = document.documentElement.classList
+    onTestFinished(() => pageScheme.remove('dark'))
+    const panel = () => page.getByRole('tabpanel', {name: 'Terminal'})
+    const shot = () => panel().screenshot({save: false})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const mountSettled = async () => {
+      harness.dispose()
+      harness.mountShell(terminalRoute(sessionId))
+      await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    }
+    harness.mountShell(terminalRoute(sessionId))
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+
+    await mountSettled()
+    const freshLight = await shot()
+    pageScheme.add('dark')
+    const flippedToDark = await shot()
+    expect(flippedToDark).not.toBe(freshLight)
+    pageScheme.remove('dark')
+    expect(await shot()).toBe(freshLight)
+    pageScheme.add('dark')
+    expect(await shot()).toBe(flippedToDark)
+
+    await mountSettled()
+    expect(await shot()).toBe(flippedToDark)
+    pageScheme.remove('dark')
+    expect(await shot()).toBe(freshLight)
+  }, 60_000)
+
+  test('the host page keeps its own keys: a click there leaves the terminal unfocused, Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {
+    await page.viewport(1200, 900)
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+    const hostText = () => page.getByText('Host page text', {exact: true})
+    const hostSawEscape = (count: number) => page.getByText(`Host page saw Escape ${count}`, {exact: true})
+    const hostSpot = Object.assign(document.createElement('span'), {textContent: 'Host page text'})
+    const hostLog = document.createElement('p')
+    document.body.prepend(hostSpot, hostLog)
+    const hostEscapes = {count: 0}
+    const onHostKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      hostEscapes.count += 1
+      hostLog.textContent = `Host page saw Escape ${hostEscapes.count}`
+    }
+    document.addEventListener('keydown', onHostKeyDown)
+    onTestFinished(() => {
+      document.removeEventListener('keydown', onHostKeyDown)
+      hostSpot.remove()
+      hostLog.remove()
+    })
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {shadow: true})
+
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await terminalPanel().click()
+    await userEvent.keyboard('echo $((6*7))')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    await hostText().click()
+    await userEvent.keyboard('echo hostmarker')
+    await userEvent.keyboard('{Enter}')
+    await terminalPanel().click()
+    await userEvent.keyboard('echo $((3*3))')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
+
+    await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+    await picker().click()
+    await page.getByRole('option', {name: 'Busy model'}).click()
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+
+    await hostText().click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hostSawEscape(1)).toBeVisible()
+
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect.element(launcher()).toBeVisible()
+    await hostText().click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hostSawEscape(2)).toBeVisible()
+
+    await launcher().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(picker()).toBeDisabled()
+    await terminalPanel().click()
+    await userEvent.keyboard('zz')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(terminalPanel(), {timeout: 15_000}).toMatchTextContent(/zz[\s\S]*interrupted/)
+    await expect.element(picker()).toBeEnabled()
+    await expect.element(hostSawEscape(3)).not.toBeInTheDocument()
+
+    await picker().click()
+    await page.getByRole('option', {name: 'First model'}).click()
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+  }, 60_000)
+
+  test('Escape in the composer on the Chat view stops the chat turn and leaves a busy CLI in the terminal running', async () => {
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const stoppedLine = () => page.getByRole('separator', {name: 'Stopped'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    const pick = async (name: string) => {
+      await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+      await picker().click()
+      await page.getByRole('option', {name}).click()
+    }
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await pick('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+
+    await coreControl.holdTurn()
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(bar().getByRole('tab', {name: 'Chat', selected: true})).toBeVisible()
+    await composer().click()
+    await userEvent.keyboard('keep this turn running')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(stopButton(), {timeout: 15_000}).toBeVisible()
+    await expect.element(composer()).toHaveFocus()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(stoppedLine(), {timeout: 15_000}).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker()).toBeDisabled()
+    await expect.element(newTerminal()).toBeDisabled()
+    await expect.element(output('interrupted')).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('plugin composer pills', () => {
@@ -7658,9 +8104,13 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
+  const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
+  const builtinGrab = {id: 'grab', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
+    builtinTerminal,
+    builtinGrab,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
@@ -7850,7 +8300,7 @@ describe('a fixture plugin driven like a user', () => {
   const PLUGIN_CALL = ['plugin', 'call']
 
   const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
-const {createComponent} = require('solid-js/web')
+const {createComponent, insert} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
 const ToolCall = Registry.define('tool-call')
@@ -7961,6 +8411,95 @@ module.exports = {default: {stores: {
       button('Open the fixture source', () => ctx.desktop?.launch('src/fixture.ts', {line: 12, column: 3})),
       button('Show the fixture overlay', showOverlay),
       button('Hide the fixture overlay', () => shownOverlay.current?.dispose()),
+    ],
+  })
+  ctx.add(Panel, {
+    id: 'popovers',
+    region: 'pane',
+    list: (input) => (input.open.includes('popovers') ? [{id: 'popovers', title: 'Fixture popovers'}] : []),
+    render: () => {
+      const [pageNote, setPageNote] = createSignal('')
+      const [open, setOpen] = createSignal(false)
+      const [draft, setDraft] = createSignal('')
+      const [replies, setReplies] = createSignal([])
+      const sendReply = () => {
+        if (!draft().trim()) return
+        setReplies([...replies(), draft().trim()])
+        setDraft('')
+      }
+      const pin = createComponent(ctx.ui.IconButton, {icon: 'message-square', label: 'Comment pin', variant: 'neutral', onClick: () => setOpen(!open())})
+      const [actionsOpen, setActionsOpen] = createSignal(false)
+      const actionsPin = createComponent(ctx.ui.IconButton, {icon: 'ellipsis', label: 'Comment actions', variant: 'neutral', onClick: () => setActionsOpen(!actionsOpen())})
+      const actions = document.createElement('div')
+      actions.className = 'flex flex-col gap-1'
+      insert(actions, [
+        createComponent(ctx.ui.Button, {variant: 'neutral', size: 'small', onClick: () => setActionsOpen(false), children: 'Resolve'}),
+        createComponent(ctx.ui.Button, {variant: 'danger', size: 'small', onClick: () => setActionsOpen(false), children: 'Delete'}),
+      ])
+      const field = createComponent(ctx.ui.TextInput, {
+        label: 'Reply to the comment',
+        placeholder: 'Reply',
+        get value() {
+          return draft()
+        },
+        onInput: setDraft,
+        onSubmit: sendReply,
+      })
+      const thread = document.createElement('div')
+      thread.className = 'flex w-64 flex-col gap-2'
+      const header = document.createElement('div')
+      header.className = 'flex items-center justify-between gap-2'
+      header.append(
+        Object.assign(document.createElement('p'), {className: 'text-chat-sm font-medium', textContent: 'Is this the right blue?'}),
+        createComponent(ctx.ui.IconButton, {icon: 'x', label: 'Close the comment', size: 'small', onClick: () => setOpen(false)}),
+      )
+      insert(thread, [
+        header,
+        Object.assign(line(() => replies().join(' / ')), {className: 'empty:hidden'}),
+        field,
+        createComponent(ctx.ui.Button, {variant: 'contrast', size: 'small', class: 'self-end', onClick: sendReply, children: 'Reply'}),
+      ])
+      const pinRow = document.createElement('div')
+      pinRow.className = 'flex gap-2 p-2'
+      pinRow.append(pin, actionsPin)
+      return [
+        createComponent(ctx.ui.TextInput, {
+          label: 'Fixture page note',
+          get value() {
+            return pageNote()
+          },
+          onInput: setPageNote,
+        }),
+        pinRow,
+        createComponent(ctx.ui.Popover, {
+          anchor: () => pin,
+          get open() {
+            return open()
+          },
+          onOpenChange: setOpen,
+          label: 'Comment thread',
+          initialFocus: () => thread.querySelector('input') ?? undefined,
+          children: thread,
+        }),
+        createComponent(ctx.ui.Popover, {
+          anchor: () => actionsPin,
+          get open() {
+            return actionsOpen()
+          },
+          onOpenChange: setActionsOpen,
+          label: 'Comment actions',
+          children: actions,
+        }),
+      ]
+    },
+  })
+  ctx.add(Panel, {
+    id: 'people',
+    region: 'pane',
+    list: (input) => (input.open.includes('people') ? [{id: 'people', title: 'Fixture people'}] : []),
+    render: () => [
+      createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
+      createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
     ],
   })
   ctx.add(Panel, {
@@ -8169,6 +8708,66 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('tab', {name: 'Fixture prefs', exact: true, selected: true})).toBeVisible()
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
+
+  describe('its ctx.ui.Popover', () => {
+    const textbox = (name: string) => page.getByRole('textbox', {name, exact: true})
+
+    test('opens beside its anchor and leaves the page usable, closes on Escape with focus back on the anchor and on a click outside, and focuses the field it names', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:popovers')}?open=true`)
+      await expect.element(tab('Fixture popovers'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture popovers').click()
+
+      await control('Comment pin').click()
+      await expect.element(dialog('Comment thread')).toBeVisible()
+      await expect
+        .element(dialog('Comment thread').getByText('Is this the right blue?', {exact: true}))
+        .toBeInViewport()
+      await expect.element(textbox('Reply to the comment')).toHaveFocus()
+
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+      await expect.element(control('Comment pin')).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+      await expect.element(dialog('Comment thread')).toBeVisible()
+
+      await textbox('Fixture page note').click()
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+      await userEvent.keyboard('typed on the page')
+      await expect.element(textbox('Fixture page note')).toHaveValue('typed on the page')
+
+      await control('Comment pin').click()
+      await expect.element(dialog('Comment thread')).toBeVisible()
+      await expect.element(textbox('Reply to the comment')).toHaveFocus()
+      await userEvent.keyboard('a reply')
+      await expect.element(textbox('Reply to the comment')).toHaveValue('a reply')
+      await dialog('Comment thread').getByRole('button', {name: 'Reply', exact: true}).click()
+      await expect.element(dialog('Comment thread').getByText('a reply', {exact: true})).toBeVisible()
+      await expect.element(textbox('Reply to the comment')).toHaveValue('')
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment thread')).not.toBeInTheDocument()
+
+      await control('Comment actions').click()
+      await expect.element(dialog('Comment actions')).toBeVisible()
+      await expect.element(dialog('Comment actions').getByRole('button', {name: 'Resolve', exact: true})).toHaveFocus()
+      await userEvent.keyboard('{Escape}')
+      await expect.element(dialog('Comment actions')).not.toBeInTheDocument()
+      await expect.element(control('Comment actions')).toHaveFocus()
+    })
+  })
+
+  describe('its ctx.ui.RelativeTime and ctx.ui.Avatar', () => {
+    test('show how long ago a time was and a person by name with their initials when there is no image', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
+      await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture people').click()
+
+      await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
+      await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
+      await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
+    })
+  })
 
   test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))

@@ -21,6 +21,7 @@ export type StatusBarProps = {
   activeView: string
   onSelectView: (id: string) => void
   disabled: boolean
+  end?: JSX.Element
 }
 
 const BAR =
@@ -49,6 +50,8 @@ const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none]'
 const VIEW_BTN =
   'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:opacity-40 disabled:cursor-default data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
+const VIEW_END =
+  'flex-none flex items-center gap-1 px-1.5 [border-inline-start:1px_solid_var(--chat-line-soft)] empty:hidden'
 const VIEW_INDICATOR =
   'chat-view-indicator top-0 h-0.5 [background:var(--chat-accent)] [width:var(--width)] [left:var(--left)] [--transition-duration:200ms] [--transition-timing-function:var(--chat-ease-expo)] motion-reduce:[--transition-duration:0ms]'
 const VIEW_HINT =
@@ -123,6 +126,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           </Key>
           <Tabs.Indicator class={VIEW_INDICATOR} />
         </Tabs.List>
+        <div class={VIEW_END}>{props.end}</div>
       </Tabs.Root>
     </div>
   )

@@ -1,15 +1,13 @@
-import {Show, onCleanup, type JSX} from 'solid-js'
+import {Show, createMemo, onCleanup, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {render} from 'solid-js/web'
 import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
 import type {PageEffect} from '@conciv/plugin/experimental/page'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
-import reset from '@unocss/reset/tailwind.css?inline'
-import tokens from '@conciv/ui-kit-system/tokens.css?inline'
-import hostSheet from '@conciv/ui-kit-system/host.css?inline'
-import utilities from 'virtual:uno.css?inline'
+import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 
 export type OpenedSource = 'opened' | 'no-source' | 'failed'
 
@@ -19,6 +17,8 @@ export type HighlightOptions = {
 }
 
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
+
+type AltPress = {id: symbol; whileEditing: boolean}
 
 const SRC_SELECTOR = '[data-tsd-source]'
 const GLIDE = 'transition-transform duration-[80ms] ease-chat'
@@ -36,11 +36,13 @@ const OPEN_RESULT: Record<OpenedSource, {variant: 'success' | 'error'; label: (t
 }
 
 function elementAt(x: number, y: number): Element | null {
-  return (
-    document
-      .elementsFromPoint(x, y)
-      .find((element) => !element.closest('[data-conciv-root]') && !element.closest('[data-conciv-effects]')) ?? null
-  )
+  return document.elementsFromPoint(x, y).find((element) => !element.closest(CONCIV_UI_SELECTOR)) ?? null
+}
+
+const isEditing = (): boolean => {
+  const element = document.activeElement
+  if (!(element instanceof HTMLElement)) return false
+  return element.isContentEditable || element.tagName === 'INPUT' || element.tagName === 'TEXTAREA'
 }
 
 function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX.Element {
@@ -92,66 +94,71 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
   const glide = matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : GLIDE
 
   return (
-    <div aria-hidden="true" class="contents">
-      <div data-conciv-capture class="cursor-crosshair inset-0 fixed" />
-      <div class={HINT}>
+    <>
+      <div aria-hidden="true" data-conciv-capture class="cursor-crosshair pointer-events-auto inset-0 fixed" />
+      <div role="status" class={HINT}>
         Inspecting · click to open source · <Kbd>Esc</Kbd> to exit
       </div>
-      <Show when={state.hovered}>
-        {(hovered) => (
-          <>
-            <div
-              class={`${BOX}  ${glide}`}
-              style={{
-                transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px)`,
-                width: `${hovered().rect.width}px`,
-                height: `${hovered().rect.height}px`,
-              }}
-            />
-            <div
-              class={`${LABEL}  ${glide}`}
-              style={{transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px) translateY(-100%)`}}
-            >
-              <span class="text-[0.6875rem] text-chat-accent font-chat-mono font-semibold">{`<${hovered().tag}>`}</span>
-              <Show when={hovered().file}>
-                <span class="text-[0.6875rem] text-chat-text-2 font-chat-mono text-ellipsis overflow-hidden">
-                  {hovered().file}
-                </span>
-              </Show>
-            </div>
-          </>
-        )}
-      </Show>
-    </div>
+      <div aria-hidden="true" class="contents">
+        <Show when={state.hovered}>
+          {(hovered) => (
+            <>
+              <div
+                class={`${BOX}  ${glide}`}
+                style={{
+                  transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px)`,
+                  width: `${hovered().rect.width}px`,
+                  height: `${hovered().rect.height}px`,
+                }}
+              />
+              <div
+                class={`${LABEL}  ${glide}`}
+                style={{transform: `translate(${hovered().rect.left}px, ${hovered().rect.top}px) translateY(-100%)`}}
+              >
+                <span class="text-[0.6875rem] text-chat-accent font-chat-mono font-semibold">{`<${hovered().tag}>`}</span>
+                <Show when={hovered().file}>
+                  <span class="text-[0.6875rem] text-chat-text-2 font-chat-mono text-ellipsis overflow-hidden">
+                    {hovered().file}
+                  </span>
+                </Show>
+              </div>
+            </>
+          )}
+        </Show>
+      </div>
+    </>
   )
 }
 
 export function makeHighlight(options: HighlightOptions): {
   effect: PageEffect
-  mount: (root: ShadowRoot) => () => void
+  mount: (element: HTMLElement) => () => void
 } {
-  const [state, setState] = createStore({driven: false})
+  const [state, setState] = createStore<{driven: boolean; exitedPress: symbol | null}>({
+    driven: false,
+    exitedPress: null,
+  })
 
-  const mount = (root: ShadowRoot) => {
-    const style = document.createElement('style')
-    style.textContent = `${reset}${tokens}${hostSheet}${utilities}`
-    const layer = document.createElement('div')
-    root.append(style, layer)
-    const unmount = render(
-      () => (
-        <Show when={state.driven}>
-          <HighlightInspector open={options.open} toast={options.toast} onExit={() => setState('driven', false)} />
-        </Show>
-      ),
-      layer,
+  const HighlightLayer = (): JSX.Element => {
+    const altHeld = createKeyHold('Alt')
+    const press = createMemo<AltPress | undefined>((previous) => {
+      if (!altHeld()) return undefined
+      return previous ?? {id: Symbol('alt press'), whileEditing: untrack(isEditing)}
+    }, undefined)
+    const inspecting = createMemo(() => {
+      const current = press()
+      return current !== undefined && !current.whileEditing && state.exitedPress !== current.id
+    })
+    const exit = () => setState({driven: false, exitedPress: press()?.id ?? null})
+
+    return (
+      <Show when={state.driven || inspecting()}>
+        <HighlightInspector open={options.open} toast={options.toast} onExit={exit} />
+      </Show>
     )
-
-    return () => {
-      unmount()
-      layer.remove()
-      style.remove()
-    }
   }
+
+  const mount = (element: HTMLElement) => render(() => <HighlightLayer />, element)
 
   return {
     effect: {
