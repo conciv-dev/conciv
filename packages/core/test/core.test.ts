@@ -78,7 +78,7 @@ import {
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {CompactionMetadataSchema, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
@@ -4410,6 +4410,39 @@ describe('session context hook', () => {
     expect(requests).toHaveLength(2)
     expect(requests[1]?.system).toContain('compacting with the plugin')
     expect(offered).toHaveLength(1)
+  })
+
+  test('a compaction hook that sets a result is the compacted session summary and no model request is made for the compact turn', async () => {
+    const plugin = Plugin.define({
+      id: 'compaction-result',
+      async setup(ctx) {
+        await ctx.session.hook('compaction', (event) => {
+          event.result = {summary: 'the summary the plugin wrote', metadata: {writer: 'compaction-result'}}
+        })
+      },
+    })
+    const {kit, made, requests} = await contextKit([plugin])
+    const session = await kit.session()
+
+    expect((await (await kit.turn('words to compact', {session})).done()).errors()).toEqual([])
+    expect(requests).toHaveLength(1)
+
+    await made.runtime.forSession(SessionId.parse(session)).run.compact()
+    await made.plane.settled(SessionId.parse(session))
+    expect(requests).toHaveLength(1)
+    const hydrated = await kit.hydrate(session)
+    const summaries = hydrated.messages.filter(
+      (message) => CompactionMetadataSchema.safeParse(message.metadata).success,
+    )
+    expect(
+      summaries.map((message) => ({
+        text: message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+        metadata: message.metadata,
+      })),
+    ).toEqual([
+      {text: 'the summary the plugin wrote', metadata: expect.objectContaining({writer: 'compaction-result'})},
+    ])
+    expect(hydrated.lastRun?.phase).toBe('completed')
   })
 
   test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {

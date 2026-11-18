@@ -80,7 +80,15 @@ export interface SessionContext extends SessionRequest {
   tools: Record<string, {description: string; input: JsonSchema.JsonSchema}>
 }
 
-export interface SessionCompaction extends SessionContext {}
+export interface SessionCompactionResult {
+  summary: string
+  metadata?: Record<string, unknown>
+  tokens?: TokenUsageInfo
+}
+
+export interface SessionCompaction extends SessionContext {
+  result?: SessionCompactionResult
+}
 
 export type SessionIdleBackground =
   | {

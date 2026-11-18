@@ -29,6 +29,7 @@ export type {
   PromptInputFileAttachment,
   PromptInputSkillAttachment,
   SessionCompaction,
+  SessionCompactionResult,
   SessionContext,
   SessionDomain,
   SessionHooks,
