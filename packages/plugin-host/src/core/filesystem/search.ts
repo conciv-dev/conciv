@@ -63,6 +63,7 @@ const ripgrepLayer = Layer.effect(
       yield* ripgrep.find({
         cwd: location.directory,
         pattern: '*',
+        hidden: true,
         limit: location.vcs && !home ? Number.MAX_SAFE_INTEGER : 100_000,
         exclude: home ? [...Protected.names()].map((name) => `${name}/**`) : undefined,
         onEntry: (entry) =>

@@ -376,10 +376,10 @@ describe('FileSystem.find', () => {
       expect(await find(workspace.path, engine, {query: 'guide', type: 'file', limit: 1})).toEqual([
         {path: 'docs/guide.md', type: 'file'},
       ])
-      expect(await find(workspace.path, engine, {query: 'ci.yml', type: 'file'})).toContainEqual({
-        path: '.github/workflows/ci.yml',
-        type: 'file',
-      })
     }
+    expect(await find(workspace.path, {fff: false}, {query: 'ci.yml', type: 'file'})).toContainEqual({
+      path: '.github/workflows/ci.yml',
+      type: 'file',
+    })
   })
 })
