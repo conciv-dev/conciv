@@ -1,63 +1,79 @@
-import {execFile, type ChildProcess} from 'node:child_process'
-import {Context, Effect, Layer} from 'effect'
+import {Context, Data, Effect, Layer, Stream} from 'effect'
+import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 
 export type RunOptions = {cwd?: string; env?: Record<string, string>}
 
-export type RunResult = {code: number; stdout: Buffer; stderr: string}
+export type RunResult = {code: number; stdout: Uint8Array; stderr: string}
+
+export const SpawnFailed = Data.TaggedError('SpawnFailed')<{readonly command: string; readonly cause: unknown}>
+
+export const OutputTooLarge = Data.TaggedError('OutputTooLarge')<{readonly command: string}>
+
+export type RunError = InstanceType<typeof SpawnFailed> | InstanceType<typeof OutputTooLarge>
 
 export interface Interface {
-  readonly run: (command: string, args: readonly string[], options?: RunOptions) => Effect.Effect<RunResult>
+  readonly run: (command: string, args: readonly string[], options?: RunOptions) => Effect.Effect<RunResult, RunError>
 }
 
 export const Service = Context.Service<Interface>('@conciv/plugin-ios/Simctl')
 
-const MAX_BUFFER = 128 * 1024 * 1024
+const MAX_OUTPUT_BYTES = 128 * 1024 * 1024
 
-function exitCode(error: (Error & {code?: unknown}) | null): number {
-  if (error === null) return 0
-  return typeof error.code === 'number' ? error.code : 1
+type Collected = {readonly chunks: readonly Uint8Array[]; readonly size: number}
+
+function joinChunks(collected: Collected): Uint8Array {
+  const bytes = new Uint8Array(collected.size)
+  collected.chunks.reduce((offset, chunk) => {
+    bytes.set(chunk, offset)
+    return offset + chunk.length
+  }, 0)
+  return bytes
 }
 
-function stopped(child: ChildProcess): Effect.Effect<void> {
-  return Effect.callback<void>((resume) => {
-    if (child.exitCode !== null || child.signalCode !== null) return resume(Effect.void)
-    child.once('exit', () => resume(Effect.void))
-    child.kill()
-  })
+function collectBytes<Failure>(
+  command: string,
+  stream: Stream.Stream<Uint8Array, Failure>,
+): Effect.Effect<Uint8Array, Failure | InstanceType<typeof OutputTooLarge>> {
+  return Stream.runFoldEffect(
+    stream,
+    (): Collected => ({chunks: [], size: 0}),
+    (collected, chunk) => {
+      const size = collected.size + chunk.length
+      if (size > MAX_OUTPUT_BYTES) return Effect.fail(new OutputTooLarge({command}))
+      const next: Collected = {chunks: [...collected.chunks, chunk], size}
+      return Effect.succeed(next)
+    },
+  ).pipe(Effect.map(joinChunks))
 }
 
-function run(command: string, args: readonly string[], options?: RunOptions): Effect.Effect<RunResult> {
-  return Effect.callback<RunResult>((resume) => {
-    const child = execFile(
-      command,
-      args,
-      {cwd: options?.cwd, env: {...process.env, ...options?.env}, maxBuffer: MAX_BUFFER, encoding: 'buffer'},
-      (error, stdout, stderr) => {
-        resume(Effect.succeed({code: exitCode(error), stdout, stderr: stderr.toString('utf8')}))
-      },
-    )
-    return stopped(child)
-  })
-}
-
-export const layer = Layer.succeed(Service, Service.of({run}))
+export const layer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const run = Effect.fn('ios.simctl.run')(function* (command: string, args: readonly string[], options?: RunOptions) {
+      return yield* Effect.gen(function* () {
+        const handle = yield* spawner.spawn(
+          ChildProcess.make(command, args, {cwd: options?.cwd, env: options?.env, extendEnv: true}),
+        )
+        const [stdout, stderr, code] = yield* Effect.all(
+          [collectBytes(command, handle.stdout), Stream.mkString(Stream.decodeText(handle.stderr)), handle.exitCode],
+          {concurrency: 'unbounded'},
+        )
+        const result: RunResult = {code, stdout, stderr}
+        return result
+      }).pipe(
+        Effect.scoped,
+        Effect.catchTag('PlatformError', (cause) => Effect.fail(new SpawnFailed({command, cause}))),
+      )
+    })
+    return Service.of({run})
+  }),
+)
 
 const ERROR_TAIL_LINES = 40
 
 export function stdoutText(result: RunResult): string {
-  return result.stdout.toString('utf8')
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-export function safeJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return null
-  }
+  return new TextDecoder().decode(result.stdout)
 }
 
 export function commandError(result: RunResult, fallback: string): string {

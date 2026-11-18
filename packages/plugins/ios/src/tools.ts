@@ -1,13 +1,55 @@
-import {Effect} from 'effect'
+import {Buffer} from 'node:buffer'
+import {Effect, type FileSystem, type Path} from 'effect'
 import {z} from 'zod'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import type {Permission} from '@conciv/plugin/schema/permission'
-import type {Tool} from '@conciv/plugin/schema/tool'
+import {Tool} from '@conciv/plugin/schema/tool'
 import {build, BuildOutputSchema} from './build.js'
-import {IosConfigSchema, type IosRuntime, type NotConfigured} from './config.js'
+import {IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
 import {iosSystemPrompt} from './prompt.js'
 import * as Simctl from './simctl.js'
-import {logs, LogsOutputSchema, run, RunOutputSchema, screenshot, ScreenshotOutputSchema} from './simulator.js'
+import {capture, launch, readLogs} from './simulator.js'
+
+const RunStageSchema = z.enum(['resolve-simulator', 'boot', 'artifact', 'install', 'launch'])
+
+type RunStage = z.infer<typeof RunStageSchema>
+
+const RunFailureSchema = z.object({
+  ok: z.literal(false),
+  udid: z.string(),
+  bundleId: z.string(),
+  stage: RunStageSchema,
+  error: z.string(),
+})
+
+export type RunFailure = z.infer<typeof RunFailureSchema>
+
+const RunSuccessSchema = z.object({
+  ok: z.literal(true),
+  udid: z.string(),
+  bundleId: z.string(),
+  pid: z.number().optional(),
+})
+
+type Run = z.infer<typeof RunSuccessSchema> | RunFailure
+
+const RunOutputSchema = z.union([RunSuccessSchema, RunFailureSchema, NotConfiguredSchema])
+
+const LogsSuccessSchema = z.object({ok: z.literal(true), lines: z.array(z.string())})
+
+const LogsFailureSchema = z.object({ok: z.literal(false), lines: z.array(z.string()), error: z.string()})
+
+type Logs = z.infer<typeof LogsSuccessSchema> | z.infer<typeof LogsFailureSchema>
+
+const LogsOutputSchema = z.union([LogsSuccessSchema, LogsFailureSchema, NotConfiguredSchema])
+
+const ScreenSizeSchema = z.object({ok: z.literal(true), width: z.number(), height: z.number()})
+
+const ScreenshotOutputSchema = z.union([ScreenSizeSchema, NotConfiguredSchema])
+
+type Screenshot = {output: z.infer<typeof ScreenshotOutputSchema>; content: Tool.FileContent[]}
+
+type Services = Simctl.Interface | FileSystem.FileSystem | Path.Path
 
 const NOT_CONFIGURED: NotConfigured = {ok: false, error: 'ios plugin not configured'}
 
@@ -26,6 +68,80 @@ const LogsInput = z.object({
   predicate: z.string().max(2000).optional(),
   limit: z.number().int().positive().max(5000).optional(),
 })
+
+const runToolErrors = {
+  SpawnFailed: (failure: InstanceType<typeof Simctl.SpawnFailed>) =>
+    Effect.fail(Tool.toolError({message: `could not run ${failure.command}`, error: failure.cause})),
+  OutputTooLarge: (failure: InstanceType<typeof Simctl.OutputTooLarge>) =>
+    Effect.fail(Tool.toolError({message: `${failure.command} printed more output than the 128MB limit`})),
+}
+
+function runFailure(udid: string, bundleId: string, stage: RunStage, error: string): Run {
+  return {ok: false, udid, bundleId, stage, error}
+}
+
+export function run(runtime: IosRuntime, input: {autoshow?: boolean | undefined}) {
+  const bundleId = runtime.config.bundleId
+  return launch(runtime, input).pipe(
+    Effect.map(({udid, pid}): Run =>
+      pid === undefined ? {ok: true, udid, bundleId} : {ok: true, udid, bundleId, pid},
+    ),
+    Effect.catchTags({
+      SimulatorNotFound: (failure) =>
+        Effect.succeed(
+          runFailure('', bundleId, 'resolve-simulator', `no available simulator matching ${failure.simulator}`),
+        ),
+      BootFailed: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'boot', failure.error)),
+      ArtifactMissing: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'artifact', failure.error)),
+      InstallFailed: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'install', failure.error)),
+      LaunchFailed: (failure) => Effect.succeed(runFailure(failure.udid, bundleId, 'launch', failure.error)),
+      ...runToolErrors,
+    }),
+  )
+}
+
+export function screenshot(runtime: IosRuntime) {
+  const failed = (error: string): Screenshot => ({output: {ok: false, error}, content: []})
+  return capture(runtime.config).pipe(
+    Effect.map(({png, width, height}): Screenshot => {
+      const image: Tool.FileContent = {
+        type: 'file',
+        uri: `data:image/png;base64,${Buffer.from(png).toString('base64')}`,
+        mime: 'image/png',
+      }
+      return {output: {ok: true, width, height}, content: [image]}
+    }),
+    Effect.catchTags({
+      SimulatorNotFound: () => Effect.succeed(failed('no matching simulator for ios_screenshot')),
+      ScreenshotFailed: (failure) => Effect.succeed(failed(failure.error)),
+      ...runToolErrors,
+    }),
+  )
+}
+
+export function logs(
+  runtime: IosRuntime,
+  input: {sinceSeconds?: number | undefined; predicate?: string | undefined; limit?: number | undefined},
+) {
+  return readLogs(runtime.config, input).pipe(
+    Effect.map((lines): Logs => ({ok: true, lines})),
+    Effect.catchTags({
+      SimulatorNotFound: () =>
+        Effect.succeed<Logs>({ok: false, lines: [], error: 'no matching simulator for ios_logs'}),
+      LogsFailed: (failure) => Effect.succeed<Logs>({ok: false, lines: [], error: failure.error}),
+      ...runToolErrors,
+    }),
+  )
+}
+
+function built(runtime: IosRuntime, input: {clean?: boolean | undefined}) {
+  return build(runtime, input).pipe(
+    Effect.catchTags({
+      BuildFileFailed: (failure) => Effect.fail(Tool.toolError({message: failure.message, error: failure.cause})),
+      ...runToolErrors,
+    }),
+  )
+}
 
 type Registration = Pick<Context, 'agent' | 'options' | 'permission' | 'servers' | 'session' | 'tool' | 'location'>
 
@@ -48,24 +164,25 @@ function confirmed(permission: Context['permission'], action: string, tool: Tool
   })
 }
 
-export const register = Effect.fn('IosTools.register')(function* (ctx: Registration, simctl: Simctl.Interface) {
+export const register = Effect.fn('ios.tools.register')(function* (ctx: Registration) {
+  const services = yield* Effect.context<Services>()
   const config = yield* Effect.sync(() => IosConfigSchema.parse(ctx.options))
   const configuredRuntime: IosRuntime | undefined = config && {
     config,
     cwd: ctx.location.directory,
     concivUrl: () => builtinServerUrl(ctx.servers),
   }
-  const configured = <Output>(work: (runtime: IosRuntime) => Effect.Effect<Output, Tool.Error, Simctl.Interface>) =>
+  const configured = <Output>(work: (runtime: IosRuntime) => Effect.Effect<Output, Tool.Error, Services>) =>
     configuredRuntime === undefined
       ? Effect.succeed({output: NOT_CONFIGURED})
       : work(configuredRuntime).pipe(
           Effect.map((output) => ({output})),
-          Effect.provideService(Simctl.Service, simctl),
+          Effect.provide(services),
         )
   const asking = <Output>(
     action: string,
     tool: Tool.Context,
-    work: (runtime: IosRuntime) => Effect.Effect<Output, Tool.Error, Simctl.Interface>,
+    work: (runtime: IosRuntime) => Effect.Effect<Output, Tool.Error, Services>,
   ) => configured((runtime) => confirmed(ctx.permission, action, tool).pipe(Effect.flatMap(() => work(runtime))))
 
   yield* ctx.agent.transform((editor) => editor.list().forEach((agent) => agent.permissions.push(...ASKING_RULES)))
@@ -80,7 +197,7 @@ export const register = Effect.fn('IosTools.register')(function* (ctx: Registrat
       input: z.object({clean: z.boolean().optional()}),
       output: BuildOutputSchema,
       options: direct,
-      execute: (input, tool) => asking('ios_build', tool, (runtime) => build(runtime, input)),
+      execute: (input, tool) => asking('ios_build', tool, (runtime) => built(runtime, input)),
     })
     editor.add({
       name: 'run',
@@ -99,7 +216,7 @@ export const register = Effect.fn('IosTools.register')(function* (ctx: Registrat
       execute: () =>
         configuredRuntime === undefined
           ? Effect.succeed({output: NOT_CONFIGURED})
-          : screenshot(configuredRuntime).pipe(Effect.provideService(Simctl.Service, simctl)),
+          : screenshot(configuredRuntime).pipe(Effect.provide(services)),
     })
     editor.add({
       name: 'logs',

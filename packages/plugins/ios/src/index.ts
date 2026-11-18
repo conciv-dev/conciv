@@ -5,8 +5,5 @@ import {register} from './tools.js'
 
 export default Plugin.define({
   id: 'ios',
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      yield* register(ctx, yield* Simctl.Service)
-    }).pipe(Effect.provide(Simctl.layer)),
+  effect: (ctx) => register(ctx).pipe(Effect.provide(Simctl.layer)),
 })

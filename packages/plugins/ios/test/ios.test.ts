@@ -2,7 +2,8 @@ import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {readFile, watch} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {Effect, Fiber, Layer} from 'effect'
+import {Effect, Fiber, Layer, type FileSystem, type Path} from 'effect'
+import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
@@ -15,7 +16,9 @@ import {IosConfigSchema, type IosConfig} from '../src/config.js'
 import {iosSystemPrompt} from '../src/prompt.js'
 import type {IosRuntime} from '../src/config.js'
 import * as Simctl from '../src/simctl.js'
-import {logs, run, screenshot, type RunFailure} from '../src/simulator.js'
+import {logs, run, screenshot, type RunFailure} from '../src/tools.js'
+
+const platform = Layer.merge(NodeFileSystem.layer, NodePath.layer)
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -251,7 +254,7 @@ describe('the real simctl runner', () => {
       Effect.gen(function* () {
         const simctl = yield* Simctl.Service
         return yield* simctl.run(process.execPath, ['-e', script, directory])
-      }).pipe(Effect.provide(Simctl.layer)),
+      }).pipe(Effect.provide(Simctl.layer.pipe(Layer.provide(NodeChildProcessSpawner.layer), Layer.provide(platform)))),
     )
     const pid = await written
     expect(alive(pid)).toBe(true)
@@ -296,9 +299,9 @@ describe('the ios tools against a fake simctl', () => {
 
   function against<Value, Failure>(
     layer: Layer.Layer<Simctl.Interface>,
-    effect: Effect.Effect<Value, Failure, Simctl.Interface>,
+    effect: Effect.Effect<Value, Failure, Simctl.Interface | FileSystem.FileSystem | Path.Path>,
   ): Promise<Value> {
-    return Effect.runPromise(effect.pipe(Effect.provide(layer)))
+    return Effect.runPromise(effect.pipe(Effect.provide(Layer.mergeAll(layer, platform))))
   }
 
   const has = (call: Call, token: string): boolean => call.args.includes(token)

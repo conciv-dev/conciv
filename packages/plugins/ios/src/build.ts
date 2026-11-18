@@ -1,10 +1,8 @@
 import {arch} from 'node:os'
-import {existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {Effect} from 'effect'
+import {Clock, Data, Effect, FileSystem, Option, Path, Schema, type PlatformError} from 'effect'
 import {uniq} from 'es-toolkit'
 import {z} from 'zod'
-import {Tool} from '@conciv/plugin/schema/tool'
 import {
   destination,
   developerEnv,
@@ -16,7 +14,9 @@ import {
 } from './config.js'
 import {DiagnosticSchema, parseDiagnostics, type Diagnostic} from './diagnostics.js'
 import * as Simctl from './simctl.js'
-import {boundedCommandError, isRecord, safeJson, stdoutText} from './simctl.js'
+import {boundedCommandError, stdoutText} from './simctl.js'
+
+export const BuildFileFailed = Data.TaggedError('BuildFileFailed')<{readonly message: string; readonly cause: unknown}>
 
 export const BuildOutputSchema = z.union([
   z.object({
@@ -30,30 +30,27 @@ export const BuildOutputSchema = z.union([
 
 type Build = {ok: boolean; appPath: string | null; durationMs: number; diagnostics: Diagnostic[]}
 
-type BuildEffect = Effect.Effect<Build, Tool.Error, Simctl.Interface>
-
-function fileStep<Value>(message: string, work: () => Value): Effect.Effect<Value, Tool.Error> {
-  return Effect.try({try: work, catch: (error) => Tool.toolError({message, error})})
+function fileFailure(message: string) {
+  return <Value, Requirements>(effect: Effect.Effect<Value, PlatformError.PlatformError, Requirements>) =>
+    effect.pipe(Effect.mapError((cause) => new BuildFileFailed({message, cause})))
 }
 
-function walkSwiftSources(dir: string): string[] {
-  return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) return walkSwiftSources(full)
-    if (entry.name.endsWith('.swift')) return [full]
-    return []
-  })
-}
-
-function resolveSourceRoot(root: string, dir: string): string {
-  return dir.startsWith('/') ? dir : join(root, dir)
-}
-
-function collectSwiftSources(root: string, extraSourceDirs: readonly string[]): string[] {
-  const roots = [join(root, 'Sources'), ...extraSourceDirs.map((dir) => resolveSourceRoot(root, dir))]
-  const files = roots.filter((dir) => existsSync(dir)).flatMap(walkSwiftSources)
-  return uniq(files).toSorted()
-}
+const collectSwiftSources = Effect.fn('ios.build.collectSwiftSources')(function* (
+  root: string,
+  extraSourceDirs: readonly string[],
+) {
+  const fileSystem = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const roots = [path.join(root, 'Sources'), ...extraSourceDirs.map((dir) => path.resolve(root, dir))]
+  const files = yield* Effect.forEach(roots, (dir) =>
+    Effect.gen(function* () {
+      if (!(yield* fileSystem.exists(dir))) return []
+      const entries = yield* fileSystem.readDirectory(dir, {recursive: true})
+      return entries.filter((entry) => entry.endsWith('.swift')).map((entry) => path.join(dir, entry))
+    }),
+  )
+  return uniq(files.flat()).toSorted()
+})
 
 function swiftTarget(): string {
   const cpus: Record<string, string> = {arm64: 'arm64', x64: 'x86_64'}
@@ -61,32 +58,42 @@ function swiftTarget(): string {
   return `${cpu}-apple-ios17.0-simulator`
 }
 
-function stringField(source: Record<string, unknown>, key: string): string | undefined {
-  const value = source[key]
-  return typeof value === 'string' ? value : undefined
-}
+const BuildSettingsEntrySchema = Schema.Struct({
+  buildSettings: Schema.Struct({
+    PRODUCT_BUNDLE_IDENTIFIER: Schema.optionalKey(Schema.String),
+    TARGET_BUILD_DIR: Schema.optionalKey(Schema.String),
+    WRAPPER_NAME: Schema.optionalKey(Schema.String),
+  }),
+})
+
+const decodeBuildSettings = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))
+
+const decodeBuildSettingsEntry = Schema.decodeUnknownOption(BuildSettingsEntrySchema)
 
 function appTargetPath(entry: unknown, bundleId: string): string | null {
-  if (!isRecord(entry) || !isRecord(entry.buildSettings)) return null
-  const settings = entry.buildSettings
-  if (stringField(settings, 'PRODUCT_BUNDLE_IDENTIFIER') !== bundleId) return null
-  const dir = stringField(settings, 'TARGET_BUILD_DIR')
-  const wrapper = stringField(settings, 'WRAPPER_NAME')
+  const decoded = decodeBuildSettingsEntry(entry)
+  if (Option.isNone(decoded)) return null
+  const settings = decoded.value.buildSettings
+  if (settings.PRODUCT_BUNDLE_IDENTIFIER !== bundleId) return null
+  const dir = settings.TARGET_BUILD_DIR
+  const wrapper = settings.WRAPPER_NAME
   if (dir === undefined || wrapper === undefined || !wrapper.endsWith('.app')) return null
   return join(dir, wrapper)
 }
 
 export function parseXcodebuildAppPath(text: string, bundleId: string): string | null {
-  const parsed = safeJson(text)
-  if (!Array.isArray(parsed)) return null
-  return parsed.map((entry) => appTargetPath(entry, bundleId)).find((path) => path !== null) ?? null
+  const entries = decodeBuildSettings(text)
+  if (Option.isNone(entries)) return null
+  return entries.value.map((entry) => appTargetPath(entry, bundleId)).find((path) => path !== null) ?? null
 }
 
 function schemeArgs(config: IosConfig): string[] {
   return config.scheme ? ['-scheme', config.scheme] : []
 }
 
-export const resolveXcodebuildAppPath = Effect.fn('IosBuild.resolveXcodebuildAppPath')(function* (runtime: IosRuntime) {
+export const resolveXcodebuildAppPath = Effect.fn('ios.build.resolveXcodebuildAppPath')(function* (
+  runtime: IosRuntime,
+) {
   const simctl = yield* Simctl.Service
   const config = runtime.config
   const settings = yield* simctl.run(
@@ -125,48 +132,50 @@ function missingPlistDiagnostic(path: string): Diagnostic {
   }
 }
 
-const buildXcodebuild = Effect.fn('IosBuild.xcodebuild')(function* (runtime: IosRuntime, clean: boolean) {
+const buildXcodebuild = Effect.fn('ios.build.xcodebuild')(function* (runtime: IosRuntime, clean: boolean) {
   const simctl = yield* Simctl.Service
   const config = runtime.config
   const actions = clean ? ['clean', 'build'] : ['build']
-  const started = Date.now()
+  const started = yield* Clock.currentTimeMillis
   const result = yield* simctl.run(
     'xcrun',
     ['xcodebuild', ...schemeArgs(config), '-destination', destination(config), ...actions],
     {cwd: projectDir(config, runtime.cwd), env: developerEnv(config)},
   )
-  const durationMs = Date.now() - started
+  const durationMs = (yield* Clock.currentTimeMillis) - started
   const ok = result.code === 0
   const parsed = parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
   const diagnostics = reportedDiagnostics(parsed, ok, result, 'xcodebuild failed')
   const appPath = ok ? yield* resolveXcodebuildAppPath(runtime) : null
-  return {ok, appPath, durationMs, diagnostics}
+  const built: Build = {ok, appPath, durationMs, diagnostics}
+  return built
 })
 
-const buildSwiftc = Effect.fn('IosBuild.swiftc')(function* (runtime: IosRuntime, clean: boolean) {
+const buildSwiftc = Effect.fn('ios.build.swiftc')(function* (runtime: IosRuntime, clean: boolean) {
   const simctl = yield* Simctl.Service
+  const fileSystem = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
   const config = runtime.config
   const root = projectDir(config, runtime.cwd)
   const env = developerEnv(config)
   const module = moduleName(config)
-  const appDir = join(root, 'build', `${module}.app`)
-  const started = Date.now()
-  const failed = (diagnostics: Diagnostic[]): Build => ({
-    ok: false,
-    appPath: null,
-    durationMs: Date.now() - started,
-    diagnostics,
-  })
+  const appDir = path.join(root, 'build', `${module}.app`)
+  const started = yield* Clock.currentTimeMillis
+  const finished = (ok: boolean, appPath: string | null, diagnostics: Diagnostic[]) =>
+    Effect.map(Clock.currentTimeMillis, (now): Build => ({ok, appPath, durationMs: now - started, diagnostics}))
+  const failed = (diagnostics: Diagnostic[]) => finished(false, null, diagnostics)
 
-  if (clean) yield* fileStep(`could not remove ${appDir}`, () => rmSync(appDir, {recursive: true, force: true}))
+  if (clean) {
+    yield* fileSystem.remove(appDir, {recursive: true, force: true}).pipe(fileFailure(`could not remove ${appDir}`))
+  }
 
   const sdk = yield* simctl.run('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-path'], {cwd: root, env})
-  if (sdk.code !== 0) return failed(commandFailureDiagnostics(sdk, 'xcrun --show-sdk-path failed'))
+  if (sdk.code !== 0) return yield* failed(commandFailureDiagnostics(sdk, 'xcrun --show-sdk-path failed'))
   const sdkPath = stdoutText(sdk).trim()
-  const sources = yield* fileStep(`could not read the swift sources under ${root}`, () =>
-    collectSwiftSources(root, config.extraSourceDirs ?? []),
+  const sources = yield* collectSwiftSources(root, config.extraSourceDirs ?? []).pipe(
+    fileFailure(`could not read the swift sources under ${root}`),
   )
-  yield* fileStep(`could not create ${appDir}`, () => mkdirSync(appDir, {recursive: true}))
+  yield* fileSystem.makeDirectory(appDir, {recursive: true}).pipe(fileFailure(`could not create ${appDir}`))
 
   const compile = yield* simctl.run(
     'xcrun',
@@ -188,33 +197,33 @@ const buildSwiftc = Effect.fn('IosBuild.swiftc')(function* (runtime: IosRuntime,
       '-framework',
       'WebKit',
       '-o',
-      join(appDir, module),
+      path.join(appDir, module),
       ...sources,
     ],
     {cwd: root, env},
   )
   const diagnostics = parseDiagnostics(`${stdoutText(compile)}\n${compile.stderr}`)
-  if (compile.code !== 0) return failed(commandFailureDiagnostics(compile, 'swiftc failed'))
+  if (compile.code !== 0) return yield* failed(commandFailureDiagnostics(compile, 'swiftc failed'))
 
-  const infoPlist = join(root, 'Info.plist')
-  if (!existsSync(infoPlist)) return failed([...diagnostics, missingPlistDiagnostic(infoPlist)])
-  const plist = yield* simctl.run('plutil', ['-convert', 'binary1', '-o', join(appDir, 'Info.plist'), infoPlist], {
+  const infoPlist = path.join(root, 'Info.plist')
+  const plistExists = yield* fileSystem.exists(infoPlist).pipe(fileFailure(`could not read ${infoPlist}`))
+  if (!plistExists) return yield* failed([...diagnostics, missingPlistDiagnostic(infoPlist)])
+  const plist = yield* simctl.run('plutil', ['-convert', 'binary1', '-o', path.join(appDir, 'Info.plist'), infoPlist], {
     cwd: root,
     env,
   })
-  if (plist.code !== 0) return failed(commandFailureDiagnostics(plist, 'plutil failed to convert Info.plist'))
-  yield* fileStep(`could not write ${join(appDir, 'PkgInfo')}`, () =>
-    writeFileSync(join(appDir, 'PkgInfo'), 'APPL????'),
-  )
+  if (plist.code !== 0) return yield* failed(commandFailureDiagnostics(plist, 'plutil failed to convert Info.plist'))
+  const pkgInfo = path.join(appDir, 'PkgInfo')
+  yield* fileSystem.writeFileString(pkgInfo, 'APPL????').pipe(fileFailure(`could not write ${pkgInfo}`))
   const signed = yield* simctl.run('codesign', ['--force', '--sign', '-', '--timestamp=none', appDir], {
     cwd: root,
     env,
   })
-  if (signed.code !== 0) return failed(commandFailureDiagnostics(signed, 'codesign failed'))
-  return {ok: true, appPath: appDir, durationMs: Date.now() - started, diagnostics}
+  if (signed.code !== 0) return yield* failed(commandFailureDiagnostics(signed, 'codesign failed'))
+  return yield* finished(true, appDir, diagnostics)
 })
 
-export function build(runtime: IosRuntime, input: {clean?: boolean | undefined}): BuildEffect {
+export function build(runtime: IosRuntime, input: {clean?: boolean | undefined}) {
   const clean = input.clean ?? false
   if (runtime.config.buildMode === 'swiftc') return buildSwiftc(runtime, clean)
   return buildXcodebuild(runtime, clean)
