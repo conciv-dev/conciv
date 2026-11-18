@@ -2746,7 +2746,7 @@ describe('rpc wire', () => {
 
     describe('tools and models list', () => {
       it('the widget gets every tool with its full description and the harness model list', async () => {
-        const {tools} = await chatKit().rpc.meta.tools(undefined)
+        const {tools} = await chatKit().rpc.meta.tools({sessionId: await newSession()})
         expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
         expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)

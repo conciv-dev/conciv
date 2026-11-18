@@ -93,7 +93,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
       publish: () => undefined,
       onRunEnd: async () => undefined,
     },
-    toolNames: new Set(),
+    toolNames: async () => new Set(),
     capabilities: async () => [],
     attachmentExpanders: {},
     prompt: async (event) => event,

@@ -184,7 +184,9 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Tools',
       items: async (query) => {
-        const data = await queryClient.ensureQueryData(appData.utils.meta.tools.queryOptions())
+        const data = await queryClient.ensureQueryData(
+          appData.utils.meta.tools.queryOptions({input: {sessionId: props.sessionId}}),
+        )
         return matchingItems(data.tools.map(toolEntry), query, matcher())
       },
     },
