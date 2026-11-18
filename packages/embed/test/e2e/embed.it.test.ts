@@ -1547,6 +1547,21 @@ test.describe('page dispatch parity', () => {
       })
       await expect(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
     })
+
+    test('holding Alt and clicking a page element with no source says so', async () => {
+      const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+      const probe = page.getByText('page-bus-ok')
+
+      await probe.click()
+      await expect(hint).toHaveCount(0)
+      await page.keyboard.down('Alt')
+      await expect(hint).toBeVisible({timeout: 10_000})
+      await probe.hover({force: true})
+      await probe.click({force: true})
+      await expect(page.getByText('No source for this element')).toBeVisible({timeout: 10_000})
+      await page.keyboard.up('Alt')
+      await expect(hint).toHaveCount(0)
+    })
   })
 
   test.describe('a tab open on a session when it is deleted', () => {
