@@ -2,7 +2,7 @@ import {createMemo, untrack} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
 import {useQuery} from '@conciv/client'
-import {type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
+import {createKeyed, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
 import type {terminalDeclarations} from './stores.js'
 
 export const PANEL_KEY = 'terminal:terminal'
@@ -13,7 +13,12 @@ const RESTART_FAILED = 'Couldn’t restart the terminal.'
 
 export type TerminalContext = SetupContext<typeof terminalDeclarations>
 
-type LiveTerminal = {readonly key: string; readonly ptyId: string; readonly busy: () => boolean}
+type LiveTerminal = {
+  readonly key: string
+  readonly ptyId: string
+  readonly model: string | undefined
+  readonly busy: () => boolean
+}
 
 type TerminalRun = {
   generation: number
@@ -67,7 +72,12 @@ export function createTerminalState(ctx: TerminalContext) {
     return picked !== null && models(sessionId).some((model) => model.id === picked) ? picked : undefined
   }
 
-  const shownModel = (sessionId: string) => spawnModel(sessionId) ?? meta(sessionId)?.defaultModel ?? undefined
+  const runningModel = (sessionId: string) => {
+    const live = run.live?.key === key(sessionId) && !run.restarting ? run.live : null
+    return live ? live.model : spawnModel(sessionId)
+  }
+
+  const shownModel = (sessionId: string) => runningModel(sessionId) ?? meta(sessionId)?.defaultModel ?? undefined
 
   const restart = async (session: MountedSession): Promise<void> => {
     if (run.restarting) return
@@ -83,11 +93,25 @@ export function createTerminalState(ctx: TerminalContext) {
     setRun('restarting', false)
   }
 
+  createKeyed(
+    () => {
+      const session = ctx.sessions.current()
+      const live = run.live
+      if (!session || live?.key !== key(session.id) || meta(session.id) === undefined) return undefined
+      const model = spawnModel(session.id)
+      return model === live.model ? undefined : {session, key: live.key, model}
+    },
+    (behind) => {
+      if (!locked(behind.session.id)) void restart(behind.session)
+    },
+    {equals: (previous, next) => previous.key === next.key && previous.model === next.model},
+  )
+
   return {
     supported: (sessionId: string) => meta(sessionId)?.harness.persistentPty,
     ready: (sessionId: string) => {
       const known = meta(sessionId)
-      return known ? known.harness.persistentPty === true : read.isError
+      return known ? known.harness.persistentPty === true : read.errorUpdateCount > 0
     },
     models,
     modelsFailed: (sessionId: string) => meta(sessionId) === undefined && read.isError,

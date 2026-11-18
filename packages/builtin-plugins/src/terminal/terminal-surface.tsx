@@ -93,7 +93,7 @@ export default function TerminalSurface(props: {
         throw new Error(OPEN_FAILED, {cause})
       })
       connection.url = pty.url
-      props.terminal.opened({key: terminalKey, ptyId: pty.ptyId, busy: model.busy})
+      props.terminal.opened({key: terminalKey, ptyId: pty.ptyId, model: request.model, busy: model.busy})
     },
     theme: () =>
       readTerminalTheme(

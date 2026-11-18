@@ -7680,6 +7680,30 @@ describe('terminal panel', () => {
     await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
     await expect.element(retry()).not.toBeInTheDocument()
   }, 60_000)
+
+  test('a CLI that started while the model list failed restarts with the saved pick once Retry lists the models', async () => {
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const saved = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(saved))
+    await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+    await picker().click()
+    await page.getByRole('option', {name: 'Calm model'}).click()
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    const retry = () => bar().getByRole('button', {name: 'Retry'})
+    await expect.element(retry(), {timeout: 15_000}).toBeEnabled()
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+
+    await coreControl.releaseFault(broken)
+    await retry().click()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model none')).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('terminal panel for a plain shell with no models', () => {
