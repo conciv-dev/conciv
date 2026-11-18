@@ -65,6 +65,12 @@ OSC 9;4 progress state), which the source has no counterpart for.
     bearer header or a first `conciv:trust` frame), so revoking a browser closes its terminal socket with 1008, the
     same as main. The panel, a first-party built-in, opens it with `engineWebSocket`. The source's socket is
     ticket-only because the source has no per-browser revoke to honour.
+11. The panel learns whether a session has a terminal from `HarnessMeta.persistentPty` (the source's capability
+    name, `gui-plugins/src/terminal/model.ts:174`), returned by `meta.models({sessionId})`, true when the session's
+    harness has a `ttyCommand`. The source's flag is one per server; conciv's harness is per session. No pty is
+    created until the Terminal tab is opened.
+12. `session.panel.end` draws at the end of the status bar's view tab list (`apps/conciv/src/pane/status-bar.tsx`),
+    conciv's counterpart of the source's side region tab strip.
 
 ## Open
 

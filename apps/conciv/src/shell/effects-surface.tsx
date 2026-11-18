@@ -4,11 +4,12 @@ import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {MountedSurface} from '@conciv/extension/client'
 import {useConnectionGeneration, useHostTheme} from '../app/context.js'
 import {applySchemeClass, applySkinClass, themeClasses} from '../lib/color-scheme.js'
-import {ExtensionBoundary} from '../extension/extension-boundary.js'
+import {PluginBoundary} from '../runtime/plugin/plugin-boundary.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
-import {widgetStyles} from '../lib/widget-styles.js'
+import {widgetSheet} from '../lib/widget-styles.js'
 
 function decorateHost(element: HTMLDivElement): void {
+  if (element.shadowRoot) element.shadowRoot.adoptedStyleSheets = [widgetSheet()]
   element.setAttribute('data-conciv-effects', '')
   element.style.position = 'fixed'
   element.style.zIndex = '2147483000'
@@ -33,16 +34,15 @@ export function EffectsSurface(props: {instances: ExtensionInstance[]}): JSX.Ele
         decorateHost(element)
       }}
     >
-      <style>{widgetStyles}</style>
       <div class={themeClasses(theme())}>
         <EnvironmentProvider value={() => host?.shadowRoot ?? document}>
           <Show when={mountKey()} keyed>
             {(mount) => (
               <For each={mount.instances}>
                 {(instance) => (
-                  <ExtensionBoundary name={instance.extension.name} fallback="silent">
+                  <PluginBoundary name={instance.extension.name} fallback="silent">
                     <MountedSurface extension={instance.extension} clientValue={instance.clientValue} />
-                  </ExtensionBoundary>
+                  </PluginBoundary>
                 )}
               </For>
             )}

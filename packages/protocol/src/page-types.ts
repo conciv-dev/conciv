@@ -4,7 +4,9 @@ import {CODE_MODE_TIMEOUT_MS} from './chat-types.js'
 
 export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
 
-export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${EFFECTS_SURFACE_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
+export const PLUGIN_OVERLAY_ATTR = 'data-conciv-overlay'
+
+export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${EFFECTS_SURFACE_ATTR}], [${PLUGIN_OVERLAY_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
 
 export const PAGE_QUEUE_TOOL = 'page_queue'
 export const PAGE_QUEUE_ASYNC_TOOL = 'page_queue_async'
@@ -43,7 +45,7 @@ export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
 export const PAGE_ERROR_CODES = [...PAGE_REPORTED_ERROR_CODES, ...PAGE_TRANSPORT_ERROR_CODES] as const
 export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
 export type PageReportedErrorCode = (typeof PAGE_REPORTED_ERROR_CODES)[number]
-const PageRaisedErrorSchema = z.object({
+export const PageRaisedErrorSchema = z.object({
   code: z.string().min(1),
   message: z.string(),
   data: z.unknown().optional(),

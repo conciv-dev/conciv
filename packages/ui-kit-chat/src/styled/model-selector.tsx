@@ -13,27 +13,27 @@ import {
 import {Slot} from '../primitives/util/slot.js'
 
 const TRIGGER =
-  'text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
+  'text-chat-sm font-chat [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
 const VALUE =
   'min-w-0 inline-flex items-center gap-1.5 [&_[data-model-name]]:truncate [&_[data-model-effort]]:[color:var(--chat-text-3)]'
 const CONTENT =
-  'p-1 w-64 max-h-80 flex-col hidden z-10 rounded-[var(--chat-radius-md)] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [box-shadow:var(--chat-shadow-lg)] focus-visible:outline-none data-[state=open]:flex'
+  'font-chat p-1 w-64 max-h-80 flex-col hidden z-10 rounded-[var(--chat-radius-md)] [background:var(--chat-panel)] [border:1px_solid_var(--chat-line)] [box-shadow:var(--chat-shadow-lg)] focus-visible:outline-none data-[state=open]:flex'
 const SEARCH =
-  'h-8 w-full mb-1 px-2 text-[length:var(--chat-text-md)] [color:var(--chat-text)] [background:transparent] [border:none] [border-bottom:1px_solid_var(--chat-line-soft)] rounded-none placeholder:[color:var(--chat-text-3)] focus:outline-none'
+  'h-8 w-full mb-1 px-2 text-chat-md [color:var(--chat-text)] [background:transparent] [border:none] [border-bottom:1px_solid_var(--chat-line-soft)] rounded-none placeholder:[color:var(--chat-text-3)] focus:outline-none'
 const LIST = 'flex-1 overflow-y-auto'
-const EMPTY = 'text-[length:var(--chat-text-sm)] [color:var(--chat-text-3)] px-2 py-2.5'
+const EMPTY = 'text-chat-sm [color:var(--chat-text-3)] px-2 py-2.5'
 const ITEM =
   '[color:var(--chat-text)] px-2 py-[0.4375rem] gap-2 flex items-center cursor-pointer rounded-chat-sm data-[disabled]:[color:var(--chat-text-3)] data-[disabled]:cursor-not-allowed data-[highlighted]:[color:var(--chat-text-hi)] data-[highlighted]:[background:var(--chat-fill-strong)]'
 const ITEM_BODY = 'flex flex-1 flex-col gap-px min-w-0'
-const ITEM_DESC = 'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
+const ITEM_DESC = 'text-chat-xs [color:var(--chat-text-3)]'
 const INDICATOR = '[color:var(--chat-accent)] ml-auto hidden data-[state=checked]:inline-flex'
 const GROUP_LABEL =
-  'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 uppercase'
+  'text-chat-xs [color:var(--chat-text-3)] tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 uppercase'
 const EFFORT_ROW = 'flex items-center justify-between gap-3 mt-1 px-2 py-2 [border-top:1px_solid_var(--chat-line-soft)]'
-const EFFORT_LABEL = 'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
+const EFFORT_LABEL = 'text-chat-xs [color:var(--chat-text-3)]'
 const EFFORT_GROUP = 'flex items-center gap-0.5'
 const EFFORT_BTN =
-  'px-2 py-1 text-[length:var(--chat-text-xs)] rounded-chat-sm cursor-pointer [border:none] [background:transparent] [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]'
+  'px-2 py-1 text-chat-xs rounded-chat-sm cursor-pointer [border:none] [background:transparent] [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]'
 const EFFORT_ON = '[color:var(--chat-text-hi)] [background:var(--chat-fill-strong)] font-medium'
 const EFFORT_OFF = '[color:var(--chat-text-3)] hover:[color:var(--chat-text)]'
 

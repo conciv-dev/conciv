@@ -12,6 +12,7 @@ import {
 } from 'solid-js'
 import {useQuery, type ChatSession} from '@conciv/client'
 import {z} from 'zod'
+import {compact, uniq} from 'es-toolkit'
 import {
   activeToolCall,
   AttachmentByMime,
@@ -28,8 +29,12 @@ import {
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {pageSessionEntry} from '@conciv/extension-page/client'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
+import {
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_PREFIX,
+  builtinToolMeta,
+  pageSessionEntry,
+} from '@conciv/builtin-plugins/renderer'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -52,7 +57,7 @@ import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
-import {makePaneGrabApi} from '../extension/pane-grab.js'
+import {makePaneGrabApi} from './pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
@@ -173,8 +178,8 @@ function turnHarnessNames(
   const harnesses = useHarnesses()
   const mixed = createMemo(() => {
     const harnessId = current()
-    if (harnessId === undefined) return false
-    return turns().some((turn) => turn.role === 'assistant' && (chat.readHarness(turn.key) ?? harnessId) !== harnessId)
+    const replies = turns().filter((turn) => turn.role === 'assistant')
+    return uniq(compact([harnessId, ...replies.map((turn) => chat.readHarness(turn.key) ?? harnessId)])).length > 1
   })
   return (turn) => {
     if (!mixed() || turn.role !== 'assistant') return undefined
@@ -253,7 +258,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   const catalog: ToolCatalogView = {
     loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
   }
   const captures = useSessionCaptures(sessionId)
   const draftStorage = makeDraftStorage(appData, sessionId)
@@ -339,7 +344,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const paneGrab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
-  const markerRowsAfter = markersAfter(chat, () => markers.data ?? [])
+  const markerRowsAfter = markersAfter(chat, () => (markers.isPending ? [] : (markers.data ?? [])))
 
   const PaneBody = (): JSX.Element => {
     const thread = useThread()

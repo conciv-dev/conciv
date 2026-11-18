@@ -9,7 +9,7 @@ import {installConcivBinShim} from './bin-shim.js'
 import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
-import {makeViteBridge} from '@conciv/extension/vite'
+import {makeViteBridge} from './vite-bridge.js'
 import {type Builtins, loadExtensionPackages, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
@@ -93,7 +93,8 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/ui-kit-chat > shiki/core',
   '@conciv/ui-kit-chat > @chenglou/pretext',
   '@conciv/ui-kit-tap > @tiptap/suggestion',
-  '@conciv/extension-page > @zumer/snapdom',
+  '@conciv/ui-kit-terminal > @xterm/xterm',
+  '@conciv/ui-kit-terminal > @xterm/addon-fit',
   '@conciv/solid-streamdown > marked',
   '@conciv/solid-streamdown > rehype-harden',
   '@conciv/solid-streamdown > rehype-raw',

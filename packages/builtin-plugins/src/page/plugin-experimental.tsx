@@ -1,27 +1,23 @@
-import {createComponent, onCleanup, type Accessor, type JSX} from 'solid-js'
-import {Portal} from 'solid-js/web'
+import {onCleanup} from 'solid-js'
+import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
+import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
-import {Definition, type Tab} from '@conciv/plugin-page/rpc'
+import {Definition} from '@conciv/plugin-page/rpc'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import {openAttachment} from './attachment.js'
 import {makeHighlight, type OpenedSource} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
+import {pageToolCalls} from './cards/page-tool-cards.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
-
-const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
+import {readTab, reportChanges} from './tab.js'
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
 const RETRY_BASE_MS = 1000
 
 const RETRY_MAX_MS = 30_000
-
-function reportChanges(report: () => void, signal: AbortSignal) {
-  TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
-  document.addEventListener('visibilitychange', report, {signal})
-}
 
 function woken(signal: AbortSignal) {
   const woke = new AbortController()
@@ -34,22 +30,6 @@ function woken(signal: AbortSignal) {
   }).finally(() => woke.abort())
 }
 
-function HighlightHost(props: {
-  mode: Accessor<'light' | 'dark'>
-  mount: (root: ShadowRoot) => () => void
-}): JSX.Element {
-  return (
-    <Portal mount={document.body}>
-      <div
-        data-conciv-effects
-        classList={{light: props.mode() === 'light', dark: props.mode() === 'dark'}}
-        style={{position: 'fixed', 'z-index': '2147483000'}}
-        ref={(element) => onCleanup(props.mount(element.attachShadow({mode: 'open'})))}
-      />
-    </Portal>
-  )
-}
-
 export default Plugin.define({
   setup(ctx) {
     const connectionId = crypto.randomUUID()
@@ -57,13 +37,7 @@ export default Plugin.define({
     const operations = makePageOperations(ctx)
     const routed = () => ctx.sessions.current()
 
-    const tab = (): Tab => ({
-      id: tabId,
-      url: location.href,
-      title: document.title,
-      focused: document.hasFocus(),
-      visible: document.visibilityState === 'visible',
-    })
+    const tab = () => readTab(tabId)
 
     const keep = async (session: MountedSession, signal: AbortSignal) => {
       for (let refusals = 0; ;) {
@@ -169,8 +143,9 @@ export default Plugin.define({
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
     ctx.add(PageEffect, highlight.effect)
-    createComponent(HighlightHost, {mode: () => ctx.appearance.mode(), mount: highlight.mount})
+    onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
 
+    pageToolCalls.forEach((call) => ctx.add(ToolCall, call))
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 

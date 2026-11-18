@@ -79,6 +79,8 @@ function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonl
       summary: tool.description,
       category: entry.category,
       positional: entry.positional,
+      icon: entry.view.icon,
+      label: entry.view.label,
       mutating: operation.mutating,
       reachable: true,
       approval: entry.asks === undefined ? undefined : 'ask',

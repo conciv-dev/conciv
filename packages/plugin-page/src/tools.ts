@@ -1,6 +1,8 @@
 import {Buffer} from 'node:buffer'
+import {Effect} from 'effect'
 import {z} from 'zod'
 import {Tool, type Plugin, type ToolContext} from '@conciv/plugin'
+import {PageRaisedErrorSchema, RawFrameSchema, SourceLocSchema} from '@conciv/protocol/page-types'
 import {raise, type Connection} from './connection.js'
 import * as Files from './files.js'
 import {CliTools, Operations, PAGE_NAMESPACE, type Action, type File, type Operation, type Result} from './rpc.js'
@@ -24,18 +26,13 @@ const JsonObject = z.record(z.string(), z.json())
 const DECLARED: Partial<Record<string, Record<string, string>>> = {
   effect: {UNKNOWN_EFFECT: 'no effect is registered under that name'},
 }
-const Raised = z.object({error: z.looseObject({code: z.string(), message: z.string()})})
+const Raised = z.object({error: PageRaisedErrorSchema.loose()})
 const Targeted = z.looseObject({type: z.string(), ref: z.string().optional(), selector: z.string().optional()})
 const Located = z.looseObject({
-  source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
+  source: SourceLocSchema.nullish(),
   frames: z.array(z.unknown()).optional(),
 })
-const Frame = z.object({
-  fileName: z.string(),
-  line: z.number(),
-  column: z.number().optional(),
-  fn: z.string().optional(),
-})
+const Frame = RawFrameSchema.required({fileName: true, line: true})
 
 export async function register(
   ctx: Pick<Plugin.Context, 'tool' | 'skill' | 'location' | 'permission'>,
@@ -72,21 +69,25 @@ export async function register(
       .request({agentId: tool.agent, signal: tool.signal})
       .catch((error: unknown) => Promise.reject(declared(operation.name, error)))
     const output = decodeResult(operation, response)
-    if (response.capture)
-      await connection.records
-        .capture(tool.sessionId, tool.id, response.capture)
-        .catch((error: unknown) => console.warn(`Saving the capture of page.${operation.name} failed`, error))
+    const capture = response.capture
+    if (capture)
+      await warned(
+        () => connection.records.capture(tool.sessionId, tool.id, capture),
+        `Saving the capture of page.${operation.name} failed`,
+      )
     if (operation.mutating) {
       const {type: _type, ref, selector, ...args} = Targeted.parse(action)
-      await connection.records
-        .append(tool.sessionId, {
-          ts: Date.now(),
-          verb: `page_${operation.name}`,
-          ...(ref === undefined ? {} : {ref}),
-          ...(selector === undefined ? {} : {selector}),
-          args,
-        })
-        .catch((error: unknown) => console.warn(`Journaling page.${operation.name} failed`, error))
+      await warned(
+        () =>
+          connection.records.append(tool.sessionId, {
+            ts: Date.now(),
+            verb: `page_${operation.name}`,
+            ...(ref === undefined ? {} : {ref}),
+            ...(selector === undefined ? {} : {selector}),
+            args,
+          }),
+        `Journaling page.${operation.name} failed`,
+      )
     }
     if (action.type === 'locate')
       return exportResult(await located(output, ctx.location.directory), response.files, ctx.location.directory)
@@ -117,6 +118,12 @@ export async function register(
       })
     })
   })
+}
+
+function warned(write: () => Promise<void>, message: string) {
+  return Effect.runPromise(
+    Effect.tryPromise(write).pipe(Effect.catch((error) => Effect.logWarning(message, error.cause))),
+  )
 }
 
 function declared(name: string, error: unknown) {

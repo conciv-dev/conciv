@@ -803,9 +803,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../../packages/db
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../../packages/extensions/page
       '@conciv/extension-whiteboard':
         specifier: workspace:*
         version: link:../../packages/extensions/whiteboard
@@ -1233,9 +1230,9 @@ importers:
       '@conciv/brand':
         specifier: workspace:*
         version: link:../../packages/brand
-      '@conciv/extension-page':
+      '@conciv/builtin-plugins':
         specifier: workspace:*
-        version: link:../../packages/extensions/page
+        version: link:../../packages/builtin-plugins
       '@conciv/mascot':
         specifier: workspace:*
         version: link:../../packages/mascot
@@ -2280,9 +2277,15 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/grab':
+        specifier: workspace:^
+        version: link:../grab
       '@conciv/page':
         specifier: workspace:^
         version: link:../page
@@ -2298,9 +2301,18 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../ui-kit-chat
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../ui-kit-terminal
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -2310,18 +2322,27 @@ importers:
       '@tanstack/hotkeys':
         specifier: 'catalog:'
         version: 0.18.0
+      '@tanstack/solid-hotkeys':
+        specifier: 'catalog:'
+        version: 0.17.0(solid-js@1.9.17)
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
-      '@unocss/reset':
-        specifier: 'catalog:'
-        version: 66.12.0
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
       ai-motion:
         specifier: 'catalog:'
         version: 0.4.8
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
+      js-beautify:
+        specifier: ^2.0.3
+        version: 2.0.3
+      lucide-solid:
+        specifier: 'catalog:'
+        version: 1.66.0(solid-js@1.9.17)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2332,9 +2353,6 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../ui-kit-chat
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -2359,6 +2377,9 @@ importers:
       '@tiptap/pm':
         specifier: 'catalog:'
         version: 3.32.1
+      '@types/js-beautify':
+        specifier: ^1.14.3
+        version: 1.14.3
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -2380,6 +2401,12 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      storybook:
+        specifier: 'catalog:'
+        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      storybook-solidjs-vite:
+        specifier: 'catalog:'
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2653,6 +2680,9 @@ importers:
       '@orpc/standard-server-peer':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
+      defu:
+        specifier: 'catalog:'
+        version: 6.1.7
       partysocket:
         specifier: 'catalog:'
         version: 1.3.0(react@19.3.1)
@@ -2905,9 +2935,6 @@ importers:
       '@conciv/extension-ios':
         specifier: workspace:^
         version: link:../extensions/ios
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -2947,6 +2974,9 @@ importers:
       '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../ui-kit-tap
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../ui-kit-terminal
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -2978,9 +3008,6 @@ importers:
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
-      '@conciv/extension-tanstack':
-        specifier: workspace:^
-        version: link:../extensions/tanstack
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal
@@ -3068,9 +3095,6 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
-      defu:
-        specifier: 'catalog:'
-        version: 6.1.7
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -3439,39 +3463,12 @@ importers:
       '@conciv/grab':
         specifier: workspace:^
         version: link:../../grab
-      '@conciv/page':
-        specifier: workspace:^
-        version: link:../../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../../ui-kit-chat
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../../ui-kit-system
-      '@solid-primitives/map':
-        specifier: 'catalog:'
-        version: 0.7.4(solid-js@1.9.17)
-      '@tanstack/hotkeys':
-        specifier: 'catalog:'
-        version: 0.18.0
-      '@tanstack/solid-pacer':
-        specifier: 'catalog:'
-        version: 0.24.0(solid-js@1.9.17)
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
-      ai-motion:
-        specifier: 'catalog:'
-        version: 0.4.8
-      js-beautify:
-        specifier: ^2.0.3
-        version: 2.0.3
-      lucide-solid:
-        specifier: 'catalog:'
-        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3479,81 +3476,18 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
-      '@solidjs/testing-library':
-        specifier: 'catalog:'
-        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@tiptap/core':
-        specifier: 'catalog:'
-        version: 3.32.1(@tiptap/pm@3.32.1)
-      '@tiptap/extension-document':
-        specifier: 'catalog:'
-        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/extension-paragraph':
-        specifier: 'catalog:'
-        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/extension-text':
-        specifier: 'catalog:'
-        version: 3.32.1(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))
-      '@tiptap/pm':
-        specifier: 'catalog:'
-        version: 3.32.1
-      '@types/js-beautify':
-        specifier: ^1.14.3
-        version: 1.14.3
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.3.0(@types/react@19.3.0)
-      '@vitest/browser-playwright':
-        specifier: 'catalog:'
-        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
-      playwright:
-        specifier: 'catalog:'
-        version: 1.64.1
-      react:
-        specifier: 'catalog:'
-        version: 19.3.1
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.3.1(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
-      storybook:
-        specifier: 'catalog:'
-        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      storybook-solidjs-vite:
-        specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vite-plugin-solid:
-        specifier: 'catalog:'
-        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/extensions/recorder:
     dependencies:
@@ -3715,6 +3649,9 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@conciv/unplugin':
+        specifier: workspace:^
+        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4707,6 +4644,9 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 'catalog:'
         version: 0.3.31
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -4912,22 +4852,25 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@tanstack/react-router':
-        specifier: '>=1.170.0'
-        version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/browser-fixture':
+        specifier: workspace:*
+        version: link:../../browser-fixture
       '@conciv/cli':
         specifier: workspace:^
         version: link:../../cli
-      '@conciv/extension':
+      '@conciv/embed':
         specifier: workspace:^
-        version: link:../../extension
+        version: link:../../embed
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
@@ -4940,21 +4883,60 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
+      '@conciv/unplugin':
+        specifier: workspace:^
+        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.1
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
+      '@tanstack/react-router':
+        specifier: 'catalog:'
+        version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -5838,9 +5820,6 @@ importers:
 
   packages/ui-kit-chat-tools:
     dependencies:
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -6224,6 +6203,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
       chokidar:
         specifier: ^6.0.0
         version: 6.0.0

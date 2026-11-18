@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import type {ServerHarness, ServerSessions} from '@conciv/extension'
+import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 import {Cache, Duration, Effect} from 'effect'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'

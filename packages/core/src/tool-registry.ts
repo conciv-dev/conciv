@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {isPageFailure, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_TOOL} from '@conciv/protocol/page-types'
-import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
+import {pageVerbError} from '@conciv/extension'
+import {toolError, type ToolRequest} from '@conciv/protocol/tool-call-types'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
 import type {PageAnswer, PageEnv} from './page/page-bus.js'
 import {session} from './runtime/session-context.js'

@@ -120,6 +120,10 @@
     "./event-bus": {
       "types": "./dist/event-bus.d.ts",
       "import": "./dist/event-bus.js"
+    },
+    "./tool-call-types": {
+      "types": "./dist/tool-call-types.d.ts",
+      "import": "./dist/tool-call-types.js"
     }
   },
   "publishConfig": {

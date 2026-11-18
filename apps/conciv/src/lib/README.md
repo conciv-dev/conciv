@@ -2,18 +2,18 @@
 
 ## Overview
 
-DOM and browser helpers: api base resolution, shadow root creation with fonts, host theme detection, draggable launcher position, focus and element lookup, hotkeys, quick-terminal search params and the panel open flag.
+DOM and browser helpers: api base resolution, shadow root creation with fonts, host theme detection, draggable launcher position, focus lookup, hotkeys, quick-terminal search params and the panel open flag.
 
 ## Interface
 
 - `resolveApiBase()` (`api-base.ts`): `window.__CONCIV_API_BASE__`, else `<meta name="conciv-api-base">`, else `?core=`; exported as `@conciv/app/api-base`
-- `createShadowRoot`, `registerFonts`, `registerWind4Properties` (`shadow.ts`): open shadow root with inlined styles; exported as `@conciv/app/shadow`
+- `createShadowRoot`, `registerFonts`, `registerWind4Properties` (`shadow.ts`): open shadow root that adopts the widget stylesheet; exported as `@conciv/app/shadow`
+- `widgetStyles`, `widgetSheet()`, `createStyleSheet(text, doc)` (`widget-styles.ts`): the widget CSS text, the one constructed `CSSStyleSheet` built from it for the page's `document`, and a constructed sheet from any CSS text in a document
 - `createHostTheme`, `applySchemeClass`, `applySkinClass`, `themeClasses`, `HostTheme`, `ColorScheme` (`color-scheme.ts`)
 - `createDraggablePosition({initial, storageKey})`, `DraggablePosition`, `LauncherAnchor`, `launcherPlacement`, `panelPlacement` (`draggable-position.ts`): the launcher's drag, a port of the TanStack Devtools floating trigger: a press past 4px drags with the grab point under the pointer, a release throws with friction and wall bounce, a release within 72px of a corner pins it there (holding still 2s on a corner switches that corner off for the drag, Shift steers to the corner the drag heads for), a release anywhere else stays put, a drag past an edge hides it into a tab, Escape drops the gesture; arrows nudge the focused launcher and Shift with an arrow sends it to a corner. `LauncherAnchor` holds the collapsed launcher's `left`, `right` and `top` plus the screen-half `corner`; `growsTowardStart(labelWidth)` is true when the opened pill (collapsed launcher plus the label's natural width) would cross the right margin from the launcher's resting left (or its live drag position), so hovering never flips it; `launcherPlacement` places the launcher by `left` and `top` so its pill grows to the right, or by `right` and `top` when it grows toward the start, so the robot never moves; `panelPlacement` opens the chat panel toward the free side of the launcher's screen half, aligned to its right edge on the right half; `panelFrame(size)` gives that panel's viewport rectangle from the launcher's live position and the panel's measured size, with no layout read
 - `clamp`, `cornerAt`, `cornerCoords`, `directionCorner`, `quadrantCorner`, `offScreenEdge`, `stepAxis`, `throwPath`, `toPercent`, `toPixels`, `parsePlacement`, `presetPlacement` (`draggable-physics.ts`): the pure geometry and throw physics behind the drag, and the stored placement schema
 - `createMediaQuery(query)`, `PHONE_MEDIA_QUERY` (`media-query.ts`): `(max-width: 520px)`
 - `hostFocusTarget`, `hostPageHasFocus` (`host-focus.ts`)
-- `elementAt(x, y)` (`element-at.ts`): top element at a point that is not inside `[data-conciv-effects]`
 - `toRawHotkey(binding)` (`hotkey.ts`): `parseHotkey` from `@tanstack/hotkeys`
 - `sessionPickerSearchSchema` (`session-search-schemas.ts`): the root route's search params, `open`, the session picker's `sessionSearch` term and its `allProjects` flag
 - `QuickSearchSchema`, `quickPaneIds`, `quickSearchFor` (`quick-search.ts`): `panes` (comma-separated session ids) and `focus` search params
@@ -21,6 +21,7 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 
 ## Invariants
 
+- `widget-styles.ts:widgetSheet`: es-toolkit `once`, so the page's `document` gets one sheet, made on first call; every widget root in it (widget, effects surface, plugin overlays) adopts the same object; the picture-in-picture window makes and holds its own (`shell/pip.ts`) and no root carries the CSS text in a `<style>`; `@property` and `@font-face` stay in `document.head` (`registerWind4Properties`, `registerFonts`)
 - `api-base.ts:queryCore`: `?core=` is accepted only for loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) or the page's own origin; others are ignored with a warning
 - `quick-search.ts:quickPaneIds`: only values passing `isSessionId` are kept; invalid `panes`/`focus` fall back to `''`/`0`
 - `shutter.ts:setShutter`: closed is represented by an absent `open` param, never `open=false`
@@ -29,7 +30,7 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 ## Side Effects
 
 - `draggable-position.ts:createDraggablePosition`: reads and writes the placement (a corner, a free spot as a percent of the free space, or a hidden edge, as JSON; a stored preset string from before still reads as that corner) under `storageKey` through `readStorage`/`writeStorage` from `@conciv/ui-kit-system`; window pointer and Escape listeners; pointer capture on the pressed launcher; a Web Animations settle or throw on release, skipped under reduced motion
-- `shadow.ts:createShadowRoot`: `attachShadow({mode: 'open'})` and style injection; `registerFonts`/`registerWind4Properties` add fonts and CSS properties to the document
+- `shadow.ts:createShadowRoot`: `attachShadow({mode: 'open'})` and `adoptedStyleSheets` set to the widget sheet; `registerFonts`/`registerWind4Properties` add fonts and CSS properties to the document
 - `shadow.ts`: toggles a selection attribute on `document.documentElement`
 - `color-scheme.ts:createHostTheme`: `MutationObserver` on `document.body` and `documentElement` class changes
 - `api-base.ts:queryCore`: `console.warn` on a rejected `?core=`
