@@ -123,8 +123,6 @@ export function createBundleSource(input: {
       case 'unsubscribe-credentials':
         resources.unfollow?.()
         resources.unfollow = undefined
-        resources.reachability?.()
-        resources.reachability = undefined
 
         return
       case 'start-watch':
@@ -140,8 +138,7 @@ export function createBundleSource(input: {
 
         return
       case 'cancel-watch':
-        resources.enableState?.()
-        resources.enableState = undefined
+        stopEnableState()
         resources.watch?.abort()
         resources.watch = undefined
         clearTimeout(resources.watchTimer)
@@ -182,11 +179,20 @@ export function createBundleSource(input: {
       dispatch({type: 'endpoint.changed', endpoint: endpointFor(url), quitting: false})
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      resources.reachability?.()
+      resources.reachability = undefined
+    }
+  }
+
+  const stopEnableState = () => {
+    resources.enableState?.()
+    resources.enableState = undefined
   }
 
   const followEnableState = () => {
-    resources.enableState?.()
+    stopEnableState()
     resources.enableState = enableStore.on(
       (rows) => {
         settle(rows)

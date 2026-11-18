@@ -419,6 +419,24 @@ function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; disp
   }
 }
 
+function boundShellRpc(apiBase: string, session: () => string | null) {
+  return {client: makeBrowserRpcClient(apiBase, {session}), apiBase: () => apiBase, bindApiBase: undefined}
+}
+
+function connectShellRpc(session: () => string | null) {
+  const client = makeBrowserRpcClient(() => null, {session})
+  const [apiBase, setApiBase] = createSignal('')
+  const bindApiBase = (next: string) => {
+    client.bind(next)
+    setApiBase(next)
+  }
+  return {client, apiBase, bindApiBase}
+}
+
+function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
+  return options.connect ? connectShellRpc(session) : boundShellRpc(apiBase, session)
+}
+
 type ShellHarness = {
   mountShell: (entry: string | string[], extensions?: AnyExtension[], options?: ShellMountOptions) => void
   dispose: () => void
@@ -457,12 +475,9 @@ export function createShellHarness(base: () => string): ShellHarness {
       })
     if (login) void startEngineLogin(login)
     const activeSession: {read: () => string | null} = {read: () => null}
-    const client = makeBrowserRpcClient(options.connect ? () => null : apiBase, {session: () => activeSession.read()})
-    const [boundApiBase, setBoundApiBase] = createSignal(options.connect ? '' : apiBase)
-    const bindApiBase = (next: string) => {
-      client.bind(next)
-      setBoundApiBase(next)
-    }
+    const session = () => activeSession.read()
+    const shellRpc = shellRpcFor(options, apiBase, session)
+    const client = shellRpc.client
     mounted.closeRpc = client.close
     const shadow = options.shadow ? mountInShadowRoot() : undefined
     mounted.removeShadow = shadow?.dispose ?? (() => {})
@@ -473,10 +488,10 @@ export function createShellHarness(base: () => string): ShellHarness {
       settings: parseConcivSettings(
         JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
       ),
-      apiBase: options.apiBase ?? boundApiBase,
+      apiBase: options.apiBase ?? shellRpc.apiBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
       connectMode: options.connect,
-      bindApiBase: options.connect ? bindApiBase : undefined,
+      bindApiBase: shellRpc.bindApiBase,
       connectionGeneration: () => 0,
       extensions,
       login,
