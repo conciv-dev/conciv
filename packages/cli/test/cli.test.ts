@@ -25,6 +25,7 @@ import {approvePending, exchangePrintedCode, loginThroughTerminal} from '@conciv
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {
+  CHAT_SSE_PATH,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
@@ -1005,6 +1006,22 @@ describe('cli', () => {
         await Promise.all(
           [browser, agent, framed].map((socket) => once(socket, 'open', {signal: AbortSignal.timeout(3_000)})),
         )
+        const delivered = Promise.all(
+          [browser, agent, framed].map((socket) => once(socket, 'message', {signal: AbortSignal.timeout(3_000)})),
+        )
+        const turn = await fetch(`${origin}/t/${token}${CHAT_SSE_PATH}`, {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify({
+            threadId: sessionId,
+            runId: 'before-revoke',
+            messages: [{id: 'before-revoke-user', role: 'user', content: 'hello'}],
+            tools: [],
+            context: [],
+          }),
+        })
+        await turn.text()
+        await delivered
         const closedCode = async (socket: WebSocket) =>
           z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
             .code

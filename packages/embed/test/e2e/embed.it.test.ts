@@ -20,7 +20,7 @@ import {
   proxyTo,
   type ProxyCore,
   type WidgetSuite,
-  openAttachedHost,
+  awaitTabAttached,
   captureNativePosts,
   installNativeStub,
   type NativeBridge,
@@ -590,7 +590,7 @@ test.describe('element capture', () => {
     await kit.cleanup()
   })
 
-  const openHostPage = (page: Page): Promise<Page> => openAttachedHost(page, kit, host.base)
+  const openHostPage = (page: Page): Promise<void> => openLoggedIn(page, kit, host.base)
 
   const PushChannelSchema = z.object({channel: z.string()})
 
@@ -624,6 +624,7 @@ test.describe('element capture', () => {
     await openHostPage(page)
     await openPanel(page)
     await switchToSessionByTitle(page, title)
+    await awaitTabAttached(kit, fresh.sessionId)
     return fresh.sessionId
   }
 
@@ -708,6 +709,7 @@ test.describe('element capture', () => {
       await openHostPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, fresh.sessionId)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
       })
@@ -733,6 +735,7 @@ test.describe('element capture', () => {
       await openHostPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, fresh.sessionId)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_click({selector: '#cta'})",
       })
@@ -1471,12 +1474,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openAttachedHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `page dispatch ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1613,12 +1617,13 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openAttachedHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       title = `deleted while open ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1667,12 +1672,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openAttachedHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `restart untouched ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1711,7 +1717,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openAttachedHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1784,7 +1790,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openAttachedHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1825,12 +1831,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       const page = await browser.newPage()
-      await openAttachedHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `headless eval ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
       return {kit, host, page}
     }
 

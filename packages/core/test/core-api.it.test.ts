@@ -6535,6 +6535,175 @@ describe('page action queue delivery', () => {
       lastRun: {runId: 'next-run', phase: 'completed'},
     })
   })
+
+  const CHECK = [{tool: 'page_check', selector: '#agree'}]
+  const SHORT_REPLY_WINDOW_MS = 1000
+
+  const servedWithShortReplyWindow: ServeEngine = async (home, harness, plugins, root) => {
+    const boot = bootCoreApp({
+      home,
+      cwd: root,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: SHORT_REPLY_WINDOW_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
+
+  async function engineWithTabs(serve: ServeEngine = servedByStart) {
+    const home = tempDir('conciv-queue-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const tabs = pageTabs()
+    const {origin, token} = await serve(home, createFakeHarness(), [tabs.plugin], tempDir('conciv-queue-'), {})
+    const base = `${origin}/t/${token}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const typed = makeRpcClient(base, {headers: HUB})
+    const open = async (focused: boolean) => {
+      const tab = await tabs.open(sessionId, () => undefined, {focused})
+      onTestFinished(() => tab.end())
+      const next = async () => {
+        const requestId = await tab.requested()
+        return {requestId, command: await tab.command(requestId)}
+      }
+      return {...tab, next}
+    }
+    return {
+      open,
+      call: registryCall(base, sessionId),
+      hub: (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code),
+      wait: (queueId: string, waitMs = 0) => typed.page.queue.wait({sessionId, queueId, waitMs}),
+    }
+  }
+
+  const routed = (href: string) => pageSuccess({pathname: href, search: '', href, title: 'Example', state: 'visible'})
+
+  it('queues and calls share each tab in turn: a queue started while another plays or while a changing call is in flight reaches the tab only after it, on the tab focused when it started, and a lost tab resends a reading call to the next tab but never a changing one', async () => {
+    const engine = await engineWithTabs()
+    const first = await engine.open(true)
+    const probe = async (tab: Awaited<ReturnType<typeof engine.open>>, href: string) => {
+      const reading = engine.call('page_route', {})
+      const arrived = await tab.next()
+      expect(arrived.command.action).toEqual({type: 'route'})
+      await tab.reply(arrived.requestId, routed(href))
+      expect(await reading).toMatchObject({href})
+    }
+    const accept = async (tab: Awaited<ReturnType<typeof engine.open>>, queueId: string) => {
+      const acceptance = await tab.next()
+      expect(acceptance.command.queued).toEqual({id: queueId, index: -1, of: 1})
+      await tab.reply(acceptance.requestId, pageSuccess({queueId, actions: 1}))
+      const action = await tab.next()
+      expect(action.command.queued).toEqual({id: queueId, index: 0, of: 1})
+      return action.requestId
+    }
+
+    const earlier = parseHandle(await engine.hub(queued(CHECK)))
+    const earlierAction = await accept(first, earlier.queueId)
+    const later = parseHandle(await engine.hub(queued(CHECK)))
+    expect(later).toEqual({queueId: expect.stringMatching(/^q_/), actions: 1})
+    await probe(first, '/while-the-earlier-queue-plays')
+    expect(await engine.wait(later.queueId)).toEqual({queueId: later.queueId, status: 'playing', done: 0, of: 1})
+    await first.reply(earlierAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(earlier.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await first.reply(await accept(first, later.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(later.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const playing = parseHandle(await engine.hub(queued(CHECK)))
+    const playingAction = await accept(first, playing.queueId)
+    const synchronous = engine.hub(`return await external_page_queue({actions: ${JSON.stringify(CHECK)}})`)
+    await probe(first, '/while-the-sync-queue-waits')
+    await first.reply(playingAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(playing.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    const syncAcceptance = await first.next()
+    const syncId = syncAcceptance.command.queued?.id ?? ''
+    expect(syncId).not.toBe(playing.queueId)
+    await first.reply(syncAcceptance.requestId, pageSuccess({queueId: syncId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: false}))
+    expect(JSON.parse(String(await synchronous)).result).toMatchObject({
+      queueId: syncId,
+      status: 'finished',
+      played: 1,
+      failed: 0,
+    })
+
+    const clicking = engine.call('page_click', {selector: '#go'})
+    const click = await first.next()
+    expect(click.command.action).toEqual({type: 'click', selector: '#go'})
+    const behindClick = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(first, '/while-the-click-is-in-flight')
+    await first.reply(click.requestId, pageSuccess({ok: true}))
+    expect(await clicking).toEqual({ok: true})
+    await first.reply(await accept(first, behindClick.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(behindClick.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+
+    const second = await engine.open(false)
+    const beforeFocus = parseHandle(await engine.hub(queued(CHECK)))
+    const beforeFocusAction = await accept(first, beforeFocus.queueId)
+    await second.focus(true)
+    const seenOnFirst = first.seen().length
+    const afterFocus = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(second, '/the-newly-focused-tab')
+    await first.reply(beforeFocusAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(beforeFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await second.reply(await accept(second, afterFocus.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(afterFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    expect(first.seen().slice(seenOnFirst)).toEqual([])
+
+    second.end()
+
+    const other = await engine.open(false)
+    await first.focus(true)
+    const changing = engine.call('page_click', {selector: '#once'})
+    const changingOnFirst = await first.next()
+    first.end()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    await expect(first.reply(changingOnFirst.requestId, pageSuccess({ok: true}))).rejects.toThrow()
+    await other.focus(true)
+    await probe(other, '/never-the-click-again')
+
+    const focusedLast = await engine.open(true)
+    const snapshotting = engine.call('page_snapshot', {})
+    const lost = await focusedLast.next()
+    focusedLast.end()
+    const resent = await other.next()
+    expect(resent.requestId).not.toBe(lost.requestId)
+    expect(resent.command.action).toEqual({type: 'snapshot'})
+    await other.reply(resent.requestId, pageSuccess({nodes: []}))
+    expect(await snapshotting).toEqual({nodes: []})
+
+    const reading = engine.call('page_route', {})
+    const onlyTab = await other.next()
+    other.end()
+    const returned = await engine.open(true)
+    const again = await returned.next()
+    expect(again.command.action).toEqual({type: 'route'})
+    await returned.reply(again.requestId, routed('/after-the-reload'))
+    expect(await reading).toMatchObject({href: '/after-the-reload'})
+    expect(onlyTab.requestId).not.toBe(again.requestId)
+    expect(returned.seen()).toEqual(['page_route'])
+  })
+
+  it('a call whose tab stays open and never replies times out once and is cancelled on the page, and a reading call whose tab never comes back fails once its own window runs out', async () => {
+    const engine = await engineWithTabs(servedWithShortReplyWindow)
+    const silent = await engine.open(true)
+    const reading = engine.call('page_route', {})
+    const unanswered = await silent.next()
+    await expect(reading).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.route')})
+    await silent.cancelled(unanswered.requestId)
+    const changing = engine.call('page_click', {selector: '#go'})
+    const unansweredClick = await silent.next()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.click')})
+    await silent.cancelled(unansweredClick.requestId)
+    expect(silent.seen()).toEqual(['page_route', 'page_click'])
+
+    const stranded = engine.call('page_route', {})
+    await silent.next()
+    silent.end()
+    await expect(stranded).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    expect(silent.seen()).toEqual(['page_route', 'page_click', 'page_route'])
+  })
 })
 
 describe('engine plugins', () => {

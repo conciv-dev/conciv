@@ -386,15 +386,13 @@ export async function installNativeStub(page: Page): Promise<void> {
 
 const PAGE_ATTACH_TIMEOUT_MS = 30_000
 
-export async function openAttachedHost(page: Page, kit: EmbedKit, base: string): Promise<Page> {
-  await openLoggedIn(page, kit, base)
+export async function awaitTabAttached(kit: EmbedKit, sessionId: string): Promise<void> {
   const rpc = makeRpcClient(kit.base)
   await expect
     .poll(() => rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}), {
       timeout: PAGE_ATTACH_TIMEOUT_MS,
     })
-    .not.toEqual([])
-  return page
+    .toContain(sessionId)
 }
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
