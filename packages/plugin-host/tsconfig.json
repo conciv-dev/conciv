@@ -1,6 +1,7 @@
 {
   "extends": "@conciv/tsconfig/tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {"#fff": ["./src/core/filesystem/fff.node.ts"]}
   }
 }
