@@ -3,7 +3,6 @@ import {contract} from '@conciv/contract'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
-import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
 import type {CompositeRpcRouter as ExtensionCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
@@ -78,7 +77,6 @@ export type ChatContext = {
 
 export type RpcDeps = {
   chat: ChatContext
-  tools: ChatTool[]
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
@@ -166,7 +164,14 @@ const EVENT_PROCEDURES = new Set(['event.subscribe'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
-const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental', 'plugin.experimentalChunk'])
+const PLUGIN_PROCEDURES = new Set([
+  'plugin.call',
+  'plugin.list',
+  'plugin.experimental',
+  'plugin.experimentalChunk',
+  'skill.list',
+  'agent.list',
+])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 

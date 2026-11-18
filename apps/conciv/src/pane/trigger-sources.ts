@@ -2,7 +2,7 @@ import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {uniqBy} from 'es-toolkit'
 import {Command} from '@conciv/plugin/experimental'
-import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
+import type {ChatCommand} from '@conciv/protocol/chat-types'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
 import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
@@ -101,8 +101,18 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
   return {name: typed.slice(1, separator), input: typed.slice(separator).trim()}
 }
 
-function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
-  return {id: tool.name, label: `@${tool.name}`, group: tool.extension ?? 'Tools', description: tool.description}
+type MentionSkill = {id: string; description?: string}
+
+type MentionAgent = {name: string; mode: 'subagent' | 'primary' | 'all'; hidden: boolean}
+
+function skillEntry(skill: MentionSkill): RichTextFieldTriggerItem {
+  return {id: skill.id, label: `@${skill.id}`, description: skill.description}
+}
+
+function agentEntries(agents: readonly MentionAgent[]): RichTextFieldTriggerItem[] {
+  return agents
+    .filter((agent) => agent.mode !== 'primary' && !agent.hidden)
+    .map((agent) => ({id: agent.name, label: `@${agent.name}`}))
 }
 
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
@@ -182,10 +192,14 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
       },
     },
     mention: {
-      label: 'Tools',
+      label: 'Context',
       items: async (query) => {
-        const data = await queryClient.ensureQueryData(appData.utils.meta.tools.queryOptions())
-        return matchingItems(data.tools.map(toolEntry), query, matcher())
+        const [skills, agents] = await Promise.all([
+          queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
+          queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
+        ])
+        const entries = uniqBy([...skills.data.map(skillEntry), ...agentEntries(agents.data)], (entry) => entry.id)
+        return matchingItems(entries, query, matcher())
       },
     },
   }

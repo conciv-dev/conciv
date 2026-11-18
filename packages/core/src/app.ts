@@ -33,7 +33,6 @@ import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import {
   OUTSIDE_SESSION_TARGET,
-  type ChatTool,
   type HarnessSessionId,
   type SessionId,
   type SessionRecord,
@@ -740,10 +739,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
     ])
 
-  const toolList: ChatTool[] = mounted.flatMap((entry) =>
-    entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
-  )
-
   const hub = createHubInstaller(opts.home)
   const driver = loadIsolateDriver(logError)
   const plane = await createChatPlane({
@@ -765,7 +760,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
-    toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
+    toolNames: new Set([
+      ...mounted.flatMap((entry) => entry.tools.map((tool) => tool.name)),
+      ...concivSandboxToolNames(),
+    ]),
     capabilities: codeModeCapabilities,
     attachmentExpanders,
     prompt: plugins.prompt,
@@ -892,7 +890,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     chat: chatDeps,
     search,
     settings,
-    tools: toolList,
     openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),

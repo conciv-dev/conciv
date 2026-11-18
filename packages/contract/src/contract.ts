@@ -9,12 +9,12 @@ import {
   ChatHistorySchema,
   ChatModelsSchema,
   HubAgentsSchema,
-  ChatToolsSchema,
   HarnessListCursorSchema,
   HarnessSessionId,
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
+  PermissionRuleSchema,
   ReasoningEffortSchema,
   SessionId,
   TabOpenSchema,
@@ -321,6 +321,33 @@ const PluginInfoSchema = z.object({
   state: PluginStateSchema,
 })
 
+const SkillInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  autoinvoke: z.boolean().optional(),
+  path: z.string(),
+  content: z.string(),
+})
+
+const AgentInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  model: z.object({id: z.string(), providerId: z.string(), variant: z.string().optional()}).optional(),
+  request: z.object({
+    settings: z.record(z.string(), z.unknown()),
+    headers: z.record(z.string(), z.string()),
+    body: z.record(z.string(), z.unknown()),
+  }),
+  system: z.string().optional(),
+  description: z.string().optional(),
+  mode: z.enum(['subagent', 'primary', 'all']),
+  hidden: z.boolean(),
+  color: z.string().optional(),
+  steps: z.number().int().positive().optional(),
+  permissions: z.array(PermissionRuleSchema).readonly(),
+})
+
 const PluginChunkFileSchema = z
   .string()
   .max(256)
@@ -513,11 +540,16 @@ export const contract = {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
-    tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+  },
+  skill: {
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(SkillInfoSchema))),
+  },
+  agent: {
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(AgentInfoSchema))),
   },
   plugin: {
     call: oc

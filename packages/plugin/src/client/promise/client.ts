@@ -46,6 +46,8 @@ export function make(
     page: raw.page,
     editor: raw.editor,
     meta: raw.meta,
+    skill: raw.skill,
+    agent: raw.agent,
     plugin: raw.plugin,
     experimental: raw.experimental,
     event: raw.event,

@@ -8,7 +8,7 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
-import {Event, Location, Plugin, Rpc, Tool} from '@conciv/plugin-host'
+import {Agent, Event, Location, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
@@ -234,7 +234,7 @@ async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSi
   }
 }
 
-function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plugin.Interface>) {
+function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Failure, Services>) {
   return Effect.gen(function* () {
     const location = yield* Location.Service
     return {location: {directory: location.directory}, data: yield* data}
@@ -243,6 +243,14 @@ function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plug
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
   return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+}
+
+function skillList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Skill.Service.use((skill) => skill.list())), {signal})
+}
+
+function agentList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Agent.Service.use((agent) => agent.list())), {signal})
 }
 
 function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
@@ -385,6 +393,12 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           })
       }),
     },
+    skill: {
+      list: os.skill.list.handler(({signal}) => skillList(deps.pluginHost, signal)),
+    },
+    agent: {
+      list: os.agent.list.handler(({signal}) => agentList(deps.pluginHost, signal)),
+    },
     plugin: {
       call: os.plugin.call.handler(async ({input, errors, signal}) => {
         const outcome = await pluginCall(deps.pluginHost, input, signal)
@@ -496,7 +510,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       commands: os.meta.commands.handler(({input, context}) =>
         listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),
-      tools: os.meta.tools.handler(() => ({tools: deps.tools})),
       engine: os.meta.engine.handler(() => engine.staleness()),
       hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
