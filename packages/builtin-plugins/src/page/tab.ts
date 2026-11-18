@@ -48,10 +48,10 @@ export function reportChanges(report: () => void, signal: AbortSignal) {
   TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
   document.addEventListener('visibilitychange', report, {signal})
   navigation.addEventListener('currententrychange', report, {signal})
-  let title = document.title
+  const last = {title: document.title}
   const titles = new MutationObserver(() => {
-    if (document.title === title) return
-    title = document.title
+    if (document.title === last.title) return
+    last.title = document.title
     report()
   })
 

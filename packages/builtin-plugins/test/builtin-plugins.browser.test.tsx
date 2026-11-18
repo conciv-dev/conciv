@@ -2476,16 +2476,16 @@ describe('the page tab the agent sees', () => {
     keepLocation()
     const controller = new AbortController()
     onTestFinished(() => controller.abort())
-    let reported = Promise.withResolvers<void>()
-    reportChanges(() => reported.resolve(), controller.signal)
+    const reported = {current: Promise.withResolvers<void>()}
+    reportChanges(() => reported.current.resolve(), controller.signal)
 
     history.pushState(null, '', '/next')
-    await reported.promise
+    await reported.current.promise
     expect(readTab(tabId).url).toBe(`${location.origin}/next`)
 
-    reported = Promise.withResolvers<void>()
+    reported.current = Promise.withResolvers<void>()
     document.title = 'the next page'
-    await reported.promise
+    await reported.current.promise
     expect(readTab(tabId).title).toBe('the next page')
   })
 })
