@@ -20,23 +20,21 @@ function useSessionCaptures(sessionID: Accessor<string | undefined>): CaptureLoo
     return sessions.list().find((session) => session.id === id)?.server.client
   })
   const pluginCall = createTanstackQueryUtils(
-    (call: CapturesCall, options?: {signal?: AbortSignal}) => {
+    async (call: CapturesCall, options?: {signal?: AbortSignal}): Promise<Record<string, ToolCaptureView>> => {
       const current = client()
-      if (current === undefined) return Promise.reject(new Error(`no open session ${call.input.sessionId}`))
-      return current.rpc(Definition)['captures.list'](call.input, options)
+      if (current === undefined) throw new Error(`no open session ${call.input.sessionId}`)
+      const parsed = SessionCapturesSchema.safeParse(
+        await current.rpc(Definition)['captures.list'](call.input, options),
+      )
+      return parsed.success ? toolCaptureViews(parsed.data) : {}
     },
-    {path: ['plugin', 'call']},
+    {path: ['plugin', 'call', 'captures']},
   )
   const captures = useQuery(() => ({
     ...pluginCall.queryOptions({input: capturesCall(sessionID() ?? '')}),
     enabled: sessionID() !== undefined && client() !== undefined,
   }))
-  const views = createMemo<Record<string, ToolCaptureView>>(() => {
-    if (captures.isPending) return {}
-    const parsed = SessionCapturesSchema.safeParse(captures.data)
-    return parsed.success ? toolCaptureViews(parsed.data) : {}
-  })
-  return (toolCallId) => views()[toolCallId]
+  return (toolCallId) => captures.data?.[toolCallId]
 }
 
 export const CaptureContext = createContext<CaptureLookup>(() => undefined)
