@@ -1,9 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
-import {useComposerContext} from '../primitives/composer/composer-context.js'
-import {AttachmentUI} from './attachment-ui.js'
-import {CornerRemoveButton} from './corner-remove-button.js'
+import {AttachmentUI, RemoveAttachmentButton} from './attachment-ui.js'
 import {
   attachmentId,
   fileToDataSource,
@@ -23,25 +21,14 @@ function attachmentMime(attachment: AttachmentState): string | undefined {
   return documentMimes[0] ?? attachment.contentType
 }
 
-function RemoveCardButton(): JSX.Element {
-  const attachment = useAttachment()
-  const composer = useComposerContext()
-  return (
-    <CornerRemoveButton
-      label={`Remove ${attachment.name}`}
-      onRemove={() => void composer.removeAttachment(attachment.id)}
-    />
-  )
-}
-
 export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; removable?: boolean}): JSX.Element {
   const attachment = useAttachment()
   const card = () => props.cards.find((entry) => entry.mime === attachmentMime(attachment))
   return (
     <Show when={card()} fallback={<AttachmentUI removable={props.removable} />}>
       {(entry) => (
-        <Attachment.Root class={props.removable ? 'group pt-3 pe-3' : undefined}>
-          <Dynamic component={entry().render} remove={props.removable ? <RemoveCardButton /> : undefined} />
+        <Attachment.Root class="group">
+          <Dynamic component={entry().render} remove={props.removable ? <RemoveAttachmentButton /> : undefined} />
         </Attachment.Root>
       )}
     </Show>

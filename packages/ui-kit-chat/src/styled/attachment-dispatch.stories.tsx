@@ -85,7 +85,11 @@ export const CardChipWithRemove: Story = {
 
     await waitFor(() => expect(c.getByRole('button', {name: 'Play'})).toBeVisible())
     const remove = c.getByRole('button', {name: 'Remove Screen recording'})
-    await expect(remove).toBeVisible()
+    await userEvent.tab()
+    await userEvent.tab()
+    await waitFor(() => expect(remove).toHaveFocus())
+    expect(remove.matches(':focus-visible')).toBe(true)
+    await waitFor(() => expect(remove).toBeVisible())
     expect(remove.querySelector('svg')).not.toBeNull()
 
     const playRect = c.getByRole('button', {name: 'Play'}).getBoundingClientRect()

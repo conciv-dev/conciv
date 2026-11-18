@@ -79,8 +79,11 @@ export const ImageAndFileTiles: Story = {
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
 
-    await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
-    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
+    await userEvent.tab()
+    await userEvent.tab()
+    await waitFor(() => expect(c.getByRole('button', {name: 'Remove diagram.png'})).toHaveFocus())
+    expect(c.getByRole('button', {name: 'Remove diagram.png'}).matches(':focus-visible')).toBe(true)
+    await waitFor(() => expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeVisible())
 
     const page = within(canvasElement.ownerDocument.body)
     await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
