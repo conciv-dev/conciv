@@ -1,4 +1,4 @@
-import {isToolError} from '@conciv/extension'
+import {isToolError} from '@conciv/protocol/tool-call-types'
 import {isPageFailure, pageFailure, type PageFailure} from '@conciv/protocol/page-types'
 
 function isSchemaRejection(error: unknown): error is Error {

@@ -56,9 +56,9 @@ import {
   type ServerApi,
   type ToolMiddleware,
   imageResult,
-  toolError,
   defineAttachment,
 } from '@conciv/extension'
+import {toolError} from '@conciv/protocol/tool-call-types'
 import {openSource} from '@conciv/extension/client'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {createHubConnections} from '@conciv/harness-init/hub'
