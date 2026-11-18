@@ -13,8 +13,16 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {Cause, Effect, Exit, Fiber, Ref, type Schema} from 'effect'
+import {Cause, Effect, Exit, Fiber, PubSub, Ref, Scope, Stream, SubscriptionRef, type Schema} from 'effect'
 import {TestClock} from 'effect/testing'
+import {
+  makeChangeFeed,
+  SinceFailed,
+  EventsStopped,
+  type ChangeMessage,
+  type FeedEvent,
+} from '../src/client/change-feed.js'
+import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/client/change-feed-machine.js'
 import {startPending, transitionPending, type PendingState} from '../src/server/pending-machine.js'
 import {makeWhiteboardStore} from '../src/server/store.js'
 import {awaitDrawing, commitDraft, exportPng} from '../src/tool/canvas/tools.js'
@@ -35,29 +43,12 @@ const APP = [
 ].join('\n')
 
 const OFFERED_TOOLS = [
-  'whiteboard_anchor_resolve',
-  'whiteboard_canvas_clear',
-  'whiteboard_canvas_commit',
-  'whiteboard_canvas_connect',
-  'whiteboard_canvas_delete',
-  'whiteboard_canvas_diagram',
-  'whiteboard_canvas_discard',
-  'whiteboard_canvas_draw',
-  'whiteboard_canvas_export',
-  'whiteboard_canvas_preview',
-  'whiteboard_canvas_read',
-  'whiteboard_canvas_svg',
-  'whiteboard_canvas_update',
-  'whiteboard_comment_create',
-  'whiteboard_comment_delete',
-  'whiteboard_comment_list',
-  'whiteboard_comment_move',
-  'whiteboard_comment_read',
-  'whiteboard_comment_reply',
-  'whiteboard_comment_resolve',
-  'whiteboard_element_reference',
-  'whiteboard_pin_set_state',
+  'anchor_resolve canvas_clear canvas_commit canvas_connect canvas_delete canvas_diagram canvas_discard canvas_draw',
+  'canvas_export canvas_preview canvas_read canvas_svg canvas_update comment_create comment_delete comment_list',
+  'comment_move comment_read comment_reply comment_resolve element_reference pin_set_state',
 ]
+  .flatMap((line) => line.split(' '))
+  .map((name) => `whiteboard_${name}`)
 
 const PinSchema = z.object({
   id: z.string(),
@@ -120,11 +111,7 @@ function call(kit: CoreKit, method: string, input: unknown): Promise<unknown> {
 }
 
 async function failureType(pending: Promise<unknown>): Promise<string> {
-  const failure = await pending.then(
-    () => new Error('the call answered instead of failing'),
-    (error: unknown) => error,
-  )
-  return RpcFailureSchema.parse(failure).data.type
+  return RpcFailureSchema.parse(await rejection(pending)).data.type
 }
 
 async function rejection(pending: Promise<unknown>): Promise<Error> {
@@ -941,5 +928,115 @@ describe('the pending request driver on the test clock', () => {
       ),
     )
     expect(outcomes).toEqual(['unclaimed', 'unfinished', 'drawn', 'COMMIT_TIMEOUT', 'EXPORT_TIMEOUT'])
+  })
+})
+
+describe('the change feed machine', () => {
+  it('reads the position, catches up, routes only newer changes, reloads when the stream stops, and is disposed once', () => {
+    const change = (cursor: number): FeedChange => ({table: 'pins', key: `pin-${cursor}`, type: 'upsert', cursor})
+    const opening = startChangeFeed()
+    expect(opening.effects).toEqual([{type: 'readPosition', attempt: 0}, {type: 'subscribe'}])
+    expect(transitionChangeFeed(opening.state, {type: 'connected'}).state).toBe(opening.state)
+    const early = transitionChangeFeed(opening.state, {type: 'changed', change: change(3)})
+    expect(early.effects).toEqual([{type: 'route', changes: [change(3)]}])
+    expect(transitionChangeFeed(early.state, {type: 'positionRead', attempt: 9, cursor: 5}).state).toBe(early.state)
+    const catching = transitionChangeFeed(early.state, {type: 'positionRead', attempt: 0, cursor: 5})
+    expect(catching).toEqual({
+      state: {status: 'catchingUp', attempt: 1, cursor: 5},
+      effects: [{type: 'opened'}, {type: 'readSince', attempt: 1, cursor: 5}],
+    })
+    expect(transitionChangeFeed(catching.state, {type: 'sinceRead', attempt: 0, changes: []}).state).toBe(
+      catching.state,
+    )
+    const during = transitionChangeFeed(catching.state, {type: 'changed', change: change(6)})
+    expect(during.state).toEqual({status: 'catchingUp', attempt: 1, cursor: 6})
+    const live = transitionChangeFeed(during.state, {type: 'sinceRead', attempt: 1, changes: [change(5), change(7)]})
+    expect(live).toEqual({
+      state: {status: 'live', attempt: 1, cursor: 7},
+      effects: [{type: 'route', changes: [change(7)]}],
+    })
+    expect(transitionChangeFeed(live.state, {type: 'connected'}).effects).toEqual([
+      {type: 'readSince', attempt: 2, cursor: 7},
+    ])
+    const reloading = transitionChangeFeed(live.state, {type: 'streamStopped'})
+    expect(reloading.effects).toEqual([{type: 'readPosition', attempt: 2}])
+    expect(transitionChangeFeed(reloading.state, {type: 'positionRead', attempt: 2, cursor: 4})).toEqual({
+      state: {status: 'live', attempt: 2, cursor: 7},
+      effects: [{type: 'reload'}, {type: 'subscribe'}],
+    })
+    const disposed = transitionChangeFeed(reloading.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    expect(transitionChangeFeed(disposed.state, {type: 'changed', change: change(9)}).state).toBe(disposed.state)
+  })
+})
+
+describe('the change feed driver on the test clock', () => {
+  it('retries the position read with backoff, catches up, routes per table, reloads when the events stop, and disposes with its scope', async () => {
+    const pin = (cursor: number): FeedChange => ({table: 'pins', key: `pin-${cursor}`, type: 'upsert', cursor})
+    const result = await clocked(
+      Effect.gen(function* () {
+        const calls = yield* Ref.make<readonly number[]>([])
+        const bus = yield* PubSub.unbounded<FeedEvent | 'stop'>()
+        const changes: readonly FeedChange[] = [pin(5), pin(6), {...pin(7), table: 'comments'}]
+        const source = {
+          since: (cursor: number) =>
+            Ref.updateAndGet(calls, (all) => [...all, cursor]).pipe(
+              Effect.flatMap((all) =>
+                all.length < 3
+                  ? Effect.fail(SinceFailed.make({message: 'offline'}))
+                  : Effect.succeed({
+                      cursor: all.length < 4 ? 5 : 8,
+                      changes: changes.filter((change) => change.cursor > cursor),
+                    }),
+              ),
+            ),
+          events: Stream.fromPubSub(bus).pipe(
+            Stream.mapEffect((event) =>
+              event === 'stop' ? Effect.fail(EventsStopped.make({message: 'gone'})) : Effect.succeed(event),
+            ),
+          ),
+        }
+        const scope = yield* Scope.make()
+        const feed = yield* makeChangeFeed(source, {retryMs: 100}).pipe(Scope.provide(scope))
+        const routed = yield* Ref.make<readonly ChangeMessage[]>([])
+        const pins = yield* feed.follow('pins').pipe(Scope.provide(scope))
+        yield* Effect.forkIn(
+          Stream.runForEach(pins, (message) => Ref.update(routed, (all) => [...all, message])),
+          scope,
+          {startImmediately: true},
+        )
+        yield* TestClock.adjust(79)
+        const beforeRetry = (yield* Ref.get(calls)).length
+        yield* TestClock.adjust(41)
+        const afterRetry = (yield* Ref.get(calls)).length
+        yield* TestClock.adjust(240)
+        const caughtUp = yield* SubscriptionRef.get(feed.state)
+        yield* PubSub.publish(bus, {type: 'changed', change: pin(6)})
+        yield* PubSub.publish(bus, {type: 'changed', change: pin(8)})
+        yield* TestClock.adjust(0)
+        yield* PubSub.publish(bus, 'stop')
+        yield* TestClock.adjust(0)
+        const reloaded = yield* SubscriptionRef.get(feed.state)
+        yield* Scope.close(scope, Exit.void)
+        return {
+          beforeRetry,
+          afterRetry,
+          caughtUp,
+          reloaded,
+          disposed: yield* SubscriptionRef.get(feed.state),
+          calls: yield* Ref.get(calls),
+          routed: yield* Ref.get(routed),
+        }
+      }),
+    )
+    expect(result).toEqual({
+      beforeRetry: 1,
+      afterRetry: 2,
+      caughtUp: {status: 'live', attempt: 1, cursor: 7},
+      reloaded: {status: 'live', attempt: 2, cursor: 8},
+      disposed: {status: 'disposed'},
+      calls: [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, 5, Number.MAX_SAFE_INTEGER],
+      routed: [{type: 'upsert', key: 'pin-6'}, {type: 'upsert', key: 'pin-8'}, {type: 'reload'}],
+    })
   })
 })

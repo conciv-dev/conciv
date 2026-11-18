@@ -1,6 +1,7 @@
 import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import {createCollection} from '@tanstack/solid-db'
 import {usePlugin, type Context} from '@conciv/plugin/experimental'
+import {Effect, Exit, Scope} from 'effect'
 import {Whiteboard} from '../rpc.js'
 import {
   elementRowToInsert,
@@ -11,7 +12,7 @@ import {
   type ReadRow,
   type ReplyRow,
 } from '../shared/rows.js'
-import {createChangeFeed} from './change-feed.js'
+import {makeChangeFeed, rpcChangeSource} from './change-feed.js'
 import {whiteboardStores} from './stores.js'
 import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'
 
@@ -21,7 +22,10 @@ const withoutSession = <Row extends {sessionId: string}>({sessionId: _session, .
 
 export function createWhiteboardDb(client: Context['client'], room: string, catchUpRetryMs: number) {
   const whiteboard = client.rpc(Whiteboard)
-  const feed = createChangeFeed(client, room, {retryMs: catchUpRetryMs})
+  const feedScope = Effect.runSync(Scope.make())
+  const feed = Effect.runSync(
+    makeChangeFeed(rpcChangeSource(client, room), {retryMs: catchUpRetryMs}).pipe(Scope.provide(feedScope)),
+  )
   const plugin = usePlugin<{stores: typeof whiteboardStores}>()
   const account = plugin.stores.account
   const onWriteFailed = (error: unknown): void => {
@@ -143,7 +147,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
     dispose: () => {
       canvasElements.utils.cleanupStrategy()
       canvasDraftElements.utils.cleanupStrategy()
-      feed.close()
+      void Effect.runFork(Scope.close(feedScope, Exit.void))
     },
   }
 }

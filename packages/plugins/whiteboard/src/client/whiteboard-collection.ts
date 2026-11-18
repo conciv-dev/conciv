@@ -1,4 +1,3 @@
-import {AsyncQueuer} from '@tanstack/pacer'
 import {createPacedMutations, throttleStrategy} from '@tanstack/solid-db'
 import type {
   DeleteMutationFnParams,
@@ -6,6 +5,7 @@ import type {
   SyncConfig,
   UpdateMutationFnParams,
 } from '@tanstack/solid-db'
+import {Effect, Fiber, Schema, Stream} from 'effect'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from '../shared/rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
@@ -15,12 +15,18 @@ const ELEMENT_WRITE_THROTTLE_MS = 50
 const NotFound = z.object({type: z.literal('NOT_FOUND')})
 const Conflict = z.object({type: z.literal('CONFLICT'), data: z.object({current: elementRow})})
 
+const RowMissing = Schema.TaggedStruct('RowMissing', {})
+const RowsUnreadable = Schema.TaggedStruct('RowsUnreadable', {message: Schema.String})
+
 type SyncParams<Row extends object> = Parameters<SyncConfig<Row, string>['sync']>[0]
 
-const readMissing = <Row>(read: Promise<Row>): Promise<Row | undefined> =>
-  read.catch((error: unknown) => {
-    if (NotFound.safeParse(error).success) return undefined
-    throw error
+const readRows = <Row>(read: () => Promise<Row>) =>
+  Effect.tryPromise({
+    try: read,
+    catch: (cause) =>
+      NotFound.safeParse(cause).success
+        ? RowMissing.make({})
+        : RowsUnreadable.make({message: cause instanceof Error ? cause.message : String(cause)}),
   })
 
 const buildSync = <Row extends object>(deps: {
@@ -41,40 +47,38 @@ const buildSync = <Row extends object>(deps: {
         if (row) params.write({type: params.collection.has(key) ? 'update' : 'insert', value: row})
         params.commit()
       }
-      const load = async (replace: boolean): Promise<void> => {
-        const loaded = await loadRows()
-        params.begin()
-        if (replace) params.truncate()
-        loaded.forEach((row) => params.write({type: 'insert', value: row}))
-        params.commit()
-      }
-      const apply = async (message: ChangeMessage): Promise<void> => {
-        if (message.type === 'reload') return load(true)
-        if (message.type === 'delete') return write(message.key, undefined)
-        write(message.key, await readMissing(readRow(message.key)))
-      }
-      const queue = new AsyncQueuer(apply, {
-        concurrency: 1,
-        started: false,
-        onError: (error) => console.error(`[whiteboard] a ${table} change could not be applied: ${String(error)}`),
-      })
-      const off = feed.subscribe(table, (message) => void queue.addItem(message))
-      const start = async (): Promise<void> => {
-        await feed.opened()
-        await load(false)
-      }
-      void start()
-        .catch((error: unknown) =>
-          console.error(`[whiteboard] the ${table} rows could not be loaded: ${String(error)}`),
+      const load = (replace: boolean) =>
+        readRows(loadRows).pipe(
+          Effect.map((loaded) => {
+            params.begin()
+            if (replace) params.truncate()
+            loaded.forEach((row) => params.write({type: 'insert', value: row}))
+            params.commit()
+          }),
         )
-        .finally(() => {
-          params.markReady()
-          queue.start()
-        })
-      return () => {
-        off()
-        queue.stop()
+      const apply = (message: ChangeMessage) => {
+        if (message.type === 'reload') return load(true)
+        if (message.type === 'delete') return Effect.sync(() => write(message.key, undefined))
+        return readRows(() => readRow(message.key)).pipe(
+          Effect.catchTag('RowMissing', () => Effect.succeed(undefined)),
+          Effect.map((row) => write(message.key, row)),
+        )
       }
+      const consume = Effect.gen(function* () {
+        const messages = yield* feed.follow(table)
+        yield* feed.opened
+        yield* load(false).pipe(
+          Effect.catch((failure) => Effect.logError(`the ${table} rows could not be loaded`, failure)),
+        )
+        params.markReady()
+        yield* Stream.runForEach(messages, (message) =>
+          apply(message).pipe(
+            Effect.catch((failure) => Effect.logError(`a ${table} change could not be applied`, failure)),
+          ),
+        )
+      }).pipe(Effect.scoped)
+      const consumer = Effect.runFork(consume)
+      return () => void Effect.runFork(Fiber.interrupt(consumer))
     },
   }
 }
