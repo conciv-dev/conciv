@@ -1,16 +1,19 @@
 import type * as Bundler from '@conciv/plugin/schema/bundler'
+import {Context, Effect, Layer, Ref} from 'effect'
 import type {AppError} from './rpc.js'
-
-export type DiagnosticsRing = {
-  push: (error: AppError) => void
-  list: () => AppError[]
-}
 
 type BuildErrorDiagnostic = Extract<Bundler.Diagnostic, {kind: 'build-error'}>
 
-const DEFAULT_CAPACITY = 50
+const CAPACITY = 50
 
-export function buildErrorToAppError(diagnostic: BuildErrorDiagnostic): AppError {
+export interface DiagnosticsRing {
+  readonly observe: (diagnostic: Bundler.Diagnostic) => Effect.Effect<void>
+  readonly list: Effect.Effect<ReadonlyArray<AppError>>
+}
+
+export const DiagnosticsService = Context.Service<DiagnosticsRing>('@conciv/plugin-tanstack/Diagnostics')
+
+function buildErrorToAppError(diagnostic: BuildErrorDiagnostic): AppError {
   const line = diagnostic.loc?.line ?? 0
   const column = diagnostic.loc?.column ?? 0
   const source = diagnostic.file ? {file: diagnostic.file, line, column} : null
@@ -25,12 +28,15 @@ export function buildErrorToAppError(diagnostic: BuildErrorDiagnostic): AppError
   }
 }
 
-export function makeDiagnosticsRing(capacity = DEFAULT_CAPACITY): DiagnosticsRing {
-  let stored: AppError[] = []
-  return {
-    push(error) {
-      stored = [...stored, error].slice(-capacity)
-    },
-    list: () => [...stored],
-  }
-}
+const make = Effect.fn('tanstack.diagnostics.make')(function* () {
+  const ring = yield* Ref.make<ReadonlyArray<AppError>>([])
+  const observe = Effect.fn('tanstack.diagnostics.observe')(function* (diagnostic: Bundler.Diagnostic) {
+    if (diagnostic.kind !== 'build-error') return
+    const error = buildErrorToAppError(diagnostic)
+    yield* Ref.update(ring, (stored) => [...stored, error].slice(-CAPACITY))
+  })
+  const service: DiagnosticsRing = {observe, list: Ref.get(ring)}
+  return service
+})
+
+export const diagnosticsLayer = Layer.effect(DiagnosticsService)(make())

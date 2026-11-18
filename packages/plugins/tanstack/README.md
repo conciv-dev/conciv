@@ -7,6 +7,9 @@ The conciv TanStack plugin, engine part. It reads the dev server's build errors,
 plugins: ['@conciv/plugin-tanstack']
 ```
 
+Option: `bundlerWaitMs` (default `10000`), how long `build_errors` waits for the engine to say whether a dev server is
+attached before it fails with `BUNDLER_UNAVAILABLE`: `plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]]`.
+
 - Tools: `external_tanstack_build_errors()`, `external_tanstack_route_manifest()`,
   `external_tanstack_server_fn_trace({count?})`. Failures carry `metadata.code`: `BUNDLER_UNAVAILABLE` when the engine
   has no bundler bridge, `MANIFEST_UNREADABLE` when the generated route tree cannot be read.
@@ -20,3 +23,8 @@ plugins: ['@conciv/plugin-tanstack']
     every server function seen; `--data '{"count":5}'` keeps the latest five calls.
 - `./rpc`: the schemas `FrameworkInfo`, `RouterCurrent`, `RouteNode`, `CacheEntry` and `AppError`, and `Definition`,
   the RPC `experimental.tanstack` other plugins call.
+
+## Follow-ups
+
+- A typed activation error once the SDK rules the plugin effect's error channel: an invalid option and a failed
+  `rpc.register` end activation as a defect today.

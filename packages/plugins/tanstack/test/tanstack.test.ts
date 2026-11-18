@@ -11,7 +11,12 @@ import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {Effect, Fiber, Layer, Stream} from 'effect'
+import {TestClock} from 'effect/testing'
+import {diagnosticsLayer} from '../src/diagnostics.js'
 import {Definition} from '../src/rpc.js'
+import {serverFnTraceLayer} from '../src/serverfn-trace.js'
+import {capabilities} from '../src/tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
@@ -446,4 +451,20 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     })
     expect(await terminalCall(kit, 'serverFnTrace', '{"count":1}')).toEqual({ok: true, data: based})
   })
+})
+
+describe('the tanstack plugin waiting for the bundler status', () => {
+  it('waits the set time on the test clock for a dev server, then fails BUNDLER_UNAVAILABLE', () =>
+    Effect.gen(function* () {
+      const rings = yield* Layer.build(Layer.mergeAll(diagnosticsLayer, serverFnTraceLayer))
+      const tanstack = yield* capabilities({event: {subscribe: () => Stream.never}}, PACKAGE_DIR, {
+        bundlerWaitMs: 5_000,
+      }).pipe(Effect.provide(rings))
+      const waiting = yield* tanstack.buildErrors().pipe(Effect.flip, Effect.forkChild)
+      yield* TestClock.adjust('4999 millis')
+      expect(waiting.pollUnsafe()).toBeUndefined()
+      yield* TestClock.adjust('1 millis')
+      const failure = yield* Fiber.join(waiting)
+      expect(failure).toEqual({_tag: 'Tanstack.BundlerUnavailable', message: 'bundler bridge unavailable'})
+    }).pipe(Effect.scoped, Effect.provide(TestClock.layer()), Effect.runPromise))
 })
