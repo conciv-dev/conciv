@@ -15,12 +15,14 @@ const STATUS_FILL: Record<CommentStatus, string> = {
   orphaned: 'bg-chat-dim',
 }
 
-const PIN = 'size-11 grid place-items-center rounded-full cursor-grab touch-none pointer-events-auto focus-ring'
+const PIN_BASE = 'h-11 rounded-full cursor-grab touch-none pointer-events-auto focus-ring'
+const PIN = `${PIN_BASE} w-11 grid place-items-center`
+const PIN_TAGGED = `${PIN_BASE} flex gap-1 items-center ps-2.5 pe-1`
 const PIN_MARK = 'relative size-6 rounded-full rounded-bl-none border-2 border-chat-text-hi shadow-chat'
 const UNREAD_DOT = 'absolute -top-1 -right-1 size-2.5 rounded-chat-pill bg-chat-accent ring-2 ring-chat-panel'
 
 const ANCHOR_TAG =
-  'absolute start-9.5 top-3.5 font-chat-mono text-chat-micro text-chat-text-2 bg-chat-panel border border-chat-line rounded-chat-surface-sm px-1 py-px pointer-events-none whitespace-nowrap'
+  'font-chat-mono text-chat-micro text-chat-text-2 bg-chat-panel border border-chat-line rounded-chat-surface-sm px-1 py-px whitespace-nowrap'
 
 const AnchorLine = z.object({source: z.object({line: z.number().nullable().optional()})})
 
@@ -43,6 +45,10 @@ export function PinsLayer(): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
   const drag = model.drag
+  const promptSource = (): string | undefined => {
+    const cid = drag.promptCid()
+    return cid === undefined ? undefined : anchorLabel(model.findRoot(cid))
+  }
 
   return (
     <>
@@ -53,6 +59,7 @@ export function PinsLayer(): JSX.Element {
               const comment = (): CommentRow | undefined => model.findRoot(pin.cid)
               const status = (): CommentStatus => comment()?.status ?? 'open'
               const label = (): string => pinLabel(comment(), status(), model.isUnread(pin.cid))
+              const tag = (): string | undefined => anchorLabel(comment())
               const position = (): {x: number; y: number} => {
                 const scene = drag.scenePosition(pin)
                 return sceneToScreen(view(), scene.x, scene.y)
@@ -61,14 +68,14 @@ export function PinsLayer(): JSX.Element {
               return (
                 <div
                   class="left-0 top-0 absolute"
-                  style={{transform: `translate(calc(${position().x}px - 50%), calc(${position().y}px - 50%))`}}
+                  style={{transform: `translate(calc(${position().x}px - 1.375rem), calc(${position().y}px - 50%))`}}
                 >
                   <ui.Tooltip value={label()}>
                     <button
                       type="button"
                       ref={(button) => model.registerPin(pin.cid, button)}
                       aria-label={label()}
-                      class={PIN}
+                      class={tag() ? PIN_TAGGED : PIN}
                       onPointerDown={(event) => drag.grab(view(), pin, event)}
                       onPointerMove={(event) => drag.follow(view(), pin, event)}
                       onPointerUp={() => drag.drop(pin, comment())}
@@ -81,9 +88,9 @@ export function PinsLayer(): JSX.Element {
                           <span class={UNREAD_DOT} aria-hidden="true" />
                         </Show>
                       </span>
+                      <Show when={tag()}>{(text) => <span class={ANCHOR_TAG}>{text()}</span>}</Show>
                     </button>
                   </ui.Tooltip>
-                  <Show when={anchorLabel(comment())}>{(tag) => <span class={ANCHOR_TAG}>{tag()}</span>}</Show>
                 </div>
               )
             }}
@@ -91,6 +98,7 @@ export function PinsLayer(): JSX.Element {
         )}
       </Show>
       <DragPrompt
+        source={promptSource()}
         anchor={drag.promptAnchor}
         open={drag.prompting()}
         onDisconnect={drag.disconnect}

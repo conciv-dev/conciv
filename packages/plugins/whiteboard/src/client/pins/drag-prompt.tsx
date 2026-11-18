@@ -1,7 +1,8 @@
-import {type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {usePlugin} from '@conciv/plugin/experimental'
 
 type DragPromptProps = {
+  source: string | undefined
   anchor: () => HTMLElement | undefined
   open: boolean
   onDisconnect: () => void
@@ -19,6 +20,9 @@ export function DragPrompt(props: DragPromptProps): JSX.Element {
       label="Pin drift"
     >
       <div class="flex flex-col min-w-45 pointer-events-auto">
+        <Show when={props.source}>
+          {(source) => <h2 class="text-chat-xs text-chat-text-2 font-chat-mono px-2 pb-1">{source()}</h2>}
+        </Show>
         <ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onDisconnect()}>
           Disconnect from source
         </ui.Button>

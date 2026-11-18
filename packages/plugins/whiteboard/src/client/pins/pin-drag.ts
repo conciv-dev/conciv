@@ -89,6 +89,7 @@ export function createPinDrag(model: PinDragModel) {
     drop,
     abandon: (): void => void setState('drag', null),
     prompting: (): boolean => state.prompt !== null,
+    promptCid: (): string | undefined => state.prompt?.cid,
     promptAnchor,
     disconnect,
     keep,

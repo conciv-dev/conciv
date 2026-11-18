@@ -923,6 +923,7 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(pinTooltip).toBeHidden()
       await page.mouse.up()
       const drift = page.getByRole('dialog', {name: 'Pin drift'})
+      await expect(drift.getByRole('heading', {name: 'app.tsx:3'})).toBeVisible()
       await expect(drift.getByRole('button', {name: 'Disconnect from source'})).toBeVisible()
       await expect(chat).toBeHidden()
       await drift.getByRole('button', {name: 'Cancel'}).click()
