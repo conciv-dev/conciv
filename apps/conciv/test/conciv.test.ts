@@ -400,6 +400,24 @@ describe('send checks', () => {
       message: 'Too many attachments. Remove some and send again.',
       tone: 'warn',
     })
+
+    const note = {
+      type: 'note' as const,
+      origin: 'fixture',
+      commentId: 'c1',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment: 'make it blue',
+    }
+    const image = {type: 'image' as const, source: {type: 'data' as const, mimeType: 'image/png', value: 'AA=='}}
+    const withNote = (attachments: number) =>
+      promptWithNotes(
+        {content: [{type: 'text', content: 'typed'}, ...Array.from({length: attachments}, () => image)]},
+        {draft: 'typed', attachments: [], quote: null, items: [{key: contextItemKey(note), value: note}]},
+      )
+    expect(checkSend(withNote(MAX_CONTENT_PARTS - 1), ready)).toEqual({ok: true})
+    expect(checkSend(withNote(MAX_CONTENT_PARTS), ready)).toEqual(verdict)
   })
 
   test('turns down a message whose payload would blow the ws frame limit', () => {
