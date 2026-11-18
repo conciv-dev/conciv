@@ -3,6 +3,8 @@ import {useFilter} from '@ark-ui/solid/locale'
 import {uniqBy} from 'es-toolkit'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
+import type {RpcClient} from '@conciv/contract'
+import type {InferClientOutputs} from '@orpc/client'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
 import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
@@ -101,15 +103,13 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
   return {name: typed.slice(1, separator), input: typed.slice(separator).trim()}
 }
 
-type MentionSkill = {id: string; description?: string}
+type RpcOutputs = InferClientOutputs<RpcClient>
 
-type MentionAgent = {name: string; mode: 'subagent' | 'primary' | 'all'; hidden: boolean}
-
-function skillEntry(skill: MentionSkill): RichTextFieldTriggerItem {
+function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
   return {id: skill.id, label: `@${skill.id}`, description: skill.description}
 }
 
-function agentEntries(agents: readonly MentionAgent[]): RichTextFieldTriggerItem[] {
+function agentEntries(agents: RpcOutputs['agent']['list']['data']): RichTextFieldTriggerItem[] {
   return agents
     .filter((agent) => agent.mode !== 'primary' && !agent.hidden)
     .map((agent) => ({id: agent.name, label: `@${agent.name}`}))
