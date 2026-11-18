@@ -208,7 +208,7 @@ export function createHostApis() {
 
     if (!connected.server(scope.server)) throw new Error(`Server ${scope.server} is unavailable`)
 
-    return {...Persist.project(name), copyFrom: storeImports(from)}
+    return {...Persist.server(name), copyFrom: storeImports(from)}
   }
 
   const apis: HostApiFactories = {
