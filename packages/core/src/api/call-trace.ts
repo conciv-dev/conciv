@@ -27,19 +27,22 @@ type MirrorSink = {
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
   const callId = randomUUID()
-  const startedAt = Date.now()
+  const clock = {startedAt: Date.now()}
   const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client, run: callId}}
   return {
     hub,
     callId,
     mark: (chunk: ChatEvent): ChatEvent => marked(chunk, marker),
-    start: (run: CallRun, toolName: string, input: unknown): ChatEvent[] => [
-      ...(run.live ? [] : [runStarted(run.threadId, callId)]),
-      ...startChunks(callId, toolName, input, marker, startedAt),
-    ],
+    start: (run: CallRun, toolName: string, input: unknown): ChatEvent[] => {
+      clock.startedAt = Date.now()
+      return [
+        ...(run.live ? [] : [runStarted(run.threadId, callId)]),
+        ...startChunks(callId, toolName, input, marker, clock.startedAt),
+      ]
+    },
     result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
       resultChunk(callId, text, failed, marker),
-      toolTimeEvent.create({toolCallId: callId, time: {start: startedAt, end: Date.now()}}),
+      toolTimeEvent.create({toolCallId: callId, time: {start: clock.startedAt, end: Date.now()}}),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
     mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),

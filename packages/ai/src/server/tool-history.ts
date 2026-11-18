@@ -52,12 +52,10 @@ function restored(message: ModelMessage, recorded: Recorded): ModelMessage {
   if (message.role === 'tool') return restoredResult(message, recorded)
   const calls = message.toolCalls ?? []
   const [first] = calls
-  if (first === undefined || !calls.every(isSandboxToolCall)) return message
-  return {
-    ...message,
-    id: message.id ?? `${first.id}-call`,
-    toolCalls: calls.map((call) => withRecordedMetadata(call, recorded)),
-  }
+  if (first === undefined) return message
+  const toolCalls = calls.map((call) => withRecordedMetadata(call, recorded))
+  if (!calls.every(isSandboxToolCall)) return {...message, toolCalls}
+  return {...message, id: message.id ?? `${first.id}-call`, toolCalls}
 }
 
 function restoredResult(message: ModelMessage, recorded: Recorded): ModelMessage {
