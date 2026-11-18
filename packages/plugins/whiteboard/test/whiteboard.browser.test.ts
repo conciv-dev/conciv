@@ -648,6 +648,8 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
         await expect(failedToast).toHaveCount(2)
         expect(failureLogs).toHaveLength(2)
+        const commentPill = failing.getByRole('button', {name: 'Comment on an element'})
+        await expect(commentPill).toBeHidden()
         await chunks.dispose()
         const slowChunk = await gateRpcCalls(failing, {path: ['plugin', 'experimentalChunk']})
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
@@ -656,6 +658,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await slowChunk.dispose()
         await expect(failing.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 10_000})
         await expect(loadingToast).toBeHidden()
+        await expect(commentPill).toBeVisible()
       } finally {
         await failing.close()
       }

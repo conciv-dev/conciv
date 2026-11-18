@@ -58,14 +58,12 @@ export default Plugin.define({
       order: 19,
       show: () => {
         const live = grab()
-        if (live.status !== 'active') return undefined
+        if (live.status !== 'active' || comments() === undefined) return undefined
         return {
           label: 'Comment',
           icon: 'message-square-plus',
           title: 'Comment on an element',
           run: () => {
-            setCanvas('engaged', true)
-            if (surface.error !== undefined) void refetch()
             Effect.runFork(
               compose.start({
                 pick: () => live.value.comment(),
@@ -73,6 +71,11 @@ export default Plugin.define({
                   ctx.dialogs.prompt({title: 'New comment', placeholder: 'Add a comment', submit: 'Add comment'}),
                 canvasOpen: () => canvas.open,
                 added: () => void ctx.toast.show({title: 'Comment added to the whiteboard', variant: 'success'}),
+                unbound: () =>
+                  void ctx.toast.show({
+                    title: 'The comment was not added: open the whiteboard and try again',
+                    variant: 'error',
+                  }),
               }),
             )
           },

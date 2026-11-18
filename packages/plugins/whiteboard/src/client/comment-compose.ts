@@ -1,4 +1,4 @@
-import {Effect, FiberHandle, Option, Stream, SubscriptionRef} from 'effect'
+import {Duration, Effect, FiberHandle, Schema, Stream, SubscriptionRef} from 'effect'
 import type {Grab} from '@conciv/plugin/experimental/grab'
 import type {ChatCover, ComposeTarget} from './model/comments-model.js'
 
@@ -7,15 +7,20 @@ export type ComposePhase =
   | {readonly status: 'picking'}
   | {readonly status: 'composing'; readonly target: ComposeTarget}
 
+const CommentsUnbound = Schema.TaggedStruct('Whiteboard.CommentsUnbound', {})
+type CommentsUnbound = typeof CommentsUnbound.Type
+
 export type ComposeSteps = {
   readonly pick: () => Promise<Grab | null>
   readonly ask: () => Promise<string | undefined>
   readonly canvasOpen: () => boolean
   readonly added: () => void
+  readonly unbound: () => void
 }
 
 const IDLE: ComposePhase = {status: 'idle'}
 const FALLBACK_POINT = {x: 80, y: 80}
+const BINDING_WAIT = Duration.seconds(5)
 
 function readComposeTarget(grab: Grab): ComposeTarget {
   return {
@@ -24,14 +29,20 @@ function readComposeTarget(grab: Grab): ComposeTarget {
   }
 }
 
+const isBound = (bound: ChatCover | undefined): bound is ChatCover => bound !== undefined
+const commentsUnbound = (): CommentsUnbound => CommentsUnbound.make({})
+
 export const makeCommentCompose = Effect.gen(function* () {
   const phase = yield* SubscriptionRef.make<ComposePhase>(IDLE)
   const cover = yield* SubscriptionRef.make<ChatCover | undefined>(undefined)
   const running = yield* FiberHandle.make<void>()
 
   const boundCover = SubscriptionRef.changes(cover).pipe(
-    Stream.filter((bound): bound is ChatCover => bound !== undefined),
+    Stream.filter(isBound),
     Stream.runHead,
+    Effect.timeout(BINDING_WAIT),
+    Effect.flatMap(Effect.fromOption(commentsUnbound)),
+    Effect.mapError(commentsUnbound),
   )
 
   const compose = (steps: ComposeSteps) =>
@@ -51,11 +62,17 @@ export const makeCommentCompose = Effect.gen(function* () {
       const text = answer?.trim()
       if (!text) return
       const bound = yield* boundCover
-      if (Option.isNone(bound)) return
       const reveal = steps.canvasOpen()
-      bound.value.addComment(target, text, reveal)
+      bound.addComment(target, text, reveal)
       if (!reveal) steps.added()
-    }).pipe(Effect.ensuring(SubscriptionRef.set(phase, IDLE)))
+    }).pipe(
+      Effect.catchTag('Whiteboard.CommentsUnbound', (error) =>
+        Effect.logWarning('[whiteboard] the comments never bound, the comment was not added', error).pipe(
+          Effect.andThen(Effect.sync(steps.unbound)),
+        ),
+      ),
+      Effect.ensuring(SubscriptionRef.set(phase, IDLE)),
+    )
 
   return {
     phase,
