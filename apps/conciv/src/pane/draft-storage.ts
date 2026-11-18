@@ -568,6 +568,7 @@ function keepChangedDraft(
       items: draft.items,
       updatedAt,
     })
+    if (!keptLocally) await saving
     return {updatedAt, keptLocally, saving}
   })
 }

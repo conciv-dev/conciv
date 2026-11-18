@@ -231,6 +231,7 @@ describe('draft storage', () => {
       selectionEnd: 5,
       attachments: [],
       items: [{key: 'note:fixture:c=c1', value: note}, other],
+      updatedAt: Date.now(),
     })
 
     const restored: RestoredDraft[] = []
