@@ -8491,6 +8491,10 @@ module.exports = {default: {stores: {
     at: 'window.bottom',
     render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
   })
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => button('Attach a held note', () => ctx.screen.current()?.composer.attach(fixtureNote('h1', 'the held comment'))),
+  })
   const [hidingOverlay, setHidingOverlay] = createSignal(false)
   ctx.add(Slot, {at: 'window.bottom', render: () => button('Open the hiding overlay', () => setHidingOverlay(true))})
   ctx.add(Slot, () =>
@@ -8844,6 +8848,53 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByLabelText('Session: Fixture note', {exact: true})).toBeInTheDocument()
     await expect.element(page.getByLabelText(/^Session: The user referenced/)).not.toBeInTheDocument()
   }, 90_000)
+
+  test('its notes written while the draft still loads stay with that session when the user switches to another', async () => {
+    const NOTED = 'the noted session'
+    const OTHER = 'the session switched to'
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: NOTED})
+    const titleButton = (title: string) =>
+      page.getByRole('banner').getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+    const switchTo = async (from: string, to: string) => {
+      await titleButton(from).click()
+      await page
+        .getByRole('dialog', {name: 'Session options'})
+        .getByRole('button', {name: `Session: ${from}`})
+        .click()
+      await page.getByRole('option', {name: new RegExp(`^${to},`)}).click()
+      await expect.element(titleButton(to), {timeout: 8000}).toBeVisible()
+    }
+    const savedItems = async (id: string) => (await rpc.drafts.get({sessionId: id}))?.items.length ?? 0
+    const restore = await faults.install({kind: 'gate', path: ['drafts', 'get'], input: {sessionId}})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(restore, 1)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await control('Attach a held note').click()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+
+    await switchTo(NOTED, OTHER)
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+    await coreControl.releaseFault(restore)
+    await expect.poll(() => savedItems(sessionId), {timeout: 8000}).toBe(3)
+    await tab('Chat').click()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(editor()).not.toHaveTextContent('noted')
+    await expect.element(notes()).not.toBeInTheDocument()
+    expect(await savedItems(otherId)).toBe(0)
+
+    await switchTo(OTHER, NOTED)
+    await tab('Chat').click()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the held comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+  }, 60_000)
 
   test('its notes come back to the composer as notes, with the typed text, whenever a draft is put back', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
