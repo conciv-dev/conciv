@@ -17,7 +17,7 @@ const FALLBACK_ICON: IconName = 'message-square'
 const SENT_NOTE_BOUND = 5
 
 const FRAME =
-  'group relative flex flex-1 flex-col gap-0.5 min-w-0 py-2 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
+  'group relative flex flex-1 flex-col gap-0.5 min-w-0 p-3 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
 const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
 const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
@@ -96,7 +96,7 @@ function PluginNoteCard(props: {
   })
 
   return (
-    <div class={`${FRAME} ${props.remove ? 'pe-8' : ''}`}>
+    <div class={FRAME}>
       <Show when={attempt()} keyed fallback={<NoteChip note={props.note} />}>
         {(current) => <DrawnNoteCard claimant={current.claimant} note={note} session={props.session} />}
       </Show>
@@ -117,7 +117,7 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
 
   return (
     <Show when={notes().length > 0}>
-      <ul aria-label="Notes" class="flex flex-wrap items-start gap-1 list-none p-0">
+      <ul aria-label="Notes" class="flex flex-wrap items-start gap-3 list-none ps-0 pb-0 pt-3 pe-3">
         <Key each={notes()} by={(entry) => entry.key}>
           {(entry) => (
             <li class="flex min-w-24 max-w-56 anim-presence-in">
