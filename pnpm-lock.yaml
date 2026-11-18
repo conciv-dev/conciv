@@ -3002,9 +3002,6 @@ importers:
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
-      '@conciv/extension-tanstack':
-        specifier: workspace:^
-        version: link:../extensions/tanstack
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal
@@ -3649,6 +3646,9 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@conciv/unplugin':
+        specifier: workspace:^
+        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -4862,9 +4862,6 @@ importers:
       '@conciv/cli':
         specifier: workspace:^
         version: link:../../cli
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
@@ -4877,6 +4874,9 @@ importers:
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@conciv/unplugin':
+        specifier: workspace:^
+        version: link:../../unplugin
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -6158,6 +6158,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
       chokidar:
         specifier: ^6.0.0
         version: 6.0.0
