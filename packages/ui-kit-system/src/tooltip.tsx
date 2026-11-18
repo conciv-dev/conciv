@@ -28,6 +28,8 @@ const LONG_PRESS = 500
 const HOLD_SLOP = 10
 
 type RootProps = ComponentProps<typeof Ark.Root>
+type TooltipApi = ReturnType<typeof useTooltipContext>
+type Environment = ReturnType<typeof useEnvironmentContext>
 type Hold = {phase: 'idle'} | {phase: 'holding'; x: number; y: number; pointerId: number} | {phase: 'held'}
 
 type ContentBinding = {bind: (element: HTMLElement) => void; pop: (element: HTMLElement) => void}
@@ -35,8 +37,36 @@ type ContentBinding = {bind: (element: HTMLElement) => void; pop: (element: HTML
 const ContentRefContext = createContext<ContentBinding>()
 const MemberContext = createContext<Setter<{children?: JSX.Element}>>()
 
+function findTrigger(environment: Environment, triggerId: string): HTMLElement | undefined {
+  const root = environment().getRootNode()
+  const element = isDocument(root) || isShadowRoot(root) ? root.getElementById(triggerId) : null
+  return isHTMLElement(element) ? element : undefined
+}
+
+function keepClosedWhilePressed(element: HTMLElement, api: TooltipApi): void {
+  const holdClosed = (event: PointerEvent): void => {
+    if (event.buttons !== 0) event.preventDefault()
+  }
+  makeEventListener(element, 'pointerdown', () => {
+    if (!api().open) api().setOpen(false)
+  })
+  makeEventListener(element, 'pointermove', holdClosed)
+  makeEventListener(element, 'pointerover', holdClosed)
+}
+
+function PressKeepsClosed(props: {triggerId: string}): JSX.Element {
+  const api = useTooltipContext()
+  const environment = useEnvironmentContext()
+  onMount(() => {
+    const element = findTrigger(environment, props.triggerId)
+    if (element) keepClosedWhilePressed(element, api)
+  })
+  return undefined
+}
+
 function PlainRoot(props: RootProps) {
-  const [local, rest] = splitProps(props, ['positioning', 'openDelay', 'closeDelay', 'onOpenChange', 'children'])
+  const [local, rest] = splitProps(props, ['positioning', 'openDelay', 'closeDelay', 'onOpenChange', 'ids', 'children'])
+  const triggerId = `tooltip-trigger-${createUniqueId()}`
   const [content, setContent] = createSignal<HTMLElement>()
   const pop = (element: HTMLElement): void => {
     element.getAnimations().forEach((animation) => animation.cancel())
@@ -55,10 +85,12 @@ function PlainRoot(props: RootProps) {
       openDelay={local.openDelay ?? 300}
       closeDelay={local.closeDelay ?? 80}
       positioning={{strategy: 'fixed', placement: 'top', gutter: 6, ...local.positioning}}
+      ids={{...local.ids, trigger: triggerId}}
       onOpenChange={onOpenChange}
       {...rest}
     >
       <ContentRefContext.Provider value={binding}>{local.children}</ContentRefContext.Provider>
+      <PressKeepsClosed triggerId={triggerId} />
     </Ark.Root>
   )
 }
@@ -121,10 +153,10 @@ function GroupRoot(props: RootProps & {group: TooltipGroupApi}) {
   }
 
   onMount(() => {
-    const root = environment().getRootNode()
-    const element = isDocument(root) || isShadowRoot(root) ? root.getElementById(triggerId) : null
-    if (!isHTMLElement(element)) return
+    const element = findTrigger(environment, triggerId)
+    if (!element) return
     setTrigger(element)
+    keepClosedWhilePressed(element, api)
     makeEventListener(element, 'pointerenter', (event) => {
       if (event.pointerType === 'touch' || event.buttons !== 0 || api().open) return
       local.group.arm({member, duration: openDelay()})
