@@ -361,6 +361,8 @@ describe('FileSystem.find', () => {
     await fs.writeFile(path.join(workspace.path, 'src', 'alpha-needle.ts'), 'export {}\n')
     await fs.writeFile(path.join(workspace.path, 'src', 'beta.ts'), 'export {}\n')
     await fs.writeFile(path.join(workspace.path, 'docs', 'guide.md'), '# Guide\n')
+    await fs.mkdir(path.join(workspace.path, '.github', 'workflows'), {recursive: true})
+    await fs.writeFile(path.join(workspace.path, '.github', 'workflows', 'ci.yml'), 'on: push\n')
 
     for (const engine of [{fff: false}, {fff: true}]) {
       expect(await find(workspace.path, engine, {query: 'needle'})).toContainEqual({
@@ -374,6 +376,10 @@ describe('FileSystem.find', () => {
       expect(await find(workspace.path, engine, {query: 'guide', type: 'file', limit: 1})).toEqual([
         {path: 'docs/guide.md', type: 'file'},
       ])
+      expect(await find(workspace.path, engine, {query: 'ci.yml', type: 'file'})).toContainEqual({
+        path: '.github/workflows/ci.yml',
+        type: 'file',
+      })
     }
   })
 })
