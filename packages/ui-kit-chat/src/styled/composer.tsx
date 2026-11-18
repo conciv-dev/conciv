@@ -42,12 +42,17 @@ const QUEUE_ROW =
   'flex items-center gap-2 px-3 py-1.5 text-[length:var(--chat-text-sm)] text-chat-text-2 [&:not(:first-child)]:[border-block-start:1px_solid_var(--chat-line-soft)]'
 const QUEUE_ACTION = `${FOCUS} shrink-0 px-1.5 py-0.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-xs)] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)]`
 
-function ComposerAttachment(props: {component?: Component<{onRemove?: (id: string) => void}>}): JSX.Element {
+function reportRemoveFailed(error: unknown): void {
+  console.error('[conciv] could not remove the attachment', error)
+}
+
+export function ComposerAttachment(props: {
+  component?: Component<{onRemove?: (id: string) => void}>
+  onRemoveFailed: (error: unknown) => void
+}): JSX.Element {
   const context = useComposerContext()
   const remove = (id: string): void => {
-    context.removeAttachment(id).catch((error: unknown) => {
-      console.error('[conciv] could not remove the attachment', error)
-    })
+    context.removeAttachment(id).catch(props.onRemoveFailed)
   }
   return (
     <Show when={props.component} fallback={<AttachmentUI onRemove={remove} />}>
@@ -117,7 +122,11 @@ export function Composer(props: ComposerProps): JSX.Element {
         </ComposerPrimitive.Queue>
       </div>
       <div class="px-3 pt-2 flex flex-wrap gap-1 empty:hidden">
-        <ComposerPrimitive.Attachments component={() => <ComposerAttachment component={props.AttachmentComponent} />} />
+        <ComposerPrimitive.Attachments
+          component={() => (
+            <ComposerAttachment component={props.AttachmentComponent} onRemoveFailed={reportRemoveFailed} />
+          )}
+        />
       </div>
       <div class="pb-2.25 pe-3 ps-5 pt-2.25 flex gap-2 items-start">
         <Tooltip.Group>

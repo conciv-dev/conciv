@@ -93,6 +93,7 @@ import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import {NoticeContextProvider} from '../src/shell/notice-context.js'
 import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
@@ -3399,16 +3400,18 @@ describe('pane composer stopping', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={stoppable}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={memoryStorage()}
-              draftKey="test"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-            />
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={stoppable}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={memoryStorage()}
+                draftKey="test"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+              />
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     )
   }
@@ -3459,18 +3462,20 @@ describe('pane composer attachments', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={chat()}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={storage}
-              draftKey="attachments"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-              attachmentAdapter={createTextAttachmentAdapter()}
-              onInputReady={(handle) => inputs.push(handle)}
-            />
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={chat()}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={storage}
+                draftKey="attachments"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+                attachmentAdapter={createTextAttachmentAdapter()}
+                onInputReady={(handle) => inputs.push(handle)}
+              />
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
     const focus = () => {
@@ -4605,19 +4610,21 @@ describe('queue strip', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={session}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={memoryStorage()}
-              draftKey="queue-flush"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-              onInputReady={(handle) => inputs.push(handle)}
-            >
-              <DraftOutput />
-            </PaneComposer>
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={session}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={memoryStorage()}
+                draftKey="queue-flush"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+                onInputReady={(handle) => inputs.push(handle)}
+              >
+                <DraftOutput />
+              </PaneComposer>
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
     const sink = {
