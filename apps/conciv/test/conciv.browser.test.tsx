@@ -1302,7 +1302,48 @@ describe('composer overflow', () => {
     {name: 'context', description: 'Show what fills the window'},
   ]
 
-  const core = bootedCore('composer-overflow', {commands: PICKER_COMMANDS})
+  const MENTIONS_PLUGIN = `import {join} from 'node:path'
+
+export default {
+  id: 'mentions',
+  async setup(ctx) {
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'mention-guide',
+        name: 'mention-guide',
+        description: 'How mentions are written',
+        path: join(ctx.location.directory, 'mention-guide', 'SKILL.md'),
+        content: 'Write the mention.',
+      })
+    })
+    await ctx.agent.transform((agents) => {
+      agents.update('reviewer', (agent) => {
+        agent.mode = 'subagent'
+        agent.description = 'Reviews the change'
+      })
+      agents.update('lurker', (agent) => {
+        agent.mode = 'subagent'
+        agent.hidden = true
+      })
+      agents.update('planner', () => {})
+    })
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'mention_probe_tool',
+        description: 'A tool the @ list never offers',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      }),
+    )
+  },
+}
+`
+
+  const core = bootedCore('composer-overflow', {
+    commands: PICKER_COMMANDS,
+    plugins: ['./mentions'],
+    files: {'mentions/index.ts': MENTIONS_PLUGIN},
+  })
   const keep = keptPane()
   const faults = trackedFaults()
 
@@ -1418,6 +1459,28 @@ describe('composer overflow', () => {
     await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
     await expect.element(input().getByText('/context')).toBeVisible()
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
+  })
+
+  test('the @ list offers the skills, then the agents that are neither primary nor hidden, and no tool', async () => {
+    await mountComposer(WIDE_PX)
+    const context = () => page.getByRole('listbox', {name: 'Context'})
+    const mention = (label: string) => context().getByRole('option', {name: label})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('@')
+
+    await expect.element(mention('@mention-guide')).toHaveTextContent('@mention-guideHow mentions are written')
+    await expect.element(mention('@reviewer')).toBeVisible()
+    await expect.element(context().getByRole('option').last()).toHaveTextContent('@reviewer')
+    await expect.element(mention('@lurker')).not.toBeInTheDocument()
+    await expect.element(mention('@planner')).not.toBeInTheDocument()
+    await expect.element(mention('@build')).not.toBeInTheDocument()
+    await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('review{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@reviewer')).toBeVisible()
   })
 })
 
