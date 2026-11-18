@@ -17,45 +17,53 @@ pnpm add -D @conciv/plugin
 `Plugin.define({id, effect})` is the default export of the engine part. The engine runs `effect(ctx)` when it loads
 the plugin. Each `ctx` domain returns an `Effect`.
 
-```ts title="packages/plugins/tanstack/src/index.ts"
-import {Effect} from 'effect'
-import {Plugin} from '@conciv/plugin/effect'
-import * as TanstackConnection from './connection.js'
-import {capabilities, register} from './tools.js'
+```ts title="packages/plugins/recorder/src/index.ts"
+import {join} from 'node:path'
+import {Plugin, type Rpc} from '@conciv/plugin/effect'
+import {Effect, Queue, Stream} from 'effect'
+import {createCaptureControl} from './capture-control.js'
+import {createRecordingStore} from './recordings.js'
+import {createChromiumRenderer} from './render.js'
+import {createRendererCache} from './renderer-cache.js'
+import {createClientRings} from './rings.js'
+import type {RecorderRuntime} from './runtime.js'
+import {recorderConfig} from './protocol.js'
+import {info} from './skill.js'
+import {register} from './tools.js'
+
+function recordingsDirectory(projectDirectory: string): string {
+  return join(projectDirectory, '.conciv', 'recorder', 'recordings')
+}
 
 export default Plugin.define({
-  id: 'tanstack',
+  id: 'recorder',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const tanstack = yield* capabilities(ctx.bundler, ctx.location.directory)
-      const connection = yield* TanstackConnection.make(ctx, {
-        buildErrors: (_input, call) =>
-          tanstack
-            .buildErrors()
-            .pipe(Effect.mapError((failure) => call.error('BUNDLER_UNAVAILABLE', failure.message, {}))),
-        routeManifest: (_input, call) =>
-          tanstack
-            .routeManifest()
-            .pipe(Effect.mapError((failure) => call.error('MANIFEST_UNREADABLE', failure.message, {}))),
-        serverFnTrace: ({count}) => Effect.succeed(tanstack.serverFnTrace(count)),
-      })
-      yield* register(ctx, tanstack, connection)
+      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
+      const rings = createClientRings({windowMs: config.windowMinutes * 60_000})
+      const control = createCaptureControl(rings)
+      const rendererCache = createRendererCache(createChromiumRenderer)
+      const recordings = createRecordingStore(recordingsDirectory(ctx.location.directory))
+      const runtime: RecorderRuntime = {
+        rings,
+        control,
+        config,
+        useRenderer: (work) => rendererCache.use(work),
+        recordings,
+      }
+      yield* register(ctx, runtime)
+      yield* ctx.skill.transform((editor) => editor.add(info))
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          control.dispose()
+        }).pipe(Effect.andThen(Effect.promise(() => rendererCache.dispose()))),
+      )
     }),
 })
 ```
 
 The effect runs in a scope that closes when the plugin stops or reloads. Every tool, skill and RPC handler it
-registers is removed then. Add your own cleanup with `Effect.addFinalizer`:
-
-```ts title="packages/plugins/recorder/src/index.ts"
-const unsubscribe = control.subscribe((message) => announce(['control', message]))
-yield* Effect.addFinalizer(() =>
-  Effect.sync(() => {
-    unsubscribe()
-    control.dispose()
-  }).pipe(Effect.andThen(Effect.promise(() => rendererCache.dispose()))),
-)
-```
+registers is removed then. `Effect.addFinalizer` adds your own cleanup, as above.
 
 The `ctx` fields this page uses:
 
