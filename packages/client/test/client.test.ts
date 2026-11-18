@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatClient} from '@conciv/ai/testkit'
+import {StreamReconnectLimitError} from '@conciv/ai/client'
 import {
   browserRpcConnection,
   makeBrowserRpcClient,
@@ -669,6 +670,73 @@ describe('session streams on the rpc socket', () => {
       expect(reopened.link).not.toBe(plane.link)
       reopened.release()
     })
+  })
+
+  describe('a turn across rpc socket drops', () => {
+    const DROPS_PAST_BUDGET = 6
+    const PACED_TEXT = 'a'.repeat(600)
+    const POLL = {timeout: 15_000, interval: 50}
+
+    function textDeltas(seen: ChatEvent[]): number {
+      return seen.filter((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT).length
+    }
+
+    async function streamedTurn(booted: ClientKit, runId: string) {
+      const sessionId = await booted.session()
+      const browser = makeBrowserRpcClient(booted.base)
+      const connection = chatConnection(browser.rpc, sessionId)
+      const abort = new AbortController()
+      const seen: ChatEvent[] = []
+      void (async () => {
+        for await (const chunk of connection.subscribe(abort.signal)) seen.push(chunk)
+      })().catch(() => undefined)
+      const outcome: {error: unknown} = {error: undefined}
+      const sending = connection
+        .send([{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}], undefined, abort.signal, {
+          threadId: sessionId,
+          runId,
+        })
+        .catch((error: unknown) => {
+          outcome.error = error
+        })
+      const end = async (): Promise<void> => {
+        abort.abort()
+        await sending
+        browser.close()
+      }
+      return {seen, outcome, sending, end}
+    }
+
+    it('keeps streaming past more drops than the reconnect budget when events arrive between them', async () => {
+      const booted = await bootClientKit()
+      kit = booted
+      booted.harness.script.scriptTurn({toolCalls: [], text: PACED_TEXT, textPace: {chunk: 1, everyMs: 50}})
+      const turn = await streamedTurn(booted, 'many-drops')
+      for (const drop of Array.from({length: DROPS_PAST_BUDGET}, (_, index) => index)) {
+        const before = textDeltas(turn.seen)
+        await expect.poll(() => textDeltas(turn.seen), POLL).toBeGreaterThan(before)
+        await booted.restartServer()
+        expect(turn.outcome.error, `drop ${drop + 1}`).toBeUndefined()
+      }
+      const afterDrops = textDeltas(turn.seen)
+
+      await expect.poll(() => textDeltas(turn.seen), POLL).toBeGreaterThan(afterDrops)
+      expect(turn.outcome.error).toBeUndefined()
+      await turn.end()
+    }, 60_000)
+
+    it('gives up with the reconnect ceiling once the engine stays gone with no event between attempts', async () => {
+      const booted = await bootClientKit()
+      booted.harness.script.holdStart()
+      const turn = await streamedTurn(booted, 'engine-gone')
+      await booted.cleanup()
+
+      await expect
+        .poll(() => turn.outcome.error, {timeout: 40_000, interval: 100})
+        .toBeInstanceOf(StreamReconnectLimitError)
+      expect(turn.seen.filter((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)).toEqual([])
+      await turn.end()
+    }, 60_000)
   })
 
   describe('a session the page is not showing', () => {

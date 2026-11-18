@@ -1,4 +1,10 @@
-import {rpcStream, type ConnectConnectionAdapter, type SubscribeConnectionAdapter} from '@conciv/ai/client'
+import {
+  rpcStream,
+  StreamReconnectLimitError,
+  type ConnectConnectionAdapter,
+  type SubscribeConnectionAdapter,
+} from '@conciv/ai/client'
+import {ORPCError} from '@orpc/client'
 import {type ModelMessage, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   type ChatEvent,
@@ -12,7 +18,7 @@ import {
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
-import {type ChatHistoryWindow, type ChatHydration, type RpcClient} from '@conciv/contract'
+import {type ChatHistoryWindow, type ChatHydration, type RpcClient, type RpcClientContext} from '@conciv/contract'
 import {readingValues, relayedValues} from './stream-relay.js'
 
 export type ChatConnectionOptions = {
@@ -52,13 +58,50 @@ async function* streamed(
   }
 }
 
+const RUN_RECONNECT_ATTEMPTS = 5
+const RUN_RECONNECT_FIRST_DELAY_MS = 250
+const RUN_RECONNECT_MAX_DELAY_MS = 5000
+
+function runReconnects(): RpcClientContext {
+  let progressed: {attemptIndex: number; lastEventId: string | undefined} = {attemptIndex: 0, lastEventId: undefined}
+  const attemptsSinceProgress = (attemptIndex: number, lastEventId: string | undefined): number => {
+    if (lastEventId !== progressed.lastEventId) progressed = {attemptIndex, lastEventId}
+    return attemptIndex - progressed.attemptIndex
+  }
+  return {
+    retry: Number.POSITIVE_INFINITY,
+    shouldRetry: ({attemptIndex, lastEventId, error, signal}) =>
+      signal?.aborted !== true &&
+      !(error instanceof ORPCError) &&
+      attemptsSinceProgress(attemptIndex, lastEventId) < RUN_RECONNECT_ATTEMPTS,
+    retryDelay: ({attemptIndex, lastEventId}) =>
+      Math.min(
+        RUN_RECONNECT_MAX_DELAY_MS,
+        RUN_RECONNECT_FIRST_DELAY_MS * 2 ** attemptsSinceProgress(attemptIndex, lastEventId),
+      ),
+  }
+}
+
+async function* boundedRun(
+  opened: (signal: AbortSignal) => Promise<AsyncIterable<ChatEvent>>,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  try {
+    yield* streamed(opened, signal)
+  } catch (error) {
+    if (error instanceof ORPCError) throw error
+    throw new StreamReconnectLimitError(RUN_RECONNECT_ATTEMPTS)
+  }
+}
+
 function overRpc(rpc: RpcClient, sessionId: string, lifetime: AbortSignal): Turns {
   const joinRun: JoinRun = (runId, abortSignal) =>
-    streamed((signal) => rpc.chat.join({runId}, {signal}), within(lifetime, abortSignal))
+    boundedRun((signal) => rpc.chat.join({runId}, {signal, context: runReconnects()}), within(lifetime, abortSignal))
   const turns = rpcStream(
     (_messages, _data, abortSignal, input) =>
-      streamed(
-        (signal) => rpc.chat.send({sessionId, runId: input.runId, messages: input.messages}, {signal}),
+      boundedRun(
+        (signal) =>
+          rpc.chat.send({sessionId, runId: input.runId, messages: input.messages}, {signal, context: runReconnects()}),
         within(lifetime, abortSignal),
       ),
     {joinRun},

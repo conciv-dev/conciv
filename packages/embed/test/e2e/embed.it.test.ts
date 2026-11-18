@@ -42,7 +42,13 @@ import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
-import {holdRpcCalls, failRpcCalls, gateRpcCalls, type RpcFaultInjector} from '@conciv/plugin-testkit/rpc-fault'
+import {
+  holdRpcCalls,
+  failRpcCalls,
+  gateRpcCalls,
+  garbleRpcReplies,
+  type RpcFaultInjector,
+} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
@@ -2742,8 +2748,8 @@ async function refusableChatStreams(page: Page): Promise<{cut: () => Promise<voi
   return {
     cut: async () => {
       refusals.push(
-        await failRpcCalls(page, {path: ['chat', 'send']}),
-        await failRpcCalls(page, {path: ['chat', 'join']}),
+        await garbleRpcReplies(page, {path: ['chat', 'send']}),
+        await garbleRpcReplies(page, {path: ['chat', 'join']}),
       )
       await socket.hold()
       socket.release()
