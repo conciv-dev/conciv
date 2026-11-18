@@ -18,7 +18,6 @@ import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
 import {createEngineLogin, engineConnected, startEngineLogin} from '@conciv/app/engine-login'
-import {engineAddress} from './agent-base.js'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit, PluginEntry} from './mount.js'
 
@@ -231,7 +230,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
 }
 
-type BootConnectConfig = {
+type BootServersConfig = {
   root: ShadowRoot
   extensions: AnyExtension[]
   plugins: readonly PluginEntry[]
@@ -239,7 +238,7 @@ type BootConnectConfig = {
   grabProvider?: GrabProvider
 }
 
-function bootConnect(config: BootConnectConfig): BootResult {
+function bootServers(config: BootServersConfig): BootResult {
   const deferred = makeBrowserRpcClient(() => null, {session: () => activeSession.read()})
   const [apiBase, setApiBase] = createSignal('')
   const activeSession = makeActiveSessionBinding((session) =>
@@ -265,7 +264,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     settings: config.settings,
     extensions: config.extensions,
     plugins: config.plugins,
-    servers: config.plugins.length > 0,
+    servers: true,
     connected: deferred.bound,
     bindApiBase,
     grabProvider: config.grabProvider,
@@ -299,19 +298,8 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const grabProvider = init.grabProvider
   const engineToken = init.engineToken
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (apiBase) return bootNormal({root, extensions, plugins, settings, apiBase, grabProvider, engineToken})
-  if (plugins.length > 0) return bootConnect({root, extensions, plugins, settings, grabProvider})
-  return bootThroughConnectGate({root, extensions, plugins, settings, grabProvider})
-}
-
-async function bootThroughConnectGate(config: BootConnectConfig): Promise<BootResult> {
-  const {root, extensions, plugins, settings, grabProvider} = config
-  const apiBase = ''
-  const gate = extensions.find((extension) => extension.connectGate)
-  if (!gate?.connectGate) return bootNormal({root, extensions, plugins, settings, apiBase, grabProvider})
-  const found = await gate.connectGate.preflight()
-  if (found) return bootNormal({root, extensions, plugins, settings, ...engineAddress(found), grabProvider})
-  return bootConnect({root, extensions, plugins, settings, grabProvider})
+  if (!apiBase && plugins.length > 0) return bootServers({root, extensions, plugins, settings, grabProvider})
+  return bootNormal({root, extensions, plugins, settings, apiBase, grabProvider, engineToken})
 }
 
 function initSettings(init: ConcivInit): ConcivSettings {
