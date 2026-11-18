@@ -1553,6 +1553,12 @@ export default {
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@mentions/index.ts')).toBeVisible()
+
+    await userEvent.keyboard('please read the whole change and tell me what breaks first, then ask ')
+    await userEvent.keyboard('@')
+    await expect.element(mention('@reviewer')).toBeVisible()
+    await userEvent.click(input().getByText('@reviewer'), {timeout: 3_000})
+    await expect.element(context()).not.toBeInTheDocument()
   })
 })
 
