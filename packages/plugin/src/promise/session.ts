@@ -82,7 +82,6 @@ export interface SessionContext extends SessionRequest {
 
 export interface SessionCompactionResult {
   summary: string
-  metadata?: Record<string, unknown>
   tokens?: TokenUsageInfo
 }
 

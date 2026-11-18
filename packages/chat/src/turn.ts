@@ -58,7 +58,7 @@ export type SessionPrompt = PluginHooks.Domains['session']['prompt']
 
 export type RequestHookName = 'context' | 'compaction'
 
-export type SessionRequest = Omit<PluginHooks.Domains['session']['context'], 'sessionId' | 'model' | 'agent'> & {
+export type SessionRequest = Omit<PluginHooks.Domains['session']['compaction'], 'sessionId' | 'model' | 'agent'> & {
   sessionId: SessionId
   model: {id: string; providerId: string; variant?: string}
 }
@@ -337,6 +337,7 @@ export function turnHooks(
             messages: event.messages,
             options: event.options,
             tools: event.tools,
+            ...(event.result === undefined ? {} : {result: event.result}),
           }
         },
         tools: toolSet,

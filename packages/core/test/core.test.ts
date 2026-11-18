@@ -4417,7 +4417,10 @@ describe('session context hook', () => {
       id: 'compaction-result',
       async setup(ctx) {
         await ctx.session.hook('compaction', (event) => {
-          event.result = {summary: 'the summary the plugin wrote', metadata: {writer: 'compaction-result'}}
+          event.result = {
+            summary: 'the summary the plugin wrote',
+            tokens: {input: 40, output: 7, reasoning: 2, cache: {read: 10, write: 1}},
+          }
         })
       },
     })
@@ -4435,14 +4438,19 @@ describe('session context hook', () => {
       (message) => CompactionMetadataSchema.safeParse(message.metadata).success,
     )
     expect(
-      summaries.map((message) => ({
-        text: message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
-        metadata: message.metadata,
-      })),
-    ).toEqual([
-      {text: 'the summary the plugin wrote', metadata: expect.objectContaining({writer: 'compaction-result'})},
-    ])
+      summaries.map((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+      ),
+    ).toEqual(['the summary the plugin wrote'])
     expect(hydrated.lastRun?.phase).toBe('completed')
+    const [row] = await made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session))
+    expect(row?.usage).toMatchObject({
+      inputTokens: 40,
+      outputTokens: 7,
+      reasoningTokens: 2,
+      cacheReadTokens: 10,
+      cacheWriteTokens: 1,
+    })
   })
 
   test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {

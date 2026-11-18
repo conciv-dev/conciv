@@ -46,7 +46,7 @@ import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type T
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
-import {hookedRequest, type RequestHook} from './model-request.js'
+import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
 
 export type ChatStores = {
   messages: MessageStore & {loadMessage: (threadId: string, messageId: string) => Promise<ModelMessage | null>}
@@ -491,6 +491,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             systemPrompts: request.system,
             tools: request.tools,
             modelOptions: request.options,
+            metadata: answeredMetadata(current.metadata, request.result),
           }
         }
         if (ctx.phase !== 'init') return
@@ -627,7 +628,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
     const stream = chat({
-      adapter: guardedAdapter(plan.adapter, {
+      adapter: guardedAdapter(answeredAdapter(plan.adapter), {
         ended: entry.ending.signal,
         stopped: controller.signal,
         startMs: config.startTimeoutMs,
