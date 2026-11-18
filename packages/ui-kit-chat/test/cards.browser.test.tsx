@@ -26,6 +26,7 @@ import {ToolCallCard, ToolTraceRow} from '../src/tools/styled/tool-call-card.js'
 import {createSignal, type JSX} from 'solid-js'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
+import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 
 describe('card body nonempty', () => {
   const NO_SCHEMA_META: ToolViewMeta = {
@@ -636,7 +637,7 @@ describe('tool call card dispatch', () => {
     expect(document.body.textContent).toContain('Called mcp__weather__forecast')
   })
 
-  it('a tool that only reaches the meta-driven default still renders its inline approval prompt', async () => {
+  it('a call waiting on approval draws its card with no approval prompt, the ask lives in the dock', async () => {
     const approval: ToolCallPart = {
       ...part('page_ship', 'approval-requested'),
       approval: {id: 'ap1', needsApproval: true},
@@ -650,9 +651,10 @@ describe('tool call card dispatch', () => {
       />
     ))
 
-    await expect.element(page.getByText('Run this action?')).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Allow'})).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
+    await expect.element(page.getByText('Shipping the page')).toBeVisible()
+    await expect.element(page.getByText('Run this action?')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Allow'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   })
 
   it('an entry that declines a call hands it to the next match, then to the fallback, until it accepts', async () => {
@@ -1007,14 +1009,21 @@ describe('tool trace row', () => {
     await expect.element(page.getByRole('button')).toBeDisabled()
   })
 
-  it('routes a call waiting on approval to the permission block', async () => {
+  it('a call waiting on approval keeps its row free of the ask, which the dock block answers', async () => {
     const decisions: Array<{id: string; approved: boolean}> = []
     const asking: ToolCallPart = {
       ...call('Bash', {command: 'rm -rf dist'}, 'approval-requested'),
       approval: {id: 'ap-1', needsApproval: true},
     }
-    mountView(() => <ToolTraceRow part={asking} result={undefined} ctx={ctxRecording(decisions)} tools={() => []} />)
+    const row = render(() => (
+      <ToolTraceRow part={asking} result={undefined} ctx={ctxRecording(decisions)} tools={() => []} />
+    ))
 
+    await expect.element(page.getByText('rm -rf dist').first()).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+    row.unmount()
+
+    mountView(() => <TracePermissionBlock part={asking} ctx={ctxRecording(decisions)} target="Bash" />)
     await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
 
     await page.getByRole('button', {name: 'Approve'}).click()

@@ -3443,12 +3443,13 @@ describe('page session card', () => {
 
 describe('tool registry', () => {
   const cardBundle = (who: string) => `const {ToolRegistry} = require('@conciv/plugin/experimental')
+const {insert} = require('solid-js/web')
 module.exports = {default: {setup(ctx) {
   ctx.add(ToolRegistry, {
     name: 'registry_probe',
     render(props) {
       const card = document.createElement('p')
-      card.textContent = '${who} probe card for ' + props.input.target + (props.status === 'completed' ? ', ' + props.output : ', ' + props.status)
+      insert(card, () => '${who} probe card for ' + props.input.target + (props.status === 'completed' ? ', ' + props.output : ', ' + props.status))
       return card
     },
   })

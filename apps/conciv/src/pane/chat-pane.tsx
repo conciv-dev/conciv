@@ -350,16 +350,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const PaneBody = (): JSX.Element => {
     const thread = useThread()
     const lastTurn = () => thread.turns.at(-1)?.turn()
-    const outOfBandAsks = createMemo(
-      () =>
-        chat
-          .pendingApprovals()
-          .filter((ask) => !lastTurn()?.parts.some((part) => part.type === 'tool-call' && part.id === ask.toolCallId)),
-      [],
-      {equals: sameEntries},
-    )
+    const asks = createMemo(() => chat.pendingApprovals(), [], {equals: sameEntries})
     createEffect<number>((previous) => {
-      const waiting = outOfBandAsks().length
+      const waiting = asks().length
       if (waiting > previous) announce('conciv is asking for permission.')
       return waiting
     }, 0)
@@ -444,8 +437,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={compacting()}>
                       <Divider kind="compact" pending />
                     </Show>
-                    <Show when={outOfBandAsks().length > 0}>
-                      <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
+                    <Show when={asks().length > 0}>
+                      <PendingApprovals asks={asks()} ctx={toolCtx} />
                     </Show>
                     <Show when={narrating()}>
                       <NarrationRow />
