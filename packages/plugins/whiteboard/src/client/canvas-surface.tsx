@@ -24,15 +24,17 @@ const insideExcalidraw = (event: KeyboardEvent): boolean => {
 
 const OPEN_CHAT_LAYER = '[data-scope]:not([data-scope="tabs"])[data-part="content"][data-state="open"]'
 
-const chatLayerOpen = (event: KeyboardEvent): boolean => {
-  const [origin] = event.composedPath()
-  if (!(origin instanceof Node)) return false
-  const root = origin.getRootNode()
+const layerOpenBeside = (node: unknown): boolean => {
+  if (!(node instanceof Node)) return false
+  const root = node.getRootNode()
   return (root instanceof ShadowRoot || root instanceof Document) && root.querySelector(OPEN_CHAT_LAYER) !== null
 }
 
-const escapeLeftToOthers = (event: KeyboardEvent): boolean =>
-  event.key !== 'Escape' || insideExcalidraw(event) || chatLayerOpen(event)
+const chatLayerOpen = (event: KeyboardEvent, layer: HTMLElement): boolean =>
+  layerOpenBeside(event.composedPath()[0]) || layerOpenBeside(layer)
+
+const escapeLeftToOthers = (event: KeyboardEvent, layer: HTMLElement): boolean =>
+  event.key !== 'Escape' || insideExcalidraw(event) || chatLayerOpen(event, layer)
 
 type SurfaceProps = {
   client: Context['client']
@@ -66,7 +68,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
       window,
       'keydown',
       (event) => {
-        if (!props.visible || escapeLeftToOthers(event)) return
+        if (!props.visible || escapeLeftToOthers(event, props.layer)) return
         event.preventDefault()
         event.stopPropagation()
         props.close()
