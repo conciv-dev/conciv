@@ -8,7 +8,7 @@ import {useWhiteboardDb} from '../db.js'
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
 
-export function createCommentsModel(room: Accessor<string>, onThreadChange: (open: boolean) => void) {
+export function createCommentsModel(room: Accessor<string>) {
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
 
@@ -73,12 +73,10 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
 
   const openThread = (cid: string): void => {
     setState('openCid', cid)
-    onThreadChange(true)
     markRead(cid)
   }
   const closeThread = (): void => {
     setState('openCid', null)
-    onThreadChange(false)
   }
   const toggleThread = (cid: string): void => (state.openCid === cid ? closeThread() : openThread(cid))
   const registerPin = (cid: string, button: HTMLButtonElement | undefined): void =>
@@ -94,6 +92,7 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
   }
   const canStep = (delta: number): boolean => stepIndex() >= 0 && orderedThreads()[stepIndex() + delta] !== undefined
   const openRoot = (): CommentRow | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
+  const threadOpen = createMemo(() => openRoot() !== undefined)
 
   const reply = (text: string): void => {
     const parent = openRoot()
@@ -167,6 +166,7 @@ export function createCommentsModel(room: Accessor<string>, onThreadChange: (ope
     displayName,
     ownedBySelf,
     openRoot,
+    threadOpen,
     stepThread,
     canStep,
     reply,
@@ -190,11 +190,12 @@ const CommentsContext = createContext<CommentsModel>()
 
 export function CommentsProvider(props: {
   room: Accessor<string>
-  onThreadChange: (open: boolean) => void
+  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
   children: JSX.Element
 }): JSX.Element {
-  const model = untrack(() => createCommentsModel(props.room, props.onThreadChange))
-  onCleanup(() => props.onThreadChange(false))
+  const model = untrack(() => createCommentsModel(props.room))
+  untrack(() => props.bindThreadOpen(model.threadOpen))
+  onCleanup(() => props.bindThreadOpen(() => false))
   return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }
 

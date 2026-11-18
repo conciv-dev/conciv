@@ -1,4 +1,4 @@
-import {ErrorBoundary, Match, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
+import {ErrorBoundary, Match, onMount, Show, Switch, type Accessor, type JSX, type Resource} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
 import {z} from 'zod'
@@ -70,7 +70,7 @@ export function WhiteboardCanvas(props: {
   visible: boolean
   layer: HTMLElement
   close: () => void
-  onThreadChange: (open: boolean) => void
+  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
 }): JSX.Element {
   const module = (): SurfaceModule | undefined => (props.surface.state === 'ready' ? props.surface() : undefined)
   return (
@@ -87,7 +87,7 @@ export function WhiteboardCanvas(props: {
                 visible={props.visible}
                 layer={props.layer}
                 close={props.close}
-                onThreadChange={props.onThreadChange}
+                bindThreadOpen={props.bindThreadOpen}
               />
             )}
           </Show>

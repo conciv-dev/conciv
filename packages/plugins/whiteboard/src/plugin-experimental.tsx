@@ -1,4 +1,4 @@
-import {createResource, getOwner, onCleanup} from 'solid-js'
+import {createResource, getOwner, onCleanup, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
@@ -8,7 +8,11 @@ import {whiteboardStores} from './client/stores.js'
 export default Plugin.define({
   stores: whiteboardStores,
   setup(ctx) {
-    const [canvas, setCanvas] = createStore({open: false, engaged: false, threadOpen: false})
+    const [canvas, setCanvas] = createStore<{open: boolean; engaged: boolean; threadOpen: Accessor<boolean>}>({
+      open: false,
+      engaged: false,
+      threadOpen: () => false,
+    })
     const [surface, {refetch}] = createResource(
       () => canvas.engaged,
       () => import('./client/canvas-surface.js'),
@@ -18,11 +22,11 @@ export default Plugin.define({
     const overlay: Slot = {
       at: 'page.overlay',
       get hides() {
-        return canvas.threadOpen
+        return canvas.threadOpen()
       },
       render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }
-    const onThreadChange = (open: boolean): void => void setCanvas('threadOpen', open)
+    const bindThreadOpen = (threadOpen: Accessor<boolean>): void => void setCanvas('threadOpen', () => threadOpen)
     const pill: ComposerPill = {
       id: 'whiteboard-open',
       order: 20,
@@ -49,7 +53,7 @@ export default Plugin.define({
             visible={canvas.open}
             layer={layer}
             close={close}
-            onThreadChange={onThreadChange}
+            bindThreadOpen={bindThreadOpen}
           />
         ),
         document.createDocumentFragment(),

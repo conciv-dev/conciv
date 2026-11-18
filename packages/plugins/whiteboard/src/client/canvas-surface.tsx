@@ -1,4 +1,4 @@
-import {onMount, Show, type JSX} from 'solid-js'
+import {onMount, Show, type Accessor, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
@@ -43,7 +43,7 @@ type SurfaceProps = {
   visible: boolean
   layer: HTMLElement
   close: () => void
-  onThreadChange: (open: boolean) => void
+  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
 }
 
 function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'>): JSX.Element {
@@ -78,7 +78,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider room={() => props.room} onThreadChange={props.onThreadChange}>
+      <CommentsProvider room={() => props.room} bindThreadOpen={props.bindThreadOpen}>
         <CanvasView room={props.room} visible={props.visible} layer={props.layer} />
       </CommentsProvider>
     </WhiteboardDbProvider>
