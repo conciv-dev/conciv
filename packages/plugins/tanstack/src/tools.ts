@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {omit} from 'es-toolkit'
-import {Effect, Option, Stream, SubscriptionRef} from 'effect'
+import {Effect, FileSystem, Option, Path, Stream, SubscriptionRef} from 'effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcClient} from '@conciv/plugin/effect/rpc'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
@@ -42,10 +42,6 @@ export type Options = {readonly bundlerWaitMs: number}
 
 export type Capabilities = Effect.Success<ReturnType<typeof capabilities>>
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
 export const capabilities = Effect.fn('tanstack.capabilities')(function* (
   ctx: Pick<Context, 'event'>,
   directory: string,
@@ -53,6 +49,7 @@ export const capabilities = Effect.fn('tanstack.capabilities')(function* (
 ) {
   const diagnostics = yield* DiagnosticsService
   const serverFnTrace = yield* ServerFnTraceService
+  const platform = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
   const status = yield* SubscriptionRef.make<Bundler.Status | undefined>(undefined)
   yield* ctx.event.subscribe({types: ['bundler.status', 'bundler.diagnostic']}).pipe(
     Stream.runForEach((event) => {
@@ -72,9 +69,7 @@ export const capabilities = Effect.fn('tanstack.capabilities')(function* (
     return [...(yield* diagnostics.list)]
   })
   const routeManifest = Effect.fn('tanstack.routeManifest')(function* () {
-    return yield* readRouteManifest(directory).pipe(
-      Effect.mapError((cause) => ManifestUnreadable.make({message: errorMessage(cause), cause})),
-    )
+    return yield* readRouteManifest(directory).pipe(Effect.provideContext(platform))
   })
   return {buildErrors, routeManifest, serverFnTrace: serverFnTrace.read}
 })

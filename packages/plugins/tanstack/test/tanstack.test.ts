@@ -11,7 +11,7 @@ import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {Effect, Fiber, Layer, Stream} from 'effect'
+import {Effect, Fiber, FileSystem, Layer, Path, Stream} from 'effect'
 import {TestClock} from 'effect/testing'
 import {diagnosticsLayer} from '../src/diagnostics.js'
 import {Definition} from '../src/rpc.js'
@@ -171,7 +171,7 @@ describe('the tanstack plugin without a bundler', () => {
 
     rmSync(join(kit.stateRoot, 'src', 'routeTree.gen.ts'))
     const unreadable = await toolFailure(useTool(kit, 'route_manifest'))
-    expect(unreadable).toContain('ENOENT')
+    expect(unreadable).toContain('NotFound: FileSystem.readFile')
     expect(unreadable).toContain('routeTree.gen.ts')
     expect(await terminalCall(kit, 'routeManifest')).toEqual({
       ok: false,
@@ -466,5 +466,9 @@ describe('the tanstack plugin waiting for the bundler status', () => {
       yield* TestClock.adjust('1 millis')
       const failure = yield* Fiber.join(waiting)
       expect(failure).toEqual({_tag: 'Tanstack.BundlerUnavailable', message: 'bundler bridge unavailable'})
-    }).pipe(Effect.scoped, Effect.provide(TestClock.layer()), Effect.runPromise))
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(Layer.mergeAll(TestClock.layer(), FileSystem.layerNoop({}), Path.layer)),
+      Effect.runPromise,
+    ))
 })
