@@ -7677,7 +7677,7 @@ describe('terminal panel', () => {
   }, 60_000)
 })
 
-describe('terminal panel for a harness that lists no models', () => {
+describe('terminal panel for a plain shell with no models', () => {
   const coreBase = bootedCore('terminal-panel-no-models', {tty: true})
   const harness = createShellHarness(coreBase)
 
