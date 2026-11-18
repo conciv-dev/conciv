@@ -7395,7 +7395,7 @@ describe('terminal panel', () => {
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
-  const output = (text: string) => page.getByText(text, {exact: true})
+  const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -7576,7 +7576,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('echo $((3*3))')
     await userEvent.keyboard('{Enter}')
     await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
-    await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
+    await expect.element(output('hostmarker')).not.toBeInTheDocument()
 
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
     await picker().click()
@@ -7714,7 +7714,8 @@ describe('terminal panel for a plain shell with no models', () => {
 
   const bar = () => page.getByRole('toolbar', {name: 'Session status'})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
-  const output = (text: string) => page.getByText(text, {exact: true})
+  const output = (text: string) =>
+    page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('list').getByText(text, {exact: true})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -7748,7 +7749,7 @@ describe('terminal panel for a plain shell with no models', () => {
 
     await page.viewport(1000, 700)
     await userEvent.dragAndDrop(page.getByRole('separator', {name: 'Resize chat height'}), hostTop())
-    await expect.element(output('SPAWNEND').first(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('SPAWNEND'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(page.getByText('Couldn’t open the terminal.')).not.toBeInTheDocument()
   }, 60_000)
