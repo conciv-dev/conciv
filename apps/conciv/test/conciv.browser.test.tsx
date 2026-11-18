@@ -1053,14 +1053,14 @@ describe('chat pane', () => {
       await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
       await expect.element(threadText('take this one back')).not.toBeInTheDocument()
       await expect.element(page.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
-      await expect.element(notifications().getByText(/Internal Server Error|could not be sent/)).not.toBeInTheDocument()
+      await expect.element(notifications().getByText('Internal Server Error', {exact: true})).not.toBeInTheDocument()
 
       const unstopped = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
       await userEvent.click(input())
       await userEvent.keyboard('{Enter}')
       await coreControl.awaitFaultPending(unstopped, 1)
       await coreControl.releaseFault(unstopped)
-      await expect.element(notifications()).toMatchTextContent(/Internal Server Error|could not be sent/)
+      await expect.element(notifications().getByText('Internal Server Error', {exact: true})).toBeVisible()
       await expect.element(input()).toHaveTextContent('take this one back')
     })
 
@@ -4376,8 +4376,8 @@ describe('panel view tabs', () => {
       await coreControl.releaseFault(held)
 
       await expect
-        .element(page.getByRole('region', {name: /Notifications/}))
-        .toMatchTextContent(/Internal Server Error|could not be sent/)
+        .element(page.getByRole('region', {name: /Notifications/}).getByText('Internal Server Error', {exact: true}))
+        .toBeVisible()
       await openSessions(titles.other)
       await option(new RegExp(`^${titles.running}`)).click()
       await expect.element(composer(), {timeout: 8000}).toMatchTextContent(new RegExp(`${steered}[\\s\\S]*${waiting}`))
