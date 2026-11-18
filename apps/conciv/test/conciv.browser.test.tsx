@@ -2013,7 +2013,7 @@ describe('grab staging', () => {
     await pickFromOverflow()
 
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await userEvent.click(removeGrab())
     await expect.element(removeGrab()).not.toBeInTheDocument()
 
@@ -7276,7 +7276,7 @@ module.exports = {default: {setup(ctx) {
     await stage.click()
 
     await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
 
@@ -7297,7 +7297,7 @@ module.exports = {default: {setup(ctx) {
     await page.getByRole('tab', {name: 'Chat', exact: true}).click()
 
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
   }, 30_000)
 })
