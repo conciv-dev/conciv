@@ -514,7 +514,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
           if (pending?.sessionId !== input.sessionId || pending.connectionId !== input.connectionId) return Effect.void
           return Deferred.succeed(pending.reply, input.outcome).pipe(Effect.asVoid)
         }),
-      run: (input, call) =>
+      operate: (input, call) =>
         run({
           sessionId: input.sessionId,
           tabId: input.tabId,

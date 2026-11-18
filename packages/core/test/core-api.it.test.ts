@@ -7637,7 +7637,7 @@ export default {
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method, run: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method, operate: method},
   events: {},
 }
 
@@ -7731,8 +7731,8 @@ export default {
         await ctx.permission.reply({sessionId, requestId, decision})
         return {}
       },
-      run: async (input, call) =>
-        page.run(input, {signal: call.signal}).then(
+      operate: async (input, call) =>
+        page.operate(input, {signal: call.signal}).then(
           (value) => ({ok: true, value}),
           (error) => ({ok: false, type: error.type, message: error.message, data: error.data ?? null}),
         ),
@@ -7766,7 +7766,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back, and a plugin operation runs on the tab through page.run: with no tab a changing one fails, a reading one is resent once to the next tab, its value and raised error come back, and a closed tab or a deleted session ends one in flight as gone', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back, and a plugin operation runs on the tab through page.operate: with no tab a changing one fails, a reading one is resent once to the next tab, its value and raised error come back, and a closed tab or a deleted session ends one in flight as gone', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7988,7 +7988,7 @@ export default {
     expect(await queued).toMatchObject({ok: false, message: expect.stringContaining('the action may already have run')})
     expect(await granted()).toHaveLength(0)
     expect(await offered()).toEqual({names: [], line: undefined})
-    const operate = (input: Record<string, unknown>) => tabs('run', {sessionId: session, ...input})
+    const operate = (input: Record<string, unknown>) => tabs('operate', {sessionId: session, ...input})
     expect(await operate({name: 'count', input: {n: 1}, reading: false})).toMatchObject({
       ok: false,
       type: 'failed',

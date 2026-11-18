@@ -544,7 +544,7 @@ export const Definition = Rpc.define({
     state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors},
     command: {input: z.object(request), output: Command, errors},
     result: {input: z.object({...request, outcome: Outcome}), output: z.void(), errors},
-    run: {
+    operate: {
       input: z.object({
         sessionId: SessionId,
         tabId: TabId.optional(),
