@@ -1,6 +1,8 @@
 import {TestRunResultSchema, type Summary, type TestError, type TestRow, type TestRunResult} from './shared/events.js'
 
-export type {TestError, TestRow, TestRunResult}
+export type {Summary, TestError, TestRow, TestRunResult}
+export {TestEventSchema} from './shared/events.js'
+export {initialRunState, transitionRun, type RunAction} from './panel/run-state.js'
 
 export type FileGroup = {readonly file: string; readonly tests: readonly TestRow[]}
 

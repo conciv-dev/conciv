@@ -1,6 +1,11 @@
-import {createUniqueId, For, Show, type JSX} from 'solid-js'
-import {Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
-import {ToolCall, type ToolCallProps} from '@conciv/plugin/experimental/builtin'
+import {createUniqueId, For, onCleanup, Show, type JSX} from 'solid-js'
+import {createStore, reconcile, unwrap} from 'solid-js/store'
+import {createKeyed, Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
+import {ToolCall} from '@conciv/plugin/experimental/builtin'
+import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {MetaToolCard, parseResultPayload, StatusVisual, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
+import {TestRunner} from '@conciv/plugin-test-runner/rpc'
 import {
   countLabel,
   counts,
@@ -9,15 +14,19 @@ import {
   failureLocation,
   fixPrompt,
   groupByFile,
+  initialRunState,
   parseRunResult,
   pathTail,
   relativePath,
   shortDuration,
   STATE_LABEL,
+  TestEventSchema,
+  transitionRun,
   type FileGroup,
+  type RunAction,
+  type Summary,
   type TestError,
   type TestRow,
-  type TestRunResult,
 } from '@conciv/plugin-test-runner/view'
 
 type Actions = {
@@ -178,30 +187,86 @@ function FileSection(props: Actions & {group: FileGroup; accordion: string}): JS
   )
 }
 
-function RunCard(props: Actions & {result: TestRunResult}): JSX.Element {
-  const summary = () => props.result.summary
+type RunView = {
+  readonly summary: Summary
+  readonly tests: readonly TestRow[]
+  readonly running: boolean
+}
+
+function RunCard(props: Actions & RunView): JSX.Element {
   const accordion = createUniqueId()
+  const sentence = () => `${props.running ? 'Test run in progress' : 'Test run finished'}: ${counts(props.summary)}`
   return (
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5 items-center" role="status" aria-live="polite">
-        <span class="sr-only">{`Test run finished: ${counts(summary())}`}</span>
+        <span class="sr-only">{sentence()}</span>
         <div class="flex flex-wrap gap-1.5 items-center" aria-hidden="true">
-          <Pill tone="success">{countLabel(summary().passed, 'passed')}</Pill>
-          <Show when={summary().failed > 0}>
-            <Pill tone="danger">{countLabel(summary().failed, 'failed')}</Pill>
+          <Show when={props.running}>
+            <span class="text-chat-xs text-chat-text-3 font-chat-mono inline-flex gap-1.25 items-center">
+              <StatusVisual status="running" form="dot" />
+              running
+            </span>
           </Show>
-          <Show when={summary().skipped > 0}>
-            <Pill tone="neutral">{countLabel(summary().skipped, 'skipped')}</Pill>
+          <Pill tone="success">{countLabel(props.summary.passed, 'passed')}</Pill>
+          <Show when={props.summary.failed > 0}>
+            <Pill tone="danger">{countLabel(props.summary.failed, 'failed')}</Pill>
+          </Show>
+          <Show when={props.summary.skipped > 0}>
+            <Pill tone="neutral">{countLabel(props.summary.skipped, 'skipped')}</Pill>
           </Show>
         </div>
       </div>
       <div class="flex flex-col gap-0.5">
-        <For each={groupByFile(props.result.tests)}>
+        <For each={groupByFile(props.tests)}>
           {(group) => <FileSection {...props} group={group} accordion={accordion} />}
         </For>
       </div>
     </div>
   )
+}
+
+type Client = Context['client']
+
+function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
+  const [run, setRun] = createStore(initialRunState)
+  const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
+
+  const load = async (client: Client, signal: AbortSignal) => {
+    try {
+      const current = await client.rpc(TestRunner).current(undefined, {signal})
+      if (!signal.aborted) dispatch({type: 'current', ...current})
+    } catch (error) {
+      if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
+    }
+  }
+
+  const follow = async (client: Client, signal: AbortSignal) => {
+    try {
+      for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
+        if (event.type === 'server.connected') {
+          dispatch({type: 'connected'})
+          void load(client, signal)
+          continue
+        }
+        const parsed = TestEventSchema.safeParse(event.data)
+        if (parsed.success) dispatch(parsed.data)
+        else console.error('[test-runner] a live test event did not match its schema', parsed.error)
+      }
+    } catch (error) {
+      if (!signal.aborted) console.error('[test-runner] the live test events stopped', error)
+    }
+  }
+
+  createKeyed(
+    () => props.client(),
+    (client) => {
+      const controller = new AbortController()
+      onCleanup(() => controller.abort())
+      void follow(client, controller.signal)
+    },
+  )
+
+  return <RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase !== 'done'} />
 }
 
 function openFailure(ctx: Context, error: TestError): void {
@@ -214,27 +279,49 @@ function openFailure(ctx: Context, error: TestError): void {
   })
 }
 
-function renderRun(ctx: Context, call: ToolCallProps): JSX.Element | undefined {
-  const result = call.result.status === 'success' ? parseRunResult(call.result.output) : undefined
-  if (!result) return undefined
+function TestRunBody(
+  props: Actions & {status: ToolStatus; result: ToolResultPart | undefined; client: () => Client | undefined},
+): JSX.Element {
+  const finished = () => (props.status === 'complete' ? parseRunResult(parseResultPayload(props.result)) : undefined)
   return (
-    <RunCard
-      ui={ctx.ui}
-      result={result}
-      canOpen={ctx.desktop !== undefined}
-      onOpen={(error) => openFailure(ctx, error)}
-      onFix={(error) =>
-        ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, call.session.directory)))
-      }
-    />
+    <Show when={finished()} fallback={<LiveRunCard {...props} />}>
+      {(result) => <RunCard {...props} summary={result().summary} tests={result().tests} running={false} />}
+    </Show>
   )
+}
+
+function testRunCard(ctx: Context): (props: ToolCardProps) => JSX.Element {
+  const session = () => ctx.sessions.current()
+  const client = () => session()?.server.client
+  const actions: Actions = {
+    ui: ctx.ui,
+    canOpen: ctx.desktop !== undefined,
+    onOpen: (error) => openFailure(ctx, error),
+    onFix: (error) =>
+      ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, session()?.directory ?? ''))),
+  }
+  return (props) => {
+    const status = () => toolStatus(props.part, props.result)
+    const streams = () => props.part.name === 'test_runner_run' && status() === 'running'
+    const finished = () => status() === 'complete' && parseRunResult(parseResultPayload(props.result)) !== undefined
+    return (
+      <MetaToolCard
+        {...props}
+        body={
+          streams() || finished() ? (
+            <TestRunBody {...actions} status={status()} result={props.result} client={client} />
+          ) : undefined
+        }
+      />
+    )
+  }
 }
 
 export default Plugin.define({
   setup(ctx) {
     ctx.add(ToolCall, {
       tools: ['test_runner_run', 'test_runner_status'],
-      render: (call) => renderRun(ctx, call),
+      card: {render: testRunCard(ctx), hasEmbeddedBody: () => true},
     })
   },
 })

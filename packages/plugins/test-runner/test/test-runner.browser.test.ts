@@ -222,6 +222,84 @@ describe('the test card of the test-runner plugin', () => {
     }
   }, 240_000)
 
+  test('streams the run the agent starts into its card: the run in progress with each finished test, then the finished run', async ({
+    browser,
+  }) => {
+    const stateRoot = realpathSync(tempDir('conciv-test-runner-card-live-'))
+    const failure = {
+      file: join(stateRoot, 'fail.test.ts'),
+      name: 'this fails on purpose',
+      message: 'expected 200 to be 401 // Object.is equality',
+      stack: 'at fail.test.ts:4:15',
+      line: 4,
+    }
+    const result = {
+      summary: {passed: 4, failed: 1, skipped: 0, durationMs: 900},
+      failures: [failure],
+      tests: [
+        {id: 'pass-1', file: join(stateRoot, 'pass.test.ts'), name: 'one plus one', state: 'pass', durationMs: 2},
+        {
+          id: 'gate-1',
+          file: join(stateRoot, 'gate.test.ts'),
+          name: 'waits for the release file',
+          state: 'pass',
+          durationMs: 800,
+        },
+        {id: 'fail-1', file: failure.file, name: failure.name, state: 'fail', durationMs: 4, error: failure},
+      ],
+    }
+    const widget = await openPluginWidget(browser, {
+      id: 'fake',
+      plugins: [PACKAGE_DIR],
+      widgetBundle: WIDGET_BUNDLE,
+      files: {...fixtureFiles(), 'gate.test.ts': GATED_VITEST_TEST},
+      stateRoot,
+    })
+    try {
+      const page = widget.page
+      await rpcSocketFor(page).installed
+      await page.reload({waitUntil: 'domcontentloaded'})
+      symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(stateRoot, 'node_modules'), 'dir')
+      const script = widget.kit.harness.script
+      script.holdResults()
+      script.scriptTurn({
+        toolCalls: [{name: 'test_runner_run', input: {}, result}],
+        text: 'The run has one failing test',
+      })
+
+      await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click()
+      await composer.pressSequentially('run the tests')
+      await composer.press('Enter')
+
+      const run = runTests(widget.kit.base)
+      await expect(page.getByRole('status').getByText(/^Test run in progress: /)).toBeAttached({timeout: 60_000})
+      await expect(page.getByText('one plus one', {exact: true})).toBeVisible({timeout: 60_000})
+      await expect(page.getByText('this fails on purpose', {exact: true})).toBeVisible({timeout: 60_000})
+      await expect(
+        page.getByRole('status').getByText('Test run in progress: 3 passed, 1 failed, 0 skipped', {exact: true}),
+      ).toBeAttached({timeout: 60_000})
+      await expect(page.getByText('The run has one failing test', {exact: true})).toBeHidden()
+
+      widget.kit.writeProjectFile('release', '')
+      await run
+      await expect(
+        page.getByRole('status').getByText('Test run finished: 4 passed, 1 failed, 0 skipped', {exact: true}),
+      ).toBeAttached({timeout: 60_000})
+
+      script.releaseResults()
+      await expect(page.getByText('The run has one failing test', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(
+        page.getByRole('status').getByText('Test run finished: 4 passed, 1 failed, 0 skipped', {exact: true}),
+      ).toBeAttached()
+      await expect(page.getByText('waits for the release file', {exact: true})).toBeVisible()
+      await expect(page.getByRole('group', {name: 'this fails on purpose', exact: true})).toBeVisible()
+    } finally {
+      await widget.close()
+    }
+  }, 240_000)
+
   test('prefills a fix that names the project-relative file when two failing files share their last two segments', async ({
     browser,
   }) => {
