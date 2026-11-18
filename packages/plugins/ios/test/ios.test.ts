@@ -1,7 +1,8 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {readFile, watch} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {Effect, Layer} from 'effect'
+import {Effect, Fiber, Layer} from 'effect'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
@@ -168,6 +169,49 @@ describe('the ios system prompt text', () => {
     expect(prompt({projectRoot: '/opt/PayApp'})).toContain('the iOS project at /opt/PayApp,')
     expect(prompt({scheme: 'PayApp'})).toContain('scheme PayApp')
     expect(prompt({extraSourceDirs: ['../ConcivWidget/Sources']})).toContain('../ConcivWidget/Sources')
+  })
+})
+
+describe('the real simctl runner', () => {
+  async function pidWritten(directory: string, signal: AbortSignal): Promise<number> {
+    for await (const change of watch(directory, {signal})) {
+      if (change.filename === 'pid') return Number(await readFile(join(directory, 'pid'), 'utf8'))
+    }
+    throw new Error('the child never wrote its pid')
+  }
+
+  function alive(pid: number): boolean {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it('stops the child process when the run is interrupted', async () => {
+    const directory = tempDir('conciv-ios-child-')
+    const script = [
+      "const {renameSync, writeFileSync} = require('node:fs')",
+      "const {join} = require('node:path')",
+      'const directory = process.argv[1]',
+      "writeFileSync(join(directory, 'pid.partial'), String(process.pid))",
+      "renameSync(join(directory, 'pid.partial'), join(directory, 'pid'))",
+      'setInterval(() => {}, 1 << 30)',
+    ].join('\n')
+    const watching = new AbortController()
+    onTestFinished(() => watching.abort())
+    const written = pidWritten(directory, watching.signal)
+    const running = Effect.runFork(
+      Effect.gen(function* () {
+        const simctl = yield* Simctl.Service
+        return yield* simctl.run(process.execPath, ['-e', script, directory])
+      }).pipe(Effect.provide(Simctl.layer)),
+    )
+    const pid = await written
+    expect(alive(pid)).toBe(true)
+    await Effect.runPromise(Fiber.interrupt(running))
+    expect(alive(pid)).toBe(false)
   })
 })
 

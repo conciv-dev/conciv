@@ -1,7 +1,6 @@
 {
   "name": "@conciv/plugin-ios",
   "version": "0.0.22",
-  "private": true,
   "description": "The conciv iOS plugin, engine part: build, run, screenshot and read the logs of a native iOS app on the simulator through xcodebuild, swiftc and simctl.",
   "keywords": [
     "conciv",

@@ -1,4 +1,4 @@
-import {execFile} from 'node:child_process'
+import {execFile, type ChildProcess} from 'node:child_process'
 import {Context, Effect, Layer} from 'effect'
 
 export type RunOptions = {cwd?: string; env?: Record<string, string>}
@@ -18,9 +18,17 @@ function exitCode(error: (Error & {code?: unknown}) | null): number {
   return typeof error.code === 'number' ? error.code : 1
 }
 
+function stopped(child: ChildProcess): Effect.Effect<void> {
+  return Effect.callback<void>((resume) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resume(Effect.void)
+    child.once('exit', () => resume(Effect.void))
+    child.kill()
+  })
+}
+
 function run(command: string, args: readonly string[], options?: RunOptions): Effect.Effect<RunResult> {
   return Effect.callback<RunResult>((resume) => {
-    execFile(
+    const child = execFile(
       command,
       args,
       {cwd: options?.cwd, env: {...process.env, ...options?.env}, maxBuffer: MAX_BUFFER, encoding: 'buffer'},
@@ -28,6 +36,7 @@ function run(command: string, args: readonly string[], options?: RunOptions): Ef
         resume(Effect.succeed({code: exitCode(error), stdout, stderr: stderr.toString('utf8')}))
       },
     )
+    return stopped(child)
   })
 }
 
