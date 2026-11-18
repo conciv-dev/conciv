@@ -29,7 +29,7 @@ type WidgetCommand = {
   description?: string
   arguments?: true
   after?: string
-  run: (input: string) => void
+  run: (input?: string) => void
 }
 
 function guardedRun(owner: string, run: () => unknown): void {
@@ -83,15 +83,15 @@ function widgetCommandEntry(command: WidgetCommand): RichTextFieldTriggerItem {
     label: `/${command.name}`,
     group: SOURCE_LABEL.harness,
     description: command.description,
-    run: command.arguments ? undefined : () => command.run(''),
+    run: command.arguments ? undefined : () => command.run(),
   }
 }
 
-function parseTyped(text: string): {name: string; input: string} | undefined {
+function parseTyped(text: string): {name: string; input?: string} | undefined {
   const typed = text.trim()
   if (!typed.startsWith('/')) return undefined
   const separator = typed.search(/\s/)
-  if (separator === -1) return {name: typed.slice(1), input: ''}
+  if (separator === -1) return {name: typed.slice(1)}
   return {name: typed.slice(1, separator), input: typed.slice(separator).trim()}
 }
 
@@ -146,7 +146,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     const typed = parseTyped(text)
     if (!typed) return false
     const command = widgetCommands().find(
-      (candidate) => candidate.name === typed.name && (candidate.arguments || typed.input === ''),
+      (candidate) => candidate.name === typed.name && (candidate.arguments || typed.input === undefined),
     )
     if (!command) return false
     command.run(typed.input)
