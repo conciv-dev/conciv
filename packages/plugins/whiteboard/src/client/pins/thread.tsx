@@ -197,10 +197,7 @@ export function ThreadPopover(props: {visible: boolean}): JSX.Element {
       label="Comment thread"
       initialFocus={() => content?.querySelector('input') ?? undefined}
     >
-      <div
-        ref={(element) => (content = element)}
-        class="flex flex-col max-h-120 w-85 pointer-events-auto overflow-hidden"
-      >
+      <div ref={(element) => (content = element)} class="flex flex-col max-h-120 w-85 pointer-events-auto">
         <ThreadContent />
       </div>
     </ui.Popover>
