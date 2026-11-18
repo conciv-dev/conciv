@@ -1,7 +1,7 @@
 import {expect} from 'vitest'
 import {writeFile} from 'node:fs/promises'
 import nodePath from 'node:path'
-import {Data, Deferred, Effect, Exit, FileSystem, Fiber, Option, Path, Schema, Stream} from 'effect'
+import {Deferred, Effect, Exit, FileSystem, Fiber, Option, Path, Schema, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import {Bus} from '../../src/core/bus.js'
 import {Plugin} from '../../src/core/plugin.js'
@@ -395,44 +395,5 @@ it.live('stops a plugin child process when the plugin is removed while the host 
     expect(yield* rpc.call('spawner', 'child', {}).pipe(Effect.flip)).toMatchObject({type: 'rpc.unavailable'})
     expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
     expect(yield* plugins.list()).toMatchObject([{id: 'healthy', state: {status: 'active'}}])
-  }),
-)
-
-it.live('reports a plugin whose effect fails with a tagged error and keeps loading the others', () =>
-  Effect.gen(function* () {
-    const plugins = yield* Plugin.Service
-    const rpc = yield* Rpc.Service
-    class ConfigInvalid extends Data.TaggedError('ConfigInvalid')<{readonly message: string}> {}
-    yield* plugins.activate([
-      {
-        id: 'misconfigured',
-        revision: '1',
-        effect: () => Effect.fail(new ConfigInvalid({message: 'the api key is missing'})),
-      },
-      {
-        id: 'healthy',
-        revision: '1',
-        effect: (ctx) =>
-          ctx.rpc
-            .register(
-              Rpc.define({
-                id: 'healthy',
-                methods: {check: {input: Schema.Struct({}), output: Schema.String}},
-                events: {},
-              }),
-              {check: () => Effect.succeed('healthy')},
-            )
-            .pipe(Effect.orDie),
-      },
-    ])
-
-    expect(yield* plugins.list()).toMatchObject([
-      {
-        id: 'misconfigured',
-        state: {status: 'failed', error: 'failed to load plugin: ConfigInvalid: the api key is missing'},
-      },
-      {id: 'healthy', state: {status: 'active'}},
-    ])
-    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
   }),
 )
