@@ -9,6 +9,7 @@ import {
   FiberMap,
   Option,
   Predicate,
+  RcMap,
   Request,
   RequestResolver,
   Schedule,
@@ -175,10 +176,12 @@ export const make = Effect.fn('PageConnection.make')(function* (
   yield* Effect.addFinalizer((exit) => Scope.close(work, exit))
   const machine = {state: createConnectionState()}
   const records = Records.fromStorage(ctx.storage)
-  const attachments = new Map<number, Deferred.Deferred<'closed' | 'replaced', 'unavailable'>>()
+  const attachments = yield* RcMap.make({
+    lookup: (_attempt: number) => Deferred.make<'closed' | 'replaced', 'unavailable'>(),
+  }).pipe(Scope.provide(work))
   const tabs = yield* FiberMap.make<number>()
   const inFlight = new Map<string, InFlight>()
-  const lanes = new Map<SessionId, Semaphore.Semaphore>()
+  const lanes = yield* RcMap.make({lookup: (_sessionId: SessionId) => Semaphore.make(1)}).pipe(Scope.provide(work))
   const drained = Deferred.makeUnsafe<void>()
   const lock = Semaphore.makeUnsafe(1)
   const step = (event: ConnectionEvent): Effect.Effect<void> =>
@@ -195,20 +198,24 @@ export const make = Effect.fn('PageConnection.make')(function* (
   const perform = (effect: ConnectionEffect): Effect.Effect<void, unknown> => {
     if (effect.type === 'sync-permissions') return Effect.asVoid(Effect.forkIn(syncPermissions(effect), work))
     if (effect.type === 'close-attachment')
-      return Effect.suspend(() => {
-        const closed = attachments.get(effect.attempt)
-        if (!closed) return Effect.void
-        attachments.delete(effect.attempt)
-        return FiberMap.remove(tabs, effect.attempt).pipe(
-          Effect.andThen(
-            Deferred.done(
-              closed,
-              effect.outcome === 'unavailable' ? Exit.fail(effect.outcome) : Exit.succeed(effect.outcome),
-            ),
-          ),
-          Effect.asVoid,
-        )
-      })
+      return RcMap.getOption(attachments, effect.attempt).pipe(
+        Effect.flatMap(
+          Option.match({
+            onNone: () => Effect.void,
+            onSome: (closed) =>
+              FiberMap.remove(tabs, effect.attempt).pipe(
+                Effect.andThen(
+                  Deferred.done(
+                    closed,
+                    effect.outcome === 'unavailable' ? Exit.fail(effect.outcome) : Exit.succeed(effect.outcome),
+                  ),
+                ),
+                Effect.asVoid,
+              ),
+          }),
+        ),
+        Effect.scoped,
+      )
     if (effect.type === 'emit-control') return registration.events.emit('control', effect.control)
     if (effect.type === 'warn') return Effect.logWarning(effect.message, effect.error)
     return Deferred.done(drained, Exit.void).pipe(Effect.asVoid)
@@ -314,13 +321,11 @@ export const make = Effect.fn('PageConnection.make')(function* (
       Effect.catch(() => Effect.succeed(undefined)),
     )
 
-  const lane = (sessionId: SessionId) => {
-    const existing = lanes.get(sessionId)
-    if (existing) return existing
-    const created = Semaphore.makeUnsafe(1)
-    lanes.set(sessionId, created)
-    return created
-  }
+  const serialized = <A, E>(sessionId: SessionId, effect: Effect.Effect<A, E>) =>
+    RcMap.get(lanes, sessionId).pipe(
+      Effect.flatMap((lane) => lane.withPermit(effect)),
+      Effect.scoped,
+    )
 
   const resent = (call: Call, command: Command, deadline: number, first: PageError) =>
     Effect.gen(function* () {
@@ -340,7 +345,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       }
       const deadline = Date.now() + command.timeoutMs
       const sent = deliver(target, command)
-      if (!call.reading) return yield* lane(call.sessionId).withPermit(sent)
+      if (!call.reading) return yield* serialized(call.sessionId, sent)
       return yield* sent.pipe(
         Effect.catchIf(
           (error): error is TabGone => !Tool.isToolError(error) && error.dispatched,
@@ -385,22 +390,20 @@ export const make = Effect.fn('PageConnection.make')(function* (
     })
     Effect.runSync(
       Effect.forkIn(
-        lane(sessionId)
-          .withPermit(playing)
-          .pipe(
-            Effect.onExit((exit) =>
-              Exit.isSuccess(exit)
-                ? Effect.void
-                : Effect.sync(() =>
-                    played.forEach((each) =>
-                      each.resolve({
-                        ok: false,
-                        error: Tool.toolError({message: `The queue could not be played: ${Cause.pretty(exit.cause)}`}),
-                      }),
-                    ),
+        serialized(sessionId, playing).pipe(
+          Effect.onExit((exit) =>
+            Exit.isSuccess(exit)
+              ? Effect.void
+              : Effect.sync(() =>
+                  played.forEach((each) =>
+                    each.resolve({
+                      ok: false,
+                      error: Tool.toolError({message: `The queue could not be played: ${Cause.pretty(exit.cause)}`}),
+                    }),
                   ),
-            ),
+                ),
           ),
+        ),
         work,
       ),
     )
@@ -413,10 +416,13 @@ export const make = Effect.fn('PageConnection.make')(function* (
     finished: (record) => {
       if (record.result === null) return
       const {sessionId, queueId, toolCallId, result} = record
-      Effect.runFork(
-        registration.events
-          .emit('queue.finished', {sessionId, queueId, toolCallId, result})
-          .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
+      Effect.runSync(
+        Effect.forkIn(
+          registration.events
+            .emit('queue.finished', {sessionId, queueId, toolCallId, result})
+            .pipe(Effect.catchCause((cause) => Effect.logWarning(`Announcing queue ${queueId} failed`, cause))),
+          work,
+        ),
       )
     },
   })
@@ -457,8 +463,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
                 if (isConnectionDisposed(machine.state))
                   return yield* Effect.fail(call.error('unavailable', 'Page is unavailable.', {}))
                 const attempt = selectNextAttempt(machine.state)
-                const closed = Deferred.makeUnsafe<'closed' | 'replaced', 'unavailable'>()
-                attachments.set(attempt, closed)
+                const closed = yield* RcMap.get(attachments, attempt)
                 yield* FiberMap.run(tabs, attempt, Effect.never)
                 yield* step({
                   type: 'attach.started',
@@ -477,7 +482,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
               dispatch({type: 'attach.closed', sessionId: input.sessionId, attempt: attached.attempt}).pipe(
                 Effect.andThen(FiberMap.remove(tabs, attached.attempt)),
               ),
-          )
+          ).pipe(Effect.scoped)
         }),
       state: (input, call) =>
         Effect.suspend(() =>
@@ -573,7 +578,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
 
   const deleted = (sessionId: SessionId) =>
     Effect.gen(function* () {
-      lanes.delete(sessionId)
+      yield* RcMap.invalidate(lanes, sessionId)
       queues.cancelSession(sessionId)
       const owned = [...inFlight].flatMap(([requestId, pending]) =>
         pending.sessionId === sessionId ? [{requestId, connectionId: pending.connectionId}] : [],
