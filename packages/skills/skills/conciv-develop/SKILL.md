@@ -250,8 +250,8 @@ tool `.server` handlers get typed context.
 
 ## Widget UI: `Component`, `Surface`, `views`
 
-- **`Component`** mounts once per slot (`header`, `footer`, `composer`, `empty`, `status`,
-  `widget`, `surface`, `connect`); branch on `getExtensionApi(YOUR_NAME).useSlot()` inside it, as
+- **`Component`** mounts once per slot (`composer`, `empty`, `status`, `widget`,
+  `surface`, `connect`); branch on `getExtensionApi(YOUR_NAME).useSlot()` inside it, as
   `deploy-button.tsx` does above. The host wraps it in `MountedExtension` — you normally never call
   that directly; it exists for custom hosts (see Testing below).
 - **`Surface`** is a second, always-mounted component for the dedicated `'surface'` slot — used for
