@@ -11,12 +11,12 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@conciv/contract": "workspace:*",
     "@conciv/e2e-utils": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
@@ -25,7 +25,6 @@
     "@vitejs/plugin-react": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "zod": "catalog:"
+    "vite": "catalog:"
   }
 }

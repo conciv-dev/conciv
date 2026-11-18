@@ -67,7 +67,7 @@ import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, drafts, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -755,7 +755,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessions: sessionPort(db, rows, {
       onRunStart: async (sessionId) => {
         runStartListeners.forEach((listener) => listener(sessionId))
-        await db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       },
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
@@ -765,6 +764,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     attachmentExpanders,
     prompt: plugins.prompt,
     promptHooked: plugins.promptHooked,
+    context: plugins.context,
     pluginInstructions: (sessionId, reset, inventory) =>
       pluginHost.runPromise(pluginInstructions(sessionId, reset, inventory)),
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
