@@ -4298,18 +4298,19 @@ describe('session prompt hook', () => {
 describe('session context hook', () => {
   type ModelRequest = {system: string[]; tools: string[]; lastUser: unknown; options: Record<string, unknown>}
 
-  async function contextKit(plugins: Plugin.Plugin[]) {
+  async function contextKit(plugins: Plugin.Plugin[], modelOptions: Record<string, unknown> = {}) {
     const requests: ModelRequest[] = []
     const harness = defineHarness({
       id: 'context-cli',
       binName: 'true',
       chatConfig: () => ({
+        modelOptions,
         adapter: makeTextAdapter('context-cli', async function* (options) {
           requests.push({
             system: [...(options.systemPrompts ?? [])].map(String),
             tools: (options.tools ?? []).map((tool) => tool.name),
             lastUser: options.messages.findLast((message) => message.role === 'user')?.content,
-            options: {...options.modelOptions},
+            options: structuredClone({...options.modelOptions}),
           })
           const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
           yield {type: ChatEventType.RUN_STARTED, ...run}
@@ -4489,6 +4490,31 @@ describe('session context hook', () => {
     expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
     expect(seen).toEqual([original, original])
     expect(schema).toEqual(original)
+  })
+
+  test('a context hook that edits a nested model option in place changes that request only, and the next request starts from the harness options', async () => {
+    const harnessOptions = {effort: {levels: ['given']}}
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'context-options',
+      async setup(ctx) {
+        await ctx.session.hook('context', (event) => {
+          seen.push(structuredClone(event.options))
+          const effort = event.options.effort
+          if (isPlainObject(effort) && Array.isArray(effort.levels)) effort.levels.push('pushed by the plugin')
+        })
+      },
+    })
+    const {kit, requests} = await contextKit([plugin], harnessOptions)
+
+    expect((await (await kit.turn('first', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([{effort: {levels: ['given']}}, {effort: {levels: ['given']}}])
+    expect(requests.map((request) => request.options)).toEqual([
+      {effort: {levels: ['given', 'pushed by the plugin']}},
+      {effort: {levels: ['given', 'pushed by the plugin']}},
+    ])
+    expect(harnessOptions).toEqual({effort: {levels: ['given']}})
   })
 
   test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
