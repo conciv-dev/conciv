@@ -266,14 +266,16 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
       label: 'Context',
       items: async (query) => {
         const [skills, agents, sessions] = await Promise.allSettled([
-          queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
-          queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
+          queryClient.fetchQuery({...appData.utils.skill.list.queryOptions(), staleTime: 0}),
+          queryClient.fetchQuery({...appData.utils.agent.list.queryOptions(), staleTime: 0}),
           sessionCandidates(query),
         ])
-        if (skills.status === 'rejected' && agents.status === 'rejected' && sessions.status === 'rejected')
-          throw skills.reason
+        if (skills.status === 'rejected') console.error('[conciv] the @ list could not read skills', skills.reason)
+        if (agents.status === 'rejected') console.error('[conciv] the @ list could not read agents', agents.reason)
         if (sessions.status === 'rejected')
           console.error('[conciv] the @ list could not load sessions', sessions.reason)
+        if (skills.status === 'rejected' && agents.status === 'rejected' && sessions.status === 'rejected')
+          throw skills.reason
         const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
         const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
         const named = matchingItems(

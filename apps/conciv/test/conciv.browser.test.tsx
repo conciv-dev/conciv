@@ -1538,6 +1538,12 @@ export default {
     await expect.element(mention('@reviewer')).toBeVisible()
     await userEvent.click(input().getByText('@reviewer'), {timeout: 3_000})
     await expect.element(context()).not.toBeInTheDocument()
+
+    const reread = await faults.install({kind: 'gate', path: ['skill', 'list']})
+    await userEvent.keyboard('{End} @')
+    await coreControl.awaitFaultPending(reread, 1)
+    await coreControl.releaseFault(reread)
+    await expect.element(mention('@mention-guide')).toBeVisible()
   })
 })
 
