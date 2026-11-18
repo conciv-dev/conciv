@@ -88,23 +88,27 @@ export function readMutations(tree: ReactTree): CacheEntry[] {
     .map((mutation) => mutationToEntry(tree, mutation))
 }
 
-function matchingQuery(tree: ReactTree, client: QueryClient, key: string): Query | undefined {
+function matchingQueries(tree: ReactTree, client: QueryClient, key: string): Query[] {
   return client
     .getQueryCache()
     .getAll()
-    .find((query) => redactedKey(tree, query.queryKey) === key)
+    .filter((query) => JSON.stringify(query.queryKey) === key || redactedKey(tree, query.queryKey) === key)
 }
 
 export async function invalidateQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
   const client = requireQueryClient(tree)
-  const query = matchingQuery(tree, client, key)
-  if (query) await client.invalidateQueries({queryKey: query.queryKey, exact: true})
+  await Promise.all(
+    matchingQueries(tree, client, key).map((query) =>
+      client.invalidateQueries({queryKey: query.queryKey, exact: true}),
+    ),
+  )
   return {ok: true}
 }
 
 export async function refetchQuery(tree: ReactTree, key: string): Promise<{ok: true}> {
   const client = requireQueryClient(tree)
-  const query = matchingQuery(tree, client, key)
-  if (query) await client.refetchQueries({queryKey: query.queryKey, exact: true})
+  await Promise.all(
+    matchingQueries(tree, client, key).map((query) => client.refetchQueries({queryKey: query.queryKey, exact: true})),
+  )
   return {ok: true}
 }

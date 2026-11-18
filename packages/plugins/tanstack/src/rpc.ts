@@ -104,6 +104,7 @@ const SessionId = z
 export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
 export type TabId = z.infer<typeof TabId>
 export const SHORT_MAX = 2_048
+export const TAB_URL_MAX = 16_384
 const short = z.string().max(SHORT_MAX)
 const tab = {
   tabId: TabId.optional().describe(
@@ -113,7 +114,7 @@ const tab = {
 
 export const Tab = z.object({
   id: TabId,
-  url: z.string().max(16_384),
+  url: z.string().max(TAB_URL_MAX),
   title: short,
   focused: z.boolean(),
   visible: z.boolean(),

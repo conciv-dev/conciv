@@ -5,7 +5,8 @@ import {openAttachment} from './client/attachment.js'
 import {installRuntimeErrorListeners} from './client/error-ring.js'
 import {InspectorChip} from './client/inspector-chip.js'
 import {makeTanstackOperations} from './client/operations.js'
-import type {Tab} from './rpc.js'
+import {redactedHref, subscribeResolved} from './client/router-adapter.js'
+import {SHORT_MAX, TAB_URL_MAX, type Tab} from './rpc.js'
 
 const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
 
@@ -14,11 +15,6 @@ const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 const RETRY_BASE_MS = 1000
 
 const RETRY_MAX_MS = 30_000
-
-function reportChanges(report: () => void, signal: AbortSignal) {
-  TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
-  document.addEventListener('visibilitychange', report, {signal})
-}
 
 function woken(signal: AbortSignal) {
   const woke = new AbortController()
@@ -35,13 +31,26 @@ export default Plugin.define({
   setup(ctx) {
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
-    const operations = makeTanstackOperations(ctx.use(ReactTree))
+    const tree = ctx.use(ReactTree)
+    const operations = makeTanstackOperations(tree)
     const routed = () => ctx.sessions.current()
+
+    const tabUrl = () => {
+      const live = tree()
+      return live.status === 'active' ? redactedHref(live.value) : `${location.origin}${location.pathname}`
+    }
+
+    const reportChanges = (report: () => void, signal: AbortSignal) => {
+      TAB_EVENTS.forEach((type) => window.addEventListener(type, report, {signal}))
+      document.addEventListener('visibilitychange', report, {signal})
+      const live = tree()
+      if (live.status === 'active') subscribeResolved(live.value, report, signal)
+    }
 
     const tab = (): Tab => ({
       id: tabId,
-      url: location.href,
-      title: document.title,
+      url: tabUrl().slice(0, TAB_URL_MAX),
+      title: document.title.slice(0, SHORT_MAX),
       focused: document.hasFocus(),
       visible: document.visibilityState === 'visible',
     })

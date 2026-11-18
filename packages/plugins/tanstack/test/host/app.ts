@@ -9,6 +9,8 @@ const fetches = {count: 0}
 
 const todoFetches = {list: 0, page: 0}
 
+const userFetches = {first: 0, second: 0}
+
 const slowLoads = {count: 0, release: () => {}}
 
 function RootLayout() {
@@ -57,7 +59,20 @@ function AboutPage() {
       return {fetches: todoFetches.page}
     },
   })
-  useQuery({queryKey: ['user', {token: 'query-key-secret-value'}], queryFn: async () => ({name: 'Ada'})})
+  const firstUser = useQuery({
+    queryKey: ['user', {token: 'query-key-secret-value'}],
+    queryFn: async () => {
+      userFetches.first += 1
+      return {fetches: userFetches.first}
+    },
+  })
+  const secondUser = useQuery({
+    queryKey: ['user', {token: 'second-key-secret-value'}],
+    queryFn: async () => {
+      userFetches.second += 1
+      return {fetches: userFetches.second}
+    },
+  })
   return createElement(
     'section',
     null,
@@ -65,6 +80,8 @@ function AboutPage() {
     createElement('p', null, `Fetches: ${demo.data?.fetches ?? 0}`),
     createElement('p', null, `Todo list runs: ${todos.data?.fetches ?? 0}`),
     createElement('p', null, `Todo page runs: ${todoPage.data?.fetches ?? 0}`),
+    createElement('p', null, `First user runs: ${firstUser.data?.fetches ?? 0}`),
+    createElement('p', null, `Second user runs: ${secondUser.data?.fetches ?? 0}`),
   )
 }
 
