@@ -135,7 +135,9 @@ export default function TerminalSurface(props: {
   model.terminal.attachCustomKeyEventHandler((event) => {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     if (!isPlainEnter(event)) return true
-    return pasteStagedGrabs()
+    if (pasteStagedGrabs()) return true
+    event.preventDefault()
+    return false
   })
   const surface: {element: HTMLDivElement | undefined} = {element: undefined}
   onMount(() => {

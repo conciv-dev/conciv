@@ -7612,8 +7612,9 @@ describe('terminal panel', () => {
   test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const readsOneLine = {...HERO_GRAB, text: 'read -r line; echo "got[$line]"'}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(HERO_GRAB)})
+    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(readsOneLine)})
 
     await typeLine('echo $((6*7))')
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
@@ -7623,7 +7624,10 @@ describe('terminal panel', () => {
     await terminalPanel().click()
     await expect.element(terminalInput()).toHaveFocus()
     await userEvent.keyboard('{Enter}')
-    await expect.element(terminalPanel(), {timeout: 15_000}).toMatchTextContent(/Payroll Deposit/)
+    await userEvent.keyboard('once')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('got[once]'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('got[]')).not.toBeInTheDocument()
 
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
