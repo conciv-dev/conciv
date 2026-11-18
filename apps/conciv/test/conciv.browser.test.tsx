@@ -3424,20 +3424,43 @@ describe('page session card', () => {
 describe('tool registry', () => {
   const cardBundle = (who: string) => `const {ToolRegistry} = require('@conciv/plugin/experimental')
 const {insert} = require('solid-js/web')
+const {createSignal} = require('solid-js')
 module.exports = {default: {setup(ctx) {
   ctx.add(ToolRegistry, {
     name: 'registry_probe',
     render(props) {
+      const [presses, setPresses] = createSignal(0)
       const card = document.createElement('p')
       insert(card, () => '${who} probe card for ' + props.input.target + (props.status === 'completed' ? ', ' + props.output : ', ' + props.status))
-      return card
+      const press = document.createElement('button')
+      press.type = 'button'
+      press.addEventListener('click', () => {
+        setPresses(presses() + 1)
+        ctx.add(ToolRegistry, {name: '${who}_extra_' + presses(), render: () => document.createElement('span')})
+      })
+      insert(press, () => '${who} presses: ' + presses())
+      return [card, press]
     },
   })
 }}}
 `
   const coreBase = bootedCore('tool-registry', {
-    plugins: ['./earlier-cards', './later-cards'],
+    plugins: ['./earlier-cards', './later-cards', './error-cards'],
     files: {
+      'error-cards/index.ts': `export default {id: 'error-cards', async setup() {}}
+`,
+      'error-cards/plugin-experimental.js': `const {ToolRegistry} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ToolRegistry, {
+    name: 'registry_failure',
+    errorComponent(props) {
+      const row = document.createElement('p')
+      row.textContent = 'friendly failure: ' + props.error
+      return row
+    },
+  })
+}}}
+`,
       'earlier-cards/index.ts': `export default {id: 'earlier-cards', async setup() {}}
 `,
       'earlier-cards/plugin-experimental.js': cardBundle('Earlier'),
@@ -3457,13 +3480,15 @@ module.exports = {default: {setup(ctx) {
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-  test('a plugin draws its registered card in the thread, the later plugin wins a name until it is turned off, an unclaimed call reads Called and an error reads on the error card', async () => {
+  test('a plugin draws its registered card in the thread, the later plugin wins a name until it is turned off, an unclaimed call reads Called and an error reads on the error card or on the error row its plugin draws', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.scriptTurn({
       toolCalls: [
         {name: 'registry_probe', input: {target: 'hero'}, result: 'drawn'},
         {name: 'mystery_tool', input: {path: 'src/a.ts', mode: 'fast'}, result: {done: true}},
         {name: 'registry_probe', input: {target: 'footer'}, error: 'the probe exploded'},
+        {name: 'page_fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
+        {name: 'registry_failure', input: {}, error: 'the friendly one broke'},
       ],
       text: 'the registry calls are done',
     })
@@ -3480,12 +3505,16 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('the registry calls are done'), {timeout: 15_000}).toBeVisible()
     await expect.element(page.getByText('Later probe card for hero, drawn', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Earlier probe card for hero', {exact: false})).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Later presses: 0', exact: true}))
+    await expect.element(page.getByRole('button', {name: 'Later presses: 1', exact: true})).toBeVisible()
+    await expect.element(page.getByText('Later probe card for hero, drawn', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Called mystery_tool', {exact: true})).toBeVisible()
     await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
     await expect.element(page.getByText('mode=fast', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Later probe card for footer', {exact: false})).not.toBeInTheDocument()
     await page.getByRole('button', {name: /registry_probe/}).click()
     await expect.element(page.getByText('the probe exploded', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('friendly failure: the friendly one broke', {exact: true})).toBeVisible()
 
     await page.getByRole('link', {name: 'Settings'}).click()
     await page.getByRole('tab', {name: 'Plugins', exact: true}).click()
@@ -3536,6 +3565,7 @@ module.exports = {default: {setup(ctx) {
       .toBeVisible()
     await expect.element(page.getByText('the registry calls are done')).toBeVisible()
     await expect.element(page.getByText('Earlier probe card for hero', {exact: false})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^Edited the page/})).toBeVisible()
     await coreControl.releaseFault(reading)
     await expect
       .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
