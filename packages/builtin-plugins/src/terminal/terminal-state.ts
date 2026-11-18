@@ -47,6 +47,7 @@ export function createTerminalState(ctx: TerminalContext) {
     queryKey: ['terminal', 'models', readSessionId()],
     queryFn: ({queryKey, signal}) => readMeta(ctx, queryKey[2], signal),
     enabled: readSessionId() !== undefined,
+    retry: false,
   }))
   const [run, setRun] = createStore<TerminalRun>({generation: 0, restarting: false, live: null, failure: null})
 
