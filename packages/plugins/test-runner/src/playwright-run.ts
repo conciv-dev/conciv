@@ -4,9 +4,9 @@ import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {mkdtemp, readFile, rm} from 'node:fs/promises'
 import {writeSync} from 'node:fs'
-import type {Summary, TestError, TestRow} from '../../shared/events.js'
-import type {ChildMessage} from '../../runner/child-protocol.js'
-import {parsePlaywrightReport} from './report.js'
+import type {Summary, TestError, TestRow} from './events.js'
+import type {ChildMessage} from './child-protocol.js'
+import {parsePlaywrightReport} from './playwright-report.js'
 
 function send(msg: ChildMessage): void {
   writeSync(3, JSON.stringify(msg) + '\n')

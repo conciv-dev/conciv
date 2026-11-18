@@ -2,8 +2,8 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Effect} from 'effect'
 import {z} from 'zod'
-import type {TestRunnerManager} from './runner/contract.js'
-import {TestRunResultSchema} from './shared/events.js'
+import type {TestRunnerManager} from './runner.js'
+import {TestRunResultSchema} from './events.js'
 import {ListResultSchema} from './rpc.js'
 
 const codeMode = {namespace: 'test_runner', codemode: true}

@@ -8,10 +8,10 @@ import {
   type SessionRef,
   type SessionScreen,
 } from '@conciv/plugin/experimental'
-import type {TestError} from './shared/events.js'
-import {initialRunState, transitionRun, type RunAction} from './panel/run-state.js'
-import {followTestRun} from './panel/follow-run.js'
-import {TestsPanel} from './panel/tests-panel.js'
+import type {TestError} from './events.js'
+import {initialRunState, transitionRun, type RunAction} from './run-state.js'
+import {followTestRun} from './follow-run.js'
+import {TestsPanel} from './tests-panel.js'
 import {fixPrompt, relativePath} from './view.js'
 
 export default Plugin.define({

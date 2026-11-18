@@ -1,4 +1,4 @@
-import {defineStubRunner} from '../runner/driver.js'
+import {defineStubRunner} from './driver.js'
 
 export const nodeTest = defineStubRunner({
   id: 'node-test',

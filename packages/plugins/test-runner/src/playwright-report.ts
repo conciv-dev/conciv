@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {TestError, TestRow, TestState} from '../../shared/events.js'
+import type {TestError, TestRow, TestState} from './events.js'
 
 const ResultSchema = z
   .object({

@@ -1,6 +1,6 @@
 import {createUniqueId, For, Show, type JSX} from 'solid-js'
 import type {IconName, Ui} from '@conciv/plugin/experimental'
-import type {Summary, TestError, TestRow} from '../shared/events.js'
+import type {Summary, TestError, TestRow} from './events.js'
 import {
   counts,
   duration,
@@ -12,7 +12,7 @@ import {
   STATE_LABEL,
   testFiles,
   type FileGroup,
-} from '../view.js'
+} from './view.js'
 import type {RunPhase, RunState} from './run-state.js'
 
 export type TestsPanelProps = {

@@ -1,6 +1,6 @@
 import {Rpc} from '@conciv/plugin/rpc'
 import {z} from 'zod'
-import {TestEventSchema, TestRunResultSchema} from './shared/events.js'
+import {TestEventSchema, TestRunResultSchema} from './events.js'
 
 export const ListResultSchema = z.object({
   files: z.array(z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})),

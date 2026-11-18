@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {TestEvent, TestRunResult} from '../shared/events.js'
+import type {TestEvent, TestRunResult} from './events.js'
 
 export type RunArgs = {patterns?: string[]; testNamePattern?: string; failedOnly?: boolean}
 

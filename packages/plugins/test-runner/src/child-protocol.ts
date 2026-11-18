@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {TestEventSchema} from '../shared/events.js'
+import {TestEventSchema} from './events.js'
 
 const ListFileSchema = z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})
 const ListMessageSchema = z.object({type: z.literal('list'), files: z.array(ListFileSchema)})

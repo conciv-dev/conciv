@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
 import {Readable} from 'node:stream'
-import type {Summary, TestRunResult, TestEvent, FileState} from '../shared/events.js'
+import type {Summary, TestRunResult, TestEvent, FileState} from './events.js'
 import {
   defineRunner,
   isRunnerUnavailable,
@@ -14,7 +14,7 @@ import {
   type TestRunnerAdapter,
   type TestRunnerCapabilities,
   type TestRunnerManager,
-} from './contract.js'
+} from './runner.js'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
 export type ChildRunnerSpec = {

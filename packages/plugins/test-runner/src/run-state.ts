@@ -1,4 +1,4 @@
-import {countStates, type Summary, type TestEvent, type TestRow, type TestRunResult} from '../shared/events.js'
+import {countStates, type Summary, type TestEvent, type TestRow, type TestRunResult} from './events.js'
 
 export type RunPhase = 'idle' | 'running' | 'done' | 'unavailable'
 

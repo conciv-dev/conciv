@@ -1,6 +1,6 @@
 import type {Context} from '@conciv/plugin/experimental'
-import {TestRunner} from '../rpc.js'
-import {TestEventSchema} from '../shared/events.js'
+import {TestRunner} from './rpc.js'
+import {TestEventSchema} from './events.js'
 import type {RunAction} from './run-state.js'
 
 type Client = Context['client']

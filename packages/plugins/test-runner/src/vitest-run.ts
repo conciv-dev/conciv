@@ -3,15 +3,8 @@ import {pathToFileURL} from 'node:url'
 import {join, relative} from 'node:path'
 import {writeSync} from 'node:fs'
 import {z} from 'zod'
-import {
-  countStates,
-  parseFailure,
-  type Summary,
-  type TestError,
-  type TestRow,
-  type TestCaseLike,
-} from '../../shared/events.js'
-import {type ChildMessage} from '../../runner/child-protocol.js'
+import {countStates, parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from './events.js'
+import {type ChildMessage} from './child-protocol.js'
 
 type TestModuleLike = {
   moduleId: string
