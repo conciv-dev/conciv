@@ -1,16 +1,15 @@
 import {isToolError} from '@conciv/extension'
-import {isPageFailure} from '@conciv/protocol/page-types'
-import {badArgs, fail, failRaised} from './page-failure.js'
+import {isPageFailure, pageFailure, type PageFailure} from '@conciv/protocol/page-types'
 
 function isSchemaRejection(error: unknown): error is Error {
   return error instanceof Error && error.name === 'ZodError' && Array.isArray(Reflect.get(error, 'issues'))
 }
 
-export function rethrow(error: unknown): never {
-  if (isPageFailure(error)) throw error
-  if (isSchemaRejection(error)) badArgs(error.message)
-  if (!isToolError(error)) fail(error instanceof Error ? error.message : String(error))
-  failRaised({
+export function toPageFailure(error: unknown): PageFailure {
+  if (isPageFailure(error)) return error
+  if (isSchemaRejection(error)) return pageFailure('invalid-args', error.message)
+  if (!isToolError(error)) return pageFailure('handler-error', error instanceof Error ? error.message : String(error))
+  return pageFailure('handler-error', error.message, {
     code: error.code,
     message: error.message,
     ...(isJsonSerializable(error.data) ? {data: error.data} : {}),
