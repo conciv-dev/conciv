@@ -4298,10 +4298,8 @@ describe('session prompt hook', () => {
 })
 
 describe('session context hook', () => {
-  test('a context hook sees the system prompt and what it appends reaches the model request, and a hook that edits nothing changes nothing', async () => {
+  async function contextKit(plugins: Plugin.Plugin[]) {
     const sent: string[][] = []
-    const seen: Array<{sessionId: string; agent: string; system: string[]}> = []
-    const adding = {text: ''}
     const harness = defineHarness({
       id: 'context-cli',
       binName: 'true',
@@ -4315,6 +4313,22 @@ describe('session context hook', () => {
       }),
       capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
     })
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env, {plugins, systemPromptText: 'the base prompt'})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the context kit booted no app')
+    await made.awaitActivation()
+    return {kit, made, sent}
+  }
+
+  test('a context hook sees the system prompt and what it appends reaches the model request, and a hook that edits nothing changes nothing', async () => {
+    const seen: Array<{sessionId: string; agent: string; system: string[]}> = []
+    const adding = {text: ''}
     const plugin = Plugin.define({
       id: 'context-rules',
       async setup(ctx) {
@@ -4324,14 +4338,7 @@ describe('session context hook', () => {
         })
       },
     })
-    const booted: MadeApp[] = []
-    const kit = await createTestkit(harness, async (env) => {
-      const made = await bootMadeApp(env, {plugins: [plugin], systemPromptText: 'the base prompt'})
-      booted.push(made)
-      return made
-    }).setup()
-    onTestFinished(() => kit.cleanup())
-    await booted[0]?.awaitActivation()
+    const {kit, sent} = await contextKit([plugin])
 
     const untouched = await kit.session()
     expect((await (await kit.turn('hello', {session: untouched})).done()).errors()).toEqual([])
@@ -4346,6 +4353,45 @@ describe('session context hook', () => {
     expect((await (await kit.turn('hello', {session: told})).done()).errors()).toEqual([])
     expect(seen[1]).toEqual({sessionId: told, agent: 'build', system})
     expect(sent[1]).toEqual([...system, 'Always-on rules from the plugin.', ...untold.slice(system.length)])
+  })
+
+  test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const hookEnded = Promise.withResolvers<void>()
+    const hookTrail: string[] = []
+    const trail = (step: string) =>
+      Effect.sync(() => {
+        hookTrail.push(step)
+        hookEnded.resolve()
+      })
+    const {kit, made, sent} = await contextKit([])
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'context', (event) =>
+          Effect.sync(() => entered.resolve()).pipe(
+            Effect.andThen(Effect.promise(() => held.promise)),
+            Effect.andThen(Effect.sync(() => event.system.push({type: 'text', text: 'never sent'}))),
+            Effect.andThen(trail('context hook resumed')),
+            Effect.onInterrupt(() => trail('context hook interrupted')),
+          ),
+        ),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('stopped while the context hook runs', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+    held.resolve()
+    await hookEnded.promise
+
+    expect(hookTrail).toEqual(['context hook interrupted'])
+    expect(sent).toEqual([])
+    expect(ended.errors()).toHaveLength(1)
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
 })
 
