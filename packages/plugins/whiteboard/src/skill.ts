@@ -1,4 +1,4 @@
-import {Skill} from '@conciv/plugin'
+import {Skill} from '@conciv/plugin/effect'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 
 const OPERATIONS = [
