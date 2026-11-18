@@ -5,6 +5,7 @@ import {
   type PersistedAttachment,
   type RpcClient,
   makeBrowserRpcClient,
+  makeRpcClient,
   type EngineTokenSource,
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
@@ -17,9 +18,8 @@ import type {
   PointerHover,
 } from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {fetchServerSentEvents} from '@conciv/ai/client'
-import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
-import {QueryClient, QueryClientProvider, type ChatTransportPreference} from '@conciv/client'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
+import {QueryClient, QueryClientProvider} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
 import {createWarmSession} from '../src/app/warm-session.js'
@@ -151,12 +151,15 @@ function isReplyText(chunk: unknown): boolean {
   return chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT
 }
 
-function turnStream(base: string, sessionId: string, text: string, signal: AbortSignal): AsyncIterable<ChatEvent> {
-  return fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`).connect(
-    [{id: crypto.randomUUID(), role: 'user', parts: [{type: 'text', content: text}]}],
-    {},
-    signal,
-    {threadId: sessionId, runId: crypto.randomUUID()},
+async function* turnStream(
+  base: string,
+  sessionId: string,
+  text: string,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  yield* await makeRpcClient(base).chat.send(
+    {sessionId, runId: crypto.randomUUID(), messages: [{id: crypto.randomUUID(), role: 'user', content: text}]},
+    {signal},
   )
 }
 
@@ -209,7 +212,6 @@ type AppContextValueOptions = {
   sessionId?: string
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
-  transport?: ChatTransportPreference
 }
 
 function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpcClient): AppContextValue {
@@ -223,7 +225,6 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
     rpc,
     apiBase: () => options.base,
     generation: () => 0,
-    transport: () => options.transport,
     appData: data,
     queryClient,
     announce: (message) => announce?.(message),
@@ -271,7 +272,6 @@ export type PaneMountOptions = {
   extensions?: AnyExtension[]
   ground?: (grab: Grab) => Promise<Grab | null>
   width?: number
-  transport?: ChatTransportPreference
   onNewSession?: () => void
 }
 
@@ -306,7 +306,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         sessionId: options.sessionId,
         announce: (message) => setAnnounced((entries) => [...entries, message]),
         instances,
-        transport: options.transport,
       },
       client,
     )
@@ -396,7 +395,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
 }
 
 export type ShellMountOptions = {
-  transport?: ChatTransportPreference
   host?: Record<string, unknown>
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
@@ -492,9 +490,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: shell.root ?? document, document},
-      settings: parseConcivSettings(
-        JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
-      ),
+      settings: parseConcivSettings(JSON.stringify(options.host ?? {})),
       apiBase: options.apiBase ?? shellRpc.apiBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
       connectMode: options.connect,

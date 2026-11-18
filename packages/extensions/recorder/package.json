@@ -65,6 +65,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/ai": "workspace:*",
     "@conciv/core": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness": "workspace:*",

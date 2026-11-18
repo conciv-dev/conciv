@@ -115,9 +115,21 @@ export type RpcGate = {
 
 type CaptureWaiter = {count: number; deliver: () => void}
 
+const FAILED_RELEASE_STATUS = 500
+
+function releaseWith(onRelease: 'forward' | 'cut' | 'fail'): (call: RpcSocketCall) => void {
+  if (onRelease === 'cut') return (call) => call.cut()
+  if (onRelease === 'forward') return (call) => call.forward()
+  return (call) => {
+    call
+      .reply(FAILED_RELEASE_STATUS)
+      .catch((error: unknown) => console.error('[extension-testkit] the held rpc failure reply failed', error))
+  }
+}
+
 export async function gateRpcCalls(
   page: Page,
-  options: {path?: readonly string[]; input?: RpcInputPattern; onRelease?: 'forward' | 'cut'} = {},
+  options: {path?: readonly string[]; input?: RpcInputPattern; onRelease?: 'forward' | 'cut' | 'fail'} = {},
 ): Promise<RpcGate> {
   const socket = rpcSocketFor(page)
   await socket.installed
@@ -136,8 +148,7 @@ export async function gateRpcCalls(
     }
     return 'handled'
   })
-  const settleCall =
-    options.onRelease === 'cut' ? (call: RpcSocketCall) => call.cut() : (call: RpcSocketCall) => call.forward()
+  const settleCall = releaseWith(options.onRelease ?? 'forward')
   const settle = (): void => {
     for (const call of captured.splice(0)) settleCall(call)
   }
