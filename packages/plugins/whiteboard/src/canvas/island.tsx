@@ -1,4 +1,4 @@
-import {createSignal, onCleanup, onMount, untrack, type JSX} from 'solid-js'
+import {onCleanup, onMount, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {AsyncRetryer, Batcher} from '@tanstack/pacer'
 import type {Transaction} from '@tanstack/solid-db'
@@ -95,10 +95,10 @@ export function Island(props: {
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
 
-  const [api, setApi] = createSignal<ExcalidrawImperativeAPI | undefined>(undefined)
+  let api: ExcalidrawImperativeAPI | undefined
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
-    const instance = untrack(api)
+    const instance = api
     if (!instance) {
       bufferedScene = rows
       return
@@ -224,7 +224,7 @@ export function Island(props: {
   }
 
   const liveExportElements = (scope: ExportScope): readonly SceneElement[] =>
-    scope === 'draft' ? [] : (untrack(api)?.getSceneElements() ?? [])
+    scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
 
   const draftExportElements = async (scope: ExportScope): Promise<SceneElement[]> => {
     if (scope === 'live') return []
@@ -233,13 +233,13 @@ export function Island(props: {
   }
 
   const exportReply = async (scope: ExportScope): Promise<JsonValue> => {
-    if (scope !== 'draft' && !untrack(api)) {
+    if (scope !== 'draft' && !api) {
       throw new Error(`[whiteboard] the canvas has not attached yet, so a ${scope} export has nothing to render`)
     }
     const elements = [...liveExportElements(scope), ...(await draftExportElements(scope))]
     const blob = await exportToBlob({
       elements,
-      files: untrack(api)?.getFiles() ?? {},
+      files: api?.getFiles() ?? {},
       appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
     })
     return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))}
@@ -319,7 +319,7 @@ export function Island(props: {
           theme: props.theme === 'dark' ? THEME.DARK : THEME.LIGHT,
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
-            setApi(instance)
+            api = instance
             const pushViewport = (): void => {
               const state = instance.getAppState()
               props.onViewport({
