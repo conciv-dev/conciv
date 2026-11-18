@@ -1,7 +1,15 @@
 import {TestRunResultSchema, type Summary, type TestError, type TestRow, type TestRunResult} from './events.js'
 
 export type {Summary, TestError, TestRow, TestRunResult}
-export {initialRunState, transitionRun, type RunAction} from './run-state.js'
+export {
+  initialRunView,
+  selectEndedFiles,
+  selectSummary,
+  selectTests,
+  transitionRunView,
+  type RunView,
+  type RunViewAction,
+} from './run-state.js'
 export {followTestRun} from './follow-run.js'
 
 export type FileGroup = {readonly file: string; readonly tests: readonly TestRow[]}

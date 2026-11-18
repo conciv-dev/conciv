@@ -9,7 +9,7 @@ import {
   type SessionScreen,
 } from '@conciv/plugin/experimental'
 import type {TestError} from './events.js'
-import {initialRunState, transitionRun, type RunAction} from './run-state.js'
+import {initialRunView, transitionRunView, type RunView, type RunViewAction} from './run-state.js'
 import {followTestRun} from './follow-run.js'
 import {TestsPanel} from './tests-panel.js'
 import {fixPrompt, relativePath} from './view.js'
@@ -27,8 +27,8 @@ export default Plugin.define({
         </>
       ),
     }
-    const [run, setRun] = createStore(initialRunState)
-    const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
+    const [run, setRun] = createStore<RunView>(initialRunView)
+    const dispatch = (action: RunViewAction) => setRun(reconcile(transitionRunView(unwrap(run), action), {key: 'id'}))
 
     createKeyed(
       () => ctx.client,

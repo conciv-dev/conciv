@@ -14,16 +14,19 @@ import {
   fixPrompt,
   fileGroup,
   followTestRun,
-  initialRunState,
+  initialRunView,
   parseRunResult,
   pathTail,
   relativePath,
   shortDuration,
   STATE_LABEL,
   testFiles,
-  transitionRun,
+  selectSummary,
+  selectTests,
+  transitionRunView,
   type FileGroup,
-  type RunAction,
+  type RunView,
+  type RunViewAction,
   type Summary,
   type TestError,
   type TestRow,
@@ -228,8 +231,8 @@ function RunCard(props: Actions & RunView): JSX.Element {
 type Client = Context['client']
 
 function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
-  const [run, setRun] = createStore(initialRunState)
-  const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
+  const [run, setRun] = createStore<RunView>(initialRunView)
+  const dispatch = (action: RunViewAction) => setRun(reconcile(transitionRunView(unwrap(run), action), {key: 'id'}))
 
   createKeyed(
     () => props.client(),
@@ -241,16 +244,22 @@ function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.E
   )
 
   return (
-    <Switch fallback={<RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase === 'running'} />}>
-      <Match when={run.phase === 'unavailable'}>
-        <div class="flex flex-col gap-1">
-          <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
-            The test runner is unavailable
-          </p>
-          <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{run.reason}</p>
-        </div>
+    <Switch
+      fallback={
+        <RunCard {...props} summary={selectSummary(run)} tests={selectTests(run)} running={run.status === 'running'} />
+      }
+    >
+      <Match when={run.status === 'unavailable' ? run : undefined}>
+        {(view) => (
+          <div class="flex flex-col gap-1">
+            <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+              The test runner is unavailable
+            </p>
+            <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{view().reason}</p>
+          </div>
+        )}
       </Match>
-      <Match when={run.phase === 'idle'}>
+      <Match when={run.status === 'idle'}>
         <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
           No test run yet
         </p>

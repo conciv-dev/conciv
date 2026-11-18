@@ -1,21 +1,25 @@
-import {spawn, type ChildProcess} from 'node:child_process'
-import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
-import {Readable} from 'node:stream'
-import type {Summary, TestRunResult, TestEvent, FileState} from './events.js'
+import {Duration, Effect, FiberHandle, Option, PubSub, Result, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
+import {ChildProcess, ChildProcessSpawner} from 'effect/process'
+import {readChildExit} from './child-exit.js'
+import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
+import type {TestEvent} from './events.js'
 import {
-  defineRunner,
-  isRunnerUnavailable,
-  runnerUnavailableError,
-  type CurrentRun,
+  createRunState,
+  selectCurrentRun,
+  selectReplay,
+  transitionRun,
+  type RunEffect,
+  type RunEvent,
+  type Settlement,
+} from './run-machine.js'
+import {
+  RunnerUnavailable,
   type RunArgs,
-  type ListResult,
-  type UiServerInfo,
   type TestRunnerAdapter,
   type TestRunnerCapabilities,
   type TestRunnerManager,
 } from './runner.js'
-import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
 export type ChildRunnerSpec = {
   id: string
@@ -25,193 +29,152 @@ export type ChildRunnerSpec = {
   buildListArgs: (failedOnly: boolean, cwd: string) => string[]
 }
 
-type SpawnRunner = (args: string[], cwd: string) => ChildProcess
-type MakeManagerOptions = {spawnRunner?: SpawnRunner}
+type Settled = {readonly attempt: number; readonly settlement: Settlement}
 
-function makeChildManager(spec: ChildRunnerSpec, cwd: string, options: MakeManagerOptions = {}): TestRunnerManager {
-  const unavailable = (reason: string) => runnerUnavailableError(spec.id, reason)
-  const spawnRunner = options.spawnRunner ?? defaultSpawnRunner(spec.childUrl)
-  const subscribers = new Set<(e: TestEvent) => void>()
+const STOP_GRACE = Duration.seconds(5)
 
-  const cache: {last: TestRunResult; files: Map<string, FileState>; unavailable: string | null} = {
-    last: {summary: EMPTY_SUMMARY, failures: [], tests: []},
-    files: new Map(),
-    unavailable: null,
+const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
+
+function decodeLine(line: string): Result.Result<ChildMessage, string> {
+  const json = decodeJson(line.trim())
+  if (Option.isNone(json)) return Result.fail(line)
+  const parsed = ChildMessageSchema.safeParse(json.value)
+  return parsed.success ? Result.succeed(parsed.data) : Result.fail(line)
+}
+
+function cleanEnv(base: NodeJS.ProcessEnv): Record<string, string | undefined> {
+  return Object.fromEntries(Object.entries(base).filter(([key]) => key !== 'NODE_OPTIONS' && !key.startsWith('VIBE_')))
+}
+
+const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spec: ChildRunnerSpec, cwd: string) {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  const state = yield* SubscriptionRef.make(createRunState(spec.id))
+  const events = yield* PubSub.unbounded<TestEvent>()
+  const settlements = yield* PubSub.unbounded<Settled>()
+  const child = yield* FiberHandle.make<void, never>()
+  const transitions = yield* Semaphore.make(1)
+  const requests = yield* Semaphore.make(1)
+  const childScript = fileURLToPath(spec.childUrl)
+
+  const runChild = (attempt: number, args: readonly string[]): Effect.Effect<void> =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const handle = yield* spawner.spawn(
+          ChildProcess.make(process.execPath, [childScript, ...args], {
+            cwd,
+            env: cleanEnv(process.env),
+            stdin: 'ignore',
+            stdout: 'ignore',
+            stderr: 'ignore',
+            additionalFds: {fd3: {type: 'output'}},
+            forceKillAfter: STOP_GRACE,
+          }),
+        )
+        yield* handle.getOutputFd(3).pipe(
+          Stream.decodeText(),
+          Stream.splitLines,
+          Stream.filterMap(decodeLine),
+          Stream.runForEach((message) => dispatch({type: 'child-event', attempt, message})),
+        )
+        const status = yield* readChildExit(handle)
+        yield* dispatch({type: 'child-exited', attempt, exit: {type: 'exited', ...status}})
+      }),
+    ).pipe(
+      Effect.catch((error) => dispatch({type: 'child-exited', attempt, exit: {type: 'failed', reason: error.message}})),
+      Effect.withSpan('TestRunner.child'),
+    )
+
+  const perform = (effect: RunEffect): Effect.Effect<void> => {
+    if (effect.type === 'spawn')
+      return FiberHandle.run(child, runChild(effect.attempt, effect.args)).pipe(Effect.asVoid)
+    if (effect.type === 'kill')
+      return FiberHandle.clear(child).pipe(
+        Effect.andThen(step({type: 'child-exited', attempt: effect.attempt, exit: {type: 'stopped'}})),
+      )
+    if (effect.type === 'publish') return PubSub.publish(events, effect.event).pipe(Effect.asVoid)
+    return PubSub.publish(settlements, {attempt: effect.attempt, settlement: effect.settlement}).pipe(Effect.asVoid)
   }
 
-  const runBuffer: TestEvent[] = []
-  const lifecycle: {child: ChildProcess | null} = {child: null}
-
-  function driveChild(args: string[], onEvent?: (e: TestEvent) => void): Promise<ChildMessage[]> {
-    return new Promise((resolve, reject) => {
-      const child = spawnRunner(args, cwd)
-      lifecycle.child = child
-      const channel = child.stdio[3]
-      if (!(channel instanceof Readable)) {
-        reject(unavailable('runner did not expose its event channel (fd 3)'))
-        return
-      }
-      const messages: ChildMessage[] = []
-      const errState: {reason: string | null} = {reason: null}
-      const rl = createInterface({input: channel})
-      rl.on('line', (line) => {
-        const trimmed = line.trim()
-        if (!trimmed) return
-        const msg = parseMessage(trimmed)
-        if (!msg) return
-        if (msg.type === 'error') {
-          errState.reason = msg.reason
-          return
-        }
-        messages.push(msg)
-        if (onEvent && isTestEvent(msg)) onEvent(msg)
-      })
-      child.on('error', (e: Error) => {
-        lifecycle.child = null
-        reject(unavailable(e.message))
-      })
-      child.on('close', (code, signal) => {
-        lifecycle.child = null
-        if (errState.reason !== null) {
-          reject(unavailable(errState.reason))
-          return
-        }
-        if (messages.length === 0 && (code !== 0 || signal !== null)) {
-          reject(unavailable(`child exited without producing results (exit code ${code}, signal ${signal})`))
-          return
-        }
-        resolve(messages)
-      })
+  const step = (event: RunEvent): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const current = yield* SubscriptionRef.get(state)
+      const next = transitionRun(current, event)
+      if (next.state !== current) yield* SubscriptionRef.set(state, next.state)
+      yield* Effect.forEach(next.effects, perform, {discard: true})
     })
-  }
 
-  function updateCache(e: TestEvent): void {
-    if (e.type === 'run-start') {
-      cache.files.clear()
-      cache.unavailable = null
-      runBuffer.length = 0
-    }
-    if (e.type === 'file-end')
-      cache.files.set(e.file, {file: e.file, state: e.ok ? 'pass' : 'fail', durationMs: e.durationMs})
-    if (e.type === 'run-end') cache.last = {summary: e.summary, failures: e.failures, tests: e.tests}
-    runBuffer.push(e)
-  }
+  const dispatch = (event: RunEvent) => transitions.withPermits(1)(step(event))
 
-  function emit(e: TestEvent): void {
-    for (const cb of subscribers) cb(e)
-  }
+  const request = (type: 'run-requested' | 'list-requested', args: readonly string[]) =>
+    requests.withPermits(1)(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const subscription = yield* PubSub.subscribe(settlements)
+          const attempt = yield* transitions.withPermits(1)(
+            Effect.gen(function* () {
+              const {nextAttempt} = yield* SubscriptionRef.get(state)
+              yield* step({type, attempt: nextAttempt, args})
+              return nextAttempt
+            }),
+          )
+          const settled = yield* Stream.fromSubscription(subscription).pipe(
+            Stream.filter((entry) => entry.attempt === attempt),
+            Stream.runHead,
+          )
+          if (Option.isNone(settled)) return yield* new RunnerUnavailable({message: `${spec.id} unavailable: stopped`})
+          const settlement = settled.value.settlement
+          if (!settlement.ok) return yield* new RunnerUnavailable({message: settlement.message})
+          return settlement
+        }),
+      ),
+    )
 
-  async function run(args: RunArgs): Promise<TestRunResult> {
-    try {
-      await driveChild(spec.buildRunArgs(args, cwd), (e) => {
-        updateCache(e)
-        emit(e)
-      })
-      return cache.last
-    } catch (error) {
-      if (isRunnerUnavailable(error)) {
-        cache.unavailable = error.message
-        emit({type: 'run-unavailable', reason: error.message})
-      }
-      throw error
-    } finally {
-      if (runBuffer.at(-1)?.type !== 'run-end') runBuffer.length = 0
-    }
-  }
-
-  function current(): CurrentRun {
-    const ended = runBuffer.length === 0 || runBuffer.at(-1)?.type === 'run-end'
-    return {events: ended ? null : [...runBuffer], unavailable: cache.unavailable}
-  }
-
-  async function list(failedOnly = false): Promise<ListResult> {
-    const messages = await driveChild(spec.buildListArgs(failedOnly, cwd))
-    const listMsg = messages.filter(isListMessage).at(-1)
-    return {files: listMsg?.files ?? []}
-  }
-
-  function status(): TestRunResult {
-    return cache.last
-  }
-
-  function emitSnapshot(): TestEvent {
-    return {type: 'snapshot', files: [...cache.files.values()], summary: cache.last.summary, watching: false}
-  }
-
-  function subscribeRaw(cb: (e: TestEvent) => void): () => void {
-    subscribers.add(cb)
-    for (const e of runBuffer) cb(e)
-    return () => subscribers.delete(cb)
-  }
-
-  async function stop(): Promise<void> {
-    lifecycle.child?.kill('SIGTERM')
-    lifecycle.child = null
-  }
-
-  async function openUiServer(): Promise<UiServerInfo> {
-    return {available: false}
-  }
-
-  return {list, run, status, current, subscribeRaw, emitSnapshot, openUiServer, stop}
-}
-
-export function defineChildRunner<T extends ChildRunnerSpec>(spec: T): TestRunnerAdapter {
-  return defineRunner({
-    id: spec.id,
-    capabilities: spec.capabilities,
-    create: (cwd: string) => makeChildManager(spec, cwd),
+  const run = Effect.fn('TestRunner.run')(function* (args: RunArgs) {
+    const settlement = yield* request('run-requested', spec.buildRunArgs(args, cwd))
+    return settlement.result
   })
+
+  const list = Effect.fn('TestRunner.list')(function* (failedOnly: boolean) {
+    const settlement = yield* request('list-requested', spec.buildListArgs(failedOnly, cwd))
+    return {files: [...settlement.files]}
+  })
+
+  const liveEvents = Stream.unwrap(
+    transitions.withPermits(1)(
+      Effect.gen(function* () {
+        const subscription = yield* PubSub.subscribe(events)
+        const replay = selectReplay(yield* SubscriptionRef.get(state))
+        return Stream.concat(Stream.fromIterable(replay), Stream.fromSubscription(subscription))
+      }),
+    ),
+  )
+
+  yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
+
+  const manager: TestRunnerManager = {
+    list,
+    run,
+    status: SubscriptionRef.get(state).pipe(Effect.map((current) => current.last)),
+    current: SubscriptionRef.get(state).pipe(Effect.map(selectCurrentRun)),
+    events: liveEvents,
+    openUiServer: Effect.succeed({available: false}),
+    stop: dispatch({type: 'stop-requested'}),
+  }
+  return manager
+})
+
+export function defineChildRunner(spec: ChildRunnerSpec): TestRunnerAdapter {
+  return {id: spec.id, capabilities: spec.capabilities, create: (cwd) => makeChildManager(spec, cwd)}
 }
 
-export function defineStubRunner(o: {
+export function defineStubRunner(options: {
   id: string
   capabilities: TestRunnerCapabilities
   reason: string
 }): TestRunnerAdapter {
-  return defineRunner({
-    id: o.id,
-    capabilities: o.capabilities,
-    create() {
-      throw new Error(o.reason)
-    },
-  })
-}
-
-const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
-const TEST_EVENT_KINDS = new Set(['snapshot', 'run-start', 'test', 'file-end', 'run-end'])
-
-function isTestEvent(msg: ChildMessage): msg is TestEvent {
-  return TEST_EVENT_KINDS.has(msg.type)
-}
-function isListMessage(msg: ChildMessage): msg is Extract<ChildMessage, {type: 'list'}> {
-  return msg.type === 'list'
-}
-
-function cleanEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {...base}
-  delete env.NODE_OPTIONS
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('VIBE_')) delete env[key]
-  }
-  return env
-}
-
-function defaultSpawnRunner(childUrl: URL): SpawnRunner {
-  const childScript = fileURLToPath(childUrl)
-  return (args, cwd) =>
-    spawn(process.execPath, [childScript, ...args], {
-      cwd,
-      env: cleanEnv(process.env),
-      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
-    })
-}
-
-function parseMessage(line: string): ChildMessage | null {
-  try {
-    const result = ChildMessageSchema.safeParse(JSON.parse(line))
-    return result.success ? result.data : null
-  } catch {
-    return null
+  return {
+    id: options.id,
+    capabilities: options.capabilities,
+    create: () => Effect.fail(new RunnerUnavailable({message: options.reason})),
   }
 }
