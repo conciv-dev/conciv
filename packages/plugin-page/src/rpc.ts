@@ -539,12 +539,12 @@ export const Definition = Rpc.define({
     attach: {
       input: z.object({...attachment, version: z.literal(1)}),
       output: z.enum(['closed', 'replaced']),
-      errors: {...errors, missing: z.object({})},
+      errors: {...errors, missing: z.object({}), transient: z.object({})},
     },
     state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors},
     command: {input: z.object(request), output: Command, errors},
     result: {input: z.object({...request, outcome: Outcome}), output: z.void(), errors},
-    run: {
+    operate: {
       input: z.object({
         sessionId: SessionId,
         tabId: TabId.optional(),

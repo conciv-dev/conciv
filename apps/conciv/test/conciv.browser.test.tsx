@@ -9925,7 +9925,7 @@ export default {
     const page = ctx.rpc(Definition)
     await ctx.rpc.register(Operator, {
       operate: async (input, call) =>
-        page.run(input, {signal: call.signal}).then(
+        page.operate(input, {signal: call.signal}).then(
           (value) => ({ok: true, value}),
           (error) => ({ok: false, type: error.type, data: error.data ?? null}),
         ),
@@ -10147,7 +10147,7 @@ module.exports = {default: {setup(ctx) {
   }, 60_000)
 
   describe('a second plugin runs its own page operation', () => {
-    test('its engine half calls page.run and its browser half answers on the attached tab, a throw or an unknown name fails, and a changing call with no tab fails', async () => {
+    test('its engine half calls page.operate and its browser half answers on the attached tab, a throw or an unknown name fails, and a changing call with no tab fails', async () => {
       const sessionId = await createSession(coreRpc(core.base))
       const operate = (name: string, input: Record<string, unknown>) =>
         coreRpc(core.base).plugin.call({

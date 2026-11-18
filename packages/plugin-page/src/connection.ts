@@ -1,4 +1,5 @@
 import {
+  Array as Arr,
   Cause,
   Data,
   Deferred,
@@ -76,13 +77,6 @@ const PageCall = Request.TaggedClass('PageCall')<
 >
 
 type PageCall = InstanceType<typeof PageCall>
-
-type InFlight = {
-  readonly sessionId: SessionId
-  readonly connectionId: string
-  readonly command: Command
-  readonly reply: Deferred.Deferred<Outcome>
-}
 
 type SyncEffect = Extract<ConnectionEffect, {readonly type: 'sync-permissions'}>
 
@@ -180,7 +174,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
     lookup: (_attempt: number) => Deferred.make<'closed' | 'replaced', 'unavailable'>(),
   }).pipe(Scope.provide(work))
   const tabs = yield* FiberMap.make<number>()
-  const inFlight = new Map<string, InFlight>()
+  const calls = yield* RcMap.make({lookup: (_call: PageCall) => Deferred.make<Outcome>()}).pipe(Scope.provide(work))
   const lanes = yield* RcMap.make({lookup: (_sessionId: SessionId) => Semaphore.make(1)}).pipe(Scope.provide(work))
   const drained = Deferred.makeUnsafe<void>()
   const lock = Semaphore.makeUnsafe(1)
@@ -248,23 +242,23 @@ export const make = Effect.fn('PageConnection.make')(function* (
       .emit('control', {type: 'cancel', connectionId, requestId})
       .pipe(Effect.catchCause((cause) => Effect.logWarning('Cancelling a page request failed', cause)))
 
+  const pendingCall = (requestId: string) =>
+    RcMap.keys(calls).pipe(Effect.map((keys) => Arr.findFirst(keys, (call) => call.requestId === requestId)))
+
+  const ownedBy = (call: PageCall, owner: {readonly sessionId: SessionId; readonly connectionId: string}) =>
+    call.sessionId === owner.sessionId && call.connectionId === owner.connectionId
+
   const exchange = (call: PageCall): Effect.Effect<Result, PageError> =>
     Effect.gen(function* () {
-      const reply = yield* Deferred.make<Outcome>()
-      const tab = yield* lock.withPermit(
+      const {reply, tab} = yield* lock.withPermit(
         Effect.gen(function* () {
           const live = yield* FiberMap.get(tabs, call.attempt)
           if (Option.isNone(live)) return yield* new TabGone({dispatched: false})
-          inFlight.set(call.requestId, {
-            sessionId: call.sessionId,
-            connectionId: call.connectionId,
-            command: call.command,
-            reply,
-          })
+          const waiting = yield* RcMap.get(calls, call)
           yield* registration.events
             .emit('control', {type: 'command', connectionId: call.connectionId, requestId: call.requestId})
             .pipe(Effect.mapError((error) => dispatchFailed(call.command.action, error)))
-          return live.value
+          return {reply: waiting, tab: live.value}
         }),
       )
       const outcome = yield* Effect.raceFirst(
@@ -281,7 +275,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       )
       if (outcome.type === 'failure') return yield* Effect.fail(failedOutcome(outcome))
       return outcome.result
-    }).pipe(Effect.ensuring(Effect.sync(() => inFlight.delete(call.requestId))))
+    }).pipe(Effect.scoped)
 
   const resolver = RequestResolver.make<PageCall>((entries) =>
     Effect.forEach(entries, (entry) => Request.completeEffect(entry, exchange(entry.request)), {
@@ -291,11 +285,13 @@ export const make = Effect.fn('PageConnection.make')(function* (
   )
 
   const cancelled = (requestId: string) =>
-    Effect.suspend(() => {
-      const pending = inFlight.get(requestId)
-      if (!pending) return Effect.void
-      return emitCancel(pending.connectionId, requestId).pipe(Effect.andThen(Deferred.interrupt(pending.reply)))
-    })
+    Effect.gen(function* () {
+      const pending = yield* pendingCall(requestId)
+      if (Option.isNone(pending)) return
+      const reply = yield* RcMap.getOption(calls, pending.value)
+      yield* emitCancel(pending.value.connectionId, requestId)
+      if (Option.isSome(reply)) yield* Deferred.interrupt(reply.value)
+    }).pipe(Effect.scoped)
 
   const deliver = (
     target: {readonly sessionId: SessionId; readonly connectionId: string; readonly attempt: number},
@@ -446,7 +442,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
                   Effect.andThen(
                     Effect.fail(
                       call.error(
-                        'unavailable',
+                        'transient',
                         `Session ${input.sessionId} could not be opened: ${error instanceof Error ? error.message : String(error)}`,
                         {},
                       ),
@@ -476,7 +472,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
             ),
             (attached) =>
               Deferred.await(attached.closed).pipe(
-                Effect.mapError(() => call.error('unavailable', 'Page permissions could not be granted.', {})),
+                Effect.mapError(() => call.error('transient', 'Page permissions could not be granted.', {})),
               ),
             (attached) =>
               dispatch({type: 'attach.closed', sessionId: input.sessionId, attempt: attached.attempt}).pipe(
@@ -496,25 +492,27 @@ export const make = Effect.fn('PageConnection.make')(function* (
             : Effect.fail(call.error('unavailable', 'Page is unavailable.', {})),
         ),
       command: (input, call) =>
-        Effect.suspend(() => {
-          const pending = inFlight.get(input.requestId)
-          return pending?.sessionId === input.sessionId && pending.connectionId === input.connectionId
-            ? Effect.succeed(pending.command)
-            : Effect.fail(call.error('unavailable', 'Page request is no longer available.', {}))
-        }),
+        pendingCall(input.requestId).pipe(
+          Effect.flatMap((pending) =>
+            Option.isSome(pending) && ownedBy(pending.value, input)
+              ? Effect.succeed(pending.value.command)
+              : Effect.fail(call.error('unavailable', 'Page request is no longer available.', {})),
+          ),
+        ),
       result: (input, call) =>
-        Effect.suspend(() => {
+        Effect.gen(function* () {
           if (input.outcome.type === 'failure' && TRANSPORT_CODES.includes(input.outcome.code))
-            return Effect.fail(
+            return yield* Effect.fail(
               call.error('unavailable', `The page cannot report ${input.outcome.code}; only the engine does.`, {}),
             )
           if (!isAttachedConnection(machine.state, input.sessionId, input.connectionId))
-            return Effect.fail(call.error('unavailable', 'Page is unavailable.', {}))
-          const pending = inFlight.get(input.requestId)
-          if (pending?.sessionId !== input.sessionId || pending.connectionId !== input.connectionId) return Effect.void
-          return Deferred.succeed(pending.reply, input.outcome).pipe(Effect.asVoid)
-        }),
-      run: (input, call) =>
+            return yield* Effect.fail(call.error('unavailable', 'Page is unavailable.', {}))
+          const pending = yield* pendingCall(input.requestId)
+          if (Option.isNone(pending) || !ownedBy(pending.value, input)) return
+          const reply = yield* RcMap.getOption(calls, pending.value)
+          if (Option.isSome(reply)) yield* Deferred.succeed(reply.value, input.outcome)
+        }).pipe(Effect.scoped),
+      operate: (input, call) =>
         run({
           sessionId: input.sessionId,
           tabId: input.tabId,
@@ -580,9 +578,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
     Effect.gen(function* () {
       yield* RcMap.invalidate(lanes, sessionId)
       queues.cancelSession(sessionId)
-      const owned = [...inFlight].flatMap(([requestId, pending]) =>
-        pending.sessionId === sessionId ? [{requestId, connectionId: pending.connectionId}] : [],
-      )
+      const owned = Arr.filter(yield* RcMap.keys(calls), (call) => call.sessionId === sessionId)
       yield* Effect.forEach(owned, ({connectionId, requestId}) => emitCancel(connectionId, requestId), {
         discard: true,
       })
