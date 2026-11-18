@@ -15,7 +15,7 @@ import {MAX_FLUSH_BYTES} from '../src/protocol.js'
 import {createCaptureControl} from '../src/capture-control.js'
 import {createRecordingStore} from '../src/recordings.js'
 import {createClientRings} from '../src/rings.js'
-import {renderRecording, type RecorderRuntime} from '../src/runtime.js'
+import {pullWindow, type RecorderRuntime} from '../src/runtime.js'
 import {createChromiumRenderer} from '../src/render.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -596,28 +596,25 @@ describe('a keyframe render with no full snapshot', () => {
   })
 })
 
-describe('a recording rendered with no renderer', () => {
-  it('holds the text log and no image, and logs the failed render', async () => {
+describe('a recording pulled with no renderer', () => {
+  it('holds the text log and no image when the renderer fails', async () => {
     const rings = createClientRings({windowMs: 60_000})
-    const failure = new Error('no browser to render with')
     const runtime: RecorderRuntime = {
       rings,
       control: createCaptureControl(rings),
       config: {masking: 'none', windowMinutes: 1, console: true},
-      useRenderer: () => Promise.reject(failure),
+      useRenderer: () => Promise.reject(new Error('no browser to render with')),
       recordings: createRecordingStore(tempDir('conciv-recorder-no-renderer-')),
     }
-    const logged = vi.spyOn(console, 'error')
-    onTestFinished(() => logged.mockRestore())
-    const events = [
-      {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1},
-      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2},
-    ]
-    const parts = await renderRecording(runtime, events, 2)
-    expect(parts.output).toContain('[navigation] https://example.test/app')
+    rings.append('no-renderer', [
+      {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1000},
+      {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Buy')])}, timestamp: 1001},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+    ])
+    const parts = await pullWindow(runtime, 0, 3000, 2)
+    expect(parts.output).toContain('Buy')
     expect(parts.output).toMatch(/\(keyframes skipped: no renderer available\)$/)
     expect(parts.content.every((part) => part.type === 'text')).toBe(true)
-    expect(logged).toHaveBeenCalledWith(`[recorder] rendering the keyframes failed: ${String(failure)}`)
   })
 })
 
