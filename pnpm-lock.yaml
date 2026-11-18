@@ -4855,6 +4855,9 @@ importers:
 
   packages/plugins/tanstack:
     dependencies:
+      '@conciv/plugin-page':
+        specifier: workspace:^
+        version: link:../../plugin-page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol

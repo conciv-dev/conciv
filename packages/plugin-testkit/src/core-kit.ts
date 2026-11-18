@@ -56,6 +56,7 @@ export async function bootCoreKit(
     files?: Readonly<Record<string, string>>
     stateRoot?: string
     bundler?: Bundler.BundlerBridge
+    pageReplyTimeoutMs?: number
     tty?: {command(context: HarnessConnectContext): TtyCommand}
   },
 ): Promise<CoreKit> {
@@ -103,6 +104,7 @@ export async function bootCoreKit(
         nativePageDir: opts.nativePageDir,
         home: kitHome(env.stateRoot),
         bridge: opts.bundler,
+        pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
       })
       captured.runtime = runtime
       await awaitActivation()

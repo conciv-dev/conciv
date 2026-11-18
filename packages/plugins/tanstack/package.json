@@ -50,6 +50,7 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
