@@ -1,5 +1,20 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  max,
+  ne,
+  notExists,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -25,7 +40,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatRuns, drafts, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -309,11 +324,25 @@ export function recordActivity(db: ConcivDb, sessionId: SessionId, title: string
 }
 
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
-  await db
-    .delete(sessions)
-    .where(
-      and(inArray(sessions.origin, ['chat', 'external']), isNull(sessions.harnessSessionId), isNull(sessions.title)),
-    )
+  await db.delete(sessions).where(
+    and(
+      inArray(sessions.origin, ['chat', 'external']),
+      isNull(sessions.harnessSessionId),
+      isNull(sessions.title),
+      isNull(sessions.deletedAt),
+      notExists(
+        db
+          .select({sessionId: drafts.sessionId})
+          .from(drafts)
+          .where(
+            and(
+              eq(drafts.sessionId, sessions.id),
+              or(ne(drafts.text, ''), sql`json_array_length(${drafts.attachments}) > 0`),
+            ),
+          ),
+      ),
+    ),
+  )
 }
 
 const EARLIER_NATIVES_NAMESPACE = 'conciv.session.earlierNatives'

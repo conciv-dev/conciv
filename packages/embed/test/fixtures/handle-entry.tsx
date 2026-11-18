@@ -1,4 +1,3 @@
-import terminal from '@conciv/extension-terminal/client'
 import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Show, type JSX} from 'solid-js'
@@ -28,7 +27,7 @@ function ApiBaseProbe(): JSX.Element {
 const apiBaseProbe = defineExtension({name: API_BASE_PROBE_NAME, Surface: ApiBaseProbe}).client(() => ({value: {}}))
 
 export function makeHandle(apiBase: string): ConcivHandle {
-  return createConciv({extensions: [terminal, apiBaseProbe], apiBase})
+  return createConciv({extensions: [apiBaseProbe], apiBase})
 }
 
 function ConnectPane(): JSX.Element {

@@ -1,14 +1,12 @@
 import {z} from 'zod'
 
-export {IOS_NAME} from './name.js'
-
 const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
 export const DEFAULT_DEVELOPER_DIR = '/Applications/Xcode.app/Contents/Developer'
 
 const NATIVE_SUFFIX = '/native'
 
 const CONCIV_URL_RULE =
-  'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself, see packages/extensions/ios/README.md'
+  'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself, see packages/plugins/ios/README.md'
 
 function withoutTrailingSlashes(raw: string): string {
   return raw.replace(/\/+$/, '')
@@ -20,11 +18,7 @@ function stripNativeSuffix(raw: string): string {
 }
 
 function isBareApiBase(raw: string): boolean {
-  try {
-    return /^(\/t\/[^/]+)?$/.test(withoutTrailingSlashes(new URL(raw).pathname))
-  } catch {
-    return false
-  }
+  return URL.canParse(raw) && /^(\/t\/[^/]+)?$/.test(withoutTrailingSlashes(new URL(raw).pathname))
 }
 
 const ConcivUrlSchema = z.string().url().transform(stripNativeSuffix).refine(isBareApiBase, {message: CONCIV_URL_RULE})

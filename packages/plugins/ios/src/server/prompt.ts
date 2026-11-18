@@ -1,6 +1,7 @@
-import type {ExtensionPromptContext} from '@conciv/extension'
-import type {IosConfig} from '../shared/meta.js'
-import {projectDir} from './tools.js'
+import type {IosConfig} from './config.js'
+import {projectDir} from './shared.js'
+
+type PromptContext = {readonly cwd: string}
 
 const OVERLAY_RULES = [
   'You are running as an overlay inside a native iOS app on the simulator, not on a web page.',
@@ -33,7 +34,7 @@ function extraSourcePhrase(config: IosConfig): string {
   return ` Extra Swift sources for this app also live in ${sourceDirectories.join(', ')} (relative to the project root).`
 }
 
-function groundingRules(config: IosConfig, context: ExtensionPromptContext): string {
+function groundingRules(config: IosConfig, context: PromptContext): string {
   const root = projectDir(config, context.cwd)
   return [
     `This session serves exactly one app: the iOS project at ${root}, bundle id ${config.bundleId}, built`,
@@ -47,6 +48,6 @@ function groundingRules(config: IosConfig, context: ExtensionPromptContext): str
   ].join(' ')
 }
 
-export function iosSystemPrompt(config: IosConfig, context: ExtensionPromptContext): string {
+export function iosSystemPrompt(config: IosConfig, context: PromptContext): string {
   return `${OVERLAY_RULES} ${groundingRules(config, context)}`
 }

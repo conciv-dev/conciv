@@ -61,6 +61,7 @@ import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
+import {DraftUnsavedNotice} from './draft-unsaved-notice.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
@@ -146,11 +147,12 @@ function DraftRestore(props: {
   onMount(() => {
     const input = props.input
     const draftKey = props.draftKey
-    const restoring = props.storage.restore((restored, edited) => {
+    const restoring = props.storage.restore((restored, mode) => {
       const draft = readComposerDraft(restored.snapshot, draftKey)
       if (!draft) return
-      const untouched = !edited && context.snapshotDraft().draft === ''
-      context.restoreDraft(draft)
+      if (mode === 'replace') context.clearDraft()
+      const untouched = mode !== 'merge' && context.snapshotDraft().draft === ''
+      context.restoreDraft({...draft, attachments: [...restored.attachments, ...draft.attachments]})
       if (untouched) input()?.select(restored.selection)
     }, controller.signal)
     props.onRestore(restoring)
@@ -233,10 +235,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const rpc = useRpc()
   const appData = useAppData()
   const announce = useAnnounce()
-  const connected = useConnected()
   const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
   const pane = usePane()
+  const liveSessions = useLiveSessions()
   const sessionId = untrack(() => props.sessionId)
   const harness = useSessionHarness(() => sessionId)
   const chat = pane.chat()
@@ -260,12 +262,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   restored.promise.catch(() => undefined)
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
-  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
-  const catalog: ToolCatalogView = {
-    loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
-  }
-  const draftStorage = makeDraftStorage(appData, sessionId)
+  const catalog = useToolCatalog()
+  const draftStorage = makeDraftStorage(appData, liveSessions.keepDraft, sessionId)
 
   const messaging = usePaneMessaging({
     rpc,
@@ -331,6 +329,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     paneAttachments(
       instances.map((instance) => instance.extension),
       imageInput(),
+      appData.drafts,
     ),
   )
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
@@ -471,9 +470,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <SessionComposerPills pane={pluginSession} />
                 </div>
                 <QueueStrip queue={chat.queue()} />
+                <DraftUnsavedNotice sessionId={sessionId} retry={draftStorage.retry} keptHere={draftStorage.keptHere} />
                 <Suspense>
                   <PaneComposer
                     draftStorage={draftStorage.storage}
+                    draftWriter={draftStorage.writer}
                     draftKey={sessionId}
                     placeholder={composerPlaceholder()}
                     inputLabel="Message the conciv agent"
@@ -556,6 +557,16 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
       <LoadFailedAlert busy sessionId={props.sessionId} />
     </Show>
   )
+}
+
+function useToolCatalog(): ToolCatalogView {
+  const appData = useAppData()
+  const connected = useConnected()
+  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
+  return {
+    loaded: () => registryCatalog.data !== undefined,
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
+  }
 }
 
 function DraftReturnReceiver(props: {sessionId: string; sinks: PaneDraftSinks}): JSX.Element {

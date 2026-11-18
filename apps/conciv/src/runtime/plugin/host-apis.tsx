@@ -46,13 +46,14 @@ import {
   useConnected,
   useHostTheme,
   useInstances,
+  useLiveSessions,
   useRpc,
 } from '../../app/context'
 import {collectViews} from '../../extension/extension-views'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../../lib/media-query'
 import {quickPaneIds, quickSearchFor} from '../../lib/quick-search'
 import type {ComposerInputHandle} from '../../pane/composer-input-adapter'
-import {appendDraft} from '../../pane/draft-storage'
+import {appendDraft, settleKeptSave} from '../../pane/draft-storage'
 import {engineOlderThanWidget, engineVersionQueryOptions} from '../../shell/engine-notice'
 import {useNotices} from '../../shell/notice-context'
 import type {NoticeTone} from '../../shell/notices'
@@ -134,7 +135,7 @@ export function createHostApis() {
   const memory = new Map<string, ReturnType<Storage['memory']>>()
   const current = () => attached()
   const located = createLocatedWrites()
-  const client = Conciv.make(rpc)
+  const client = useAppData().client
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
@@ -443,6 +444,7 @@ export function createPluginAttachment(apis: HostApis) {
   const host = usePluginHost()
   const rpc = useRpc()
   const appData = useAppData()
+  const {keepDraft} = useLiveSessions()
   const queryClient = useAppQueryClient()
   const connection = useConnected()
   const theme = useHostTheme()
@@ -581,7 +583,7 @@ export function createPluginAttachment(apis: HostApis) {
             `[plugin] ${plugin}: a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
           )
         const {sessionId} = await rpc.sessions.create(undefined)
-        await appendDraft(appData, sessionId, input.prompt)
+        settleKeptSave(appData, keepDraft, sessionId, await appendDraft(appData, keepDraft, sessionId, input.prompt))
         void appData.invalidateSession(sessionId)
         await router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })
