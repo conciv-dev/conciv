@@ -165,7 +165,10 @@ describe('draft storage', () => {
     sessionId,
   }) => {
     const staged = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
-    const updated = [{key: 'note:grab:c=1', value: {comment: 'make it red'}}]
+    const updated = [
+      {key: 'note:grab:c=1', value: {comment: 'make it red'}},
+      {key: 'toString', value: {comment: 'an item whose key an object inherits'}},
+    ]
     const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 

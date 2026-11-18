@@ -1213,6 +1213,33 @@ describe('composer completion', () => {
       .toBeVisible()
     await expect.element(page.getByText('items: note:grab:c=2={"comment":"staged while it finished"}')).toBeVisible()
   })
+
+  it('a stored item that does not decode leaves the others, and with no send handler the items stay staged and alone cannot be sent', async () => {
+    const probe = createProbeStorage(
+      JSON.stringify({
+        text: 'restored text',
+        quote: null,
+        attachments: [],
+        items: [
+          {key: 'note:grab:c=1', value: {comment: 'kept'}},
+          {key: 1, value: 'a numeric key'},
+        ],
+      }),
+    )
+    mountItemsComposer(probe.storage, {})
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('restored text')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"kept"}')).toBeVisible()
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('{ControlOrMeta>}a{/ControlOrMeta}{Backspace}')
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
+    await expect.element(page.getByRole('button', {name: 'Send'})).toBeDisabled()
+
+    await userEvent.keyboard('a typed line')
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"kept"}')).toBeVisible()
+  })
 })
 
 describe('composer send morph', () => {
