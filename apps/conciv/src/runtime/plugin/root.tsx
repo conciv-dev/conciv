@@ -13,7 +13,7 @@ import {
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
-import {useApiBase, useAppData} from '../../app/context'
+import {useApiBase, useAppData, useConnected} from '../../app/context'
 import {builtins} from './builtins'
 import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
@@ -77,7 +77,8 @@ export function useHostApis() {
 
 export function PluginRoot(props: ParentProps) {
   const apis = createHostApis()
-  const apiBase = untrack(useApiBase())
+  const apiBase = useApiBase()
+  const connected = useConnected()
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const trusted = createMemo(() => {
@@ -92,11 +93,17 @@ export function PluginRoot(props: ParentProps) {
 
   first.promise.catch(() => undefined)
 
-  const bundle = createMemo(
-    on(trusted, (isTrusted) => {
-      if (!isTrusted) return
+  const engineBase = createMemo(() => {
+    const base = apiBase()
 
-      const created = createBundleSource({client: apis.engine.client, apiBase})
+    return trusted() && connected() ? base : undefined
+  })
+
+  const bundle = createMemo(
+    on(engineBase, (base) => {
+      if (base === undefined) return
+
+      const created = createBundleSource({client: apis.engine.client, apiBase: base})
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
