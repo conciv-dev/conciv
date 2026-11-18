@@ -22,6 +22,8 @@ import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {ComposerContextValue} from '@conciv/ui-kit-chat'
 import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import type {GrabApi} from '@conciv/plugin/experimental/grab'
+import type {GrabApi as PaneGrab} from '@conciv/grab'
 import type {
   Layout,
   MountedSession,
@@ -71,7 +73,7 @@ import {createMobileViews} from './mobile'
 import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
-import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
+import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
 import {ui} from './ui'
 
 type Attached = {
@@ -79,6 +81,7 @@ type Attached = {
   current: Accessor<MountedSession | undefined>
   tabs: Omit<Tabs, 'move'>
   screen: Accessor<SessionScreen | undefined>
+  grab: Accessor<PaneGrab | undefined>
   layout: Pick<Layout, 'open' | 'close' | 'toggle' | 'hide' | 'state'> & {
     stored(plugin: string, session: SessionRef): readonly string[]
   }
@@ -89,6 +92,7 @@ type Attached = {
   path: Accessor<string>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
+  directory: string
 }
 
 export type ComposerBinding = {
@@ -193,11 +197,13 @@ export function createHostApis() {
   const target = (
     plugin: string,
     key: string,
-    scope: Exclude<StorageScope, 'global' | 'project'>,
+    scope: Exclude<StorageScope, 'global'>,
     from: StoreFrom | readonly StoreFrom[] | undefined,
     connected: Attached,
   ) => {
     const name = storeName(plugin, key)
+
+    if (scope === 'project') return projectStoreTarget(plugin, key, from, connected.directory)
 
     if ('session' in scope) {
       const location = scope.session.location
@@ -209,7 +215,7 @@ export function createHostApis() {
 
     if (!connected.server(scope.server)) throw new Error(`Server ${scope.server} is unavailable`)
 
-    return {...Persist.project(name), copyFrom: storeImports(from)}
+    return {...Persist.server(name), copyFrom: storeImports(from)}
   }
 
   const apis: HostApiFactories = {
@@ -224,13 +230,12 @@ export function createHostApis() {
         const scope = options.scope
 
         return runWithOwner(getOwner() ?? owner, () => {
-          if (!scope || scope === 'global' || scope === 'project')
-            return open(globalStoreTarget(plugin, key, options.from, scope ?? 'global'))
+          if (!scope || scope === 'global') return open(globalStoreTarget(plugin, key, options.from))
 
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
 
-          if (!('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
+          if (scope === 'project' || !('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
 
           const directory = createMemo(() => scope.session.location?.directory)
 
@@ -259,13 +264,16 @@ export function createHostApis() {
       remove(key, options) {
         const scope = options?.scope
 
-        if (!scope || scope === 'global' || scope === 'project')
-          return removePersisted(globalStoreTarget(plugin, key, options?.from, scope ?? 'global'), rpc)
+        if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
 
         const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
 
         write((connected) => {
-          if (!('session' in scope) || (scope.session.location && !located.pending(scope.session.key)))
+          if (
+            scope === 'project' ||
+            !('session' in scope) ||
+            (scope.session.location && !located.pending(scope.session.key))
+          )
             return run(connected)
           located.hold(scope.session, () => write(run))
         })
@@ -384,9 +392,25 @@ export function createHostApis() {
     ui: () => ui,
   }
 
+  const pane = () => current()?.grab()
+
+  const grab: GrabApi = {
+    pick: () => pane()?.pick() ?? Promise.resolve(null),
+    comment: () => pane()?.comment() ?? Promise.resolve(null),
+    grabbable: () => {
+      const bound = pane()
+
+      return bound ? (bound.grabbable?.() ?? true) : false
+    },
+    stage: (value) => pane()?.stage(value),
+    staged: () => pane()?.staged() ?? [],
+    clear: () => pane()?.clear(),
+  }
+
   return {
     apis,
     engine,
+    grab,
     unavailableClient: (): ConcivClient => unavailable,
     whenMounted: (run: () => void) => write(() => run()),
     attach(value: Attached) {
@@ -433,6 +457,7 @@ export function createPluginAttachment(apis: HostApis) {
   const [screen, setScreen] = createSignal<SessionScreen>()
   const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
   const [composer, setComposer] = createSignal<ComposerBinder>()
+  const [grab, setGrab] = createSignal<PaneGrab>()
   const refs = new Map<string, SessionRef>()
 
   const project = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
@@ -566,12 +591,13 @@ export function createPluginAttachment(apis: HostApis) {
       })
       .catch((cause: unknown) => console.error(`[plugin] ${plugin}: the draft did not open`, cause))
 
-  const mounted: Attached = {
+  const mounted: Omit<Attached, 'directory'> = {
     sessions,
     current,
     tabs: shell,
     mode: () => theme().scheme,
     screen,
+    grab,
     draft,
     routing: useRouterState({select: (value) => value.status === 'pending'}),
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
@@ -620,8 +646,9 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
-    attach: () => {
-      const detach = apis.attach(mounted)
+    root: () => (project.isSuccess ? project.data?.project.root : undefined),
+    attach: (directory: string) => {
+      const detach = apis.attach({...mounted, directory})
 
       recheckPluginView()
 
@@ -653,6 +680,13 @@ export function createPluginAttachment(apis: HostApis) {
 
       return () => {
         if (composer() === value) setComposer(undefined)
+      }
+    },
+    bindGrab(value: PaneGrab) {
+      setGrab(() => value)
+
+      return () => {
+        if (grab() === value) setGrab(undefined)
       }
     },
     region(value: Region) {

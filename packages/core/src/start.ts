@@ -3,11 +3,11 @@ import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, concivHome, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
 import {z} from 'zod'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
-import {makeApp, withBuiltinExtensions, type MadeApp, type MakeAppOpts} from './app.js'
+import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 
 export type {AppType} from './app.js'
@@ -29,7 +29,7 @@ export type PortRequest = {exact: number} | {preferred: number}
 export type StartOpts = {
   options: ConcivConfig
   root: string
-  bridge?: BundlerBridge
+  bridge?: Bundler.BundlerBridge
   launchEditor: (file: string, line: number, column?: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
   port?: PortRequest
@@ -180,7 +180,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const paths = statePaths(cfg.stateRoot)
   createConcivStateDir(paths.dir)
 
-  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {
+  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [], {
     cwd: opts.root,
     extensions: opts.extensionConfig,
   })

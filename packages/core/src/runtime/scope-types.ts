@@ -3,12 +3,17 @@ import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageOutcome} from '@conciv/protocol/page-types'
 import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-capture-types'
-import type {SourceLoc} from '@conciv/protocol/page-types'
 import type {NavigationWrite} from '@conciv/protocol/chat-types'
-import type {RawFrame} from '@conciv/protocol/page-introspect-types'
-import type {ChatHistoryWindow, ChatHydration, EngineStaleness, ToolCommandSignature} from '@conciv/contract'
-import type {RegistryCallGate, ToolRegistry} from '@conciv/extension/registry'
-import type {ToolRequest} from '@conciv/extension'
+import type {
+  ChatHistoryWindow,
+  ChatHydration,
+  EngineStaleness,
+  RawFrame,
+  SourceLoc,
+  ToolCommandSignature,
+} from '@conciv/contract'
+import type {ToolRegistry} from '@conciv/extension/registry'
+import type {RegistryCallGate, ToolRequest} from '@conciv/protocol/tool-call-types'
 import type {BrowserTabFocus, ChangeEntry} from '../page/page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 

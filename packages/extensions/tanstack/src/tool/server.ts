@@ -1,7 +1,7 @@
 import {defineTool, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ToolDefinition} from '@conciv/extension/tool'
 import type {z} from 'zod'
-import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
+import type {FrameworkAdapter} from '@conciv/contract'
 import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
 import {buildErrorsDef, routeManifestDef, serverFnTraceDef, TANSTACK_PAGE_TOOL_DEFS} from './def.js'
 

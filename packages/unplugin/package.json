@@ -80,6 +80,7 @@
     "@conciv/embed": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/server": "catalog:",
     "chokidar": "^6.0.0",

@@ -7,9 +7,10 @@ import {
   failingLabel,
   failedCount,
   failureLocation,
-  groupByFile,
+  fileGroup,
   relativePath,
   STATE_LABEL,
+  testFiles,
   type FileGroup,
 } from '../view.js'
 import type {RunPhase, RunState} from './run-state.js'
@@ -129,7 +130,7 @@ function FailureCard(props: {
 export function TestsPanel(props: TestsPanelProps): JSX.Element {
   const running = () => props.run.phase === 'running'
   const failures = () => props.run.tests.flatMap((test) => (test.error ? [test.error] : []))
-  const groups = () => groupByFile(props.run.tests)
+  const files = () => testFiles(props.run.tests)
   const failingHeading = createUniqueId()
   const filesHeading = createUniqueId()
   return (
@@ -184,19 +185,19 @@ export function TestsPanel(props: TestsPanelProps): JSX.Element {
           </ul>
         </section>
       </Show>
-      <Show when={groups().length > 0}>
+      <Show when={files().length > 0}>
         <section aria-labelledby={filesHeading} class="flex flex-col gap-2">
           <h3 id={filesHeading} class="text-chat-sm text-chat-text font-semibold">
             Files
           </h3>
           <ul class="flex flex-col gap-3">
-            <For each={groups()}>
-              {(group) => (
+            <For each={files()}>
+              {(file) => (
                 <FileRow
                   ui={props.ui}
-                  group={group}
+                  group={fileGroup(props.run.tests, file)}
                   directory={props.directory}
-                  running={running() && !props.run.endedFiles.includes(group.file)}
+                  running={running() && !props.run.endedFiles.includes(file)}
                 />
               )}
             </For>

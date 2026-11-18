@@ -17,7 +17,7 @@ import {createServer as createHttpServer, type Server} from 'node:http'
 import {Hono} from 'hono'
 import {proxy} from 'hono/proxy'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runLink, runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
@@ -701,7 +701,7 @@ describe('cli', () => {
     })
 
     function restartCapableBridge() {
-      return defineBundlerBridge({
+      return Bundler.defineBundlerBridge({
         id: 'cli-restart-test',
         config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
         resolve: async (spec) => ({id: spec}),
@@ -1972,10 +1972,10 @@ describe('cli', () => {
       }
     })
 
-    it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
+    it('answers the server methods from a real bundler bridge as the tools do', async () => {
       const home = tempDir('conciv-home-')
       const restarts: boolean[] = []
-      const bridge = defineBundlerBridge({
+      const bridge = Bundler.defineBundlerBridge({
         id: 'cli-server-methods',
         config: () => ({
           root: '/repo',
@@ -2000,7 +2000,6 @@ describe('cli', () => {
         bridge,
         launchEditor: (file, line, column) => launched.push({file, line, ...(column === undefined ? {} : {column})}),
       })
-      const detached = await engineWithTab(home)
       try {
         expect(await pluginCall(attached.root, home, ['server', 'config'])).toEqual({
           code: 0,
@@ -2094,6 +2093,15 @@ describe('cli', () => {
           {file: 'src/other.ts', line: 1},
           {file: 'src/third.ts', line: 1},
         ])
+      } finally {
+        await attached.engine.stop()
+      }
+    })
+
+    it('refuses the server methods when no bundler bridge is attached', async () => {
+      const home = tempDir('conciv-home-')
+      const detached = await engineWithTab(home)
+      try {
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
           document: {
@@ -2108,7 +2116,7 @@ describe('cli', () => {
           },
         })
       } finally {
-        await Promise.all([attached.engine.stop(), detached.engine.stop()])
+        await detached.engine.stop()
       }
     })
   })

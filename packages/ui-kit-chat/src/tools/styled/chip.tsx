@@ -77,13 +77,16 @@ export const CHIP = chip({kind: 'field', tone: 'neutral', maxWidth: 'full'})
 
 const FIELD_KEY = 'text-chat-text-3 m-0'
 const FIELD_VALUE = 'whitespace-nowrap text-ellipsis overflow-hidden [color:var(--chat-text)] m-0'
+const PILL_VALUE = 'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
 const ROW = 'm-0 p-0 flex flex-wrap gap-1.5'
 
-function fieldTermContent(name: string | undefined, value: string): JSX.Element {
+function fieldTermContent(name: string | undefined, value: string, valueRef: (node: HTMLElement) => void): JSX.Element {
   return (
     <>
       <dt class={FIELD_KEY}>{name}</dt>
-      <dd class={FIELD_VALUE}>{value}</dd>
+      <dd ref={valueRef} class={FIELD_VALUE}>
+        {value}
+      </dd>
     </>
   )
 }
@@ -97,25 +100,40 @@ function fieldSpanContent(name: string | undefined, value: string): JSX.Element 
   )
 }
 
-function chipContent(kind: 'field' | 'pill', name: string | undefined, value: string): JSX.Element {
-  if (kind === 'pill') return value
-  return fieldTermContent(name, value)
+function chipContent(
+  kind: 'field' | 'pill',
+  name: string | undefined,
+  value: string,
+  valueRef: (node: HTMLElement) => void,
+): JSX.Element {
+  if (kind === 'pill')
+    return (
+      <span ref={valueRef} class={PILL_VALUE}>
+        {value}
+      </span>
+    )
+  return fieldTermContent(name, value, valueRef)
 }
 
 function triggerContent(kind: 'field' | 'pill', name: string | undefined, value: string): JSX.Element {
-  if (kind === 'pill') return value
+  if (kind === 'pill') return <span class={PILL_VALUE}>{value}</span>
   return fieldSpanContent(name, value)
 }
 
-function ClippedChip(props: {value: string; content: JSX.Element; class: string}): JSX.Element {
-  const [local] = splitProps(props, ['value', 'content', 'class'])
+function ClippedChip(props: {
+  kind: 'field' | 'pill'
+  name: string | undefined
+  value: string
+  class: string
+}): JSX.Element {
+  const [local] = splitProps(props, ['kind', 'name', 'value', 'class'])
   const reveal = createClipReveal()
   return (
     <Tooltip.Root onOpenChange={reveal.onOpenChange} lazyMount unmountOnExit>
       <Tooltip.Trigger
         asChild={(triggerProps) => (
-          <div {...revealTriggerProps(reveal, triggerProps())} ref={reveal.ref} class={local.class}>
-            {local.content}
+          <div {...revealTriggerProps(reveal, triggerProps())} class={local.class}>
+            {chipContent(local.kind, local.name, local.value, reveal.ref)}
           </div>
         )}
       />
@@ -145,9 +163,7 @@ export function Chip(props: {
   return (
     <Show
       when={local.tooltip}
-      fallback={
-        <ClippedChip value={local.value} content={chipContent(kind(), local.name, local.value)} class={chipClass()} />
-      }
+      fallback={<ClippedChip kind={kind()} name={local.name} value={local.value} class={chipClass()} />}
     >
       {(tooltip) => (
         <div class="contents">
