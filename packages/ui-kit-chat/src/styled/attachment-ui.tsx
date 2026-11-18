@@ -1,19 +1,17 @@
 import {onCleanup, Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import X from 'lucide-solid/icons/x'
-import {Tooltip, TooltipIconButtonSlot, ZoomableImage} from '@conciv/ui-kit-system'
+import {Tooltip, ZoomableImage} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/attachment/attachment-adapter.js'
-import {FOCUS, FOCUS_INSET} from './classes.js'
+import {FOCUS_INSET} from './classes.js'
+import {CornerRemoveButton} from './corner-remove-button.js'
 
+const ROOT = 'group relative shrink-0 anim-presence-in'
 const TILE =
-  'relative size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default anim-presence-in'
+  'size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default'
 
 const IMAGE_TRIGGER = `size-full block !border-0 !cursor-zoom-in ${FOCUS_INSET}`
-
-const REMOVE_WRAPPER = 'absolute end-0.5 top-0.5'
-const REMOVE = `inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)] ${FOCUS}`
 
 type AttachmentState = ReturnType<typeof useAttachment>
 type ImagePart = Extract<AttachmentContentPart, {type: 'image'}>
@@ -57,7 +55,9 @@ function refusalReason(attachment: AttachmentState): string | undefined {
   return attachment.status.message || `${attachment.name} could not be attached`
 }
 
-export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
+export type RemoveAttachment = (id: string) => void
+
+export function AttachmentUI(props: {onRemove?: RemoveAttachment; failure?: string}): JSX.Element {
   const draft = useAttachment()
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
@@ -66,42 +66,38 @@ export function AttachmentUI(props: {removable?: boolean; failure?: string}): JS
   const label = () => failure() ?? draft.name
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: 'top', gutter: 6}}>
-      <Attachment.Root class={TILE}>
-        <Show
-          when={failure() ? undefined : previewSrc}
-          fallback={
-            <Tooltip.Trigger type="button" class={`size-full block ${FOCUS_INSET}`} aria-label={label()}>
-              <span
-                class={`flex size-full items-center justify-center ${failure() ? '[color:var(--chat-danger)]' : '[color:var(--chat-text-3)]'}`}
-              >
-                <Show when={failure()} fallback={<FileText size={28} />}>
-                  <TriangleAlert size={28} />
-                </Show>
-              </span>
-            </Tooltip.Trigger>
-          }
-        >
-          {(src) => (
-            <Tooltip.Trigger
-              asChild={(triggerProps) => (
-                <ZoomableImage
-                  src={src()}
-                  alt={draft.name}
-                  thumbnail={{...triggerProps(), class: IMAGE_TRIGGER}}
-                  imageClass="size-full object-cover"
-                />
-              )}
-            />
-          )}
-        </Show>
-        <Show when={props.removable}>
-          <TooltipIconButtonSlot tooltip={`Remove ${draft.name}`} wrapperClass={REMOVE_WRAPPER}>
-            {(buttonProps) => (
-              <Attachment.Remove {...buttonProps()} class={REMOVE}>
-                <X size={12} />
-              </Attachment.Remove>
+      <Attachment.Root class={ROOT}>
+        <div class={TILE}>
+          <Show
+            when={failure() ? undefined : previewSrc}
+            fallback={
+              <Tooltip.Trigger type="button" class={`size-full block ${FOCUS_INSET}`} aria-label={label()}>
+                <span
+                  class={`flex size-full items-center justify-center ${failure() ? '[color:var(--chat-danger)]' : '[color:var(--chat-text-3)]'}`}
+                >
+                  <Show when={failure()} fallback={<FileText size={28} />}>
+                    <TriangleAlert size={28} />
+                  </Show>
+                </span>
+              </Tooltip.Trigger>
+            }
+          >
+            {(src) => (
+              <Tooltip.Trigger
+                asChild={(triggerProps) => (
+                  <ZoomableImage
+                    src={src()}
+                    alt={draft.name}
+                    thumbnail={{...triggerProps(), class: IMAGE_TRIGGER}}
+                    imageClass="size-full object-cover"
+                  />
+                )}
+              />
             )}
-          </TooltipIconButtonSlot>
+          </Show>
+        </div>
+        <Show when={props.onRemove}>
+          {(remove) => <CornerRemoveButton label={`Remove ${draft.name}`} onRemove={() => remove()(draft.id)} />}
         </Show>
       </Attachment.Root>
       <Tooltip.Positioner>

@@ -22,6 +22,7 @@ export default defineConfig({
       '../extensions/recorder/src/**/*.{ts,tsx}',
       '../extensions/try-it/src/**/*.{ts,tsx}',
       '../extensions/tanstack/src/**/*.{ts,tsx}',
+      '../plugins/recorder/src/**/*.{ts,tsx}',
       '../plugins/test-runner/src/**/*.{ts,tsx}',
       '../plugins/tanstack/src/**/*.{ts,tsx}',
       '../plugins/whiteboard/src/**/*.{ts,tsx}',

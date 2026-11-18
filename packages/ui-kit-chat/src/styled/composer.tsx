@@ -7,7 +7,7 @@ import {useComposerContext} from '../primitives/composer/composer-context.js'
 import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
 import {useComposer} from '../store/chat-context.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
-import {AttachmentUI} from './attachment-ui.js'
+import {AttachmentUI, type RemoveAttachment} from './attachment-ui.js'
 import {QueueItem} from '../primitives/queue-item/queue-item.js'
 import {Slot} from '../primitives/util/slot.js'
 import {FOCUS} from './classes.js'
@@ -20,7 +20,7 @@ export type ComposerProps = {
   busy?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
   attachmentAdapter?: AttachmentAdapter
-  AttachmentComponent?: Component<{removable?: boolean}>
+  AttachmentComponent?: Component<{onRemove?: RemoveAttachment}>
 }
 
 const GHOST =
@@ -47,7 +47,7 @@ function TrailingControls(): JSX.Element {
   const context = useComposerContext()
   const handlers = useComposerHandlers()
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
-  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
+  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.staged() === 0)
   return (
     <Show
       when={composer.isRunning()}
@@ -83,6 +83,16 @@ function TrailingControls(): JSX.Element {
   )
 }
 
+function StagedAttachment(props: {component?: Component<{onRemove?: RemoveAttachment}>}): JSX.Element {
+  const context = useComposerContext()
+  const remove = (id: string) => void context.removeAttachment(id)
+  return (
+    <Show when={props.component} fallback={<AttachmentUI onRemove={remove} />}>
+      {(component) => <Dynamic component={component()} onRemove={remove} />}
+    </Show>
+  )
+}
+
 export function Composer(props: ComposerProps): JSX.Element {
   return (
     <ComposerPrimitive.Root
@@ -102,14 +112,8 @@ export function Composer(props: ComposerProps): JSX.Element {
           )}
         </ComposerPrimitive.Queue>
       </div>
-      <div class="px-3 pt-2 flex flex-wrap gap-1 empty:hidden">
-        <ComposerPrimitive.Attachments
-          component={() => (
-            <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
-              {(component) => <Dynamic component={component()} removable />}
-            </Show>
-          )}
-        />
+      <div class="px-2 pb-1 pt-2 flex shrink-0 flex-nowrap gap-2 [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden empty:hidden">
+        <ComposerPrimitive.Attachments component={() => <StagedAttachment component={props.AttachmentComponent} />} />
       </div>
       <div class="pb-2.25 pe-3 ps-5 pt-2.25 flex gap-2 items-start">
         <Tooltip.Group>

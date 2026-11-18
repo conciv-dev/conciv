@@ -8,14 +8,18 @@ import {once} from 'node:events'
 import envPaths from 'env-paths'
 import {DatabaseSync} from 'node:sqlite'
 import {fileURLToPath} from 'node:url'
-import {asc, eq} from 'drizzle-orm'
+import {asc, eq, is} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
+import {getTableConfig, SQLiteTable} from 'drizzle-orm/sqlite-core'
 import {describe, expect, it, expectTypeOf} from 'vitest'
+import {z} from 'zod'
+import * as schema from '../src/schema.js'
+import * as runSchema from '../src/run-schema.js'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
 import {importLegacyThreads} from '../src/chat-thread-import.js'
 import {chatMessages, chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
-import {sessions} from '../src/schema.js'
+import {drafts, sessions} from '../src/schema.js'
 import {readModel, runMessagesFor} from '../src/run-queries.js'
 import {
   closeHomeDb,
@@ -434,6 +438,29 @@ describe('db', () => {
     })
   })
 
+  describe('draft items migration', () => {
+    it('gives an existing draft no items, which then holds a json list', () => {
+      const migration = readdirSync(drizzleDir).find((name) => name.endsWith('_draft_items')) ?? 'missing'
+      const client = beforeMigration(migration)
+      client
+        .prepare(
+          'INSERT INTO drafts (session_id, text, selection_start, selection_end, updated_at) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run('conciv_old', 'an old draft', 0, 0, 1)
+
+      migrationsFrom(migration).forEach((name) => applyMigration(client, name))
+
+      const db = drizzle({client})
+      expect(db.select({text: drafts.text, items: drafts.items}).from(drafts).all()).toEqual([
+        {text: 'an old draft', items: null},
+      ])
+      const items = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
+      db.update(drafts).set({items}).where(eq(drafts.sessionId, 'conciv_old')).run()
+      expect(db.select({items: drafts.items}).from(drafts).all()).toEqual([{items}])
+      client.close()
+    })
+  })
+
   describe('plugin host tables migration', () => {
     it('creates the plugin host tables, and a database a branch build already gave them keeps its rows', () => {
       const migration = readdirSync(drizzleDir).find((name) => name.endsWith('_plugin_host_tables')) ?? 'missing'
@@ -455,6 +482,41 @@ describe('db', () => {
       migrationsFrom(migration).forEach((name) => applyMigration(built, name))
       expect(built.prepare('SELECT key FROM kv').all()).toEqual([{key: 'kept'}])
       built.close()
+    })
+  })
+
+  describe('migrations folder', () => {
+    const SnapshotSchema = z.object({
+      id: z.string(),
+      prevIds: z.array(z.string()),
+      ddl: z.array(z.object({entityType: z.string(), name: z.string(), table: z.string().optional()})),
+    })
+
+    it('is one chain whose latest snapshot holds every column the schema declares', () => {
+      const snapshots = migrationsFrom('').map((name) => ({
+        name,
+        ...SnapshotSchema.parse(JSON.parse(readFileSync(join(drizzleDir, name, 'snapshot.json'), 'utf8'))),
+      }))
+      const brokenLinks = snapshots
+        .map((snapshot, index) => ({
+          name: snapshot.name,
+          prevIds: snapshot.prevIds,
+          parent: [snapshots[index - 1]?.id ?? '00000000-0000-0000-0000-000000000000'],
+        }))
+        .filter((link) => link.prevIds.join() !== link.parent.join())
+      expect.soft(brokenLinks).toEqual([])
+
+      const latestColumns = (snapshots.at(-1)?.ddl ?? [])
+        .filter((entity) => entity.entityType === 'columns')
+        .map((entity) => `${entity.table}.${entity.name}`)
+      const missingColumns = [...Object.values(schema), ...Object.values(runSchema)]
+        .filter((value) => is(value, SQLiteTable))
+        .flatMap((table) => {
+          const config = getTableConfig(table)
+          return config.columns.map((column) => `${config.name}.${column.name}`)
+        })
+        .filter((column) => !latestColumns.includes(column))
+      expect(missingColumns).toEqual([])
     })
   })
 

@@ -1,6 +1,6 @@
-import {ErrorBoundary, Suspense, type JSX} from 'solid-js'
+import {ErrorBoundary, Show, Suspense, type JSX} from 'solid-js'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {AttachmentUI, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
+import {AttachmentUI, CornerRemoveButton, useAttachment, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
 import {ErrorScreen} from '../../shell/error-screen.js'
 
@@ -21,10 +21,16 @@ function CardFallback(props: {name: string}): JSX.Element {
   )
 }
 
-function ChipFallback(props: {name: string; removable: boolean}): JSX.Element {
+function ChipFallback(props: {name: string; onRemove?: (id: string) => void}): JSX.Element {
+  const attachment = useAttachment()
   return (
-    <div role="status">
-      <AttachmentUI removable={props.removable} failure={`Failed to render ${props.name}`} />
+    <div role="status" class="group relative w-fit">
+      <AttachmentUI failure={`Failed to render ${props.name}`} />
+      <Show when={props.onRemove}>
+        {(remove) => (
+          <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove()(attachment.id)} />
+        )}
+      </Show>
     </div>
   )
 }
@@ -32,7 +38,7 @@ function ChipFallback(props: {name: string; removable: boolean}): JSX.Element {
 export function PluginBoundary(props: {
   name: string
   fallback: PluginFallback
-  removable?: boolean
+  onRemove?: (id: string) => void
   focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
@@ -57,7 +63,7 @@ export function PluginBoundary(props: {
         />
       )
     if (props.fallback === 'card') return <CardFallback name={props.name} />
-    if (props.fallback === 'chip') return <ChipFallback name={props.name} removable={props.removable ?? false} />
+    if (props.fallback === 'chip') return <ChipFallback name={props.name} onRemove={props.onRemove} />
     return null
   }
   return (
@@ -75,7 +81,7 @@ export function guardPluginAttachmentCard(
   return {
     ...entry,
     render: (props) => (
-      <PluginBoundary name={name} fallback={fallback} removable={props.remove !== undefined}>
+      <PluginBoundary name={name} fallback={fallback} onRemove={props.onRemove}>
         <entry.render {...props} />
       </PluginBoundary>
     ),

@@ -1,7 +1,8 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import type {Attachment, AttachmentAdapter} from '../attachment/attachment-adapter.js'
 
-export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: string | null}
+export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: string | null; items: DraftItem[]}
 
 export type ComposerContextValue = {
   attachments: Accessor<Attachment[]>
@@ -16,6 +17,11 @@ export type ComposerContextValue = {
   clearDraft: () => void
   quote: Accessor<string | null>
   setQuote: (value: string | null) => void
+  items: Accessor<DraftItem[]>
+  staged: Accessor<number>
+  addItem: (item: DraftItem) => void
+  removeItem: (key: string) => void
+  updateItem: (key: string, value: DraftItem['value']) => void
   editing: Accessor<boolean>
   setEditing: (value: boolean) => void
   dictating: Accessor<boolean>

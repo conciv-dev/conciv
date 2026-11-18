@@ -1,5 +1,5 @@
 import {createMemo, onCleanup, Show, type Accessor, type JSX, type ParentProps} from 'solid-js'
-import {useComposer} from '@conciv/ui-kit-chat'
+import {useComposer, useComposerContext} from '@conciv/ui-kit-chat'
 import type {MountedSession, SessionScreen} from '@conciv/plugin/experimental'
 import type {GrabApi} from '@conciv/grab'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query'
@@ -117,10 +117,18 @@ export function SessionComposerBinding(props: {
     <Show when={props.pane.binder()} keyed>
       {(binder) => {
         const composer = useComposer()
+        const context = useComposerContext()
 
         onCleanup(
           binder.bind({
-            composer: {text: composer.text, setText: composer.setText},
+            composer: {
+              text: composer.text,
+              setText: composer.setText,
+              items: context.items,
+              addItem: context.addItem,
+              updateItem: context.updateItem,
+              removeItem: context.removeItem,
+            },
             input: props.input,
             prompt: {quotable: () => false, focus: props.focus, focused: () => false},
           }),

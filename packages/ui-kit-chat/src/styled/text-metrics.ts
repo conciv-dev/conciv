@@ -6,7 +6,7 @@ import {
   type PreparedTextWithSegments,
 } from '@chenglou/pretext'
 import type {Accessor} from 'solid-js'
-import type {ChatPart} from '@conciv/protocol/chat-message-types'
+import {PromptPresentationSchema, type ChatPart} from '@conciv/protocol/chat-message-types'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
 import {
@@ -216,6 +216,7 @@ export function createTurnEstimator(
     const style = metrics?.user
     if (!style) return undefined
     if (!turn.parts.every((part) => part.type === 'text')) return undefined
+    if (turn.messages.some((message) => PromptPresentationSchema.safeParse(message.metadata).success)) return undefined
     const bubbles = turn.parts.map(
       (part) =>
         textHeight(readText(part) ?? '', style, containerWidth, PROMPT_WIDTH_FRACTION) + style.padY + style.borderY,

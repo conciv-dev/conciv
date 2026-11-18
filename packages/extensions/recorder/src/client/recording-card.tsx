@@ -1,7 +1,7 @@
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
 import {QueryClient, QueryClientProvider, useMutation, useQuery, createTanstackQueryUtils} from '@conciv/client'
 import {getExtensionApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
-import {useAttachment} from '@conciv/ui-kit-chat'
+import {CornerRemoveButton, useAttachment} from '@conciv/ui-kit-chat'
 import {Button} from '@conciv/ui-kit-system'
 import {
   RECORDER_NAME,
@@ -44,7 +44,7 @@ export function RecordingCard(props: AttachmentCardProps): JSX.Element {
   const queryClient = new QueryClient()
   return (
     <QueryClientProvider client={queryClient}>
-      <CardBody remove={props.remove} />
+      <CardBody onRemove={props.onRemove} />
     </QueryClientProvider>
   )
 }
@@ -90,7 +90,11 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
       <Button size="xs" disabled={!ref()} onClick={() => setOpen(true)}>
         Play
       </Button>
-      {props.remove}
+      <Show when={props.onRemove}>
+        {(remove) => (
+          <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove()(attachment.id)} />
+        )}
+      </Show>
       <Dialog open={open()} onOpenChange={setOpen} dismissable size="xl" layer="inline" label="Screen recording replay">
         <Show when={open()}>
           <div class="flex flex-col gap-2">

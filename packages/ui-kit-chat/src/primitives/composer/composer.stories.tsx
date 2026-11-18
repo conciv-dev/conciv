@@ -11,6 +11,7 @@ import {QueueItem} from '../queue-item/queue-item.js'
 import {Attachment} from '../attachment/attachment.js'
 import {createSimpleImageAttachmentAdapter, type AttachmentAdapter} from '../attachment/attachment-adapter.js'
 import {ComposerHandlersProvider} from './composer-handlers.js'
+import type {ComposerDraft} from './composer-context.js'
 import {Composer} from './composer.js'
 
 const meta: Meta = {title: 'ui-kit-chat/primitives/Composer'}
@@ -184,7 +185,7 @@ function AttachmentChip(): JSX.Element {
 
 function AttachmentComposerApp(props: {
   adapter: AttachmentAdapter
-  onSend: (content: string | SendContent) => void
+  onSend: (content: string | SendContent, draft: ComposerDraft) => void
 }): JSX.Element {
   const chat = createChat({threadId: 'composer', connection: storyConnection({chunks: createTextChunks('unused')})})
   const handlers = untrack(() => ({onSend: props.onSend}))
@@ -232,12 +233,29 @@ export const AttachmentAdapterLifecycle: Story = {
     await userEvent.type(c.getByLabelText('Attachment message'), 'describe this')
     await userEvent.click(c.getByRole('button', {name: 'Send attachment'}))
     await waitFor(() => expect(attachmentSendSpy).toHaveBeenCalledTimes(1))
-    await expect(attachmentSendSpy).toHaveBeenCalledWith({
-      content: [
-        {type: 'text', content: 'describe this'},
-        {type: 'image', source: {type: 'data', value: 'aW1hZ2UgYnl0ZXM=', mimeType: 'image/png'}},
-      ],
-    })
+    await expect(attachmentSendSpy).toHaveBeenCalledWith(
+      {
+        content: [
+          {type: 'text', content: 'describe this'},
+          {type: 'image', source: {type: 'data', value: 'aW1hZ2UgYnl0ZXM=', mimeType: 'image/png'}},
+        ],
+      },
+      {
+        draft: 'describe this',
+        attachments: [
+          {
+            id: expect.any(String),
+            type: 'image',
+            name: 'send.png',
+            contentType: 'image/png',
+            file: expect.any(File),
+            status: {type: 'requires-action', reason: 'composer-send'},
+          },
+        ],
+        quote: null,
+        items: [],
+      },
+    )
     await expect(c.queryByText('send.png')).toBeNull()
   },
 }
