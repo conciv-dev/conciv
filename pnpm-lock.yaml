@@ -5694,6 +5694,9 @@ importers:
       '@chenglou/pretext':
         specifier: 1.0.0
         version: 1.0.0
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

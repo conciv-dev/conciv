@@ -77,27 +77,3 @@ export type ToolCardEntry = ToolCardView & {
   display?: 'standalone'
   accepts?: (part: ToolCallPart, result: ToolResultPart | undefined) => boolean
 }
-
-export interface ToolProps {
-  input: Record<string, unknown>
-  error?: string
-  metadata: Record<string, unknown>
-  tool: string
-  sessionID?: string
-  output?: string
-  status?: string
-  hideDetails?: boolean
-  defaultOpen?: boolean
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-  fileOpen?: (path: string) => boolean | undefined
-  onFileOpenChange?: (path: string, open: boolean) => void
-  deferContent?: boolean
-  virtualizeDiff?: boolean
-  onContentRendered?: () => void
-  pendingFiles?: readonly string[]
-  forceOpen?: boolean
-  locked?: boolean
-}
-
-export type ToolComponent = Component<ToolProps>
