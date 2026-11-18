@@ -170,6 +170,7 @@ function ThreadReply(): JSX.Element {
         class="flex-1"
         label="Reply"
         placeholder="Reply"
+        autofocus
         value={draft.text}
         onInput={(value) => setDraft('text', value)}
         onSubmit={send}
@@ -203,16 +204,14 @@ function ThreadContent(): JSX.Element {
 export function ThreadPopover(props: {visible: boolean}): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
-  let content: HTMLDivElement | undefined
   return (
     <ui.Popover
       anchor={model.openPinButton}
       open={props.visible && model.openRoot() !== undefined}
       onOpenChange={(open) => open || model.closeThread()}
       label="Comment thread"
-      initialFocus={() => content?.querySelector('input') ?? undefined}
     >
-      <div ref={(element) => (content = element)} class="flex flex-col max-h-120 w-85 pointer-events-auto">
+      <div class="flex flex-col max-h-120 w-85 pointer-events-auto">
         <ThreadContent />
       </div>
     </ui.Popover>
