@@ -7703,8 +7703,12 @@ describe('terminal panel', () => {
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
     const readsOneLine = {...HERO_GRAB, text: 'read -r line; echo "got[$line]"'}
+    const buttonGrab = {...HERO_GRAB, text: '<button>\nSave\n</button>'}
+    const linkGrab = {...HERO_GRAB, text: '<a>Next</a>'}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(readsOneLine)})
+    harness.mountShell(terminalRoute(sessionId), [], {
+      grabProvider: grabProviderFor(readsOneLine, buttonGrab, linkGrab),
+    })
 
     await typeLine('echo $((6*7))')
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
@@ -7722,6 +7726,21 @@ describe('terminal panel', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(output('got[once]'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('got[]')).not.toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await typeLine('read -r line; echo "got[[$line]"')
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await pickButton().click()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('got[<button> Save </button> <a>Next</a>]'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((5*5))')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('got[]')).not.toBeInTheDocument()
+    await expect.element(terminalPanel().getByText(/^bash: /)).not.toBeInTheDocument()
     await expect.element(removeGrab()).not.toBeInTheDocument()
 
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
