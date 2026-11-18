@@ -1,31 +1,35 @@
-import {Duration, Effect, FiberHandle, Schema, Stream, SubscriptionRef} from 'effect'
-import type {Grab} from '@conciv/plugin/experimental/grab'
+import {Deferred, Duration, Effect, FiberHandle, Schema, Stream, SubscriptionRef} from 'effect'
+import type {ElementRect, Grab} from '@conciv/plugin/experimental/grab'
 import type {ChatCover, ComposeTarget} from './model/comments-model.js'
 
 export type ComposePhase =
   | {readonly status: 'idle'}
   | {readonly status: 'picking'}
-  | {readonly status: 'composing'; readonly target: ComposeTarget}
+  | {
+      readonly status: 'composing'
+      readonly target: ComposeTarget
+      readonly anchor: ElementRect
+      readonly reply: Deferred.Deferred<string>
+    }
 
 const CommentsUnbound = Schema.TaggedStruct('Whiteboard.CommentsUnbound', {})
 type CommentsUnbound = typeof CommentsUnbound.Type
 
 export type ComposeSteps = {
   readonly pick: () => Promise<Grab | null>
-  readonly ask: () => Promise<string | undefined>
   readonly canvasOpen: () => boolean
   readonly added: () => void
   readonly unbound: () => void
 }
 
 const IDLE: ComposePhase = {status: 'idle'}
-const FALLBACK_POINT = {x: 80, y: 80}
+const FALLBACK_ANCHOR: ElementRect = {x: 80, y: 80, width: 0, height: 0}
 const BINDING_WAIT = Duration.seconds(5)
 
-function readComposeTarget(grab: Grab): ComposeTarget {
+function readComposeTarget(anchor: ElementRect, grab: Grab): ComposeTarget {
   return {
     source: grab.source ? {file: grab.source.filePath, line: grab.source.lineNumber} : null,
-    screen: grab.rect ? {x: grab.rect.x + grab.rect.width / 2, y: grab.rect.y + grab.rect.height / 2} : FALLBACK_POINT,
+    screen: {x: anchor.x + anchor.width / 2, y: anchor.y + anchor.height / 2},
   }
 }
 
@@ -53,13 +57,11 @@ export const makeCommentCompose = Effect.gen(function* () {
         Effect.orElseSucceed(() => null),
       )
       if (!grab) return
-      const target = readComposeTarget(grab)
-      yield* SubscriptionRef.set(phase, {status: 'composing', target})
-      const answer = yield* Effect.tryPromise(steps.ask).pipe(
-        Effect.tapError((error) => Effect.logWarning('[whiteboard] the comment dialog failed', error)),
-        Effect.orElseSucceed(() => undefined),
-      )
-      const text = answer?.trim()
+      const anchor = grab.rect ?? FALLBACK_ANCHOR
+      const target = readComposeTarget(anchor, grab)
+      const reply = yield* Deferred.make<string>()
+      yield* SubscriptionRef.set(phase, {status: 'composing', target, anchor, reply})
+      const text = (yield* Deferred.await(reply)).trim()
       if (!text) return
       const bound = yield* boundCover
       const reveal = steps.canvasOpen()
@@ -74,9 +76,17 @@ export const makeCommentCompose = Effect.gen(function* () {
       Effect.ensuring(SubscriptionRef.set(phase, IDLE)),
     )
 
+  const answer = (text: string) =>
+    SubscriptionRef.get(phase).pipe(
+      Effect.flatMap((current) =>
+        current.status === 'composing' ? Deferred.succeed(current.reply, text) : Effect.succeed(false),
+      ),
+    )
+
   return {
     phase,
     cover,
     start: (steps: ComposeSteps) => FiberHandle.run(running, compose(steps), {onlyIfMissing: true}),
+    answer,
   }
 })

@@ -4,7 +4,8 @@ import {render} from 'solid-js/web'
 import {Effect, Exit, Scope, SubscriptionRef} from 'effect'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
-import {makeCommentCompose} from './client/comment-compose.js'
+import {makeCommentCompose, type ComposePhase} from './client/comment-compose.js'
+import {ComposePopover} from './client/compose-popover.js'
 import {refAccessor} from './client/ref-accessor.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 import {whiteboardStores} from './client/stores.js'
@@ -19,6 +20,10 @@ export default Plugin.define({
     const compose = Effect.runSync(makeCommentCompose.pipe(Scope.provide(scope)))
     const phase = refAccessor(compose.phase, {status: 'idle'})
     const comments = refAccessor<ChatCover | undefined>(compose.cover, undefined)
+    const composing = (): Extract<ComposePhase, {status: 'composing'}> | undefined => {
+      const current = phase()
+      return current.status === 'composing' ? current : undefined
+    }
     const visible = (): boolean => canvas.open && phase().status === 'idle'
     const grab = ctx.use(GrabApi)
     const [surface, {refetch}] = createResource(
@@ -67,8 +72,6 @@ export default Plugin.define({
             Effect.runFork(
               compose.start({
                 pick: () => live.value.comment(),
-                ask: () =>
-                  ctx.dialogs.prompt({title: 'New comment', placeholder: 'Add a comment', submit: 'Add comment'}),
                 canvasOpen: () => canvas.open,
                 added: () => void ctx.toast.show({title: 'Comment added to the whiteboard', variant: 'success'}),
                 unbound: () =>
@@ -103,5 +106,20 @@ export default Plugin.define({
     ctx.add(ComposerPill, commentPill)
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (visible() ? overlay : undefined))
+    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
+    ctx.add(Slot, (): Slot | undefined => {
+      const current = composing()
+      if (!current) return undefined
+      return {
+        at: 'page.overlay',
+        render: () => (
+          <ComposePopover
+            ui={ctx.ui}
+            anchor={current.anchor}
+            answer={(text) => void Effect.runFork(compose.answer(text))}
+          />
+        ),
+      }
+    })
   },
 })
