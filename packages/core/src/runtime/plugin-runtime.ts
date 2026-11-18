@@ -1,5 +1,6 @@
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
+import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
@@ -60,7 +61,7 @@ export type PluginRuntimeInput = {
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
-  post: readonly PluginDefinition.Plugin[]
+  post: readonly EffectPlugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   harnessSource: Parameters<typeof provideHarnessSource>[0]
@@ -97,7 +98,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     InstancePlugins.bound(
       input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
       {
-        post: input.post.map((plugin) => PluginPromise.fromPromise(plugin)),
+        post: input.post,
       },
     ),
     PluginUpdate.layer,

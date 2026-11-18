@@ -44,7 +44,7 @@ import {unwatchLayout} from './agent-cursor.js'
 import {badArgs, fail} from './page-failure.js'
 import {isJsonSerializable, toPageFailure} from './page-tool-outcome.js'
 import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './page-act.js'
-import {Operations, SHORT_MAX, type Action, type Command, type File, type Outcome} from '@conciv/plugin-page/rpc'
+import {Operations, SHORT_MAX, type Action, type File, type Outcome, type PageCommand} from '@conciv/plugin-page/rpc'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
 import {
@@ -63,7 +63,7 @@ import {
 
 type Locator = Omit<Extract<Action, {type: 'dom'}>, 'type' | 'tabId'>
 
-type Queued = NonNullable<Command['queued']>
+type Queued = NonNullable<PageCommand['queued']>
 
 type Call = {
   agentId: string
@@ -91,7 +91,7 @@ export type PageEffect = {
 const OverrideRefusal = z.object({error: z.string()})
 
 export type PageOperations = {
-  execute: (command: Command, signal?: AbortSignal) => Promise<Outcome>
+  execute: (command: PageCommand, signal?: AbortSignal) => Promise<Outcome>
   dispose: () => void
 }
 
@@ -748,7 +748,7 @@ export function makePageOperations(effects: readonly PageEffect[]): PageOperatio
   const consoleBuf = Effect.runSync(consoleBuffer.pipe(Scope.provide(scope)))
   void loadSnapshotLibrary()
 
-  const dispatch = Effect.fnUntraced(function* (command: Command, signal: AbortSignal | undefined) {
+  const dispatch = Effect.fnUntraced(function* (command: PageCommand, signal: AbortSignal | undefined) {
     yield* Effect.try({try: () => signal?.throwIfAborted(), catch: toPageFailure})
     void loadSnapshotLibrary()
     const {action} = command
@@ -774,7 +774,7 @@ export function makePageOperations(effects: readonly PageEffect[]): PageOperatio
     return outcome
   })
 
-  function execute(command: Command, signal?: AbortSignal): Promise<Outcome> {
+  function execute(command: PageCommand, signal?: AbortSignal): Promise<Outcome> {
     return Effect.runPromise(
       dispatch(command, signal).pipe(
         Effect.catch((error) => Effect.succeed(failure(error))),

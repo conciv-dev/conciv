@@ -1,6 +1,6 @@
 import type {RawFrame, SourceLoc} from '@conciv/contract'
 import type {SnapdomPlugin} from '@zumer/snapdom'
-import {Contract} from './core.js'
+import {Contract, Registry, type Json} from './core.js'
 import type {ElementRect, ElementSource, GrabFrame} from './grab.js'
 
 export type {RawFrame, SourceLoc}
@@ -31,6 +31,13 @@ export interface Page {
 }
 
 export const Page = Contract.define<Page, 'page'>('page')
+
+export interface PageOperation {
+  readonly name: string
+  run(input: Json, signal: AbortSignal): Promise<Json>
+}
+
+export const PageOperation = Registry.define<PageOperation>('page.operation')
 
 export type DehydrateOptions = {
   maxDepth?: number
