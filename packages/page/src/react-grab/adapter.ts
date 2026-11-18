@@ -4,7 +4,7 @@ import {captureElement} from './capture-element.js'
 import {groundGrabText} from './grab-text.js'
 import {framesForElement} from '../react-bridge.js'
 import type {ElementSource, Grab, GrabFrame} from '@conciv/grab'
-import type {SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {SourceLoc} from '@conciv/plugin/experimental/page'
 import '../conciv-global.js'
 
 export type GrabSink = (grab: Grab) => void

@@ -2568,6 +2568,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/plugin-page-testkit':
         specifier: workspace:*
         version: link:../plugin-page-testkit
@@ -3074,6 +3077,9 @@ importers:
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -3299,6 +3305,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
@@ -3560,12 +3569,18 @@ importers:
 
   packages/extensions/tanstack:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
       '@conciv/page':
         specifier: workspace:^
         version: link:../../page
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
@@ -4678,6 +4693,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -6145,6 +6163,9 @@ importers:
       '@conciv/extension-compiler':
         specifier: workspace:^
         version: link:../extension-compiler
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

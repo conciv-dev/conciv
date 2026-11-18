@@ -31,7 +31,7 @@ import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
-import {makePageOperations, type PageOperations} from '../src/page/operations.js'
+import {makePageOperations, type PageEffect, type PageOperations} from '../src/page/operations.js'
 import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab} from '@conciv/plugin-page/rpc'
 import {readTab, reportChanges} from '../src/page/tab.js'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
@@ -43,14 +43,13 @@ import {makeHighlight} from '../src/page/highlight.js'
 import {openSource, type SourceOpener} from '../src/page/open-source.js'
 import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
-import type {Registry} from '@conciv/plugin/experimental'
+import type {ReactFiber} from '@conciv/plugin/experimental/page'
 import {tanstackCards} from '../src/tanstack/cards.js'
 import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
 
-const noContributions = {list: () => []}
+const noEffects: readonly PageEffect[] = []
 
 const JsonRecord = z.record(z.string(), z.unknown())
 
@@ -109,12 +108,6 @@ describe.skipIf(inFirefox)('effects', () => {
     }
   }
 
-  const contributed = [installBanner(), installBanner()]
-  function listContributions<T>(registry: Registry<T>): readonly T[]
-  function listContributions(registry: Registry<unknown>): readonly unknown[] {
-    return registry.id === PageEffect.id ? contributed : []
-  }
-
   let driver: PageOperations
 
   const banner = () => page.getByText('fixture banner shown')
@@ -126,7 +119,7 @@ describe.skipIf(inFirefox)('effects', () => {
     readFailure(await driver.execute(command('effect', input)), 'effect')
 
   beforeAll(() => {
-    driver = makePageOperations({list: listContributions})
+    driver = makePageOperations([installBanner()])
   })
 
   afterAll(() => {
@@ -215,7 +208,7 @@ describe.skipIf(inFirefox)('page tools', () => {
     container.appendChild(mount)
     reactRoot = createRoot(mount)
     reactRoot.render(createElement(Fragment, null, createElement(FixtureApp), createElement(ControlledForm)))
-    driver = makePageOperations(noContributions)
+    driver = makePageOperations(noEffects)
     await vi.waitFor(() => {
       if (!document.querySelector('[data-fixture="leaf"]')) throw new Error('fixture not rendered yet')
     })
@@ -1030,7 +1023,7 @@ describe('page console', () => {
     new Promise((resolve) => window.addEventListener(type, () => resolve(), {once: true}))
 
   it('since is inclusive: an entry stamped exactly at since is returned, one past it is not', async () => {
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     console.log('console-marker-inclusive')
     const marker = (await consoleRead(driver)).find((entry) => entry.text === 'console-marker-inclusive')
@@ -1041,7 +1034,7 @@ describe('page console', () => {
   })
 
   it('records what the page threw, uncaught or unhandled, with its message and where it came from', async () => {
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     const thrown = Promise.all([pageEvent('error'), pageEvent('unhandledrejection')])
     setTimeout(() => {
@@ -1062,25 +1055,6 @@ describe('page console', () => {
 })
 
 describe('page effects', () => {
-  it('lists an effect two contributions register under one name exactly once', async () => {
-    const banner = (description: string): PageEffect => ({
-      name: 'banner',
-      description,
-      enabled: () => false,
-      set: () => {},
-    })
-    const contributed = [banner('first banner'), banner('second banner')]
-    function listContributions<T>(registry: Registry<T>): readonly T[]
-    function listContributions(registry: Registry<unknown>): readonly unknown[] {
-      return registry.id === PageEffect.id ? contributed : []
-    }
-    const driver = makePageOperations({list: listContributions})
-    onTestFinished(() => driver.dispose())
-    expect(readValue(await driver.execute(command('effect', {action: 'list'})), 'effect')).toEqual({
-      effects: [{name: 'banner', description: 'first banner', enabled: false}],
-    })
-  })
-
   it('holding Alt inspects the page until Alt is released or Esc is pressed, and not while typing in a textbox', async () => {
     const highlight = makeHighlight({opener: {symbolicate: async () => null, desktop: undefined}, toast: () => {}})
     const layer = document.createElement('div')
@@ -1205,7 +1179,7 @@ describe('a capture in every engine', () => {
   }
 
   const capturedLines = async (): Promise<{firstLine: boolean; secondLine: boolean}> => {
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     const bitmap = await decodeImage(readScreenshot(await driver.execute(command('screenshot', {}))).image)
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
@@ -1313,7 +1287,7 @@ describe.skipIf(inFirefox)('the agent acts on the page like a person', () => {
         endTask()
       },
     })
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     const act = (name: string, input: Record<string, unknown>) => driver.execute(command(name, input, AGENT))
 
@@ -1443,7 +1417,7 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     onTestFinished(endTask)
     onTestFinished(() => dropCursor(AGENT))
     window.scrollTo(0, 0)
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
     await expect.element(cursor()).toBeVisible()
     await scrolledTo(2000)
@@ -1456,7 +1430,7 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     await expect.element(cursor()).toBeVisible()
     await scrolledTo(0)
 
-    const again = makePageOperations(noContributions)
+    const again = makePageOperations(noEffects)
     onTestFinished(again.dispose)
     await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
     await expect.element(cursor()).toBeVisible()
@@ -1469,7 +1443,7 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     onTestFinished(() => {
       console.info = untouched
     })
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     const heard: unknown[][] = []
     const later = (...args: unknown[]) => {
       heard.push(args)
@@ -1542,7 +1516,7 @@ describe.skipIf(inFirefox)('page action queue', () => {
     const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
     onTestFinished(unmount)
     onTestFinished(endTask)
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(driver.dispose)
     const queued = (id: string, index: number, of: number, action: Record<string, unknown>, signal?: AbortSignal) =>
       driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
