@@ -7,7 +7,6 @@
 '@conciv/extension-compiler': patch
 '@conciv/extension-design': patch
 '@conciv/extension-ios': patch
-'@conciv/extension-recorder': patch
 '@conciv/extension-tanstack': patch
 '@conciv/extension-terminal': patch
 '@conciv/extension-whiteboard': patch

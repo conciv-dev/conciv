@@ -2,7 +2,6 @@
 '@conciv/client': patch
 '@conciv/app': patch
 '@conciv/embed': patch
-'@conciv/extension-recorder': patch
 '@conciv/extension-terminal': patch
 ---
 
