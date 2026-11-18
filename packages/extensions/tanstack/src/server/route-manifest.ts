@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
-import type {ServerRouteInfo, ServerRouteKind} from '@conciv/protocol/framework-types'
+import type {ServerRouteInfo, ServerRouteKind} from '@conciv/contract'
 
 const FILE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const
 

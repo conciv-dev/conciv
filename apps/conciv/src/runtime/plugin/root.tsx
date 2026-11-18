@@ -1,8 +1,19 @@
-import {createMemo, createSignal, lazy, on, onCleanup, Show, Suspense, untrack, type ParentProps} from 'solid-js'
+import {
+  createMemo,
+  createResource,
+  createSignal,
+  lazy,
+  on,
+  onCleanup,
+  Show,
+  Suspense,
+  untrack,
+  type ParentProps,
+} from 'solid-js'
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
-import {useApiBase, useAppData, useConnected} from '../../app/context'
+import {useApiBase, useAppData} from '../../app/context'
 import {builtins} from './builtins'
 import {createBundleSource, type BundleSource, type PluginManager} from './bundle-source'
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
@@ -13,12 +24,11 @@ import {HostApisProvider, useHostApis} from './host-apis-context'
 import {createContext, useContext} from 'solid-js'
 
 const PluginsContext = createContext<{
-  address: () => string | undefined
   source: () => PluginExperimentalSource | undefined
   client: () => ConcivClient | undefined
   manager: () => PluginManager | undefined
   onPluginListChange: (listener: () => void) => () => void
-  set: (address: string, plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
+  set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
   reported: () => readonly string[] | undefined
 }>()
@@ -59,7 +69,6 @@ export function usePluginsKnown() {
 export function PluginRoot(props: ParentProps) {
   const apis = createHostApis()
   const apiBase = useApiBase()
-  const connected = useConnected()
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const trusted = createMemo(() => {
@@ -69,28 +78,20 @@ export function PluginRoot(props: ParentProps) {
   })
   const first = Promise.withResolvers<BundleSource>()
   const listeners = new Set<Parameters<InstalledSource['on']>[0]>()
+  const experimentalListeners = new Set<Parameters<PluginExperimentalSource['on']>[0]>()
   const pluginListListeners = new Set<() => void>()
 
   first.promise.catch(() => undefined)
 
-  const engineBase = createMemo(() => {
-    const base = apiBase()
-
-    return trusted() && connected() ? base : undefined
-  })
-
-  const engineAddress = createMemo<string | undefined>(
-    (previous) => engineBase() ?? (previous === apiBase() ? previous : undefined),
-  )
-
   const bundle = createMemo(
-    on(engineBase, (base) => {
-      if (base === undefined) return
+    on(trusted, (isTrusted) => {
+      if (!isTrusted) return
 
-      const created = createBundleSource({client: apis.engine.client, apiBase: base})
+      const created = createBundleSource({client: apis.engine.client, apiBase})
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
+      onCleanup(created.on((message) => experimentalListeners.forEach((listener) => listener(message))))
       onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
       onCleanup(
         created.onSessionsChanged(
@@ -114,19 +115,22 @@ export function PluginRoot(props: ParentProps) {
     },
   }
 
-  const [published, setPublished] = createSignal<{
-    address: string | undefined
+  const experimental: PluginExperimentalSource = {
+    pluginExperimentals: async () => (untrack(bundle) ?? (await first.promise)).pluginExperimentals(),
+    on(listener) {
+      experimentalListeners.add(listener)
+
+      return () => experimentalListeners.delete(listener)
+    },
+  }
+
+  const [ready] = createResource(() => first.promise)
+
+  const [loaded, setLoaded] = createSignal<{
+    settled: boolean
     plugins: readonly PluginExperimental[]
     reserved: readonly string[]
-  }>({address: undefined, plugins: [], reserved: []})
-
-  const loaded = createMemo(() => {
-    const current = published()
-
-    return current.address !== undefined && current.address === engineAddress()
-      ? {settled: true, plugins: current.plugins, reserved: current.reserved}
-      : {settled: false, plugins: [], reserved: []}
-  })
+  }>({settled: false, plugins: [], reserved: []})
 
   const definitions = createMemo<readonly Entry[]>(
     () => [...builtins, ...loaded().plugins.map((plugin) => plugin.definition)],
@@ -142,8 +146,7 @@ export function PluginRoot(props: ParentProps) {
     <HostApisProvider value={apis}>
       <PluginsContext.Provider
         value={{
-          address: engineAddress,
-          source: bundle,
+          source: () => (ready.state === 'ready' ? experimental : undefined),
           client: () => apis.engine.client,
           manager: () => bundle()?.manager,
           onPluginListChange(listener) {
@@ -151,7 +154,7 @@ export function PluginRoot(props: ParentProps) {
 
             return () => pluginListListeners.delete(listener)
           },
-          set: (address, plugins, reserved) => setPublished({address, plugins, reserved}),
+          set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
           reserved: () => loaded().reserved,
           reported: () => {
             if ((login()?.status() ?? 'trusted') !== 'trusted') return undefined
@@ -188,17 +191,17 @@ export function PluginAttachment(props: ParentProps) {
 
   return (
     <PluginAttachmentProvider value={attachment}>
-      <Show when={plugins?.address()} keyed>
-        {(address) => (
+      <Show when={plugins?.source()}>
+        {(source) => (
           <PluginExperimentalLoader
-            source={plugins?.source ?? (() => undefined)}
+            source={source()}
             client={plugins?.client ?? (() => undefined)}
-            onChange={(loaded, reserved) => plugins?.set(address, loaded, reserved)}
+            onChange={(loaded, reserved) => plugins?.set(loaded, reserved)}
           />
         )}
       </Show>
-      <Show when={host.ready()}>
-        <MountedInterface attach={attachment.attach} />
+      <Show when={host.ready() ? attachment.root() : undefined}>
+        {(root) => <MountedInterface attach={() => attachment.attach(root())} />}
       </Show>
       {props.children}
     </PluginAttachmentProvider>

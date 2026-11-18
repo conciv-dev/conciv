@@ -9,7 +9,7 @@ import type {
   RouterCurrent,
   RouterLocation,
   RouteStatus,
-} from '@conciv/protocol/framework-types'
+} from '@conciv/contract'
 
 export type Fiber = {
   memoizedProps?: unknown

@@ -57,6 +57,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/plugin-page-testkit": "workspace:*",
     "@conciv/serve": "workspace:^",
     "@conciv/tsconfig": "workspace:*",

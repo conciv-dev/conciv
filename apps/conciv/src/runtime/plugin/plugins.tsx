@@ -1,4 +1,4 @@
-import {onCleanup, Show, untrack} from 'solid-js'
+import {onCleanup, untrack} from 'solid-js'
 import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {BridgePluginExperimental, BridgePluginExperimentals, Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
@@ -26,7 +26,7 @@ export type PluginExperimental = {
 }
 
 export function PluginExperimentalLoader(props: {
-  source: () => PluginExperimentalSource | undefined
+  source: PluginExperimentalSource
   client: () => ConcivClient | undefined
   onChange: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
 }) {
@@ -65,7 +65,7 @@ export function PluginExperimentalLoader(props: {
 
   const run = (effect: PluginExperimentalEffect) => {
     if (effect.type === 'fetch.initial')
-      return void Promise.try(() => readPluginExperimentals(untrack(props.source))).then(
+      return void Promise.try(() => props.source.pluginExperimentals()).then(
         (experimentals) => dispatch({type: 'initial.resolved', attempt: effect.attempt, experimentals}),
         (cause: unknown) => dispatch({type: 'initial.failed', attempt: effect.attempt, cause}),
       )
@@ -102,50 +102,16 @@ export function PluginExperimentalLoader(props: {
     console.error('[plugin] failed to load plugin experimentals', effect.cause)
   }
 
-  const mounted = untrack(props.source)
-
+  onCleanup(
+    props.source.on((message) => {
+      if (message.type === 'pluginExperimentals')
+        dispatch({type: 'pushed', experimentals: {plugins: message.plugins, reserved: message.reserved}})
+    }),
+  )
   onCleanup(() => dispatch({type: 'disposed'}))
   initial.effects.forEach(run)
 
-  return (
-    <Show when={props.source()} keyed>
-      {(source) => (
-        <PluginExperimentalFollower source={source} mounted={mounted} current={props.source} dispatch={dispatch} />
-      )}
-    </Show>
-  )
-}
-
-function PluginExperimentalFollower(props: {
-  source: PluginExperimentalSource
-  mounted: PluginExperimentalSource | undefined
-  current: () => PluginExperimentalSource | undefined
-  dispatch: (event: PluginExperimentalEvent) => void
-}) {
-  const source = props.source
-
-  onCleanup(
-    source.on((message) => {
-      if (message.type === 'pluginExperimentals')
-        props.dispatch({type: 'pushed', experimentals: {plugins: message.plugins, reserved: message.reserved}})
-    }),
-  )
-
-  if (source !== props.mounted)
-    source.pluginExperimentals().then(
-      (experimentals) => {
-        if (untrack(props.current) === source) props.dispatch({type: 'pushed', experimentals})
-      },
-      (cause: unknown) => console.error('[plugin] failed to read plugin experimentals again', cause),
-    )
-
   return null
-}
-
-function readPluginExperimentals(source: PluginExperimentalSource | undefined) {
-  if (source === undefined) return Promise.reject(new Error('conciv has no engine to list plugin experimentals'))
-
-  return source.pluginExperimentals()
 }
 
 async function evaluate(

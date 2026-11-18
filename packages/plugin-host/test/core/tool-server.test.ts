@@ -1,6 +1,6 @@
 import {describe, expect} from 'vitest'
 import {Effect, Fiber, Queue} from 'effect'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {Agent} from '../../src/core/agent.js'
 import {Location} from '../../src/core/location.js'
 import {Bus} from '../../src/core/bus.js'
@@ -29,7 +29,7 @@ const openInEditor = (file: string, line?: number, column?: number) => {
   opened.push({file, ...(line === undefined ? {} : {line}), ...(column === undefined ? {} : {column})})
 }
 
-const bridge = defineBundlerBridge({
+const bridge = Bundler.defineBundlerBridge({
   id: 'server-tool-test',
   config: () => ({
     root: '/repo',
@@ -54,10 +54,11 @@ const bridge = defineBundlerBridge({
 const activate = (bundler: typeof bridge | undefined) =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
-    const context = yield* PluginHost.make(plugins, ServerTools.Plugin.id).pipe(
+    const context = yield* PluginHost.make(plugins, ServerTools.Plugin.id)
+    yield* ServerTools.Plugin.effect(context).pipe(
       Effect.provideService(PluginHost.BundlerSource, bundler),
+      Effect.provideService(PluginHost.EditorSource, openInEditor),
     )
-    yield* ServerTools.Plugin.effect(context).pipe(Effect.provideService(PluginHost.EditorSource, openInEditor))
     const snapshot = yield* (yield* Tool.Service).snapshot()
     const rpc = yield* Rpc.Service
     const call = (name: string, input: unknown) =>
