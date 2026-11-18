@@ -1972,7 +1972,7 @@ describe('cli', () => {
       }
     })
 
-    it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
+    it('answers the server methods from a real bundler bridge as the tools do', async () => {
       const home = tempDir('conciv-home-')
       const restarts: boolean[] = []
       const bridge = Bundler.defineBundlerBridge({
@@ -2000,7 +2000,6 @@ describe('cli', () => {
         bridge,
         launchEditor: (file, line, column) => launched.push({file, line, ...(column === undefined ? {} : {column})}),
       })
-      const detached = await engineWithTab(home)
       try {
         expect(await pluginCall(attached.root, home, ['server', 'config'])).toEqual({
           code: 0,
@@ -2094,6 +2093,15 @@ describe('cli', () => {
           {file: 'src/other.ts', line: 1},
           {file: 'src/third.ts', line: 1},
         ])
+      } finally {
+        await attached.engine.stop()
+      }
+    })
+
+    it('refuses the server methods when no bundler bridge is attached', async () => {
+      const home = tempDir('conciv-home-')
+      const detached = await engineWithTab(home)
+      try {
         expect(await pluginCall(detached.root, home, ['server', 'config'])).toMatchObject({
           code: 1,
           document: {
@@ -2108,7 +2116,7 @@ describe('cli', () => {
           },
         })
       } finally {
-        await Promise.all([attached.engine.stop(), detached.engine.stop()])
+        await detached.engine.stop()
       }
     })
   })
