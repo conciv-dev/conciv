@@ -7838,7 +7838,6 @@ function fillBrowserStorage(prefix: string): string[] {
     }
   }
   const tail = `${prefix}tail`
-  keys.push(tail)
   for (let value = 'x'; ; value += 'x') {
     try {
       localStorage.setItem(tail, value)
@@ -7846,7 +7845,7 @@ function fillBrowserStorage(prefix: string): string[] {
       break
     }
   }
-  return keys
+  return localStorage.getItem(tail) === null ? keys : [...keys, tail]
 }
 
 function projectStoreKeys(name: string): string[] {
@@ -7919,8 +7918,8 @@ describe('plugins before a core is bound', () => {
     hostKeys.forEach((key) => localStorage.removeItem(key))
     await userEvent.click(page.getByRole('button', {name: 'Save the project note'}))
     await expect.element(page.getByText('Project note: saved note', {exact: true})).toBeVisible()
+    await expect.poll(() => projectStoreKeys('plugin.layout.note')).toHaveLength(1)
     const noteKeys = projectStoreKeys('plugin.layout.note')
-    expect(noteKeys).toHaveLength(1)
     expect(noteKeys[0]).toMatch(/^conciv\.project\.[\w.-]+:plugin\.layout\.note$/)
     expect(localStorage.getItem(noteKeys[0] ?? '')).toBe(JSON.stringify({text: 'saved note'}))
 
@@ -7974,6 +7973,11 @@ describe('plugins before a core is bound', () => {
   })
 
   test('a full browser storage makes room by evicting older conciv values, never the host page', () => {
+    vi.useFakeTimers({toFake: ['Date']})
+    vi.setSystemTime(Date.now() + 60_000)
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const unbound = makeBrowserRpcClient(() => null)
     onTestFinished(unbound.close)
     const STALE = 'conciv.global:plugin.retired.cache'
