@@ -499,6 +499,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       input={inputHandle}
                       focus={focusInput}
                       restored={restored.promise}
+                      grab={paneGrab}
                     />
                     <DraftRestore
                       storage={draftStorage}
