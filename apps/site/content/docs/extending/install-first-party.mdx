@@ -3,9 +3,10 @@ title: Install an extension
 description: Add a published extension with one dependency and one entry in the conciv options.
 ---
 
-Extensions ship as their own packages: the [terminal](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/terminal),
-the whiteboard, the recorder and design. None is on by default. Installing one is two steps that work the same on
-every framework. The TanStack inspector is a plugin, not an extension: add `@conciv/plugin-tanstack` and list it as
+Extensions ship as their own packages: the [whiteboard](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard),
+the test runner, the recorder and design. None is on by default. Installing one is two steps that work the same on
+every framework. The Terminal panel is not on this list: it is built into every widget, with nothing to install. The
+TanStack inspector is a plugin, not an extension: add `@conciv/plugin-tanstack` and list it as
 `plugins: ['@conciv/plugin-tanstack']` (see [Plugins](/docs/plugins)).
 
 <Steps>
@@ -15,7 +16,7 @@ every framework. The TanStack inspector is a plugin, not an extension: add `@con
 ### Add the package
 
 ```bash
-pnpm add @conciv/extension-terminal
+pnpm add @conciv/extension-whiteboard
 ```
 
 </Step>
@@ -28,16 +29,16 @@ Each package's default export is a factory. Call it in the `extensions` array:
 
 ```ts title="vite.config.ts"
 import conciv from '@conciv/it/plugin/vite'
-import terminal from '@conciv/extension-terminal'
+import whiteboard from '@conciv/extension-whiteboard'
 
-export default {plugins: [conciv({extensions: [terminal()]})]}
+export default {plugins: [conciv({extensions: [whiteboard()]})]}
 ```
 
 ```ts title="next.config.ts"
 import {withConciv} from '@conciv/it/plugin/nextjs'
-import terminal from '@conciv/extension-terminal'
+import whiteboard from '@conciv/extension-whiteboard'
 
-export default withConciv({}, {extensions: [terminal()]})
+export default withConciv({}, {extensions: [whiteboard()]})
 ```
 
 Extensions with options take them as the factory argument, for example `design({comparator: 'pixelmatch'})`. The

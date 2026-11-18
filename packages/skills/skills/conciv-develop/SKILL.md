@@ -348,8 +348,8 @@ features: [rpc-and-testing](references/rpc-and-testing.md).
 ## Installing a published extension (someone else's, or your own)
 
 A published extension is one dependency plus one entry in the conciv options. Its default export is
-a factory: `conciv({extensions: [terminal()]})` on Vite, `withConciv(nextConfig, {extensions:
-[terminal()]})` on Next.js. The factory validates its options with zod and returns `{server, client,
+a factory: `conciv({extensions: [whiteboard()]})` on Vite, `withConciv(nextConfig, {extensions:
+[whiteboard()]})` on Next.js. The factory validates its options with zod and returns `{server, client,
 config}`: absolute paths to the package's own `./server` and `./client` entries, plus the parsed
 options. Publishing your own follows the same shape: a `src/index.ts` factory as the `.` export, and
 `./server` and `./client` subpaths (see `apps/site/content/docs/extending/install-first-party.mdx`
