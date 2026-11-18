@@ -411,8 +411,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
         </>
       )
     }
-    const renderPromptSuffix = (source: TurnPrefixSource, besideText: boolean): JSX.Element => (
-      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} bounded={besideText} />
+    const renderPromptSuffix = (source: TurnPrefixSource): JSX.Element => (
+      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} />
     )
     return (
       <div class="contents">

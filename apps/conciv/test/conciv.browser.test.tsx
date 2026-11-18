@@ -8809,7 +8809,6 @@ module.exports = {default: {setup(ctx) {
     await expect
       .element(page.getByRole('article', {name: 'You: 6 notes', exact: true}))
       .toMatchTextContent(/alone note 1[\s\S]*alone note 6/)
-    await expect.element(control('Show more')).not.toBeInTheDocument()
 
     await tab('Fixture tools').click()
     await control('Attach six notes').click()
@@ -8818,11 +8817,8 @@ module.exports = {default: {setup(ctx) {
     await userEvent.click(editor())
     await userEvent.keyboard('{Enter}')
     await expect.element(typed('six notes')).toBeVisible()
-    await expect.element(sentCard('note number 5')).toBeVisible()
-    await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
-    await control('Show more').click()
+    await expect.element(sentLists().last().getByRole('listitem').nth(5)).toBeVisible()
     await expect.element(sentCard('note number 6')).toBeVisible()
-    await expect.element(control('Show more')).not.toBeInTheDocument()
     await expect
       .element(sentLists().last().getByRole('listitem').first().getByText('note number 1', {exact: true}))
       .toBeVisible()
@@ -8837,9 +8833,8 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
     await expect.element(sentCard('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
     await expect.element(sentCard('note number 5')).toBeVisible()
-    await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
+    await expect.element(sentCard('note number 6')).toBeVisible()
     await expect.element(sentCard('alone note 6')).toBeVisible()
-    await expect.element(control('Show more')).toBeVisible()
 
     const aloneId = await createSession(rpc)
     harness.dispose()
