@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {differenceBy, intersectionBy, isEqual, keyBy, union, without} from 'es-toolkit'
+import {differenceBy, intersectionBy, isEqual, keyBy, union} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
 import type {DraftRow} from '@conciv/contract'
@@ -217,7 +217,7 @@ function makeLocalDraftWriter(
     const current = document.draft
     if (!current || !sameContent(current, recorded) || appData.sessionDeleted(sessionId)) return
     const updatedAt = Date.now()
-    persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
+    persisted.setStore('draft', 'sent', (sent) => [...sent, updatedAt])
     void keep(writeDocument)
       .catch((error: unknown) => {
         console.error('[conciv] could not keep the draft stamp in the local draft', error)
@@ -403,13 +403,19 @@ function maySend(phase: RestorePhase, typed: DraftContent | null): boolean {
 
 const EMPTY_LOCAL_DRAFT: LocalDraft = {text: '', selectionStart: 0, selectionEnd: 0, attachments: [], sent: []}
 
+function withoutOneSend(sent: number[], updatedAt: number): number[] {
+  const at = sent.indexOf(updatedAt)
+  if (at === -1) return sent
+  return sent.toSpliced(at, 1)
+}
+
 function settledDraft(draft: LocalDraft, updatedAt: number, saved: boolean): LocalDraft {
-  if (!saved) return {...draft, sent: without(draft.sent, updatedAt)}
+  if (!saved) return {...draft, sent: withoutOneSend(draft.sent, updatedAt)}
   return {...draft, syncedAt: updatedAt, sent: draft.sent.slice(draft.sent.indexOf(updatedAt) + 1)}
 }
 
 function withSent(draft: LocalDraft, updatedAt: number): LocalDraft {
-  return {...draft, sent: union(draft.sent, [updatedAt])}
+  return {...draft, sent: [...draft.sent, updatedAt]}
 }
 
 function isEmptied(typed: DraftContent): boolean {
