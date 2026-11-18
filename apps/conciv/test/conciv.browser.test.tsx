@@ -7805,6 +7805,56 @@ declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof typedConnectProbe> {}
 }
 
+const projectNoteBundle = `const {Slot, Store} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+const {createRenderEffect} = require('solid-js')
+const {z} = require('zod')
+module.exports = {default: {stores: {
+  note: Store.project(z.object({text: z.string()}), {text: 'none'}),
+}, setup(ctx) {
+  const shown = document.createElement('p')
+  createRenderEffect(() => {
+    shown.textContent = 'Project note: ' + ctx.stores.note.value.text
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => shown})
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => createComponent(ctx.ui.Button, {onClick: () => ctx.stores.note.set({text: 'saved note'}), children: 'Save the project note'}),
+  })
+}}}
+`
+
+function fillBrowserStorage(prefix: string): string[] {
+  const keys: string[] = []
+  for (const size of [1 << 19, 1 << 14, 1 << 9, 1 << 4]) {
+    for (;;) {
+      const key = `${prefix}${keys.length}`
+      try {
+        localStorage.setItem(key, 'x'.repeat(size))
+        keys.push(key)
+      } catch {
+        break
+      }
+    }
+  }
+  const tail = `${prefix}tail`
+  keys.push(tail)
+  for (let value = 'x'; ; value += 'x') {
+    try {
+      localStorage.setItem(tail, value)
+    } catch {
+      break
+    }
+  }
+  return keys
+}
+
+function projectStoreKeys(name: string): string[] {
+  return Array.from({length: localStorage.length}, (_, index) => localStorage.key(index) ?? '').filter(
+    (key) => key.startsWith('conciv.project') && key.endsWith(`:${name}`),
+  )
+}
+
 describe('plugins before a core is bound', () => {
   const coreBase = bootedCore('plugins-before-bind', {
     tty: true,
@@ -7812,7 +7862,12 @@ describe('plugins before a core is bound', () => {
       {id: 'first-model', name: 'First model'},
       {id: 'calm-model', name: 'Calm model'},
     ],
-    files: {'conciv/plugins/neighbour.ts': "export default {id: 'neighbour', async setup() {}}\n"},
+    plugins: ['./layout'],
+    files: {
+      'conciv/plugins/neighbour.ts': "export default {id: 'neighbour', async setup() {}}\n",
+      'layout/index.ts': "export default {id: 'layout', async setup() {}}\n",
+      'layout/plugin-experimental.js': projectNoteBundle,
+    },
   })
   const harness = createShellHarness(coreBase)
 
@@ -7822,13 +7877,23 @@ describe('plugins before a core is bound', () => {
   const bar = () => page.getByRole('toolbar', {name: 'Session status'})
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const picker = () => bar().getByRole('button', {name: 'Select model'})
-  const enginePluginStoreReads = () =>
-    coreControl.rpcCallCount(['settings', 'all'], {scope: 'global', namespace: 'plugins'})
+  const notSaved = () => page.getByText('Some changes are not being saved', {exact: true})
+  const enginePluginStoreReads = (scope: 'global' | 'project') =>
+    coreControl.rpcCallCount(['settings', 'all'], {scope, namespace: 'plugins'})
+  const pick = async (name: string) => {
+    await picker().click()
+    await page.getByRole('option', {name}).click()
+  }
 
-  test('a built-in plugin with a global store starts in connect mode, reads its value from this browser, and the installed plugins load once the core is bound', async () => {
+  test('a built-in plugin with a global store starts in connect mode and reads its value from this browser, a project store waits for the core, a write the full storage refuses is told once, and the installed plugins load once the core is bound', async () => {
     await page.viewport(1000, 900)
     localStorage.setItem(PREFS_KEY, JSON.stringify({model: 'calm-model'}))
-    onTestFinished(() => localStorage.removeItem(PREFS_KEY))
+    const hostKeys: string[] = []
+    onTestFinished(() => {
+      hostKeys.forEach((key) => localStorage.removeItem(key))
+      projectStoreKeys('plugin.layout.note').forEach((key) => localStorage.removeItem(key))
+      localStorage.removeItem(PREFS_KEY)
+    })
     localStorage.removeItem('conciv:settings-tab')
     harness.mountShell('/panel/connect?open=true', [typedConnectProbe], {connect: true})
 
@@ -7839,44 +7904,101 @@ describe('plugins before a core is bound', () => {
     await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
     await terminalTab().click()
     await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
-    expect(await enginePluginStoreReads()).toBe(0)
+    expect(await enginePluginStoreReads('global')).toBe(0)
+    await expect.element(page.getByText('Project note: none', {exact: true}), {timeout: 15_000}).toBeVisible()
+    expect(await enginePluginStoreReads('project')).toBe(0)
+
+    localStorage.removeItem(PREFS_KEY)
+    hostKeys.push(...fillBrowserStorage('host.page.filler.'))
+    await pick('First model')
+    await expect.element(notSaved()).toBeVisible()
+    await expect.element(picker()).toHaveTextContent('First model')
+    expect(hostKeys.filter((key) => localStorage.getItem(key) === null)).toEqual([])
+    expect(localStorage.getItem(PREFS_KEY)).toBeNull()
+
+    hostKeys.forEach((key) => localStorage.removeItem(key))
+    await userEvent.click(page.getByRole('button', {name: 'Save the project note'}))
+    await expect.element(page.getByText('Project note: saved note', {exact: true})).toBeVisible()
+    const noteKeys = projectStoreKeys('plugin.layout.note')
+    expect(noteKeys).toHaveLength(1)
+    expect(noteKeys[0]).toMatch(/^conciv\.project\.[\w.-]+:plugin\.layout\.note$/)
+    expect(localStorage.getItem(noteKeys[0] ?? '')).toBe(JSON.stringify({text: 'saved note'}))
 
     await userEvent.click(page.getByRole('link', {name: 'Settings'}))
     await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
     await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
   }, 60_000)
 
-  test('a project store opens from this browser with no core, imports an older key, and is removed', () => {
+  test('a project store keeps each project apart, imports an older key of its project, and is removed', () => {
     const unbound = makeBrowserRpcClient(() => null)
     onTestFinished(unbound.close)
-    const OLDER = 'conciv.project:plugin.fixture.older'
-    const CURRENT = 'conciv.project:plugin.fixture.layout'
-    localStorage.setItem(OLDER, JSON.stringify({columns: 3}))
-    onTestFinished(() => {
-      localStorage.removeItem(OLDER)
-      localStorage.removeItem(CURRENT)
-    })
+    onTestFinished(() =>
+      ['plugin.fixture.layout', 'plugin.fixture.older'].forEach((name) =>
+        projectStoreKeys(name).forEach((key) => localStorage.removeItem(key)),
+      ),
+    )
     const schema = z.object({columns: z.number()})
-    const target = {...Persist.project('plugin.fixture.layout'), copyFrom: [{key: 'plugin.fixture.older'}]}
+    const first = {
+      ...Persist.project('/work/first', 'plugin.fixture.layout'),
+      copyFrom: [{key: 'plugin.fixture.older'}],
+    }
+    const second = {
+      ...Persist.project('/work/second', 'plugin.fixture.layout'),
+      copyFrom: [{key: 'plugin.fixture.older'}],
+    }
+    const open = (target: Parameters<typeof persisted>[0]) =>
+      createRoot((dispose) => {
+        onTestFinished(dispose)
+        const [store, setStore, , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+        expect(ready()).toBe(true)
+        const save = (columns: number) => {
+          setStore({columns})
+          dispose()
+        }
+        return {store, save}
+      })
+
+    open(Persist.project('/work/first', 'plugin.fixture.older')).save(3)
+
+    expect(open(first).store.columns).toBe(3)
+    expect(open(Persist.project('/work/first', 'plugin.fixture.older')).store.columns).toBe(2)
+    expect(open(second).store.columns).toBe(2)
+
+    open(second).save(5)
+    expect(open(first).store.columns).toBe(3)
+    expect(open(second).store.columns).toBe(5)
+
+    removePersisted(first, unbound.rpc)
+    expect(open(first).store.columns).toBe(2)
+    expect(open(second).store.columns).toBe(5)
+  })
+
+  test('a full browser storage makes room by evicting older conciv values, never the host page', () => {
+    const unbound = makeBrowserRpcClient(() => null)
+    onTestFinished(unbound.close)
+    const STALE = 'conciv.global:plugin.retired.cache'
+    const FRESH = 'conciv.global:plugin.fixture.fresh'
+    const hostKeys: string[] = []
+    onTestFinished(() => [STALE, FRESH, ...hostKeys].forEach((key) => localStorage.removeItem(key)))
+    localStorage.setItem(STALE, 'x'.repeat(1 << 20))
+    hostKeys.push(...fillBrowserStorage('host.page.filler.'))
 
     createRoot((dispose) => {
       onTestFinished(dispose)
-      const [store, , , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+      const [, setStore, , ready] = persisted(
+        Persist.global('plugin.fixture.fresh'),
+        z.object({text: z.string()}),
+        {text: 'none'},
+        unbound.rpc,
+      )
       expect(ready()).toBe(true)
-      expect(store.columns).toBe(3)
-      expect(localStorage.getItem(CURRENT)).toBe(JSON.stringify({columns: 3}))
-      expect(localStorage.getItem(OLDER)).toBeNull()
+      setStore({text: 'fresh'})
+      dispose()
     })
 
-    removePersisted(target, unbound.rpc)
-    expect(localStorage.getItem(CURRENT)).toBeNull()
-
-    createRoot((dispose) => {
-      onTestFinished(dispose)
-      const [store, , , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
-      expect(ready()).toBe(true)
-      expect(store.columns).toBe(2)
-    })
+    expect(localStorage.getItem(FRESH)).toBe(JSON.stringify({text: 'fresh'}))
+    expect(localStorage.getItem(STALE)).toBeNull()
+    expect(hostKeys.filter((key) => localStorage.getItem(key) === null)).toEqual([])
   })
 })
 
