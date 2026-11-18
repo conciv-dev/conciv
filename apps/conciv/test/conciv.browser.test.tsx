@@ -7733,6 +7733,26 @@ describe('terminal panel for a plain shell with no models', () => {
     await expect.element(bar().getByRole('button', {name: 'Select model'})).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a terminal opened in a chat too short to show it starts once the user makes the chat taller', async () => {
+    const hostTop = () => page.getByText('Host page top', {exact: true})
+    const hostSpot = Object.assign(document.createElement('p'), {textContent: 'Host page top'})
+    document.body.prepend(hostSpot)
+    onTestFinished(() => {
+      hostSpot.remove()
+      localStorage.removeItem('conciv-modal-height')
+    })
+    await page.viewport(1000, 200)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(terminalInput(), {timeout: 15_000}).toBeInTheDocument()
+
+    await page.viewport(1000, 700)
+    await userEvent.dragAndDrop(page.getByRole('separator', {name: 'Resize chat height'}), hostTop())
+    await expect.element(output('SPAWNEND').first(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(page.getByText('Couldn’t open the terminal.')).not.toBeInTheDocument()
+  }, 60_000)
+
   test('what the CLI paints as it starts is sized for the terminal the user sees', async () => {
     await page.viewport(1000, 700)
     const sessionId = await createSession(coreRpc(coreBase()))
