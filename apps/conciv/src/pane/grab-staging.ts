@@ -132,6 +132,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       if (entry.id !== null) drop(entry)
       return
     }
+    setPending((current) => [...current])
     await settle(entry)
   }
 
@@ -164,7 +165,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       return
     }
     const entry = pending().find(
-      (candidate) => candidate.id === null && (candidate.grounded ?? candidate.grab) === grab,
+      (candidate) => candidate.id === null && (candidate.grab === grab || candidate.grounded === grab),
     )
     if (entry) drop(entry)
   }
