@@ -7876,6 +7876,7 @@ describe('plugins before a core is bound', () => {
   const bar = () => page.getByRole('toolbar', {name: 'Session status'})
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const picker = () => bar().getByRole('button', {name: 'Select model'})
+  const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const notSaved = () => page.getByText('Some changes are not being saved', {exact: true})
   const enginePluginStoreReads = (scope: 'global' | 'project') =>
     coreControl.rpcCallCount(['settings', 'all'], {scope, namespace: 'plugins'})
@@ -7903,6 +7904,7 @@ describe('plugins before a core is bound', () => {
     await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
     await terminalTab().click()
     await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
     expect(await enginePluginStoreReads('global')).toBe(0)
     await expect.element(page.getByText('Project note: none', {exact: true}), {timeout: 15_000}).toBeVisible()
     expect(await enginePluginStoreReads('project')).toBe(0)
