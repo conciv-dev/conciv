@@ -35,7 +35,7 @@ export default Plugin.define({
     const overlay: Slot = {
       at: 'page.overlay',
       get hides() {
-        return visible() && Boolean(comments()?.threadOpen() || comments()?.prompting())
+        return visible() && Boolean(comments()?.threadOpen() || comments()?.inboxOpen() || comments()?.prompting())
       },
       render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }

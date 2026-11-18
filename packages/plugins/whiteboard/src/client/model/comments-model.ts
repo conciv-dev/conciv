@@ -1,7 +1,7 @@
 import {createMemo, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
-import {maxBy} from 'es-toolkit'
+import {maxBy, uniq} from 'es-toolkit'
 import {screenToScene, type Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
 import {useWhiteboardDb} from '../db.js'
@@ -21,8 +21,11 @@ export type CommentsModel = ReturnType<typeof createCommentsModel>
 
 export type ComposeTarget = {source: {file: string; line: number | null} | null; screen: {x: number; y: number}}
 
+export type InboxSort = 'date' | 'unread'
+
 export type ChatCover = {
   threadOpen: Accessor<boolean>
+  inboxOpen: Accessor<boolean>
   prompting: Accessor<boolean>
   addComment: (target: ComposeTarget, text: string, reveal: boolean) => void
 }
@@ -42,10 +45,14 @@ export function createCommentsModel(room: Accessor<string>) {
     openCid: string | null
     viewport: Viewport | undefined
     pinButtons: Partial<Record<string, HTMLButtonElement>>
+    inbox: {open: boolean; sort: InboxSort; showResolved: boolean}
+    pan: ((sceneX: number, sceneY: number) => void) | undefined
   }>({
     openCid: null,
     viewport: undefined,
     pinButtons: {},
+    inbox: {open: false, sort: 'date', showResolved: false},
+    pan: undefined,
   })
 
   const findRoot = (cid: string): CommentRow | undefined => comments().find((comment) => comment.cid === cid)
@@ -62,6 +69,13 @@ export function createCommentsModel(room: Accessor<string>) {
       .filter((comment) => !comment.parentId && comment.status !== 'resolved')
       .toSorted((left, right) => right.createdAt - left.createdAt),
   )
+  const inboxThreads = createMemo(() => {
+    const byDate = comments()
+      .filter((comment) => !comment.parentId && (state.inbox.showResolved || comment.status !== 'resolved'))
+      .toSorted((left, right) => right.createdAt - left.createdAt)
+    if (state.inbox.sort === 'date') return byDate
+    return byDate.toSorted((left, right) => Number(isUnread(right.cid)) - Number(isUnread(left.cid)))
+  })
   const aiLabel = (comment: CommentRow): string => comment.authorName ?? comment.authorModel ?? 'AI'
   const humanLabel = (comment: CommentRow): string =>
     comment.authorId && comment.authorId === accountId() ? 'You' : (comment.authorName ?? 'Human')
@@ -85,6 +99,15 @@ export function createCommentsModel(room: Accessor<string>) {
   }
   const markRead = (threadId: string): void =>
     markThreadRead(db, {room: room(), accountId: accountId(), threadId, reads: reads()})
+  const markAllRead = (): void => inboxThreads().forEach((thread) => markRead(thread.cid))
+  const replyCount = (cid: string): number => Math.max(0, collectThread(cid).length - 1)
+  const lastActivityAt = (cid: string): number | undefined =>
+    maxBy(collectThread(cid), (comment) => comment.createdAt)?.createdAt
+  const threadParticipants = (cid: string): string[] => uniq(collectThread(cid).map(displayName))
+  const panToThread = (cid: string): void => {
+    const pin = pins().find((row) => row.cid === cid)
+    if (pin) state.pan?.(pin.x, pin.y)
+  }
 
   const openThread = (cid: string): void => {
     setState('openCid', cid)
@@ -157,12 +180,25 @@ export function createCommentsModel(room: Accessor<string>) {
     removeComment,
     closeThread,
     toggleThread,
+    openThread,
     registerPin,
     pinButton,
     openPinButton,
     movePin,
     detachAnchor,
     isUnread,
+    inboxThreads,
+    markAllRead,
+    replyCount,
+    lastActivityAt,
+    threadParticipants,
+    panToThread,
+    inbox: () => state.inbox,
+    inboxOpen: () => state.inbox.open,
+    setInboxOpen: (open: boolean) => void setState('inbox', 'open', open),
+    setInboxSort: (sort: InboxSort) => void setState('inbox', 'sort', sort),
+    setShowResolved: (showResolved: boolean) => void setState('inbox', 'showResolved', showResolved),
+    registerPan: (pan: (sceneX: number, sceneY: number) => void) => void setState('pan', () => pan),
     addComment,
     drag,
     prompting: drag.prompting,

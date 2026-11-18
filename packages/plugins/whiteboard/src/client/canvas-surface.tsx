@@ -7,6 +7,7 @@ import {Island} from '../canvas/island.js'
 import {WhiteboardDbProvider} from './db.js'
 import {CommentsProvider, useComments} from './model/comments.js'
 import {PinsLayer} from './pins/pins.js'
+import {Inbox, InboxToggle} from './inbox.js'
 import type {ChatCover} from './model/comments-model.js'
 import {ThreadPopover} from './pins/thread.js'
 
@@ -51,10 +52,13 @@ function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {c
         theme={ctx.appearance.mode()}
         visible={props.visible}
         onViewport={model.setViewport}
+        registerPan={model.registerPan}
       />
       <Portal mount={props.layer}>
         <Show when={props.visible}>
+          <InboxToggle />
           <PinsLayer />
+          <Inbox />
         </Show>
         <ThreadPopover visible={props.visible} />
       </Portal>

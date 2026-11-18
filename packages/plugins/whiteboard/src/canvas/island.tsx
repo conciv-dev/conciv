@@ -93,6 +93,7 @@ export function Island(props: {
   theme: Theme
   visible: boolean
   onViewport: (viewport: Viewport) => void
+  registerPan: (pan: (sceneX: number, sceneY: number) => void) => void
 }): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
@@ -357,6 +358,16 @@ export function Island(props: {
             }
             pushViewport()
             unsubscribeScroll = instance.onScrollChange(pushViewport)
+            props.registerPan((sceneX, sceneY) => {
+              const state = instance.getAppState()
+              instance.updateScene({
+                appState: {
+                  scrollX: state.width / (2 * state.zoom.value) - sceneX,
+                  scrollY: state.height / (2 * state.zoom.value) - sceneY,
+                },
+                captureUpdate: CAPTURE_NEVER,
+              })
+            })
             requestAnimationFrame(() => {
               if (!bufferedScene) return
               applyRemote(bufferedScene)

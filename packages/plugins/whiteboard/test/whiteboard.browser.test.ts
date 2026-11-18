@@ -687,6 +687,13 @@ describe('the comments of the whiteboard plugin', () => {
       await openChat(page)
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+      const inboxToggle = page.getByRole('button', {name: /^Comments/})
+      const inbox = page.getByRole('complementary', {name: 'Comments inbox'})
+      await inboxToggle.click()
+      await expect(inbox.getByText('No comments yet')).toBeVisible()
+      await expect(inboxToggle).toBeHidden()
+      await inbox.getByRole('button', {name: 'Close inbox'}).click()
+      await expect(inbox).toBeHidden()
       await page.mouse.click(300, 760)
       await page.keyboard.press('r')
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeChecked()
@@ -863,6 +870,71 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByText('Comment added to the whiteboard')).toBeVisible()
       await expect(rectangle).toBeHidden()
       await expect(page.getByText('silent note')).toBeHidden()
+
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+      await expect(rectangle).toBeVisible()
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'agent-third'})
+      const farPin = page.getByRole('button', {name: /^AI comment, open/})
+      await expect(farPin).toHaveCount(0)
+      for (const note of [
+        {cid: 'inbox-first', text: 'first inbox note', authorModel: 'Opus', x: 4000, y: 3000},
+        {cid: 'inbox-second', text: 'second inbox note', authorModel: 'Sonnet', x: 640, y: 360},
+      ]) {
+        await widget.kit.callTool('whiteboard_comment_create', {
+          cid: note.cid,
+          kind: 'floating',
+          parts: [{type: 'text', text: note.text}],
+          x: note.x,
+          y: note.y,
+          authorKind: 'ai',
+          authorModel: note.authorModel,
+        })
+      }
+      await expect(inboxToggle).toHaveAccessibleName(/^Comments\s*2/)
+      await inboxToggle.click()
+      const feed = inbox.getByRole('button', {name: /inbox note/})
+      const opus = inbox.getByRole('button', {name: /^Opus/})
+      const sonnet = inbox.getByRole('button', {name: /^Sonnet/})
+      await expect(feed).toHaveText([/second inbox note/, /first inbox note/])
+      await expect(opus).toHaveAccessibleName(/unread/)
+      await expect(opus).not.toContainText(/repl/)
+      await sonnet.click()
+      await expect(reply).toBeFocused()
+      await reply.pressSequentially('on it')
+      await page.keyboard.press('Enter')
+      await expect(sonnet).toContainText('1 reply')
+      await expect(sonnet).not.toHaveAccessibleName(/unread/)
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
+      const filter = inbox.getByRole('button', {name: 'Filter comments'})
+      await filter.click()
+      await page.getByRole('menuitemradio', {name: 'Sort by unread'}).click()
+      await expect(feed).toHaveText([/first inbox note/, /second inbox note/])
+      await sonnet.click()
+      await page.getByRole('button', {name: 'Resolve thread'}).click()
+      await expect(feed).toHaveText([/first inbox note/])
+      await filter.click()
+      await page.getByRole('menuitemcheckbox', {name: 'Show resolved comments'}).click()
+      await expect(feed).toHaveText([/first inbox note/, /second inbox note/])
+      const search = inbox.getByRole('searchbox', {name: 'Quick search'})
+      await search.click()
+      await search.pressSequentially('zzznomatch')
+      await expect(inbox.getByText('No comments match “zzznomatch”.')).toBeVisible()
+      await search.press('ControlOrMeta+a')
+      await search.press('Backspace')
+      await search.pressSequentially('first')
+      await expect(feed).toHaveText([/first inbox note/])
+      await search.press('ControlOrMeta+a')
+      await search.press('Backspace')
+      await expect(inbox.getByRole('button', {name: /unread/})).toHaveCount(1)
+      await inbox.getByRole('button', {name: 'Mark all as read'}).click()
+      await expect(inbox.getByRole('button', {name: /unread/})).toHaveCount(0)
+      await expect(farPin).not.toBeInViewport()
+      await opus.click()
+      await expect(thread.getByText('first inbox note')).toBeVisible()
+      await expect(farPin).toBeInViewport()
+      await inbox.getByRole('button', {name: 'Close inbox'}).click()
+      await expect(inboxToggle).toHaveAccessibleName('Comments')
     } finally {
       await widget.close()
     }
