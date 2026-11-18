@@ -1,5 +1,5 @@
 import {execFile, execFileSync} from 'node:child_process'
-import {copyFileSync, existsSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
 import {promisify} from 'node:util'
 
@@ -252,6 +252,20 @@ function packedConcivName(block: string): string[] {
   return name === undefined ? [] : [name]
 }
 
+function withoutPackedIntegrity(lockText: string): string {
+  return lockText
+    .split('\n\n')
+    .map((block) => (packedConcivName(block).length === 0 ? block : block.split('\n').map(withoutIntegrity).join('\n')))
+    .join('\n\n')
+}
+
+function withoutIntegrity(line: string): string {
+  const resolution = RESOLUTION_LINE.exec(line)?.[1]
+  if (resolution === undefined) return line
+  const fields = resolution.split(', ').filter((field) => !field.startsWith('integrity: '))
+  return `    resolution: {${fields.join(', ')}}`
+}
+
 function entryResolution(block: string): [string, string][] {
   const [head = '', ...body] = block.split('\n').filter((line) => line !== '')
   const key = PACKAGE_CATALOG_ENTRY.exec(head)?.[1]
@@ -310,9 +324,10 @@ export function assertTrustedResolutions(root: string): void {
 export function assertLockNotDrifted(root: string, lockPath: string): void {
   if (!existsSync(lockPath)) return
   assertTrustedResolutions(root)
-  const diff = lockDrift(readFileSync(lockPath, 'utf8'), readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
+  const producedText = readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')
+  const diff = lockDrift(readFileSync(lockPath, 'utf8'), producedText)
   if (diff.length === 0) return
-  if (process.env.GITHUB_ACTIONS === 'true') copyFileSync(join(root, 'pnpm-lock.yaml'), lockPath)
+  if (process.env.GITHUB_ACTIONS === 'true') writeFileSync(lockPath, withoutPackedIntegrity(producedText))
   throw new Error(
     [
       'packed fixture install resolved different packages than the committed lockfile',

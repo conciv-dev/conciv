@@ -4,7 +4,8 @@ import {CacheEntry} from '@conciv/plugin-tanstack/rpc'
 import {Chip, ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {RelativeTime, TruncatedText} from '@conciv/ui-kit-system'
-import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue, countLabel} from './card-shared.js'
+import {CardNote, CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
+import {countLabel} from '../page/cards/shared.js'
 
 const EntrySchema = CacheEntry.extend({
   state: CacheEntry.shape.state.default('fresh'),

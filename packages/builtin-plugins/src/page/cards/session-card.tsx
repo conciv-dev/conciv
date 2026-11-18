@@ -11,7 +11,7 @@ import {
   type GroupRenderProps,
 } from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {TruncatedText} from '@conciv/ui-kit-system'
+import {StatusDot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   CARD_HEADLINE_TEXT,
   CardHeadline,
@@ -28,7 +28,7 @@ import {
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageToolMeta, pageVerbGerund} from './page-tool-names.js'
-import {cardErrorMessage, mutatingBadge} from './shared.js'
+import {cardErrorMessage, countLabel, mutatingBadge} from './shared.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
 const SESSION_LABEL = {
@@ -44,21 +44,16 @@ const SESSION_META: ToolViewMeta = {
   mutating: true,
 }
 
-const ACTION_FORMAT = new Intl.NumberFormat()
-const ACTION_PLURAL = new Intl.PluralRules('en')
-
 const HEAD = 'flex flex-1 items-center gap-2 min-w-0 ps-4 h-9'
 const HEAD_DOTS = 'flex gap-2 flex-none'
-const HEAD_DOT = 'size-2.5 rounded-full'
 const HEAD_TITLE = `flex-1 min-w-[9ch] text-[length:var(--chat-text-md)] [color:var(--chat-text)] ${CARD_HEADLINE_TEXT}`
-const HEAD_COUNT = `hidden @[22rem]:inline flex-none min-w-[9ch] text-end whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] tabular-nums ${CARD_HEADLINE_TEXT}`
+const HEAD_COUNT = `hidden @sm:inline flex-none min-w-[9ch] text-end whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] text-chat-text-3 tabular-nums ${CARD_HEADLINE_TEXT}`
 const HEAD_SPACER = 'flex-1 min-w-0 flex self-stretch my-1.5'
-const HEAD_URL =
-  'hidden @[26rem]:inline-flex anim-combo items-center flex-1 min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] [background:var(--chat-fill)] [box-shadow:inset_0_0_0_1px_var(--chat-line-soft)] rounded-[var(--chat-radius-pill)] px-3'
+const HEAD_URL = 'hidden @md:inline-flex anim-combo flex-1'
 const HEAD_STATE =
-  'hidden @[20rem]:grid flex-none min-w-[9ch] justify-items-end whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]'
+  'hidden @xs:grid flex-none min-w-[9ch] justify-items-end whitespace-nowrap [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]'
 const HEAD_STATE_LIVE = '[color:var(--chat-accent)]'
-const HEAD_STATE_SETTLED = '[color:var(--chat-text-3)]'
+const HEAD_STATE_SETTLED = 'text-chat-text-3'
 const ACTING_LABEL = 'acting'
 
 const RAIL =
@@ -77,26 +72,26 @@ const ROW_DELAYS = [
   'animate-delay-[175ms]',
 ] as const
 const ROW_GLYPH =
-  'flex-none size-5.5 inline-flex items-center justify-center rounded-md [border:1px_solid_var(--chat-line)] text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] tabular-nums [color:var(--chat-text-3)]'
+  'flex-none size-5.5 inline-flex items-center justify-center rounded-md [border:1px_solid_var(--chat-line)] text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] tabular-nums text-chat-text-3'
 const ROW_GLYPH_DONE = `${ROW_GLYPH} [border:1px_solid_var(--chat-success)]`
 const ROW_GLYPH_ERROR = `${ROW_GLYPH} [border:1px_solid_var(--chat-danger-line)]`
 const ROW_GLYPH_ACTIVE = `${ROW_GLYPH} [border:1px_solid_color-mix(in_srgb,var(--chat-accent)_50%,transparent)]`
 const ROW_VERB =
   'inline-flex items-center gap-1 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [transition:color_140ms_var(--chat-ease)]'
-const ROW_VERB_NEUTRAL = `${ROW_VERB} [color:var(--chat-text-3)] group-hover:[color:var(--chat-text-2)]`
+const ROW_VERB_NEUTRAL = `${ROW_VERB} text-chat-text-3 group-hover:text-chat-text-2`
 const ROW_VERB_DONE = `${ROW_VERB} [color:var(--chat-success)]`
 const ROW_VERB_ERROR = `${ROW_VERB} [color:var(--chat-danger)]`
 const ROW_VERB_LABEL = 'min-w-0 truncate whitespace-nowrap'
 const ROW_TARGET = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text)]'
 const ROW_TARGET_ERROR = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-danger)]'
-const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] [color:var(--chat-text-3)]'
+const ROW_TARGET_ABORTED = 'flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] text-chat-text-3'
 const ROW_TARGET_ACTIVE = `flex-1 min-w-0 truncate text-[length:var(--chat-text-sm)] ${SHIMMER}`
-const ROW_VALUE = 'hidden @[24rem]:inline-flex anim-combo min-w-0 leading-none'
+const ROW_VALUE = 'hidden @sm:inline-flex anim-combo min-w-0 leading-none'
 
 const RoutePayload = pageOperation('route').output.pick({href: true})
 
 function actionsLabel(count: number): string {
-  return `${ACTION_FORMAT.format(count)} ${ACTION_PLURAL.select(count) === 'one' ? 'action' : 'actions'}`
+  return countLabel(count, 'action', 'actions')
 }
 
 function displayLocation(href: string): string {
@@ -242,22 +237,16 @@ function SessionHeader(props: {
   return (
     <span class={HEAD}>
       <span class={HEAD_DOTS} aria-hidden="true">
-        <span class={`${HEAD_DOT} [background:var(--chat-danger)]`} />
-        <span class={`${HEAD_DOT} [background:var(--chat-warn)]`} />
-        <span class={`${HEAD_DOT} [background:var(--chat-success)]`} />
+        <StatusDot tone="danger" />
+        <StatusDot tone="warn" />
+        <StatusDot tone="success" />
       </span>
       <CardHeadline class="flex-1">
         <MorphLabel text={props.title} boxClass={HEAD_TITLE} />
         <span class={HEAD_COUNT}>{props.count}</span>
       </CardHeadline>
       <span class={HEAD_SPACER}>
-        <Show when={props.url}>
-          {(url) => (
-            <span class={HEAD_URL}>
-              <span class="min-w-0 truncate">{url()}</span>
-            </span>
-          )}
-        </Show>
+        <Show when={props.url}>{(url) => <Chip kind="pill" value={url()} class={HEAD_URL} />}</Show>
       </span>
       <MorphLabel
         text={props.streaming ? ACTING_LABEL : (mutatingBadge(SESSION_META) ?? '')}

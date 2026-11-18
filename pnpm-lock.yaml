@@ -602,6 +602,7 @@ packageExtensionsChecksum: sha256-IwwPaGDkQEqfamVoYxdkgFO5CMpzVeMRN9n1rNC0/lk=
 
 patchedDependencies:
   '@tanstack/solid-query@5.107.1': 6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f
+  react-grab@0.2.0: e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57
 
 importers:
 
@@ -839,6 +840,12 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
@@ -851,6 +858,12 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
         version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
@@ -2710,9 +2723,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@conciv/extension-page':
+      '@conciv/grab':
         specifier: workspace:^
-        version: link:../extensions/page
+        version: link:../grab
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -2972,7 +2985,7 @@ importers:
         version: 4.1.0
       react-grab:
         specifier: 'catalog:'
-        version: 0.2.0(react@19.3.1)
+        version: 0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -3283,9 +3296,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
@@ -3432,40 +3442,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-
-  packages/extensions/page:
-    dependencies:
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../extension
-      '@conciv/grab':
-        specifier: workspace:^
-        version: link:../../grab
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
-      '@zumer/snapdom':
-        specifier: 'catalog:'
-        version: 3.3.3
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@conciv/tsconfig':
-        specifier: workspace:*
-        version: link:../../tsconfig
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
 
   packages/extensions/recorder:
     dependencies:
@@ -4377,7 +4353,7 @@ importers:
         version: 10.0.0
       react-grab:
         specifier: 'catalog:'
-        version: 0.2.0(react@19.3.1)
+        version: 0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1)
       rrweb-snapshot:
         specifier: 'catalog:'
         version: 2.2.0
@@ -4632,9 +4608,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -33861,7 +33834,7 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-grab@0.2.0(react@19.3.1):
+  react-grab@0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1):
     dependencies:
       '@react-grab/cli': 0.2.0
       bippy: 0.6.1(react@19.3.1)

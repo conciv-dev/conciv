@@ -33,6 +33,7 @@ export default defineConfig({
             '@tanstack/hotkeys',
             '@tanstack/solid-pacer',
             'ai-motion',
+            'effect',
           ],
         },
         test: {
@@ -51,6 +52,7 @@ export default defineConfig({
             '@tanstack/hotkeys',
             '@tanstack/solid-pacer',
             'ai-motion',
+            'effect',
           ],
         },
         test: {

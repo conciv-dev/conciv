@@ -15,10 +15,17 @@ import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types
 
 export const ELEMENT_TARGET_KEYS = new Set(['selector', 'ref', 'name'])
 
-export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
+export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 text-chat-text-3'
 
 export const LIST_ROW_CLASS =
   'px-2.5 py-1 flex gap-2 items-baseline [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]'
+
+const COUNT_FORMAT = new Intl.NumberFormat()
+const COUNT_PLURAL = new Intl.PluralRules('en')
+
+export function countLabel(count: number, one: string, other: string): string {
+  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
+}
 
 const InputRecord = z.record(z.string(), z.unknown())
 

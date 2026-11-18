@@ -835,20 +835,33 @@ describe('packed fixture lock drift', () => {
     ].join('\n')
   }
 
-  function checkDrift(committed: string[], produced: string[]): string | undefined {
+  function refreshDrift(committed: string, produced: string): {message: string | undefined; lock: string} {
     const root = tempDir('packed-lock-')
     const lockPath = join(root, 'fixture-lock.yaml')
-    writeFileSync(lockPath, lockText(committed))
-    writeFileSync(join(root, 'pnpm-lock.yaml'), lockText(produced))
+    writeFileSync(lockPath, committed)
+    writeFileSync(join(root, 'pnpm-lock.yaml'), produced)
     try {
       assertLockNotDrifted(root, lockPath)
-      return undefined
+      return {message: undefined, lock: readFileSync(lockPath, 'utf8')}
     } catch (error) {
-      return String(error)
+      return {message: String(error), lock: readFileSync(lockPath, 'utf8')}
     } finally {
       rmSync(root, {recursive: true, force: true})
     }
   }
+
+  function checkDrift(committed: string[], produced: string[]): string | undefined {
+    return refreshDrift(lockText(committed), lockText(produced)).message
+  }
+
+  function resolutionLines(lock: string, prefix: string): string[] {
+    const lines = lock.split('\n')
+    return lines.flatMap((line, index) => (line.startsWith(prefix) ? [lines[index + 1] ?? ''] : []))
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
 
   test('a renamed packed conciv package is drift that names both packages', () => {
     const message = checkDrift(
@@ -867,5 +880,34 @@ describe('packed fixture lock drift', () => {
         [packedEntry('@conciv/core', '0.0.23'), packedEntry('@conciv/plugin', '0.0.23')],
       ),
     ).toBeUndefined()
+  })
+
+  test('a drift refresh writes a lock whose packed conciv tarballs carry no integrity, while registry packages keep theirs', () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    const {message, lock} = refreshDrift(
+      lockText([packedEntry('@conciv/core', '0.0.22'), packedEntry('@conciv/plugin', '0.0.22')]),
+      lockText([packedEntry('@conciv/core', '0.0.23'), packedEntry('@conciv/unplugin', '0.0.23')]),
+    )
+    expect(message).toContain('+ @conciv/unplugin')
+    expect(resolutionLines(lock, "  '@conciv/")).toEqual([
+      '    resolution: {tarball: file:../tarballs/conciv-core-0.0.23.tgz}',
+      '    resolution: {tarball: file:../tarballs/conciv-unplugin-0.0.23.tgz}',
+    ])
+    expect(resolutionLines(lock, '  zod@')).toEqual(['    resolution: {integrity: sha512-zod}'])
+  })
+
+  test('a registry package whose integrity changed is still drift, and the refreshed lock strips only the packed tarballs', () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true')
+    const packed = [packedEntry('@conciv/core', '0.0.22')]
+    const {message, lock} = refreshDrift(
+      lockText(packed),
+      lockText(packed).replace('integrity: sha512-zod}', 'integrity: sha512-tampered}'),
+    )
+    expect(message).toContain('~ zod@4.6.7 (integrity changed)')
+    expect(message).not.toContain('@conciv/core')
+    expect(resolutionLines(lock, "  '@conciv/")).toEqual([
+      '    resolution: {tarball: file:../tarballs/conciv-core-0.0.22.tgz}',
+    ])
+    expect(resolutionLines(lock, '  zod@')).toEqual(['    resolution: {integrity: sha512-tampered}'])
   })
 })

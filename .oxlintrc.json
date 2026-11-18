@@ -322,7 +322,7 @@
       }
     },
     {
-      "files": ["packages/solid-streamdown/**", "packages/page/**", "packages/extensions/page/**"],
+      "files": ["packages/solid-streamdown/**", "packages/page/**", "packages/plugin-page/test/fixtures/**"],
       "rules": {
         "unocss/order": "off"
       }
