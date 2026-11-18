@@ -747,18 +747,38 @@ describe('chat pane', () => {
       vi.setSystemTime(start)
       const {rpc, sessionId} = await newSession()
       await typeSyncedDraft(sessionId, 'saved once')
-      mountChatPane(sessionId)
+      const mount = mountChatPane(sessionId)
       await expect.element(input()).toHaveTextContent('saved once')
       const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
       vi.setSystemTime(start + 1000)
 
       await tabIntoComposer(5)
-      await userEvent.keyboard('{End} and held')
+      await userEvent.keyboard('{End} and hel')
       await coreControl.awaitFaultPending(held, 1)
+      vi.useFakeTimers({toFake: ['Date', 'setTimeout', 'clearTimeout']})
+      vi.setSystemTime(start + 1000)
+      const beforeLastKey = Promise.withResolvers<void>()
+      void mount.keepDraft(() => beforeLastKey.promise)
+      await userEvent.keyboard('d')
+      await vi.advanceTimersByTimeAsync(0)
+      const lastKeySent = Promise.withResolvers<void>()
+      const afterLastKey = Promise.withResolvers<void>()
+      void mount.keepDraft(() => {
+        lastKeySent.resolve()
+        return afterLastKey.promise
+      })
+      beforeLastKey.resolve()
+      await lastKeySent.promise
       vi.setSystemTime(start + 2000)
       await userEvent.keyboard('!')
-      await expect.poll(() => readLocalCopy(sessionId)).toMatchObject({text: 'saved once and held!'})
-      active.pane?.dispose()
+      await vi.advanceTimersByTimeAsync(0)
+      afterLastKey.resolve()
+      await mount.keepDraft(async () => {})
+      mount.dispose()
+      await mount.keepDraft(async () => {})
+      vi.useFakeTimers({toFake: ['Date']})
+      vi.setSystemTime(start + 2000)
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: 'saved once and held!'})
       await coreControl.releaseFault(held)
       await rpc.drafts.set({
         sessionId,
@@ -770,6 +790,7 @@ describe('chat pane', () => {
       })
       mountChatPane(sessionId)
 
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: 'saved once and held!'})
       await expect.element(input()).toHaveTextContent('saved once and held!')
     })
 
