@@ -12,7 +12,8 @@ import {ThreadPopover} from './pins/thread.js'
 
 const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
 
-const OPEN_CHAT_LAYER = '[data-scope]:not([data-scope="tabs"])[data-part="content"][data-state="open"]'
+const OPEN_CHAT_LAYER =
+  '[data-scope]:not([data-scope="tabs"], [data-scope="dialog"])[data-part="content"][data-state="open"]'
 
 const layerOpenBeside = (node: unknown): boolean => {
   if (!(node instanceof Node)) return false
@@ -20,9 +21,11 @@ const layerOpenBeside = (node: unknown): boolean => {
   return (root instanceof ShadowRoot || root instanceof Document) && root.querySelector(OPEN_CHAT_LAYER) !== null
 }
 
-const escapeLeftToOthers = (event: KeyboardEvent, layers: readonly HTMLElement[]): boolean => {
+const escapeLeftToOthers = (event: KeyboardEvent, layers: readonly HTMLElement[], dialogOpen: boolean): boolean => {
   const path = event.composedPath()
-  return event.key !== 'Escape' || layers.some((layer) => path.includes(layer)) || layerOpenBeside(path[0])
+  return (
+    event.key !== 'Escape' || dialogOpen || layers.some((layer) => path.includes(layer)) || layerOpenBeside(path[0])
+  )
 }
 
 type SurfaceProps = {
@@ -64,7 +67,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
       window,
       'keydown',
       (event) => {
-        if (!props.visible || escapeLeftToOthers(event, [canvas.element, props.layer])) return
+        if (!props.visible || escapeLeftToOthers(event, [canvas.element, props.layer], ctx.dialogs.active())) return
         event.preventDefault()
         event.stopPropagation()
         props.close()
