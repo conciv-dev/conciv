@@ -1,4 +1,4 @@
-import {describe, expect, expectTypeOf, it, afterAll, beforeAll, test} from 'vitest'
+import {describe, expect, expectTypeOf, it, afterAll, beforeAll} from 'vitest'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
 import {SocketTrustFrameSchema} from '../src/contract.js'
 import type {SessionMeta} from '../src/rows.js'
@@ -479,7 +479,7 @@ function takeMaskedFrames(pending: {buffer: Buffer}): MaskedFrame[] {
 }
 
 describe('settings', () => {
-  test('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
+  it('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
     const global = {
       skin: 'terminal',
       launcher: 'hidden',
