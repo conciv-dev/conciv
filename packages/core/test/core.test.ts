@@ -78,7 +78,7 @@ import {
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {CompactionMetadataSchema, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
@@ -122,7 +122,7 @@ import {
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {isEqual, once as onceOnly} from 'es-toolkit'
+import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
@@ -907,6 +907,7 @@ describe('chat plane', () => {
       attachmentExpanders: {},
       prompt: async (event) => event,
       promptHooked: async () => false,
+      context: async (_name, request) => request,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -3224,7 +3225,13 @@ describe('plugin host bus', () => {
     const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
     const key = sessionKey(served.made)
     const {sessionId} = await rpc.sessions.create(undefined)
-    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'an unsent draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      updatedAt: Date.now(),
+    })
     const readBack = () =>
       Promise.all([
         key.run((sessions) =>
@@ -3251,6 +3258,73 @@ describe('plugin host bus', () => {
     const afterDelete = await readBack()
     expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
     expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('an engine restart sweeps the sessions that never ran and hold nothing, keeps one that holds a typed draft, and a deleted one stays deleted with its id not taken again', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const first = await serveCore(root, [], {})
+    const firstRpc = makeRpcClient(`${first.origin}/t/${first.made.agentToken}`)
+    const draftFor = (sessionId: SessionId, text: string) => ({
+      sessionId,
+      text,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      updatedAt: Date.now(),
+    })
+    const made = await Promise.all([
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+    ])
+      .then(async ([deleted, typed, cleared, empty]) => {
+        await firstRpc.sessions.delete({sessionId: deleted.sessionId})
+        await firstRpc.drafts.set(draftFor(typed.sessionId, 'typed before the restart'))
+        await firstRpc.drafts.set(draftFor(cleared.sessionId, ''))
+        return {
+          deleted: deleted.sessionId,
+          typed: typed.sessionId,
+          cleared: cleared.sessionId,
+          empty: empty.sessionId,
+        }
+      })
+      .finally(() => first.stop())
+    const restarted = await serveCore(root, [], {})
+    onTestFinished(() => restarted.stop())
+    const rpc = makeRpcClient(`${restarted.origin}/t/${restarted.made.agentToken}`)
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({id: made.deleted, hidden: true})
+    await expect(rpc.sessions.resolve({id: made.deleted})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({hidden: true})
+    const refusedSend = await fetch(`${restarted.origin}/t/${restarted.made.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: made.deleted,
+        runId: 'sent-after-the-restart',
+        messages: [{id: 'sent-after-the-restart-user', role: 'user', content: 'sent after the restart'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    const refusedFrames = (await refusedSend.text())
+      .split('\n')
+      .flatMap((line) =>
+        line.startsWith('data: ')
+          ? [
+              z
+                .object({type: z.string(), message: z.string().optional(), code: z.string().optional()})
+                .parse(JSON.parse(line.slice('data: '.length))),
+            ]
+          : [],
+      )
+      .filter((frame) => frame.type === ChatEventType.RUN_ERROR)
+    expect(refusedFrames).toEqual([
+      {type: ChatEventType.RUN_ERROR, message: `session "${made.deleted}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    await expect(rpc.sessions.get({sessionId: made.empty})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    await expect(rpc.sessions.get({sessionId: made.cleared})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.typed})).toMatchObject({id: made.typed, hidden: false})
+    expect(await rpc.drafts.get({sessionId: made.typed})).toMatchObject({text: 'typed before the restart'})
   })
 
   test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
@@ -3956,6 +4030,11 @@ describe('session.created on the plugin host bus', () => {
   })
 })
 
+const userTexts = (thread: {messages: ChatMessage[]}) =>
+  thread.messages
+    .filter((message) => message.role === 'user')
+    .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
+
 describe('session prompt hook', () => {
   const NOTE = Buffer.from('a note the user attached').toString('base64')
 
@@ -3993,11 +4072,6 @@ describe('session prompt hook', () => {
     if (started) await made.awaitActivation()
     return {kit, made, asked}
   }
-
-  const userTexts = (thread: {messages: ChatMessage[]}) =>
-    thread.messages
-      .filter((message) => message.role === 'user')
-      .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
 
   const noted = (text: string) => ({
     role: 'user',
@@ -4291,6 +4365,269 @@ describe('session prompt hook', () => {
 
     expect((await (await kit.turn(grabbed(unreadable), {session})).done()).errors()).toEqual([])
     expect(asked[2]).toEqual([{type: 'text', content: 'look at this'}, sentDocument(unreadable)])
+  })
+})
+
+describe('session context hook', () => {
+  type ModelRequest = {system: string[]; tools: string[]; lastUser: unknown; options: Record<string, unknown>}
+
+  async function contextKit(plugins: Plugin.Plugin[], modelOptions: Record<string, unknown> = {}) {
+    const requests: ModelRequest[] = []
+    const harness = defineHarness({
+      id: 'context-cli',
+      binName: 'true',
+      chatConfig: () => ({
+        modelOptions,
+        adapter: makeTextAdapter('context-cli', async function* (options) {
+          requests.push({
+            system: [...(options.systemPrompts ?? [])].map(String),
+            tools: (options.tools ?? []).map((tool) => tool.name),
+            lastUser: options.messages.findLast((message) => message.role === 'user')?.content,
+            options: structuredClone({...options.modelOptions}),
+          })
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env, {plugins, systemPromptText: 'the base prompt'})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the context kit booted no app')
+    await made.awaitActivation()
+    const sent = () => requests.map((request) => request.system)
+    return {kit, made, requests, sent}
+  }
+
+  test('a context hook sees the system prompt and what it appends reaches the model request, and a hook that edits nothing changes nothing', async () => {
+    const seen: Array<{sessionId: string; agent: string; system: string[]}> = []
+    const adding = {text: ''}
+    const plugin = Plugin.define({
+      id: 'context-rules',
+      async setup(ctx) {
+        await ctx.session.hook('context', (event) => {
+          seen.push({sessionId: event.sessionId, agent: event.agent, system: event.system.map((part) => part.text)})
+          if (adding.text !== '') event.system.push({type: 'text', text: adding.text})
+        })
+      },
+    })
+    const {kit, sent} = await contextKit([plugin])
+
+    const untouched = await kit.session()
+    expect((await (await kit.turn('hello', {session: untouched})).done()).errors()).toEqual([])
+    const system = seen.flatMap((event) => event.system)
+    expect(seen).toEqual([{sessionId: untouched, agent: 'build', system}])
+    expect(system).toContain('the base prompt')
+    expect(sent()).toEqual([system])
+
+    adding.text = 'Always-on rules from the plugin.'
+    const told = await kit.session()
+    expect((await (await kit.turn('hello', {session: told})).done()).errors()).toEqual([])
+    expect(seen[1]).toEqual({sessionId: told, agent: 'build', system})
+    expect(sent()[1]).toEqual([...system, 'Always-on rules from the plugin.'])
+  })
+
+  test('a context hook drops a tool, rewrites a message and sets an option, and the model request carries all three while the stored message stays', async () => {
+    const offered: string[][] = []
+    const plugin = Plugin.define({
+      id: 'context-request',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'context_probe',
+            description: 'A tool the context hook may drop',
+            input: z.object({}),
+            output: z.object({}),
+            execute: async () => ({output: {}}),
+          })
+        })
+        await ctx.session.hook('context', (event) => {
+          const names = Object.keys(event.tools)
+          offered.push(names)
+          const [dropped] = names
+          if (dropped !== undefined) delete event.tools[dropped]
+          const lastUser = event.messages.findLastIndex((message) => message.role === 'user')
+          event.messages = event.messages.map((message, index) =>
+            index === lastUser ? {...message, content: 'rewritten by the plugin'} : message,
+          )
+          event.options.contextFlag = 'set by the plugin'
+        })
+        await ctx.session.hook('compaction', (event) => {
+          event.system.push({type: 'text', text: 'compacting with the plugin'})
+        })
+      },
+    })
+    const {kit, made, requests} = await contextKit([plugin])
+    const session = await kit.session()
+
+    expect((await (await kit.turn('the user words', {session})).done()).errors()).toEqual([])
+    const [names = []] = offered
+    expect(names.length).toBeGreaterThan(0)
+    expect(requests).toHaveLength(1)
+    const [request] = requests
+    expect(request?.tools).toEqual(names.slice(1))
+    expect(request?.lastUser).toBe('rewritten by the plugin')
+    expect(request?.options.contextFlag).toBe('set by the plugin')
+    expect(userTexts(await kit.hydrate(session))).toEqual(['the user words'])
+
+    await made.runtime.forSession(SessionId.parse(session)).run.compact()
+    await made.plane.settled(SessionId.parse(session))
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.system).toContain('compacting with the plugin')
+    expect(offered).toHaveLength(1)
+  })
+
+  test('a compaction hook that sets a result is the compacted session summary and no model request is made for the compact turn', async () => {
+    const plugin = Plugin.define({
+      id: 'compaction-result',
+      async setup(ctx) {
+        await ctx.session.hook('compaction', (event) => {
+          event.result = {
+            summary: 'the summary the plugin wrote',
+            tokens: {input: 40, output: 7, reasoning: 2, cache: {read: 10, write: 1}},
+          }
+        })
+      },
+    })
+    const {kit, made, requests} = await contextKit([plugin])
+    const session = await kit.session()
+
+    expect((await (await kit.turn('words to compact', {session})).done()).errors()).toEqual([])
+    expect(requests).toHaveLength(1)
+
+    await made.runtime.forSession(SessionId.parse(session)).run.compact()
+    await made.plane.settled(SessionId.parse(session))
+    expect(requests).toHaveLength(1)
+    const hydrated = await kit.hydrate(session)
+    const summaries = hydrated.messages.filter(
+      (message) => CompactionMetadataSchema.safeParse(message.metadata).success,
+    )
+    expect(
+      summaries.map((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+      ),
+    ).toEqual(['the summary the plugin wrote'])
+    expect(hydrated.lastRun?.phase).toBe('completed')
+    const [row] = await made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session))
+    expect(row?.usage).toMatchObject({
+      inputTokens: 40,
+      outputTokens: 7,
+      reasoningTokens: 2,
+      cacheReadTokens: 10,
+      cacheWriteTokens: 1,
+    })
+  })
+
+  test('a context hook that edits a tool input schema in place changes that request only, and the next request offers the tool its own schema', async () => {
+    const original = {
+      type: 'object',
+      properties: {query: {type: 'string', description: 'the original query'}},
+      required: ['query'],
+    }
+    const schema = structuredClone(original)
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'context-schema',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'context_schema',
+            description: 'A tool whose schema the context hook edits',
+            input: schema,
+            output: z.object({}),
+            options: {codemode: false},
+            execute: async () => ({output: {}}),
+          })
+        })
+        await ctx.session.hook('context', (event) => {
+          const input = event.tools.context_schema?.input
+          seen.push(structuredClone(input))
+          const properties = input?.properties
+          if (isPlainObject(properties) && isPlainObject(properties.query))
+            properties.query.description = 'edited by the plugin'
+          if (Array.isArray(input?.required)) input.required.push('edited')
+        })
+      },
+    })
+    const {kit} = await contextKit([plugin])
+
+    expect((await (await kit.turn('first', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([original])
+    expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([original, original])
+    expect(schema).toEqual(original)
+  })
+
+  test('a context hook that edits a nested model option in place changes that request only, and the next request starts from the harness options', async () => {
+    const harnessOptions = {effort: {levels: ['given']}}
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'context-options',
+      async setup(ctx) {
+        await ctx.session.hook('context', (event) => {
+          seen.push(structuredClone(event.options))
+          const effort = event.options.effort
+          if (isPlainObject(effort) && Array.isArray(effort.levels)) effort.levels.push('pushed by the plugin')
+        })
+      },
+    })
+    const {kit, requests} = await contextKit([plugin], harnessOptions)
+
+    expect((await (await kit.turn('first', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([{effort: {levels: ['given']}}, {effort: {levels: ['given']}}])
+    expect(requests.map((request) => request.options)).toEqual([
+      {effort: {levels: ['given', 'pushed by the plugin']}},
+      {effort: {levels: ['given', 'pushed by the plugin']}},
+    ])
+    expect(harnessOptions).toEqual({effort: {levels: ['given']}})
+  })
+
+  test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const hookEnded = Promise.withResolvers<void>()
+    const hookTrail: string[] = []
+    const trail = (step: string) =>
+      Effect.sync(() => {
+        hookTrail.push(step)
+        hookEnded.resolve()
+      })
+    const {kit, made, sent} = await contextKit([])
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'context', (event) =>
+          Effect.sync(() => entered.resolve()).pipe(
+            Effect.andThen(Effect.promise(() => held.promise)),
+            Effect.andThen(Effect.sync(() => event.system.push({type: 'text', text: 'never sent'}))),
+            Effect.andThen(trail('context hook resumed')),
+            Effect.onInterrupt(() => trail('context hook interrupted')),
+          ),
+        ),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('stopped while the context hook runs', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+    held.resolve()
+    await hookEnded.promise
+
+    expect(hookTrail).toEqual(['context hook interrupted'])
+    expect(sent()).toEqual([])
+    expect(ended.errors()).toEqual([])
+    expect((await kit.hydrate(session)).lastRun?.phase).toBe('aborted')
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
 })
 
