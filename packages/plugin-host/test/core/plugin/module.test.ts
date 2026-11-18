@@ -1,5 +1,5 @@
 import {expect} from 'vitest'
-import {access, mkdir, readFile, writeFile} from 'node:fs/promises'
+import {access, mkdir, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Deferred, Effect, Exit, Fiber, Layer, Logger, Ref, Schedule, Scope, Stream} from 'effect'
@@ -301,15 +301,12 @@ it.live('two overlapping loads of one local plugin share one held watch, both wa
       Effect.forkScoped({startImmediately: true}),
     )
     yield* Deferred.await(secondLoading)
-    yield* Effect.promise(() => readFile(bundle, 'utf8')).pipe(Effect.repeat({times: 2}))
     yield* Deferred.succeed(gate, undefined)
     yield* Fiber.join(first)
     yield* Fiber.join(second)
     expect(yield* Ref.get(events)).toEqual(['ready', 'loaded', 'loaded'])
     expect((yield* Ref.get(subscribed)).filter((watched) => watched === bundle)).toEqual([bundle])
-    const changed = yield* modules
-      .changes()
-      .pipe(Stream.runHead, Effect.timeout('10 seconds'), Effect.forkScoped({startImmediately: true}))
+    const changed = yield* modules.changes().pipe(Stream.runHead, Effect.forkScoped({startImmediately: true}))
     yield* Effect.promise(() => write(bundle, 'module.exports = {default: {setup() {}}, edited: true}'))
     yield* Fiber.join(changed)
   }),
