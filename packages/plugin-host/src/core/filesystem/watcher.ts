@@ -148,13 +148,19 @@ export const layer = (options?: Options) =>
           type: input.type,
           ignores: ignore.length,
         })
+        const key: Target = {type: input.type, target, ignore, names}
+        const rootDeleted = (update: Update) =>
+          input.type === 'directory' && update.type === 'delete' && update.path === target
         return Stream.unwrap(
           Effect.gen(function* () {
-            const pubsub = yield* RcMap.get(watchers, {type: input.type, target, ignore, names})
+            const pubsub = yield* RcMap.get(watchers, key)
             const subscription = yield* PubSub.subscribe(pubsub)
             if (yield* PubSub.isShutdown(pubsub)) return Stream.empty
             yield* onReady
-            return Stream.fromSubscription(subscription)
+            return Stream.fromSubscription(subscription).pipe(
+              Stream.takeUntil(rootDeleted),
+              Stream.tap((update) => (rootDeleted(update) ? RcMap.invalidate(watchers, key) : Effect.void)),
+            )
           }),
         )
       })

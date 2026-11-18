@@ -44,7 +44,7 @@ const services = (root: string, plugins: readonly string[]) =>
 
 describe('ConfigPluginSource', () => {
   it.live(
-    'lists the plugin folder before the configured entries and reports a write in a configured folder',
+    'lists the plugin folder before the configured entries and reports a write in a configured folder, also after that folder is deleted and created again',
     () =>
       Effect.gen(function* () {
         const root = yield* temporaryProject
@@ -75,6 +75,45 @@ describe('ConfigPluginSource', () => {
 
           yield* Effect.promise(() => writeFile(path.join(local, 'added.ts'), 'export {}\n'))
           expect(yield* Fiber.join(changes)).toEqual([undefined])
+
+          const later = yield* Queue.unbounded<void>()
+          yield* source.changes().pipe(
+            Stream.runForEach((change) => Queue.offer(later, change)),
+            Effect.forkScoped({startImmediately: true}),
+          )
+          const localTime = source
+            .operations()
+            .pipe(
+              Effect.map((operations) =>
+                operations.flatMap((operation) =>
+                  operation.type === 'add' && operation.target === local ? [operation.mtime] : [],
+                ),
+              ),
+            )
+          const untilLocalTime = (write: Effect.Effect<void>, expected: number | undefined) =>
+            Effect.gen(function* () {
+              yield* Queue.clear(later)
+              const writes = yield* write.pipe(
+                Effect.uninterruptible,
+                Effect.repeat(Schedule.spaced('10 millis')),
+                Effect.forkScoped,
+              )
+              return yield* Queue.take(later).pipe(
+                Effect.andThen(localTime),
+                Effect.repeat({until: (times) => times[0] === expected}),
+                Effect.ensuring(Fiber.interrupt(writes)),
+              )
+            })
+
+          expect(
+            yield* untilLocalTime(
+              Effect.promise(() => rm(local, {recursive: true, force: true})),
+              undefined,
+            ),
+          ).toEqual([undefined])
+          expect(
+            yield* untilLocalTime(writeAt(path.join(local, 'index.ts'), 'export default {}\n', 4_000), 4_000_000),
+          ).toEqual([4_000_000])
         }).pipe(Effect.provide(services(root, ['./local-plugin', 'some-package'])))
       }),
     5_000,

@@ -4,7 +4,7 @@ import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
-import {Context, Effect, FiberMap, FileSystem, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
+import {Context, Effect, Exit, Fiber, FiberMap, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
@@ -40,27 +40,36 @@ export const layer = Layer.effect(
     const fs = yield* FSUtil.Service
     const location = yield* Location.Service
     const configuredChanges = yield* PubSub.unbounded<void>()
-    const watched = new Set<string>()
     const concivDirectory = path.join(location.directory, 'conciv')
     const watchUpdates = yield* PubSub.unbounded<Watcher.Update>()
     const reloads = yield* PubSub.sliding<void>(1)
     const requestReload = PubSub.publish(reloads, undefined).pipe(Effect.asVoid)
     const reloadLock = Semaphore.makeUnsafe(1)
     const watches = yield* FiberMap.make<string>()
+    const configuredWatches = yield* FiberMap.make<string>()
+    const layerScope = yield* Effect.scope
+    const afterRootDeleted = (watch: Fiber.Fiber<Option.Option<Watcher.Update>>, announce: Effect.Effect<void>) =>
+      Fiber.await(watch).pipe(
+        Effect.flatMap((exit) => (Exit.isSuccess(exit) && Option.isSome(exit.value) ? announce : Effect.void)),
+        Effect.forkIn(layerScope),
+      )
     const reconcile = Effect.fn('ConfigPluginSource.reconcileWatches')(function* () {
-      const plan = watchPlan(location.directory, concivDirectory, yield* fs.stat(concivDirectory).pipe(Effect.option))
-      for (const key of Array.from(watches, ([key]) => key)) {
+      const plan = watchPlan(location.directory, concivDirectory, yield* fs.isDir(concivDirectory))
+      for (const key of Array.from(watches, ([existing]) => existing)) {
         if (!plan.has(key)) yield* FiberMap.remove(watches, key)
       }
       for (const [key, target] of plan) {
-        yield* watcher
-          .subscribe(target, requestReload)
-          .pipe(
-            Effect.flatMap(
-              Stream.runForEach((update) => PubSub.publish(watchUpdates, update).pipe(Effect.andThen(requestReload))),
+        if (yield* FiberMap.has(watches, key)) continue
+        const watch = yield* watcher.subscribe(target, requestReload).pipe(
+          Effect.flatMap((updates) =>
+            updates.pipe(
+              Stream.tap((update) => PubSub.publish(watchUpdates, update).pipe(Effect.andThen(requestReload))),
+              Stream.runLast,
             ),
-            FiberMap.run(watches, key, {onlyIfMissing: true, startImmediately: true}),
-          )
+          ),
+          FiberMap.run(watches, key, {startImmediately: true}),
+        )
+        yield* afterRootDeleted(watch, requestReload)
       }
     })
     const reload = Effect.fn('ConfigPluginSource.reload')(
@@ -79,27 +88,48 @@ export const layer = Layer.effect(
       Effect.forkScoped({startImmediately: true}),
     )
 
-    const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(function* (
-      operations: readonly Operation[],
-    ) {
-      for (const operation of operations) {
-        if (operation.type !== 'add' || !path.isAbsolute(operation.target)) continue
-        if (watched.has(operation.target)) continue
-        if (isDirectorySource(concivDirectory, operation.target)) continue
-        watched.add(operation.target)
-        const updates = yield* watcher.subscribe({
-          path: operation.target,
-          type: (yield* fs.isDir(operation.target)) ? 'directory' : 'file',
-        })
-        yield* updates.pipe(
-          Stream.runForEach(() => PubSub.publish(configuredChanges, undefined)),
-          Effect.catchCause((cause) =>
-            Effect.logError('configured plugin watch failed', {target: operation.target, cause}),
-          ),
-          Effect.forkScoped({startImmediately: true}),
+    const configuredChanged = PubSub.publish(configuredChanges, undefined).pipe(Effect.asVoid)
+    const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(
+      function* (operations: readonly Operation[]) {
+        const targets = operations.flatMap((operation) =>
+          operation.type === 'add' &&
+          path.isAbsolute(operation.target) &&
+          !isDirectorySource(concivDirectory, operation.target)
+            ? [operation.target]
+            : [],
         )
-      }
-    })
+        const inputs = yield* Effect.forEach(targets, (target) =>
+          fs
+            .isDir(target)
+            .pipe(
+              Effect.map((directory): Watcher.WatchInput => ({path: target, type: directory ? 'directory' : 'file'})),
+            ),
+        )
+        const plan = new Map(inputs.map((input) => [JSON.stringify(input), input]))
+        for (const key of Array.from(configuredWatches, ([existing]) => existing)) {
+          if (!plan.has(key)) yield* FiberMap.remove(configuredWatches, key)
+        }
+        for (const [key, input] of plan) {
+          if (yield* FiberMap.has(configuredWatches, key)) continue
+          const watch = yield* watcher.subscribe(input).pipe(
+            Effect.flatMap((updates) =>
+              updates.pipe(
+                Stream.tap(() => configuredChanged),
+                Stream.runLast,
+              ),
+            ),
+            Effect.catchCause((cause) =>
+              Effect.logError('configured plugin watch failed', {target: input.path, cause}).pipe(
+                Effect.as(Option.none<Watcher.Update>()),
+              ),
+            ),
+            FiberMap.run(configuredWatches, key, {startImmediately: true}),
+          )
+          yield* afterRootDeleted(watch, configuredChanged)
+        }
+      },
+      (effect) => reloadLock.withPermit(effect),
+    )
 
     yield* reloadLock.withPermit(reconcile())
 
@@ -135,14 +165,11 @@ export const empty = Layer.succeed(
   }),
 )
 
-function watchPlan(root: string, concivDirectory: string, folder: Option.Option<FileSystem.File.Info>) {
-  const entries: Watcher.WatchInput = {path: root, type: 'entries', names: [path.basename(concivDirectory)]}
-  const entriesWatch: [string, Watcher.WatchInput] = [JSON.stringify(entries), entries]
-  const present = Option.filter(folder, (info) => info.type === 'Directory')
-  if (Option.isNone(present)) return new Map([entriesWatch])
+function watchPlan(root: string, concivDirectory: string, present: boolean) {
   const directory: Watcher.WatchInput = {path: concivDirectory, type: 'directory', ignore: FSUtil.ignoreGlobs}
-  const identity = Option.getOrUndefined(Option.map(present.value.ino, String))
-  return new Map([[JSON.stringify({...directory, identity}), directory], entriesWatch])
+  const entries: Watcher.WatchInput = {path: root, type: 'entries', names: [path.basename(concivDirectory)]}
+  const targets = present ? [directory, entries] : [entries]
+  return new Map(targets.map((target) => [JSON.stringify(target), target]))
 }
 
 function isDirectorySource(concivDirectory: string, file: string) {
