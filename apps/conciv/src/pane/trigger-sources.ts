@@ -1,11 +1,13 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
+import {useSearch} from '@tanstack/solid-router'
 import {uniqBy} from 'es-toolkit'
 import {createAsyncDebouncer} from '@tanstack/solid-pacer'
 import BookOpen from 'lucide-solid/icons/book-open'
 import Brain from 'lucide-solid/icons/brain'
 import File from 'lucide-solid/icons/file'
 import Folder from 'lucide-solid/icons/folder'
+import MessageCircle from 'lucide-solid/icons/message-circle'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
@@ -15,6 +17,8 @@ import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import type {ComposerTriggerSources} from './composer-input-adapter.js'
+import {quickPaneIds} from '../lib/quick-search.js'
+import {rankSessionTitle} from './session-title-rank.js'
 
 export type PaneCommandProps = {sessionId: string; openModelMenu: () => void}
 
@@ -114,6 +118,8 @@ const SKILL_ICON: RichTextFieldTriggerItem['icon'] = {component: BookOpen, name:
 
 const AGENT_ICON: RichTextFieldTriggerItem['icon'] = {component: Brain, name: 'Agent', tone: 'chat-agent'}
 
+const SESSION_ICON: RichTextFieldTriggerItem['icon'] = {component: MessageCircle, name: 'Session'}
+
 function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
   return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}
 }
@@ -136,6 +142,51 @@ function fileEntry(entry: RpcOutputs['fs']['find']['data'][number]): RichTextFie
 
 function searchesFiles(query: string): boolean {
   return query.trim().length > 0 && !/\s/.test(query)
+}
+
+type SessionRow = RpcOutputs['sessions']['list']['sessions'][number]
+
+type SessionCandidate = {session: SessionRow; local: boolean}
+
+type SessionContext = {sessionId: string; openIds: string[]}
+
+type RankedSession = {entry: RichTextFieldTriggerItem; local: boolean; rank: number; open: boolean; updated: number}
+
+const SESSION_LIMIT = 5
+
+function rankSession(candidate: SessionCandidate, query: string, context: SessionContext): RankedSession[] {
+  const session = candidate.session
+  if (session.id === context.sessionId) return []
+  if (!query && !candidate.local) return []
+  const rank = query ? rankSessionTitle(session.title, query) : 0
+  if (rank === undefined) return []
+  return [
+    {
+      entry: {id: `session:${session.id}`, label: session.title, insert: `@${session.title}`, icon: SESSION_ICON},
+      local: candidate.local,
+      rank,
+      open: context.openIds.includes(session.id),
+      updated: session.updatedAt,
+    },
+  ]
+}
+
+function sessionEntries(
+  candidates: SessionCandidate[],
+  query: string,
+  context: SessionContext,
+): RichTextFieldTriggerItem[] {
+  return candidates
+    .flatMap((candidate) => rankSession(candidate, query, context))
+    .toSorted(
+      (first, second) =>
+        Number(second.local) - Number(first.local) ||
+        first.rank - second.rank ||
+        Number(second.open) - Number(first.open) ||
+        second.updated - first.updated,
+    )
+    .slice(0, SESSION_LIMIT)
+    .map((ranked) => ranked.entry)
 }
 
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
@@ -193,6 +244,20 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
   }
   const appData = useAppData()
   const queryClient = useAppQueryClient()
+  const search = useSearch({strict: false})
+  const openIds = (): string[] => {
+    const panes = search().panes
+    return panes === undefined ? [] : quickPaneIds({panes, focus: search().focus ?? 0})
+  }
+  const sessionCandidates = (query: string): Promise<SessionCandidate[]> => {
+    return query
+      ? queryClient
+          .ensureQueryData(appData.utils.sessions.search.queryOptions({input: {term: query, everywhere: true}}))
+          .then((page) => page.sessions.map((session) => ({session, local: session.cwd === null})))
+      : queryClient
+          .ensureQueryData(appData.utils.sessions.list.queryOptions())
+          .then((page) => page.sessions.map((session) => ({session, local: true})))
+  }
   const filter = useFilter({sensitivity: 'base'})
   const matcher = (): Matcher => ({
     equals: (text, query) => filter().startsWith(text, query) && filter().startsWith(query, text),
@@ -230,11 +295,15 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
       label: 'Context',
       items: async (query) => {
         const files = searchFiles(query)
-        const [skills, agents] = await Promise.allSettled([
+        const [skills, agents, sessions] = await Promise.allSettled([
           queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
           queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
+          sessionCandidates(query),
         ])
-        if (skills.status === 'rejected' && agents.status === 'rejected') throw skills.reason
+        if (skills.status === 'rejected' && agents.status === 'rejected' && sessions.status === 'rejected')
+          throw skills.reason
+        if (sessions.status === 'rejected')
+          console.error('[conciv] the @ list could not load sessions', sessions.reason)
         const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
         const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
         const named = matchingItems(
@@ -242,7 +311,9 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
           query,
           matcher(),
         )
-        return uniqBy([...named, ...(await files)], (entry) => entry.id)
+        const candidates = sessions.status === 'fulfilled' ? sessions.value : []
+        const titled = sessionEntries(candidates, query, {sessionId: props.sessionId, openIds: openIds()})
+        return uniqBy([...named, ...titled, ...(await files)], (entry) => entry.id)
       },
     },
   }

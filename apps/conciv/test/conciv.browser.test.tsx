@@ -1315,6 +1315,13 @@ export default {
         path: join(ctx.location.directory, 'mention-guide', 'SKILL.md'),
         content: 'Write the mention.',
       })
+      skills.add({
+        id: 'review-checklist',
+        name: 'review-checklist',
+        description: 'What a change needs before it lands',
+        path: join(ctx.location.directory, 'review-checklist', 'SKILL.md'),
+        content: 'Check the change.',
+      })
     })
     await ctx.agent.transform((agents) => {
       agents.update('reviewer', (agent) => {
@@ -1461,8 +1468,14 @@ export default {
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
   })
 
-  test('the @ list offers the skills, then the agents that are neither primary nor hidden, no tool, then the files and folders a typed query finds', async () => {
-    await mountComposer(WIDE_PX)
+  test('the @ list offers the skills, then the agents that are neither primary nor hidden, then the other sessions, no tool, then the files and folders a typed query finds', async () => {
+    const rpc = coreRpc(core())
+    const ledgerId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Review ledger'})
+    const payrollId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: payrollId, title: 'Payroll audit'})
+    const mount = await mountComposer(WIDE_PX)
+    await rpc.sessions.rename({sessionId: mount.pane.sessionId(), title: 'Payroll pane'})
     const context = () => page.getByRole('listbox', {name: 'Context'})
     const mention = (label: string) => context().getByRole('option', {name: label})
 
@@ -1473,18 +1486,40 @@ export default {
     await expect.element(mention('@reviewer')).toBeVisible()
     await expect.element(mention('@mention-guide').getByRole('img', {name: 'Skill'})).toBeVisible()
     await expect.element(mention('@reviewer').getByRole('img', {name: 'Agent'})).toBeVisible()
-    await expect.element(context().getByRole('option').last()).toHaveTextContent('@reviewer')
+    await expect.element(mention('Payroll audit').getByRole('img', {name: 'Session'})).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
     await expect.element(mention('@lurker')).not.toBeInTheDocument()
     await expect.element(mention('@planner')).not.toBeInTheDocument()
     await expect.element(mention('@build')).not.toBeInTheDocument()
     await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
 
     await userEvent.keyboard('review')
+
+    await expect.element(context().getByRole('option').nth(0)).toHaveAccessibleName(/@review-checklist/)
+    await expect.element(context().getByRole('option').nth(1)).toHaveAccessibleName(/@reviewer/)
+    await expect.element(context().getByRole('option').last()).toHaveAccessibleName(/Review ledger/)
+
+    await userEvent.keyboard('er')
+
     await expect.element(context().getByRole('option').first()).toHaveAccessibleName('@reviewer')
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+
     await userEvent.keyboard('{Enter}')
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@reviewer')).toBeVisible()
+
+    await userEvent.keyboard('@payroll')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Payroll audit/)
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
 
     await userEvent.keyboard('@mentions')
 
