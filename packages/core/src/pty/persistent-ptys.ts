@@ -99,8 +99,13 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   const spawnFresh = async (input: CreateInput, harness: ServerHarness, command: TtyLauncher): Promise<TtySession> => {
     const token = await mintToken(input.sessionId)
     const context = await connectContext(input, harness, token)
-    const session = await ttys.open(input.sessionId, command(context), deps.cwd, ownerKey(harness.id, token))
-    resizeTo(session, input.size)
+    const session = await ttys.open(
+      input.sessionId,
+      command(context),
+      deps.cwd,
+      ownerKey(harness.id, token),
+      input.size,
+    )
     if (context.resume) session.inject(RESUMED_BANNER)
     return session
   }

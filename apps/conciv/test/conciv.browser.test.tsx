@@ -7704,6 +7704,15 @@ describe('terminal panel for a plain shell with no models', () => {
     await expect.element(bar().getByRole('button', {name: 'Select model'})).not.toBeInTheDocument()
   }, 60_000)
 
+  test('what the CLI paints as it starts is sized for the terminal the user sees', async () => {
+    await page.viewport(1000, 700)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('SPAWNEND')).toBeInTheDocument()
+  }, 60_000)
+
   test('a terminal opened again shows the earlier lines and runs at the size the user sees', async () => {
     await page.viewport(1000, 700)
     const sessionId = await createSession(coreRpc(coreBase()))
