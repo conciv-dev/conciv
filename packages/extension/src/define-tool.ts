@@ -2,10 +2,10 @@ import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
+import type {ClientEffect, ExtensionTool, ServerToolRegistryAccess, ServerToolPageAccess, ToolCard} from './types.js'
 
 export {assertToolName, isToolError, TOOL_NAME_RULE, toolError} from '@conciv/protocol/tool-call-types'
 export type {ToolError} from '@conciv/protocol/tool-call-types'
-import type {ClientEffect, ExtensionTool, ServerToolRegistryAccess, ServerToolPageAccess, ToolCard} from './types.js'
 
 export type ToolMeta = {
   summary: string

@@ -16,7 +16,7 @@ export function toolError(code: string, options: {message?: string; data?: unkno
 }
 
 export function isToolError(value: unknown): value is ToolError {
-  return value instanceof Error && 'isToolError' in value && value.isToolError === true
+  return value instanceof Error && Reflect.get(value, 'isToolError') === true
 }
 
 export const TOOL_NAME_RULE = /^[a-z][a-z0-9_]*$/
