@@ -453,6 +453,22 @@ describe('the tanstack plugin on a real Vite dev server', () => {
   })
 })
 
+describe('the tanstack plugin with an invalid option', () => {
+  it('fails its activation with Tanstack.InvalidOptions', async () => {
+    const kit = await bootCoreKit({id: 'fake', plugins: [[PACKAGE_DIR, {bundlerWaitMs: -1}]]})
+    onTestFinished(() => kit.cleanup())
+    const {data} = await kit.rpc.plugin.list()
+    expect(data.find((plugin) => plugin.id === 'tanstack')?.state).toEqual({
+      status: 'failed',
+      error: 'failed to load plugin: Tanstack.InvalidOptions: bundlerWaitMs: Too small: expected number to be >0',
+    })
+    expect(await terminalCall(kit, 'buildErrors')).toMatchObject({
+      ok: false,
+      error: {type: 'rpc.unavailable', message: 'RPC is unavailable: experimental.tanstack'},
+    })
+  })
+})
+
 describe('the tanstack plugin waiting for the bundler status', () => {
   it('waits the set time on the test clock for a dev server, then fails BUNDLER_UNAVAILABLE', () =>
     Effect.gen(function* () {

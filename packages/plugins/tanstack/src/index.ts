@@ -1,20 +1,30 @@
 import {Effect, Layer} from 'effect'
 import {z} from 'zod'
-import {Plugin} from '@conciv/plugin/effect'
+import {define} from '@conciv/plugin/effect/plugin'
 import {diagnosticsLayer} from './diagnostics.js'
+import {InvalidOptions, RpcRegisterFailed} from './failures.js'
 import {Definition} from './rpc.js'
 import {serverFnTraceLayer} from './serverfn-trace.js'
 import {capabilities, register} from './tools.js'
 
 const Options = z.object({bundlerWaitMs: z.number().int().positive().default(10_000)})
 
-export default Plugin.define({
+function failureMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+function readOptions(input: unknown) {
+  const parsed = Options.safeParse(input)
+  if (parsed.success) return Effect.succeed(parsed.data)
+  const message = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
+  return Effect.fail(new InvalidOptions({message}))
+}
+
+export default define({
   id: 'tanstack',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const options = yield* Effect.try({try: () => Options.parse(ctx.options), catch: (error) => error}).pipe(
-        Effect.orDie,
-      )
+      const options = yield* readOptions(ctx.options)
       const rings = yield* Layer.build(Layer.mergeAll(diagnosticsLayer, serverFnTraceLayer))
       const tanstack = yield* capabilities(ctx, ctx.location.directory, options).pipe(Effect.provide(rings))
       yield* ctx.rpc
@@ -29,7 +39,7 @@ export default Plugin.define({
               .pipe(Effect.mapError((failure) => call.error('MANIFEST_UNREADABLE', failure.message, {}))),
           serverFnTrace: ({count}) => tanstack.serverFnTrace(count),
         })
-        .pipe(Effect.orDie)
+        .pipe(Effect.mapError((cause) => new RpcRegisterFailed({message: failureMessage(cause)})))
       yield* register(ctx, tanstack)
     }),
 })

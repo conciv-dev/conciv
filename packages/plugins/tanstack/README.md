@@ -8,7 +8,8 @@ plugins: ['@conciv/plugin-tanstack']
 ```
 
 Option: `bundlerWaitMs` (default `10000`), how long `build_errors` waits for the engine to say whether a dev server is
-attached before it fails with `BUNDLER_UNAVAILABLE`: `plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]]`.
+attached before it fails with `BUNDLER_UNAVAILABLE`: `plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]]`. A
+value that is not a positive integer fails the plugin's activation with `Tanstack.InvalidOptions`.
 
 - Tools: `external_tanstack_build_errors()`, `external_tanstack_route_manifest()`,
   `external_tanstack_server_fn_trace({count?})`. Failures carry `metadata.code`: `BUNDLER_UNAVAILABLE` when the engine
@@ -23,8 +24,3 @@ attached before it fails with `BUNDLER_UNAVAILABLE`: `plugins: [['@conciv/plugin
     every server function seen; `--data '{"count":5}'` keeps the latest five calls.
 - `./rpc`: the schemas `FrameworkInfo`, `RouterCurrent`, `RouteNode`, `CacheEntry` and `AppError`, and `Definition`,
   the RPC `experimental.tanstack` other plugins call.
-
-## Follow-ups
-
-- A typed activation error once the SDK rules the plugin effect's error channel: an invalid option and a failed
-  `rpc.register` end activation as a defect today.
