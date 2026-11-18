@@ -47,19 +47,7 @@ import {
 } from './helpers.browser.js'
 import {z} from 'zod'
 import {render} from '@solidjs/testing-library'
-import {
-  type JSX,
-  createSignal,
-  from,
-  onMount,
-  type Component,
-  createMemo,
-  createRoot,
-  For,
-  Show,
-  Suspense,
-} from 'solid-js'
-import {makeEventListener} from '@solid-primitives/event-listener'
+import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
@@ -4305,20 +4293,18 @@ describe('a Stop pressed while a plugin prepares the prompt', () => {
 
 function foundServerPlugins(id: string, pane: (found: (apiBase: string) => void) => JSX.Element): ComposedPlugin[] {
   const setup: Plugin.Setup = (ctx) => {
-    const connects = new EventTarget()
-    const found = from<string>((set) =>
-      makeEventListener(connects, 'found', (event) => {
-        if (event instanceof CustomEvent && typeof event.detail === 'string') set(event.detail)
-      }),
-    )
+    const [found, setFound] = createStore<{apiBase?: string}>({})
     const entry = (apiBase: string | undefined): ServerEntry => ({
       id: 'found',
       name: id,
       state: apiBase ? 'ready' : 'starting',
       ...(apiBase ? {http: {url: apiBase}} : {}),
-      cover: () => pane((next) => connects.dispatchEvent(new CustomEvent('found', {detail: next}))),
+      cover: () => pane((next) => setFound('apiBase', next)),
     })
-    ctx.add(Server, () => ({ready: true, order: 0, entries: [entry(found())]}))
+    ctx.add(
+      Server,
+      createMemo(() => ({ready: true, order: 0, entries: [entry(found.apiBase)]})),
+    )
   }
   return compose({[id]: {windowEntry: async () => ({default: setup})}}).map((entry): ComposedPlugin => [entry, {}])
 }
@@ -9172,17 +9158,17 @@ describe('terminal panel', () => {
 })
 
 function TypedConnectForm(props: {found: (apiBase: string) => void}): JSX.Element {
-  const [address, setAddress] = createSignal('')
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        props.found(address())
+        const address = new FormData(event.currentTarget).get('address')
+        props.found(typeof address === 'string' ? address : '')
       }}
     >
       <label>
         Workspace address
-        <input value={address()} onInput={(event) => setAddress(event.currentTarget.value)} />
+        <input name="address" />
       </label>
       <button type="submit">Connect</button>
     </form>

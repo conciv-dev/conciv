@@ -77,7 +77,6 @@
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@orpc/server": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@unocss/reset": "catalog:",
