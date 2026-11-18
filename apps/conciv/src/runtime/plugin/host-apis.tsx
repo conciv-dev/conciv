@@ -91,7 +91,7 @@ type Attached = {
   path: Accessor<string>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
-  directory: Accessor<string | undefined>
+  directory: string
 }
 
 export type ComposerBinding = {
@@ -193,11 +193,13 @@ export function createHostApis() {
   const target = (
     plugin: string,
     key: string,
-    scope: Exclude<StorageScope, 'global' | 'project'>,
+    scope: Exclude<StorageScope, 'global'>,
     from: StoreFrom | readonly StoreFrom[] | undefined,
     connected: Attached,
   ) => {
     const name = storeName(plugin, key)
+
+    if (scope === 'project') return projectStoreTarget(plugin, key, from, connected.directory)
 
     if ('session' in scope) {
       const location = scope.session.location
@@ -226,24 +228,10 @@ export function createHostApis() {
         return runWithOwner(getOwner() ?? owner, () => {
           if (!scope || scope === 'global') return open(globalStoreTarget(plugin, key, options.from))
 
-          if (scope === 'project') {
-            const directory = createMemo(() => attached()?.directory())
-
-            return deferredHandle(
-              createMemo(
-                on([attached, directory], ([connected, value]) =>
-                  connected === undefined || value === undefined
-                    ? undefined
-                    : open(projectStoreTarget(plugin, key, options.from, value)),
-                ),
-              ),
-            )
-          }
-
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
 
-          if (!('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
+          if (scope === 'project' || !('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
 
           const directory = createMemo(() => scope.session.location?.directory)
 
@@ -274,22 +262,14 @@ export function createHostApis() {
 
         if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
 
-        if (scope === 'project') {
-          write((connected) => {
-            const directory = untrack(connected.directory)
-
-            if (directory === undefined)
-              return console.error(`[plugin] ${plugin}: the project store ${key} was not removed, no project is open`)
-            removePersisted(projectStoreTarget(plugin, key, options?.from, directory), rpc)
-          })
-
-          return
-        }
-
         const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
 
         write((connected) => {
-          if (!('session' in scope) || (scope.session.location && !located.pending(scope.session.key)))
+          if (
+            scope === 'project' ||
+            !('session' in scope) ||
+            (scope.session.location && !located.pending(scope.session.key))
+          )
             return run(connected)
           located.hold(scope.session, () => write(run))
         })
@@ -607,7 +587,7 @@ export function createPluginAttachment(apis: HostApis) {
       })
       .catch((cause: unknown) => console.error(`[plugin] ${plugin}: the draft did not open`, cause))
 
-  const mounted: Attached = {
+  const mounted: Omit<Attached, 'directory'> = {
     sessions,
     current,
     tabs: shell,
@@ -619,7 +599,6 @@ export function createPluginAttachment(apis: HostApis) {
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
     servers: () => [engine.id],
     server: (id) => (id === engine.id ? engine : undefined),
-    directory: () => (project.isSuccess ? project.data?.project.root : undefined),
     settings(plugin, page) {
       const sessionId = untrack(route).routed
 
@@ -663,8 +642,9 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
-    attach: () => {
-      const detach = apis.attach(mounted)
+    root: () => (project.isSuccess ? project.data?.project.root : undefined),
+    attach: (directory: string) => {
+      const detach = apis.attach({...mounted, directory})
 
       recheckPluginView()
 
