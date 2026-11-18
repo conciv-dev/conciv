@@ -64,8 +64,13 @@ function typedParts(content: QueuedMessage['content']): ContentPart[] {
   if (typeof content === 'string' || notes.length === 0) return visibleParts(content)
   const displayText = readPromptPresentation(content.metadata)?.displayText ?? ''
   if (typeof content.content === 'string') return displayText === '' ? [] : [{type: 'text', content: displayText}]
-  const sentences = notes.map(formatNoteComment).join('\n')
-  return visibleParts(content).filter((part) => part.type !== 'text' || part.content !== sentences)
+  return withoutAppendedSentences(visibleParts(content), notes.map(formatNoteComment).join('\n'))
+}
+
+function withoutAppendedSentences(parts: ContentPart[], sentences: string): ContentPart[] {
+  const appended = parts.at(-1)
+  if (appended?.type !== 'text' || appended.content !== sentences) return parts
+  return parts.slice(0, -1)
 }
 
 function partFile(part: ContentPart): File[] {

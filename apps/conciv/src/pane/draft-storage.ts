@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {keyBy, uniqBy} from 'es-toolkit'
+import {Mutex, keyBy, uniqBy} from 'es-toolkit'
 import type {DraftRow} from '@conciv/contract'
 import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {WebStorage} from '@conciv/storage-history'
@@ -89,7 +89,7 @@ function joinDraftText(saved: string, text: string, place: DraftPlace): string {
   return place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
 }
 
-async function keepInDraft(
+async function saveKeptDraft(
   appData: AppData,
   sessionId: string,
   kept: {text: string; items: readonly DraftItem[]},
@@ -109,6 +109,22 @@ async function keepInDraft(
     attachments: row?.attachments ?? [],
     items: uniqBy([...(row?.items ?? []), ...kept.items], (item) => item.key),
   })
+}
+
+const keptDraftLock = new Mutex()
+
+async function keepInDraft(
+  appData: AppData,
+  sessionId: string,
+  kept: {text: string; items: readonly DraftItem[]},
+  place: DraftPlace,
+): Promise<void> {
+  await keptDraftLock.acquire()
+  try {
+    await saveKeptDraft(appData, sessionId, kept, place)
+  } finally {
+    keptDraftLock.release()
+  }
 }
 
 export function appendDraft(
