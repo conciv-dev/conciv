@@ -155,7 +155,7 @@ export type PluginRuntime = {
   awaitActivation: () => Promise<void>
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
-  context: (sessionId: SessionId, system: readonly string[]) => Promise<readonly string[]>
+  context: (sessionId: SessionId, system: readonly string[], signal: AbortSignal) => Promise<readonly string[]>
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
   closePermissions: () => Promise<void>
@@ -179,7 +179,7 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
       runtime.runPromise(
         Plugin.awaitActivation.pipe(Effect.andThen(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt')))),
       ),
-    context: (sessionId, system) =>
+    context: (sessionId, system, signal) =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(
           Effect.andThen(Session.Service.use((sessions) => sessions.get(sessionId))),
@@ -195,6 +195,7 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
           ),
           Effect.map((event) => event.system.map((part) => part.text)),
         ),
+        {signal},
       ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
     closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),

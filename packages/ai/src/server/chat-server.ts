@@ -69,7 +69,7 @@ export type TurnTools = {
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  systemPrompts: () => Promise<readonly string[]>
+  systemPrompts: (signal: AbortSignal) => Promise<readonly string[]>
   tools: () => Promise<TurnTools>
   setup: () => Promise<Approvals>
   prompt: (message: ModelMessage, signal: AbortSignal) => Promise<ModelMessage>
@@ -489,7 +489,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         const next = await offered()
         codePreface.shown = next.preface
         const systemPrompts = [
-          ...(await plan.systemPrompts()),
+          ...(await plan.systemPrompts(entry.controller.signal)),
           ...(next.preface === null ? [] : [next.preface]),
           ...current.systemPrompts,
         ]
