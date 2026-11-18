@@ -1,7 +1,5 @@
 import {z} from 'zod'
 
-export const RECORDER_NAME = 'recorder'
-
 export const recorderConfig = z.object({
   masking: z.enum(['none', 'inputs', 'sensitive']).default('none'),
   windowMinutes: z.number().int().positive().max(60).default(10),
@@ -35,39 +33,5 @@ export type RecorderControl = z.infer<typeof RecorderControlSchema>
 export type ActionLogKind = 'click' | 'input' | 'navigation' | 'scroll' | 'console' | 'reload'
 
 export type ActionLogEntry = {ts: number; kind: ActionLogKind; detail: string}
-
-export const RECORDER_MIME = 'application/x-conciv-recorder'
-
-const RecordingRefSchema = z.object({recordingId: z.string().min(1), poster: z.string()})
-export type RecordingRef = z.infer<typeof RecordingRefSchema>
-
-export function recordingRefJson(ref: RecordingRef): string {
-  return JSON.stringify(ref)
-}
-
-export function parseRecordingRefJson(json: string): RecordingRef | null {
-  try {
-    const parsed = RecordingRefSchema.safeParse(JSON.parse(json))
-    return parsed.success ? parsed.data : null
-  } catch {
-    return null
-  }
-}
-
-export function decodeRecordingRef(value: string): RecordingRef | null {
-  try {
-    const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
-    return parseRecordingRefJson(new TextDecoder().decode(bytes))
-  } catch {
-    return null
-  }
-}
-
-export function recordingPoster(entries: ActionLogEntry[]): string {
-  const first = entries[0]?.ts ?? 0
-  const last = entries.at(-1)?.ts ?? first
-  const seconds = Math.max(0, Math.round((last - first) / 1000))
-  return `Screen recording · ${entries.length} action${entries.length === 1 ? '' : 's'} · ${seconds}s`
-}
 
 export type Keyframe = {ts: number; pngBase64: string}

@@ -76,7 +76,7 @@ function readEvents(chunk: readonly Queued[]): readonly RrwebEvent[] {
 function drain(backlog: Backlog, attempt: number, live: boolean): FlusherTransition {
   if (backlog.queue.length === 0)
     return {
-      state: {status: 'waiting', attempt, live, ...backlog},
+      state: {status: 'waiting', attempt, live, queue: backlog.queue, queueBytes: backlog.queueBytes},
       effects: [{type: 'arm', live}, {type: 'settled'}],
     }
   const next = attempt + 1
@@ -89,7 +89,10 @@ function drain(backlog: Backlog, attempt: number, live: boolean): FlusherTransit
 
 function close(backlog: Backlog, attempt: number): FlusherTransition {
   if (backlog.queue.length === 0)
-    return {state: {status: 'disposed', attempt, ...backlog}, effects: [{type: 'settled'}]}
+    return {
+      state: {status: 'disposed', attempt, queue: backlog.queue, queueBytes: backlog.queueBytes},
+      effects: [{type: 'settled'}],
+    }
   const next = attempt + 1
   const taken = takeChunk(backlog)
   return {

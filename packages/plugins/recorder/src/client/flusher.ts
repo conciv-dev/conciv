@@ -1,108 +1,97 @@
-import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from '../protocol.js'
+import {Data, Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope} from 'effect'
+import type {RrwebEvent} from '../protocol.js'
+import {
+  initialFlusher,
+  transitionFlusher,
+  type FlusherEffect,
+  type FlusherEvent,
+  type FlusherState,
+} from './flusher-machine.js'
+import {makeMachineDriver, type MachineDriver} from './machine-driver.js'
+
+export const FlushFailed = Data.TaggedError('RecorderFlushFailed')<{readonly cause: unknown}>
+export type FlushFailed = InstanceType<typeof FlushFailed>
 
 export type Flusher = {
-  push(event: RrwebEvent): void
-  setLive(live: boolean): void
-  flushNow(): Promise<void>
-  dispose(): void
+  readonly state: SubscriptionRef.SubscriptionRef<FlusherState>
+  readonly push: (event: RrwebEvent) => Effect.Effect<void>
+  readonly setLive: (live: boolean) => Effect.Effect<void>
+  readonly requestFlush: Effect.Effect<void>
+  readonly flushNow: Effect.Effect<void>
 }
 
-const MAX_QUEUE_BYTES = 8 * 1024 * 1024
-const MAX_POST_BYTES = 1024 * 1024
-const BACKOFF_START_MS = 1000
-const BACKOFF_MAX_MS = 30_000
+type FlusherDriver = MachineDriver<FlusherState, FlusherEvent>
 
-type Queued = {event: RrwebEvent; bytes: number}
+const FLUSH_BACKOFF = Schedule.min([Schedule.exponential('1 second'), Schedule.spaced('30 seconds')])
 
-export function createFlusher(opts: {
-  send: (events: RrwebEvent[]) => Promise<void>
-  idleMs?: number
-  liveMs?: number
-}): Flusher {
-  const idleMs = opts.idleMs ?? 5000
-  const liveMs = opts.liveMs ?? 200
-  let queue: Queued[] = []
-  let queueBytes = 0
-  let cadenceMs = idleMs
-  let backoffMs = 0
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let disposed = false
-  let draining = false
+function isSettled(state: FlusherState): boolean {
+  return state.status === 'waiting' || state.status === 'disposed'
+}
 
-  const enqueue = (event: RrwebEvent): void => {
-    const bytes = jsonByteLength(event)
-    if (jsonByteLength([event]) > MAX_FLUSH_BYTES) return
-    queue.push({event, bytes})
-    queueBytes += bytes
-    if (queueBytes <= MAX_QUEUE_BYTES) return
-    const lastSnapshot = queue.findLastIndex((item) => item.event.type === 2)
-    const droppable = lastSnapshot === -1 ? queue.length - 1 : Math.min(lastSnapshot, queue.length - 1)
-    let dropTo = 0
-    while (queueBytes > MAX_QUEUE_BYTES && dropTo < droppable) {
-      queueBytes -= queue[dropTo]?.bytes ?? 0
-      dropTo += 1
-    }
-    if (dropTo > 0) queue = queue.slice(dropTo)
-  }
+export const makeFlusher = Effect.fn('recorder.flusher')(function* (options: {
+  readonly send: (events: readonly RrwebEvent[]) => Effect.Effect<void, FlushFailed>
+  readonly idle?: Duration.Input
+  readonly live?: Duration.Input
+}): Effect.fn.Return<Flusher, never, Scope.Scope> {
+  const arming = yield* FiberHandle.make()
+  const sending = yield* FiberSet.make()
+  const cadence = (live: boolean): Duration.Input =>
+    live ? (options.live ?? '200 millis') : (options.idle ?? '5 seconds')
 
-  const takeChunk = (): Queued[] => {
-    const chunk: Queued[] = []
-    let chunkBytes = 0
-    while (queue.length > 0) {
-      const head = queue[0]
-      if (!head) break
-      if (chunk.length > 0 && chunkBytes + head.bytes > MAX_POST_BYTES) break
-      chunk.push(head)
-      chunkBytes += head.bytes
-      queue = queue.slice(1)
-      queueBytes -= head.bytes
-    }
-    return chunk
-  }
+  const send = (command: Extract<FlusherEffect, {readonly type: 'send'}>, driver: FlusherDriver) =>
+    options.send(command.events).pipe(
+      Effect.tapError((error) => Effect.logWarning('recorder: a flush failed', error.cause)),
+      Effect.retry({
+        schedule: FLUSH_BACKOFF,
+        while: () =>
+          Effect.map(
+            SubscriptionRef.get(driver.state),
+            (current) => current.status === 'draining' && current.attempt === command.attempt,
+          ),
+      }),
+      Effect.matchEffect({
+        onSuccess: () => driver.dispatch({type: 'chunk.sent', attempt: command.attempt}),
+        onFailure: () => driver.dispatch({type: 'chunk.failed', attempt: command.attempt}),
+      }),
+    )
 
-  const drain = async (): Promise<void> => {
-    if (draining) return
-    draining = true
-    try {
-      while (queue.length > 0) {
-        const chunk = takeChunk()
-        try {
-          await opts.send(chunk.map((item) => item.event))
-          backoffMs = 0
-        } catch {
-          queue = [...chunk, ...queue]
-          for (const item of chunk) queueBytes += item.bytes
-          backoffMs = backoffMs === 0 ? BACKOFF_START_MS : Math.min(backoffMs * 2, BACKOFF_MAX_MS)
-          return
-        }
-      }
-    } finally {
-      draining = false
-      schedule()
-    }
-  }
+  const arm = (live: boolean, driver: FlusherDriver) =>
+    Effect.asVoid(
+      FiberHandle.run(
+        arming,
+        Effect.andThen(
+          Effect.sleep(cadence(live)),
+          FiberSet.run(sending, driver.dispatch({type: 'drain.requested'}), {startImmediately: false}),
+        ),
+      ),
+    )
 
-  const schedule = (): void => {
-    if (disposed) return
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => void drain(), backoffMs > 0 ? backoffMs : cadenceMs)
-  }
+  const driver = yield* makeMachineDriver({
+    initial: initialFlusher,
+    transition: transitionFlusher,
+    run: (command: FlusherEffect, current: FlusherDriver) => {
+      if (command.type === 'arm') return arm(command.live, current)
+      if (command.type === 'cancel-arm') return FiberHandle.clear(arming)
+      if (command.type === 'send')
+        return Effect.asVoid(FiberSet.run(sending, send(command, current), {startImmediately: false}))
+      return Effect.void
+    },
+  })
 
-  schedule()
+  const awaitSettled = SubscriptionRef.changes(driver.state).pipe(
+    Stream.filter(isSettled),
+    Stream.runHead,
+    Effect.asVoid,
+  )
+
+  yield* Effect.addFinalizer(() => Effect.andThen(driver.dispatch({type: 'disposed'}), awaitSettled))
+  yield* arm(false, driver)
 
   return {
-    push(event) {
-      if (!disposed) enqueue(event)
-    },
-    setLive(live) {
-      cadenceMs = live ? liveMs : idleMs
-      schedule()
-    },
-    flushNow: drain,
-    dispose() {
-      disposed = true
-      if (timer) clearTimeout(timer)
-      void drain()
-    },
+    state: driver.state,
+    push: (event) => driver.dispatch({type: 'pushed', event}),
+    setLive: (live) => driver.dispatch({type: 'live.changed', live}),
+    requestFlush: driver.dispatch({type: 'drain.requested'}),
+    flushNow: Effect.andThen(driver.dispatch({type: 'drain.requested'}), awaitSettled),
   }
-}
+})

@@ -1,3 +1,4 @@
+import {Data, Effect, type Scope} from 'effect'
 import type {record} from 'rrweb'
 import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
@@ -16,16 +17,20 @@ function maskingOptions(masking: RecorderConfig['masking']): {
 
 export type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof getRecordConsolePlugin}
 
-let captureLibrary: Promise<CaptureLibrary> | undefined
+export const CaptureLibraryLoadFailed = Data.TaggedError('RecorderCaptureLibraryLoadFailed')<{readonly cause: unknown}>
+export type CaptureLibraryLoadFailed = InstanceType<typeof CaptureLibraryLoadFailed>
 
-export function loadCaptureLibrary(): Promise<CaptureLibrary> {
-  captureLibrary ??= Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]).then(
-    ([rrweb, consoleRecord]) => ({record: rrweb.record, getRecordConsolePlugin: consoleRecord.getRecordConsolePlugin}),
-  )
-  return captureLibrary
-}
+export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, CaptureLibraryLoadFailed> = Effect.tryPromise({
+  try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),
+  catch: (cause) => new CaptureLibraryLoadFailed({cause}),
+}).pipe(
+  Effect.map(([rrweb, consoleRecord]) => ({
+    record: rrweb.record,
+    getRecordConsolePlugin: consoleRecord.getRecordConsolePlugin,
+  })),
+)
 
-export function startCapture(
+function startCapture(
   library: CaptureLibrary,
   config: RecorderConfig,
   exclude: string,
@@ -50,6 +55,18 @@ export function startCapture(
   return () => stop?.()
 }
 
-export function takeFreshSnapshot(library: CaptureLibrary): void {
-  library.record.takeFullSnapshot(true)
+export function recordPage(
+  library: CaptureLibrary,
+  exclude: string,
+  emit: (event: RrwebEvent) => void,
+): (config: RecorderConfig) => Effect.Effect<void, never, Scope.Scope> {
+  return (config) =>
+    Effect.acquireRelease(
+      Effect.sync(() => startCapture(library, config, exclude, emit)),
+      (stop) => Effect.sync(stop),
+    )
+}
+
+export function takeFreshSnapshot(library: CaptureLibrary): Effect.Effect<void> {
+  return Effect.sync(() => library.record.takeFullSnapshot(true))
 }

@@ -10,19 +10,15 @@ import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {createFlusher} from '../src/client/flusher.js'
-import {createCaptureControl} from '../src/capture-control.js'
-import {createRecordingStore} from '../src/recordings.js'
-import {createClientRings} from '../src/rings.js'
-import {pullWindow, type RecorderRuntime} from '../src/runtime.js'
-import {createChromiumRenderer} from '../src/render.js'
+import {FlushFailed, makeFlusher} from '../src/client/flusher.js'
 import {MAX_FLUSH_BYTES, type RecorderConfig} from '../src/protocol.js'
-import {Effect, Fiber, Layer, Option, Ref, Stream, type Scope} from 'effect'
+import {Deferred, Effect, Exit, Fiber, Layer, Option, Path, Queue, Ref, Scope, Stream, SubscriptionRef} from 'effect'
 import {TestClock} from 'effect/testing'
 import * as CaptureControlModel from '../src/capture-control.js'
 import * as ClientRingsModel from '../src/rings.js'
 import * as RendererCacheModel from '../src/renderer-cache.js'
-import {RenderFailed, RendererUnavailable, type KeyframeRenderer} from '../src/render.js'
+import {RenderFailed, RendererUnavailable, launchChromiumRenderer, type KeyframeRenderer} from '../src/render.js'
+import {pullWindow} from '../src/runtime.js'
 import {
   initialCaptureControl,
   transitionCaptureControl,
@@ -33,6 +29,11 @@ import {initialCaptureSession, transitionCaptureSession} from '../src/client/cap
 import {initialFlusher, transitionFlusher, type FlusherState} from '../src/client/flusher-machine.js'
 import {initialPanel, transitionPanel} from '../src/client/panel-machine.js'
 import {initialVisibilityPause, transitionVisibilityPause} from '../src/client/visibility-pause-machine.js'
+import {runBoot} from '../src/client/boot.js'
+import {openCaptureSession} from '../src/client/capture-session.js'
+import {openPanel} from '../src/client/panel.js'
+import {FollowFailed, followRecording} from '../src/client/player-follow.js'
+import {runVisibilityPause} from '../src/client/visibility-pause.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -601,33 +602,36 @@ describe('the recording tools', () => {
 
 describe('a keyframe render with no full snapshot', () => {
   it('renders no keyframes from a stream that holds no full snapshot', async () => {
-    const renderer = await createChromiumRenderer()
-    if (!renderer) throw new Error('the Chromium renderer did not launch')
-    onTestFinished(() => renderer.dispose())
     const events = [
       {type: 4, data: {href: 'http://localhost/app', width: 640, height: 480}, timestamp: 1000},
       {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
     ]
-    expect(await renderer.render(events, [2000])).toEqual([])
+    const frames = await Effect.gen(function* () {
+      const renderer = yield* launchChromiumRenderer
+      return yield* renderer.render(events, [2000])
+    }).pipe(Effect.provide(Path.layer), Effect.scoped, Effect.runPromise)
+    expect(frames).toEqual([])
   })
 })
 
 describe('a recording pulled with no renderer', () => {
   it('holds the text log and no image when the renderer fails', async () => {
-    const rings = createClientRings({windowMs: 60_000})
-    const runtime: RecorderRuntime = {
-      rings,
-      control: createCaptureControl(rings),
-      config: {masking: 'none', windowMinutes: 1, console: true},
-      useRenderer: () => Promise.reject(new Error('no browser to render with')),
-      recordings: createRecordingStore(tempDir('conciv-recorder-no-renderer-')),
+    const failingRenderer: KeyframeRenderer = {
+      render: () => Effect.fail(new RenderFailed({cause: new Error('no browser to render with')})),
+      renderVideo: () => Effect.fail(new RenderFailed({cause: new Error('no browser to render with')})),
     }
-    rings.append('no-renderer', [
-      {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1000},
-      {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Buy')])}, timestamp: 1001},
-      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
-    ])
-    const parts = await pullWindow(runtime, 0, 3000, 2)
+    const parts = await runTimed(
+      Layer.mergeAll(ringsLayer, RendererCacheModel.rendererCacheLayer(Effect.succeed(failingRenderer))),
+      Effect.gen(function* () {
+        const rings = yield* ClientRingsModel.ClientRings
+        yield* rings.append('no-renderer', [
+          {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1000},
+          {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Buy')])}, timestamp: 1001},
+          {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+        ])
+        return yield* pullWindow(0, 3000, 2)
+      }),
+    )
     expect(parts.output).toContain('Buy')
     expect(parts.output).toMatch(/\(keyframes skipped: no renderer available\)$/)
     expect(parts.content.every((part) => part.type === 'text')).toBe(true)
@@ -779,11 +783,15 @@ describe('the page flusher', () => {
     const kit = await bootRecorder()
     const sent = {flushes: 0}
     const flusherFor = (clientId: string) =>
-      createFlusher({
-        send: async (events) => {
-          sent.flushes += 1
-          await call(kit, 'flush', {clientId, events})
-        },
+      makeFlusher({
+        send: (events) =>
+          Effect.tryPromise({
+            try: async () => {
+              sent.flushes += 1
+              await call(kit, 'flush', {clientId, events: [...events]})
+            },
+            catch: (cause) => new FlushFailed({cause}),
+          }),
       })
     const padded = (timestamp: number, bytes: number): RrwebEvent => ({
       type: 3,
@@ -793,24 +801,28 @@ describe('the page flusher', () => {
     const deliveredCount = async (clientId: string): Promise<number> =>
       EventWindowSchema.parse(await call(kit, 'since', {clientId, cursor: 0})).events.length
 
-    const burst = flusherFor('burst')
-    onTestFinished(() => burst.dispose())
-    const base = Date.now()
-    for (let index = 0; index < 6; index += 1) burst.push(padded(base + index, 900 * 1024))
-    await burst.flushNow()
-    expect(sent.flushes).toBeGreaterThan(1)
-    expect(await deliveredCount('burst')).toBe(6)
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const burst = yield* flusherFor('burst')
+          const base = Date.now()
+          for (let index = 0; index < 6; index += 1) yield* burst.push(padded(base + index, 900 * 1024))
+          yield* burst.flushNow
+          expect(sent.flushes).toBeGreaterThan(1)
+          expect(yield* Effect.promise(() => deliveredCount('burst'))).toBe(6)
 
-    const capped = flusherFor('capped')
-    onTestFinished(() => capped.dispose())
-    sent.flushes = 0
-    capped.push(padded(base + 10, MAX_FLUSH_BYTES + 1024))
-    await capped.flushNow()
-    expect(sent.flushes).toBe(0)
-    capped.push(padded(base + 11, MAX_FLUSH_BYTES - 4096))
-    await capped.flushNow()
-    expect(sent.flushes).toBe(1)
-    expect(await deliveredCount('capped')).toBe(1)
+          const capped = yield* flusherFor('capped')
+          sent.flushes = 0
+          yield* capped.push(padded(base + 10, MAX_FLUSH_BYTES + 1024))
+          yield* capped.flushNow
+          expect(sent.flushes).toBe(0)
+          yield* capped.push(padded(base + 11, MAX_FLUSH_BYTES - 4096))
+          yield* capped.flushNow
+          expect(sent.flushes).toBe(1)
+          expect(yield* Effect.promise(() => deliveredCount('capped'))).toBe(1)
+        }),
+      ),
+    )
   })
 })
 
@@ -1294,6 +1306,244 @@ describe('the renderer cache', () => {
         expect(yield* Ref.get(disposals)).toBe(1)
         yield* cache.use((current) => current.render([], []))
         expect(yield* Ref.get(launches)).toBe(2)
+      }),
+    )
+  })
+})
+
+function awaitState<State>(ref: SubscriptionRef.SubscriptionRef<State>, matches: (state: State) => boolean) {
+  return SubscriptionRef.changes(ref).pipe(Stream.filter(matches), Stream.runHead, Effect.asVoid)
+}
+
+const flushedEvent = (timestamp: number): RrwebEvent => ({type: 3, data: {}, timestamp})
+
+describe('the flusher model', () => {
+  it('sends on its cadence, backs off 1, 2 and 4 seconds up to a 30 second cap, makes a flush during backoff wait for the running retry, and sends a last chunk on dispose', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const attempts = yield* Ref.make(0)
+        const failuresLeft = yield* Ref.make(0)
+        const send = () =>
+          Effect.andThen(
+            Ref.update(attempts, (count) => count + 1),
+            Effect.flatMap(
+              Ref.getAndUpdate(failuresLeft, (left) => Math.max(left - 1, 0)),
+              (left) => (left > 0 ? Effect.fail(new FlushFailed({cause: 'offline'})) : Effect.void),
+            ),
+          )
+        const flusher = yield* makeFlusher({send})
+        yield* flusher.push(flushedEvent(1))
+        yield* TestClock.adjust('5 seconds')
+        yield* awaitState(flusher.state, (state) => state.status === 'waiting' && state.queue.length === 0)
+        expect(yield* Ref.get(attempts)).toBe(1)
+
+        yield* Ref.set(failuresLeft, 7)
+        yield* flusher.push(flushedEvent(2))
+        yield* TestClock.adjust('5 seconds')
+        const flushed = yield* Effect.forkScoped(flusher.flushNow, {startImmediately: true})
+        expect(yield* Ref.get(attempts)).toBe(2)
+        yield* TestClock.adjust('1 second')
+        expect(yield* Ref.get(attempts)).toBe(3)
+        yield* TestClock.adjust('2 seconds')
+        expect(yield* Ref.get(attempts)).toBe(4)
+        yield* TestClock.adjust('4 seconds')
+        expect(yield* Ref.get(attempts)).toBe(5)
+        yield* TestClock.adjust('24 seconds')
+        expect(yield* Ref.get(attempts)).toBe(7)
+        yield* TestClock.adjust('29 seconds')
+        expect(yield* Ref.get(attempts)).toBe(7)
+        yield* TestClock.adjust('1 second')
+        expect(yield* Ref.get(attempts)).toBe(8)
+        yield* TestClock.adjust('30 seconds')
+        yield* Fiber.join(flushed)
+        expect(yield* Ref.get(attempts)).toBe(9)
+
+        const inner = yield* Scope.make()
+        const closing = yield* makeFlusher({send}).pipe(Scope.provide(inner))
+        yield* closing.push(flushedEvent(3))
+        yield* Scope.close(inner, Exit.void)
+        expect((yield* SubscriptionRef.get(closing.state)).status).toBe('disposed')
+        expect(yield* Ref.get(attempts)).toBe(10)
+      }),
+    )
+  })
+})
+
+describe('the visibility pause model', () => {
+  it('pauses after 30 hidden seconds, not after 29, resumes when shown, and never pauses once disposed', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const hidden = yield* Queue.unbounded<boolean>()
+        const calls = yield* SubscriptionRef.make<readonly string[]>([])
+        const inner = yield* Scope.make()
+        const state = yield* runVisibilityPause({
+          hidden: Stream.fromQueue(hidden),
+          pause: SubscriptionRef.update(calls, (current) => [...current, 'pause']),
+          resume: SubscriptionRef.update(calls, (current) => [...current, 'resume']),
+        }).pipe(Scope.provide(inner))
+        yield* Queue.offer(hidden, true)
+        yield* awaitState(state, (current) => current.status === 'hiding')
+        yield* TestClock.adjust('29 seconds')
+        yield* Queue.offer(hidden, false)
+        yield* awaitState(state, (current) => current.status === 'visible')
+        expect(yield* SubscriptionRef.get(calls)).toEqual([])
+        yield* Queue.offer(hidden, true)
+        yield* awaitState(state, (current) => current.status === 'hiding')
+        yield* TestClock.adjust('30 seconds')
+        yield* awaitState(calls, (current) => current.length === 1)
+        yield* Queue.offer(hidden, false)
+        yield* awaitState(calls, (current) => current.length === 2)
+        expect(yield* SubscriptionRef.get(calls)).toEqual(['pause', 'resume'])
+        yield* Queue.offer(hidden, true)
+        yield* awaitState(state, (current) => current.status === 'hiding')
+        yield* Scope.close(inner, Exit.void)
+        yield* TestClock.adjust('30 seconds')
+        expect(yield* SubscriptionRef.get(calls)).toEqual(['pause', 'resume'])
+        expect((yield* SubscriptionRef.get(state)).status).toBe('disposed')
+      }),
+    )
+  })
+})
+
+const recorderConfigFixture: RecorderConfig = {masking: 'none', windowMinutes: 10, console: true}
+
+describe('the capture session model', () => {
+  it('never starts a recording from a config read that lands after the page was paused again', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const hidden = yield* Queue.unbounded<boolean>()
+        const starts = yield* Ref.make(0)
+        const stops = yield* Ref.make(0)
+        const configRead = yield* Deferred.make<RecorderConfig>()
+        const flusher = yield* makeFlusher({send: () => Effect.void})
+        const state = yield* openCaptureSession({
+          config: recorderConfigFixture,
+          record: () =>
+            Effect.acquireRelease(
+              Ref.update(starts, (count) => count + 1),
+              () => Ref.update(stops, (count) => count + 1),
+            ),
+          takeSnapshot: Effect.void,
+          reloadConfig: Deferred.await(configRead),
+          flusher,
+          controls: Stream.empty,
+          flushCues: Stream.empty,
+          hidden: Stream.fromQueue(hidden),
+          onFailed: Effect.void,
+        })
+        yield* Queue.offer(hidden, true)
+        yield* TestClock.adjust('30 seconds')
+        yield* awaitState(state, (current) => current.status === 'paused')
+        yield* Queue.offer(hidden, false)
+        yield* awaitState(state, (current) => current.status === 'resuming')
+        yield* Queue.offer(hidden, true)
+        yield* TestClock.adjust('30 seconds')
+        yield* awaitState(state, (current) => current.status === 'paused')
+        yield* Deferred.succeed(configRead, recorderConfigFixture)
+        yield* Effect.yieldNow
+        expect((yield* SubscriptionRef.get(state)).status).toBe('paused')
+        expect(yield* Ref.get(starts)).toBe(1)
+        expect(yield* Ref.get(stops)).toBe(1)
+      }),
+    )
+  })
+})
+
+describe('the boot model', () => {
+  it('opens the session of the latest selector and ignores a prepare that lands after the selector moved on', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const selectors = yield* Queue.unbounded<string | undefined>()
+        const slowPrepare = yield* Deferred.make<string>()
+        const opened = yield* Ref.make<readonly string[]>([])
+        const state = yield* runBoot({
+          connected: Stream.make(true),
+          readLive: Effect.succeed(true),
+          controls: Stream.empty,
+          selector: Stream.fromQueue(selectors),
+          prepare: (selector) => (selector === 'first' ? Deferred.await(slowPrepare) : Effect.succeed(selector)),
+          open: (prepared) => Ref.update(opened, (current) => [...current, prepared]),
+        })
+        yield* awaitState(state, (current) => current.live)
+        yield* Queue.offer(selectors, 'first')
+        yield* awaitState(state, (current) => current.status === 'starting')
+        yield* Queue.offer(selectors, 'second')
+        yield* awaitState(state, (current) => current.status === 'capturing')
+        yield* Deferred.succeed(slowPrepare, 'first')
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(opened)).toEqual(['second'])
+        expect((yield* SubscriptionRef.get(state)).status).toBe('capturing')
+      }),
+    )
+  })
+})
+
+describe('the player follow model', () => {
+  it('subscribes again after a dropped feed, one second later, and reads from the cursor it reached', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const subscriptions = yield* Ref.make(0)
+        const cues = Stream.unwrap(
+          Effect.map(
+            Ref.updateAndGet(subscriptions, (count) => count + 1),
+            (count) => (count === 1 ? Stream.fail(new FollowFailed({cause: 'dropped'})) : Stream.make('cue')),
+          ),
+        )
+        const followed = yield* Effect.forkScoped(
+          followRecording({
+            cursor: 4,
+            cues,
+            readSince: (cursor) => Effect.succeed({events: [], cursor: cursor + 1}),
+          }).pipe(Stream.take(1), Stream.runCollect),
+          {startImmediately: true},
+        )
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(subscriptions)).toBe(1)
+        yield* TestClock.adjust('999 millis')
+        expect(yield* Ref.get(subscriptions)).toBe(1)
+        yield* TestClock.adjust('1 millis')
+        expect(yield* Fiber.join(followed)).toEqual([{events: [], cursor: 5}])
+        expect(yield* Ref.get(subscriptions)).toBe(2)
+      }),
+    )
+  })
+})
+
+describe('the panel model', () => {
+  it('renews the viewer lease every 7 seconds until closed, drops it on close, and runs export and reset one at a time', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const leases = yield* Ref.make<readonly boolean[]>([])
+        const exported = yield* Deferred.make<void>()
+        const resets = yield* Ref.make(0)
+        const inner = yield* Scope.make()
+        const panel = yield* openPanel({
+          presence: (live) => Ref.update(leases, (current) => [...current, live]),
+          exportRecording: Deferred.await(exported),
+          reset: Ref.update(resets, (count) => count + 1),
+          report: () => Effect.void,
+        }).pipe(Scope.provide(inner))
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(leases)).toEqual([true])
+        yield* TestClock.adjust('7 seconds')
+        expect(yield* Ref.get(leases)).toEqual([true, true])
+
+        yield* panel.requestExport
+        yield* panel.requestReset
+        expect((yield* SubscriptionRef.get(panel.state)).status).toBe('exporting')
+        yield* Deferred.succeed(exported, undefined)
+        yield* awaitState(panel.state, (current) => current.status === 'idle')
+        expect(yield* Ref.get(resets)).toBe(0)
+
+        yield* Scope.close(inner, Exit.void)
+        yield* TestClock.adjust('14 seconds')
+        expect(yield* Ref.get(leases)).toEqual([true, true, false])
       }),
     )
   })

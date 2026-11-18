@@ -1,86 +1,88 @@
-import {onCleanup} from 'solid-js'
-import {createStore} from 'solid-js/store'
-import {createKeyed, type Context} from '@conciv/plugin/experimental'
-import {Page} from '@conciv/plugin/experimental/page'
-import {Recorder} from '../rpc.js'
-import {loadCaptureLibrary} from './capture.js'
-import {createCaptureSession, type CaptureSession} from './capture-session.js'
-import {createFlusher} from './flusher.js'
+import {Data, Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope} from 'effect'
+import type {RecorderControl} from '../protocol.js'
+import {initialBoot, transitionBoot, type BootEffect, type BootEvent, type BootState} from './boot-machine.js'
+import {makeMachineDriver} from './machine-driver.js'
 
-export type CaptureState = {readonly failed: boolean}
+export const ConfigReadFailed = Data.TaggedError('RecorderConfigReadFailed')<{readonly cause: unknown}>
+export type ConfigReadFailed = InstanceType<typeof ConfigReadFailed>
 
-export function bootCapture(ctx: Context, clientId: string): CaptureState {
-  const recorder = ctx.client.rpc(Recorder)
-  const page = ctx.use(Page)
-  const [state, setState] = createStore({failed: false, live: false})
-  createKeyed(
-    () => (ctx.servers.get('engine')?.connected ? 'engine' : undefined),
-    () => {
-      const reading = new AbortController()
-      onCleanup(() => reading.abort())
-      void recorder.state(undefined, {signal: reading.signal}).then(
-        (current) => setState('live', current.live),
-        (error: unknown) => {
-          if (reading.signal.aborted) return
-          console.error('[conciv] the recorder state could not be read', error)
-        },
-      )
-    },
-  )
-  recorder.events.on(
-    'control',
-    (event) => {
-      if (event.data.live !== undefined) setState('live', event.data.live)
-    },
-    {signal: ctx.signal},
-  )
-  const flusher = createFlusher({send: (events) => recorder.flush({clientId, events}).then(() => undefined)})
-  onCleanup(() => flusher.dispose())
+export const StateReadFailed = Data.TaggedError('RecorderStateReadFailed')<{readonly cause: unknown}>
+export type StateReadFailed = InstanceType<typeof StateReadFailed>
 
-  const exclude = (): string | undefined => {
-    const current = page()
-    if (current.status !== 'active' || !state.live) return undefined
-    return current.value.capture.exclude
-  }
-
-  createKeyed(exclude, (selector) => {
-    const run = new AbortController()
-    const session: {current: CaptureSession | undefined} = {current: undefined}
-    onCleanup(() => {
-      run.abort()
-      void session.current?.finish()
-    })
-    const failed = (): void => {
-      if (!run.signal.aborted) setState('failed', true)
-    }
-    void loadCaptureLibrary()
-      .then(async (library) => {
-        const config = await recorder.config(undefined, {signal: run.signal})
-        if (run.signal.aborted) return
-        session.current = createCaptureSession({
-          library,
-          config,
-          exclude: selector,
-          reloadConfig: () => recorder.config(undefined, {signal: run.signal}),
-          flusher,
-          onFailed: failed,
-        })
-        setState('failed', false)
-      })
-      .catch((error: unknown) => {
-        if (run.signal.aborted) return
-        console.error('[conciv] the page capture could not start', error)
-        failed()
-      })
-    recorder.events.on(
-      'control',
-      async (event) => {
-        if (event.data.snapshot) session.current?.takeSnapshot()
-        if (event.data.flush) await session.current?.flushNow()
+export function runBoot<Prepared, PrepareFailed>(options: {
+  readonly connected: Stream.Stream<boolean>
+  readonly readLive: Effect.Effect<boolean, StateReadFailed>
+  readonly controls: Stream.Stream<RecorderControl>
+  readonly selector: Stream.Stream<string | undefined>
+  readonly prepare: (selector: string) => Effect.Effect<Prepared, PrepareFailed>
+  readonly open: (prepared: Prepared, onFailed: Effect.Effect<void>) => Effect.Effect<void, never, Scope.Scope>
+}): Effect.Effect<SubscriptionRef.SubscriptionRef<BootState>, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const reading = yield* FiberHandle.make()
+    const preparing = yield* FiberSet.make()
+    const session = yield* FiberHandle.make()
+    const driver = yield* makeMachineDriver({
+      initial: initialBoot,
+      transition: (state: BootState, event: BootEvent<Prepared>) => transitionBoot(state, event),
+      run: (command: BootEffect<Prepared>, current) => {
+        if (command.type === 'prepare')
+          return Effect.asVoid(
+            FiberSet.run(
+              preparing,
+              options.prepare(command.selector).pipe(
+                Effect.matchEffect({
+                  onSuccess: (prepared) => current.dispatch({type: 'prepared', attempt: command.attempt, prepared}),
+                  onFailure: (error) => current.dispatch({type: 'start.failed', attempt: command.attempt, error}),
+                }),
+              ),
+              {startImmediately: false},
+            ),
+          )
+        if (command.type === 'open-session')
+          return Effect.asVoid(
+            FiberHandle.run(
+              session,
+              Effect.scoped(
+                Effect.andThen(
+                  options.open(command.prepared, current.dispatch({type: 'session.failed', attempt: command.attempt})),
+                  Effect.never,
+                ),
+              ),
+            ),
+          )
+        if (command.type === 'finish-session') return FiberHandle.clear(session)
+        return Effect.logError('recorder: the page capture could not start', command.error)
       },
-      {signal: run.signal},
-    )
-  })
+    })
+    yield* Effect.addFinalizer(() => driver.dispatch({type: 'disposed'}))
 
-  return state
+    const readLive = options.readLive.pipe(
+      Effect.matchEffect({
+        onSuccess: (live) => driver.dispatch({type: 'live.read', live}),
+        onFailure: (error) => Effect.logError('recorder: the recorder state could not be read', error.cause),
+      }),
+    )
+    yield* options.connected.pipe(
+      Stream.runForEach((connected) =>
+        connected ? Effect.asVoid(FiberHandle.run(reading, readLive)) : FiberHandle.clear(reading),
+      ),
+      Effect.forkScoped,
+    )
+    yield* options.controls.pipe(
+      Stream.runForEach((control) =>
+        control.live === undefined ? Effect.void : driver.dispatch({type: 'live.read', live: control.live}),
+      ),
+      Effect.forkScoped,
+    )
+    yield* options.selector.pipe(
+      Stream.zipLatest(SubscriptionRef.changes(driver.state).pipe(Stream.map((state) => state.live))),
+      Stream.map(([selector, live]) => (live ? selector : undefined)),
+      Stream.changes,
+      Stream.runForEach((selector) =>
+        driver.dispatch(selector === undefined ? {type: 'selector.cleared'} : {type: 'selector.set', selector}),
+      ),
+      Effect.forkScoped,
+    )
+    return driver.state
+  })
 }

@@ -1,77 +1,88 @@
-import type {RecorderConfig} from '../protocol.js'
-import {startCapture, takeFreshSnapshot, type CaptureLibrary} from './capture.js'
+import {Data, Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef} from 'effect'
+import type {RecorderConfig, RecorderControl} from '../protocol.js'
+import {
+  initialCaptureSession,
+  transitionCaptureSession,
+  type CaptureSessionEffect,
+  type CaptureSessionState,
+} from './capture-session-machine.js'
 import type {Flusher} from './flusher.js'
-import {createVisibilityPauser} from './visibility-pauser.js'
+import {makeMachineDriver} from './machine-driver.js'
+import {runVisibilityPause} from './visibility-pause.js'
 
-export type CaptureSession = {
-  takeSnapshot(): void
-  flushNow(): Promise<void>
-  finish(): Promise<void>
-}
+export const ConfigReloadFailed = Data.TaggedError('RecorderConfigReloadFailed')<{readonly cause: unknown}>
+export type ConfigReloadFailed = InstanceType<typeof ConfigReloadFailed>
 
-export function createCaptureSession(opts: {
-  library: CaptureLibrary
-  config: RecorderConfig
-  exclude: string
-  reloadConfig: () => Promise<RecorderConfig>
-  flusher: Flusher
-  onFailed: () => void
-}): CaptureSession {
-  const flusher = opts.flusher
-  flusher.setLive(true)
-  let generation = 0
-  let stopRecord: (() => void) | undefined = startCapture(opts.library, opts.config, opts.exclude, (event) =>
-    flusher.push(event),
+export const openCaptureSession = Effect.fn('recorder.captureSession')(function* (options: {
+  readonly config: RecorderConfig
+  readonly record: (config: RecorderConfig) => Effect.Effect<void, never, Scope.Scope>
+  readonly takeSnapshot: Effect.Effect<void>
+  readonly reloadConfig: Effect.Effect<RecorderConfig, ConfigReloadFailed>
+  readonly flusher: Flusher
+  readonly controls: Stream.Stream<RecorderControl>
+  readonly flushCues: Stream.Stream<unknown>
+  readonly hidden: Stream.Stream<boolean>
+  readonly onFailed: Effect.Effect<void>
+}): Effect.fn.Return<SubscriptionRef.SubscriptionRef<CaptureSessionState>, never, Scope.Scope> {
+  const recording = yield* FiberHandle.make()
+  const reading = yield* FiberSet.make()
+  const startRecord = (config: RecorderConfig) =>
+    Effect.asVoid(FiberHandle.run(recording, Effect.scoped(Effect.andThen(options.record(config), Effect.never))))
+
+  const driver = yield* makeMachineDriver({
+    initial: initialCaptureSession,
+    transition: transitionCaptureSession,
+    run: (command: CaptureSessionEffect, current) => {
+      if (command.type === 'stop-record') return FiberHandle.clear(recording)
+      if (command.type === 'start-record') return startRecord(command.config)
+      if (command.type === 'read-config')
+        return Effect.asVoid(
+          FiberSet.run(
+            reading,
+            options.reloadConfig.pipe(
+              Effect.matchEffect({
+                onSuccess: (config) => current.dispatch({type: 'config.read', attempt: command.attempt, config}),
+                onFailure: (error) => current.dispatch({type: 'config.failed', attempt: command.attempt, error}),
+              }),
+            ),
+            {startImmediately: false},
+          ),
+        )
+      if (command.type === 'flush') return options.flusher.requestFlush
+      if (command.type === 'report-failed')
+        return Effect.andThen(
+          Effect.logError('recorder: the page capture could not resume', command.error),
+          options.onFailed,
+        )
+      return Effect.void
+    },
+  })
+
+  yield* options.flusher.setLive(true)
+  yield* startRecord(options.config)
+  yield* Effect.addFinalizer(() =>
+    Effect.andThen(
+      driver.dispatch({type: 'disposed'}),
+      Effect.andThen(options.flusher.setLive(false), options.flusher.requestFlush),
+    ),
   )
-  const offListeners: (() => void)[] = []
-  const listenFlush = (target: Window | Document, name: string): void => {
-    const handler = (): void => void flusher.flushNow()
-    target.addEventListener(name, handler)
-    offListeners.push(() => target.removeEventListener(name, handler))
-  }
-  listenFlush(window, 'error')
-  listenFlush(window, 'unhandledrejection')
-  listenFlush(window, 'beforeunload')
-  listenFlush(document, 'visibilitychange')
-  const pauser = createVisibilityPauser({
-    isHidden: () => document.visibilityState === 'hidden',
-    pause: () => {
-      generation += 1
-      stopRecord?.()
-      stopRecord = undefined
-      void flusher.flushNow()
-    },
-    resume: () => {
-      generation += 1
-      const resumedGeneration = generation
-      void opts
-        .reloadConfig()
-        .then((resumedConfig) => {
-          if (generation !== resumedGeneration) return
-          stopRecord = startCapture(opts.library, resumedConfig, opts.exclude, (event) => flusher.push(event))
-        })
-        .catch((error: unknown) => {
-          if (generation !== resumedGeneration) return
-          console.error('[conciv] the page capture could not resume', error)
-          opts.onFailed()
-        })
-    },
+  yield* runVisibilityPause({
+    hidden: options.hidden,
+    pause: driver.dispatch({type: 'paused'}),
+    resume: driver.dispatch({type: 'resumed'}),
   })
-  document.addEventListener('visibilitychange', pauser.onVisibilityChange)
-  offListeners.push(() => {
-    pauser.dispose()
-    document.removeEventListener('visibilitychange', pauser.onVisibilityChange)
-  })
-  return {
-    takeSnapshot: () => takeFreshSnapshot(opts.library),
-    flushNow: () => flusher.flushNow(),
-    async finish() {
-      generation += 1
-      stopRecord?.()
-      stopRecord = undefined
-      for (const off of offListeners) off()
-      flusher.setLive(false)
-      await flusher.flushNow()
-    },
-  }
-}
+  yield* options.flushCues.pipe(
+    Stream.runForEach(() => options.flusher.requestFlush),
+    Effect.forkScoped,
+  )
+  yield* options.controls.pipe(
+    Stream.runForEach((control) =>
+      Effect.andThen(
+        control.snapshot ? options.takeSnapshot : Effect.void,
+        control.flush ? options.flusher.requestFlush : Effect.void,
+      ),
+    ),
+    Effect.forkScoped,
+  )
+  return driver.state
+})

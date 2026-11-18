@@ -1,56 +1,74 @@
 import {Match, Show, Switch, createResource, onCleanup, untrack, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
-import {z} from 'zod'
-import {makeTimer} from '@solid-primitives/timer'
+import {Effect, SubscriptionRef} from 'effect'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
-import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../protocol.js'
-import type {CaptureState} from './boot.js'
+import {REPLAY_MIN_EVENTS} from '../protocol.js'
 import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
-import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
-
-const VIEWER_RENEW_MS = 7000
-
-const SavedRecording = z.object({recordingId: z.string()})
-
-const AppendedHere = z.object({clientId: z.string()})
-
-const APPENDED_EVENT = 'rpc.recorder.appended'
-
-type ReplaySource = {events: RrwebEvent[]; cursor: number}
+import {followClient} from './page-capture.js'
+import {ExportFailed, PresenceFailed, ResetFailed, exportRecording, openPanel} from './panel.js'
+import type {ReplaySource} from './player-follow.js'
+import {loadPlayerKit, streamPlayer, type PlayerKit} from './player.js'
+import {runInOwnerScope, subscriptionRefSignal, type PluginRuntime} from './subscription-ref-signal.js'
 
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
   if (!recording || recording.events.length < REPLAY_MIN_EVENTS) return undefined
   return recording
 }
 
-function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(atob(data), (character) => character.charCodeAt(0))
-}
-
-export function RecorderPanel(props: {clientId: string; capture: CaptureState}): JSX.Element {
+export function RecorderPanel(props: {
+  clientId: string
+  runtime: PluginRuntime
+  captureFailed: () => boolean
+}): JSX.Element {
   const ctx = usePlugin()
   const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
-  const [state, setState] = createStore({live: true, exporting: false, resetting: false})
+  const runtime = untrack(() => props.runtime)
+  const followedClientId = untrack(() => props.clientId)
 
-  const presence = (live: boolean): Promise<void> =>
-    recorder()
-      .presence({viewerId, live})
-      .then(
-        () => undefined,
-        (error: unknown) => console.error('[conciv] the recorder viewer lease could not be renewed', error),
-      )
-  makeTimer(() => void presence(true), VIEWER_RENEW_MS, setInterval)
-  onCleanup(() => void presence(false))
+  const panel = runInOwnerScope(
+    runtime,
+    openPanel({
+      presence: (live) =>
+        Effect.asVoid(
+          Effect.tryPromise({
+            try: () => recorder().presence({viewerId, live}),
+            catch: (cause) => new PresenceFailed({cause}),
+          }),
+        ),
+      exportRecording: exportRecording({
+        save: Effect.tryPromise({
+          try: () => recorder()['recordings.save']({clientId: followedClientId}),
+          catch: (cause) => new ExportFailed({cause}),
+        }),
+        readPiece: (id, offset) =>
+          Effect.tryPromise({
+            try: () => recorder()['recordings.exportVideo']({clientId: followedClientId, id, offset}),
+            catch: (cause) => new ExportFailed({cause}),
+          }),
+        saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
+      }),
+      reset: Effect.tryPromise({
+        try: async () => {
+          await recorder().reset(undefined)
+          await refetch()
+        },
+        catch: (cause) => new ResetFailed({cause}),
+      }),
+      report: (title) => Effect.sync(() => void ctx.toast.show({title, variant: 'error'})),
+    }),
+  )
+  const panelState = subscriptionRefSignal(runtime, panel.state)
+  const live = subscriptionRefSignal(runtime, panel.live)
+  const run = (effect: Effect.Effect<void>): void => void runtime.runFork(effect)
 
   const [recording, {refetch}] = createResource(
     () => props.clientId,
     async (clientId) => {
-      await presence(true)
+      await runtime.runPromise(panel.renewPresence)
       return recorder().window({clientId}, {signal: ctx.signal})
     },
   )
@@ -70,84 +88,18 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
   const [playerKit] = createResource(loadPlayerKit)
   const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
 
-  const readSince = (cursor: number, signal: AbortSignal): Promise<ReplaySource | undefined> =>
-    recorder()
-      .since({clientId: props.clientId, cursor}, {signal})
-      .then(
-        (fresh): ReplaySource | undefined => fresh,
-        (error: unknown) => {
-          if (!signal.aborted) console.error('[conciv] the recorder replay could not read new events', error)
-          return undefined
-        },
-      )
+  const follow = followClient(ctx, followedClientId)
 
-  const cuesRead = (event: {type: string; data?: unknown}): boolean =>
-    event.type === 'server.connected' || AppendedHere.safeParse(event.data).data?.clientId === props.clientId
-
-  async function* follow(cursor: number, signal: AbortSignal): AsyncGenerator<ReplaySource> {
-    let at = cursor
-    for await (const event of ctx.client.event.subscribe({types: [APPENDED_EVENT], signal})) {
-      if (!cuesRead(event)) continue
-      const fresh = await readSince(at, signal)
-      if (!fresh) continue
-      at = fresh.cursor
-      yield fresh
-    }
-  }
-
-  let playerHandle: StreamPlayerHandle | undefined
   const replayRef = (kit: PlayerKit, source: ReplaySource) => (container: HTMLDivElement) => {
     if (source.events.length < 2) return
-    const mounted = mountStreamPlayer(kit, container, source, {
-      follow: async (cursor, signal) => follow(cursor, signal),
-      onLive: (live) => setState('live', live),
-    })
-    playerHandle = mounted
-    onCleanup(() => {
-      mounted.dispose()
-      if (playerHandle === mounted) playerHandle = undefined
-    })
-  }
-
-  const exportFailed = (): void =>
-    void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
-
-  const readVideo = async (id: string): Promise<File> => {
-    const read = async (offset: number, parts: Uint8Array<ArrayBuffer>[]): Promise<File> => {
-      const piece = await recorder()['recordings.exportVideo']({clientId: props.clientId, id, offset})
-      const bytes = base64Bytes(piece.data)
-      if (piece.eof) return new File([...parts, bytes], piece.name, {type: piece.mime})
-      return read(offset + bytes.length, [...parts, bytes])
-    }
-    return read(0, [])
-  }
-
-  const downloadVideo = async (): Promise<void> => {
-    setState('exporting', true)
-    try {
-      const saved = SavedRecording.safeParse(await recorder()['recordings.save']({clientId: props.clientId}))
-      if (!saved.success) {
-        exportFailed()
-        return
-      }
-      saveFileToDisk(await readVideo(saved.data.recordingId))
-    } catch {
-      exportFailed()
-    } finally {
-      setState('exporting', false)
-    }
-  }
-
-  const startOver = async (): Promise<void> => {
-    setState('resetting', true)
-    try {
-      await recorder().reset(undefined)
-      await refetch()
-    } catch {
-      ctx.toast.show({title: 'Could not start a new recording. Is the page still connected?', variant: 'error'})
-    } finally {
-      setState('resetting', false)
-    }
+    runInOwnerScope(
+      runtime,
+      streamPlayer(kit, container, source, {
+        follow,
+        goLiveRequests: panel.goLiveRequests,
+        onLive: (current) => runtime.runSync(SubscriptionRef.set(panel.live, current)),
+      }),
+    )
   }
 
   return (
@@ -159,7 +111,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
         <Match when={page().status === 'inactive'}>
           <RecorderNotice text="Recording is off: the page plugin is not active, so nothing is recorded." />
         </Match>
-        <Match when={props.capture.failed}>
+        <Match when={props.captureFailed()}>
           <RecorderNotice text="Recording is unavailable: capture failed to start on this page." />
         </Match>
         <Match when={recording.error}>
@@ -185,26 +137,26 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
-                  disabled={state.resetting}
-                  busy={state.resetting}
-                  onClick={() => void startOver()}
+                  disabled={panelState().status !== 'idle'}
+                  busy={panelState().status === 'resetting'}
+                  onClick={() => run(panel.requestReset)}
                 >
                   New recording
                 </ctx.ui.Button>
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
-                  disabled={state.exporting}
-                  busy={state.exporting}
-                  onClick={() => void downloadVideo()}
+                  disabled={panelState().status !== 'idle'}
+                  busy={panelState().status === 'exporting'}
+                  onClick={() => run(panel.requestExport)}
                 >
-                  {state.exporting ? 'Exporting…' : 'Export video'}
+                  {panelState().status === 'exporting' ? 'Exporting…' : 'Export video'}
                 </ctx.ui.Button>
                 <div class="ml-auto flex gap-2 items-center">
                   <Show
-                    when={state.live}
+                    when={live()}
                     fallback={
-                      <ctx.ui.Button variant="neutral" size="small" onClick={() => playerHandle?.goLive()}>
+                      <ctx.ui.Button variant="neutral" size="small" onClick={() => run(panel.requestGoLive)}>
                         GO LIVE
                       </ctx.ui.Button>
                     }

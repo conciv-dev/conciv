@@ -4792,6 +4792,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       playwright-core:
         specifier: 'catalog:'
         version: 1.64.1
@@ -4832,9 +4835,6 @@ importers:
       '@rrweb/types':
         specifier: 'catalog:'
         version: 2.2.0
-      '@solid-primitives/timer':
-        specifier: 1.4.4
-        version: 1.4.4(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
