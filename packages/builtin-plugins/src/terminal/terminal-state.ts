@@ -53,6 +53,7 @@ export function createTerminalState(ctx: TerminalContext) {
     queryFn: ({queryKey, signal}) => readMeta(ctx, queryKey[2], signal),
     enabled: readSessionId() !== undefined,
     retry: false,
+    refetchOnWindowFocus: false,
   }))
   const [run, setRun] = createStore<TerminalRun>({generation: 0, restarting: false, live: null, failure: null})
 
