@@ -14,8 +14,24 @@ import {readFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Plugin} from '@conciv/plugin/schema/plugin'
+import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
 import {Hash} from '../util/hash.js'
-import {Cause, Context, Effect, Exit, Latch, Layer, Logger, Queue, References, Scope, Semaphore} from 'effect'
+import type {TaggedError} from '@conciv/plugin/effect/plugin'
+import {
+  Cause,
+  Context,
+  Effect,
+  Exit,
+  Latch,
+  Layer,
+  Logger,
+  Option,
+  Predicate,
+  Queue,
+  References,
+  Scope,
+  Semaphore,
+} from 'effect'
 import {Bus} from './bus.js'
 import {PluginHost} from './plugin/host.js'
 import {type Chunks, type Failure, type Generation, Service} from './plugin/service.js'
@@ -78,6 +94,9 @@ export const layer = Layer.effect(
       } satisfies Plugin.ExperimentalChunks
     })
     const hostContext = yield* Effect.context<Effect.Services<ReturnType<typeof PluginHost.make>>>()
+    const platform = yield* Layer.build(
+      NodeChildProcessSpawner.layer.pipe(Layer.provideMerge(Layer.merge(NodeFileSystem.layer, NodePath.layer))),
+    )
     const load = Effect.fnUntraced(function* (plugin: Generation) {
       const activation: Activation = {plugin, scope: yield* Scope.fork(scope)}
       const inherit = yield* State.inherit()
@@ -101,6 +120,7 @@ export const layer = Layer.effect(
         inherit,
         Effect.updateContext((context: Context.Context<never>) =>
           Context.make(Scope.Scope, activation.scope).pipe(
+            Context.merge(platform),
             Context.add(Logger.CurrentLoggers, Context.get(context, Logger.CurrentLoggers)),
             Context.add(References.MinimumLogLevel, Context.get(context, References.MinimumLogLevel)),
           ),
@@ -112,11 +132,18 @@ export const layer = Layer.effect(
         Effect.exit,
       )
       if (activation.failure || Exit.isSuccess(exit)) return {activation} as const
-      yield* Effect.logWarning('failed to load plugin', {
-        'plugin.id': plugin.id,
-        cause: exit.cause,
-      })
-      return {error: Cause.pretty(exit.cause)} as const
+      const tagged = Cause.findErrorOption(exit.cause).pipe(
+        Option.filter(isTaggedError),
+        Option.map(describeTaggedError),
+      )
+      yield* Effect.logWarning(
+        Option.getOrElse(tagged, () => 'failed to load plugin'),
+        {
+          'plugin.id': plugin.id,
+          cause: exit.cause,
+        },
+      )
+      return {error: Option.getOrElse(tagged, () => Cause.pretty(exit.cause))} as const
     })
 
     const activate = Effect.fn('Plugin.activate')(function* (
@@ -341,4 +368,14 @@ function slotInfo(slot: Slot): Plugin.Info {
     state: failure === undefined ? {status: 'active'} : {status: 'failed', ...failure},
     features: slot.plugin.features ?? {server: true},
   }
+}
+
+function isTaggedError(error: unknown): error is TaggedError {
+  return Predicate.hasProperty(error, '_tag') && Predicate.isString(error._tag)
+}
+
+function describeTaggedError(error: TaggedError) {
+  if (Predicate.isString(error.message) && error.message.length > 0)
+    return `failed to load plugin: ${error._tag}: ${error.message}`
+  return `failed to load plugin: ${error._tag}`
 }

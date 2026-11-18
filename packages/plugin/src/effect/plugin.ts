@@ -1,6 +1,7 @@
 import type {Location} from '../schema/location.js'
 import type {Plugin as PluginSchema} from '../schema/plugin.js'
-import type {Effect, Scope} from 'effect'
+import type {Effect, FileSystem, Path, Scope} from 'effect'
+import type {ChildProcessSpawner} from 'effect/process'
 import type {App} from '../app.js'
 import type {PluginOptions} from '../options.js'
 import type {Servers} from '../promise/servers.js'
@@ -41,11 +42,18 @@ export interface Context {
   readonly servers: Servers
 }
 
-export interface Plugin<R = Scope.Scope> {
-  readonly id: string
-  readonly effect: (context: Context) => Effect.Effect<void, never, R>
+export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+
+export interface TaggedError {
+  readonly _tag: string
+  readonly message?: string
 }
 
-export function define<R = Scope.Scope>(plugin: Plugin<R>) {
+export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
+  readonly id: string
+  readonly effect: (context: Context) => Effect.Effect<void, E, R>
+}
+
+export function define<R = Scope.Scope, E extends TaggedError = never>(plugin: Plugin<R, E>) {
   return plugin
 }
