@@ -2,7 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
-import {uniq} from 'es-toolkit'
+import {range, uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
 import {installReactBridge} from '@conciv/page'
@@ -2108,6 +2108,27 @@ export default {
     await coreControl.awaitFaultPending(reread, 1)
     await coreControl.releaseFault(reread)
     await expect.element(mention('@mention-guide')).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(context()).not.toBeInTheDocument()
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Ledger'})
+    await userEvent.keyboard('{End} @')
+
+    await expect.element(context().getByRole('option', {name: /^Ledger/})).toBeVisible()
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(context()).not.toBeInTheDocument()
+    await Promise.all(
+      range(31).map(async (index) => {
+        const followUpId = await createSession(rpc)
+        await rpc.sessions.rename({sessionId: followUpId, title: `Ledger follow-up ${index + 1}`})
+      }),
+    )
+    await userEvent.keyboard('{End} @ledger')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Ledger(?! follow-up)/)
   })
 })
 
