@@ -7592,6 +7592,22 @@ describe('terminal panel', () => {
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
     expect(await coreControl.rpcCallCount(['experimental', 'persistentPty', 'write'])).toBeGreaterThan(0)
 
+    const write = ['experimental', 'persistentPty', 'write']
+    const outputPath = ['experimental', 'persistentPty', 'output']
+    const outputStreams = await coreControl.rpcCallCount(outputPath)
+    await faults.install({kind: 'deliver-then-cut', path: write, input: {data: 'Z'}})
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await userEvent.keyboard('echo Z')
+    await expect.poll(() => coreControl.rpcCallCount(outputPath), {timeout: 15_000}).toBeGreaterThan(outputStreams)
+    await expect.element(output('P> echo Z'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('Z'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcCallCount(write, {data: 'Z'})).toBe(1)
+    await expect.element(output('ZZ')).not.toBeInTheDocument()
+
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()

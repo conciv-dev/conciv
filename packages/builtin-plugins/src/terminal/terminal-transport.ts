@@ -3,6 +3,8 @@ import type {ServerRef} from '@conciv/plugin/experimental'
 
 type PtyClient = ServerRef['client']['experimental']['persistentPty']
 
+const ONCE = {context: {retry: 0}}
+
 export type HeldPty = {ptyId: string; cursor: number | undefined}
 
 function reportFailure(cause: unknown): void {
@@ -46,9 +48,9 @@ export function rpcTerminalTransport(terminal: PtyClient, pty: HeldPty): Termina
       call.catch(reportFailure)
     }
     return {
-      write: (data) => sent(terminal.write({ptyId: pty.ptyId, data})),
+      write: (data) => sent(terminal.write({ptyId: pty.ptyId, data}, ONCE)),
       resize: (size) => sent(terminal.resize({ptyId: pty.ptyId, cols: size.cols, rows: size.rows})),
-      inject: (text) => sent(terminal.inject({ptyId: pty.ptyId, text})),
+      inject: (text) => sent(terminal.inject({ptyId: pty.ptyId, text}, ONCE)),
       close: () => stop.abort(),
     }
   }
