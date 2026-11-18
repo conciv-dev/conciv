@@ -431,6 +431,14 @@ function isEmptied(typed: DraftContent): boolean {
 
 type KeptBase = {base: LocalDraft; encoded: DraftRow['attachments'] | undefined}
 
+async function readLocalOnlyEncoded(stored: LocalDraft): Promise<DraftRow['attachments'] | undefined> {
+  const files = (await readKeptFiles(stored)).flatMap(({id, type, name, file}) =>
+    file ? [{id, type, name, file}] : [],
+  )
+  if (differenceBy(stored.attachments, files, (attachment) => attachment.id).length > 0) return undefined
+  return sendableAttachments(stored, files, await encodeAttachments(files), undefined)
+}
+
 async function readKeptBase(appData: AppData, sessionId: string): Promise<KeptBase> {
   const stored = appData.drafts ? await readLocalDraft(appData.drafts, sessionId) : null
   if (!stored) {
@@ -441,7 +449,7 @@ async function readKeptBase(appData: AppData, sessionId: string): Promise<KeptBa
     return row ? {base: rowLocalDraft(row), encoded: row.attachments} : {base: EMPTY_LOCAL_DRAFT, encoded: []}
   }
   const row = appData.cachedDraft(sessionId)
-  if (row === undefined) return {base: stored, encoded: undefined}
+  if (row === undefined) return {base: stored, encoded: await readLocalOnlyEncoded(stored)}
   if (stored.syncedAt !== undefined && row === null) return {base: EMPTY_LOCAL_DRAFT, encoded: []}
   return {base: stored, encoded: row?.attachments ?? []}
 }
