@@ -122,7 +122,7 @@ import {
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {isEqual, once as onceOnly} from 'es-toolkit'
+import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
@@ -4449,6 +4449,46 @@ describe('session context hook', () => {
       cacheReadTokens: 10,
       cacheWriteTokens: 1,
     })
+  })
+
+  test('a context hook that edits a tool input schema in place changes that request only, and the next request offers the tool its own schema', async () => {
+    const original = {
+      type: 'object',
+      properties: {query: {type: 'string', description: 'the original query'}},
+      required: ['query'],
+    }
+    const schema = structuredClone(original)
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'context-schema',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'context_schema',
+            description: 'A tool whose schema the context hook edits',
+            input: schema,
+            output: z.object({}),
+            options: {codemode: false},
+            execute: async () => ({output: {}}),
+          })
+        })
+        await ctx.session.hook('context', (event) => {
+          const input = event.tools.context_schema?.input
+          seen.push(structuredClone(input))
+          const properties = input?.properties
+          if (isPlainObject(properties) && isPlainObject(properties.query))
+            properties.query.description = 'edited by the plugin'
+          if (Array.isArray(input?.required)) input.required.push('edited')
+        })
+      },
+    })
+    const {kit} = await contextKit([plugin])
+
+    expect((await (await kit.turn('first', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([original])
+    expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([original, original])
+    expect(schema).toEqual(original)
   })
 
   test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
