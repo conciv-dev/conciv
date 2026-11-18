@@ -34,7 +34,7 @@ function useSessionCaptures(sessionID: Accessor<string | undefined>): CaptureLoo
     ...pluginCall.queryOptions({input: capturesCall(sessionID() ?? '')}),
     enabled: sessionID() !== undefined && client() !== undefined,
   }))
-  return (toolCallId) => captures.data?.[toolCallId]
+  return (toolCallId) => (captures.isPending ? undefined : captures.data?.[toolCallId])
 }
 
 export const CaptureContext = createContext<CaptureLookup>(() => undefined)
