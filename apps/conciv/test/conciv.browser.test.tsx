@@ -8899,6 +8899,57 @@ describe('terminal panel', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a grab has one owner: one picked in Chat stays in the chat draft, one picked in the terminal stays in its strip until sent', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const composerInput = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const chatTab = () => bar().getByRole('tab', {name: 'Chat', exact: true})
+    const chatGrab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
+    const terminalGrab = {...HERO_GRAB, text: 'echo "terminal(owned)"'}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
+
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('chat[owned]')).not.toBeInTheDocument()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab().nth(1)).not.toBeInTheDocument()
+
+    await terminalTab().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('terminal(owned)'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await expect.element(output('chat[owned]')).not.toBeInTheDocument()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab().nth(1)).not.toBeInTheDocument()
+  }, 60_000)
+
   test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
