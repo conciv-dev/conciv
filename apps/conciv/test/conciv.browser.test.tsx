@@ -1990,6 +1990,9 @@ describe('grab staging', () => {
     await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
 
+    await userEvent.hover(removeGrab())
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(`Remove ${GRAB_FILE_NAME}`)
+
     api.clear()
 
     await expect.element(removeGrab()).not.toBeInTheDocument()
