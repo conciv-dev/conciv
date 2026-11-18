@@ -228,3 +228,5 @@ export function build(runtime: IosRuntime, input: {clean?: boolean | undefined})
   if (runtime.config.buildMode === 'swiftc') return buildSwiftc(runtime, clean)
   return buildXcodebuild(runtime, clean)
 }
+
+export const makeBuild = Effect.succeed(build)

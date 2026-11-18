@@ -4,7 +4,7 @@ import {z} from 'zod'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import type {Permission} from '@conciv/plugin/schema/permission'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {build, BuildOutputSchema} from './build.js'
+import {BuildOutputSchema, makeBuild} from './build.js'
 import {IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
 import {iosSystemPrompt} from './prompt.js'
 import * as Simctl from './simctl.js'
@@ -134,7 +134,7 @@ export function logs(
   )
 }
 
-function built(runtime: IosRuntime, input: {clean?: boolean | undefined}) {
+function built(build: Effect.Success<typeof makeBuild>, runtime: IosRuntime, input: {clean?: boolean | undefined}) {
   return build(runtime, input).pipe(
     Effect.catchTags({
       BuildFileFailed: (failure) => Effect.fail(Tool.toolError({message: failure.message, error: failure.cause})),
@@ -166,6 +166,7 @@ function confirmed(permission: Context['permission'], action: string, tool: Tool
 
 export const register = Effect.fn('ios.tools.register')(function* (ctx: Registration) {
   const services = yield* Effect.context<Services>()
+  const build = yield* makeBuild
   const config = yield* Effect.sync(() => IosConfigSchema.parse(ctx.options))
   const configuredRuntime: IosRuntime | undefined = config && {
     config,
@@ -197,7 +198,7 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
       input: z.object({clean: z.boolean().optional()}),
       output: BuildOutputSchema,
       options: direct,
-      execute: (input, tool) => asking('ios_build', tool, (runtime) => built(runtime, input)),
+      execute: (input, tool) => asking('ios_build', tool, (runtime) => built(build, runtime, input)),
     })
     editor.add({
       name: 'run',
