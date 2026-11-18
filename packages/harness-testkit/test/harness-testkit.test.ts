@@ -972,11 +972,11 @@ describe('until', () => {
 })
 
 describe('rpc clients abort a stream after the request behind it was collected', () => {
-  const queries = implement(contract).page.queries.handler(async function* ({signal}) {
-    yield {requestId: 'first', query: null}
+  const changes = implement(contract).sessions.changes.handler(async function* ({signal}) {
+    yield {version: 1}
     if (signal) await once(signal, 'abort')
   })
-  const handler = new RPCHandler({page: {queries}})
+  const handler = new RPCHandler({sessions: {changes}})
   const server = createServer((request, response) => {
     void handler.handle(request, response, {prefix: '/rpc'})
   })
@@ -996,7 +996,7 @@ describe('rpc clients abort a stream after the request behind it was collected',
 
   async function expectAbortAfterCollection(client: RpcClient): Promise<void> {
     const abort = new AbortController()
-    const stream = await client.page.queries(undefined, {signal: abort.signal})
+    const stream = await client.sessions.changes(undefined, {signal: abort.signal})
     await stream.next()
     setFlagsFromString('--expose-gc')
     const collect: unknown = runInNewContext('gc')

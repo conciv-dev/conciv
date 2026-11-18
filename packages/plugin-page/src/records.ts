@@ -28,16 +28,18 @@ export function fromStorage(storage: Context['storage']) {
     Effect.forEach(entries, (entry) => storage.remove(entry.key), {concurrency: 'unbounded', discard: true})
   return {
     append: (sessionId: SessionId, change: Omit<PageChangeEntry, 'seq'>) =>
-      storage.set(
-        `changes/${sessionId}/${String(change.ts).padStart(16, '0')}-${crypto.randomUUID()}`,
-        Stored.parse(change),
+      Effect.suspend(() =>
+        storage.set(
+          `changes/${sessionId}/${String(change.ts).padStart(16, '0')}-${crypto.randomUUID()}`,
+          Stored.parse(change),
+        ),
       ),
     changes: (sessionId: SessionId): Effect.Effect<PageChangeEntry[]> =>
       every(`changes/${sessionId}/`).pipe(
         Effect.map((entries) => entries.map((entry, index) => ({...Change.parse(entry.value), seq: index + 1}))),
       ),
     capture: (sessionId: SessionId, toolCallId: string, bundle: PageCaptureBundle) =>
-      storage.set(`captures/${sessionId}/${toolCallId}`, Stored.parse(bundle)),
+      Effect.suspend(() => storage.set(`captures/${sessionId}/${toolCallId}`, Stored.parse(bundle))),
     captures: (sessionId: SessionId): Effect.Effect<SessionCaptures> =>
       every(`captures/${sessionId}/`).pipe(
         Effect.map((entries) => {

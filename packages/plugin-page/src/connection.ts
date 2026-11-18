@@ -23,7 +23,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcRegistration} from '@conciv/plugin/effect/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import {PAGE_QUEUE_REFUSED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
+import {PAGE_QUEUE_REFUSED, PAGE_QUEUE_STOPPED, PageRaisedErrorSchema} from '@conciv/protocol/page-types'
 import {
   ACCESS,
   createConnectionState,
@@ -57,6 +57,8 @@ const Windows = z.object({
 const TRANSPORT_CODES = ['disconnected', 'timeout', 'tab_unavailable']
 
 const PAGE_CODE = /^\[page\.([\w-]+)\]/u
+
+const Coded = z.object({code: z.string()})
 
 export const TabGone = Data.TaggedError('PageTabGone')<{readonly dispatched: boolean}>
 
@@ -101,12 +103,17 @@ export function toolFailure(error: PageError): Tool.Error {
 }
 
 export function readPageCode(error: Tool.Error): string {
-  return PAGE_CODE.exec(error.message)?.[1] ?? 'failed'
+  return PAGE_CODE.exec(error.message)?.[1] ?? Coded.safeParse(error.metadata).data?.code ?? 'failed'
 }
 
 function refused(error: Tool.Error): Queue.RequestSettlement {
   const message = `the page refused the queue, so this action did not run: ${error.message}`
   return {ok: false, error: Tool.toolError({message, error: {code: PAGE_QUEUE_REFUSED, message}})}
+}
+
+function stopped(): Queue.RequestSettlement {
+  const message = 'the queue stopped before this action ran'
+  return {ok: false, error: Tool.toolError({message, error: {code: PAGE_QUEUE_STOPPED, message}})}
 }
 
 function settlement(exit: Exit.Exit<Result, PageError>): Queue.RequestSettlement {
@@ -250,15 +257,16 @@ export const make = Effect.fn('PageConnection.make')(function* (
 
   const exchange = (call: PageCall): Effect.Effect<Result, PageError> =>
     Effect.gen(function* () {
-      const {reply, tab} = yield* lock.withPermit(
+      const reply = yield* RcMap.get(calls, call)
+      const tab = yield* lock.withPermit(
         Effect.gen(function* () {
           const live = yield* FiberMap.get(tabs, call.attempt)
           if (Option.isNone(live)) return yield* new TabGone({dispatched: false})
-          const waiting = yield* RcMap.get(calls, call)
+          if (yield* Deferred.isDone(reply)) return yield* Effect.interrupt
           yield* registration.events
             .emit('control', {type: 'command', connectionId: call.connectionId, requestId: call.requestId})
             .pipe(Effect.mapError((error) => dispatchFailed(call.command.action, error)))
-          return {reply: waiting, tab: live.value}
+          return live.value
         }),
       )
       const outcome = yield* Effect.raceFirst(
@@ -378,9 +386,16 @@ export const make = Effect.fn('PageConnection.make')(function* (
       yield* Effect.forEach(
         play.actions,
         (action, index) =>
-          (acceptance.ok ? send(action, index, queuedActionTimeoutMs) : Effect.succeed(refused(acceptance.error))).pipe(
-            Effect.map((landed) => played[index]?.resolve(landed)),
-          ),
+          (acceptance.ok
+            ? send(action, index, queuedActionTimeoutMs).pipe(
+                Effect.onInterrupt(() =>
+                  Effect.sync(() =>
+                    played[index]?.resolve({ok: false, error: disconnectedAfterDispatch(), tabClosed: true}),
+                  ),
+                ),
+              )
+            : Effect.succeed(refused(acceptance.error))
+          ).pipe(Effect.map((landed) => played[index]?.resolve(landed))),
         {discard: true},
       )
     })
@@ -388,16 +403,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       Effect.forkIn(
         serialized(sessionId, playing).pipe(
           Effect.onExit((exit) =>
-            Exit.isSuccess(exit)
-              ? Effect.void
-              : Effect.sync(() =>
-                  played.forEach((each) =>
-                    each.resolve({
-                      ok: false,
-                      error: Tool.toolError({message: `The queue could not be played: ${Cause.pretty(exit.cause)}`}),
-                    }),
-                  ),
-                ),
+            Exit.isSuccess(exit) ? Effect.void : Effect.sync(() => played.forEach((each) => each.resolve(stopped()))),
           ),
         ),
         work,
@@ -578,12 +584,16 @@ export const make = Effect.fn('PageConnection.make')(function* (
     Effect.gen(function* () {
       yield* RcMap.invalidate(lanes, sessionId)
       queues.cancelSession(sessionId)
-      const owned = Arr.filter(yield* RcMap.keys(calls), (call) => call.sessionId === sessionId)
-      yield* Effect.forEach(owned, ({connectionId, requestId}) => emitCancel(connectionId, requestId), {
-        discard: true,
-      })
-      yield* records.forget(sessionId)
-      yield* dispatch({type: 'session.deleted', sessionId})
+      yield* lock.withPermit(
+        Effect.gen(function* () {
+          const owned = Arr.filter(yield* RcMap.keys(calls), (call) => call.sessionId === sessionId)
+          yield* Effect.forEach(owned, ({connectionId, requestId}) => emitCancel(connectionId, requestId), {
+            discard: true,
+          })
+          yield* records.forget(sessionId)
+          yield* step({type: 'session.deleted', sessionId})
+        }),
+      )
     })
 
   yield* ctx.event.subscribe({types: ['session.deleted']}).pipe(

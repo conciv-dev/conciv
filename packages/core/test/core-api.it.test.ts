@@ -1818,7 +1818,13 @@ describe('api page tool capture', () => {
     it('drops a session capture, its unreferenced css bundle, its draft and its page changes when the session is deleted', async () => {
       const {sessionId, call} = await capturing()
       await call('page_fill', {selector: '#email', value: SECRET})
-      await kit().rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+      await kit().rpc.drafts.set({
+        sessionId,
+        text: 'an unsent draft',
+        selectionStart: 0,
+        selectionEnd: 0,
+        updatedAt: Date.now(),
+      })
       expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft'})
       expect(await page('changes', sessionId)).toContainEqual(
         expect.objectContaining({verb: 'page_fill', selector: '#email'}),
@@ -1972,6 +1978,17 @@ describe('rpc wire', () => {
   }
 
   describe('rpc over the wire (real app, real http, typed client)', () => {
+    describe('on one default app', () => {
+      const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
+
+      it("drafts.set stores the client's updatedAt as sent, so a browser can match the row to the copy it sent", async () => {
+        const sessionId = SessionId.parse(await kit().session())
+        const updatedAt = 1_700_000_000_000
+        await kit().rpc.drafts.set({sessionId, text: 'a stamped draft', selectionStart: 0, selectionEnd: 0, updatedAt})
+        expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a stamped draft', updatedAt})
+      })
+    })
+
     describe('on one app with an editor opener', () => {
       const opened: Array<{file: string; line?: number; column?: number}> = []
       const harness = createTestHarness(requireClaude())
@@ -2143,7 +2160,13 @@ describe('rpc wire', () => {
     describe('turns', () => {
       it('a message streams its reply in one run under the client ids, and a reload shows the same turn', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         const ended = nextTurnEnd(sessionId)
         const events = await finished(sessionId, 'hello', {runId: 'client-run', messageId: 'client-user'})
         await ended()
@@ -2155,7 +2178,7 @@ describe('rpc wire', () => {
         expect(hydration.messages.map((message) => message.id)).toEqual(['client-user', ...collectAssistantIds(events)])
         expect(hydration).toMatchObject({activeRun: null, lastRun: {runId: 'client-run', phase: 'completed'}})
         expect(await thread(sessionId)).toEqual(hydration.messages)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a saved draft'})
         expect(turnEnds.filter((id) => id === sessionId)).toHaveLength(1)
       })
 
@@ -2722,7 +2745,13 @@ describe('rpc wire', () => {
 
       it('an image is stored exactly as sent, ignores the draft, and stays in history for later turns', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         await finished(sessionId, {content: [{type: 'text', content: 'what color?'}, IMAGE]})
         await finished(sessionId, 'and the shape?')
         const messages = await thread(sessionId)
@@ -2733,7 +2762,7 @@ describe('rpc wire', () => {
         expect(await threadUserTexts(sessionId)).toEqual(['what color?', 'and the shape?'])
         expect(messages.flatMap((message) => message.parts).filter((part) => part.type === 'image')).toHaveLength(1)
         expect(findLastRun(sessionId).messages).toContain(ONE_PIXEL_PNG)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a saved draft'})
       })
     })
 
@@ -2743,6 +2772,13 @@ describe('rpc wire', () => {
         await finished(sessionId, 'one')
         await finished(sessionId, 'two')
         const boundary = (await thread(sessionId)).at(-1)?.id
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a draft kept across compaction',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         script().hold()
         const compacts = [chatKit().rpc.sessions.compact({sessionId}), chatKit().rpc.sessions.compact({sessionId})]
         await Promise.race(compacts)
@@ -2755,6 +2791,7 @@ describe('rpc wire', () => {
         expect(boundary).toBeDefined()
         expect(await compactMarkers(sessionId)).toEqual([boundary, boundary])
         expect(await threadUserTexts(sessionId)).toEqual(['one', 'two'])
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a draft kept across compaction'})
       })
 
       it('when the CLI compacts its own transcript the thread is kept and later turns append', async () => {
@@ -8162,6 +8199,10 @@ export default {
       type: 'failed',
       data: {code: 'raised', raised: {code: 'NEGATIVE', message: 'negative'}},
     })
+    const denying = operate({name: 'bump', input: {by: 0}, reading: false})
+    const onDeny = await next('conn_s')
+    await reply('conn_s', onDeny.requestId, {type: 'failure', code: 'plugin.denied', message: 'not for this plugin'})
+    expect(await denying).toMatchObject({ok: false, type: 'failed', data: {code: 'plugin.denied'}})
     const orphaned = operate({name: 'bump', input: {by: 1}, reading: false})
     await next('conn_s')
     expect(await tabs('close', {connectionId: 'conn_s'})).toEqual({closed: true})
