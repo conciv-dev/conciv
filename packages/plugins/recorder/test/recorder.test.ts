@@ -17,6 +17,12 @@ import {createClientRings} from '../src/rings.js'
 import {pullWindow, type RecorderRuntime} from '../src/runtime.js'
 import {createChromiumRenderer} from '../src/render.js'
 import {MAX_FLUSH_BYTES, type RecorderConfig} from '../src/protocol.js'
+import {Effect, Fiber, Layer, Option, Ref, Stream, type Scope} from 'effect'
+import {TestClock} from 'effect/testing'
+import * as CaptureControlModel from '../src/capture-control.js'
+import * as ClientRingsModel from '../src/rings.js'
+import * as RendererCacheModel from '../src/renderer-cache.js'
+import {RenderFailed, RendererUnavailable, type KeyframeRenderer} from '../src/render.js'
 import {
   initialCaptureControl,
   transitionCaptureControl,
@@ -917,7 +923,7 @@ describe('the recorder across a reload and an unload', () => {
 })
 
 describe('the recorder failure shapes', () => {
-  it('hands the agent a refused stop as a tool error, and the caller a render failure and a handler throw as plugin rpc errors', async () => {
+  it('hands the agent a refused stop as a tool error, and the caller a render failure and an unreadable video as plugin rpc errors', async () => {
     const folder = tempDir('conciv-recorder-failures-')
     const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
     await mkdir(recordingsDir, {recursive: true})
@@ -946,10 +952,10 @@ describe('the recorder failure shapes', () => {
     })
 
     expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'locked', id: locked, offset: 0}))).toEqual({
-      code: 'PLUGIN_RPC_INTERNAL',
-      status: 500,
-      message: 'RPC call failed',
-      data: {type: 'rpc.internal', message: 'RPC call failed'},
+      code: 'PLUGIN_RPC',
+      status: 400,
+      message: `The video of the recording ${locked} could not be read`,
+      data: {type: 'unreadable', message: `The video of the recording ${locked} could not be read`},
     })
   })
 })
@@ -1197,5 +1203,98 @@ describe('the panel machine', () => {
     ])
     const disposed = transitionPanel(resetting.state, {type: 'disposed'})
     expect(transitionPanel(disposed.state, {type: 'settled', attempt: 2}).state).toBe(disposed.state)
+  })
+})
+
+function runTimed<Value, Failure, Services>(
+  layer: Layer.Layer<Services, never, Scope.Scope>,
+  body: Effect.Effect<Value, Failure, Services | Scope.Scope>,
+): Promise<Value> {
+  return body.pipe(Effect.provide(Layer.provideMerge(layer, TestClock.layer())), Effect.scoped, Effect.runPromise)
+}
+
+const ringsLayer = ClientRingsModel.clientRingsLayer({windowMs: 60_000})
+
+describe('the client rings', () => {
+  it('keeps the eight most recently touched clients and drops a client idle for thirty minutes on the next append', async () => {
+    await runTimed(
+      ringsLayer,
+      Effect.gen(function* () {
+        const rings = yield* ClientRingsModel.ClientRings
+        yield* Effect.forEach(
+          Array.from({length: 9}, (_, index) => `client-${index}`),
+          (clientId) => Effect.andThen(TestClock.adjust('1 second'), rings.append(clientId, fixtureStream(0))),
+        )
+        expect((yield* rings.clients).map((client) => client.id)).toEqual(
+          Array.from({length: 8}, (_, index) => `client-${index + 1}`),
+        )
+        yield* TestClock.adjust('31 minutes')
+        yield* rings.append('fresh', fixtureStream(0))
+        expect((yield* rings.clients).map((client) => client.id)).toEqual(['fresh'])
+        expect(yield* rings.head('fresh')).toBe(30)
+      }),
+    )
+  })
+})
+
+describe('the capture control model', () => {
+  it('announces a lapsed viewer lease once from its own tick, and answers an append wait when an append lands or when the wait runs out', async () => {
+    await runTimed(
+      CaptureControlModel.captureControlLayer.pipe(Layer.provideMerge(ringsLayer)),
+      Effect.gen(function* () {
+        const captureControl = yield* CaptureControlModel.CaptureControl
+        const rings = yield* ClientRingsModel.ClientRings
+        const announced = yield* captureControl.controls.pipe(
+          Stream.take(3),
+          Stream.runCollect,
+          Effect.forkScoped({startImmediately: true}),
+        )
+        yield* captureControl.renewViewer('viewer')
+        yield* TestClock.adjust('19 seconds')
+        yield* TestClock.adjust('6 seconds')
+        expect(yield* Fiber.join(announced)).toEqual([{live: true}, {snapshot: true, flush: true}, {live: false}])
+
+        const timedOut = yield* Effect.forkScoped(captureControl.awaitAppendAfter(0, 1500), {startImmediately: true})
+        yield* TestClock.adjust('1500 millis')
+        expect(yield* Fiber.join(timedOut)).toBe(false)
+        const appended = yield* Effect.forkScoped(captureControl.awaitAppendAfter(0, 1500), {startImmediately: true})
+        yield* rings.append('page', fixtureStream(0))
+        expect(yield* Fiber.join(appended)).toBe(true)
+      }),
+    )
+  })
+})
+
+describe('the renderer cache', () => {
+  it('shares one renderer between uses, disposes it after five idle minutes and not before, and launches again after a failed launch', async () => {
+    const renderer: KeyframeRenderer = {
+      render: () => Effect.succeed([]),
+      renderVideo: () => Effect.fail(new RenderFailed({cause: 'no video in the fake'})),
+    }
+    const launches = Effect.runSync(Ref.make(0))
+    const disposals = Effect.runSync(Ref.make(0))
+    const failNext = Effect.runSync(Ref.make(true))
+    const launch = Effect.gen(function* () {
+      if (yield* Ref.getAndSet(failNext, false)) return yield* new RendererUnavailable({cause: 'no chromium'})
+      yield* Ref.update(launches, (count) => count + 1)
+      yield* Effect.addFinalizer(() => Ref.update(disposals, (count) => count + 1))
+      return renderer
+    })
+    await runTimed(
+      RendererCacheModel.rendererCacheLayer(launch),
+      Effect.gen(function* () {
+        const cache = yield* RendererCacheModel.RendererCache
+        expect(yield* cache.use((current) => current.render([], []))).toEqual(Option.none())
+        expect(yield* cache.use((current) => current.render([], []))).toEqual(Option.some([]))
+        yield* cache.use((current) => current.render([], []))
+        expect(yield* Ref.get(launches)).toBe(1)
+        yield* TestClock.adjust('4 minutes')
+        expect(yield* Ref.get(disposals)).toBe(0)
+        yield* TestClock.adjust('1 minute')
+        expect(yield* Ref.get(disposals)).toBe(1)
+        yield* cache.use((current) => current.render([], []))
+        expect(yield* Ref.get(launches)).toBe(2)
+      }),
+    )
   })
 })

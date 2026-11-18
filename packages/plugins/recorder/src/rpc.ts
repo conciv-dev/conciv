@@ -57,7 +57,7 @@ export const Recorder = Rpc.define({
     'recordings.exportVideo': {
       input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
       output: VideoPieceOutput,
-      errors: {expired: z.undefined(), 'render-failed': z.undefined()},
+      errors: {expired: z.undefined(), 'render-failed': z.undefined(), unreadable: z.undefined()},
     },
   },
   events: {

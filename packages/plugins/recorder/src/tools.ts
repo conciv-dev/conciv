@@ -1,8 +1,11 @@
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {Effect} from 'effect'
+import {Clock, Effect} from 'effect'
 import {z} from 'zod'
-import {pullWindow, type RecorderRuntime} from './runtime.js'
+import {CaptureControl} from './capture-control.js'
+import type {ClientRingsInterface} from './rings.js'
+import type {RendererCacheInterface} from './renderer-cache.js'
+import {pullWindow} from './runtime.js'
 
 const options = {namespace: 'recording', codemode: true}
 
@@ -12,23 +15,11 @@ const FLUSH_WAIT_MS = 1500
 
 const Keyframes = z.number().int().min(0).max(8).default(3)
 
-function toolFailure(error: unknown): Tool.Error {
-  if (error instanceof globalThis.Error && Tool.isToolError(error)) return error
-  return Tool.makeError({message: error instanceof globalThis.Error ? error.message : String(error), error})
-}
-
-function attempt<Value>(work: () => Value) {
-  return Effect.try({try: work, catch: toolFailure})
-}
-
-function attemptPromise<Value>(work: () => Promise<Value>) {
-  return Effect.tryPromise({try: work, catch: toolFailure})
-}
-
-export const register = Effect.fn('RecorderTools.register')(function* (
-  ctx: Pick<Context, 'tool'>,
-  runtime: RecorderRuntime,
-) {
+export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick<Context, 'tool'>) {
+  const services = yield* Effect.context<ClientRingsInterface | RendererCacheInterface>()
+  const control = yield* CaptureControl
+  const pull = (fromTs: number, toTs: number, keyframes: number) =>
+    pullWindow(fromTs, toTs, keyframes).pipe(Effect.provideContext(services))
   yield* ctx.tool.transform((editor) => {
     editor.namespace({
       name: 'recording',
@@ -44,10 +35,10 @@ export const register = Effect.fn('RecorderTools.register')(function* (
       options,
       execute: () =>
         Effect.gen(function* () {
-          const {captureId, startTs, appendCursor} = yield* attempt(() => runtime.control.startCapture())
-          const covered = yield* attemptPromise(() => runtime.control.awaitAppendAfter(appendCursor, START_WAIT_MS))
+          const {captureId, startTs, appendCursor} = yield* control.startCapture
+          const covered = yield* control.awaitAppendAfter(appendCursor, START_WAIT_MS)
           if (covered) return {output: {captureId, startedAt: startTs}}
-          yield* attempt(() => runtime.control.stopCapture(captureId))
+          yield* control.stopCapture(captureId).pipe(Effect.ignore)
           return yield* Effect.fail(
             Tool.makeError({
               message: 'no page client attached within 5s; the app page with the widget must be open to record',
@@ -64,11 +55,14 @@ export const register = Effect.fn('RecorderTools.register')(function* (
       options,
       execute: ({captureId, keyframes}) =>
         Effect.gen(function* () {
-          const range = yield* attempt(() => runtime.control.stopCapture(captureId))
-          if (!range) return yield* Effect.fail(Tool.makeError({message: `no active capture ${captureId}`}))
-          yield* attemptPromise(() => runtime.control.awaitAppendAfter(range.appendCursor, FLUSH_WAIT_MS))
-          return yield* attemptPromise(() => pullWindow(runtime, range.startTs, range.stopTs, keyframes))
-        }),
+          const range = yield* control.stopCapture(captureId)
+          yield* control.awaitAppendAfter(range.appendCursor, FLUSH_WAIT_MS)
+          return yield* pull(range.startTs, range.stopTs, keyframes)
+        }).pipe(
+          Effect.catchTag('RecorderCaptureNotFound', (missing) =>
+            Effect.fail(Tool.makeError({message: `no active capture ${missing.captureId}`})),
+          ),
+        ),
     })
     editor.add({
       name: 'pull',
@@ -79,12 +73,12 @@ export const register = Effect.fn('RecorderTools.register')(function* (
       options,
       execute: ({secondsBack, keyframes}) =>
         Effect.gen(function* () {
-          const toTs = Date.now()
-          if (yield* attempt(() => runtime.control.isLive())) {
-            const appendCursor = yield* attempt(() => runtime.control.emit({flush: true}))
-            yield* attemptPromise(() => runtime.control.awaitAppendAfter(appendCursor, FLUSH_WAIT_MS))
+          const toTs = yield* Clock.currentTimeMillis
+          if (yield* control.isLive) {
+            const appendCursor = yield* control.emit({flush: true})
+            yield* control.awaitAppendAfter(appendCursor, FLUSH_WAIT_MS)
           }
-          return yield* attemptPromise(() => pullWindow(runtime, toTs - secondsBack * 1000, toTs, keyframes))
+          return yield* pull(toTs - secondsBack * 1000, toTs, keyframes)
         }),
     })
   })
