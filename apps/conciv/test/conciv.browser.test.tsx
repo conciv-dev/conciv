@@ -10768,6 +10768,7 @@ module.exports = {default: {setup(ctx) {
       selectionEnd: 0,
       attachments: [],
       items: [],
+      updatedAt: Date.now(),
     })
     const restore = await faults.install({kind: 'cut-on-release', path: ['drafts', 'get']})
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -10875,6 +10876,7 @@ module.exports = {default: {setup(ctx) {
         {key: 'note:broken', value: {type: 'note', comment: 'a note with no origin'}},
         {key: 'note:fixture:c=kept', value: {...carriedNote, commentId: 'kept', comment: 'the kept comment'}},
       ],
+      updatedAt: Date.now(),
     })
     harness.dispose()
     harness.mountShell(`/panel/${brokenId}?open=true`)

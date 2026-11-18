@@ -2186,9 +2186,22 @@ describe('rpc wire', () => {
       it('a saved draft reads back with its items, and a draft saved without items reads back with none', async () => {
         const sessionId = await newSession()
         const items = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
-        await chatKit().rpc.drafts.set({sessionId, text: 'a noted draft', selectionStart: 0, selectionEnd: 0, items})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a noted draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          items,
+          updatedAt: Date.now(),
+        })
         expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a noted draft', items})
-        await chatKit().rpc.drafts.set({sessionId, text: 'a plain draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a plain draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now() + 1,
+        })
         expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a plain draft', items: []})
       })
     })
