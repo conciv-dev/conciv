@@ -7918,14 +7918,16 @@ describe('plugins before a core is bound', () => {
     hostKeys.forEach((key) => localStorage.removeItem(key))
     await userEvent.click(page.getByRole('button', {name: 'Save the project note'}))
     await expect.element(page.getByText('Project note: saved note', {exact: true})).toBeVisible()
-    await expect.poll(() => projectStoreKeys('plugin.layout.note')).toHaveLength(1)
-    const noteKeys = projectStoreKeys('plugin.layout.note')
-    expect(noteKeys[0]).toMatch(/^conciv\.project\.[\w.-]+:plugin\.layout\.note$/)
-    expect(localStorage.getItem(noteKeys[0] ?? '')).toBe(JSON.stringify({text: 'saved note'}))
 
     await userEvent.click(page.getByRole('link', {name: 'Settings'}))
     await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
     await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    harness.dispose()
+    const noteKeys = projectStoreKeys('plugin.layout.note')
+    expect(noteKeys).toHaveLength(1)
+    expect(noteKeys[0]).toMatch(/^conciv\.project\.[\w.-]+:plugin\.layout\.note$/)
+    expect(localStorage.getItem(noteKeys[0] ?? '')).toBe(JSON.stringify({text: 'saved note'}))
   }, 60_000)
 
   test('a project store keeps each project apart, imports an older key of its project, and is removed', () => {
