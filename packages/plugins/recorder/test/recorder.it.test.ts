@@ -1,4 +1,4 @@
-import {mkdir, rm, writeFile} from 'node:fs/promises'
+import {mkdir, readdir, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe} from 'vitest'
@@ -259,6 +259,9 @@ describe('sending a recording to the agent', () => {
     })
     try {
       const page = widget.page
+      const socket = rpcSocketFor(page)
+      await socket.installed
+      await page.reload({waitUntil: 'domcontentloaded'})
       const notes = () => page.getByRole('list', {name: 'Notes', exact: true})
       await showRecorderTab(page)
       await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
@@ -277,8 +280,14 @@ describe('sending a recording to the agent', () => {
       await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: true})).toBeVisible()
       await rm(recordingsFolder)
 
+      socket.rule((call) => {
+        if (!isRecorderCall(call, 'log')) return 'pass'
+        void call.reply(500)
+        return 'handled'
+      })
       await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
       await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible({timeout: 30_000})
+      expect((await readdir(recordingsFolder)).filter((name) => name.endsWith('.json'))).toHaveLength(1)
       await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: false})).toBeVisible()
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
       await expect(
@@ -312,6 +321,12 @@ describe('sending a recording to the agent', () => {
       await expect(replayDialog).toBeVisible()
       await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
       await expect(replayDialog).toBeHidden()
+
+      await rm(recordingsFolder, {recursive: true})
+      await sentNotes.getByRole('button', {name: 'Play', exact: true}).click()
+      await expect(replayDialog.getByText('Recording not found: it is no longer saved in this project.')).toBeVisible({
+        timeout: 30_000,
+      })
     } finally {
       await widget.close()
     }
