@@ -9,7 +9,7 @@ const ESCAPE_KEY = String.fromCharCode(27)
 
 type TerminalSize = {readonly cols: number; readonly rows: number}
 
-type PtyRequest = {readonly sessionId: string; readonly terminal: TerminalSize; readonly model: string | undefined}
+type PtyRequest = {readonly sessionId: string; readonly size: TerminalSize; readonly model: string | undefined}
 
 function resolvedColor(probe: HTMLElement, token: string): string | undefined {
   probe.style.color = `var(${token})`
