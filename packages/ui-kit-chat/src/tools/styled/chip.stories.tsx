@@ -62,3 +62,19 @@ export const FieldWithTooltip: Story = {
     await waitFor(() => expect(canvas.getByText('The CSS selector that was matched')).toBeVisible())
   },
 }
+
+const LONG_PILL = 'http://localhost:3000/settings/billing/invoices/2026/november?tab=details&sort=desc'
+
+export const PillLongValue: Story = {
+  render: () =>
+    frame(
+      <div class="w-48">
+        <Chip kind="pill" value={LONG_PILL} />
+      </div>,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByText(LONG_PILL))
+    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
+  },
+}

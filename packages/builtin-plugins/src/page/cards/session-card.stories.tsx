@@ -314,3 +314,27 @@ export const HeaderSummary: Story = {
     })
   },
 }
+
+const LONG_ROUTE_RESULT = {
+  pathname: '/settings/billing/invoices/2026/november',
+  search: '?tab=details&sort=desc',
+  href: 'http://localhost:3000/settings/billing/invoices/2026/november?tab=details&sort=desc',
+}
+
+export const LongUrl: Story = {
+  render: () =>
+    sessionFrame(
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
+      {
+        ...settledResults(storyResult({ok: true}, 'complete', 'c5')),
+        c2: storyResult(LONG_ROUTE_RESULT, 'complete', 'c2'),
+      },
+      SESSION_CAPTURES,
+      false,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Edited the page')).toBeVisible()
+    await expect(canvas.getByText('localhost:3000/settings/billing/invoices/2026/november')).toBeInTheDocument()
+  },
+}
