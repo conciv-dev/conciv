@@ -60,7 +60,7 @@ import {
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
 import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
-import {paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
+import {composerDraftSink, paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import {formatNoteComment, noteComment, promptWithNotes} from '../src/composer/comment-note.js'
 import {contextItemKey} from '../src/composer/note-schema.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -4629,11 +4629,11 @@ describe('queue strip', () => {
         </ChatProvider>
       </EngineReachabilityContext.Provider>
     ))
-    const sink = {
+    const sink = composerDraftSink({
       insert: (text: string) => inputs[0]?.append(text),
       addFile: (file: File) => void attached.push(file),
       addItem: () => {},
-    }
+    })
     const stop = () => {
       returnQueueToDraft(session, sink)
       return session.stop()
@@ -4664,11 +4664,14 @@ describe('queue strip', () => {
     const files: string[] = []
     const notes: string[] = []
 
-    putBackInDraft([{id: 'q1', content, createdAt: 0}], {
-      insert: (text) => inserted.push(text),
-      addFile: (file) => files.push(file.type),
-      addItem: (entry) => notes.push(entry.key.split(':c=')[0] ?? ''),
-    })
+    putBackInDraft(
+      [{id: 'q1', content, createdAt: 0}],
+      composerDraftSink({
+        insert: (text) => inserted.push(text),
+        addFile: (file) => files.push(file.type),
+        addItem: (entry) => notes.push(entry.key.split(':c=')[0] ?? ''),
+      }),
+    )
 
     expect(inserted).toEqual([sentence])
     expect(files).toEqual(['image/png'])

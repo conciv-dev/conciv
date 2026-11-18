@@ -9,6 +9,7 @@ import {sessionCapturesCall, type AppData} from '../data/app-data.js'
 import {putBackInDraft, returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
 import {appendDraft, draftCacheSink, makeDraftWriteChain, prependDraft} from '../pane/draft-storage.js'
 import {becameTrusted} from './engine-login.js'
+import type {Notify} from '../shell/notices.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -34,7 +35,10 @@ export type LiveSessionsDeps = {
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
+  notify: Notify
 }
+
+const DRAFT_RETURN_FAILED = 'The queued message could not be put back in its draft.'
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>; dispose: () => void}
 
@@ -49,7 +53,7 @@ function clientWorking(chat: ChatSession): boolean {
 }
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
-  const keepDraft = makeDraftWriteChain()
+  const keepDraft = makeDraftWriteChain(() => deps.notify(DRAFT_RETURN_FAILED, {tone: 'danger'}))
   const [state, setState] = createStore<{
     openers: Accessor<string>[]
     runs: Record<string, RunWatch>
