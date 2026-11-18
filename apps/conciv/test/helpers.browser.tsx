@@ -400,6 +400,7 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
+  grabProvider?: GrabProvider
 }
 
 function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; dispose: () => void} {
@@ -472,6 +473,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       connectionGeneration: () => 0,
       extensions,
       login,
+      grabProvider: options.grabProvider,
       bindActiveSession: (read) => {
         activeSession.read = read
       },
