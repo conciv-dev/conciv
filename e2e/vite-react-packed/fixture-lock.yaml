@@ -383,69 +383,69 @@ packages:
     engines: {node: '>= 20.12.0'}
 
   '@conciv/ai@file:../tarballs/conciv-ai-0.0.22.tgz':
-    resolution: {integrity: sha512-0daGxuMbDyFQ7JV4JSvgX+lrO6tHEArJTsSYOyjbayxAZBO2VXCD8+KbuYHwyBnM0gBmAQdcGGvnlZsOQYZ6DA==, tarball: file:../tarballs/conciv-ai-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-ai-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/chat@file:../tarballs/conciv-chat-0.0.22.tgz':
-    resolution: {integrity: sha512-4AfBtl/B6vK2MeJ2+3RYCWckv2ECPjVw43VrYz8BT03S7xZnw9tfij+j/E1Flxx+G+VWuZXJx/g983h88b4C5g==, tarball: file:../tarballs/conciv-chat-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-chat-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/cli@file:../tarballs/conciv-cli-0.0.22.tgz':
-    resolution: {integrity: sha512-Rk4fDj8/Nvs4tRRojMtxc/akWxEZluFIzj5M8vqAG9mZkEqeHRnlkCXsx2K3YinwjFA5OxndSBryg0zDRxDSDQ==, tarball: file:../tarballs/conciv-cli-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-cli-0.0.22.tgz}
     version: 0.0.22
     hasBin: true
 
   '@conciv/client@file:../tarballs/conciv-client-0.0.22.tgz':
-    resolution: {integrity: sha512-WsgrEMLQ0EVeE4e9gKnvFkkkkWPHDAMq+Ywx8iYlEndZKhzLuOlqqmrsKnVj86bcPX28AWIiBxYD26TJ4FWTNw==, tarball: file:../tarballs/conciv-client-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-client-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/contract@file:../tarballs/conciv-contract-0.0.22.tgz':
-    resolution: {integrity: sha512-glkWliB2Zif+iNFj8NYhIDukEPKxHglPs0ZDUs+GsYA5LqTkWw4aH6nAWAtrrra1iPJCv72UUg+mVZg9xEuJKA==, tarball: file:../tarballs/conciv-contract-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-contract-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/core@file:../tarballs/conciv-core-0.0.22.tgz':
-    resolution: {integrity: sha512-GCUYnv1Sja5D38ReCKuIYjEpYZBKBQxhqqsNAJyTcow3TSE5nj+UQK+kLTCyPocQvgLR9LhnXrNrxuHsqVQy/w==, tarball: file:../tarballs/conciv-core-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-core-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/db@file:../tarballs/conciv-db-0.0.22.tgz':
-    resolution: {integrity: sha512-JHbLljVemnHJqcql2u7fXAZnpuyQjcLbCPVB1o2WB3fft8+s89mxbY2W3laaonDkOts2ytrrvWipob6ChS3uDA==, tarball: file:../tarballs/conciv-db-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-db-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/embed@file:../tarballs/conciv-embed-0.0.22.tgz':
-    resolution: {integrity: sha512-cVvsV24F7Jjs+KXtHfv90/kT/iDtZlhagWPwtmYFw+NPsbihJ/QVs0l2GzZeZlDQNVQArRxVNGonvvinw1JCxA==, tarball: file:../tarballs/conciv-embed-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-embed-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/extension-compiler@file:../tarballs/conciv-extension-compiler-0.0.22.tgz':
-    resolution: {integrity: sha512-7BUZRBWfpz1tkMlX/iSEO7TV6Fm6q7HaGYvdqkU6W5bgOhnq9MClOx8F7403uCOooJbr1ozVs6RxSQpqjisvRg==, tarball: file:../tarballs/conciv-extension-compiler-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-extension-compiler-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-ios@file:../tarballs/conciv-extension-ios-0.0.22.tgz':
-    resolution: {integrity: sha512-57KlE+SEr5PCK3gKnGQI5UkIYkWSeJZ/iRyi6tsQf7/i1heVo/voMX9mhgrTxccU9aeJfEDSZZboYyvj7hcCyw==, tarball: file:../tarballs/conciv-extension-ios-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-extension-ios-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-page@file:../tarballs/conciv-extension-page-0.0.22.tgz':
-    resolution: {integrity: sha512-GESdChdy6AFbPxDmBPClROlu4UTnNtSaw1Zj1jFJJEYvZNn1O4NhqOcAAQk5Rn1LwkruK1FIpwcrhV6crkh0zA==, tarball: file:../tarballs/conciv-extension-page-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-extension-page-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension-terminal@file:../tarballs/conciv-extension-terminal-0.0.22.tgz':
-    resolution: {integrity: sha512-xDMF6i6njqKcyH9pLTDSfmc2bSZU6DZcoAqUES/noK8mg4wl+TEJWqD8WSppIrLAiGK5N876S6yZKdQTXMzEqQ==, tarball: file:../tarballs/conciv-extension-terminal-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-extension-terminal-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/extension@file:../tarballs/conciv-extension-0.0.22.tgz':
-    resolution: {integrity: sha512-DunxJaKsITeXeR8xEMoKWqvKIAto4UI1WamGrOCNUAxswzWBP96DYKdqWyweYqcmOAg6sAJ6b5vGz2Q48rIdKw==, tarball: file:../tarballs/conciv-extension-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-extension-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
@@ -455,19 +455,19 @@ packages:
         optional: true
 
   '@conciv/grab@file:../tarballs/conciv-grab-0.0.22.tgz':
-    resolution: {integrity: sha512-0YgKsm4qV0R+pVpMzuybYi2cN9/wccO2BZnKEEKxjhWImEA8/2BERobspaW1JafQtsxOZ1efwV8mwFCQ/m50zg==, tarball: file:../tarballs/conciv-grab-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-grab-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/harness-init@file:../tarballs/conciv-harness-init-0.0.22.tgz':
-    resolution: {integrity: sha512-o2f7O/67cE9w3Enx7Da3aFNtOASms2m5WdX+o/YW7xJumBnm/gMcIherTZ2vpRhJPRbgkrZkysQ1cS0ExN6KoQ==, tarball: file:../tarballs/conciv-harness-init-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-harness-init-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/harness@file:../tarballs/conciv-harness-0.0.22.tgz':
-    resolution: {integrity: sha512-HFxrx7wxtHZvlYp5/VjpyxHOfC8mKv0WaG7KWfMuUR8y7CY1Eu3aJvgDK3vfN4LcsstIBXavJhCn4hregJPpdQ==, tarball: file:../tarballs/conciv-harness-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-harness-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/it@file:../tarballs/conciv-it-0.0.22.tgz':
-    resolution: {integrity: sha512-m92OmEvUZIP07JAk6cSa9up3lcokV0BldDhqoz8kf2sJClxhBepqP992DmzQaYYbFnrWAIwWUsUN0iNqt+R10w==, tarball: file:../tarballs/conciv-it-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-it-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       next: ^15.3.0 || ^16.0.0
@@ -479,7 +479,7 @@ packages:
         optional: true
 
   '@conciv/mascot@file:../tarballs/conciv-mascot-0.0.22.tgz':
-    resolution: {integrity: sha512-JLVb8KPa1vsmDsoDaM+73WuAzneZe15vECxqeRzwDNvo/LkJauWOU+bwKFBIlSQwO0nPx9zxqAYW8Jb4sa5FFw==, tarball: file:../tarballs/conciv-mascot-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-mascot-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: '>=1.8'
@@ -488,20 +488,20 @@ packages:
         optional: true
 
   '@conciv/page@file:../tarballs/conciv-page-0.0.22.tgz':
-    resolution: {integrity: sha512-7nTM+iPfrNEHTJKhSGiNoksIxa0QA8vTNUp8K2dHYpZ0nDyAbmXqeCVvvofuhbR1j3iH6AOJZJB8Xw7gSOPShw==, tarball: file:../tarballs/conciv-page-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-page-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/plugin-host@file:../tarballs/conciv-plugin-host-0.0.22.tgz':
-    resolution: {integrity: sha512-rB+jHpps9I/53Wf7a/VxGJffLTUKabwaZSKeXEvfwMVs/H8swBMDcqFCHhKhQ5bYZT0cXevX6UhE2zkW746GGA==, tarball: file:../tarballs/conciv-plugin-host-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-plugin-host-0.0.22.tgz}
     version: 0.0.22
     engines: {node: '>=26.0.0'}
 
   '@conciv/plugin-page@file:../tarballs/conciv-plugin-page-0.0.22.tgz':
-    resolution: {integrity: sha512-RTWCj8FcOVBj+1DSbUT1fO72e1dH21BP2cfOU4nY/2J+Y9bdR1UAStC3JD9EannbOIVJPhPE1MD+5gOPukwSOw==, tarball: file:../tarballs/conciv-plugin-page-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-plugin-page-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/plugin@file:../tarballs/conciv-plugin-0.0.22.tgz':
-    resolution: {integrity: sha512-bN3vT6yO98E2oLough+ROkitGWntJg1WXpDPfbtuE0hrrzDEzUAwG05uZm09D8Zro8sydO/Q1+T8kdjjMUIGDA==, tarball: file:../tarballs/conciv-plugin-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-plugin-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
@@ -514,70 +514,70 @@ packages:
         optional: true
 
   '@conciv/protocol@file:../tarballs/conciv-protocol-0.0.22.tgz':
-    resolution: {integrity: sha512-phxigyfHAf91th+e8Iha1lwGZ9Si+dR8Txpr3RIvUhhYSwqb3N0Zo1OwnkMTJy7qhBkZBu7Q43myH4RpBnBWjw==, tarball: file:../tarballs/conciv-protocol-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-protocol-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/serve@file:../tarballs/conciv-serve-0.0.22.tgz':
-    resolution: {integrity: sha512-ThdN6DnEFWx/Rt5mnIz7fYj4Cob5OQ/UO2juEAvCNG4cilTBZvFNo7HdGsLG/pfGzQ90R7eXqy8ZSERkbkYZXg==, tarball: file:../tarballs/conciv-serve-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-serve-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/solid-diffs@file:../tarballs/conciv-solid-diffs-0.0.22.tgz':
-    resolution: {integrity: sha512-Fr32Tm2d4u2jy7hM9PlsJP8jrEqMP5a/DozBGV4etzXsdcdehJBjLpHeb0F/B0Hlr6TbCK1+S9RUt44h1CO5UQ==, tarball: file:../tarballs/conciv-solid-diffs-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-solid-diffs-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/solid-streamdown@file:../tarballs/conciv-solid-streamdown-0.0.22.tgz':
-    resolution: {integrity: sha512-LjQj3LX2HQyQqcGNcbHLQxX0lxKaJg51LJ+kFYIc8mlP31sdt83Yq0xEoT/VF/jXkWtpcsGlJDiGq2gn3o7LTw==, tarball: file:../tarballs/conciv-solid-streamdown-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-solid-streamdown-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       shiki: ^4.2.0
       solid-js: ^1.9.13
 
   '@conciv/storage-history@file:../tarballs/conciv-storage-history-0.0.22.tgz':
-    resolution: {integrity: sha512-LqQBfaXNDg4c9PWqJUMeconTQB/vOdk/tGNgDY+Iuh9mi+OhQBvpkPACPdcvqn0ETKDwNwDJ0UA1v0GY78pfRA==, tarball: file:../tarballs/conciv-storage-history-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-storage-history-0.0.22.tgz}
     version: 0.0.22
 
   '@conciv/tools@file:../tarballs/conciv-tools-0.0.22.tgz':
-    resolution: {integrity: sha512-iUYa2YD9LjY8Y3QwsGICSDdtMS+pLE8aZilUY/6JOo+4MQJB5413H9Px2+enj3QVt8Xy1rINGOePZHEahRJgqw==, tarball: file:../tarballs/conciv-tools-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-tools-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-chat-tools@file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz':
-    resolution: {integrity: sha512-mi5ZNySojyUP8+e0Hi3S/GFdoy2Sm0BqAclgkt6bpLS9vKnFZ05yIUnpC1gG0yRqZGhhhvzcr9xJ+6ZamfN6xA==, tarball: file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-chat@file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz':
-    resolution: {integrity: sha512-90AJzIqRLfIY3lV9+K9ZPpGpo41+ZN4Nr+3du1kx/qT68f74ktAAQW8ApATAfghVLIcA/MHiHU5AMcsC0d1L2A==, tarball: file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-ui-kit-chat-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-system@file:../tarballs/conciv-ui-kit-system-0.0.22.tgz':
-    resolution: {integrity: sha512-3Q6dRSDcEQJGsAf+zBAJQbfaMyJOEYGbCVYHj+ql1HrYYbDx5PpjcXNxmxTs4qO+8JLStb6FLv+/gqSrcmwHAQ==, tarball: file:../tarballs/conciv-ui-kit-system-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-ui-kit-system-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-tap@file:../tarballs/conciv-ui-kit-tap-0.0.22.tgz':
-    resolution: {integrity: sha512-w5TtzvxEup8oOi98CVmVnhguZXiKcPYiSnRjj74/0FIk7/xOWI3MpXYaZ9OxCMXrX5lgm9ja0VmDalhJ0nIRDg==, tarball: file:../tarballs/conciv-ui-kit-tap-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-ui-kit-tap-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/ui-kit-terminal@file:../tarballs/conciv-ui-kit-terminal-0.0.22.tgz':
-    resolution: {integrity: sha512-G8WEGC07shW3ZM8ni9OU3Kc3+2ya/b3wNLBGnnmiwj1e3WaFmkqcIAyAUVt/bt7uW/gSkLNU6qA1HnainRPJnQ==, tarball: file:../tarballs/conciv-ui-kit-terminal-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-ui-kit-terminal-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
 
   '@conciv/unplugin@file:../tarballs/conciv-unplugin-0.0.22.tgz':
-    resolution: {integrity: sha512-GW9ceoufYgMDkuCacqgwNiefxnQJOZalFtWY+HPS9yf5Ucpyc7XzA2+vJdJdn2sSv4YRF4V/nNHCkw0EQ60lVQ==, tarball: file:../tarballs/conciv-unplugin-0.0.22.tgz}
+    resolution: {tarball: file:../tarballs/conciv-unplugin-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       next: ^15.3.0 || ^16.0.0
