@@ -23,8 +23,8 @@ export const LIST_ROW_CLASS =
 const COUNT_FORMAT = new Intl.NumberFormat()
 const COUNT_PLURAL = new Intl.PluralRules('en')
 
-export function countLabel(count: number, noun: {one: string; other: string}): string {
-  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? noun.one : noun.other}`
+export function countLabel(count: number, one: string, other: string): string {
+  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
 }
 
 const InputRecord = z.record(z.string(), z.unknown())

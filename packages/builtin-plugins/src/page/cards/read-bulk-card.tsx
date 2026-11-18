@@ -31,7 +31,7 @@ const NodesPayload = z.looseObject({
 const MatchesPayload = pageOperation('query').output
 
 function matchLabel(count: number): string {
-  return countLabel(count, {one: 'match', other: 'matches'})
+  return countLabel(count, 'match', 'matches')
 }
 
 function readHtml(payload: unknown): string | undefined {

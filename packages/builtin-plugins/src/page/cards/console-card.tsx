@@ -37,7 +37,7 @@ function readLines(payload: unknown): readonly ConsoleLine[] | undefined {
 }
 
 function lineLabel(count: number): string {
-  return countLabel(count, {one: 'line', other: 'lines'})
+  return countLabel(count, 'line', 'lines')
 }
 
 function isErrorLevel(level: string): boolean {

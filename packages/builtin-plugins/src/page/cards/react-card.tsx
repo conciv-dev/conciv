@@ -32,7 +32,7 @@ const SOURCE_LOCATION =
   'text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
 
 function renderLabel(renders: number): string {
-  return countLabel(renders, {one: 'render', other: 'renders'})
+  return countLabel(renders, 'render', 'renders')
 }
 
 function locationLabel(file: string, line: number | undefined): string {
