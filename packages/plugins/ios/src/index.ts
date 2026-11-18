@@ -1,7 +1,7 @@
 import {Effect} from 'effect'
 import {Plugin} from '@conciv/plugin/effect'
-import * as Simctl from './server/simctl.js'
-import {register} from './server/tools.js'
+import * as Simctl from './simctl.js'
+import {register} from './tools.js'
 
 export default Plugin.define({
   id: 'ios',

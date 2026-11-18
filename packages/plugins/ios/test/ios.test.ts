@@ -10,12 +10,12 @@ import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {build, parseXcodebuildAppPath} from '../src/server/build.js'
-import {IosConfigSchema, type IosConfig} from '../src/server/config.js'
-import {iosSystemPrompt} from '../src/server/prompt.js'
-import type {IosRuntime} from '../src/server/shared.js'
-import * as Simctl from '../src/server/simctl.js'
-import {logs, run, screenshot, type RunFailure} from '../src/server/simulator.js'
+import {build, parseXcodebuildAppPath} from '../src/build.js'
+import {IosConfigSchema, type IosConfig} from '../src/config.js'
+import {iosSystemPrompt} from '../src/prompt.js'
+import type {IosRuntime} from '../src/config.js'
+import * as Simctl from '../src/simctl.js'
+import {logs, run, screenshot, type RunFailure} from '../src/simulator.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 

@@ -1,5 +1,4 @@
-import type {IosConfig} from './config.js'
-import {projectDir} from './shared.js'
+import {projectDir, type IosConfig} from './config.js'
 
 type PromptContext = {readonly cwd: string}
 

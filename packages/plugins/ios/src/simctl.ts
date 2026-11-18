@@ -41,3 +41,34 @@ function run(command: string, args: readonly string[], options?: RunOptions): Ef
 }
 
 export const layer = Layer.succeed(Service, Service.of({run}))
+
+const ERROR_TAIL_LINES = 40
+
+export function stdoutText(result: RunResult): string {
+  return result.stdout.toString('utf8')
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+export function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+export function commandError(result: RunResult, fallback: string): string {
+  const stderr = result.stderr.trim()
+  if (stderr.length > 0) return stderr
+  const stdout = stdoutText(result).trim()
+  return stdout.length > 0 ? stdout : fallback
+}
+
+export function boundedCommandError(result: RunResult, fallback: string): string {
+  const message = commandError(result, fallback)
+  const lines = message.split('\n')
+  return lines.length <= ERROR_TAIL_LINES ? message : lines.slice(-ERROR_TAIL_LINES).join('\n')
+}

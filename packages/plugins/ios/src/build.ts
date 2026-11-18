@@ -4,23 +4,19 @@ import {join} from 'node:path'
 import {Effect} from 'effect'
 import {uniq} from 'es-toolkit'
 import {z} from 'zod'
-import type {Tool} from '@conciv/plugin/schema/tool'
-import type {IosConfig} from './config.js'
-import {DiagnosticSchema, parseDiagnostics, type Diagnostic} from './diagnostics.js'
+import {Tool} from '@conciv/plugin/schema/tool'
 import {
-  boundedCommandError,
   destination,
   developerEnv,
-  fileStep,
-  isRecord,
   moduleName,
   NotConfiguredSchema,
   projectDir,
-  safeJson,
-  stdoutText,
+  type IosConfig,
   type IosRuntime,
-} from './shared.js'
+} from './config.js'
+import {DiagnosticSchema, parseDiagnostics, type Diagnostic} from './diagnostics.js'
 import * as Simctl from './simctl.js'
+import {boundedCommandError, isRecord, safeJson, stdoutText} from './simctl.js'
 
 export const BuildOutputSchema = z.union([
   z.object({
@@ -35,6 +31,10 @@ export const BuildOutputSchema = z.union([
 type Build = {ok: boolean; appPath: string | null; durationMs: number; diagnostics: Diagnostic[]}
 
 type BuildEffect = Effect.Effect<Build, Tool.Error, Simctl.Interface>
+
+function fileStep<Value>(message: string, work: () => Value): Effect.Effect<Value, Tool.Error> {
+  return Effect.try({try: work, catch: (error) => Tool.toolError({message, error})})
+}
 
 function walkSwiftSources(dir: string): string[] {
   return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
