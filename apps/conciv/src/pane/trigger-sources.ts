@@ -155,7 +155,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     if (!typed) return false
     const command = findWidgetCommand(widgetCommands(), typed.name)
     if (!command) return false
-    command.run(typed.input)
+    command.run(command.arguments ? typed.input : undefined)
     return true
   }
   const appData = useAppData()
