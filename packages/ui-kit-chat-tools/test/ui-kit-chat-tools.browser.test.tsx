@@ -232,7 +232,7 @@ describe('catalog cards', () => {
   }
 
   function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => Promise.resolve(), catalog}
+    return {addResult: () => Promise.resolve(), catalog}
   }
 
   function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -375,9 +375,6 @@ describe('new tool projection', () => {
   }
 
   const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: registryCatalogView(registryWith(shipTool)),
   }
@@ -435,9 +432,6 @@ describe('new tool projection', () => {
 
 describe('registered tool cards', () => {
   const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: registryCatalogView(fixtureToolRegistry()),
   }
@@ -509,9 +503,6 @@ describe('registered tool cards', () => {
 describe('registry card declarations', () => {
   const catalog = registryCatalogView(fixtureToolRegistry())
   const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog,
   }

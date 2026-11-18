@@ -276,9 +276,7 @@ describe('approval replay', () => {
         })
       })
       const ctx = makeToolViewCtx({
-        harnessId: () => 'claude',
         catalog: INERT_TOOL_CTX.catalog,
-        sendMessage: () => undefined,
         decide: session.decide,
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
@@ -348,9 +346,7 @@ describe('approval replay', () => {
         })
       })
       const ctx = makeToolViewCtx({
-        harnessId: () => 'claude',
         catalog: INERT_TOOL_CTX.catalog,
-        sendMessage: () => undefined,
         decide: session.decide,
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,

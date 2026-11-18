@@ -277,9 +277,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   const toolCtx = makeToolViewCtx({
-    harnessId: () => harness()?.id ?? '',
     catalog,
-    sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: messaging.onAnswer,

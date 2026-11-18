@@ -111,9 +111,6 @@ describe('router card', () => {
   const metaByName = new Map<string, ToolViewMeta>(DEFS.map((def) => [def.name, toViewMeta(def.meta)]))
 
   const catalogCtx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'claude',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: {loaded: () => true, meta: (name) => metaByName.get(name)},
   }
@@ -407,9 +404,6 @@ describe('server card', () => {
   const metaByName = new Map<string, ToolViewMeta>(DEFS.map((def) => [def.name, toViewMeta(def.meta)]))
 
   const catalogCtx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'claude',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: {loaded: () => true, meta: (name) => metaByName.get(name)},
   }

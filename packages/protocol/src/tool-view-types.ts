@@ -29,9 +29,6 @@ export type ToolCatalogView = {
 export const INERT_TOOL_CATALOG: ToolCatalogView = {loaded: () => true, meta: () => undefined}
 
 export type ToolViewCtx = {
-  apiBase: string
-  harnessId: string
-  sendMessage: (text: string) => void
   catalog: ToolCatalogView
   addResult: (toolCallId: string, value: UiAnswerValue) => Promise<void>
 

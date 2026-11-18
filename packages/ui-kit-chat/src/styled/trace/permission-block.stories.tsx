@@ -24,9 +24,6 @@ function askingPart(): ToolCallPart {
 
 function askingCtx(): ToolViewCtx {
   return {
-    apiBase: '',
-    harnessId: 'story',
-    sendMessage: () => {},
     catalog: {loaded: () => true, meta: () => undefined},
     addResult: () => Promise.resolve(),
     respondApproval: () => {},
