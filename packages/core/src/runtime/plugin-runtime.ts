@@ -1,5 +1,5 @@
 import type {HarnessAdapter} from '@conciv/harness'
-import type {Plugin as PluginDefinition} from '@conciv/plugin'
+import type {Plugin as PluginDefinition, SystemPart} from '@conciv/plugin'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
@@ -24,6 +24,7 @@ import {
   PluginUpdate,
   Rpc,
   SdkPlugins,
+  Session,
   SessionProjector,
   Skill,
   SkillInstructions,
@@ -146,6 +147,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
 }
 
 type SessionPrompt = PluginHooks.Domains['session']['prompt']
+type SessionId = SessionPrompt['sessionId']
 
 export type PluginRuntime = {
   runtime: PluginHost
@@ -153,6 +155,7 @@ export type PluginRuntime = {
   awaitActivation: () => Promise<void>
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
+  context: (sessionId: SessionId, system: readonly string[]) => Promise<readonly string[]>
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
   closePermissions: () => Promise<void>
@@ -175,6 +178,23 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
     promptHooked: () =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(Effect.andThen(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt')))),
+      ),
+    context: (sessionId, system) =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(Session.Service.use((sessions) => sessions.get(sessionId))),
+          Effect.flatMap((session) =>
+            PluginHooks.Service.use((hooks) =>
+              hooks.trigger('session', 'context', {
+                sessionId: session.id,
+                model: session.model,
+                agent: Agent.Id.make(session.agent ?? Agent.defaultId),
+                system: system.map((text): SystemPart => ({type: 'text', text})),
+              }),
+            ),
+          ),
+          Effect.map((event) => event.system.map((part) => part.text)),
+        ),
       ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
     closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),

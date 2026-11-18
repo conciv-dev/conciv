@@ -57,6 +57,22 @@ export interface SessionPrompt {
   delivery: SessionInboxDelivery
 }
 
+export interface SystemPart {
+  type: 'text'
+  text: string
+  metadata?: Record<string, unknown>
+}
+
+export interface SessionRequest {
+  readonly sessionId: SessionId
+  readonly model: Ref | undefined
+  system: Array<SystemPart>
+}
+
+export interface SessionContext extends SessionRequest {
+  readonly agent: string
+}
+
 export type SessionIdleBackground =
   | {
       readonly kind: 'shell'
@@ -85,6 +101,7 @@ export interface SessionIdle {
 
 export interface SessionHooks {
   readonly prompt: SessionPrompt
+  readonly context: SessionContext
   readonly 'experimental.idle': SessionIdle
 }
 

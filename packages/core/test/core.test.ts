@@ -909,6 +909,7 @@ describe('chat plane', () => {
       attachmentExpanders: {},
       prompt: async (event) => event,
       promptHooked: async () => false,
+      context: async (_sessionId, system) => system,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -4334,21 +4335,17 @@ describe('session context hook', () => {
 
     const untouched = await kit.session()
     expect((await (await kit.turn('hello', {session: untouched})).done()).errors()).toEqual([])
-    const first = seen[0]
-    expect(first?.sessionId).toBe(untouched)
-    expect(first?.agent).toBe('build')
-    expect(first?.system).toContain('the base prompt')
-    expect(sent[0]?.slice(0, first?.system.length)).toEqual(first?.system)
+    const system = seen.flatMap((event) => event.system)
+    expect(seen).toEqual([{sessionId: untouched, agent: 'build', system}])
+    expect(system).toContain('the base prompt')
+    const [untold = []] = sent
+    expect(untold.slice(0, system.length)).toEqual(system)
 
     adding.text = 'Always-on rules from the plugin.'
     const told = await kit.session()
     expect((await (await kit.turn('hello', {session: told})).done()).errors()).toEqual([])
-    expect(seen[1]?.system).toEqual(first?.system)
-    expect(sent[1]).toEqual([
-      ...(first?.system ?? []),
-      'Always-on rules from the plugin.',
-      ...(sent[0]?.slice(first?.system.length) ?? []),
-    ])
+    expect(seen[1]).toEqual({sessionId: told, agent: 'build', system})
+    expect(sent[1]).toEqual([...system, 'Always-on rules from the plugin.', ...untold.slice(system.length)])
   })
 })
 

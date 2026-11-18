@@ -1,7 +1,8 @@
 import type {Session} from '../schema/session.js'
 import type {Effect} from 'effect'
 import type {Model} from '../schema/model.js'
-import type {PromptInput} from '../promise/session.js'
+import type {PromptInput, SystemPart} from '../promise/session.js'
+import type {Agent} from '../schema/agent.js'
 import type {
   InstructionEntryInfo,
   SessionCreateInput,
@@ -50,8 +51,19 @@ export interface SessionPrompt {
   delivery: SessionInboxDelivery
 }
 
+export interface SessionRequest {
+  readonly sessionId: Session.Id
+  readonly model: Model.Ref | undefined
+  system: Array<SystemPart>
+}
+
+export interface SessionContext extends SessionRequest {
+  readonly agent: Agent.Id
+}
+
 export interface SessionHooks {
   readonly prompt: SessionPrompt
+  readonly context: SessionContext
   readonly 'experimental.idle': SessionIdle
 }
 

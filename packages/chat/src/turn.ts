@@ -71,6 +71,7 @@ export type TurnDeps = {
   attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
+  context: (sessionId: SessionId, system: readonly string[]) => Promise<readonly string[]>
   pluginInstructions: (
     sessionId: SessionId,
     reset: InstructionReset,
@@ -310,7 +311,10 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
+        systemPrompts: async () => {
+          const system = [systemText, (await instructions.promise).initial].filter((text) => text !== '')
+          return turn.kind === 'compact' ? system : deps.context(sessionId, system)
+        },
         tools: toolSet,
         setup: async () => {
           await deps.sessions.ensure(sessionId)
