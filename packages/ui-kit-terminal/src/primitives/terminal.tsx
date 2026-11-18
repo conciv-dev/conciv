@@ -29,7 +29,10 @@ function focusStayedOnTheTab(screen: HTMLElement): boolean {
   const focused = focusedElement(screen.ownerDocument)
   if (focused === null || focused === screen.ownerDocument.body) return true
   const panel = screen.closest('[role="tabpanel"]') ?? screen
-  return panel.contains(focused) || (panel.id !== '' && focused.getAttribute('aria-controls') === panel.id)
+  if (panel.contains(focused)) return true
+  if (focused.getAttribute('role') !== 'tab' || focused.getAttribute('aria-selected') !== 'true') return false
+  const controls = focused.getAttribute('aria-controls')
+  return controls === null || controls === '' || controls === panel.id
 }
 
 function Screen(props: {class?: string}): JSX.Element {
