@@ -246,11 +246,17 @@ function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
 }
 
 function skillList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(Skill.Service.use((skill) => skill.list())), {signal})
+  return host.runPromise(
+    Plugin.awaitActivation.pipe(Effect.andThen(locationResponse(Skill.Service.use((skill) => skill.list())))),
+    {signal},
+  )
 }
 
 function agentList(host: PluginHost, signal: AbortSignal | undefined) {
-  return host.runPromise(locationResponse(Agent.Service.use((agent) => agent.list())), {signal})
+  return host.runPromise(
+    Plugin.awaitActivation.pipe(Effect.andThen(locationResponse(Agent.Service.use((agent) => agent.list())))),
+    {signal},
+  )
 }
 
 function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
