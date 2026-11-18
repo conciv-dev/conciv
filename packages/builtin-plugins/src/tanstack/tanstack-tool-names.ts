@@ -1,5 +1,14 @@
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {Method} from '@conciv/plugin-tanstack/rpc'
 import type {tanstackCards} from './cards.js'
+
+const TANSTACK_TOOL_PREFIX = 'tanstack_'
+
+export function tanstackToolName<const Name extends Exclude<Method, `${string}.${string}`>>(
+  operation: Name,
+): `${typeof TANSTACK_TOOL_PREFIX}${Name}` {
+  return `${TANSTACK_TOOL_PREFIX}${operation}`
+}
 
 const tanstackToolViews = {
   tanstack_router_state: {

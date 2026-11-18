@@ -1,4 +1,6 @@
+import {mapKeys} from 'es-toolkit'
 import type {ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {Method} from '@conciv/plugin-tanstack/rpc'
 import {backCard} from './back-card.js'
 import {buildErrorsCard} from './build-errors-card.js'
 import {loaderDataCard} from './loader-data-card.js'
@@ -11,17 +13,22 @@ import {routerInvalidateCard} from './router-invalidate-card.js'
 import {routerStateCard} from './router-state-card.js'
 import {routeTreeCard} from './route-tree-card.js'
 import {serverFnTraceCard} from './server-fn-trace-card.js'
+import {tanstackToolName} from './tanstack-tool-names.js'
+
+const operationCards = {
+  router_state: routerStateCard,
+  route_tree: routeTreeCard,
+  loader_data: loaderDataCard,
+  query_cache: queryCacheCard,
+  query_invalidate: queryInvalidateCard,
+  query_refetch: queryRefetchCard,
+  navigate: navigateCard,
+  router_invalidate: routerInvalidateCard,
+  back: backCard,
+} satisfies Partial<Record<Method, ToolCardView>>
 
 export const tanstackCards = {
-  tanstack_router_state: routerStateCard,
-  tanstack_route_tree: routeTreeCard,
-  tanstack_loader_data: loaderDataCard,
-  tanstack_query_cache: queryCacheCard,
-  tanstack_query_invalidate: queryInvalidateCard,
-  tanstack_query_refetch: queryRefetchCard,
-  tanstack_navigate: navigateCard,
-  tanstack_router_invalidate: routerInvalidateCard,
-  tanstack_back: backCard,
+  ...mapKeys(operationCards, (_card, operation) => tanstackToolName(operation)),
   tanstack_build_errors: buildErrorsCard,
   tanstack_route_manifest: routeManifestCard,
   tanstack_server_fn_trace: serverFnTraceCard,
