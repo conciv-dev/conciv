@@ -1315,6 +1315,13 @@ export default {
         path: join(ctx.location.directory, 'mention-guide', 'SKILL.md'),
         content: 'Write the mention.',
       })
+      skills.add({
+        id: 'review-checklist',
+        name: 'review-checklist',
+        description: 'What a change needs before it lands',
+        path: join(ctx.location.directory, 'review-checklist', 'SKILL.md'),
+        content: 'Check the change.',
+      })
     })
     await ctx.agent.transform((agents) => {
       agents.update('reviewer', (agent) => {
@@ -1479,9 +1486,9 @@ export default {
     await expect.element(mention('@reviewer')).toBeVisible()
     await expect.element(mention('@mention-guide').getByRole('img', {name: 'Skill'})).toBeVisible()
     await expect.element(mention('@reviewer').getByRole('img', {name: 'Agent'})).toBeVisible()
-    await expect.element(mention('@Payroll audit')).toBeVisible()
-    await expect.element(mention('@Review ledger')).toBeVisible()
-    await expect.element(mention('@Payroll pane')).not.toBeInTheDocument()
+    await expect.element(mention('Payroll audit').getByRole('img', {name: 'Session'})).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
     await expect.element(mention('@lurker')).not.toBeInTheDocument()
     await expect.element(mention('@planner')).not.toBeInTheDocument()
     await expect.element(mention('@build')).not.toBeInTheDocument()
@@ -1489,8 +1496,14 @@ export default {
 
     await userEvent.keyboard('review')
 
-    await expect.element(context().getByRole('option').first()).toHaveTextContent('@reviewer')
-    await expect.element(context().getByRole('option').last()).toHaveTextContent('@Review ledger')
+    await expect.element(context().getByRole('option').nth(0)).toHaveAccessibleName(/@review-checklist/)
+    await expect.element(context().getByRole('option').nth(1)).toHaveAccessibleName(/@reviewer/)
+    await expect.element(context().getByRole('option').last()).toHaveAccessibleName(/Review ledger/)
+
+    await userEvent.keyboard('er')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/@reviewer/)
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
 
     await userEvent.keyboard('{Enter}')
 
@@ -1499,9 +1512,9 @@ export default {
 
     await userEvent.keyboard('@payroll')
 
-    await expect.element(context().getByRole('option').first()).toHaveTextContent('@Payroll audit')
-    await expect.element(mention('@Review ledger')).not.toBeInTheDocument()
-    await expect.element(mention('@Payroll pane')).not.toBeInTheDocument()
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Payroll audit/)
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
 
     await userEvent.keyboard('{Enter}')
 
