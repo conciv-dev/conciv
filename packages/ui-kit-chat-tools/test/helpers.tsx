@@ -40,7 +40,7 @@ function fixtureTool<Shape extends z.ZodRawShape>(spec: {
       mutating: spec.mutating ?? false,
       ...('selector' in spec.input.shape ? {positional: 'selector'} : {}),
     },
-  }).client()
+  }).server(() => ({ok: true as const}))
 }
 
 export const FIXTURE_TOOLS = [
@@ -129,7 +129,7 @@ export function readFixtureVerb(name: string): string {
 }
 
 export function fixtureToolRegistry(): ToolRegistry {
-  const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+  const registry = createToolRegistry()
   for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
   return registry
 }

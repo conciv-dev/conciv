@@ -67,7 +67,7 @@ import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, drafts, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, drafts, readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -485,13 +485,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
-  const primitives = makeSessionPrimitives({
-    db,
-    root: opts.cwd,
-    storeCapture: (params) => writeToolCapture(db, params),
-    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-  })
+  const primitives = makeSessionPrimitives()
   const {registry, stream} = primitives
   const rows: RowScope = {
     db,
@@ -727,11 +721,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
-      ...registryCapabilities(
-        registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
-        scopedToolCall,
-        extensionFor,
-      ),
+      ...registryCapabilities(registry.sandboxTools(), scopedToolCall, extensionFor),
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
     ])
 
@@ -851,7 +841,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     outsideCapabilities: async (sessionId) =>
       outsideRunCapabilities(
         await withPluginTools(sessionId, [
-          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
+          ...registryCapabilities(registry.sandboxTools(), scopedToolCall, extensionFor),
           ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
         ]),
       ),
@@ -938,7 +928,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       trust,
       ptys,
       push: {
-        queries: (sessionId, signal, focus) => runtime.forSession(sessionId).page.queries(signal, focus),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
       },
     },

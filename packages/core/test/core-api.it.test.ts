@@ -1,6 +1,5 @@
 import {until} from '@conciv/harness-testkit/until'
-import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues} from '../src/page/page-queue.js'
+import {makePagePlugin} from '../src/page/page-plugin.js'
 import {
   rmSync,
   mkdirSync,
@@ -148,7 +147,7 @@ import {
   type HarnessListCursor,
   type HarnessModel,
 } from '@conciv/protocol/harness-types'
-import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PageQueueResultSchema} from '@conciv/protocol/page-types'
 import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -1251,7 +1250,7 @@ describe('api harness switching', () => {
       runtime: app.runtime,
       search,
       pluginHost: app.pluginHost,
-      queues: makePageQueues({bus: makePageBus(), journal: makeJournal(app.chat.db)}),
+      queues: makePagePlugin(() => app.pluginHost),
     }))
     const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
@@ -1973,34 +1972,6 @@ describe('rpc wire', () => {
   }
 
   describe('rpc over the wire (real app, real http, typed client)', () => {
-    describe('on one default app', () => {
-      const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
-
-      it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
-        await expect(
-          kit().rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}}),
-        ).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
-      })
-
-      it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
-        const statuses: number[] = []
-        const sessionId = await kit().session()
-        for (const code of PAGE_TRANSPORT_ERROR_CODES) {
-          const response = await fetch(`${kit().base}/rpc/page/reply`, {
-            method: 'POST',
-            headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: sessionId},
-            body: JSON.stringify({
-              json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
-            }),
-          })
-          statuses.push(response.status)
-        }
-        expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
-      })
-    })
-
     describe('on one app with an editor opener', () => {
       const opened: Array<{file: string; line?: number; column?: number}> = []
       const harness = createTestHarness(requireClaude())

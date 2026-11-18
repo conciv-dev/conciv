@@ -31,12 +31,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "bippy": "catalog:",
-    "p-queue": "catalog:",
     "react-grab": "catalog:",
     "rrweb-snapshot": "catalog:",
     "solid-js": "catalog:"
@@ -55,7 +53,6 @@
     "react-dom": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "zod": "catalog:"
+    "vitest": "catalog:"
   }
 }

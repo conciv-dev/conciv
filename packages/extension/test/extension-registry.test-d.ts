@@ -24,7 +24,7 @@ const doubler = defineTool({
   inputSchema: z.object({value: z.number()}),
   outputSchema: z.object({doubled: z.number()}),
   meta: {summary: 'double the number it is given'},
-}).client((input) => ({doubled: input.value * 2}))
+}).server((input) => ({doubled: input.value * 2}))
 
 const treblerDef = toolDefinition({
   name: 'demo_trebler',
@@ -34,7 +34,7 @@ const treblerDef = toolDefinition({
   meta: {summary: 'triple the number it is given'},
 })
 
-const trebler = defineTool(treblerDef).client((input) => ({tripled: input.value * 3}))
+const trebler = defineTool(treblerDef).server((input) => ({tripled: input.value * 3}))
 
 const locator = defineTool({
   name: 'demo_locator',
@@ -43,7 +43,7 @@ const locator = defineTool({
   outputSchema: z.object({found: z.boolean()}),
   errors: {ELEMENT_NOT_FOUND: {message: 'no element matched the target', data: z.object({target: z.string()})}},
   meta: {summary: 'find an element on the page by selector'},
-}).client(() => ({found: true}))
+}).server(() => ({found: true}))
 
 const guard = defineTool({
   name: 'demo_guard',
@@ -93,7 +93,7 @@ const page = defineTool({
   inputSchema: z.object({}),
   outputSchema: z.object({title: z.string()}),
   meta: {summary: 'read the page title'},
-}).client(() => ({title: 'x'}))
+}).server(() => ({title: 'x'}))
 
 const pageFill = defineTool({
   name: 'page.fill',
@@ -101,7 +101,7 @@ const pageFill = defineTool({
   inputSchema: z.object({target: z.string()}),
   outputSchema: z.object({filled: z.boolean()}),
   meta: {summary: 'type text into a field on the page'},
-}).client(() => ({filled: true}))
+}).server(() => ({filled: true}))
 
 const doublerTwin = defineTool({
   name: 'demo_doubler',
@@ -109,7 +109,7 @@ const doublerTwin = defineTool({
   inputSchema: z.object({amount: z.number()}),
   outputSchema: z.object({twice: z.number()}),
   meta: {summary: 'another tool that claims the same name'},
-}).client((input) => ({twice: input.amount * 2}))
+}).server((input) => ({twice: input.amount * 2}))
 
 const treblerTwinDef = toolDefinition({
   name: 'demo_trebler',
@@ -119,7 +119,7 @@ const treblerTwinDef = toolDefinition({
   meta: {summary: 'another shared definition claiming the same name'},
 })
 
-const treblerTwin = defineTool(treblerTwinDef).client((input) => ({thrice: input.amount * 3}))
+const treblerTwin = defineTool(treblerTwinDef).server((input) => ({thrice: input.amount * 3}))
 
 const emptySegment = defineTool({
   name: 'page..fill',
@@ -127,7 +127,7 @@ const emptySegment = defineTool({
   inputSchema: z.object({}),
   outputSchema: z.object({ok: z.boolean()}),
   meta: {summary: 'a tool whose name has an empty path segment'},
-}).client(() => ({ok: true}))
+}).server(() => ({ok: true}))
 
 const leadingForbidden = defineTool({
   name: '__proto__.x',
@@ -135,7 +135,7 @@ const leadingForbidden = defineTool({
   inputSchema: z.object({}),
   outputSchema: z.object({ok: z.boolean()}),
   meta: {summary: 'a tool whose name starts with a hostile path segment'},
-}).client(() => ({ok: true}))
+}).server(() => ({ok: true}))
 
 const middleForbidden = defineTool({
   name: 'page.constructor.x',
@@ -143,7 +143,7 @@ const middleForbidden = defineTool({
   inputSchema: z.object({}),
   outputSchema: z.object({ok: z.boolean()}),
   meta: {summary: 'a tool whose name carries a hostile path segment in the middle'},
-}).client(() => ({ok: true}))
+}).server(() => ({ok: true}))
 
 const trailingForbidden = defineTool({
   name: 'page.prototype',
@@ -151,7 +151,7 @@ const trailingForbidden = defineTool({
   inputSchema: z.object({}),
   outputSchema: z.object({ok: z.boolean()}),
   meta: {summary: 'a tool whose name ends with a hostile path segment'},
-}).client(() => ({ok: true}))
+}).server(() => ({ok: true}))
 
 const prefixed = defineExtension({name: 'prefixed', tools: [page, pageFill]})
 const twin = defineExtension({name: 'twin', tools: [doublerTwin]})
@@ -175,8 +175,6 @@ type DoublerError = InferFailure<typeof client.demo_doubler>
 type LocatorError = InferFailure<typeof client.demo_locator>
 
 type GuardError = InferFailure<typeof client.demo_guard>
-
-type TransportErrorCode = 'NO_PAGE_CLIENT' | 'PAGE_TIMEOUT' | 'UNKNOWN_TOOL' | 'INVALID_ARGS' | 'HANDLER_ERROR'
 
 test('the extension context is derived from the builder, never restated by the registration', () => {
   expectTypeOf(getExtensionApi<'demo'>).returns.toMatchTypeOf<ExtensionApi<{ratio: number}>>()
@@ -262,22 +260,6 @@ test('a declared tool error narrows through isDefinedError with its code and its
     expectTypeOf(error.data).toEqualTypeOf<{target: string}>()
   }
   expectTypeOf(narrow).toBeFunction()
-})
-
-test('a client-bound tool carries its declared error alongside the transport codes', () => {
-  expectTypeOf<InferDefinedError<typeof client.demo_locator>['code']>().toEqualTypeOf<
-    'ELEMENT_NOT_FOUND' | TransportErrorCode
-  >()
-})
-
-test('a client-bound tool that declares nothing still carries the transport codes', () => {
-  expectTypeOf<InferDefinedError<typeof client.demo_doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
-})
-
-test('an unbound renderer declaration still reports the transport codes its runtime twin can raise', () => {
-  expectTypeOf<InferDefinedError<typeof client.demo_picker>['code']>().toEqualTypeOf<
-    'PICK_CANCELLED' | TransportErrorCode
-  >()
 })
 
 test('a server-bound tool carries its declared error and no transport code', () => {

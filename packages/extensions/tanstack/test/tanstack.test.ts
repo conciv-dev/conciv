@@ -16,14 +16,7 @@ import {makeViteBridge} from '@conciv/unplugin/vite-bridge'
 import {buildAndPack, installPacked, packTarball} from '@conciv/vitest-config/pack'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import tanstackExtension from '../src/server.js'
-import {
-  gotoAbout,
-  startViteFixtureServer,
-  tanstackAdapter,
-  useTanstackTestApi,
-  waitForAboutQuery,
-  waitForPagePlane,
-} from './helpers.js'
+import {gotoAbout, startViteFixtureServer, useTanstackTestApi, waitForAboutQuery} from './helpers.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: string}> {
@@ -34,12 +27,10 @@ async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: 
 describe('boot', () => {
   const get = useTanstackTestApi()
 
-  test('real TanStack host app boots and its page serves the conciv page plane in a real browser', async () => {
+  test('real TanStack host app boots in a real browser', async () => {
     const {api} = get()
 
     await expectLocator(api.page.getByRole('heading', {name: 'TanStack inspection home'})).toBeVisible()
-
-    await waitForPagePlane(api.page)
 
     await gotoAbout(api.page)
     await expectLocator(api.page.getByText('Greeting: hello')).toBeVisible()
@@ -67,83 +58,6 @@ describe('package install', () => {
     const routes = await callTool('tanstack_route_manifest', {})
     expect(Array.isArray(routes)).toBe(true)
     await engine.stop()
-  })
-})
-
-describe('framework adapter', () => {
-  const get = useTanstackTestApi()
-
-  test('adapter.client.detect reports the running framework against the real app', async () => {
-    const {api} = get()
-    await waitForPagePlane(api.page)
-
-    const info = await tanstackAdapter(api).client.detect()
-    expect(info).toEqual({name: 'tanstack-start', version: null, router: 'file-based', dev: true})
-  })
-
-  test('adapter.client.data surfaces the router loader cache for the real about route', async () => {
-    const {api} = get()
-    await waitForPagePlane(api.page)
-    await gotoAbout(api.page)
-
-    const adapter = tanstackAdapter(api)
-    const entries = await adapter.client.data.entries()
-    const about = entries.find((entry) => entry.key === '/about')
-    expect(about).toBeDefined()
-    expect(about?.state).toBe('fresh')
-    expect(about?.updatedAt).not.toBeNull()
-
-    const value = await adapter.client.data.get('/about')
-    expect(value).toMatchObject({server: {greeting: 'hello'}})
-  })
-
-  test('adapter.client.data.invalidate re-runs the real router loader', async () => {
-    const {api} = get()
-    await waitForPagePlane(api.page)
-    await gotoAbout(api.page)
-
-    const adapter = tanstackAdapter(api)
-    const readUpdatedAt = async () => {
-      const entries = await adapter.client.data.entries()
-      return entries.find((entry) => entry.key === '/about')?.updatedAt ?? null
-    }
-
-    const before = await readUpdatedAt()
-    expect(before).not.toBeNull()
-
-    await adapter.client.data.invalidate('/about')
-    expect(await readUpdatedAt()).toBeGreaterThan(before ?? 0)
-  })
-
-  test('adapter.queryCache splits the live TanStack Query cache into queries and mutations', async () => {
-    const {api} = get()
-    await waitForPagePlane(api.page)
-
-    await api.page.getByRole('link', {name: 'About'}).click()
-    await waitForAboutQuery(api.page)
-
-    const adapter = tanstackAdapter(api)
-    const [queries, mutations] = await Promise.all([adapter.queryCache?.queries(), adapter.queryCache?.mutations()])
-    expect(Array.isArray(mutations)).toBe(true)
-    const demo = queries?.find((entry) => entry.key === JSON.stringify(['spike', 'demo']))
-    expect(demo?.status).toBe('success')
-  })
-
-  test('adapter.client.errors.snapshot captures a real runtime error thrown in an event handler', async () => {
-    const {api} = get()
-    await waitForPagePlane(api.page)
-
-    await api.page.getByRole('link', {name: 'Boom'}).click()
-    await expectLocator(api.page.getByRole('heading', {name: 'Boom page'})).toBeVisible()
-    const crashed = api.page.waitForEvent('pageerror')
-    await api.page.getByRole('button', {name: 'Trigger runtime error'}).click()
-    expect(String(await crashed)).toContain('boom-from-event-handler')
-
-    const adapter = tanstackAdapter(api)
-    const captured = await adapter.client.errors.snapshot()
-    expect(
-      captured.some((error) => error.kind === 'runtime' && error.message.includes('boom-from-event-handler')),
-    ).toBe(true)
   })
 })
 
@@ -272,169 +186,6 @@ describe('resolution matrix', {tags: ['packed']}, () => {
       expect(probed.client).toContain(join('node_modules', '@conciv', 'extension-tanstack', 'dist', 'client.js'))
       expect(probed.name).toBe('tanstack')
     })
-  })
-})
-
-describe('router adapter', () => {
-  const get = useTanstackTestApi()
-
-  const routerStateSchema = z.object({
-    location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
-    matches: z.array(z.object({routeId: z.string(), path: z.string(), loaderData: z.unknown()})),
-  })
-
-  type RouteNodeShape = {id: string; children: RouteNodeShape[]}
-
-  const routeNodeSchema: z.ZodType<RouteNodeShape> = z.lazy(() =>
-    z.object({id: z.string(), children: z.array(routeNodeSchema)}),
-  )
-
-  function collectIds(node: RouteNodeShape): string[] {
-    return [node.id, ...node.children.flatMap(collectIds)]
-  }
-
-  test('callTool drives the fiber-walk adapter against the running TanStack app', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-    await gotoAbout(api.page)
-    await waitForAboutQuery(api.page)
-
-    const state = routerStateSchema.parse(await api.callTool('tanstack_router_state', {}))
-    expect(state.location.pathname).toBe('/about')
-    const aboutMatch = state.matches.find((match) => match.routeId === '/about')
-    expect(aboutMatch).toBeDefined()
-    expect(aboutMatch?.loaderData).toBeTruthy()
-
-    const tree = routeNodeSchema.parse(await api.callTool('tanstack_route_tree', {}))
-    const ids = collectIds(tree)
-    expect(ids.length).toBeGreaterThanOrEqual(4)
-  })
-
-  const searchStateSchema = z.object({
-    matches: z.array(z.object({routeId: z.string(), search: z.record(z.string(), z.unknown())})),
-  })
-
-  test('tanstack_router_state redacts secret-keyed search params through dehydrate', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-    await api.page.getByRole('link', {name: 'Token route'}).click()
-    await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
-
-    const payload = await api.callTool('tanstack_router_state', {})
-    const state = searchStateSchema.parse(payload)
-    const secretMatch = state.matches.find((match) => match.routeId === '/secret')
-    expect(secretMatch).toBeDefined()
-    expect(secretMatch?.search.token).toBe('[redacted]')
-    expect(JSON.stringify(state.matches)).not.toContain('super-secret-value')
-  })
-
-  const cacheEntrySchema = z.object({
-    key: z.string(),
-    state: z.enum(['fresh', 'stale', 'fetching', 'error']),
-    status: z.string().nullable(),
-    observers: z.number().nullable(),
-    updatedAt: z.number().nullable(),
-  })
-
-  const queryCacheSchema = z.object({queries: z.array(cacheEntrySchema), mutations: z.array(cacheEntrySchema)})
-
-  test('tanstack_query_cache extracts the live TanStack Query cache from the running app', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-    await gotoAbout(api.page)
-    await waitForAboutQuery(api.page)
-
-    const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
-    const demo = cache.queries.find((entry) => entry.key === JSON.stringify(['spike', 'demo']))
-    expect(demo).toBeDefined()
-    expect(demo?.status).toBe('success')
-    expect(demo?.observers).toBe(1)
-  })
-
-  test('tanstack_navigate drives real TanStack Router navigation on the running app', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-
-    await api.callToolApproved('tanstack_navigate', {to: '/form'})
-
-    await expectLocator(api.page.getByRole('heading', {name: 'Form page'})).toBeVisible()
-    expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname).toBe('/form')
-  })
-
-  test('navigate threads search through the adapter into the running TanStack Router location', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-
-    const adapter = tanstackAdapter(api)
-    await adapter.client.navigation.navigate({to: '/secret', search: {token: 'nav-applied'}})
-
-    await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
-    expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.search).toContain(
-      'token=nav-applied',
-    )
-  })
-
-  test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-    await gotoAbout(api.page)
-    await waitForAboutQuery(api.page)
-
-    const demoKey = JSON.stringify(['spike', 'demo'])
-    const readDemo = async () => {
-      const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
-      const entry = cache.queries.find((row) => row.key === demoKey)
-      if (!entry) throw new Error('demo query missing from the tanstack query cache')
-      return entry
-    }
-
-    const before = await readDemo()
-    expect(before.status).toBe('success')
-    expect(before.updatedAt).not.toBeNull()
-
-    await api.callToolApproved('tanstack_query_invalidate', {key: JSON.stringify(['nope', 'nope'])})
-    const afterUnknown = await readDemo()
-    expect(afterUnknown.updatedAt).toBe(before.updatedAt)
-    expect(afterUnknown.state).toBe(before.state)
-
-    await api.callToolApproved('tanstack_query_invalidate', {key: demoKey})
-    const after = await readDemo()
-    expect(after.updatedAt).toBeGreaterThan(before.updatedAt ?? 0)
-  })
-
-  const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()
-
-  const loaderDataSchema = z.object({
-    routeId: z.string(),
-    data: z
-      .object({
-        server: z.object({greeting: z.string()}).loose(),
-        local: z.object({n: z.number()}).loose(),
-        deep: z.object({a: truncationMarkerSchema}).loose(),
-      })
-      .loose(),
-  })
-
-  test('tanstack_loader_data returns dehydrated leaf loader data with depth truncation applied', async () => {
-    const {api} = get()
-
-    await waitForPagePlane(api.page)
-    await gotoAbout(api.page)
-
-    const payload = await api.callTool('tanstack_loader_data', {})
-    const loaderData = loaderDataSchema.parse(payload)
-
-    expect(loaderData.routeId).toBe('/about')
-    expect(Object.keys(loaderData.data)).toEqual(expect.arrayContaining(['server', 'local', 'deep']))
-    expect(loaderData.data.deep.a.__conciv).toBe('object')
-    expect(loaderData.data.deep.a.preview).toBe('{…}')
-    expect(JSON.stringify(payload)).not.toContain('too-deep')
   })
 })
 
@@ -691,36 +442,6 @@ describe('tool catalog', () => {
     if (!booted) throw new Error('the core kit did not boot')
     return booted
   }
-
-  const PAGE_TOOLS = [
-    'tanstack_back',
-    'tanstack_data_entries',
-    'tanstack_data_invalidate',
-    'tanstack_detect',
-    'tanstack_errors_snapshot',
-    'tanstack_loader_data',
-    'tanstack_navigate',
-    'tanstack_query_cache',
-    'tanstack_query_invalidate',
-    'tanstack_query_refetch',
-    'tanstack_route_tree',
-    'tanstack_router_invalidate',
-    'tanstack_router_state',
-  ]
-
-  const SERVER_TOOLS = ['tanstack_build_errors', 'tanstack_route_manifest', 'tanstack_server_fn_trace']
-
-  test('the agent catalog lists exactly one tanstack tool per verb, page verbs bound client-side', async () => {
-    const catalog = await kit().rpc.registry.catalog()
-    const tanstackEntries = catalog
-      .filter((entry) => entry.name.startsWith('tanstack_'))
-      .map((entry) => `${entry.name} (${entry.binding})`)
-      .toSorted()
-
-    expect(tanstackEntries).toEqual(
-      [...PAGE_TOOLS.map((name) => `${name} (client)`), ...SERVER_TOOLS.map((name) => `${name} (server)`)].toSorted(),
-    )
-  })
 
   test('every listed tanstack tool carries a summary the agent can read', async () => {
     const catalog = await kit().rpc.registry.catalog()

@@ -1,6 +1,7 @@
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import {makeRpcClient} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import fs from 'node:fs'
@@ -14,7 +15,6 @@ import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
-import {awaitPagePlaneSubscribed} from '@conciv/plugin-testkit/page-plane'
 
 export type EmbedKit = CoreKit
 
@@ -384,13 +384,16 @@ export async function installNativeStub(page: Page): Promise<void> {
   })
 }
 
-const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const PAGE_ATTACH_TIMEOUT_MS = 30_000
 
-export async function openPagePlaneHost(page: Page, kit: EmbedKit, base: string): Promise<Page> {
-  await awaitPagePlaneSubscribed(page, async () => {
-    await openLoggedIn(page, kit, base)
-    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
-  })
+export async function openAttachedHost(page: Page, kit: EmbedKit, base: string): Promise<Page> {
+  await openLoggedIn(page, kit, base)
+  const rpc = makeRpcClient(kit.base)
+  await expect
+    .poll(() => rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}), {
+      timeout: PAGE_ATTACH_TIMEOUT_MS,
+    })
+    .not.toEqual([])
   return page
 }
 

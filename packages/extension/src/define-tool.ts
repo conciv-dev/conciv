@@ -2,7 +2,7 @@ import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
-import type {ClientEffect, ExtensionTool, ServerToolRegistryAccess, ServerToolPageAccess, ToolCard} from './types.js'
+import type {ExtensionTool, ServerToolRegistryAccess, ToolCard} from './types.js'
 
 export {assertToolName, isToolError, TOOL_NAME_RULE, toolError} from '@conciv/protocol/tool-call-types'
 export type {ToolError} from '@conciv/protocol/tool-call-types'
@@ -22,24 +22,7 @@ export type ToolMeta = {
 export type ToolErrorSpec = {message: string; data?: z.ZodType}
 export type ToolErrors = Record<string, ToolErrorSpec>
 
-export type ToolBinding = 'server' | 'client'
-
-export type ClientToolLocator = {ref?: string; selector?: string; name?: string}
-
-export type ClientConsoleEntry = {level: string; ts: number; text: string}
-
-export type ClientToolCtx = {
-  agentId: string
-  document: Document
-  target: (locator: ClientToolLocator) => Element
-  resolve: (locator: ClientToolLocator) => Element | null
-  addRef: (el: Element) => string
-  resetRefs: () => void
-  consoleEntries: (since?: number) => ClientConsoleEntry[]
-  effects: readonly ClientEffect[]
-  queued?: {id: string; index: number; of: number}
-  signal?: AbortSignal
-}
+export type ToolBinding = 'server'
 
 export type ToolDefinition<
   Name extends string,
@@ -84,19 +67,14 @@ export type ToolBuilder<
   meta?: ToolMeta
   binding?: Binding
   __ctx?: Ctx
-  __clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   server: <HandlerCtx>(
     execute: (
       input: z.infer<Schema>,
       ctx: HandlerCtx,
       request: ToolRequest,
-      page: ServerToolPageAccess,
       tools: ServerToolRegistryAccess,
     ) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, Errors, 'server', HandlerCtx>
-  client: (
-    execute?: (input: z.infer<Schema>, ctx: ClientToolCtx) => Promise<unknown> | unknown,
-  ) => ToolBuilder<Name, Schema, Output, Errors, 'client', Ctx>
   render: (card: ToolCard) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
 }
 
@@ -201,14 +179,7 @@ export type RegisteredTools<Tools extends readonly unknown[]> = [ToolTupleProble
 
 type ToolState<Binding extends ToolBinding | undefined> = {
   binding?: Binding
-  serverRun?: (
-    input: unknown,
-    ctx: unknown,
-    request: ToolRequest,
-    page: ServerToolPageAccess,
-    tools: ServerToolRegistryAccess,
-  ) => Promise<unknown>
-  clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
+  serverRun?: (input: unknown, ctx: unknown, request: ToolRequest, tools: ServerToolRegistryAccess) => Promise<unknown>
   render?: ToolCard
 }
 
@@ -251,14 +222,12 @@ function toolBuilder<
     approval: definition.approval,
     binding: state.binding,
     __serverRun: state.serverRun,
-    __clientExecute: state.clientExecute,
     __render: state.render,
     server<HandlerCtx>(
       execute: (
         input: z.infer<Schema>,
         ctx: HandlerCtx,
         request: ToolRequest,
-        page: ServerToolPageAccess,
         tools: ServerToolRegistryAccess,
       ) => Promise<unknown> | unknown,
     ) {
@@ -266,19 +235,8 @@ function toolBuilder<
       return toolBuilder<Name, Schema, Output, Errors, 'server', HandlerCtx>(definition, {
         ...state,
         binding: 'server',
-        serverRun: async (input, ctx, request, page, tools) =>
-          execute(input as z.infer<Schema>, ctx as HandlerCtx, request, page, tools),
-      })
-    },
-    client(execute) {
-      assertUnbound(definition.name, state.binding)
-      const clientState: ToolState<'client'> = {...state, binding: 'client'}
-      if (execute === undefined) {
-        return toolBuilder<Name, Schema, Output, Errors, 'client', Ctx>(definition, clientState)
-      }
-      return toolBuilder<Name, Schema, Output, Errors, 'client', Ctx>(definition, {
-        ...clientState,
-        clientExecute: async (raw, ctx) => execute(definition.inputSchema.parse(raw), ctx),
+        serverRun: async (input, ctx, request, tools) =>
+          execute(input as z.infer<Schema>, ctx as HandlerCtx, request, tools),
       })
     },
     render(card) {

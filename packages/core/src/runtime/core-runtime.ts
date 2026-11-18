@@ -2,11 +2,10 @@ import {eq, lt} from 'drizzle-orm'
 import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
 import type {EngineStaleness, RawFrame, SourceLoc, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
-import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {navigation, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
-import {pageQueryStream} from '../page/page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
@@ -72,9 +71,8 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 }
 
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
-  const {page, registry, stream} = deps.primitives
+  const {registry, stream} = deps.primitives
   const model = deps.model(id)
-  const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
   const requestFor = (options: {toolCallId?: string; signal?: AbortSignal} = {}): ToolRequest => ({
     sessionId: id,
@@ -93,15 +91,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
           ...(options?.gate === undefined ? {} : {gate: options.gate}),
         }),
       has: (name) => registry.has(name),
-      catalog: view.catalog,
-    },
-    page: {
-      ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
-      queries: (signal, focus) => pageQueryStream(page.bus, id, signal, focus),
-      reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
-      connected: () => page.bus.connected(id),
-      changes: () => page.journal.list(id),
-      clearChanges: () => page.journal.clear(id),
+      catalog: registry.catalog,
     },
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
@@ -109,10 +99,6 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       events: (signal) => caughtUpThenLive(stream.events(id, signal), () => deps.plane.catchUp(id)),
     },
     asks: {ui: () => deps.plane.askUi(id)},
-    captures: {
-      list: () => sessionCaptures(deps.db, id),
-      store: (toolCallId, bundle) => writeToolCapture(deps.db, {sessionId: id, toolCallId, bundle}),
-    },
     history: {
       messages: () => deps.plane.history(id),
       hydrate: (window) => deps.plane.hydrate(id, window),
@@ -155,14 +141,6 @@ function established(raw: SessionScope): SessionScope {
   const scope: SessionScope = {
     ...raw,
     tools: {...raw.tools, call: inScope(raw.tools.call)},
-    page: {
-      ...raw.page,
-      ask: inScope(raw.page.ask),
-      queries: inScope(raw.page.queries),
-      reply: inScope(raw.page.reply),
-      changes: inScope(raw.page.changes),
-      clearChanges: inScope(raw.page.clearChanges),
-    },
     stream: {
       ...raw.stream,
       publish: inScope(raw.stream.publish),
@@ -170,7 +148,6 @@ function established(raw: SessionScope): SessionScope {
       events: inScope(raw.stream.events),
     },
     asks: {ui: inScope(raw.asks.ui)},
-    captures: {list: inScope(raw.captures.list), store: inScope(raw.captures.store)},
     history: {messages: inScope(raw.history.messages), hydrate: inScope(raw.history.hydrate)},
     run: {
       stop: inScope(raw.run.stop),

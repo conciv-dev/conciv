@@ -1,18 +1,11 @@
-import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
+import {createRoot, createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {engineHeaders, makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {acquirePushChannel} from '@conciv/client'
+import {engineHeaders, makeBrowserRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
-import {
-  collectClientEffects,
-  collectClientTools,
-  type AnyExtension,
-  type ClientEffect,
-  type ClientToolEntry,
-} from '@conciv/extension'
+import type {AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
-import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
+import {installReactBridge, reactBridge} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
@@ -26,7 +19,6 @@ type RebindDetail = {apiBase?: string}
 
 declare global {
   interface Window {
-    __CONCIV_PAGE_DRIVER__?: PageDriver
     __CONCIV_REACT_BRIDGE__?: typeof reactBridge
   }
   interface WindowEventMap {
@@ -70,54 +62,18 @@ function runDisposers(disposers: Array<() => void>): void {
   }
 }
 
-type SessionPagePlaneConfig = {
-  session: () => string | null
-  apiBase: () => string
-  rpc: RpcClient
-  driver: () => PageDriver
-  redoOnChange: () => unknown
-  trusted: () => boolean
-}
-
-function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => void} {
-  return createRoot((dispose) => {
-    createEffect(() => {
-      config.redoOnChange()
-      const sessionId = config.session()
-      const apiBase = config.apiBase()
-      if (!sessionId || apiBase === '' || !config.trusted()) return
-      const channel = acquirePushChannel({apiBase, sessionId})
-      const plane = startPagePlane({
-        source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
-        driver: config.driver(),
-      })
-      onCleanup(() => {
-        plane.dispose()
-        channel.dispose()
-      })
-    })
-    return {dispose}
-  })
-}
-
 type ActiveSessionBinding = {
   read: () => string | null
   bind: (read: () => string | null) => void
-  dispose: () => void
 }
 
-function makeActiveSessionBinding(
-  plane: (session: () => string | null) => {dispose: () => void},
-): ActiveSessionBinding {
-  const bound: {read: () => string | null; planeDispose: () => void} = {read: () => null, planeDispose: () => {}}
+function makeActiveSessionBinding(): ActiveSessionBinding {
+  const bound: {read: () => string | null} = {read: () => null}
   return {
     read: () => bound.read(),
     bind: (read) => {
-      bound.planeDispose()
       bound.read = read
-      bound.planeDispose = plane(read).dispose
     },
-    dispose: () => bound.planeDispose(),
   }
 }
 
@@ -129,18 +85,6 @@ type BootNormalConfig = {
   grabProvider?: GrabProvider
   connectMode?: boolean
   engineToken?: () => Promise<string>
-}
-
-type MountedRouter = {options: {context: {instances: {extension: AnyExtension; effects: readonly ClientEffect[]}[]}}}
-
-function mountedClientTools(router: MountedRouter): ClientToolEntry[] {
-  return collectClientTools(router.options.context.instances.map((instance) => instance.extension))
-}
-
-function mountedClientEffects(router: MountedRouter): ClientEffect[] {
-  return collectClientEffects(
-    router.options.context.instances.map((instance) => ({name: instance.extension.name, effects: instance.effects})),
-  )
 }
 
 function bootNormal(config: BootNormalConfig): BootResult {
@@ -158,16 +102,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   }))
   const trusted = startEngineLogin(login)
 
-  const activeSession = makeActiveSessionBinding((session) =>
-    startSessionPagePlane({
-      session,
-      apiBase,
-      rpc,
-      driver: () => driver,
-      redoOnChange: connectionGeneration,
-      trusted: () => login.status() === 'trusted',
-    }),
-  )
+  const activeSession = makeActiveSessionBinding()
 
   const restore: {apply: (href: string) => void} = {apply: () => {}}
   const storage = makeNavigationStorage(rpc, {ready: trusted, isTrusted: () => login.trust().isTrusted()}, (href) =>
@@ -192,8 +127,6 @@ function bootNormal(config: BootNormalConfig): BootResult {
     login,
   })
   window.__TSR_ROUTER__ = hostRouter
-  const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
-  window.__CONCIV_PAGE_DRIVER__ = driver
 
   const container = document.createElement('div')
   config.root.appendChild(container)
@@ -229,11 +162,9 @@ function bootNormal(config: BootNormalConfig): BootResult {
     closeConnection,
     unsubscribeNavigation,
     storage.dispose,
-    activeSession.dispose,
     disposeApp,
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
-    driver.dispose,
     login.dispose,
     interactive.notify,
   ]
@@ -251,16 +182,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
   const deferred = makeBrowserRpcClient(() => null, {session: () => activeSession.read()})
   let boundApiBase: string | undefined
   const [apiBase, setApiBase] = createSignal('')
-  const activeSession = makeActiveSessionBinding((session) =>
-    startSessionPagePlane({
-      session,
-      apiBase,
-      rpc: deferred.rpc,
-      driver: () => driver,
-      redoOnChange: apiBase,
-      trusted: () => true,
-    }),
-  )
+  const activeSession = makeActiveSessionBinding()
   const bindApiBase = (nextApiBase: string) => {
     boundApiBase = nextApiBase
     deferred.bind(nextApiBase)
@@ -284,19 +206,15 @@ function bootConnect(config: BootConnectConfig): BootResult {
     notifyInteractive: interactive.notify,
   })
   window.__TSR_ROUTER__ = hostRouter
-  const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
-  window.__CONCIV_PAGE_DRIVER__ = driver
 
   const container = document.createElement('div')
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
   const disposers = [
     deferred.close,
-    activeSession.dispose,
     disposeApp,
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
-    driver.dispose,
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), interactive: interactive.promise}
@@ -362,7 +280,6 @@ export function mountImpl(
     } finally {
       host.remove()
       window.__TSR_ROUTER__ = hostRouter
-      window.__CONCIV_PAGE_DRIVER__ = undefined
       window.__CONCIV_REACT_BRIDGE__ = undefined
     }
   }

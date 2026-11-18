@@ -1,11 +1,8 @@
 import {afterEach, describe, expect, it, beforeEach, vi, beforeAll, test, afterAll, onTestFinished} from 'vitest'
 import {captureElement} from '../src/react-grab/capture-element.js'
-import {z} from 'zod'
-import {collectClientTools, defineExtension, defineTool, type ClientEffect} from '@conciv/extension'
-import {toolError} from '@conciv/protocol/tool-call-types'
-import type {ElementCapture, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
-import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
-import {loadSnapshotLibrary} from '../src/element-capture.js'
+import type {CssBundle, ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
+import {loadSnapshotLibrary, loadedSnapshotLibrary, takeElementCapture} from '../src/element-capture.js'
+import {toCssBundle} from '../src/css-bundle.js'
 import pageFont from '@fontsource-variable/wix-madefor-text/files/wix-madefor-text-latin-wght-normal.woff2?inline'
 import {grabToFile, parseGrabPayload} from '@conciv/grab/grab-attachment'
 import type {Grab, ImagePreview} from '@conciv/grab'
@@ -34,41 +31,6 @@ import {
 import {_fiberRoots} from 'bippy'
 import {createRoot, type Root} from 'react-dom/client'
 import {Counter, FixtureApp, Leaf} from './fixtures/react-app.js'
-
-describe('a tool that outlasts the preview library load', () => {
-  const editAfterLoad = defineTool({
-    name: 'probe_edit_after_load',
-    description: 'edits an element once the preview library has loaded',
-    inputSchema: z.object({selector: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'edit after load', category: 'edit-live', mutating: true, capture: 'before-after'},
-  }).client(async (input, ctx) => {
-    const el = ctx.target(input)
-    await loadSnapshotLibrary()
-    el.textContent = 'edited'
-    return {ok: true}
-  })
-
-  const probes = defineExtension({name: 'probe-late-library', tools: [editAfterLoad]}).client(() => ({value: {}}))
-
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
-
-  it('previews the after state even though the before state was captured without the library', async () => {
-    document.body.innerHTML = '<p id="late-library">original</p>'
-    const driver = makeDomPageDriver({tools: collectClientTools([probes])})
-    const outcome = await driver.execute({
-      agentId: 'test-agent',
-      name: 'probe_edit_after_load',
-      input: {selector: '#late-library'},
-    })
-    driver.dispose()
-    if (!outcome.ok) throw new Error(`the tool failed: ${outcome.error.message}`)
-    expect(outcome.capture?.before?.node).toBeUndefined()
-    expect(JSON.stringify(outcome.capture?.after?.node)).toContain('edited')
-  })
-})
 
 describe('capture element', () => {
   afterEach(() => {
@@ -159,94 +121,11 @@ describe('capture element', () => {
 })
 
 describe('element capture', () => {
-  const readValue = defineTool({
-    name: 'probe_readvalue',
-    description: 'reads a value without capturing',
-    inputSchema: z.object({selector: z.string()}),
-    outputSchema: z.object({value: z.string()}),
-    meta: {summary: 'read a value', category: 'read'},
-  }).client((input, ctx) => {
-    const el = ctx.target(input)
-    return {value: el instanceof HTMLInputElement ? el.value : (el.textContent ?? '')}
-  })
-
-  const actFill = defineTool({
-    name: 'probe_fill',
-    description: 'types into an input',
-    inputSchema: z.object({selector: z.string(), value: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'fill an input', category: 'act', mutating: true, capture: 'after'},
-  }).client((input, ctx) => {
-    const el = ctx.target(input)
-    if (el instanceof HTMLInputElement) el.value = input.value
-    return {ok: true}
-  })
-
-  const editText = defineTool({
-    name: 'probe_settext',
-    description: 'replaces the text of an element',
-    inputSchema: z.object({selector: z.string(), text: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'set element text', category: 'edit-live', mutating: true, capture: 'before-after'},
-  }).client((input, ctx) => {
-    ctx.target(input).textContent = input.text
-    return {ok: true}
-  })
-
-  const editRemove = defineTool({
-    name: 'probe_remove',
-    description: 'removes an element',
-    inputSchema: z.object({selector: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'remove an element', category: 'edit-live', mutating: true, capture: 'before-after'},
-  }).client((input, ctx) => {
-    ctx.target(input).remove()
-    return {ok: true}
-  })
-
-  const editStyled = defineTool({
-    name: 'probe_settextstyled',
-    description: 'replaces the text of an element while the page injects a rule',
-    inputSchema: z.object({selector: z.string(), text: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {
-      summary: 'set element text under a new rule',
-      category: 'edit-live',
-      mutating: true,
-      capture: 'before-after',
-    },
-  }).client((input, ctx) => {
-    const el = ctx.target(input)
-    const injected = document.createElement('style')
-    injected.id = 'injected-sheet'
-    injected.textContent = '.capture-form .injected {color: rgb(9, 9, 9);}'
-    document.head.appendChild(injected)
-    el.textContent = input.text
-    return {ok: true}
-  })
-
-  const actMark = defineTool({
-    name: 'probe_mark',
-    description: 'marks an element without touching its children',
-    inputSchema: z.object({selector: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'mark an element', category: 'act', mutating: true, capture: 'after'},
-  }).client((input, ctx) => {
-    ctx.target(input).setAttribute('data-marked', 'true')
-    return {ok: true}
-  })
-
-  const probes = defineExtension({
-    name: 'capture-probes',
-    tools: [readValue, actFill, editText, editRemove, editStyled, actMark],
-  }).client(() => ({value: {}}))
-
   const PASSWORD = 'hunter2-not-in-any-payload'
   const CARD_SENTINEL = 'card-sentinel-0000'
 
   let host: HTMLElement
   let style: HTMLStyleElement
-  let driver: PageDriver
 
   beforeEach(async () => {
     style = document.createElement('style')
@@ -286,22 +165,58 @@ describe('element capture', () => {
     hostileTabLink.textContent = 'click too'
     host.querySelector('#hostile')?.appendChild(hostileTabLink)
     document.body.appendChild(host)
-    driver = makeDomPageDriver({tools: collectClientTools([probes])})
     await loadSnapshotLibrary()
   })
 
   afterEach(() => {
-    driver.dispose()
     host.remove()
     style.remove()
     document.getElementById('injected-sheet')?.remove()
   })
 
-  async function runCapture(name: string, input: Record<string, unknown>): Promise<PageCaptureBundle> {
-    const outcome = await driver.execute({agentId: 'test-agent', name, input})
-    if (!outcome.ok) throw new Error(`the ${name} call failed: ${outcome.error.message}`)
-    if (outcome.capture === undefined) throw new Error(`the ${name} call carried no capture`)
-    return outcome.capture
+  type Taken = {capture: ElementCapture; css: CssBundle | null}
+
+  async function taken(el: Element, kind: ElementCaptureKind): Promise<Taken | null> {
+    const capture = takeElementCapture(el, kind, {document, snapshot: loadedSnapshotLibrary()})
+    if (capture === null) return null
+    return {capture: capture.capture, css: capture.pendingCss === null ? null : await toCssBundle(capture.pendingCss)}
+  }
+
+  const mark = (el: Element): void => el.setAttribute('data-marked', 'true')
+
+  const fill =
+    (value: string) =>
+    (el: Element): void => {
+      if (el instanceof HTMLInputElement) el.value = value
+    }
+
+  const setText =
+    (text: string) =>
+    (el: Element): void => {
+      el.textContent = text
+    }
+
+  async function runCapture(
+    selector: string,
+    change: (el: Element) => void = mark,
+    sides: ElementCaptureKind[] = ['after'],
+  ): Promise<{
+    before?: ElementCapture
+    after?: ElementCapture
+    beforeCss: CssBundle | null
+    afterCss: CssBundle | null
+  }> {
+    const el = document.querySelector(selector)
+    if (el === null) throw new Error(`no element for ${selector}`)
+    const before = sides.includes('before') ? await taken(el, 'before') : null
+    change(el)
+    const after = await taken(el, 'after')
+    return {
+      ...(before === null ? {} : {before: before.capture}),
+      ...(after === null ? {} : {after: after.capture}),
+      beforeCss: before?.css ?? null,
+      afterCss: after?.css ?? null,
+    }
   }
 
   function serializedText(capture: ElementCapture): string {
@@ -402,7 +317,7 @@ describe('element capture', () => {
 
   describe('a page tool capture freezes the element as it was when the tool ran', () => {
     it('survives a later class flip and a later deletion of the captured node', async () => {
-      const bundle = await runCapture('probe_settext', {selector: '#prose', text: 'rewritten'})
+      const bundle = await runCapture('#prose', setText('rewritten'), ['before', 'after'])
       const after = bundle.after
       if (after === undefined) throw new Error('the edit carried no after capture')
       expect(after.descriptor.accessibleName).toBe('rewritten')
@@ -417,71 +332,54 @@ describe('element capture', () => {
     })
 
     it('carries the ancestor skeleton down to a marked target so page css still matches', async () => {
-      const bundle = await runCapture('probe_fill', {selector: '#card', value: CARD_SENTINEL})
+      const bundle = await runCapture('#card', fill(CARD_SENTINEL))
       const node = JSON.stringify(bundle.after?.node ?? null)
       expect(node).toContain('data-rr-target')
       expect(node).toContain('capture-form')
-      expect(bundle.after?.cssBundleId).toMatch(/^css/)
-      expect(bundle.cssBundles?.at(0)?.css).toContain('.capture-form .cta')
+      expect(bundle.afterCss?.hash).toMatch(/^css/)
+      expect(bundle.afterCss?.css).toContain('.capture-form .cta')
     })
 
-    it('carries the css bundle on every capture so a dropped one never leaves a dangling reference', async () => {
-      const first = await runCapture('probe_fill', {selector: '#card', value: '1'})
-      const second = await runCapture('probe_fill', {selector: '#card', value: '2'})
-      expect(second.after?.cssBundleId).toBe(first.after?.cssBundleId)
-      expect(second.cssBundles?.at(0)?.hash).toBe(second.after?.cssBundleId)
-      expect(second.cssBundles?.at(0)?.css).toBe(first.cssBundles?.at(0)?.css)
+    it('hashes the same page css to the same bundle on every capture', async () => {
+      const first = await runCapture('#card', fill('1'))
+      const second = await runCapture('#card', fill('2'))
+      expect(second.afterCss?.hash).toBe(first.afterCss?.hash)
+      expect(second.afterCss?.css).toBe(first.afterCss?.css)
     })
 
     it('keeps a css bundle for each side when the page injects a rule while the tool runs', async () => {
-      const bundle = await runCapture('probe_settextstyled', {selector: '#prose', text: 'restyled'})
-      const beforeId = bundle.before?.cssBundleId
-      const afterId = bundle.after?.cssBundleId
-      expect(beforeId).toBeDefined()
-      expect(afterId).toBeDefined()
-      expect(beforeId).not.toBe(afterId)
-
-      const byHash = new Map((bundle.cssBundles ?? []).map((entry) => [entry.hash, entry.css]))
-      expect(byHash.size).toBe(2)
-      expect(byHash.get(beforeId ?? '')).not.toContain('.injected')
-      expect(byHash.get(afterId ?? '')).toContain('.injected')
+      const bundle = await runCapture(
+        '#prose',
+        (el) => {
+          const injected = document.createElement('style')
+          injected.id = 'injected-sheet'
+          injected.textContent = '.capture-form .injected {color: rgb(9, 9, 9);}'
+          document.head.appendChild(injected)
+          el.textContent = 'restyled'
+        },
+        ['before', 'after'],
+      )
+      expect(bundle.beforeCss?.hash).toBeDefined()
+      expect(bundle.afterCss?.hash).toBeDefined()
+      expect(bundle.beforeCss?.hash).not.toBe(bundle.afterCss?.hash)
+      expect(bundle.beforeCss?.css).not.toContain('.injected')
+      expect(bundle.afterCss?.css).toContain('.injected')
     })
 
-    it('keeps a password out of the capture payload and out of the result', async () => {
-      const outcome = await driver.execute({
-        agentId: 'test-agent',
-        name: 'probe_fill',
-        input: {selector: '#secret', value: 'typed'},
-      })
-      if (!outcome.ok) throw new Error('the fill failed')
-      expect(JSON.stringify(outcome.result)).not.toContain(PASSWORD)
-      expect(JSON.stringify(outcome.capture)).not.toContain(PASSWORD)
-      expect(outcome.capture?.after?.descriptor.value).toBe('***')
+    it('keeps a password out of the capture payload', async () => {
+      const bundle = await runCapture('#secret', fill('typed'))
+      expect(JSON.stringify(bundle)).not.toContain(PASSWORD)
+      expect(bundle.after?.descriptor.value).toBe('***')
     })
 
-    it('keeps a payment field out of the capture payload and out of the result', async () => {
-      const outcome = await driver.execute({
-        agentId: 'test-agent',
-        name: 'probe_fill',
-        input: {selector: '#card', value: CARD_SENTINEL},
-      })
-      if (!outcome.ok) throw new Error('the fill failed')
-      expect(JSON.stringify(outcome.result)).not.toContain(CARD_SENTINEL)
-      expect(JSON.stringify(outcome.capture)).not.toContain(CARD_SENTINEL)
-      expect(outcome.capture?.after?.descriptor.value).toBe('***')
-    })
-
-    it('takes no capture for a read verb', async () => {
-      const outcome = await driver.execute({
-        agentId: 'test-agent',
-        name: 'probe_readvalue',
-        input: {selector: '#prose'},
-      })
-      expect(outcome).toEqual({ok: true, result: {value: 'original prose'}})
+    it('keeps a payment field out of the capture payload', async () => {
+      const bundle = await runCapture('#card', fill(CARD_SENTINEL))
+      expect(JSON.stringify(bundle)).not.toContain(CARD_SENTINEL)
+      expect(bundle.after?.descriptor.value).toBe('***')
     })
 
     it('records a before side and no after side when the verb detaches the element', async () => {
-      const bundle = await runCapture('probe_remove', {selector: '#doomed'})
+      const bundle = await runCapture('#doomed', (el) => el.remove(), ['before', 'after'])
       expect(bundle.before?.descriptor.accessibleName).toBe('temporary')
       expect(bundle.after).toBeUndefined()
     })
@@ -490,13 +388,13 @@ describe('element capture', () => {
       const widget = document.createElement('div')
       widget.setAttribute('data-conciv-root', '')
       document.querySelector('#panel')?.appendChild(widget)
-      const bundle = await runCapture('probe_settext', {selector: '#panel', text: 'wiped'})
+      const bundle = await runCapture('#panel', setText('wiped'), ['before', 'after'])
       expect(bundle.before?.node).toBeUndefined()
       expect(bundle.before?.descriptor.selectorPath).toContain('#panel')
     })
 
     it('strips event-handler attributes, javascript: URLs, and iframe/object/embed nodes from the captured subtree', async () => {
-      const bundle = await runCapture('probe_mark', {selector: '#hostile'})
+      const bundle = await runCapture('#hostile')
       const node = bundle.after?.node
       expect(node).toBeDefined()
 
@@ -525,7 +423,7 @@ describe('element capture', () => {
     })
 
     it('keeps script and stylesheet-link nodes out of the serialized payload', async () => {
-      const bundle = await runCapture('probe_mark', {selector: '#hostile'})
+      const bundle = await runCapture('#hostile')
       const node = bundle.after?.node
       expect(node).toBeDefined()
 
@@ -539,7 +437,7 @@ describe('element capture', () => {
     })
 
     it('still produces a capture when an attribute carries an out-of-range numeric character reference', async () => {
-      const bundle = await runCapture('probe_mark', {selector: '#hostile'})
+      const bundle = await runCapture('#hostile')
       const node = bundle.after?.node
       expect(node).toBeDefined()
 
@@ -554,7 +452,7 @@ describe('element capture', () => {
       image.style.width = '24px'
       image.style.height = '16px'
 
-      const bundle = await runCapture('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('#media')
       const imageNode = findById(bundle.after?.node, 'fixture-image')
 
       expect(imageNode).toBeDefined()
@@ -571,7 +469,7 @@ describe('element capture', () => {
       await appendLoadedImage(media, 'first-image', noiseUrl)
       await appendLoadedImage(media, 'second-image', noiseUrl)
 
-      const unconstrained = await runCapture('probe_mark', {selector: '#media'})
+      const unconstrained = await runCapture('#media')
       const probeNode = unconstrained.after?.node
       const firstCost = inlineImageCost(requiredDataUrl(probeNode, 'first-image'))
       const secondCost = inlineImageCost(requiredDataUrl(probeNode, 'second-image'))
@@ -582,7 +480,7 @@ describe('element capture', () => {
       filler.textContent = 'x'.repeat(200_000 - baseBytes - firstCost - Math.floor(firstCost / 2))
       media.appendChild(filler)
 
-      const bundle = await runCapture('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('#media')
       const node = bundle.after?.node
 
       expect(node).toBeDefined()
@@ -599,7 +497,7 @@ describe('element capture', () => {
       filler.textContent = '€'.repeat(69_000)
       media.appendChild(filler)
 
-      const bundle = await runCapture('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('#media')
 
       expect(bundle.after?.descriptor.selectorPath).toContain('#media')
       expect(bundle.after?.node).toBeUndefined()
@@ -612,7 +510,7 @@ describe('element capture', () => {
       oversized.style.height = '10px'
       await appendLoadedImage(media, 'sibling-image', await paintedBlobUrl(8, 8, solidPaint))
 
-      const bundle = await runCapture('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('#media')
       const node = bundle.after?.node
 
       expect(findById(node, 'sibling-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -629,7 +527,7 @@ describe('element capture', () => {
       const errorSpy = vi.spyOn(console, 'error')
       const listenerSpy = vi.spyOn(tainted, 'addEventListener')
 
-      const bundle = await runCapture('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('#media')
       const node = bundle.after?.node
 
       expect(findById(node, 'clean-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -652,7 +550,7 @@ describe('element capture', () => {
       await appendLoadedImage(blockedWrap, 'nested-blocked-image', await paintedBlobUrl(8, 8, solidPaint))
       await appendLoadedImage(media, 'plain-image', await paintedBlobUrl(8, 8, solidPaint))
 
-      const bundle = await runCapture('probe_mark', {selector: '#media'})
+      const bundle = await runCapture('#media')
       const node = bundle.after?.node
 
       expect(findById(node, 'plain-image')?.attributes?.['rr_dataURL']).toBeDefined()
@@ -673,7 +571,7 @@ describe('element capture', () => {
       }
       panel.appendChild(bloat)
 
-      const bundle = await runCapture('probe_mark', {selector: '#bloated'})
+      const bundle = await runCapture('#bloated')
 
       expect(bundle.after?.descriptor.selectorPath).toContain('#bloated')
       expect(bundle.after?.node).toBeUndefined()
@@ -947,257 +845,6 @@ describe('grab text', () => {
       const grounded = groundGrabText(el, '<Kx> in chunk-QWERTY.js')
       expect(grounded.source).toBeNull()
       expect(grounded.text).toBe('<Kx> in chunk-QWERTY.js')
-    })
-  })
-})
-
-describe('page dispatcher', () => {
-  const readText = defineTool({
-    name: 'probe_text',
-    description: 'reads text through the dispatcher ctx',
-    inputSchema: z.object({selector: z.string().optional(), ref: z.string().optional()}),
-    outputSchema: z.object({text: z.string()}),
-    meta: {summary: 'read text through the dispatcher', category: 'read'},
-  }).client((input, ctx) => ({text: ctx.target(input).textContent ?? ''}))
-
-  const dispatchedClick = defineTool({
-    name: 'probe_click',
-    description: 'clicks through the dispatcher ctx',
-    inputSchema: z.object({selector: z.string()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'click through the dispatcher', category: 'act', mutating: true},
-  }).client((input, ctx) => {
-    const el = ctx.target(input)
-    if (!(el instanceof HTMLElement)) throw toolError('NOT_CLICKABLE')
-    el.click()
-    return {ok: true}
-  })
-
-  const refMaker = defineTool({
-    name: 'probe_mark',
-    description: 'adds a ref for the target element',
-    inputSchema: z.object({selector: z.string()}),
-    outputSchema: z.object({ref: z.string()}),
-    meta: {summary: 'add a ref through the dispatcher', category: 'read'},
-  }).client((input, ctx) => ({ref: ctx.addRef(ctx.target(input))}))
-
-  const widgetRefMaker = defineTool({
-    name: 'probe_mark_widget',
-    description: 'adds a ref for a control inside a conciv shadow root (widget or effects layer)',
-    inputSchema: z.object({}),
-    outputSchema: z.object({ref: z.string()}),
-    meta: {summary: 'add a ref to a widget control', category: 'read'},
-  }).client((_input, ctx) => {
-    const control = document
-      .querySelector('[data-conciv-root], [data-conciv-effects]')
-      ?.shadowRoot?.querySelector('button')
-    if (!control) throw new Error('widget control missing')
-    return {ref: ctx.addRef(control)}
-  })
-
-  const raiser = defineTool({
-    name: 'probe_raise',
-    description: 'throws a typed tool error',
-    inputSchema: z.object({}),
-    outputSchema: z.object({}),
-    errors: {NO_LUCK: {message: 'nothing to raise'}},
-    meta: {summary: 'raise a declared error through the dispatcher', category: 'read'},
-  }).client(() => {
-    throw toolError('NO_LUCK', {message: 'not today'})
-  })
-
-  const misbehaved = defineTool({
-    name: 'probe_badresult',
-    description: 'returns a non-record result',
-    inputSchema: z.object({}),
-    outputSchema: z.object({}),
-    meta: {summary: 'return a non-record result', category: 'read'},
-  }).client(() => 42)
-
-  const undefinedLeaker = defineTool({
-    name: 'probe_undef',
-    description: 'returns a record whose values JSON would silently drop or nullify',
-    inputSchema: z.object({where: z.enum(['object', 'array'])}),
-    outputSchema: z.object({}),
-    meta: {summary: 'return a record carrying undefined values', category: 'read'},
-  }).client((input) => (input.where === 'object' ? {value: undefined} : {values: ['kept', undefined]}))
-
-  const probes = defineExtension({
-    name: 'probes',
-    tools: [readText, dispatchedClick, refMaker, widgetRefMaker, raiser, misbehaved, undefinedLeaker],
-  }).client(() => ({value: {}}))
-
-  let host: HTMLElement
-  let driver: PageDriver
-
-  beforeAll(async () => {
-    host = document.createElement('div')
-    host.innerHTML = `
-    <p id="prose">hello dispatcher</p>
-    <button id="btn" onclick="this.textContent='clicked'">press</button>
-  `
-    document.body.appendChild(host)
-    driver = makeDomPageDriver({tools: collectClientTools([probes])})
-    await loadSnapshotLibrary()
-  })
-
-  afterAll(() => {
-    driver.dispose()
-    host.remove()
-  })
-
-  describe('the page-tool dispatcher', () => {
-    it('runs a client body by registry name with a lazily resolved target', async () => {
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {selector: '#prose'}})).toEqual({
-        ok: true,
-        result: {text: 'hello dispatcher'},
-      })
-    })
-
-    it('rejects an undeclared name as unknown-verb', async () => {
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_nothing', input: {}})).toEqual({
-        ok: false,
-        error: {code: 'unknown-verb', message: 'no mounted extension declares a client tool named "probe_nothing"'},
-      })
-    })
-
-    it('explains each way a target can be missing, as an invalid-args failure', async () => {
-      const stale = await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref: 'v999'}})
-      expect(stale).toEqual({ok: false, error: {code: 'invalid-args', message: 'stale ref v999; re-run page snapshot'}})
-      const missing = await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {selector: '#nope'}})
-      expect(missing).toEqual({ok: false, error: {code: 'invalid-args', message: 'no element for selector #nope'}})
-      const bare = await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {}})
-      expect(bare).toEqual({
-        ok: false,
-        error: {code: 'invalid-args', message: 'no target: pass ref, selector, or name'},
-      })
-    })
-
-    it('shares refs across calls', async () => {
-      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark', input: {selector: '#btn'}})
-      if (!marked.ok) throw new Error('mark failed')
-      const ref = String(marked.result.ref)
-      expect(
-        await driver.execute({agentId: 'test-agent', name: 'probe_click', input: {selector: '#btn'}}),
-      ).toMatchObject({
-        ok: true,
-        result: {ok: true},
-      })
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
-        ok: true,
-        result: {text: 'clicked'},
-      })
-    })
-
-    it.each(['data-conciv-root', 'data-conciv-effects'])(
-      'never resolves a ref to a control inside a %s shadow root',
-      async (marker) => {
-        const widget = document.createElement('div')
-        widget.setAttribute(marker, '')
-        widget.attachShadow({mode: 'open'}).innerHTML = '<button>Send</button>'
-        document.body.append(widget)
-        onTestFinished(() => widget.remove())
-        const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark_widget', input: {}})
-        if (!marked.ok) throw new Error('mark failed')
-        const ref = String(marked.result.ref)
-        expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
-          ok: false,
-          error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
-        })
-      },
-    )
-
-    it('carries a thrown toolError as a raised handler-error', async () => {
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_raise', input: {}})).toEqual({
-        ok: false,
-        error: {code: 'handler-error', message: 'not today', raised: {code: 'NO_LUCK', message: 'not today'}},
-      })
-    })
-
-    it('reports a schema-rejected input as invalid-args', async () => {
-      const outcome = await driver.execute({agentId: 'test-agent', name: 'probe_click', input: {}})
-      expect(outcome.ok).toBe(false)
-      if (outcome.ok) return
-      expect(outcome.error.code).toBe('invalid-args')
-    })
-
-    it('refuses a non-record result', async () => {
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_badresult', input: {}})).toEqual({
-        ok: false,
-        error: {code: 'handler-error', message: 'probe_badresult returned a non-serializable result'},
-      })
-    })
-
-    it.each(['object', 'array'] as const)(
-      'refuses a result carrying undefined in an %s, which JSON would silently mutate in transit',
-      async (where) => {
-        expect(await driver.execute({agentId: 'test-agent', name: 'probe_undef', input: {where}})).toEqual({
-          ok: false,
-          error: {code: 'handler-error', message: 'probe_undef returned a non-serializable result'},
-        })
-      },
-    )
-
-    it('treats a ref to a detached element as stale, not as a live target', async () => {
-      const ephemeral = document.createElement('p')
-      ephemeral.id = 'ephemeral'
-      ephemeral.textContent = 'about to vanish'
-      host.appendChild(ephemeral)
-      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark', input: {selector: '#ephemeral'}})
-      if (!marked.ok) throw new Error('mark failed')
-      const ref = String(marked.result.ref)
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
-        ok: true,
-        result: {text: 'about to vanish'},
-      })
-      ephemeral.remove()
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
-        ok: false,
-        error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
-      })
-    })
-  })
-})
-
-describe('page driver dispose', () => {
-  function installBanner(): ClientEffect {
-    let banner: HTMLElement | null = null
-    return {
-      name: 'banner',
-      description: 'shows a fixture banner while enabled',
-      enabled: () => banner !== null,
-      set: (enabled) => {
-        if (enabled === (banner !== null)) return
-        if (!enabled) {
-          banner?.remove()
-          banner = null
-          return
-        }
-        banner = document.createElement('div')
-        banner.setAttribute('role', 'note')
-        banner.textContent = 'fixture banner shown'
-        document.body.appendChild(banner)
-      },
-    }
-  }
-
-  let driver: PageDriver | undefined
-
-  afterEach(() => {
-    driver?.dispose()
-    driver = undefined
-  })
-
-  describe('driver disposal', () => {
-    it('turns off every enabled effect so host-DOM mutations do not leak past dispose', async () => {
-      const banner = installBanner()
-      driver = makeDomPageDriver({effects: [banner]})
-      banner.set(true)
-      await expect.element(page.getByText('fixture banner shown')).toBeVisible()
-
-      driver.dispose()
-
-      await expect.element(page.getByText('fixture banner shown')).not.toBeInTheDocument()
     })
   })
 })

@@ -4,9 +4,6 @@ import {afterAll, beforeAll} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {createServer, type ViteDevServer} from 'vite'
 import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
-import {pagePlaneWatchFor} from '@conciv/plugin-testkit/page-plane'
-import type {FrameworkAdapter} from '@conciv/contract'
-import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
 import tanstackExtension from '../src/server.js'
 
 const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
@@ -30,29 +27,6 @@ export function useTanstackTestApi(): () => TanstackTestApi {
     if (!ctx.api || ctx.origin === undefined) throw new Error('testkit not booted')
     return {api: ctx.api, origin: ctx.origin}
   }
-}
-
-function hasAdapterFactory(
-  context: unknown,
-): context is {makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter} {
-  return (
-    typeof context === 'object' &&
-    context !== null &&
-    'makeAdapter' in context &&
-    typeof context.makeAdapter === 'function'
-  )
-}
-
-export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
-  const context = api.serverContext
-  if (!hasAdapterFactory(context)) {
-    throw new Error('tanstack adapter factory missing from server context')
-  }
-  return context.makeAdapter({call: (name, input) => api.callTool(name, input)})
-}
-
-export async function waitForPagePlane(page: Page): Promise<void> {
-  await pagePlaneWatchFor(page).subscribed()
 }
 
 export async function gotoAbout(page: Page): Promise<void> {

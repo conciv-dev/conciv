@@ -37,7 +37,6 @@ import {
   type EventBusEnvelope,
   type EventBusScheduler,
 } from '../src/event-bus.js'
-import {PageQuerySchema} from '../src/page-types.js'
 import {TtyClientControlSchema, TtyServerControlSchema} from '../src/terminal-types.js'
 import {aguiSnapshotFor, UiAnswerSchema, UiAnswerValueSchema, UiInputSchema} from '../src/ui-types.js'
 import {tokenUsageToSnapshot, type TokenUsage} from '../src/usage-types.js'
@@ -561,19 +560,6 @@ describe('event bus', () => {
       bus.stop()
       client.emit('close', undefined)
       expect(seen).toEqual(['panel:open'])
-    })
-  })
-})
-
-describe('page wire', () => {
-  describe('page wire envelope', () => {
-    it('carries requestId, name and input and nothing kind-shaped', () => {
-      const query = {requestId: 'pq1', agentId: 'agent-1', name: 'page_click', input: {selector: '#go'}}
-      expect(PageQuerySchema.parse(query)).toEqual(query)
-    })
-
-    it('rejects a nameless query', () => {
-      expect(PageQuerySchema.safeParse({requestId: 'pq1', agentId: 'agent-1', input: {}}).success).toBe(false)
     })
   })
 })

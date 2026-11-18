@@ -20,7 +20,7 @@ import {
   proxyTo,
   type ProxyCore,
   type WidgetSuite,
-  openPagePlaneHost,
+  openAttachedHost,
   captureNativePosts,
   installNativeStub,
   type NativeBridge,
@@ -54,6 +54,8 @@ import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
 import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
+import {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
+import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
@@ -588,7 +590,18 @@ test.describe('element capture', () => {
     await kit.cleanup()
   })
 
-  const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, kit, host.base)
+  const openHostPage = (page: Page): Promise<Page> => openAttachedHost(page, kit, host.base)
+
+  const PushChannelSchema = z.object({channel: z.string()})
+
+  function parsedFrame(payload: string): unknown {
+    try {
+      return JSON.parse(payload)
+    } catch (error) {
+      if (error instanceof SyntaxError) return null
+      throw error
+    }
+  }
 
   function rowIdentities(stored: SessionCaptures): string[] {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
@@ -650,11 +663,26 @@ test.describe('element capture', () => {
       expect(JSON.stringify(stored)).not.toContain(PASSWORD)
     })
 
-    test('hands the harness a result with no capture in it', async ({page}) => {
+    test('hands the harness a result with no capture in it, through the page plugin alone', async ({page}) => {
       test.setTimeout(90_000)
+      const pushChannels: string[] = []
+      page.on('websocket', (socket) => {
+        if (!socket.url().includes(PUSH_WS_PATH)) return
+        const note = (event: {payload: string | Buffer}): void => {
+          const frame = PushChannelSchema.safeParse(parsedFrame(String(event.payload)))
+          if (frame.success) pushChannels.push(frame.data.channel)
+        }
+        socket.on('framesent', note)
+        socket.on('framereceived', note)
+      })
+      await rpcSocketFor(page).installed
+      const calls = rpcCallCursor(page)
       const chatSessionId = await openSessionPanel(page, 'harness result')
       const result = await runInChat(page, chatSessionId, "return await external_page_click({selector: '#cta'})")
       expect(result).toContain('"success":true')
+      expect(calls.startedSince(['page', 'queries'])).toBe(0)
+      expect(calls.startedSince(['page', 'reply'])).toBe(0)
+      expect(pushChannels.filter((channel) => channel !== 'chat')).toEqual([])
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -1443,7 +1471,7 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openAttachedHost(page, kit, host.base)
       const shown = await kit.session()
       const title = `page dispatch ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
@@ -1585,7 +1613,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openAttachedHost(page, kit, host.base)
       const shown = await kit.session()
       title = `deleted while open ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
@@ -1639,7 +1667,7 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openAttachedHost(page, kit, host.base)
       const shown = await kit.session()
       const title = `restart untouched ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
@@ -1683,7 +1711,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openAttachedHost(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1756,7 +1784,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openAttachedHost(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1797,7 +1825,7 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       const page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openAttachedHost(page, kit, host.base)
       const shown = await kit.session()
       const title = `headless eval ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
