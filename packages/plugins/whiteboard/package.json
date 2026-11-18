@@ -71,7 +71,6 @@
     "@excalidraw/mermaid-to-excalidraw": "catalog:",
     "@playwright/test": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
-    "@tanstack/pacer": "catalog:",
     "@tanstack/solid-db": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

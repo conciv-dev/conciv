@@ -1,29 +1,28 @@
 import {observable, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
-import {AsyncRetryer, Batcher} from '@tanstack/pacer'
 import type {Transaction} from '@tanstack/solid-db'
 import {Component, createElement, useSyncExternalStore, type PropsWithChildren, type ReactNode} from 'react'
-import {createRoot, type Root} from 'react-dom/client'
+import {createRoot} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
 import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
-import {isPlainObject} from 'es-toolkit'
+import {Effect, Exit, Ref, Scope} from 'effect'
+import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
 import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
 import {validateSvg} from '../shared/svg-caps.js'
 import type {Viewport} from './coords.js'
+import {makePendingDrain, RemoveFailed} from './island-model.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 
 type SceneElement = OrderedExcalidrawElement
 type ExportScope = 'live' | 'draft' | 'both'
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
-const PENDING_DRAIN_TASK_MS = 0
 const PENDING_REMOVE_RETRY_MS = 100
-const PENDING_REMOVE_MAX_WAIT_MS = 10_000
 
 const sceneElement = z.custom<SceneElement>(isPlainObject)
 const skeleton = z.custom<ExcalidrawElementSkeleton>(isPlainObject)
@@ -96,34 +95,29 @@ export function Island(props: {
 }): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
-  let root: Root | undefined
-  let unsubscribeScroll: (() => void) | undefined
+  const islandScope = Effect.runSync(Scope.make())
   const guard = {applyingRemote: false}
-  const versions = new Map<string, number>()
-  let bufferedScene: readonly ElementRow[] | undefined
-
-  let api: ExcalidrawImperativeAPI | undefined
+  const versions = Ref.makeUnsafe<Readonly<Partial<Record<string, number>>>>({})
+  const attached = Ref.makeUnsafe<ExcalidrawImperativeAPI | undefined>(undefined)
+  const readVersion = (elementId: string): number => Ref.getUnsafe(versions)[elementId] ?? -1
+  const setVersions = (next: Readonly<Partial<Record<string, number>>>): void => Effect.runSync(Ref.set(versions, next))
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
-    const instance = api
-    if (!instance) {
-      bufferedScene = rows
-      return
-    }
-    const incoming = new Set(rows.map((row) => row.elementId))
-    const shown = new Map(instance.getSceneElementsIncludingDeleted().map((element) => [element.id, element]))
+    const instance = Ref.getUnsafe(attached)
+    if (!instance) return
+    const incoming = keyBy(rows, (row) => row.elementId)
+    const shown = keyBy(instance.getSceneElementsIncludingDeleted(), (element) => element.id)
     const lostTie = (row: ElementRow): boolean => {
-      const element = shown.get(row.elementId)
+      const element = shown[row.elementId]
       return element?.version === row.version && element.versionNonce !== asScene(row.data).versionNonce
     }
+    const known = Ref.getUnsafe(versions)
     const remoteChanged =
-      rows.some((row) => (versions.get(row.elementId) ?? -1) < row.version || lostTie(row)) ||
-      [...versions.keys()].some((elementId) => !incoming.has(elementId))
-    versions.forEach((_version, elementId) => {
-      if (!incoming.has(elementId)) versions.delete(elementId)
-    })
-    rows.forEach((row) => {
-      versions.set(row.elementId, Math.max(versions.get(row.elementId) ?? -1, row.version))
+      rows.some((row) => readVersion(row.elementId) < row.version || lostTie(row)) ||
+      Object.keys(known).some((elementId) => incoming[elementId] === undefined)
+    setVersions({
+      ...pickBy(known, (_version, elementId) => incoming[elementId] !== undefined),
+      ...Object.fromEntries(rows.map((row) => [row.elementId, Math.max(readVersion(row.elementId), row.version)])),
     })
     if (!remoteChanged) return
     guard.applyingRemote = true
@@ -136,12 +130,15 @@ export function Island(props: {
 
   const writeLocal = (next: readonly SceneElement[]): void => {
     if (guard.applyingRemote) return
-    const changed = next.filter((element) => (versions.get(element.id) ?? -1) < element.version)
+    const changed = next.filter((element) => readVersion(element.id) < element.version)
     if (!changed.length) return
+    setVersions({
+      ...Ref.getUnsafe(versions),
+      ...Object.fromEntries(changed.map((element) => [element.id, element.version])),
+    })
     changed.forEach((element) => {
-      versions.set(element.id, element.version)
       db.canvasElements.utils.write({
-        room: props.room,
+        room: db.room,
         elementId: element.id,
         data: asJson(element),
         version: element.version,
@@ -149,60 +146,48 @@ export function Island(props: {
     })
   }
 
-  const draining = new Set<string>()
-  const lifetime = new AbortController()
-  const removePending = (row: PendingRow): Promise<void | undefined> =>
-    new AsyncRetryer(
-      async () => {
-        if (db.canvasPending.has(row.id)) await db.canvasPending.delete(row.id).isPersisted.promise
-      },
-      {
-        maxAttempts: () => (lifetime.signal.aborted ? 0 : Number.POSITIVE_INFINITY),
-        backoff: 'exponential',
-        baseWait: PENDING_REMOVE_RETRY_MS,
-        maxWait: PENDING_REMOVE_MAX_WAIT_MS,
-        throwOnError: false,
-        onError: (error) => {
-          if (!lifetime.signal.aborted) {
-            console.error(`[whiteboard] removing pending ${row.kind} ${row.id} failed; retrying`, error)
-          }
-        },
-      },
-    ).execute()
-  const replyDrawFailure = async (row: PendingRow, error: unknown): Promise<void> => {
-    const reason = error instanceof Error ? error.message : String(error)
-    await db.canvasReplies
-      .insert({id: crypto.randomUUID(), room: props.room, requestId: row.id, kind: 'draw', payload: {error: reason}})
-      .isPersisted.promise.catch((replyError: unknown) =>
-        console.error(
-          `[whiteboard] the failure of pending ${row.kind} ${row.id} could not be answered: ${String(replyError)}`,
+  const replyDrawFailure = (row: PendingRow, reason: string) =>
+    Effect.tryPromise(
+      () =>
+        db.canvasReplies.insert({
+          id: crypto.randomUUID(),
+          room: db.room,
+          requestId: row.id,
+          kind: 'draw',
+          payload: {error: reason},
+        }).isPersisted.promise,
+    ).pipe(
+      Effect.catch((replyError) =>
+        Effect.logError(`the failure of pending ${row.kind} ${row.id} could not be answered`, replyError),
+      ),
+    )
+  const drawPending = (row: PendingRow) =>
+    Effect.tryPromise(() => buildSkeletons(row)).pipe(
+      Effect.map((skeletons) =>
+        convertToExcalidrawElements(skeletons, {regenerateIds: false}).map((element: ExcalidrawElement) => ({
+          room: db.room,
+          elementId: element.id,
+          data: asJson(element),
+          version: element.version,
+        })),
+      ),
+      Effect.flatMap((rows) =>
+        Effect.tryPromise(() => db.bulkUpsertElements(row.stage === 'draft' ? 'draft' : 'live', rows)),
+      ),
+      Effect.catch((failure) =>
+        Effect.logError(`draining pending ${row.kind} ${row.id} failed`, failure).pipe(
+          Effect.andThen(
+            replyDrawFailure(row, failure.cause instanceof Error ? failure.cause.message : String(failure.cause)),
+          ),
         ),
-      )
-  }
-  const drainPending = async (row: PendingRow): Promise<void> => {
-    try {
-      const drawn = convertToExcalidrawElements(await buildSkeletons(row), {regenerateIds: false})
-      const rows = drawn.map((element: ExcalidrawElement) => ({
-        room: props.room,
-        elementId: element.id,
-        data: asJson(element),
-        version: element.version,
-      }))
-      const scope = row.stage === 'draft' ? 'draft' : 'live'
-      await db.bulkUpsertElements(scope, rows)
-    } catch (error) {
-      console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
-      await replyDrawFailure(row, error)
-    } finally {
-      void removePending(row)
-    }
-  }
+      ),
+    )
 
   const commitStep = (draft: ElementRow): ReplayStep<Transaction<ElementRow>> => ({
     elementId: draft.elementId,
     write: () =>
       db.canvasElements.utils.write({
-        room: props.room,
+        room: db.room,
         elementId: draft.elementId,
         data: draft.data,
         version: draft.version,
@@ -226,12 +211,11 @@ export function Island(props: {
       console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
     } finally {
       container?.removeEventListener('pointerdown', onPointerDown)
-      void removePending(row)
     }
   }
 
   const liveExportElements = (scope: ExportScope): readonly SceneElement[] =>
-    scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
+    scope === 'draft' ? [] : (Ref.getUnsafe(attached)?.getSceneElements() ?? [])
 
   const draftExportElements = async (scope: ExportScope): Promise<SceneElement[]> => {
     if (scope === 'live') return []
@@ -240,6 +224,7 @@ export function Island(props: {
   }
 
   const exportReply = async (scope: ExportScope): Promise<JsonValue> => {
+    const api = Ref.getUnsafe(attached)
     if (scope !== 'draft' && !api) {
       throw new Error(`[whiteboard] the canvas has not attached yet, so a ${scope} export has nothing to render`)
     }
@@ -252,62 +237,61 @@ export function Island(props: {
     return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))}
   }
 
-  const performExport = async (row: PendingRow): Promise<void> => {
-    const {requestId, scope} = ExportPayload.parse(row.payload)
-    const payload = await exportReply(scope).catch((error: unknown) => {
-      console.error(`[whiteboard] canvas_export render failed: ${String(error)}`)
-      return {error: 'export render failed', reason: String(error)}
+  const exportPending = (row: PendingRow) =>
+    Effect.gen(function* () {
+      const {requestId, scope} = yield* Effect.try(() => ExportPayload.parse(row.payload))
+      const payload = yield* Effect.tryPromise(() => exportReply(scope)).pipe(
+        Effect.catch((failure) =>
+          Effect.logError('canvas_export render failed', failure).pipe(
+            Effect.as({error: 'export render failed', reason: String(failure.cause)}),
+          ),
+        ),
+      )
+      yield* Effect.try(() =>
+        db.canvasReplies.insert({id: crypto.randomUUID(), room: db.room, requestId, kind: 'export', payload}),
+      )
     })
-    try {
-      db.canvasReplies.insert({id: crypto.randomUUID(), room: props.room, requestId, kind: 'export', payload})
-    } finally {
-      void removePending(row)
-    }
-  }
 
   const snapshotElements = (): ElementRow[] => [...db.canvasElements.state.values()]
   const sceneSubscription = db.canvasElements.subscribeChanges(() => applyRemote(snapshotElements()), {
     includeInitialState: true,
   })
-  const pendingHandlers: Partial<Record<PendingRow['kind'], (row: PendingRow) => Promise<void>>> = {
-    skeletons: drainPending,
-    mermaid: drainPending,
-    svg: drainPending,
-    commit: performCommit,
-    export: performExport,
+  const pendingHandlers: Partial<Record<PendingRow['kind'], (row: PendingRow) => Effect.Effect<void, unknown>>> = {
+    skeletons: drawPending,
+    mermaid: drawPending,
+    svg: drawPending,
+    commit: (row) => Effect.tryPromise(() => performCommit(row)),
+    export: exportPending,
   }
-  const claimPending = (row: PendingRow): Promise<boolean> =>
-    db.claimPending(row.id).then(
-      ({claimed}) => claimed,
-      (error: unknown) => {
-        console.error(`[whiteboard] claiming pending ${row.kind} ${row.id} failed: ${String(error)}`)
-        return false
+  const drain = Effect.runSync(
+    makePendingDrain(
+      {
+        claim: (row) => Effect.tryPromise(() => db.claimPending(row.id)).pipe(Effect.map(({claimed}) => claimed)),
+        perform: (row) => pendingHandlers[row.kind]?.(row) ?? Effect.void,
+        remove: (row) =>
+          Effect.tryPromise({
+            try: () =>
+              db.canvasPending.has(row.id)
+                ? db.canvasPending.delete(row.id).isPersisted.promise.then(() => undefined)
+                : Promise.resolve(),
+            catch: (cause) => RemoveFailed.make({message: String(cause)}),
+          }),
       },
-    )
-  const claimAndRun = async (row: PendingRow, handler: (row: PendingRow) => Promise<void>): Promise<void> => {
-    if (!(await claimPending(row))) return void draining.delete(row.id)
-    await handler(row)
-  }
-  const runPending = (row: PendingRow): void => {
-    const handler = pendingHandlers[row.kind]
-    if (handler) void claimAndRun(row, handler)
-  }
-  const drainTask = new Batcher<PendingRow>((rows) => rows.forEach(runPending), {wait: PENDING_DRAIN_TASK_MS})
-  const queueDrain = (row: PendingRow): void => {
-    if (draining.has(row.id) || !pendingHandlers[row.kind]) return
-    draining.add(row.id)
-    drainTask.addItem(row)
-  }
+      {removeRetryMs: PENDING_REMOVE_RETRY_MS},
+    ).pipe(Scope.provide(islandScope)),
+  )
   const pendingSubscription = db.canvasPending.subscribeChanges(
-    () => [...db.canvasPending.state.values()].forEach(queueDrain),
+    () =>
+      Effect.runFork(
+        drain.see([...db.canvasPending.state.values()].filter((row) => pendingHandlers[row.kind] !== undefined)),
+      ),
     {includeInitialState: true},
   )
 
   onCleanup(() => {
     sceneSubscription.unsubscribe()
     pendingSubscription.unsubscribe()
-    drainTask.clear()
-    lifetime.abort()
+    Effect.runFork(Scope.close(islandScope, Exit.void))
   })
 
   const themes = observable(() => props.theme)
@@ -322,18 +306,25 @@ export function Island(props: {
   }
 
   const closeLayersOnCanvasPointer = (): void => {
+    const api = Ref.getUnsafe(attached)
     const state = api?.getAppState()
-    if (!state) return
+    if (!api || !state) return
     const openSidebar = keptSidebar(state)
     if (state.openMenu === null && openSidebar === state.openSidebar) return
-    api?.updateScene({appState: {openMenu: null, openSidebar}, captureUpdate: CAPTURE_NEVER})
+    api.updateScene({appState: {openMenu: null, openSidebar}, captureUpdate: CAPTURE_NEVER})
   }
 
   const renderExcalidraw = (): void => {
     if (!container || !container.isConnected) {
       return reportMountError(new Error('the canvas container never attached to the document'))
     }
-    root = createRoot(container)
+    const root = createRoot(container)
+    Effect.runSync(
+      Scope.addFinalizer(
+        islandScope,
+        Effect.sync(() => root.unmount()),
+      ),
+    )
     root.render(
       createElement(
         IslandBoundary,
@@ -344,7 +335,7 @@ export function Island(props: {
           viewModeEnabled: false,
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
-            api = instance
+            Effect.runSync(Ref.set(attached, instance))
             const pushViewport = (): void => {
               const state = instance.getAppState()
               props.onViewport({
@@ -356,12 +347,9 @@ export function Island(props: {
               })
             }
             pushViewport()
-            unsubscribeScroll = instance.onScrollChange(pushViewport)
-            requestAnimationFrame(() => {
-              if (!bufferedScene) return
-              applyRemote(bufferedScene)
-              bufferedScene = undefined
-            })
+            const unsubscribeScroll = instance.onScrollChange(pushViewport)
+            Effect.runSync(Scope.addFinalizer(islandScope, Effect.sync(unsubscribeScroll)))
+            applyRemote(snapshotElements())
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
           onPointerDown: closeLayersOnCanvasPointer,
@@ -371,11 +359,6 @@ export function Island(props: {
   }
 
   onMount(renderExcalidraw)
-
-  onCleanup(() => {
-    unsubscribeScroll?.()
-    root?.unmount()
-  })
 
   return (
     <Portal mount={props.mount}>

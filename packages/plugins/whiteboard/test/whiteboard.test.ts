@@ -5,6 +5,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
 import {describe, expect, it, onTestFinished, vi} from 'vitest'
+import {isEqual, mapValues} from 'es-toolkit'
 import {z} from 'zod'
 import {makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
 import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
@@ -13,7 +14,7 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
-import {Cause, Effect, Exit, Fiber, PubSub, Ref, Scope, Stream, SubscriptionRef, type Schema} from 'effect'
+import {Cause, Effect, Exit, Fiber, Option, PubSub, Ref, Scope, Stream, SubscriptionRef, type Schema} from 'effect'
 import {TestClock} from 'effect/testing'
 import {
   makeChangeFeed,
@@ -23,6 +24,9 @@ import {
   type FeedEvent,
 } from '../src/client/change-feed.js'
 import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/client/change-feed-machine.js'
+import {startDrain, transitionDrain, type DrainState} from '../src/canvas/drain-machine.js'
+import {makePendingDrain, RemoveFailed} from '../src/canvas/island-model.js'
+import type {PendingRow} from '../src/shared/rows.js'
 import {startPending, transitionPending, type PendingState} from '../src/server/pending-machine.js'
 import {makeWhiteboardStore} from '../src/server/store.js'
 import {awaitDrawing, commitDraft, exportPng} from '../src/tool/canvas/tools.js'
@@ -1037,6 +1041,113 @@ describe('the change feed driver on the test clock', () => {
       disposed: {status: 'disposed'},
       calls: [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, 5, Number.MAX_SAFE_INTEGER],
       routed: [{type: 'upsert', key: 'pin-6'}, {type: 'upsert', key: 'pin-8'}, {type: 'reload'}],
+    })
+  })
+})
+
+const pendingRow = (id: string): PendingRow => ({
+  id,
+  room: 'conciv_drain',
+  kind: 'skeletons',
+  stage: 'draft',
+  payload: {},
+})
+
+describe('the canvas drain machine', () => {
+  it('claims each new row once, runs then removes it, forgets a refused claim, ignores stale results, and stops on dispose', () => {
+    const row = pendingRow
+    const seen = transitionDrain(startDrain().state, {type: 'seen', rows: [row('a'), row('b')]})
+    expect(seen.effects).toEqual([
+      {type: 'claim', attempt: 0, row: row('a')},
+      {type: 'claim', attempt: 1, row: row('b')},
+    ])
+    expect(transitionDrain(seen.state, {type: 'seen', rows: [row('a'), row('b')]}).state).toBe(seen.state)
+    const running = transitionDrain(seen.state, {type: 'claimed', id: 'a', attempt: 0, claimed: true})
+    expect(running.effects).toEqual([{type: 'run', attempt: 0, row: row('a')}])
+    const refused = transitionDrain(running.state, {type: 'claimed', id: 'b', attempt: 1, claimed: false})
+    const again = transitionDrain(refused.state, {type: 'seen', rows: [row('b')]})
+    expect(again.effects).toEqual([{type: 'claim', attempt: 2, row: row('b')}])
+    expect(transitionDrain(again.state, {type: 'claimed', id: 'b', attempt: 1, claimed: true}).state).toBe(again.state)
+    const removing = transitionDrain(again.state, {type: 'ran', id: 'a', attempt: 0})
+    expect(removing.effects).toEqual([{type: 'remove', attempt: 0, row: row('a')}])
+    const done = transitionDrain(removing.state, {type: 'removed', id: 'a', attempt: 0})
+    expect(transitionDrain(done.state, {type: 'seen', rows: [row('a')]}).effects).toEqual([])
+    const disposed = transitionDrain(done.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    expect(transitionDrain(disposed.state, {type: 'claimed', id: 'b', attempt: 2, claimed: true}).state).toBe(
+      disposed.state,
+    )
+  })
+})
+
+describe('the canvas drain driver on the test clock', () => {
+  it('removes a row after every exit of its work, retries a failed removal with backoff, re-claims a refused row, and disposes with its scope', async () => {
+    const result = await clocked(
+      Effect.gen(function* () {
+        const log = yield* Ref.make<readonly string[]>([])
+        const count = (entry: string) =>
+          Ref.get(log).pipe(Effect.map((all) => all.filter((item) => item === entry).length))
+        const note = (entry: string) =>
+          Ref.updateAndGet(log, (all) => [...all, entry]).pipe(Effect.flatMap(() => count(entry)))
+        const work = {
+          claim: (row: PendingRow) =>
+            note(`claim ${row.id}`).pipe(Effect.map((tries) => row.id !== 'refused' || tries > 1)),
+          perform: (row: PendingRow) =>
+            note(`perform ${row.id}`).pipe(
+              Effect.andThen(row.id === 'broken' ? Effect.die('bad payload') : Effect.void),
+            ),
+          remove: (row: PendingRow) =>
+            note(`remove ${row.id}`).pipe(
+              Effect.flatMap((tries) =>
+                row.id === 'drawn' && tries < 3 ? Effect.fail(RemoveFailed.make({message: 'offline'})) : Effect.void,
+              ),
+            ),
+        }
+        const scope = yield* Scope.make()
+        const drain = yield* makePendingDrain(work, {removeRetryMs: 100}).pipe(Scope.provide(scope))
+        const phases = (state: DrainState) =>
+          state.status === 'active' ? mapValues(state.rows, (row) => row.phase) : {}
+        const until = (wanted: Record<string, string>) =>
+          SubscriptionRef.changes(drain.state).pipe(
+            Stream.map(phases),
+            Stream.filter((current) => isEqual(current, wanted)),
+            Stream.runHead,
+          )
+        yield* drain.see([pendingRow('drawn'), pendingRow('broken'), pendingRow('refused')])
+        const first = yield* until({drawn: 'removing', broken: 'done'})
+        yield* TestClock.adjust(79)
+        const beforeRetry = yield* count('remove drawn')
+        yield* TestClock.adjust(41)
+        const afterRetry = yield* count('remove drawn')
+        yield* TestClock.adjust(240)
+        yield* until({drawn: 'done', broken: 'done'})
+        yield* drain.see([pendingRow('refused')])
+        const settled = yield* until({drawn: 'done', broken: 'done', refused: 'done'})
+        yield* Scope.close(scope, Exit.void)
+        const disposed = (yield* SubscriptionRef.get(drain.state)).status
+        return {first, beforeRetry, afterRetry, settled, disposed, log: (yield* Ref.get(log)).toSorted()}
+      }),
+    )
+    expect(result).toEqual({
+      first: Option.some({drawn: 'removing', broken: 'done'}),
+      beforeRetry: 1,
+      afterRetry: 2,
+      settled: Option.some({drawn: 'done', broken: 'done', refused: 'done'}),
+      disposed: 'disposed',
+      log: [
+        'claim broken',
+        'claim drawn',
+        'claim refused',
+        'claim refused',
+        'perform broken',
+        'perform drawn',
+        'perform refused',
+        'remove broken',
+        'remove drawn',
+        'remove drawn',
+        'remove drawn',
+        'remove refused',
+      ],
     })
   })
 })
