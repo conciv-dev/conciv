@@ -2,7 +2,7 @@ import {onCleanup} from 'solid-js'
 import utilities from 'virtual:uno.css?inline'
 import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
-import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
+import {Page, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition} from '@conciv/plugin-page/rpc'
 import {openAttachment} from './attachment.js'
 import {makeHighlight} from './highlight.js'
@@ -33,8 +33,21 @@ export default Plugin.define({
   setup(ctx) {
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
-    const operations = makePageOperations(ctx)
     const routed = () => ctx.sessions.current()
+
+    const symbolicate = (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
+      const session = routed()
+
+      if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
+
+      return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
+    }
+
+    const highlight = makeHighlight({
+      opener: {symbolicate, desktop: ctx.desktop},
+      toast: (title, variant) => void ctx.toast.show({title, variant}),
+    })
+    const operations = makePageOperations([highlight.effect])
 
     const tab = () => readTab(tabId)
 
@@ -111,19 +124,6 @@ export default Plugin.define({
       (session) => onCleanup(() => endRun(session.id)),
     )
 
-    const symbolicate = (frames: Parameters<Page['symbolicate']>[0]['frames']) => {
-      const session = routed()
-
-      if (!session) return Promise.reject(new Error('Page.symbolicate needs a routed session'))
-
-      return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
-    }
-
-    const highlight = makeHighlight({
-      opener: {symbolicate, desktop: ctx.desktop},
-      toast: (title, variant) => void ctx.toast.show({title, variant}),
-    })
-    ctx.add(PageEffect, highlight.effect)
     onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
 
     pageToolCalls.forEach((call) => ctx.add(ToolCall, call))
