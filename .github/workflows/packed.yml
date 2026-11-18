@@ -117,9 +117,13 @@ jobs:
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
 
       # The vitest suites pack the package's own dist (and tanstack its closure), so build
-      # those first; the e2e suites build their closure themselves.
+      # those first, plus the workspace packages the tanstack test file and the e2e-utils
+      # Playwright config import (harness-testkit); the e2e suites build their closure themselves.
       - name: Build packed packages
-        run: pnpm exec turbo run build --filter=@conciv/mascot --filter=@conciv/mascot-react --filter=@conciv/plugin-tanstack
+        run: >-
+          pnpm exec turbo run build --filter=@conciv/mascot --filter=@conciv/mascot-react
+          --filter=@conciv/plugin-tanstack --filter=@conciv/unplugin --filter=@conciv/harness-testkit
+          --filter=@conciv/plugin-testkit --filter=@conciv/cli
       # Each suite runs even when an earlier one failed, so one run reports them all.
       - name: mascot
         if: ${{ !cancelled() }}
