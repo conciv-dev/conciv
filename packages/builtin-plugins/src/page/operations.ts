@@ -769,7 +769,12 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
   })
 
   function execute(command: Command, signal?: AbortSignal): Promise<Outcome> {
-    return Effect.runPromise(dispatch(command, signal).pipe(Effect.catch((error) => Effect.succeed(failure(error)))))
+    return Effect.runPromise(
+      dispatch(command, signal).pipe(
+        Effect.catch((error) => Effect.succeed(failure(error))),
+        Effect.catchDefect((defect) => Effect.succeed(failure(toPageFailure(defect)))),
+      ),
+    )
   }
 
   function dispose(): void {
