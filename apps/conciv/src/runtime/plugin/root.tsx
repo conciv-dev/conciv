@@ -73,8 +73,7 @@ export type ComposedPlugin = readonly [plugin: Entry, options: PluginOptions]
 export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin[]; servers: boolean}>) {
   const apis = createHostApis()
   const apiBase = useApiBase()
-  const mountedBase = untrack(apiBase)
-  const boundBase = () => (props.servers ? apiBase() : mountedBase)
+  const bound = createMemo(() => !props.servers || apiBase() !== '')
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const composed = untrack(() => props.composed)
@@ -91,10 +90,10 @@ export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin
   first.promise.catch(() => undefined)
 
   const bundle = createMemo(
-    on([trusted, boundBase], ([isTrusted, base]) => {
-      if (!isTrusted || (props.servers && base === '')) return
+    on([trusted, bound], ([isTrusted, isBound]) => {
+      if (!isTrusted || !isBound) return
 
-      const created = createBundleSource({client: apis.engine.client, apiBase: base})
+      const created = createBundleSource({client: apis.engine.client, apiBase})
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
@@ -209,8 +208,8 @@ export function PluginAttachment(props: ParentProps) {
           />
         )}
       </Show>
-      <Show when={host.ready()}>
-        <MountedInterface attach={attachment.attach} />
+      <Show when={host.ready() ? attachment.root() : undefined}>
+        {(root) => <MountedInterface attach={() => attachment.attach(root())} />}
       </Show>
       {props.children}
     </PluginAttachmentProvider>

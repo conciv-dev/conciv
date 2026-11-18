@@ -26,7 +26,6 @@
     "@conciv/brand": "workspace:*",
     "@conciv/brand-react": "workspace:*",
     "@conciv/embed": "workspace:*",
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/mascot-react": "workspace:*",
     "@conciv/plugin": "workspace:*",

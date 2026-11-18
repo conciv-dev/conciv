@@ -402,6 +402,7 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
+  connect?: boolean
   plugins?: readonly ComposedPlugin[]
 }
 
@@ -424,16 +425,6 @@ function shellSettings(options: ShellMountOptions) {
   )
 }
 
-function shellClient(apiBase: string | undefined, session: () => string | null) {
-  const client = makeBrowserRpcClient(apiBase ?? (() => null), {session})
-  const [boundBase, setBoundBase] = createSignal(apiBase ?? '')
-  const bind = (url: string): void => {
-    client.bind(url)
-    setBoundBase(url)
-  }
-  return {client, boundBase, bindApiBase: apiBase === undefined ? bind : undefined}
-}
-
 function mountConcivRoot(inShadow: boolean): {
   root: ShadowRoot | undefined
   container: HTMLDivElement
@@ -454,6 +445,24 @@ function mountConcivRoot(inShadow: boolean): {
       inner.remove()
     },
   }
+}
+
+function boundShellRpc(apiBase: string, session: () => string | null) {
+  return {client: makeBrowserRpcClient(apiBase, {session}), apiBase: () => apiBase, bindApiBase: undefined}
+}
+
+function connectShellRpc(session: () => string | null) {
+  const client = makeBrowserRpcClient(() => null, {session})
+  const [apiBase, setApiBase] = createSignal('')
+  const bindApiBase = (next: string) => {
+    client.bind(next)
+    setApiBase(next)
+  }
+  return {client, apiBase, bindApiBase}
+}
+
+function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
+  return options.connect || options.plugins ? connectShellRpc(session) : boundShellRpc(apiBase, session)
 }
 
 type ShellHarness = {
@@ -489,8 +498,9 @@ export function createShellHarness(base: () => string): ShellHarness {
       mounted.disposeLogin = dispose
     })
     const activeSession: {read: () => string | null} = {read: () => null}
-    const servers = options.plugins !== undefined
-    const {client, boundBase, bindApiBase} = shellClient(servers ? undefined : apiBase, () => activeSession.read())
+    const session = () => activeSession.read()
+    const shellRpc = shellRpcFor(options, apiBase, session)
+    const client = shellRpc.client
     mounted.closeRpc = client.close
     const shell = mountConcivRoot(options.shadow ?? false)
     mounted.removeRoot = shell.dispose
@@ -499,13 +509,13 @@ export function createShellHarness(base: () => string): ShellHarness {
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: shell.root ?? document, document},
       settings: shellSettings(options),
-      apiBase: options.apiBase ?? boundBase,
+      apiBase: options.apiBase ?? shellRpc.apiBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
+      bindApiBase: shellRpc.bindApiBase,
       connectionGeneration: () => 0,
       extensions,
       plugins: options.plugins,
-      servers,
-      bindApiBase,
+      servers: options.plugins !== undefined,
       login,
       bindActiveSession: (read) => {
         activeSession.read = read

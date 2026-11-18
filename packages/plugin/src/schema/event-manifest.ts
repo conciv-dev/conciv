@@ -2,6 +2,7 @@ export * as EventManifest from './event-manifest.js'
 
 import {Schema} from 'effect'
 import {Agent} from './agent.js'
+import * as Bundler from './bundler.js'
 import {Event} from './event.js'
 import {Permission} from './permission.js'
 import {Plugin} from './plugin.js'
@@ -13,6 +14,7 @@ const coreDefinitions = Event.inventory(...SessionEvent.Definitions)
 const foundationDefinitions = Event.inventory(...Agent.Event.Definitions, ...coreDefinitions)
 
 const featureDefinitions = Event.inventory(
+  ...Bundler.Event.Definitions,
   ...Permission.Event.Definitions,
   ...Plugin.Event.Definitions,
   ...Skill.Event.Definitions,

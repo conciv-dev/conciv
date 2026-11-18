@@ -9,7 +9,7 @@ import {
   useSearch,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
-import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
+import {Dialog, EnvironmentProvider} from '@conciv/ui-kit-system'
 import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
@@ -201,14 +201,8 @@ function AppRoot() {
                       rpc={app.rpc}
                       apiBase={app.apiBase}
                       toast={showToast}
-                      openEditor={(file, line) =>
-                        void app.rpc.plugin
-                          .call({rpcId: 'server', method: 'open', input: {file, ...(line === undefined ? {} : {line})}})
-                          .catch(() => showToast(`could not open ${file} in the editor`, 'error'))
-                      }
                       registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
                       dialog={layers.track(Dialog)}
-                      popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
                       sessionId={activeSession}
                       colorScheme={colorScheme}
                     >
