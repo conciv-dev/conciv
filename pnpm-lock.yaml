@@ -145,7 +145,7 @@ catalogs:
       specifier: ^4.4.0
       version: 4.4.0
     '@solid-primitives/timer':
-      specifier: ^1.4.4
+      specifier: 1.4.4
       version: 1.4.4
     '@solidjs/testing-library':
       specifier: ^0.8.10
