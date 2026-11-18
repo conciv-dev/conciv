@@ -8,7 +8,7 @@ function QueryInvalidateCard(props: ToolProps): JSX.Element {
   const summary = () => {
     if (!resultOk(props.output)) return ''
     const input = readInput(KeyInputSchema, props.input)
-    return `invalidated ${input?.key ?? ''}`.trimEnd()
+    return input?.key ?? ''
   }
   return <InspectionCard {...props} summary={summary()} />
 }

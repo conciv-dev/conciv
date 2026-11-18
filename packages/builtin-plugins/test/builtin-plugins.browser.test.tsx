@@ -2313,7 +2313,8 @@ describe('the tanstack cards', () => {
     title: string
     input?: Record<string, unknown>
     output: unknown
-    summary: string
+    summary?: string
+    restated?: string
     detail?: string
     single?: string
   }
@@ -2393,14 +2394,16 @@ describe('the tanstack cards', () => {
       title: 'Invalidated a query',
       input: {key: '["todos"]'},
       output: {ok: true},
-      summary: 'invalidated ["todos"]',
+      summary: '["todos"]',
+      restated: 'invalidated ["todos"]',
     },
     {
       tool: 'tanstack_query_refetch',
       title: 'Refetched a query',
       input: {key: '["todos"]'},
       output: {ok: true},
-      summary: 'refetched ["todos"]',
+      summary: '["todos"]',
+      restated: 'refetched ["todos"]',
     },
     {
       tool: 'tanstack_navigate',
@@ -2409,8 +2412,8 @@ describe('the tanstack cards', () => {
       output: {ok: true, to: '/about'},
       summary: '/about',
     },
-    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, summary: 'invalidated'},
-    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, summary: 'went back'},
+    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, restated: 'invalidated'},
+    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, restated: 'went back'},
     {
       tool: 'tanstack_build_errors',
       title: 'Read the build errors',
@@ -2476,8 +2479,9 @@ describe('the tanstack cards', () => {
     onTestFinished(cleanup)
     for (const call of cases) {
       mountCard(call.tool, call.input ?? {}, {output: JSON.stringify(call.output), status: 'completed'})
-      await expect.element(exactText(call.summary)).toBeVisible()
       await expect.element(header(call.title)).toBeVisible()
+      if (call.summary !== undefined) await expect.element(exactText(call.summary)).toBeVisible()
+      if (call.restated !== undefined) await expect.element(exactText(call.restated)).not.toBeInTheDocument()
       if (call.detail !== undefined) {
         await header(call.title).click()
         await expect.element(exactText(call.detail)).toBeVisible()

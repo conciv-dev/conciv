@@ -8,7 +8,7 @@ function QueryRefetchCard(props: ToolProps): JSX.Element {
   const summary = () => {
     if (!resultOk(props.output)) return ''
     const input = readInput(KeyInputSchema, props.input)
-    return `refetched ${input?.key ?? ''}`.trimEnd()
+    return input?.key ?? ''
   }
   return <InspectionCard {...props} summary={summary()} />
 }
