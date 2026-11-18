@@ -2,13 +2,19 @@ import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ConcivDb} from '@conciv/db'
-import {NodeFileSystem} from '@effect/platform-node'
+import {existsSync} from 'node:fs'
+import {dirname, join} from 'node:path'
+import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
+import {FetchHttpClient} from 'effect/http'
+import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {
   Agent,
   Bus,
   ConfigPluginSource,
   Database,
   EffectFlock,
+  FileSystem,
+  FileSystemSearch,
   FSUtil,
   InstancePlugins,
   KV,
@@ -22,6 +28,8 @@ import {
   PluginPromise,
   PluginSupervisor,
   PluginUpdate,
+  Ripgrep,
+  RipgrepBinary,
   Rpc,
   SdkPlugins,
   SessionProjector,
@@ -70,13 +78,22 @@ export type PluginRuntimeInput = {
   sessions: Parameters<typeof provideSessions>[0]
 }
 
+const VCS_MARKERS = [
+  {type: 'git', marker: '.git'},
+  {type: 'hg', marker: '.hg'},
+]
+
+function detectVcs(directory: string): Location.Interface['vcs'] {
+  const found = VCS_MARKERS.find((candidate) => existsSync(join(directory, candidate.marker)))
+  if (found) return {type: found.type, store: AbsolutePath.make(join(directory, found.marker))}
+  const parent = dirname(directory)
+  if (parent === directory) return undefined
+  return detectVcs(parent)
+}
+
 function locationLayer(cwd: string) {
-  return Layer.succeed(
-    Location.Service,
-    Location.Service.of(
-      Schema.decodeSync(Location.Info)({directory: cwd, project: {id: cwd, directory: cwd, canonical: cwd}}),
-    ),
-  )
+  const info = Schema.decodeSync(Location.Info)({directory: cwd, project: {id: cwd, directory: cwd, canonical: cwd}})
+  return Layer.succeed(Location.Service, Location.Service.of({...info, vcs: detectVcs(cwd)}))
 }
 
 function machineRoots(home: string, fallback: string) {
@@ -114,7 +131,18 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     ),
     Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
-    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer)),
+    Layer.provideMerge(
+      Layer.mergeAll(
+        Rpc.layer,
+        KV.layer,
+        EventFeed.layer,
+        FileSystem.layer.pipe(
+          Layer.provide(FileSystemSearch.defaultLayer),
+          Layer.provide(Ripgrep.layer),
+          Layer.provide(RipgrepBinary.layer),
+        ),
+      ),
+    ),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(
       Layer.mergeAll(
@@ -140,6 +168,8 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         Database.layer({path: input.databaseFile}),
         machineRoots(input.home, input.fallbackRoots),
         NodeFileSystem.layer,
+        NodeChildProcessSpawner.layer.pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer))),
+        FetchHttpClient.layer,
       ),
     ),
   )

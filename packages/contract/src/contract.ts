@@ -330,6 +330,14 @@ const SkillInfoSchema = z.object({
   content: z.string(),
 })
 
+const FileSystemEntrySchema = z.object({path: z.string(), type: z.enum(['file', 'directory'])})
+
+const FileSystemFindInputSchema = z.object({
+  query: z.string(),
+  type: z.enum(['file', 'directory']).optional(),
+  limit: z.number().int().positive().optional(),
+})
+
 const AgentInfoSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -550,6 +558,12 @@ export const contract = {
   },
   agent: {
     list: oc.errors(approvalDenied).output(locationResponse(z.array(AgentInfoSchema))),
+  },
+  fs: {
+    find: oc
+      .errors(approvalDenied)
+      .input(FileSystemFindInputSchema)
+      .output(locationResponse(z.array(FileSystemEntrySchema))),
   },
   plugin: {
     call: oc

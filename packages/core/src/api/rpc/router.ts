@@ -8,7 +8,7 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
-import {Agent, Event, Location, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
+import {Agent, Event, FileSystem, Location, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
@@ -253,6 +253,10 @@ function agentList(host: PluginHost, signal: AbortSignal | undefined) {
   return host.runPromise(locationResponse(Agent.Service.use((agent) => agent.list())), {signal})
 }
 
+function fsFind(host: PluginHost, input: FileSystem.FindInput, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(FileSystem.Service.use((files) => files.find(input))), {signal})
+}
+
 function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
   return host.runPromise(
     Effect.gen(function* () {
@@ -398,6 +402,9 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     agent: {
       list: os.agent.list.handler(({signal}) => agentList(deps.pluginHost, signal)),
+    },
+    fs: {
+      find: os.fs.find.handler(({input, signal}) => fsFind(deps.pluginHost, input, signal)),
     },
     plugin: {
       call: os.plugin.call.handler(async ({input, errors, signal}) => {

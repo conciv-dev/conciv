@@ -27,6 +27,7 @@ import type {
   Agent,
   Bus,
   Database,
+  FileSystem,
   InstructionEntry,
   KV,
   Location,
@@ -59,7 +60,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Location.Interface
   | Plugin.Interface
   | Database.Interface
-  | EventFeed.Interface,
+  | EventFeed.Interface
+  | FileSystem.Interface,
   never
 >
 
@@ -171,6 +173,7 @@ const PLUGIN_PROCEDURES = new Set([
   'plugin.experimentalChunk',
   'skill.list',
   'agent.list',
+  'fs.find',
 ])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
