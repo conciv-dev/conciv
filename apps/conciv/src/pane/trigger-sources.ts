@@ -1,5 +1,6 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
+import {useSearch} from '@tanstack/solid-router'
 import {uniqBy} from 'es-toolkit'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
@@ -10,6 +11,8 @@ import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import type {ComposerTriggerSources} from './composer-input-adapter.js'
+import {quickPaneIds} from '../lib/quick-search.js'
+import {rankSessionTitle} from './session-title-rank.js'
 
 export type PaneCommandProps = {sessionId: string; openModelMenu: () => void}
 
@@ -115,6 +118,51 @@ function agentEntries(agents: RpcOutputs['agent']['list']['data']): RichTextFiel
     .map((agent) => ({id: agent.name, label: `@${agent.name}`}))
 }
 
+type SessionRow = RpcOutputs['sessions']['list']['sessions'][number]
+
+type SessionCandidate = {session: SessionRow; local: boolean}
+
+type SessionContext = {sessionId: string; openIds: string[]}
+
+type RankedSession = {entry: RichTextFieldTriggerItem; local: boolean; rank: number; open: boolean; updated: number}
+
+const SESSION_LIMIT = 5
+
+function rankSession(candidate: SessionCandidate, query: string, context: SessionContext): RankedSession[] {
+  const session = candidate.session
+  if (session.id === context.sessionId) return []
+  if (!query && !candidate.local) return []
+  const rank = query ? rankSessionTitle(session.title, query) : 0
+  if (rank === undefined) return []
+  return [
+    {
+      entry: {id: session.title, label: `@${session.title}`},
+      local: candidate.local,
+      rank,
+      open: context.openIds.includes(session.id),
+      updated: session.updatedAt,
+    },
+  ]
+}
+
+function sessionEntries(
+  candidates: SessionCandidate[],
+  query: string,
+  context: SessionContext,
+): RichTextFieldTriggerItem[] {
+  return candidates
+    .flatMap((candidate) => rankSession(candidate, query, context))
+    .toSorted(
+      (first, second) =>
+        Number(second.local) - Number(first.local) ||
+        first.rank - second.rank ||
+        Number(second.open) - Number(first.open) ||
+        second.updated - first.updated,
+    )
+    .slice(0, SESSION_LIMIT)
+    .map((ranked) => ranked.entry)
+}
+
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
 
 type TextMatch = (text: string, query: string) => boolean
@@ -170,6 +218,24 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
   }
   const appData = useAppData()
   const queryClient = useAppQueryClient()
+  const search = useSearch({strict: false})
+  const openIds = (): string[] => {
+    const panes = search().panes
+    return panes === undefined ? [] : quickPaneIds({panes, focus: search().focus ?? 0})
+  }
+  const sessionCandidates = (query: string): Promise<SessionCandidate[]> => {
+    const loaded = query
+      ? queryClient
+          .ensureQueryData(appData.utils.sessions.search.queryOptions({input: {term: query, everywhere: true}}))
+          .then((page) => page.sessions.map((session) => ({session, local: session.cwd === null})))
+      : queryClient
+          .ensureQueryData(appData.utils.sessions.list.queryOptions())
+          .then((page) => page.sessions.map((session) => ({session, local: true})))
+    return loaded.catch((cause: unknown) => {
+      console.error('[conciv] the @ list could not load sessions', cause)
+      return []
+    })
+  }
   const filter = useFilter({sensitivity: 'base'})
   const matcher = (): Matcher => ({
     equals: (text, query) => filter().startsWith(text, query) && filter().startsWith(query, text),
@@ -194,12 +260,14 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Context',
       items: async (query) => {
-        const [skills, agents] = await Promise.all([
+        const [skills, agents, sessions] = await Promise.all([
           queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
           queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
+          sessionCandidates(query),
         ])
-        const entries = uniqBy([...skills.data.map(skillEntry), ...agentEntries(agents.data)], (entry) => entry.id)
-        return matchingItems(entries, query, matcher())
+        const named = matchingItems([...skills.data.map(skillEntry), ...agentEntries(agents.data)], query, matcher())
+        const titled = sessionEntries(sessions, query, {sessionId: props.sessionId, openIds: openIds()})
+        return uniqBy([...named, ...titled], (entry) => entry.id)
       },
     },
   }
