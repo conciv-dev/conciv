@@ -73,6 +73,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/plugin-page',
   '@conciv/plugin-recorder',
   '@conciv/plugin-test-runner',
+  '@conciv/plugin-try-it',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
