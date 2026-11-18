@@ -32,15 +32,6 @@ export default defineConfig({
         extends: true,
         test: {name: 'node-real-harness', include: [realHarnessTests], execArgv: ['--expose-gc']},
       },
-      {
-        extends: true,
-        test: {
-          name: 'node-quickjs-worker',
-          include: ['test/core-api.it.test.ts'],
-          execArgv: ['--expose-gc', '--no-addons'],
-          env: fixtureHarnessHomes('node-quickjs-worker'),
-        },
-      },
     ],
   },
 })

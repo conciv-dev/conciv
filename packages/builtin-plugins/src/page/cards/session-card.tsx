@@ -27,13 +27,7 @@ import {
   toolIconRender,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
-import {
-  builtinToolMeta,
-  PAGE_ACT_TOOL_NAMES,
-  PAGE_TOOL_PREFIX,
-  pageOperation,
-  pageVerbGerund,
-} from './page-tool-names.js'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageToolMeta, pageVerbGerund} from './page-tool-names.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
@@ -217,7 +211,7 @@ function stepLabel(step: PageSessionStep, view: ToolViewMeta | undefined): strin
 }
 
 function StepRow(props: {step: PageSessionStep; index: number; streaming: boolean}): JSX.Element {
-  const view = () => builtinToolMeta(`${PAGE_TOOL_PREFIX}${props.step.verb}`)
+  const view = () => pageToolMeta(`${PAGE_TOOL_PREFIX}${props.step.verb}`)
   return (
     <li class={rowClass(props.index)}>
       <StepGlyph step={props.step} ordinal={props.index + 1} streaming={props.streaming} />

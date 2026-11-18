@@ -1,10 +1,11 @@
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, test, vi} from 'vitest'
 import {cdp, page, server, userEvent} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
+import {cleanup, render} from '@solidjs/testing-library'
 import {createSignal, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {ActCard} from '../src/page/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
@@ -20,6 +21,7 @@ import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import tokens from '@conciv/ui-kit-system/tokens.css?inline'
+import utilities from 'virtual:uno.css?inline'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
@@ -41,6 +43,8 @@ import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
 import type {Registry} from '@conciv/plugin/experimental'
+import {tanstackCards} from '../src/tanstack/cards.js'
+import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -2430,6 +2434,255 @@ describe('grab snapshot frame', () => {
 
     await expect.element(page.getByText('control escaped')).toBeVisible()
     await expect.element(page.getByText('snapshot escaped')).not.toBeInTheDocument()
+  })
+})
+
+describe('the tanstack cards', () => {
+  const widgetSheet = document.createElement('style')
+  widgetSheet.textContent = `${tokens}${utilities}`
+  beforeAll(() => document.head.append(widgetSheet))
+  afterAll(() => widgetSheet.remove())
+
+  type Tool = keyof typeof tanstackCards
+  type Case = {
+    tool: Tool
+    title: string
+    input?: Record<string, unknown>
+    output: unknown
+    summary: string
+    detail?: string
+    single?: string
+  }
+
+  const cardContext: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'claude',
+    sendMessage: () => {},
+    addResult: () => Promise.resolve(),
+    catalog: {loaded: () => true, meta: builtinToolMeta},
+  }
+
+  const failure = 'tab_unavailable: no TanStack page is attached to this session'
+
+  function routeMatch(routeId: string, search: Record<string, unknown>) {
+    const timing = {error: null, loaderData: null, updatedAt: null, isFetching: false}
+    return {
+      id: routeId,
+      routeId,
+      path: routeId === '__root__' ? '' : routeId,
+      params: {},
+      search,
+      status: 'success',
+      ...timing,
+    }
+  }
+
+  const routerState = {
+    location: {pathname: '/about', search: '?token=%5Bredacted%5D', hash: ''},
+    matches: [routeMatch('__root__', {}), routeMatch('/about', {token: '[redacted]'})],
+  }
+
+  const routeNode = (id: string, kind: string, hasLoader: boolean) => ({id, path: id, kind, hasLoader, children: []})
+
+  const cases: ReadonlyArray<Case> = [
+    {
+      tool: 'tanstack_router_state',
+      title: 'Read the router state',
+      output: routerState,
+      summary: '/about · 2 matches',
+      detail: '/about?token=%5Bredacted%5D',
+    },
+    {
+      tool: 'tanstack_route_tree',
+      title: 'Read the route tree',
+      output: {
+        ...routeNode('__root__', 'layout', false),
+        children: [routeNode('/', 'index', false), routeNode('/about', 'static', true)],
+      },
+      summary: '3 routes',
+      detail: '/about',
+    },
+    {
+      tool: 'tanstack_loader_data',
+      title: 'Read the loader data',
+      output: {routeId: '/about', data: {greeting: 'hello', visits: 42}},
+      summary: '2 keys · /about',
+      detail: 'greeting',
+      single: '42',
+    },
+    {
+      tool: 'tanstack_query_cache',
+      title: 'Read the query cache',
+      output: {
+        queries: [
+          {
+            key: '["todos"]',
+            state: 'fresh',
+            status: 'success',
+            value: ['card'],
+            updatedAt: Date.now(),
+            error: null,
+            observers: 1,
+          },
+          {key: '["todos",2]', state: 'error', status: 'error', value: null, error: 'Request failed with status 500'},
+        ],
+        mutations: [{key: '["addTodo"]', state: 'fresh', status: 'success', value: null, updatedAt: null}],
+      },
+      summary: '2 queries · 1 mutation',
+      detail: 'Request failed with status 500',
+      single: 'queries',
+    },
+    {
+      tool: 'tanstack_query_invalidate',
+      title: 'Invalidated a query',
+      input: {key: '["todos"]'},
+      output: {ok: true},
+      summary: 'invalidated ["todos"]',
+    },
+    {
+      tool: 'tanstack_query_refetch',
+      title: 'Refetched a query',
+      input: {key: '["todos"]'},
+      output: {ok: true},
+      summary: 'refetched ["todos"]',
+    },
+    {
+      tool: 'tanstack_navigate',
+      title: 'Navigated',
+      input: {to: '/about'},
+      output: {ok: true, to: '/about'},
+      summary: '/about',
+    },
+    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, summary: 'invalidated'},
+    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, summary: 'went back'},
+    {
+      tool: 'tanstack_build_errors',
+      title: 'Read the build errors',
+      output: [
+        {
+          id: 'build-1',
+          kind: 'build',
+          message: 'Cannot find module ./missing',
+          stack: null,
+          source: {file: 'src/routes/about.tsx', line: 4, column: 1},
+          digest: null,
+          at: 1,
+        },
+      ],
+      summary: '1 error',
+      detail: 'src/routes/about.tsx:4',
+    },
+    {
+      tool: 'tanstack_route_manifest',
+      title: 'Read the route manifest',
+      output: [
+        {path: '/', kind: 'page', dynamic: false, file: 'src/routes/index.tsx'},
+        {path: '/posts/$id', kind: 'page', dynamic: true, file: 'src/routes/posts.$id.tsx'},
+      ],
+      summary: '2 routes',
+      detail: '/posts/$id',
+    },
+    {
+      tool: 'tanstack_server_fn_trace',
+      title: 'Read the server-function calls',
+      output: {
+        traces: [{id: 'posts-fn', name: 'getPosts', durationMs: 12, status: 'ok', at: 1}],
+        functions: [{id: 'posts-fn', name: 'getPosts', route: '/posts', file: 'src/server/posts.ts'}],
+      },
+      summary: '1 call',
+      detail: 'src/server/posts.ts',
+    },
+  ]
+
+  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
+    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
+  }
+
+  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined) {
+    const part: ToolCallPart = {
+      type: 'tool-call',
+      id: `call-${tool}`,
+      name: tool,
+      arguments: JSON.stringify(input),
+      state: 'input-complete',
+    }
+    const [props, setProps] = createStore<ToolCardProps>({
+      part,
+      result,
+      ctx: cardContext,
+      addResult: () => Promise.resolve(),
+    })
+    render(() => <Dynamic component={tanstackCards[tool].render} {...props} />)
+    return setProps
+  }
+
+  const header = (title: string) => page.getByRole('button', {name: new RegExp(title)})
+  const exactText = (text: string) => page.getByText(text, {exact: true})
+
+  it("draws each tool's card on success, the error state, and the running row before the card", async () => {
+    onTestFinished(cleanup)
+    for (const call of cases) {
+      mountCard(call.tool, call.input ?? {}, resultPart(call.tool, JSON.stringify(call.output), 'complete'))
+      await expect.element(exactText(call.summary)).toBeVisible()
+      await expect.element(header(call.title)).toBeVisible()
+      if (call.detail !== undefined) {
+        await header(call.title).click()
+        await expect.element(exactText(call.detail)).toBeVisible()
+      }
+      if (call.single !== undefined) await expect.element(exactText(call.single)).toBeVisible()
+      cleanup()
+    }
+
+    const markers = {
+      items: {__conciv: 'array', size: 3, preview: 'Array(3)'},
+      lookup: {__conciv: 'Map', size: 2, preview: 'Map(2)'},
+    }
+    mountCard(
+      'tanstack_loader_data',
+      {},
+      resultPart('tanstack_loader_data', JSON.stringify({routeId: '/about', data: markers}), 'complete'),
+    )
+    await header('Read the loader data').click()
+    await expect.element(exactText('Array(3)')).toBeVisible()
+    await expect.element(exactText('Map(2)')).toBeVisible()
+    await expect.element(page.getByText(/__conciv/)).not.toBeInTheDocument()
+    cleanup()
+
+    const backPart: ToolCallPart = {
+      type: 'tool-call',
+      id: 'call-tanstack_back',
+      name: 'tanstack_back',
+      arguments: '{}',
+      state: 'input-complete',
+    }
+    render(() => (
+      <ul>
+        <ToolTraceRow
+          part={backPart}
+          result={resultPart('tanstack_back', JSON.stringify({ok: true}), 'complete')}
+          ctx={cardContext}
+          tools={() => [{names: ['tanstack_back'], ...tanstackCards.tanstack_back}]}
+        />
+      </ul>
+    ))
+    await expect.element(page.getByRole('listitem').getByRole('button').first()).toBeDisabled()
+    cleanup()
+
+    mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    await header('Read the router state').click()
+    await expect.element(page.getByText(failure)).toBeVisible()
+    await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
+    cleanup()
+
+    const finish = mountCard('tanstack_router_state', {}, undefined)
+    await expect.element(header('Reading the router state')).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
+    await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
+    finish('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
+    await expect.element(exactText('/about · 2 matches')).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
   })
 })
 

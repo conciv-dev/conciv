@@ -16,7 +16,6 @@ overrides:
   '@conciv/extension': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-extension-0.0.22.tgz
   '@conciv/extension-compiler': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-extension-compiler-0.0.22.tgz
   '@conciv/extension-ios': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-extension-ios-0.0.22.tgz
-  '@conciv/extension-page': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-extension-page-0.0.22.tgz
   '@conciv/extension-terminal': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-extension-terminal-0.0.22.tgz
   '@conciv/grab': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-grab-0.0.22.tgz
   '@conciv/harness': file:/tmp/conciv-e2e-vite-react-packed/tarballs/conciv-harness-0.0.22.tgz
@@ -428,12 +427,6 @@ packages:
 
   '@conciv/extension-ios@file:../tarballs/conciv-extension-ios-0.0.22.tgz':
     resolution: {tarball: file:../tarballs/conciv-extension-ios-0.0.22.tgz}
-    version: 0.0.22
-    peerDependencies:
-      solid-js: ^1.9.13
-
-  '@conciv/extension-page@file:../tarballs/conciv-extension-page-0.0.22.tgz':
-    resolution: {tarball: file:../tarballs/conciv-extension-page-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
       solid-js: ^1.9.13
@@ -5172,7 +5165,7 @@ snapshots:
       '@conciv/contract': file:../tarballs/conciv-contract-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)
       '@conciv/db': file:../tarballs/conciv-db-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/extension': file:../tarballs/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
-      '@conciv/extension-page': file:../tarballs/conciv-extension-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
+      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/harness': file:../tarballs/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(react@19.3.1)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/harness-init': file:../tarballs/conciv-harness-init-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/plugin': file:../tarballs/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
@@ -5368,6 +5361,7 @@ snapshots:
       '@conciv/ui-kit-chat-tools': file:../tarballs/conciv-ui-kit-chat-tools-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(solid-js@1.9.18)
       '@conciv/ui-kit-system': file:../tarballs/conciv-ui-kit-system-0.0.22.tgz(solid-js@1.9.18)
       '@conciv/ui-kit-tap': file:../tarballs/conciv-ui-kit-tap-0.0.22.tgz(solid-js@1.9.18)
+      '@conciv/ui-kit-terminal': file:../tarballs/conciv-ui-kit-terminal-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.18)
       '@tanstack/solid-router': 1.170.43(solid-js@1.9.18)
       bippy: 0.6.1(react@19.3.1)
@@ -5470,25 +5464,6 @@ snapshots:
       '@conciv/extension': file:../tarballs/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
       '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
-      solid-js: 1.9.18
-      zod: 4.6.7
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - bufferutil
-      - crossws
-      - fastify
-      - react
-      - utf-8-validate
-      - vite
-      - vite-plugin-solid
-      - ws
-
-  '@conciv/extension-page@file:../tarballs/conciv-extension-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)':
-    dependencies:
-      '@conciv/extension': file:../tarballs/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.2)
-      '@conciv/grab': file:../tarballs/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.3.1)(solid-js@1.9.18)(vite@8.3.5(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
-      '@conciv/protocol': file:../tarballs/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
-      '@zumer/snapdom': 3.3.3
       solid-js: 1.9.18
       zod: 4.6.7
     transitivePeerDependencies:
