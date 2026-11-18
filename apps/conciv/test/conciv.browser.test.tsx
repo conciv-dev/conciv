@@ -7634,6 +7634,19 @@ describe('terminal panel', () => {
     await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
     await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await terminalTab().click()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('exit')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('Terminal session ended', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await pickButton().click()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
   }, 60_000)
 
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {

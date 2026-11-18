@@ -125,7 +125,7 @@ export default function TerminalSurface(props: {
   const grab = ctx.use(GrabApi)
   const pasteStagedGrabs = (): boolean => {
     const live = grab()
-    if (live.status !== 'active') return true
+    if (live.status !== 'active' || model.status() !== 'open') return true
     const staged = live.value.staged()
     if (staged.length === 0) return true
     model.paste(`\n\n${staged.map((entry) => entry.text).join('\n\n')}`)
