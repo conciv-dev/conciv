@@ -414,8 +414,25 @@ describe('the ios tools against a fake simctl', () => {
     const failed = await against(failing.layer, build(runtime(xcodebuildConfig(), '/tmp'), {}))
     expect(failed.ok).toBe(false)
     expect(failed.appPath).toBeNull()
-    expect(failed.diagnostics.length).toBeGreaterThan(0)
+    expect(failed.diagnostics.map((diagnostic) => diagnostic.severity)).toEqual(['error', 'warning'])
     expect(failing.calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
+
+    const unparsed = fakeSimctl([
+      {
+        when: (call) => has(call, 'build'),
+        reply: {
+          code: 1,
+          stderr:
+            "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory is a CLT instance",
+        },
+      },
+    ])
+    const raw = await against(unparsed.layer, build(runtime(xcodebuildConfig(), '/tmp'), {}))
+    expect(raw.ok).toBe(false)
+    expect(raw.diagnostics).toHaveLength(1)
+    expect(raw.diagnostics[0]?.severity).toBe('error')
+    expect(raw.diagnostics[0]?.message).toContain('requires Xcode')
+    expect(unparsed.calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
 
     const passing = fakeSimctl([
       {when: (call) => has(call, '-showBuildSettings'), reply: {stdout: transcript('xcodebuild-settings.json')}},
