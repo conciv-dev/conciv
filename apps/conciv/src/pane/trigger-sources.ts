@@ -111,11 +111,11 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
 
 type RpcOutputs = InferClientOutputs<RpcClient>
 
-const SKILL_ICON = {component: BookOpen, name: 'Skill'}
+const SKILL_ICON: RichTextFieldTriggerItem['icon'] = {component: BookOpen, name: 'Skill'}
 
-const AGENT_ICON = {component: Brain, name: 'Agent'}
+const AGENT_ICON: RichTextFieldTriggerItem['icon'] = {component: Brain, name: 'Agent', tone: 'chat-agent'}
 
-const SESSION_ICON = {component: MessageCircle, name: 'Session'}
+const SESSION_ICON: RichTextFieldTriggerItem['icon'] = {component: MessageCircle, name: 'Session'}
 
 function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
   return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}
@@ -233,17 +233,13 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     return panes === undefined ? [] : quickPaneIds({panes, focus: search().focus ?? 0})
   }
   const sessionCandidates = (query: string): Promise<SessionCandidate[]> => {
-    const loaded = query
+    return query
       ? queryClient
           .ensureQueryData(appData.utils.sessions.search.queryOptions({input: {term: query, everywhere: true}}))
           .then((page) => page.sessions.map((session) => ({session, local: session.cwd === null})))
       : queryClient
           .ensureQueryData(appData.utils.sessions.list.queryOptions())
           .then((page) => page.sessions.map((session) => ({session, local: true})))
-    return loaded.catch((cause: unknown) => {
-      console.error('[conciv] the @ list could not load sessions', cause)
-      return []
-    })
   }
   const filter = useFilter({sensitivity: 'base'})
   const matcher = (): Matcher => ({
@@ -269,14 +265,25 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
     mention: {
       label: 'Context',
       items: async (query) => {
-        const [skills, agents, sessions] = await Promise.all([
+        const [skills, agents, sessions] = await Promise.allSettled([
           queryClient.ensureQueryData(appData.utils.skill.list.queryOptions()),
           queryClient.ensureQueryData(appData.utils.agent.list.queryOptions()),
           sessionCandidates(query),
         ])
-        const named = matchingItems([...skills.data.map(skillEntry), ...agentEntries(agents.data)], query, matcher())
-        const titled = sessionEntries(sessions, query, {sessionId: props.sessionId, openIds: openIds()})
-        return [...uniqBy(named, (entry) => entry.id), ...titled]
+        if (skills.status === 'rejected' && agents.status === 'rejected' && sessions.status === 'rejected')
+          throw skills.reason
+        if (sessions.status === 'rejected')
+          console.error('[conciv] the @ list could not load sessions', sessions.reason)
+        const skillList = skills.status === 'fulfilled' ? skills.value.data.map(skillEntry) : []
+        const agentList = agents.status === 'fulfilled' ? agentEntries(agents.value.data) : []
+        const named = matchingItems(
+          uniqBy([...skillList, ...agentList], (entry) => entry.id),
+          query,
+          matcher(),
+        )
+        const candidates = sessions.status === 'fulfilled' ? sessions.value : []
+        const titled = sessionEntries(candidates, query, {sessionId: props.sessionId, openIds: openIds()})
+        return [...named, ...titled]
       },
     },
   }

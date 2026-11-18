@@ -1502,7 +1502,7 @@ export default {
 
     await userEvent.keyboard('er')
 
-    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/@reviewer/)
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName('@reviewer')
     await expect.element(mention('Review ledger')).not.toBeInTheDocument()
 
     await userEvent.keyboard('{Enter}')

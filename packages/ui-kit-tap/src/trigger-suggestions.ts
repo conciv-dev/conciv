@@ -12,7 +12,7 @@ export type RichTextFieldTriggerItem = {
   description?: string
   group?: string
   categoryId?: string
-  icon?: {component: Component<{class?: string}>; name: string}
+  icon?: {component: Component<{class?: string}>; name: string; tone?: 'chat-agent'}
   insert?: string
   run?: () => void
 }
