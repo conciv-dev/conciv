@@ -71,7 +71,7 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'next.config.ts'),
     [
       `import {withConciv} from '@conciv/it/plugin/nextjs'`,
-      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}, plugins: ['@conciv/plugin-tanstack']})`,
+      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}, plugins: ['./node_modules/@conciv/plugin-tanstack']})`,
       ``,
     ].join('\n'),
   )
