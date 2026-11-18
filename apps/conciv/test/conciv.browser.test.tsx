@@ -1994,6 +1994,35 @@ describe('grab staging', () => {
     expect(api.staged()).toHaveLength(0)
   })
 
+  test('the composer grab button stages the picked element, and a pick that fails says so and stages nothing', async () => {
+    let picks = 0
+    const pick = async (): Promise<Grab> => {
+      picks += 1
+      if (picks > 1) throw new Error('the page went away')
+      return HERO_GRAB
+    }
+    const grabProvider = () => ({pick, comment: pick, cancel: () => {}, isActive: () => false})
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, grabProvider}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+    const pickFromOverflow = async () => {
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    }
+
+    await pickFromOverflow()
+
+    await expect.element(snapshot()).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await userEvent.click(removeGrab())
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await pickFromOverflow()
+
+    await expect.element(page.getByText('Couldn’t grab that element. Try again.')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+  })
+
   test('a grabbed element in a sent message shows its grab card', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
