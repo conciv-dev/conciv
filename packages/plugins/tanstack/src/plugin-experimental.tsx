@@ -5,6 +5,7 @@ import {openAttachment} from './client/attachment.js'
 import {installRuntimeErrorListeners} from './client/error-ring.js'
 import {InspectorChip} from './client/inspector-chip.js'
 import {makeTanstackOperations} from './client/operations.js'
+import {redactedHref} from './client/router-adapter.js'
 import type {Tab} from './rpc.js'
 
 const TAB_EVENTS = ['focus', 'blur', 'popstate', 'hashchange']
@@ -35,12 +36,18 @@ export default Plugin.define({
   setup(ctx) {
     const connectionId = crypto.randomUUID()
     const tabId = `tab_${crypto.randomUUID()}`
-    const operations = makeTanstackOperations(ctx.use(ReactTree))
+    const tree = ctx.use(ReactTree)
+    const operations = makeTanstackOperations(tree)
     const routed = () => ctx.sessions.current()
+
+    const tabUrl = () => {
+      const live = tree()
+      return live.status === 'active' ? redactedHref(live.value) : `${location.origin}${location.pathname}`
+    }
 
     const tab = (): Tab => ({
       id: tabId,
-      url: location.href,
+      url: tabUrl(),
       title: document.title,
       focused: document.hasFocus(),
       visible: document.visibilityState === 'visible',
