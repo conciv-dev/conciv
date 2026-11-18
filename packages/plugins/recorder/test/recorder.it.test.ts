@@ -71,15 +71,7 @@ function replayed(page: Page, text: string) {
 
 async function showRecorderTab(page: Page): Promise<void> {
   await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
-  await page.getByRole('link', {name: 'Settings'}).click({timeout: 30_000})
-  await page.getByRole('tab', {name: 'Views', exact: true}).click({timeout: 30_000})
-  await page
-    .getByRole('region', {name: 'Tab bar'})
-    .getByText(/^Recorder/)
-    .click()
-  await expect(page.getByRole('checkbox', {name: /^Recorder/})).not.toBeChecked()
-  await page.getByRole('button', {name: 'Back to chat'}).click()
-  await page.getByRole('tab', {name: 'Recorder', exact: true}).click()
+  await page.getByRole('tab', {name: 'Recorder', exact: true}).click({timeout: 30_000})
 }
 
 const ControlEventSchema = z.object({
@@ -114,7 +106,7 @@ async function untilRecordingGoesLive(events: AsyncIterable<unknown>): Promise<v
 }
 
 describe('the recorder in the widget', () => {
-  test('is an active plugin with a browser part, and with the old extension Recorder view hidden shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page, then replays what the user does in the page without the widget, and records for a recording the agent started while the page was offline', async ({
+  test('is an active plugin with a browser part, and shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page, then replays what the user does in the page without the widget, and records for a recording the agent started while the page was offline', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -154,13 +146,6 @@ describe('the recorder in the widget', () => {
       await page.getByRole('tab', {name: 'Plugins', exact: true}).click({timeout: 30_000})
       await expect(page.getByRole('switch', {name: 'recorder'})).toBeChecked({timeout: 30_000})
       await expect(page.getByText('Server', {exact: true})).toBeVisible({timeout: 30_000})
-      await page.getByRole('tab', {name: 'Views', exact: true}).click()
-      const oldRecorderView = page.getByRole('checkbox', {name: /^Recorder/})
-      await page
-        .getByRole('region', {name: 'Tab bar'})
-        .getByText(/^Recorder/)
-        .click()
-      await expect(oldRecorderView).not.toBeChecked()
       await page.getByRole('button', {name: 'Back to chat'}).click()
       const recorderTab = page.getByRole('tab', {name: 'Recorder', exact: true})
       await recorderTab.click()
