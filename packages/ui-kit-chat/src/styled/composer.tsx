@@ -112,7 +112,7 @@ export function Composer(props: ComposerProps): JSX.Element {
           )}
         </ComposerPrimitive.Queue>
       </div>
-      <div class="px-3 pt-2 flex flex-wrap gap-2 empty:hidden">
+      <div class="px-2 pb-1 pt-2 flex shrink-0 flex-nowrap gap-2 [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden empty:hidden">
         <ComposerPrimitive.Attachments component={() => <StagedAttachment component={props.AttachmentComponent} />} />
       </div>
       <div class="pb-2.25 pe-3 ps-5 pt-2.25 flex gap-2 items-start">
