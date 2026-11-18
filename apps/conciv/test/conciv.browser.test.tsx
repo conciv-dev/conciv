@@ -1461,7 +1461,7 @@ export default {
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
   })
 
-  test('the @ list offers the skills, then the agents that are neither primary nor hidden, and no tool', async () => {
+  test('the @ list offers the skills, then the agents that are neither primary nor hidden, no tool, then the files and folders a typed query finds', async () => {
     await mountComposer(WIDE_PX)
     const context = () => page.getByRole('listbox', {name: 'Context'})
     const mention = (label: string) => context().getByRole('option', {name: label})
@@ -1481,6 +1481,16 @@ export default {
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@reviewer')).toBeVisible()
+
+    await userEvent.keyboard('@mentions')
+
+    await expect.element(mention('@mentions/').getByRole('img', {name: 'Folder'})).toBeVisible()
+    await expect.element(mention('@mentions/index.ts').getByRole('img', {name: 'File'})).toBeVisible()
+
+    await userEvent.click(mention('@mentions/index.ts'))
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@mentions/index.ts')).toBeVisible()
   })
 })
 

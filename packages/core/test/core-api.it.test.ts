@@ -6939,6 +6939,10 @@ export default {
     expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
     await expect(outside.skill.list()).rejects.toMatchObject(pluginRefusal)
     await expect(outside.agent.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.fs.find({query: 'seer'})).rejects.toMatchObject(pluginRefusal)
+    const found = await makeRpcClient(base).fs.find({query: 'seer', type: 'file'})
+    expect(found.location).toEqual({directory: root})
+    expect(found.data).toContainEqual({path: 'conciv/plugins/seer.ts', type: 'file'})
     const skills = await makeRpcClient(base).skill.list()
     expect(skills.location).toEqual({directory: root})
     expect(skills.data.find((skill) => skill.id === 'seer-look')).toMatchObject({
