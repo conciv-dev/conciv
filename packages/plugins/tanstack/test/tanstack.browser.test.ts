@@ -99,7 +99,7 @@ function tabSecrets(tab: {url: string}) {
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates, refetches and invalidates one exact query, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
+  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates and lists the new tab url, refetches and invalidates one exact query, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
     browser,
   }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -128,6 +128,8 @@ describe('the tanstack plugin in the page', () => {
 
     expect(await call('tanstack_navigate', {to: '/about'})).toEqual({ok: true, to: '/about'})
     await expect(page.getByRole('heading', {name: 'About this app'})).toBeVisible()
+    const navigated = State.parse(await call('tanstack_tabs_list', {}))
+    expect(navigated.tabs.map((entry) => new URL(entry.url).pathname)).toEqual(['/about'])
     await expect(page.getByText('Fetches: 1')).toBeVisible()
     const moved = RouterCurrent.parse(await call('tanstack_router_state', {}))
     expect(moved.location.pathname).toBe('/about')
