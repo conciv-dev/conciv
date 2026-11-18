@@ -8546,8 +8546,8 @@ const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
 const ToolCall = Registry.define('tool-call')
 module.exports = {default: {stores: {
-  note: Store.global(z.object({text: z.string()}), {text: 'none'}),
-  visits: Store.global(z.object({count: z.number()}), {count: 0}),
+  note: Store.session(z.object({text: z.string()}), {text: 'none'}),
+  visits: Store.session(z.object({count: z.number()}), {count: 0}),
 }, setup(ctx) {
   const button = (label, onClick) => createComponent(ctx.ui.Button, {onClick, children: label})
   const line = (read) => {
@@ -8640,11 +8640,11 @@ module.exports = {default: {stores: {
       button('Open a draft session', () =>
         ctx.layout.draft({server: props.session.server.id, directory: props.session.directory, prompt: 'a drafted prompt'}),
       ),
-      line(() => 'Stored note: ' + String(ctx.stores.note.value.text)),
-      line(() => 'Visits: ' + String(ctx.stores.visits.value.count)),
-      button('Save the note', () => ctx.stores.note.set({text: 'saved note'})),
-      button('Save a broken note', () => ctx.stores.note.set({text: 42})),
-      button('Count a visit', () => ctx.stores.visits.update((draft) => {
+      line(() => 'Stored note: ' + String(ctx.stores.note(props.session).value?.text ?? 'loading')),
+      line(() => 'Visits: ' + String(ctx.stores.visits(props.session).value?.count ?? 'loading')),
+      button('Save the note', () => ctx.stores.note(props.session).set({text: 'saved note'})),
+      button('Save a broken note', () => ctx.stores.note(props.session).set({text: 42})),
+      button('Count a visit', () => ctx.stores.visits(props.session).update((draft) => {
         draft.count += 1
       })),
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
