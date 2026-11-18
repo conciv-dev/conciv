@@ -142,9 +142,9 @@ describe('approval replay', () => {
   const newSession = () => createSession(coreRpc(core()))
 
   async function attachedPane(sessionId: string): Promise<PaneMount> {
-    const attached = await coreControl.pushSocketsOpened()
+    const attached = await coreControl.chatStreamsOpened()
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
-    await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+    await until(async () => (await coreControl.chatStreamsOpened()) > attached, {hangGuardMs: 20_000})
     return mount
   }
 
@@ -1231,10 +1231,10 @@ describe('chat pane', () => {
     test('a run pushed to a chat whose load failed leaves the failed load in place, so Retry reopens instead of resending', async () => {
       const {rpc, sessionId} = await newSession()
       const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
-      const attached = await coreControl.pushSocketsOpened()
+      const attached = await coreControl.chatStreamsOpened()
       mountChatPane(sessionId)
       await expect.element(retry()).toBeEnabled()
-      await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+      await until(async () => (await coreControl.chatStreamsOpened()) > attached, {hangGuardMs: 20_000})
       await coreControl.releaseFault(broken)
 
       await coreControl.scriptTurn({toolCalls: [], text: 'the reply from the other client'})
@@ -5247,17 +5247,13 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
-    const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    await coreControl.awaitFaultPending(pushHandshake, 1)
-    const pushLive = coreControl.awaitPushSocketLive()
-    await coreControl.releaseFault(pushHandshake)
-    await pushLive
+    await coreControl.awaitRpcSocketLive()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
-    await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await expect.poll(() => coreControl.rpcSocketsLive()).toBe(0)
     await reloginNotice().getByRole('button', {name: 'Log in'}).click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
@@ -5278,7 +5274,7 @@ describe('engine login', () => {
     await page.getByRole('button', {name: 'Send message'}).click()
     const earlierAnswer = () => page.getByRole('log').getByText('Answer before the revoke.')
     await expect.element(earlierAnswer()).toBeVisible()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(earlierAnswer()).toBeVisible()
@@ -5287,7 +5283,7 @@ describe('engine login', () => {
     await userEvent.type(firstDigit(), await coreControl.requestCode())
     await expect.element(reloginNotice()).not.toBeInTheDocument()
     await expect.element(earlierAnswer()).toBeVisible()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
     await coreControl.scriptTurn({toolCalls: [], text: 'Answer after the new code.'})
     await editor().fill('second question')
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -5424,7 +5420,7 @@ describe('engine login', () => {
       const lateClose = await faults.install({kind: 'late-close'})
       harness.mountShell('/', [], {login: {apiBase: origin()}})
       await unlock()
-      await coreControl.awaitPushSocketLive()
+      await coreControl.awaitRpcSocketLive()
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
       await coreControl.revokeBrowsers()
       await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()

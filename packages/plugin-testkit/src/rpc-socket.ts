@@ -44,6 +44,8 @@ export type RpcSocket = {
   rule: (rule: RpcSocketRule) => () => void
   listen: (listener: RpcSocketListener) => () => void
   opened: () => number
+  liveSockets: () => number
+  awaitLive: () => Promise<void>
   hold: () => Promise<void>
   release: () => void
   holdCloses: () => void
@@ -60,6 +62,8 @@ type SocketState = {
   rules: RpcSocketRule[]
   listeners: Set<RpcSocketListener>
   live: Set<WebSocketRoute>
+  speaking: Set<WebSocketRoute>
+  speakingWaiters: (() => void)[]
   opened: number
   held: boolean
   heldCloses: (() => void)[] | null
@@ -77,6 +81,8 @@ export function rpcSocketFor(page: Page): RpcSocket {
     rules: [],
     listeners: new Set(),
     live: new Set(),
+    speaking: new Set(),
+    speakingWaiters: [],
     opened: 0,
     held: false,
     heldCloses: null,
@@ -104,10 +110,14 @@ export function rpcSocketFor(page: Page): RpcSocket {
       }
     },
     opened: () => state.opened,
+    liveSockets: () => state.speaking.size,
+    awaitLive: () =>
+      state.speaking.size > 0 ? Promise.resolve() : new Promise((resolve) => state.speakingWaiters.push(resolve)),
     hold: async () => {
       state.held = true
       const closing = [...state.live].map((route) => route.close({code: CUT_CLOSE_CODE}))
       state.live.clear()
+      state.speaking.clear()
       await Promise.all(closing)
     },
     release: () => {
@@ -167,16 +177,19 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
   }
   route.onClose((code, reason) => {
     state.live.delete(route)
+    state.speaking.delete(route)
     outbound.tail = outbound.tail
       .then(() => server.close(forwardableClose(code, reason)))
       .catch((error: unknown) => console.error('[extension-testkit] a page close could not reach the engine', error))
   })
   route.onMessage((message) => {
+    speaks(route, state)
     outbound.tail = outbound.tail
       .then(() => sendOutbound(message, socketId, {route, forward: () => server.send(message), state, emit}))
       .catch((error: unknown) => console.error('[extension-testkit] an rpc frame could not be routed', error))
   })
   server.onClose((code, reason) => {
+    state.speaking.delete(route)
     const close = (): void => void route.close({code, reason})
     if (state.heldCloses === null) close()
     else state.heldCloses.push(close)
@@ -187,6 +200,12 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
       .catch((error: unknown) => console.error('[extension-testkit] an rpc reply could not be decoded', error))
       .then(() => route.send(message))
   })
+}
+
+function speaks(route: WebSocketRoute, state: SocketState): void {
+  if (state.speaking.has(route)) return
+  state.speaking.add(route)
+  for (const deliver of state.speakingWaiters.splice(0)) deliver()
 }
 
 function forwardableClose(code: number | undefined, reason: string | undefined): {code?: number; reason?: string} {
