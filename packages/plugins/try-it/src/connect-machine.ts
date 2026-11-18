@@ -15,6 +15,7 @@ export type ConnectEvent =
 export type ConnectEffect =
   | {readonly type: 'sweep'; readonly attempt: number; readonly retry: boolean}
   | {readonly type: 'startSlow'}
+  | {readonly type: 'stopSlow'}
   | {readonly type: 'startHold'}
 
 export type ConnectTransition = {readonly state: ConnectState; readonly effects: readonly ConnectEffect[]}
@@ -34,6 +35,8 @@ const unchanged = (state: ConnectState): ConnectTransition => ({state, effects: 
 
 export function transitionConnect(state: ConnectState, event: ConnectEvent): ConnectTransition {
   if (state.status === 'disposed') return unchanged(state)
+  if (event.type === 'disposed' && state.status === 'probing')
+    return {state: {status: 'disposed'}, effects: [{type: 'stopSlow'}]}
   if (event.type === 'disposed') return {state: {status: 'disposed'}, effects: []}
   if (state.status === 'probing') return transitionProbing(state, event)
   if (state.status === 'holding') return transitionHolding(state, event)
@@ -55,8 +58,12 @@ function answerProbing(
   event: Extract<ConnectEvent, {readonly type: 'answered'}>,
 ): ConnectTransition {
   if (event.attempt !== state.attempt) return unchanged(state)
-  if (state.attempt === FIRST_ATTEMPT) return {state: {status: 'connected', base: event.base}, effects: []}
-  return {state: {status: 'holding', base: event.base, copied: state.copied}, effects: [{type: 'startHold'}]}
+  if (state.attempt === FIRST_ATTEMPT)
+    return {state: {status: 'connected', base: event.base}, effects: [{type: 'stopSlow'}]}
+  return {
+    state: {status: 'holding', base: event.base, copied: state.copied},
+    effects: [{type: 'stopSlow'}, {type: 'startHold'}],
+  }
 }
 
 function silenceProbing(

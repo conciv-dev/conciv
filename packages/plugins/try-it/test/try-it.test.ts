@@ -63,7 +63,7 @@ describe('connect machine', () => {
   it('a first sweep that answers connects at once, with no hold', () => {
     expect(replay([{type: 'answered', attempt: 1, base}])).toEqual({
       state: {status: 'connected', base},
-      effects: [{type: 'sweep', attempt: 1, retry: false}],
+      effects: [{type: 'sweep', attempt: 1, retry: false}, {type: 'stopSlow'}],
     })
   })
 
@@ -79,6 +79,7 @@ describe('connect machine', () => {
         {type: 'sweep', attempt: 1, retry: false},
         {type: 'startSlow'},
         {type: 'sweep', attempt: 2, retry: true},
+        {type: 'stopSlow'},
         {type: 'startHold'},
       ],
     })
@@ -128,8 +129,11 @@ describe('connect machine', () => {
   })
 
   it('disposal ends every state, and nothing applies after it', () => {
+    expect(transitionConnect(initialConnect.state, {type: 'disposed'})).toEqual({
+      state: {status: 'disposed'},
+      effects: [{type: 'stopSlow'}],
+    })
     const states: ConnectState[] = [
-      initialConnect.state,
       replay([
         {type: 'silent', attempt: 1},
         {type: 'answered', attempt: 2, base},
@@ -253,6 +257,23 @@ describe('connect driver', () => {
           {status: 'probing', attempt: 1, slow: false, copied: false},
           {status: 'probing', attempt: 2, slow: false, copied: false},
           {status: 'probing', attempt: 2, slow: true, copied: false},
+        ])
+      }),
+    ))
+
+  it('an answer ends the slow hint, so nothing is dispatched at slowMs once probing is over', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({probe: scriptedProbe(outcomes), timings: {...timings, holdMs: 120_000}})
+        yield* Queue.offerAll(outcomes, [null, base])
+        yield* reach(connection.state, (current) => current.status === 'holding')
+        const seen = yield* collectUntil(connection.state, (current) => current.status === 'holding' && current.copied)
+        yield* TestClock.adjust(timings.slowMs)
+        yield* connection.dispatch({type: 'copied'})
+        expect(yield* seen).toEqual([
+          {status: 'holding', base, copied: false},
+          {status: 'holding', base, copied: true},
         ])
       }),
     ))

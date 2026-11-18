@@ -1,4 +1,4 @@
-import {Effect, Predicate, Schedule, Scope, SubscriptionRef} from 'effect'
+import {Effect, FiberHandle, Predicate, Schedule, Scope, SubscriptionRef} from 'effect'
 import {
   initialConnect,
   transitionConnect,
@@ -23,6 +23,7 @@ type Connection = {
 export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInput) {
   const scope = yield* Scope.Scope
   const state = yield* SubscriptionRef.make(initialConnect.state)
+  const slowHint = yield* FiberHandle.make()
 
   const sweep = Effect.fn('try-it.sweep')(function* (attempt: number, retry: boolean) {
     const spaced = input.probe.pipe(
@@ -43,7 +44,9 @@ export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInpu
 
   const perform = (effect: ConnectEffect) => {
     if (effect.type === 'sweep') return Effect.forkIn(sweep(effect.attempt, effect.retry), scope)
-    if (effect.type === 'startSlow') return Effect.forkIn(elapse(input.timings.slowMs, {type: 'slowElapsed'}), scope)
+    if (effect.type === 'startSlow')
+      return FiberHandle.run(slowHint, elapse(input.timings.slowMs, {type: 'slowElapsed'}))
+    if (effect.type === 'stopSlow') return FiberHandle.clear(slowHint)
     return Effect.forkIn(elapse(input.timings.holdMs, {type: 'holdElapsed'}), scope)
   }
 
