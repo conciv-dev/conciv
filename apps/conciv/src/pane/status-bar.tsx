@@ -25,7 +25,7 @@ export type StatusBarProps = {
 }
 
 const BAR =
-  'flex items-stretch min-h-8 [background:var(--chat-statusbar-bg)] [border-top:1px_solid_var(--chat-line-soft)] [font-family:var(--chat-mono)]'
+  'flex items-stretch min-h-10 [background:var(--chat-statusbar-bg)] [border-top:1px_solid_var(--chat-line-soft)] [font-family:var(--chat-mono)]'
 type ChipKind = Exclude<SessionStatusKind, 'unstarted'>
 type ChipStatus = SessionStatus & {kind: ChipKind}
 
