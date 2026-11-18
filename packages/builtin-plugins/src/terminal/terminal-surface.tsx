@@ -23,7 +23,7 @@ function readTerminalTheme(element: Element, scheme: 'light' | 'dark'): Terminal
   element.append(probe)
   const text = resolvedColor(probe, '--chat-text-hi')
   const theme = {
-    background: resolvedColor(probe, '--chat-panel'),
+    background: resolvedColor(probe, '--chat-bg'),
     foreground: text,
     cursor: text,
     selectionBackground: resolvedColor(probe, '--chat-fill-strong'),
