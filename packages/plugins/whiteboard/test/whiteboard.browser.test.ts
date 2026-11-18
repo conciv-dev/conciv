@@ -7,7 +7,10 @@ import {expect} from '@playwright/test'
 import type {Locator, Page} from 'playwright'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
+import {makeRpcClient} from '@conciv/harness-testkit'
 import {magicLink} from '@conciv/harness-testkit/login'
+import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {failRpcCalls, garbleRpcReplies, gateRpcCalls, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
@@ -60,6 +63,17 @@ async function canvasElements(kit: CoreKit, scope: 'live' | 'draft'): Promise<{i
 async function canvasTypes(kit: CoreKit, scope: 'live' | 'draft' = 'live'): Promise<string[]> {
   const read = CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {scope}))
   return read.elements.map((element) => element.type)
+}
+
+async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise<unknown> {
+  const room = await kit.session()
+  const events = await kit.events(room)
+  const result = kit.callTool(name, input)
+  const asked = readApprovalAsk(await events.waitFor((event) => readApprovalAsk(event) !== null))
+  if (asked === null) throw new Error(`${name} raised no permission ask`)
+  const session = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: room}})
+  await session.chat.permissionDecision({approvalId: asked.approvalId, approved: true, scope: 'once'})
+  return result
 }
 
 async function openChat(page: Page): Promise<void> {
@@ -603,6 +617,16 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(thread).toBeHidden()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
+
+      await page.getByRole('button', {name: 'AI comment, open', exact: true}).first().click()
+      await expect(thread).toBeVisible()
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await expect(composer).toBeHidden()
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'agent-first'})
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'agent-second'})
+      await expect(page.getByRole('button', {name: /^AI comment/})).toHaveCount(0)
+      await expect(thread).toBeHidden()
+      await expect(composer).toBeVisible()
     } finally {
       await widget.close()
     }
