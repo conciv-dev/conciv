@@ -2277,6 +2277,49 @@ test.describe('rebind', () => {
       await expect(refresh).toBeEnabled()
     })
   })
+
+  test.describe('handle.rebind to an engine with no browser plugins', () => {
+    const PLUGIN_TEXT = 'Drawn by the first engine plugin'
+    let pluginKit: CoreKit
+
+    test.beforeEach(async () => {
+      pluginKit = await bootCoreKit({
+        id: 'fake-embed',
+        text: ASSISTANT_TEXT,
+        plugins: ['./panel-end'],
+        files: {
+          'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
+`,
+          'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {at: 'session.panel.end', render: () => Object.assign(document.createElement('span'), {textContent: '${PLUGIN_TEXT}'})})
+}}}
+`,
+        },
+      })
+    })
+
+    test.afterEach(async () => {
+      await pluginKit.cleanup()
+    })
+
+    test('the first engine plugin view is gone once the widget is bound to the second engine', async ({page}) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, pluginKit, host.base)
+      await mountHandle(page, pluginKit.base)
+      await openChatPanel(page)
+      const bar = page.getByRole('toolbar', {name: 'Session status'})
+      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toBeVisible({timeout: 30_000})
+
+      await rebindHandle(page, kit.base)
+      await logInFromPanelNotice(page, kit, LOGGED_OUT_SENTENCE)
+      await expect(page.getByRole('alert').filter({hasText: LOGGED_OUT_SENTENCE})).toHaveCount(0, {timeout: 30_000})
+      await sendChatMessage(page, USER_TEXT)
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(bar.getByRole('tab', {name: 'Chat'})).toBeVisible({timeout: 30_000})
+      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toHaveCount(0, {timeout: 30_000})
+    })
+  })
 })
 
 test.describe('recording attachment', () => {

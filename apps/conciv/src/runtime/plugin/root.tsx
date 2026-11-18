@@ -1,15 +1,4 @@
-import {
-  createMemo,
-  createResource,
-  createSignal,
-  lazy,
-  on,
-  onCleanup,
-  Show,
-  Suspense,
-  untrack,
-  type ParentProps,
-} from 'solid-js'
+import {createMemo, createSignal, lazy, on, onCleanup, Show, Suspense, untrack, type ParentProps} from 'solid-js'
 import type {Entry} from '@conciv/plugin/experimental/host'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
@@ -28,7 +17,7 @@ const PluginsContext = createContext<{
   client: () => ConcivClient | undefined
   manager: () => PluginManager | undefined
   onPluginListChange: (listener: () => void) => () => void
-  set: (plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
+  set: (source: PluginExperimentalSource, plugins: readonly PluginExperimental[], reserved: readonly string[]) => void
   reserved: () => readonly string[]
   reported: () => readonly string[] | undefined
 }>()
@@ -79,7 +68,6 @@ export function PluginRoot(props: ParentProps) {
   })
   const first = Promise.withResolvers<BundleSource>()
   const listeners = new Set<Parameters<InstalledSource['on']>[0]>()
-  const experimentalListeners = new Set<Parameters<PluginExperimentalSource['on']>[0]>()
   const pluginListListeners = new Set<() => void>()
 
   first.promise.catch(() => undefined)
@@ -98,7 +86,6 @@ export function PluginRoot(props: ParentProps) {
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
-      onCleanup(created.on((message) => experimentalListeners.forEach((listener) => listener(message))))
       onCleanup(created.onPluginListChange(() => pluginListListeners.forEach((listener) => listener())))
       onCleanup(
         created.onSessionsChanged(
@@ -122,22 +109,19 @@ export function PluginRoot(props: ParentProps) {
     },
   }
 
-  const experimental: PluginExperimentalSource = {
-    pluginExperimentals: async () => (untrack(bundle) ?? (await first.promise)).pluginExperimentals(),
-    on(listener) {
-      experimentalListeners.add(listener)
-
-      return () => experimentalListeners.delete(listener)
-    },
-  }
-
-  const [ready] = createResource(() => first.promise)
-
-  const [loaded, setLoaded] = createSignal<{
-    settled: boolean
+  const [published, setPublished] = createSignal<{
+    source: PluginExperimentalSource | undefined
     plugins: readonly PluginExperimental[]
     reserved: readonly string[]
-  }>({settled: false, plugins: [], reserved: []})
+  }>({source: undefined, plugins: [], reserved: []})
+
+  const loaded = createMemo(() => {
+    const current = published()
+
+    return current.source !== undefined && current.source === bundle()
+      ? {settled: true, plugins: current.plugins, reserved: current.reserved}
+      : {settled: false, plugins: [], reserved: []}
+  })
 
   const definitions = createMemo<readonly Entry[]>(
     () => [...builtins, ...loaded().plugins.map((plugin) => plugin.definition)],
@@ -153,7 +137,7 @@ export function PluginRoot(props: ParentProps) {
     <HostApisProvider value={apis}>
       <PluginsContext.Provider
         value={{
-          source: () => (ready.state === 'ready' ? experimental : undefined),
+          source: bundle,
           client: () => apis.engine.client,
           manager: () => bundle()?.manager,
           onPluginListChange(listener) {
@@ -161,7 +145,7 @@ export function PluginRoot(props: ParentProps) {
 
             return () => pluginListListeners.delete(listener)
           },
-          set: (plugins, reserved) => setLoaded({settled: true, plugins, reserved}),
+          set: (source, plugins, reserved) => setPublished({source, plugins, reserved}),
           reserved: () => loaded().reserved,
           reported: () => {
             if ((login()?.status() ?? 'trusted') !== 'trusted') return undefined
@@ -198,12 +182,12 @@ export function PluginAttachment(props: ParentProps) {
 
   return (
     <PluginAttachmentProvider value={attachment}>
-      <Show when={plugins?.source()}>
+      <Show when={plugins?.source()} keyed>
         {(source) => (
           <PluginExperimentalLoader
-            source={source()}
+            source={source}
             client={plugins?.client ?? (() => undefined)}
-            onChange={(loaded, reserved) => plugins?.set(loaded, reserved)}
+            onChange={(loaded, reserved) => plugins?.set(source, loaded, reserved)}
           />
         )}
       </Show>
