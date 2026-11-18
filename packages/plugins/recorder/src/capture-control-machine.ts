@@ -1,4 +1,4 @@
-import type {RecorderControl} from './protocol.js'
+import type {RecorderControl} from './rpc.js'
 
 export const CAPTURE_TTL_MS = 10 * 60 * 1000
 

@@ -2,7 +2,8 @@ import {createRequire} from 'node:module'
 import {Data, Effect, FileSystem, Option, Path} from 'effect'
 import {z} from 'zod'
 import type {Browser, BrowserContext, Page} from 'playwright-core'
-import type {Keyframe, RrwebEvent} from './protocol.js'
+import type {Keyframe} from './format.js'
+import type {RrwebEvent} from './rpc.js'
 
 export const RendererUnavailable = Data.TaggedError('RecorderRendererUnavailable')<{readonly cause: unknown}>
 export type RendererUnavailable = InstanceType<typeof RendererUnavailable>

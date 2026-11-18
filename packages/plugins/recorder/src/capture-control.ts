@@ -8,7 +8,7 @@ import {
   type CaptureRange,
 } from './capture-control-machine.js'
 import {ClientRings} from './rings.js'
-import type {RecorderControl} from './protocol.js'
+import type {RecorderControl} from './rpc.js'
 
 const CAPTURE_TICK = '5 seconds'
 

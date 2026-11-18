@@ -1,5 +1,5 @@
 import {Data, Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope} from 'effect'
-import type {RrwebEvent} from '../protocol.js'
+import type {RrwebEvent} from './rpc.js'
 import {
   initialFlusher,
   transitionFlusher,

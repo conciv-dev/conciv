@@ -8,7 +8,7 @@ import {
   type RingLimits,
   type RingWindow,
 } from './ring.js'
-import type {RrwebEvent} from './protocol.js'
+import type {RrwebEvent} from './rpc.js'
 
 const CLIENT_RING_IDLE_MS = 30 * 60 * 1000
 const MAX_CLIENT_RINGS = 8

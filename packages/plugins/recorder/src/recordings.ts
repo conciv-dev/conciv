@@ -1,6 +1,6 @@
 import {Clock, Context, Data, Effect, FileSystem, Layer, Path, Ref, Semaphore} from 'effect'
 import {z} from 'zod'
-import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './protocol.js'
+import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './rpc.js'
 
 const StoredRecording = z.object({events: z.array(RrwebEventSchema)})
 const MAX_RECORDINGS = 50

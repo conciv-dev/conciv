@@ -1,5 +1,5 @@
 import {Effect, Option} from 'effect'
-import type {RrwebEvent} from './protocol.js'
+import type {RrwebEvent} from './rpc.js'
 import {ClientRings} from './rings.js'
 import {RendererCache} from './renderer-cache.js'
 import {distill} from './distill.js'

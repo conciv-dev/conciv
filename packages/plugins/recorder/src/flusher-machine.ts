@@ -1,4 +1,4 @@
-import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from '../protocol.js'
+import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from './rpc.js'
 
 export const MAX_QUEUE_BYTES = 8 * 1024 * 1024
 

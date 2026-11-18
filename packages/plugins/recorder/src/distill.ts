@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ActionLogEntry, RrwebEvent} from './protocol.js'
+import type {RrwebEvent} from './rpc.js'
 import {applyFullSnapshot, applyMutation, describeNode, emptyNodeIndex, type NodeIndex} from './node-index.js'
 
 const meta = z.object({href: z.string()})
@@ -12,6 +12,10 @@ const consoleError = z.object({
   plugin: z.literal('rrweb/console@1'),
   payload: z.looseObject({level: z.literal('error'), payload: z.array(z.string())}),
 })
+
+export type ActionLogKind = 'click' | 'input' | 'navigation' | 'scroll' | 'console' | 'reload'
+
+export type ActionLogEntry = {ts: number; kind: ActionLogKind; detail: string}
 
 const SCROLL_COALESCE_MS = 1500
 const RELOAD_META_GAP_MS = 2000

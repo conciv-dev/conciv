@@ -1,5 +1,5 @@
 import {Data, Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope} from 'effect'
-import type {RecorderControl} from '../protocol.js'
+import type {RecorderControl} from './rpc.js'
 import {initialBoot, transitionBoot, type BootEffect, type BootEvent, type BootState} from './boot-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
 

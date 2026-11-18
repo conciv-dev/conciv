@@ -1,9 +1,9 @@
 import {Effect, Stream, type Scope} from 'effect'
 import {z} from 'zod'
 import type {eventWithTime} from '@rrweb/types'
-import themeCss from './player-theme.css?inline'
+import themeCss from './assets/player-theme.css?inline'
 import type Player from 'rrweb-player'
-import {RrwebEventSchema, type RrwebEvent} from '../protocol.js'
+import {RrwebEventSchema, type RrwebEvent} from './rpc.js'
 import type {ReplaySource} from './player-follow.js'
 
 const playerEvent = z.custom<eventWithTime>()

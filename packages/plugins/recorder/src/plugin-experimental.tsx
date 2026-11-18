@@ -1,9 +1,9 @@
 import {onCleanup} from 'solid-js'
 import {Layer, ManagedRuntime} from 'effect'
 import {Panel, Plugin} from '@conciv/plugin/experimental'
-import {bootCapture} from './client/page-capture.js'
-import {RecorderPanel} from './client/panel-view.js'
-import {runInOwnerScope, subscriptionRefSignal} from './client/subscription-ref-signal.js'
+import {bootCapture} from './page-capture.js'
+import {RecorderPanel} from './panel-view.js'
+import {runInOwnerScope, subscriptionRefSignal} from './subscription-ref-signal.js'
 
 const RECORDER_TAB = {id: 'recorder', title: 'Recorder', pinned: true}
 

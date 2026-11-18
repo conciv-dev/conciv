@@ -1,4 +1,4 @@
-import {jsonByteLength, type RrwebEvent} from './protocol.js'
+import {jsonByteLength, type RrwebEvent} from './rpc.js'
 
 type Stored = {readonly event: RrwebEvent; readonly bytes: number; readonly seq: number}
 

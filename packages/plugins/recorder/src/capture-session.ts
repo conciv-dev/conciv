@@ -1,5 +1,5 @@
 import {Data, Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef} from 'effect'
-import type {RecorderConfig, RecorderControl} from '../protocol.js'
+import type {RecorderConfig, RecorderControl} from './rpc.js'
 import {
   initialCaptureSession,
   transitionCaptureSession,

@@ -1,4 +1,4 @@
-import type {RecorderConfig} from '../protocol.js'
+import type {RecorderConfig} from './rpc.js'
 
 export type CaptureSessionState =
   | {readonly status: 'capturing'; readonly attempt: number}

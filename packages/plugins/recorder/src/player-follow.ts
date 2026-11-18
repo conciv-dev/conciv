@@ -1,5 +1,5 @@
 import {Data, Effect, Ref, Schedule, Stream} from 'effect'
-import type {RrwebEvent} from '../protocol.js'
+import type {RrwebEvent} from './rpc.js'
 
 export const FollowFailed = Data.TaggedError('RecorderFollowFailed')<{readonly cause: unknown}>
 export type FollowFailed = InstanceType<typeof FollowFailed>

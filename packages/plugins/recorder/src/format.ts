@@ -1,6 +1,8 @@
 import {uniq} from 'es-toolkit'
 import type {Tool} from '@conciv/plugin'
-import type {ActionLogEntry, ActionLogKind, Keyframe} from './protocol.js'
+import type {ActionLogEntry, ActionLogKind} from './distill.js'
+
+export type Keyframe = {ts: number; pngBase64: string}
 
 const SIGNIFICANT: readonly ActionLogKind[] = ['click', 'navigation', 'console', 'reload']
 

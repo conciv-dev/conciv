@@ -1,5 +1,5 @@
 import {Data, Effect, FileSystem, Option} from 'effect'
-import type {RrwebEvent} from './protocol.js'
+import type {RrwebEvent} from './rpc.js'
 import {RendererCache} from './renderer-cache.js'
 
 export type VideoPiece = {data: string; eof: boolean}
