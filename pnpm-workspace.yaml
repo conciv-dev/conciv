@@ -220,6 +220,9 @@ catalogs:
     typescript: '^6.0.3'
 
 overrides:
+  # 1.4.5 declares peer solid-js ^2; keep every resolve (including transitive ones such as
+  # @solid-primitives/date's ^1.4.4) on the last Solid 1 release.
+  '@solid-primitives/timer': 1.4.4
   # lodash-es _.template code injection (GHSA-r5fr-rjxr-66jc); npm never shipped 4.17.24, the
   # patched line is 4.18.x. Pulled in transitively via @excalidraw in the whiteboard extension.
   lodash-es@<4.18.0: '>=4.18.1'
