@@ -4,6 +4,7 @@ import {useSearch} from '@tanstack/solid-router'
 import {uniqBy} from 'es-toolkit'
 import BookOpen from 'lucide-solid/icons/book-open'
 import Brain from 'lucide-solid/icons/brain'
+import MessageCircle from 'lucide-solid/icons/message-circle'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
@@ -114,6 +115,8 @@ const SKILL_ICON = {component: BookOpen, name: 'Skill'}
 
 const AGENT_ICON = {component: Brain, name: 'Agent'}
 
+const SESSION_ICON = {component: MessageCircle, name: 'Session'}
+
 function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
   return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}
 }
@@ -142,7 +145,7 @@ function rankSession(candidate: SessionCandidate, query: string, context: Sessio
   if (rank === undefined) return []
   return [
     {
-      entry: {id: session.title, label: `@${session.title}`},
+      entry: {id: `session:${session.id}`, label: session.title, insert: `@${session.title}`, icon: SESSION_ICON},
       local: candidate.local,
       rank,
       open: context.openIds.includes(session.id),
@@ -273,7 +276,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
         ])
         const named = matchingItems([...skills.data.map(skillEntry), ...agentEntries(agents.data)], query, matcher())
         const titled = sessionEntries(sessions, query, {sessionId: props.sessionId, openIds: openIds()})
-        return uniqBy([...named, ...titled], (entry) => entry.id)
+        return [...uniqBy(named, (entry) => entry.id), ...titled]
       },
     },
   }
