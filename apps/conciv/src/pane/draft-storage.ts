@@ -89,42 +89,68 @@ function joinDraftText(saved: string, text: string, place: DraftPlace): string {
   return place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
 }
 
-async function saveKeptDraft(
+export type SavedDraft = {
+  readonly text: string
+  readonly selection: SelectionOffsets
+  readonly items: readonly DraftItem[]
+}
+
+async function saveEditedDraft(
   appData: AppData,
   sessionId: string,
-  kept: {text: string; items: readonly DraftItem[]},
-  place: DraftPlace,
+  edit: (draft: SavedDraft) => SavedDraft,
 ): Promise<void> {
   const row = await appData.readDraft(sessionId).catch((error: unknown) => {
     console.error('[conciv] could not read the saved draft', error)
     return null
   })
-  const nextText = joinDraftText(row?.text ?? '', kept.text, place)
-  const caret = place === 'first' ? kept.text.length : nextText.length
+  const text = row?.text ?? ''
+  const edited = edit({
+    text,
+    selection: clampSelection(row ? {start: row.selectionStart, end: row.selectionEnd} : null, text),
+    items: row?.items ?? [],
+  })
   await appData.saveDraft({
     sessionId,
-    text: nextText,
-    selectionStart: caret,
-    selectionEnd: caret,
+    text: edited.text,
+    selectionStart: edited.selection.start,
+    selectionEnd: edited.selection.end,
     attachments: row?.attachments ?? [],
-    items: uniqBy([...(row?.items ?? []), ...kept.items], (item) => item.key),
+    items: [...edited.items],
   })
 }
 
 const keptDraftLock = new Mutex()
 
-async function keepInDraft(
+export async function editDraft(
+  appData: AppData,
+  sessionId: string,
+  edit: (draft: SavedDraft) => SavedDraft,
+): Promise<void> {
+  await keptDraftLock.acquire()
+  try {
+    await saveEditedDraft(appData, sessionId, edit)
+  } finally {
+    keptDraftLock.release()
+  }
+}
+
+function keepInDraft(
   appData: AppData,
   sessionId: string,
   kept: {text: string; items: readonly DraftItem[]},
   place: DraftPlace,
 ): Promise<void> {
-  await keptDraftLock.acquire()
-  try {
-    await saveKeptDraft(appData, sessionId, kept, place)
-  } finally {
-    keptDraftLock.release()
-  }
+  return editDraft(appData, sessionId, (draft) => {
+    const text = joinDraftText(draft.text, kept.text, place)
+    const caret = place === 'first' ? kept.text.length : text.length
+
+    return {
+      text,
+      selection: {start: caret, end: caret},
+      items: uniqBy([...draft.items, ...kept.items], (item) => item.key),
+    }
+  })
 }
 
 export function appendDraft(
