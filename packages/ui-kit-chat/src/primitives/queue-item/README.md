@@ -11,6 +11,7 @@ Headless parts for a queued user message: its text, a steer action that sends it
 ## Invariants
 
 - Parts throw `QueueItem.* must be used within a QueueItemProvider` without a provider.
+- `Text` shows the metadata `displayText` when the message carries one (what the user typed, as the thread shows it), `N note(s)` when that is empty and the message carries notes, and the message's text parts otherwise, so the sentences written for the model never show.
 
 ## Side Effects
 
