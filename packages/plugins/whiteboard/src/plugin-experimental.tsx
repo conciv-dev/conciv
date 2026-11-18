@@ -63,7 +63,7 @@ export default Plugin.define({
       order: 19,
       show: () => {
         const live = grab()
-        if (live.status !== 'active' || comments() === undefined) return undefined
+        if (live.status !== 'active' || comments() === undefined || !live.value.grabbable()) return undefined
         return {
           label: 'Comment',
           icon: 'message-square-plus',

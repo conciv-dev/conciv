@@ -111,6 +111,17 @@ async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise
   return result
 }
 
+async function holdPickerChunk(page: Page): Promise<() => void> {
+  const held = Promise.withResolvers<void>()
+  await page.route('**/widget/dist-*.js', async (route) => {
+    const response = await route.fetch()
+    const body = await response.text()
+    if (body.includes('react-grab-cursor')) await held.promise
+    await route.fulfill({response, body})
+  })
+  return held.resolve
+}
+
 async function openChat(page: Page): Promise<void> {
   await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 10_000})
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
@@ -669,7 +680,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, Escape on a thread stepped to its first closes only the thread, and a comment the user puts on a page element hides the canvas while picking and composing, brings it back on Escape or with the new thread open, and only toasts while the canvas is closed', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, Escape on a thread stepped to its first closes only the thread, and the comment pill waits for the page picker to load, a comment the user puts on a page element hides the canvas while picking and composing, brings it back on Escape or with the new thread open, and only toasts while the canvas is closed', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -682,6 +693,7 @@ describe('the comments of the whiteboard plugin', () => {
       const page = widget.page
       const observer = rpcObserverFor(page)
       await rpcSocketFor(page).installed
+      const releasePicker = await holdPickerChunk(page)
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.setViewportSize({width: 1280, height: 800})
       await openChat(page)
@@ -838,6 +850,8 @@ describe('the comments of the whiteboard plugin', () => {
       const newComment = page.getByRole('dialog', {name: 'New comment'})
       const commentField = newComment.getByRole('textbox', {name: 'Comment', exact: true})
       const pickedElement = page.getByText('page-bus-ok')
+      await expect(commentPill).toBeHidden()
+      releasePicker()
       await commentPill.click()
       await expect(rectangle).toBeHidden()
       await pickedElement.click({force: true})

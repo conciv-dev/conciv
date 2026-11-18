@@ -40,6 +40,14 @@ export type ReactGrabAdapter = {
 }
 
 let adapterPromise: Promise<ReactGrabAdapter> | null = null
+let modulePromise: Promise<typeof import('react-grab')> | null = null
+
+export function loadReactGrab(): Promise<typeof import('react-grab')> {
+  if (modulePromise) return modulePromise
+  window.__REACT_GRAB_DISABLED__ = true
+  modulePromise = import('react-grab')
+  return modulePromise
+}
 
 export function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
   if (!adapterPromise) adapterPromise = create()
@@ -47,8 +55,7 @@ export function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
 }
 
 async function create(): Promise<ReactGrabAdapter> {
-  window.__REACT_GRAB_DISABLED__ = true
-  const rg = await import('react-grab')
+  const rg = await loadReactGrab()
   const api = rg.init({telemetry: false})
 
   let sink: GrabSink | null = null
