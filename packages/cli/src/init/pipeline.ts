@@ -1,5 +1,5 @@
 import {homedir} from 'node:os'
-import {difference} from 'es-toolkit'
+import {difference} from 'es-toolkit/array'
 import {concivHome} from '@conciv/db'
 import {createHubConnections} from '@conciv/harness-init/hub'
 import {initContributions} from '@conciv/harness-init/registry'

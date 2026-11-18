@@ -1,5 +1,5 @@
 import {command, description, dynamic, extend, name, route, type AnyRoute} from '@bomb.sh/router'
-import {groupBy, partition} from 'es-toolkit'
+import {groupBy, partition} from 'es-toolkit/array'
 import {z} from 'zod'
 import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
 import {concivHome} from '@conciv/db'
