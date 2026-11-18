@@ -1,8 +1,6 @@
 import {
   batch,
   createMemo,
-  createRenderEffect,
-  createRoot,
   createSignal,
   from,
   getOwner,
@@ -192,25 +190,6 @@ export function createHostApis() {
 
   if (getOwner()) onCleanup(() => dispatchAttach({type: 'disposed'}))
 
-  const project = createMemo(() => {
-    const directory = attached()?.directory()
-
-    return directory === undefined ? undefined : {directory}
-  })
-
-  const hostOwner = getOwner()
-
-  const whenProject = (run: (directory: string) => void) =>
-    createRoot((dispose) => {
-      createRenderEffect(
-        on(project, (value) => {
-          if (!value) return
-          dispose()
-          run(value.directory)
-        }),
-      )
-    }, hostOwner)
-
   const target = (
     plugin: string,
     key: string,
@@ -247,12 +226,19 @@ export function createHostApis() {
         return runWithOwner(getOwner() ?? owner, () => {
           if (!scope || scope === 'global') return open(globalStoreTarget(plugin, key, options.from))
 
-          if (scope === 'project')
+          if (scope === 'project') {
+            const directory = createMemo(() => attached()?.directory())
+
             return deferredHandle(
               createMemo(
-                on(project, (value) => value && open(projectStoreTarget(plugin, key, options.from, value.directory))),
+                on([attached, directory], ([connected, value]) =>
+                  connected === undefined || value === undefined
+                    ? undefined
+                    : open(projectStoreTarget(plugin, key, options.from, value)),
+                ),
               ),
             )
+          }
 
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
@@ -288,10 +274,17 @@ export function createHostApis() {
 
         if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
 
-        if (scope === 'project')
-          return whenProject((directory) =>
-            removePersisted(projectStoreTarget(plugin, key, options?.from, directory), rpc),
-          )
+        if (scope === 'project') {
+          write((connected) => {
+            const directory = untrack(connected.directory)
+
+            if (directory === undefined)
+              return console.error(`[plugin] ${plugin}: the project store ${key} was not removed, no project is open`)
+            removePersisted(projectStoreTarget(plugin, key, options?.from, directory), rpc)
+          })
+
+          return
+        }
 
         const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
 
