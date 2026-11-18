@@ -2203,7 +2203,7 @@ describe('rpc wire', () => {
         expect(hydration.messages.map((message) => message.id)).toEqual(['client-user', ...collectAssistantIds(events)])
         expect(hydration).toMatchObject({activeRun: null, lastRun: {runId: 'client-run', phase: 'completed'}})
         expect(await thread(sessionId)).toEqual(hydration.messages)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a saved draft'})
         expect(turnEnds.filter((id) => id === sessionId)).toHaveLength(1)
       })
 
@@ -2787,7 +2787,7 @@ describe('rpc wire', () => {
         expect(await threadUserTexts(sessionId)).toEqual(['what color?', 'and the shape?'])
         expect(messages.flatMap((message) => message.parts).filter((part) => part.type === 'image')).toHaveLength(1)
         expect(findLastRun(sessionId).messages).toContain(ONE_PIXEL_PNG)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a saved draft'})
       })
     })
 
@@ -2797,6 +2797,13 @@ describe('rpc wire', () => {
         await finished(sessionId, 'one')
         await finished(sessionId, 'two')
         const boundary = (await thread(sessionId)).at(-1)?.id
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a draft kept across compaction',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         script().hold()
         const compacts = [chatKit().rpc.sessions.compact({sessionId}), chatKit().rpc.sessions.compact({sessionId})]
         await Promise.race(compacts)
@@ -2809,6 +2816,7 @@ describe('rpc wire', () => {
         expect(boundary).toBeDefined()
         expect(await compactMarkers(sessionId)).toEqual([boundary, boundary])
         expect(await threadUserTexts(sessionId)).toEqual(['one', 'two'])
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a draft kept across compaction'})
       })
 
       it('when the CLI compacts its own transcript the thread is kept and later turns append', async () => {

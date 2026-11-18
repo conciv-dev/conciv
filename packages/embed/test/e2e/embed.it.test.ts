@@ -556,6 +556,53 @@ test.describe('draft send remount', () => {
 
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText('', {timeout: 30_000})
       await expect(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+      expect((await suite.kit().rpc.drafts.get({sessionId}))?.text ?? '').toBe('')
+    })
+
+    test('a follow-up typed after a queued send is the draft once the queued run starts, also after a reload', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const RUNNING_TEXT = 'a run that keeps going'
+      const QUEUED_TEXT = 'sent while the run goes'
+      const FOLLOW_UP_TEXT = 'typed after the queued send'
+      const kit = suite.kit()
+      const sessionId = await openPanelOnNewSession(page, suite)
+      const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+      const composer = chatBox(page)
+      const stop = panel.getByRole('button', {name: 'Stop generating'})
+      const queued = panel.getByRole('listitem').filter({hasText: QUEUED_TEXT})
+      kit.harness.script.hold()
+      try {
+        await composer.click()
+        await composer.pressSequentially(RUNNING_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(stop).toBeVisible()
+        await expect(chatLog(page).getByText(ASSISTANT_TEXT)).toHaveCount(1)
+        await composer.click()
+        await composer.pressSequentially(QUEUED_TEXT)
+        await page.keyboard.press('Enter')
+        await expect(queued).toBeVisible()
+        await expect(composer).toHaveText('')
+
+        await composer.click()
+        await composer.pressSequentially(FOLLOW_UP_TEXT)
+        await untilPanelDraft(page, kit, sessionId, (draft) => draft.text === FOLLOW_UP_TEXT)
+
+        kit.harness.script.release()
+        await expect(queued).toBeHidden()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(chatLog(page).getByText(ASSISTANT_TEXT)).toHaveCount(2)
+        await expect(stop).toBeHidden()
+        expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: FOLLOW_UP_TEXT})
+
+        await page.reload({waitUntil: 'domcontentloaded'})
+        await expect(panel).toBeVisible()
+        await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(1)
+        await expect(composer).toHaveText(FOLLOW_UP_TEXT)
+      } finally {
+        kit.harness.script.release()
+      }
     })
   })
 })
