@@ -137,7 +137,12 @@ const FOLDER_ICON: RichTextFieldTriggerItem['icon'] = {component: Folder, name: 
 const MENTION_FILE_DEBOUNCE_MS = 150
 
 function fileEntry(entry: RpcOutputs['fs']['find']['data'][number]): RichTextFieldTriggerItem {
-  return {id: `file:${entry.path}`, label: `@${entry.path}`, icon: entry.type === 'directory' ? FOLDER_ICON : FILE_ICON}
+  return {
+    id: `file:${entry.path}`,
+    label: entry.path,
+    insert: `@${entry.path}`,
+    icon: entry.type === 'directory' ? FOLDER_ICON : FILE_ICON,
+  }
 }
 
 function searchesFiles(query: string): boolean {
@@ -267,9 +272,12 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
   const fileSearch = createAsyncDebouncer(
     (query: string) =>
       queryClient
-        .ensureQueryData(appData.utils.fs.find.queryOptions({input: {query}}))
+        .fetchQuery({...appData.utils.fs.find.queryOptions({input: {query}}), staleTime: 0})
         .then((found) => found.data.map(fileEntry))
-        .catch((): RichTextFieldTriggerItem[] => []),
+        .catch((cause: unknown): RichTextFieldTriggerItem[] => {
+          console.error('[conciv] the @ list could not search files', cause)
+          return []
+        }),
     {wait: MENTION_FILE_DEBOUNCE_MS},
   )
   const searchFiles = async (query: string): Promise<RichTextFieldTriggerItem[]> => {

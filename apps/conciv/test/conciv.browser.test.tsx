@@ -1536,11 +1536,20 @@ export default {
     await userEvent.keyboard('@mentions')
 
     await expect
-      .element(context().getByRole('option', {name: '@mentions/', exact: true}).getByRole('img', {name: 'Folder'}))
+      .element(context().getByRole('option', {name: 'mentions/', exact: true}).getByRole('img', {name: 'Folder'}))
       .toBeVisible()
-    await expect.element(mention('@mentions/index.ts').getByRole('img', {name: 'File'})).toBeVisible()
+    await expect.element(mention('mentions/index.ts').getByRole('img', {name: 'File'})).toBeVisible()
+    await expect.element(input().getByText('@reviewer')).toBeVisible()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
 
-    await userEvent.click(mention('@mentions/index.ts'))
+    const research = await faults.install({kind: 'gate', path: ['fs', 'find'], input: {query: 'mentions'}})
+    await userEvent.keyboard('{Backspace}s')
+    await coreControl.awaitFaultPending(research, 1)
+    await faults.releaseAll()
+
+    await expect.element(mention('mentions/index.ts')).toBeVisible()
+
+    await userEvent.click(mention('mentions/index.ts'))
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@mentions/index.ts')).toBeVisible()
