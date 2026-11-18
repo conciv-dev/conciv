@@ -1,6 +1,8 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {uniqBy} from 'es-toolkit'
+import BookOpen from 'lucide-solid/icons/book-open'
+import Brain from 'lucide-solid/icons/brain'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
@@ -105,14 +107,18 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
 
 type RpcOutputs = InferClientOutputs<RpcClient>
 
+const SKILL_ICON = {component: BookOpen, name: 'Skill'}
+
+const AGENT_ICON = {component: Brain, name: 'Agent'}
+
 function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
-  return {id: skill.id, label: `@${skill.id}`, description: skill.description}
+  return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}
 }
 
 function agentEntries(agents: RpcOutputs['agent']['list']['data']): RichTextFieldTriggerItem[] {
   return agents
     .filter((agent) => agent.mode !== 'primary' && !agent.hidden)
-    .map((agent) => ({id: agent.name, label: `@${agent.name}`}))
+    .map((agent) => ({id: agent.name, label: `@${agent.name}`, icon: AGENT_ICON}))
 }
 
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
