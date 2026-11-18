@@ -36,7 +36,6 @@ const buildSync = <Row extends object>(deps: {
     sync: (params) => {
       onReady(params)
       const write = (key: string, row: Row | undefined): void => {
-        if (!row && !params.collection.has(key)) return
         params.begin()
         if (!row) params.write({type: 'delete', key})
         if (row) params.write({type: params.collection.has(key) ? 'update' : 'insert', value: row})
@@ -107,7 +106,7 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
   }
   const confirmDelete = (key: string): void => {
     const params = sync.params
-    if (!params || !params.collection.has(key)) return
+    if (!params) return
     params.begin({immediate: true})
     params.write({type: 'delete', key})
     params.commit()
