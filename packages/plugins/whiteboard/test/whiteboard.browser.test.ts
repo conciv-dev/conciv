@@ -718,7 +718,8 @@ describe('the comments of the whiteboard plugin', () => {
         authorKind: 'ai',
       })
       await expect(unreadPin).toBeVisible({timeout: 30_000})
-      await dragPin(page, unreadPin, {x: 620, y: 580})
+      await expect(readPin).toHaveCount(0)
+      await dragPin(page, unreadPin, {x: 300, y: 580})
       const drift = page.getByRole('dialog', {name: 'Pin drift'})
       await expect(drift.getByRole('button', {name: 'Disconnect from source'})).toBeVisible()
       await expect(drift.getByRole('button', {name: 'Cancel'})).toBeVisible()
