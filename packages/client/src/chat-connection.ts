@@ -17,7 +17,9 @@ import {
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
+import {ORPCError} from '@orpc/client'
 import {
+  browserRpcConnection,
   engineHeaders,
   engineWebSocket,
   type ChatHistoryWindow,
@@ -215,11 +217,45 @@ async function* watching(
   yield* noticing(merged(sources, abortSignal), options)
 }
 
-async function* sessionEvents(rpc: RpcClient, sessionId: string, signal: AbortSignal): AsyncGenerator<ChatEvent> {
-  try {
-    yield* await rpc.chat.events({sessionId}, {signal})
-  } catch (error) {
-    if (!signal.aborted) throw error
+function trustedAgain(apiBase: string, signal: AbortSignal): Promise<void> {
+  const {trust, release} = browserRpcConnection(apiBase)
+  if (trust.isTrusted() || signal.aborted) {
+    release()
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => {
+    const settle = (): void => {
+      stopTrust()
+      signal.removeEventListener('abort', settle)
+      release()
+      resolve()
+    }
+    const stopTrust = trust.subscribe((status) => {
+      if (status === 'trusted') settle()
+    })
+    signal.addEventListener('abort', settle)
+  })
+}
+
+function refused(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
+}
+
+async function* sessionEvents(
+  rpc: RpcClient,
+  apiBase: string,
+  sessionId: string,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  while (!signal.aborted) {
+    try {
+      yield* await rpc.chat.events({sessionId}, {signal})
+      return
+    } catch (error) {
+      if (signal.aborted) return
+      if (!refused(error)) throw error
+    }
+    await trustedAgain(apiBase, signal)
   }
 }
 
@@ -264,7 +300,7 @@ export function chatConnection(
   sessionId: string,
   options: ChatConnectionOptions = {},
 ): ChatConnection {
-  const events: SessionEvents = (signal) => sessionEvents(rpc, sessionId, signal)
+  const events: SessionEvents = (signal) => sessionEvents(rpc, apiBase, sessionId, signal)
   const live = new Set<WebSocket>()
   const chosen: {transport: ChatTransport | null} = {transport: null}
   const selected = select(apiBase, options, live).then((choice) => {
