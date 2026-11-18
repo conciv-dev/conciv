@@ -1,8 +1,8 @@
 import type {ToolCardView} from '@conciv/protocol/tool-view-types'
-import {toolFallbackCardView} from '@conciv/ui-kit-chat/tools'
+import {recordingCard} from './recording-card.js'
 
 export const recorderCards = {
-  recording_start: toolFallbackCardView,
-  recording_stop: toolFallbackCardView,
-  recording_pull: toolFallbackCardView,
+  recording_start: recordingCard,
+  recording_stop: recordingCard,
+  recording_pull: recordingCard,
 } satisfies Record<string, ToolCardView>
