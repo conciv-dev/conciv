@@ -55,6 +55,8 @@ async function buildSkeletons(row: PendingRow): Promise<ExcalidrawElementSkeleto
   return withStableIds(SkeletonsPayload.parse(row.payload).elements, row.id)
 }
 
+const CANVAS = 'fixed inset-0 pointer-events-auto'
+
 const reportMountError = (error: unknown): void =>
   console.error(`[whiteboard] the excalidraw canvas failed to mount: ${String(error)}`)
 
@@ -81,7 +83,7 @@ function toBase64(bytes: Uint8Array): string {
 }
 
 export function Island(props: {
-  doc: Document
+  mount: HTMLElement
   room: string
   theme: 'light' | 'dark'
   visible: boolean
@@ -352,17 +354,11 @@ export function Island(props: {
   })
 
   return (
-    <Portal mount={props.doc.body}>
+    <Portal mount={props.mount}>
       <div
         ref={(element) => (container = element)}
         inert={!props.visible}
-        style={{
-          position: 'fixed',
-          inset: '0',
-          'z-index': '2147482000',
-          visibility: props.visible ? 'visible' : 'hidden',
-          'content-visibility': props.visible ? 'visible' : 'hidden',
-        }}
+        class={props.visible ? CANVAS : `${CANVAS} invisible content-visibility-hidden`}
       />
     </Portal>
   )
