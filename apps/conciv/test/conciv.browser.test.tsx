@@ -755,8 +755,11 @@ describe('chat pane', () => {
       await tabIntoComposer(5)
       await userEvent.keyboard('{End} and hel')
       await coreControl.awaitFaultPending(held, 1)
+      const {
+        sent: [heldStamp],
+      } = z.object({sent: z.tuple([z.number()]).rest(z.number())}).parse(await readLocalCopy(sessionId))
       vi.useFakeTimers({toFake: ['Date', 'setTimeout', 'clearTimeout']})
-      vi.setSystemTime(start + 1000)
+      vi.setSystemTime(heldStamp)
       const beforeLastKey = Promise.withResolvers<void>()
       void mount.keepDraft(() => beforeLastKey.promise)
       await userEvent.keyboard('d')
@@ -769,7 +772,7 @@ describe('chat pane', () => {
       })
       beforeLastKey.resolve()
       await lastKeySent.promise
-      vi.setSystemTime(start + 2000)
+      vi.setSystemTime(heldStamp + 1000)
       await userEvent.keyboard('!')
       await vi.advanceTimersByTimeAsync(0)
       afterLastKey.resolve()
@@ -777,7 +780,7 @@ describe('chat pane', () => {
       mount.dispose()
       await mount.keepDraft(async () => {})
       vi.useFakeTimers({toFake: ['Date']})
-      vi.setSystemTime(start + 2000)
+      vi.setSystemTime(heldStamp + 1000)
       expect(await readLocalCopy(sessionId)).toMatchObject({text: 'saved once and held!'})
       await coreControl.releaseFault(held)
       await rpc.drafts.set({
@@ -786,7 +789,7 @@ describe('chat pane', () => {
         selectionStart: 19,
         selectionEnd: 19,
         attachments: [],
-        updatedAt: start + 1000,
+        updatedAt: heldStamp,
       })
       mountChatPane(sessionId)
 
