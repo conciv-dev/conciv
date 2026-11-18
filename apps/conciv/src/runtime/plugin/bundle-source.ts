@@ -102,7 +102,12 @@ export function createBundleSource(input: {
   const firstListing = Promise.withResolvers<void>()
   const followed = () => (machine.following.status === 'following' ? machine.following.endpoint : undefined)
 
-  firstListing.promise.catch(() => undefined)
+  firstListing.promise.then(
+    () => {
+      if (plugins.size === 0) publish()
+    },
+    () => undefined,
+  )
 
   const dispatch = (event: HostEvent<Listing>) => {
     const next = transitionHost(machine.following, event)
@@ -308,6 +313,10 @@ export function createBundleSource(input: {
     inventory.server = next.parts.server
     inventory.unreadable = next.parts.unreadable
     changed()
+    publish()
+  }
+
+  const publish = () => {
     const message: PluginExperimentalsMessage = {type: 'pluginExperimentals', ...pluginExperimentals()}
     listeners.forEach((listener) => listener(message))
   }
