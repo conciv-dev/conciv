@@ -9945,6 +9945,12 @@ module.exports = {default: {setup(ctx) {
       throw new Error('the operator broke')
     },
   })
+  ctx.add(PageOperation, {
+    name: 'operator.snap',
+    run: () => {
+      throw new Error('the operator snapped before it promised')
+    },
+  })
 }}}
 `
   const core = {base: ''}
@@ -10172,6 +10178,11 @@ module.exports = {default: {setup(ctx) {
       await attached()
       expect(await operate('operator.count', {by: 1})).toEqual({ok: true, value: {count: 3}})
       expect(await operate('operator.break', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'handler-error'},
+      })
+      expect(await operate('operator.snap', {})).toMatchObject({
         ok: false,
         type: 'failed',
         data: {code: 'handler-error'},

@@ -8022,6 +8022,10 @@ export default {
       type: 'failed',
       data: {code: 'raised', raised: {code: 'NEGATIVE', message: 'negative'}},
     })
+    const denying = operate({name: 'bump', input: {by: 0}, reading: false})
+    const onDeny = await next('conn_s')
+    await reply('conn_s', onDeny.requestId, {type: 'failure', code: 'plugin.denied', message: 'not for this plugin'})
+    expect(await denying).toMatchObject({ok: false, type: 'failed', data: {code: 'plugin.denied'}})
     const orphaned = operate({name: 'bump', input: {by: 1}, reading: false})
     await next('conn_s')
     expect(await tabs('close', {connectionId: 'conn_s'})).toEqual({closed: true})
