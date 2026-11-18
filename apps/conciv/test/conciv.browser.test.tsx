@@ -9011,6 +9011,7 @@ module.exports = {default: {setup(ctx) {
   })
 
   test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
+    await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const label = () => page.getByText('Fixture overlay label', {exact: true})
     const colors = (scheme: string) => page.getByText(`Overlay colors: ${scheme}`, {exact: true})
