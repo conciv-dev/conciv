@@ -25,6 +25,16 @@ const StoredDocumentSchema = z
   })
   .pipe(z.record(z.string(), z.json()))
 
+const StoredRecordSchema = z.record(z.string(), z.unknown())
+
+const StoredTextSchema = z.string()
+
+const StoredBlobSchema = z.instanceof(Blob)
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return StoredRecordSchema.safeParse(value).data
+}
+
 export type BlobReference = {id: string; url: string}
 
 type Driver = {
@@ -106,12 +116,12 @@ function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
     return into
   }
 
-  if (!value || typeof value !== 'object') return into
-  const item = value as Record<string, unknown>
-  const blob = item.blob
+  const item = readRecord(value)
+  if (!item) return into
+  const blob = readRecord(item.blob)
 
-  if (blob && typeof blob === 'object' && !('kind' in blob)) {
-    const id = (blob as Record<string, unknown>).id
+  if (blob && !('kind' in blob)) {
+    const id = blob.id
 
     if (typeof id === 'string') into.add(id)
 
@@ -176,7 +186,8 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
   const remember = <V>(cache: Map<string, V>, key: string, value: V) => {
     cache.set(key, value)
 
-    if (cache.size > textCacheLimit) cache.delete(cache.keys().next().value!)
+    const oldest = cache.keys().next()
+    if (cache.size > textCacheLimit && !oldest.done) cache.delete(oldest.value)
 
     return value
   }
@@ -213,15 +224,18 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
     if (typeof value === 'string' && value.length >= draftTextThreshold) {
       const pieces = split(value)
       const ids = await externalize(value)
-      ids.forEach((id, index) => sources.set(id, {blob: async () => new Blob([pieces[index]!]), chunk: pieces[index]}))
+      ids.forEach((id, index) => {
+        const chunk = pieces[index] ?? ''
+        sources.set(id, {blob: async () => new Blob([chunk]), chunk})
+      })
 
       return {blob: {kind: 'text', ids}}
     }
 
     if (Array.isArray(value)) return Promise.all(value.map((entry) => encode(entry, sources, pin)))
 
-    if (!value || typeof value !== 'object') return value
-    const item = value as Record<string, unknown>
+    const item = readRecord(value)
+    if (!item) return value
 
     if (item.type === 'image' && typeof item.dataUrl === 'string') {
       const blob = await fetch(item.dataUrl).then((response) => response.blob())
@@ -232,9 +246,8 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
       return {...rest, blob: {id}}
     }
 
-    if ('blob' in item && item.blob && typeof item.blob === 'object') {
-      const blob = item.blob as Record<string, unknown>
-
+    const blob = readRecord(item.blob)
+    if (blob) {
       if (blob.kind === 'text') return item
 
       if (typeof blob.id === 'string' && blob.id.startsWith('data:')) {
@@ -268,12 +281,11 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
   const decode = async (value: unknown): Promise<unknown> => {
     if (Array.isArray(value)) return Promise.all(value.map(decode))
 
-    if (!value || typeof value !== 'object') return value
-    const item = value as Record<string, unknown>
+    const item = readRecord(value)
+    if (!item) return value
+    const ref = readRecord(item.blob)
 
-    if (item.blob && typeof item.blob === 'object') {
-      const ref = item.blob as Record<string, unknown>
-
+    if (ref) {
       if (ref.kind === 'text' && Array.isArray(ref.ids)) {
         return (await Promise.all(ref.ids.map((id) => loadChunk(String(id))))).join('')
       }
@@ -318,12 +330,11 @@ function createDraftStore(driver: Driver, options: {grace?: number} = {}): Draft
   const rename = (value: unknown, renamed: Map<string, string>): unknown => {
     if (Array.isArray(value)) return value.map((entry) => rename(entry, renamed))
 
-    if (!value || typeof value !== 'object') return value
-    const item = value as Record<string, unknown>
+    const item = readRecord(value)
+    if (!item) return value
+    const ref = readRecord(item.blob)
 
-    if (item.blob && typeof item.blob === 'object') {
-      const ref = item.blob as Record<string, unknown>
-
+    if (ref) {
       if (Array.isArray(ref.ids))
         return {...item, blob: {...ref, ids: ref.ids.map((id) => renamed.get(String(id)) ?? id)}}
 
@@ -492,7 +503,7 @@ export function createBrowserDraftStore(options: {writable?: () => boolean} = {}
   }
 
   return createDraftStore({
-    get: async (key) => ((await get('documents', key)) as string | undefined) ?? null,
+    get: async (key) => StoredTextSchema.safeParse(await get('documents', key)).data ?? null,
     set: async (key, value, strict) => {
       const ids = [...referenced(value)]
       const transaction = await writeTransaction(['blobs', 'documents'])
@@ -543,7 +554,7 @@ export function createBrowserDraftStore(options: {writable?: () => boolean} = {}
 
       return id
     },
-    getBlob: async (id) => ((await get('blobs', id)) as Blob | undefined) ?? null,
+    getBlob: async (id) => StoredBlobSchema.safeParse(await get('blobs', id)).data ?? null,
   })
 }
 function referenced(json: string) {
