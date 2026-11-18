@@ -7669,7 +7669,8 @@ module.exports = {default: {setup(ctx) {
     title: 'Tally',
     description: 'Count one more tally',
     slash: {name: 'tally'},
-    run: () => ctx.toast.show({title: 'Tallied from the slash list'}),
+    run: (input) =>
+      ctx.toast.show({title: input === undefined ? 'Tallied with no input' : 'Tallied with input ' + JSON.stringify(input)}),
   })
   ctx.add(Command, {
     id: 'broken',
@@ -7686,6 +7687,13 @@ module.exports = {default: {setup(ctx) {
     description: 'Count the tallies again',
     slash: {name: 'recount', after: 'tally'},
     run: () => ctx.toast.show({title: 'Recounted from the slash list'}),
+  })
+  ctx.add(Command, {
+    id: 'rename',
+    title: 'Rename',
+    description: 'Rename the tally',
+    slash: {name: 'rename', arguments: true},
+    run: (input) => ctx.toast.show({title: 'Renamed to ' + input}),
   })
   ctx.add(Command, {id: 'unslashed', title: 'Unslashed', run: () => undefined})
   ctx.add(ComposerPill, {
@@ -7827,7 +7835,18 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('/tally')
     await expect.element(page.getByRole('option').first()).toHaveTextContent('/tallyCount one more tally')
     await userEvent.keyboard('{Enter}')
-    await expect.element(notifications().getByText('Tallied from the slash list', {exact: true})).toBeVisible()
+    await expect.element(notifications().getByText('Tallied with no input', {exact: true})).toBeVisible()
+    await expect.element(composer).not.toHaveTextContent()
+
+    await userEvent.keyboard('/rename')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/renameRename the tally')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(composer).toHaveTextContent('/rename')
+    await userEvent.keyboard('tally two')
+    await expect.element(composer).toHaveTextContent('/rename tally two')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(notifications().getByText('Renamed to tally two', {exact: true})).toBeVisible()
     await expect.element(composer).not.toHaveTextContent()
   }, 45_000)
 })
