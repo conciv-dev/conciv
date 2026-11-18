@@ -5,4 +5,4 @@
 '@conciv/ai': patch
 ---
 
-A plugin's `context` session hook, as opencode's, sees the system prompt of each chat turn and what it adds to `system` is part of the system prompt the harness receives.
+A plugin's `context` and `compaction` session hooks, as opencode's, run before every model request of a turn and edit the system prompts, messages, model options and tools the harness receives.

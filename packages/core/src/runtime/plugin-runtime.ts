@@ -1,5 +1,7 @@
 import type {HarnessAdapter} from '@conciv/harness'
-import type {Plugin as PluginDefinition, SystemPart} from '@conciv/plugin'
+import type {Plugin as PluginDefinition} from '@conciv/plugin'
+import {Model} from '@conciv/plugin/schema/model'
+import type {createChatPlane} from '@conciv/chat'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
@@ -147,7 +149,16 @@ function pluginHostLayer(input: PluginRuntimeInput) {
 }
 
 type SessionPrompt = PluginHooks.Domains['session']['prompt']
-type SessionId = SessionPrompt['sessionId']
+type RequestHook = Parameters<typeof createChatPlane>[0]['context']
+type SessionRequest = Parameters<RequestHook>[1]
+
+function modelRef(model: SessionRequest['model']): Model.Ref {
+  return {
+    id: Model.Id.make(model.id),
+    providerId: Model.Ref.fields.providerId.make(model.providerId),
+    ...(model.variant === undefined ? {} : {variant: Model.VariantId.make(model.variant)}),
+  }
+}
 
 export type PluginRuntime = {
   runtime: PluginHost
@@ -155,7 +166,7 @@ export type PluginRuntime = {
   awaitActivation: () => Promise<void>
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
-  context: (sessionId: SessionId, system: readonly string[], signal: AbortSignal) => Promise<readonly string[]>
+  context: RequestHook
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
   closePermissions: () => Promise<void>
@@ -179,21 +190,20 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
       runtime.runPromise(
         Plugin.awaitActivation.pipe(Effect.andThen(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt')))),
       ),
-    context: (sessionId, system, signal) =>
+    context: (name, request, signal) =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(
-          Effect.andThen(Session.Service.use((sessions) => sessions.get(sessionId))),
+          Effect.andThen(Session.Service.use((sessions) => sessions.get(request.sessionId))),
           Effect.flatMap((session) =>
             PluginHooks.Service.use((hooks) =>
-              hooks.trigger('session', 'context', {
+              hooks.trigger('session', name, {
+                ...request,
                 sessionId: session.id,
-                model: session.model,
+                model: modelRef(request.model),
                 agent: Agent.Id.make(session.agent ?? Agent.defaultId),
-                system: system.map((text): SystemPart => ({type: 'text', text})),
               }),
             ),
           ),
-          Effect.map((event) => event.system.map((part) => part.text)),
         ),
         {signal},
       ),

@@ -46,6 +46,7 @@ import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type T
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
+import {hookedRequest, type RequestHook} from './model-request.js'
 
 export type ChatStores = {
   messages: MessageStore & {loadMessage: (threadId: string, messageId: string) => Promise<ModelMessage | null>}
@@ -69,7 +70,8 @@ export type TurnTools = {
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
-  systemPrompts: (signal: AbortSignal) => Promise<readonly string[]>
+  systemPrompts: () => Promise<readonly string[]>
+  context: RequestHook
   tools: () => Promise<TurnTools>
   setup: () => Promise<Approvals>
   prompt: (message: ModelMessage, signal: AbortSignal) => Promise<ModelMessage>
@@ -165,6 +167,7 @@ function failedPlan(error: unknown): TurnPlan {
       yield {type: EventType.RUN_ERROR, message, timestamp: Date.now()}
     }),
     systemPrompts: async () => [],
+    context: async (request) => request,
     tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
     setup: async () => new Map(),
     prompt: async (user) => user,
@@ -221,12 +224,6 @@ function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): Cha
 }
 
 type OfferedTools = {tools: ChatTool[]; preface: string | null}
-
-function prefaced<Prompt>(prompts: Prompt[], shown: Prompt | null, next: Prompt | null): Prompt[] {
-  if (shown === next) return prompts
-  const kept = prompts.filter((prompt) => prompt !== shown)
-  return next === null ? kept : [...kept, next]
-}
 
 function buildDiscovery(tool: ChatTool | null): CodeDiscovery | null {
   const execute = tool?.execute
@@ -456,8 +453,11 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     offered: () => Promise<OfferedTools>,
   ) {
     const failure: {message: string | null} = {message: null}
-    const codePreface: {shown: string | null} = {shown: null}
-    const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
+    const prepared: {sent: number; provider: ModelMessage[]; system: readonly string[]} = {
+      sent: 0,
+      provider: [],
+      system: [],
+    }
     const shown = new StreamProcessor({})
     const settle = async (): Promise<void> => {
       try {
@@ -475,21 +475,30 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onConfig: async (ctx, current) => {
         if (ctx.phase === 'beforeModel') {
           const next = await offered()
-          const systemPrompts = prefaced(current.systemPrompts, codePreface.shown, next.preface)
-          codePreface.shown = next.preface
+          const request = await hookedRequest(
+            (draft, signal) => untilAborted(plan.context(draft, signal), signal),
+            {
+              system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
+              messages: [...prepared.provider, ...current.messages.slice(prepared.sent)],
+              options: {...plan.modelOptions},
+              tools: next.tools,
+            },
+            entry.controller.signal,
+          )
           return {
             messages: [...ctx.messages],
-            providerMessages: [...prepared.provider, ...current.messages.slice(prepared.sent)],
-            systemPrompts,
-            tools: next.tools,
+            providerMessages: request.messages,
+            systemPrompts: request.system,
+            tools: request.tools,
+            modelOptions: request.options,
           }
         }
         if (ctx.phase !== 'init') return
         granted.approvals = await plan.setup()
         const next = await offered()
-        codePreface.shown = next.preface
+        prepared.system = await plan.systemPrompts()
         const systemPrompts = [
-          ...(await plan.systemPrompts(entry.controller.signal)),
+          ...prepared.system,
           ...(next.preface === null ? [] : [next.preface]),
           ...current.systemPrompts,
         ]

@@ -28,6 +28,7 @@ export type {
   PromptInput,
   PromptInputFileAttachment,
   PromptInputSkillAttachment,
+  SessionCompaction,
   SessionContext,
   SessionDomain,
   SessionHooks,
@@ -35,6 +36,7 @@ export type {
   SessionIdleBackground,
   SessionPrompt,
   SessionRequest,
+  SessionRequestOptions,
   SystemPart,
 } from './session.js'
 export type {SkillDomain, SkillEditor} from './skill.js'

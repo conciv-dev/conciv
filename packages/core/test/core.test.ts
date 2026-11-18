@@ -909,7 +909,7 @@ describe('chat plane', () => {
       attachmentExpanders: {},
       prompt: async (event) => event,
       promptHooked: async () => false,
-      context: async (_sessionId, system) => system,
+      context: async (_name, request) => request,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -4387,9 +4387,12 @@ describe('session context hook', () => {
           )
           event.options.contextFlag = 'set by the plugin'
         })
+        await ctx.session.hook('compaction', (event) => {
+          event.system.push({type: 'text', text: 'compacting with the plugin'})
+        })
       },
     })
-    const {kit, requests} = await contextKit([plugin])
+    const {kit, made, requests} = await contextKit([plugin])
     const session = await kit.session()
 
     expect((await (await kit.turn('the user words', {session})).done()).errors()).toEqual([])
@@ -4401,6 +4404,12 @@ describe('session context hook', () => {
     expect(request?.lastUser).toBe('rewritten by the plugin')
     expect(request?.options.contextFlag).toBe('set by the plugin')
     expect(userTexts(await kit.hydrate(session))).toEqual(['the user words'])
+
+    await made.runtime.forSession(SessionId.parse(session)).run.compact()
+    await made.plane.settled(SessionId.parse(session))
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.system).toContain('compacting with the plugin')
+    expect(offered).toHaveLength(1)
   })
 
   test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
@@ -4438,7 +4447,8 @@ describe('session context hook', () => {
 
     expect(hookTrail).toEqual(['context hook interrupted'])
     expect(sent()).toEqual([])
-    expect(ended.errors()).toHaveLength(1)
+    expect(ended.errors()).toEqual([])
+    expect((await kit.hydrate(session)).lastRun?.phase).toBe('aborted')
     expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
 })

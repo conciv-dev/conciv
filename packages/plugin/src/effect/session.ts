@@ -1,7 +1,8 @@
 import type {Session} from '../schema/session.js'
-import type {Effect} from 'effect'
+import type {Effect, JsonSchema} from 'effect'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Model} from '../schema/model.js'
-import type {PromptInput, SystemPart} from '../promise/session.js'
+import type {PromptInput, SessionRequestOptions, SystemPart} from '../promise/session.js'
 import type {Agent} from '../schema/agent.js'
 import type {
   InstructionEntryInfo,
@@ -53,17 +54,23 @@ export interface SessionPrompt {
 
 export interface SessionRequest {
   readonly sessionId: Session.Id
-  readonly model: Model.Ref | undefined
+  readonly model: Model.Ref
   system: Array<SystemPart>
+  messages: Array<ModelMessage>
+  options: SessionRequestOptions
 }
 
 export interface SessionContext extends SessionRequest {
   readonly agent: Agent.Id
+  tools: Record<string, {description: string; input: JsonSchema.JsonSchema}>
 }
+
+export interface SessionCompaction extends SessionContext {}
 
 export interface SessionHooks {
   readonly prompt: SessionPrompt
   readonly context: SessionContext
+  readonly compaction: SessionCompaction
   readonly 'experimental.idle': SessionIdle
 }
 

@@ -56,6 +56,13 @@ export type PluginInstructions = {initial: string; update: string; told: () => P
 
 export type SessionPrompt = PluginHooks.Domains['session']['prompt']
 
+export type RequestHookName = 'context' | 'compaction'
+
+export type SessionRequest = Omit<PluginHooks.Domains['session']['context'], 'sessionId' | 'model' | 'agent'> & {
+  sessionId: SessionId
+  model: {id: string; providerId: string; variant?: string}
+}
+
 type PromptFile = NonNullable<SessionPrompt['prompt']['files']>[number]
 
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
@@ -71,7 +78,7 @@ export type TurnDeps = {
   attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
-  context: (sessionId: SessionId, system: readonly string[], signal: AbortSignal) => Promise<readonly string[]>
+  context: (name: RequestHookName, request: SessionRequest, signal: AbortSignal) => Promise<SessionRequest>
   pluginInstructions: (
     sessionId: SessionId,
     reset: InstructionReset,
@@ -311,9 +318,26 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        systemPrompts: async (signal) => {
-          const system = [systemText, (await instructions.promise).initial].filter((text) => text !== '')
-          return turn.kind === 'compact' ? system : deps.context(sessionId, system, signal)
+        systemPrompts: async () => [systemText, (await instructions.promise).initial].filter((text) => text !== ''),
+        context: async (request, signal) => {
+          const event = await deps.context(
+            turn.kind === 'compact' ? 'compaction' : 'context',
+            {
+              sessionId,
+              model: {id: config.adapter.model, providerId: harness.id, ...(own?.effort ? {variant: own.effort} : {})},
+              system: request.system.map((text) => ({type: 'text', text})),
+              messages: request.messages,
+              options: request.options,
+              tools: request.tools,
+            },
+            signal,
+          )
+          return {
+            system: event.system.map((part) => part.text),
+            messages: event.messages,
+            options: event.options,
+            tools: event.tools,
+          }
         },
         tools: toolSet,
         setup: async () => {
