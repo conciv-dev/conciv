@@ -1,0 +1,11 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["@conciv/plugin#build", "@conciv/protocol#build", "@conciv/ui-kit-system#build"]
+    },
+    "typecheck": {
+      "dependsOn": ["@conciv/plugin#build", "@conciv/protocol#build", "@conciv/ui-kit-system#build"]
+    }
+  }
+}

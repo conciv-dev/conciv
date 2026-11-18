@@ -82,6 +82,9 @@ import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
+import {compose} from '@conciv/plugin/experimental/host'
+import tryIt from '@conciv/plugin-try-it'
+import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {
   createChat,
   createChatSession,
@@ -3779,6 +3782,43 @@ describe('panel connect', () => {
 
     await expectRetryRecovers(() => coreControl.releaseFault(refused), editor, serverError)
   }, 30_000)
+})
+
+function tryItPlugins(token: string): ComposedPlugin[] {
+  return compose({'try-it': {windowEntry: async () => ({default: (ctx: never) => tryIt.setup?.(ctx)})}}).map(
+    (entry): ComposedPlugin => [entry, {token, probeMs: 100, holdMs: 2_000}],
+  )
+}
+
+describe('server cover', () => {
+  const core = bootedCore('server-cover')
+  const harness = createShellHarness(core)
+
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.closeConnectForward()
+  })
+
+  const panel = () => page.getByRole('dialog', {name: 'conciv chat agent'})
+  const connectSteps = () => panel().getByText('Drive this page with your agent.')
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+
+  test('a composed plugin covers the panel until its server is ready, then the panel binds to it in place', async () => {
+    const token = new URL(core()).pathname.split('/')[2] ?? ''
+    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token)})
+
+    await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
+    await expect.element(panel().getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await coreControl.forwardConnectPort()
+
+    await expect.element(panel().getByText('Agent connected', {exact: true}), {timeout: 10_000}).toBeVisible()
+    await expect.element(editor(), {timeout: 15_000}).toBeVisible()
+    await expect.element(panel().getByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
+    await expect.element(connectSteps()).not.toBeInTheDocument()
+    await expect.element(panel()).toBeVisible()
+  }, 60_000)
 })
 
 describe('panel escape', () => {

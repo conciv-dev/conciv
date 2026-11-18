@@ -68,6 +68,7 @@ export function EngineOutdatedNotice(): JSX.Element {
 export function engineVersionQueryOptions(apiBase: string) {
   return {
     queryKey: ['conciv', 'engine-version', apiBase],
+    enabled: apiBase !== '',
     queryFn: async () => (await fetch(`${apiBase}/health`)).headers.get(CONCIV_VERSION_HEADER),
   }
 }

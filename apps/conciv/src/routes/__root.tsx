@@ -165,8 +165,6 @@ function AppRoot() {
     connected: app.connected,
     arrivedFromConnect,
     connectBind,
-    connectMode: app.connectMode,
-    disconnect: app.disconnect,
     grabProvider: app.grabProvider,
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
@@ -196,7 +194,7 @@ function AppRoot() {
           <EngineReachabilityContext.Provider value={reachability}>
             <NoticeContextProvider>
               <DialogProvider>
-                <PluginRoot>
+                <PluginRoot composed={app.plugins} servers={app.servers}>
                   <PluginAttachment>
                     <PluginPanelKeys />
                     <HostApiProvider

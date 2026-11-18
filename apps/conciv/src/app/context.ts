@@ -29,8 +29,6 @@ export type AppContextValue = {
   connected: () => boolean
   arrivedFromConnect: () => boolean
   connectBind: (apiBase: string) => Promise<string>
-  connectMode: boolean
-  disconnect?: () => void
   grabProvider?: GrabProvider
   connectionGeneration: () => number
   apiBase: () => string
@@ -109,10 +107,6 @@ export function useArrivedFromConnect(): () => boolean {
 
 export function useConnectBinding(): {bind: (apiBase: string) => Promise<string>} {
   return useAppScope('useConnectBinding', (app) => ({bind: app.connectBind}))
-}
-
-export function useDisconnect(): {connectMode: boolean; disconnect?: () => void} {
-  return useAppScope('useDisconnect', (app) => ({connectMode: app.connectMode, disconnect: app.disconnect}))
 }
 
 export function useGrabProvider(): GrabProvider | undefined {

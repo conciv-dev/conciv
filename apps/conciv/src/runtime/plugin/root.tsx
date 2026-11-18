@@ -11,6 +11,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import type {Entry} from '@conciv/plugin/experimental/host'
+import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase, useAppData} from '../../app/context'
@@ -21,6 +22,7 @@ import {PluginHostProvider, usePluginHost} from './host'
 import type {InstalledSource} from './startup'
 import {createPluginAttachment, createHostApis, PluginAttachmentProvider} from './host-apis'
 import {HostApisProvider, useHostApis} from './host-apis-context'
+import {PluginServersProvider} from './servers'
 import {createContext, useContext} from 'solid-js'
 
 const PluginsContext = createContext<{
@@ -66,11 +68,16 @@ export function usePluginsKnown() {
   })
 }
 
-export function PluginRoot(props: ParentProps) {
+export type ComposedPlugin = readonly [plugin: Entry, options: PluginOptions]
+
+export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin[]; servers: boolean}>) {
   const apis = createHostApis()
-  const apiBase = untrack(useApiBase())
+  const apiBase = useApiBase()
+  const mountedBase = untrack(apiBase)
+  const boundBase = () => (props.servers ? apiBase() : mountedBase)
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
+  const composed = untrack(() => props.composed)
   const trusted = createMemo(() => {
     const engine = login()
 
@@ -84,10 +91,10 @@ export function PluginRoot(props: ParentProps) {
   first.promise.catch(() => undefined)
 
   const bundle = createMemo(
-    on(trusted, (isTrusted) => {
-      if (!isTrusted) return
+    on([trusted, boundBase], ([isTrusted, base]) => {
+      if (!isTrusted || (props.servers && base === '')) return
 
-      const created = createBundleSource({client: apis.engine.client, apiBase})
+      const created = createBundleSource({client: apis.engine.client, apiBase: base})
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
@@ -133,14 +140,14 @@ export function PluginRoot(props: ParentProps) {
   }>({settled: false, plugins: [], reserved: []})
 
   const definitions = createMemo<readonly Entry[]>(
-    () => [...builtins, ...loaded().plugins.map((plugin) => plugin.definition)],
+    () => [...builtins, ...composed.map(([plugin]) => plugin), ...loaded().plugins.map((plugin) => plugin.definition)],
     [],
     {
       equals: (a, b) => a.length === b.length && a.every((definition, index) => definition === b[index]),
     },
   )
 
-  const builtinIds = new Set(builtins.map((builtin) => builtin.id))
+  const builtinIds = new Set([...builtins, ...composed.map(([plugin]) => plugin)].map((builtin) => builtin.id))
 
   return (
     <HostApisProvider value={apis}>
@@ -165,8 +172,10 @@ export function PluginRoot(props: ParentProps) {
       >
         <PluginHostProvider
           definitions={definitions}
-          installed={installed}
+          installed={props.servers ? undefined : installed}
           builtins={builtinIds}
+          servers={props.servers}
+          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1]}
           apis={apis.apis}
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
@@ -177,7 +186,7 @@ export function PluginRoot(props: ParentProps) {
               <PluginHotReload />
             </Suspense>
           )}
-          {props.children}
+          <PluginServersProvider servers={props.servers}>{props.children}</PluginServersProvider>
         </PluginHostProvider>
       </PluginsContext.Provider>
     </HostApisProvider>
