@@ -56,11 +56,11 @@
   },
   "devDependencies": {
     "@conciv/cli": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/unplugin": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",

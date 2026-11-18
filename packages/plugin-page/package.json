@@ -45,6 +45,7 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@jridgewell/trace-mapping": "catalog:",
+    "effect": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"
   },

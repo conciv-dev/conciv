@@ -37,6 +37,7 @@ import {
   browserRpcConnection,
   cappedValue,
   heldBrowserRpcLink,
+  createClientSettings,
   makeBrowserRpcClient,
   makeRpcClient,
   safeStringify,
@@ -44,6 +45,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
   type HeldBrowserRpcLink,
+  type SettingsStore,
   type TrustStatus,
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
@@ -64,15 +66,7 @@ import {
   type ConcivDb,
 } from '@conciv/db'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {
-  createClientSettings,
-  defineTool,
-  defineExtension,
-  makeExtRpcClient,
-  type AnyExtension,
-  type ExtensionScope,
-  type SettingsStore,
-} from '@conciv/extension'
+import {defineTool, defineExtension, makeExtRpcClient, type AnyExtension, type ExtensionScope} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
 import {

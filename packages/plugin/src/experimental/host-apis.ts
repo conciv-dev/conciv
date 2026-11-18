@@ -853,6 +853,15 @@ export interface UiPopoverProps {
   readonly children: JSX.Element
 }
 
+export interface UiRelativeTimeProps {
+  readonly value: Date
+}
+
+export interface UiAvatarProps {
+  readonly name: string
+  readonly src?: string
+}
+
 export interface UiSwitchProps {
   readonly checked: boolean
   readonly onChange: (checked: boolean) => void
@@ -1081,6 +1090,30 @@ export interface Ui {
    * ```
    */
   Popover(props: UiPopoverProps): JSX.Element
+  /**
+   * How long ago, or how far ahead, a moment is, in the app's short form such as `3d ago`, the way the session list
+   * shows when a session was edited.
+   *
+   * @param props - The moment as `value`, worked out against the time it renders.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.RelativeTime value={new Date(comment.createdAt)} />
+   * ```
+   */
+  RelativeTime(props: UiRelativeTimeProps): JSX.Element
+  /**
+   * A person's round avatar: their image, or their initials while there is none or it fails to load.
+   *
+   * @param props - The person's name, read as the avatar's accessible name and the source of its initials, and an
+   *   optional image `src`.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.Avatar name={comment.author} src={comment.authorImage} />
+   * ```
+   */
+  Avatar(props: UiAvatarProps): JSX.Element
   /**
    * An on/off switch with a label.
    *

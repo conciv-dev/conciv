@@ -7,13 +7,14 @@ import fsDriver from 'unstorage/drivers/fs'
 import {debounce} from 'devframe/utils/debounce'
 import {createSharedState} from 'devframe/utils/shared-state'
 import {z} from 'zod'
-import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/contract'
 import {
+  SettingsNamespaceSchema,
   createSettingsStore,
-  type ExtensionScope,
-  type SettingsForNamespace,
+  type SettingsScope,
+  type SettingsSnapshot,
   type SettingsState,
-} from '@conciv/extension'
+} from '@conciv/contract'
+import type {ExtensionScope, SettingsForNamespace} from '@conciv/extension'
 
 const WRITE_DEBOUNCE_MS = 100
 
