@@ -1,6 +1,7 @@
 import {Plugin, type Rpc} from '@conciv/plugin/effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
-import {Effect, FileSystem, Layer, Path, Queue, Stream, type Scope} from 'effect'
+import {Data, Effect, FileSystem, Layer, Path, Queue, Stream} from 'effect'
+import {z} from 'zod'
 import {MAX_FILE_BYTES, Recorder, recorderConfig, type RecorderConfig} from './rpc.js'
 import * as CaptureControlModel from './capture-control.js'
 import {CaptureControl} from './capture-control.js'
@@ -14,6 +15,8 @@ import {ClientRings} from './rings.js'
 import {readVideoPiece, renderVideoFile} from './video.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
+
+const ConfigInvalid = Data.TaggedError('RecorderConfigInvalid')<{readonly message: string}>
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
 
@@ -105,11 +108,13 @@ function servicesLayer(config: RecorderConfig, directory: string) {
   )
 }
 
-export default Plugin.define<Scope.Scope | FileSystem.FileSystem | Path.Path>({
+export default Plugin.define<Plugin.Services, InstanceType<typeof ConfigInvalid>>({
   id: 'recorder',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
+      const parsed = recorderConfig.safeParse(ctx.options)
+      if (!parsed.success) return yield* Effect.fail(new ConfigInvalid({message: z.prettifyError(parsed.error)}))
+      const config = parsed.data
       const path = yield* Path.Path
       const services = yield* Layer.build(servicesLayer(config, recordingsDirectory(path, ctx.location.directory)))
       yield* Effect.gen(function* () {

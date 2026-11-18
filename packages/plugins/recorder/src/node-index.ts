@@ -13,6 +13,7 @@ export type SerializedNode = {
   readonly publicId?: string
   readonly systemId?: string
   readonly childNodes?: readonly SerializedNode[]
+  readonly shadowed?: boolean
 }
 
 const serializedNode: z.ZodType<SerializedNode> = z.lazy(() =>
@@ -82,24 +83,28 @@ function selectorish(node: SerializedNode): string {
   return `${node.tagName ?? 'node'}${idPart}`
 }
 
-function findNode(nodes: NodeIndex, id: number): SerializedNode | undefined {
+function pathTo(nodes: NodeIndex, id: number): readonly SerializedNode[] | undefined {
   for (const node of nodes) {
-    if (node.id === id) return node
-    const found = findNode(node.childNodes ?? [], id)
-    if (found) return found
+    if (node.id === id && !node.shadowed) return [node]
+    const below = pathTo(node.childNodes ?? [], id)
+    if (below) return [node, ...below]
   }
   return undefined
 }
 
+function findNode(nodes: NodeIndex, id: number): SerializedNode | undefined {
+  return pathTo(nodes, id)?.at(-1)
+}
+
 function withoutNode(nodes: NodeIndex, id: number): NodeIndex {
   return nodes
-    .filter((node) => node.id !== id)
+    .filter((node) => node.id !== id || node.shadowed)
     .map((node) => (node.childNodes ? {...node, childNodes: withoutNode(node.childNodes, id)} : node))
 }
 
 function updateNode(nodes: NodeIndex, id: number, change: (node: SerializedNode) => SerializedNode): NodeIndex {
   return nodes.map((node) => {
-    if (node.id === id) return change(node)
+    if (node.id === id && !node.shadowed) return change(node)
     return node.childNodes ? {...node, childNodes: updateNode(node.childNodes, id, change)} : node
   })
 }
@@ -108,16 +113,29 @@ function appendChild(nodes: NodeIndex, parentId: number, child: SerializedNode):
   return updateNode(nodes, parentId, (parent) => ({...parent, childNodes: [...(parent.childNodes ?? []), child]}))
 }
 
+function subtreeIds(node: SerializedNode): readonly number[] {
+  return [node.id, ...(node.childNodes ?? []).flatMap(subtreeIds)]
+}
+
+function shadow(nodes: NodeIndex, ids: readonly number[], added: SerializedNode): NodeIndex {
+  return nodes.map((node) => {
+    if (node === added) return node
+    const marked = !node.shadowed && ids.includes(node.id) ? {...node, shadowed: true} : node
+    return marked.childNodes ? {...marked, childNodes: shadow(marked.childNodes, ids, added)} : marked
+  })
+}
+
 type Mutation = z.infer<typeof mutationData>
 
 function applyAdd(index: NodeIndex, add: Mutation['adds'][number]): NodeIndex {
-  const parent = add.parentId === undefined ? undefined : findNode(index, add.parentId)
+  const parentPath = add.parentId === undefined ? undefined : pathTo(index, add.parentId)
+  const parent = parentPath?.at(-1)
   const existing = findNode(index, add.node.id)
-  if (parent && existing && sameMeta(existing, add.node) && !findNode([existing], parent.id))
+  const insideExisting = parentPath?.some((node) => node.id === add.node.id) ?? false
+  if (parent && existing && sameMeta(existing, add.node) && !insideExisting)
     return appendChild(withoutNode(index, existing.id), parent.id, existing)
-  const cleared = existing ? withoutNode(index, existing.id) : index
-  if (!parent) return [...cleared, add.node]
-  return appendChild(cleared, parent.id, add.node)
+  const placed = parent ? appendChild(index, parent.id, add.node) : [...index, add.node]
+  return shadow(placed, subtreeIds(add.node), add.node)
 }
 
 export function applyFullSnapshot(root: unknown): NodeIndex {
