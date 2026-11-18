@@ -40,7 +40,7 @@ export function Contribution(props: {
   const host = usePluginHost()
 
   return (
-    <Show when={host.context(props.plugin)} keyed>
+    <Show when={host.context(props.plugin)} keyed fallback={props.fallback?.()}>
       {(context) => (
         <ErrorBoundary
           fallback={(error) => {

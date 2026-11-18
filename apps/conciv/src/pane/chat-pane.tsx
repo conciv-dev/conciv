@@ -86,7 +86,11 @@ import {Contribution} from '../runtime/plugin/render'
 const PAGE_SESSION: PageSessionConfig = {
   entry: {
     key: pageSessionEntry.key,
-    render: (props) => <Contribution plugin="page">{() => pageSessionEntry.render(props)}</Contribution>,
+    render: (props) => (
+      <Contribution plugin="page" fallback={() => props.children}>
+        {() => pageSessionEntry.render(props)}
+      </Contribution>
+    ),
   },
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,

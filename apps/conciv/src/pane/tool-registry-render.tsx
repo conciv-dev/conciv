@@ -1,4 +1,4 @@
-import {createMemo, type JSX} from 'solid-js'
+import {createMemo, mapArray, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {keyBy, mapValues} from 'es-toolkit'
 import {ToolRegistry, type ToolComponent, type ToolProps} from '@conciv/plugin/experimental'
@@ -25,10 +25,19 @@ export function createToolRender(): ToolRender {
   const host = usePluginHost()
   const known = usePluginsKnown()
   const reachability = useEngineReachability()
+  const wrapped = createMemo(
+    mapArray(
+      () => host.items(ToolRegistry),
+      (item) => ({
+        name: item.value.name,
+        render: item.value.render === undefined ? undefined : contributed(item, item.value.render),
+      }),
+    ),
+  )
   const renders = createMemo(() =>
     mapValues(
-      keyBy(host.items(ToolRegistry), (item) => item.value.name),
-      (item) => (item.value.render === undefined ? undefined : contributed(item, item.value.render)),
+      keyBy(wrapped(), (entry) => entry.name),
+      (entry) => entry.render,
     ),
   )
   return {
