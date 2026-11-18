@@ -3099,6 +3099,9 @@ importers:
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -3585,6 +3588,9 @@ importers:
 
   packages/extensions/tanstack:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension

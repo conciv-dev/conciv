@@ -7,8 +7,7 @@ import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types
 import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
-import type {Settings} from '@conciv/contract'
+import type {RawFrame, Settings, SourceLoc} from '@conciv/contract'
 import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 
 export type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'

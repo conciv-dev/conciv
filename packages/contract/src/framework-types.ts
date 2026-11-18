@@ -1,4 +1,4 @@
-import type {SourceLoc} from './page-introspect-types.js'
+import type {SourceLoc} from './source-location.js'
 
 export type FrameworkName = 'nextjs' | 'tanstack-start' | 'vue' | 'solid-start' | 'astro'
 

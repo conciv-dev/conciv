@@ -10,7 +10,7 @@ to the plugin host as a post built-in and asks it over that RPC whenever it need
 
 - default export (`index.ts`): the engine plugin `conciv.page`
 - `symbolicateFrame` / `symbolicateFrames` (`symbolicate.ts`, internal): map frames (`RawFrame`) to original source
-  (`SourceLoc`, both from `@conciv/protocol/page-introspect-types`) with @jridgewell/trace-mapping; the `symbolicate`
+  (`SourceLoc`, both from `@conciv/contract`) with @jridgewell/trace-mapping; the `symbolicate`
   method answers with `symbolicateFrames`
 - `Definition` (`rpc.ts`, `./rpc`): the RPC `experimental.page` with `symbolicate` alone
 - `CliTools` (`rpc.ts`, `./rpc`): per operation, the terminal shape and its `view` (icon and running/done label), the one source the engine catalog (`pluginSignatures`) and the pane's `builtinToolMeta` read
