@@ -1,0 +1,25 @@
+Transcript provenance (per plan 07 section 5, re-record on Xcode major bumps).
+
+Supported Xcode matrix: 26.x
+Re-recorded 2026-07-24 on Xcode 26.6 (Build 17F113), simulator runtime iOS 26.5 (23F77).
+  captured with: DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+
+simctl-list.json
+  RECORDED LIVE with `xcrun simctl list -j devices` on Xcode 26.6, iPhone 17 Pro booted.
+  The only redaction is the home-directory username in dataPath/logPath (public-repo hygiene):
+  /Users/<user> -> /Users/dev. All keys, udids, states, and structure are the real simctl shape,
+  which is why the tool parser ignores the extra fields (lastBootedAt, dataPathSize, ...).
+
+swiftc-error.txt
+  RECORDED LIVE (Apple Swift 6.3.3 via Command Line Tools swiftc, captured before Xcode.app was installed).
+  Still a real swiftc diagnostic block; kept as-is.
+
+xcodebuild-error.txt     HAND-AUTHORED in the canonical xcodebuild diagnostic + BUILD FAILED shape.
+xcodebuild-settings.json HAND-AUTHORED in the canonical `xcodebuild -showBuildSettings -json` shape.
+log-show.txt             HAND-AUTHORED in the canonical `simctl spawn ... log show --style compact` shape.
+
+The three remaining hand-authored transcripts each need a real, fully-configured iOS app project to
+reproduce (a real xcodebuild build failure needs a scheme; -showBuildSettings and a matching log show
+need a booted app emitting the exact CONCIV_URL lines the tests assert). They match the canonical output
+shapes and are cheaper to keep hand-authored than to stand up a throwaway app; re-record them from a
+machine with a conciv-integrated demo app when one is available.

@@ -12,6 +12,11 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {createFlusher} from '../src/client/flusher.js'
 import {MAX_FLUSH_BYTES} from '../src/protocol.js'
+import {createCaptureControl} from '../src/capture-control.js'
+import {createRecordingStore} from '../src/recordings.js'
+import {createClientRings} from '../src/rings.js'
+import {pullWindow, type RecorderRuntime} from '../src/runtime.js'
+import {createChromiumRenderer} from '../src/render.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -487,6 +492,7 @@ describe('the recording tools', () => {
       'external_recording_stop',
       'external_recording_pull',
     ])
+    for (const tool of discovered.tools) expect(tool.description).toContain('recording')
 
     expect(await toolFailure(useTool(kit, 'start'))).toBe(
       'no page client attached within 5s; the app page with the widget must be open to record',
@@ -574,6 +580,53 @@ describe('the recording tools', () => {
           : [],
       ),
     )
+  })
+})
+
+describe('a keyframe render with no full snapshot', () => {
+  it('renders no keyframes from a stream that holds no full snapshot', async () => {
+    const renderer = await createChromiumRenderer()
+    if (!renderer) throw new Error('the Chromium renderer did not launch')
+    onTestFinished(() => renderer.dispose())
+    const events = [
+      {type: 4, data: {href: 'http://localhost/app', width: 640, height: 480}, timestamp: 1000},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+    ]
+    expect(await renderer.render(events, [2000])).toEqual([])
+  })
+})
+
+describe('a recording pulled with no renderer', () => {
+  it('holds the text log and no image when the renderer fails', async () => {
+    const rings = createClientRings({windowMs: 60_000})
+    const runtime: RecorderRuntime = {
+      rings,
+      control: createCaptureControl(rings),
+      config: {masking: 'none', windowMinutes: 1, console: true},
+      useRenderer: () => Promise.reject(new Error('no browser to render with')),
+      recordings: createRecordingStore(tempDir('conciv-recorder-no-renderer-')),
+    }
+    rings.append('no-renderer', [
+      {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1000},
+      {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Buy')])}, timestamp: 1001},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+    ])
+    const parts = await pullWindow(runtime, 0, 3000, 2)
+    expect(parts.output).toContain('Buy')
+    expect(parts.output).toMatch(/\(keyframes skipped: no renderer available\)$/)
+    expect(parts.content.every((part) => part.type === 'text')).toBe(true)
+  })
+})
+
+describe('a saved recording that fits the size cap', () => {
+  it('is kept whole, also with a fresh full snapshot at its tail', async () => {
+    const kit = await bootRecorder()
+    const base = Date.now()
+    const snapshot = (timestamp: number): RrwebEvent => ({type: 2, data: {node: pageFixture([])}, timestamp})
+    const click = (timestamp: number): RrwebEvent => ({type: 3, data: {source: 2, type: 2, id: 3}, timestamp})
+    const events = [snapshot(base), click(base + 1), click(base + 2), snapshot(base + 3)]
+    const saved = await flushAndSave(kit, 'tail-snapshot', events)
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events})
   })
 })
 
