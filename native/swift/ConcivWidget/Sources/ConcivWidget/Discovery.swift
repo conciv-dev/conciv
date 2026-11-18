@@ -54,7 +54,7 @@ public enum ConcivDiscovery {
     apiBase.appendingPathComponent("native")
   }
 
-  // Health check mirrors probeCore (packages/extensions/try-it/src/shared/probe.ts):
+  // Health check mirrors probeCore (packages/plugins/try-it/src/connect/probe.ts):
   // GET apiBase/health, token-scoped when apiBase carries /t/<token>.
   public static func healthURL(for apiBase: URL) -> URL {
     apiBase.appendingPathComponent("health")
