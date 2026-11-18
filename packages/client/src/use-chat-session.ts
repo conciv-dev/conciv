@@ -7,6 +7,7 @@ export type {ChatSession} from '@conciv/ai/client'
 
 export type UseChatSessionOptions = {
   rpc: RpcClient
+  apiBase: string
   sessionId: string
   connection?: ChatConnectionOptions
   onError?: (error: Error) => void
@@ -17,7 +18,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     sessionId: options.sessionId,
     onError: options.onError,
     connect: (session) =>
-      chatConnection(options.rpc, options.sessionId, {
+      chatConnection(options.rpc, options.apiBase, options.sessionId, {
         ...options.connection,
         onLifecycle: (lifecycle) => {
           options.connection?.onLifecycle?.(lifecycle)

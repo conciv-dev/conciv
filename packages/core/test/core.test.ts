@@ -785,6 +785,57 @@ describe('chat plane', () => {
     expect(await announced()).toBe('late-push-run')
   }, 10_000)
 
+  it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const db = openDatabase(root)
+    const primitives = makeSessionPrimitives({db, root, storeCapture: () => Promise.resolve()})
+    const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const chat = await plane(cliHarness(fakeCli()), root, {
+      db,
+      sessions: {
+        ...sessionPort(),
+        onRunStart: async () => {
+          starting.entered.resolve()
+          await starting.held.promise
+        },
+        publish: (id, chunk) => primitives.stream.publish(id, chunk),
+      },
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: chat,
+      db,
+      model: () => null,
+      staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
+      interruptIdle: async () => false,
+      symbolicate: async () => null,
+    })
+    const id = sessionId('registering-as-a-run-starts')
+    const turn = startTurn(chat, id, 'racing-run', 'hi')
+    await starting.entered.promise
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const announced: string[] = []
+    const caughtUp = Promise.withResolvers<void>()
+    async function collect(): Promise<void> {
+      for await (const chunk of runtime.forSession(id).stream.events(abort.signal)) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run === null) continue
+        announced.push(run.runId)
+        caughtUp.resolve()
+      }
+    }
+    const collecting = collect()
+
+    await caughtUp.promise
+    expect(announced).toEqual(['racing-run'])
+    starting.held.resolve()
+    expect(await readUntil(await turn, 'end')).toContain(ChatEventType.RUN_FINISHED)
+    abort.abort()
+    await collecting
+    expect(announced).toEqual(['racing-run'])
+  }, 10_000)
+
   it('a page query goes to the browser tab focused last, each tab learning its id from the ready its stream opens with', async () => {
     const reader = defineExtension({
       name: 'focus-probe',

@@ -46,7 +46,7 @@ describe('chat client', () => {
   ): {client: ChatClient; observed: Observed} {
     const observed: Observed = {messages: [], generating: false}
     const client = new ChatClient({
-      connection: chatConnection(makeRpcClient(base), sessionId),
+      connection: chatConnection(makeRpcClient(base), base, sessionId),
       threadId: sessionId,
       persistence: true,
       onMessagesChange: (messages) => {
@@ -185,7 +185,7 @@ describe('chat connection', () => {
     kit = clientKit
     const sessionId = await clientKit.session()
     const rpc = makeRpcClient(clientKit.base)
-    return {rpc, sessionId, connection: chatConnection(rpc, sessionId)}
+    return {rpc, sessionId, connection: chatConnection(rpc, clientKit.base, sessionId)}
   }
 
   async function runTurn(runId: string, parts: ChatMessage['parts'], extra: ChatMessage[] = []) {
@@ -244,7 +244,7 @@ describe('chat connection', () => {
       const sessionId = await clientKit.session()
       const browser = makeBrowserRpcClient(clientKit.base)
       try {
-        const connection = chatConnection(browser.rpc, sessionId)
+        const connection = chatConnection(browser.rpc, clientKit.base, sessionId)
         const watcher = watch(connection)
         await sendTurn(connection, sessionId, 'over-the-socket')
         await watcher.finished
@@ -269,7 +269,7 @@ describe('chat connection', () => {
       const server = await breakingEventsServer()
       const errors: Error[] = []
       const client = new ChatClient({
-        connection: chatConnection(makeRpcClient(server.base), 'conciv_breaking'),
+        connection: chatConnection(makeRpcClient(server.base), server.base, 'conciv_breaking'),
         threadId: 'conciv_breaking',
         onError: (error) => errors.push(error),
       })
@@ -315,7 +315,7 @@ describe('chat connection', () => {
         return {frames: [{type: ChatEventType.RUN_STARTED, threadId, runId}, ...frames], ending: 'ended'}
       })
       const runErrors: string[] = []
-      const connection = chatConnection(makeRpcClient(server.base), threadId, {
+      const connection = chatConnection(makeRpcClient(server.base), server.base, threadId, {
         onRunError: () => runErrors.push('run error'),
       })
       const collectLast = async (runId: string) => {
@@ -360,7 +360,7 @@ describe('chat connection', () => {
       const clientKit = await bootClientKit()
       kit = clientKit
       const sessionId = await clientKit.session()
-      const connection = chatConnection(makeRpcClient(clientKit.base), sessionId)
+      const connection = chatConnection(makeRpcClient(clientKit.base), clientKit.base, sessionId)
       clientKit.gate.hold()
       const warming = await clientKit.turn('fan-out-0', {session: sessionId, runId: 'fan-out-0'})
       await warming.waitForRunStart()
@@ -477,7 +477,7 @@ describe('chat reconnect', () => {
       const clientKit = await bootClientKit()
       kit = clientKit
       const sessionId = await clientKit.session()
-      const connection = chatConnection(makeRpcClient(clientKit.base), sessionId)
+      const connection = chatConnection(makeRpcClient(clientKit.base), clientKit.base, sessionId)
 
       const before = new AbortController()
       const firstRun = collect(connection.subscribe(before.signal))
@@ -538,7 +538,7 @@ describe('chat refresh', () => {
     it('serves the transcript the server leads, including a turn this client never sent', async () => {
       kit = await bootClientKit()
       const sessionId = await kit.session()
-      const connection = chatConnection(makeRpcClient(kit.base), sessionId)
+      const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
 
       expect(userTexts((await connection.refresh()).messages)).toBe('[]')
 
@@ -555,7 +555,7 @@ describe('chat refresh', () => {
         const turn = await kit.turn(text, {session: sessionId, runId: `paged-${index}`})
         await turn.done()
       }
-      const connection = chatConnection(makeRpcClient(kit.base), sessionId)
+      const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
 
       const newest = await connection.hydrate(sessionId, {limit: 2})
       expect(userTexts(newest.messages)).toContain('second')
@@ -571,7 +571,7 @@ describe('chat refresh', () => {
     it('refreshes without ever opening a stream', async () => {
       kit = await bootClientKit()
       const sessionId = await kit.session()
-      const connection = chatConnection(makeRpcClient(kit.base), sessionId)
+      const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
       const seen: ChatEvent[] = []
       const abort = new AbortController()
       void (async () => {
@@ -588,19 +588,12 @@ describe('chat refresh', () => {
 })
 
 describe('session streams on the rpc socket', () => {
-  const SETTLE_MS = 150
-  const RECONNECT_MS = 1500
-
   let kit: ClientKit | undefined
 
   afterEach(async () => {
     await kit?.cleanup()
     kit = undefined
   })
-
-  function settled(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
 
   function textReply(text: string): PageReply {
     return {type: 'success', result: {value: {text}, files: []}}
@@ -644,31 +637,41 @@ describe('session streams on the rpc socket', () => {
       const sessionId = await booted.session()
       const browser = makeBrowserRpcClient(booted.base)
       const abort = new AbortController()
-      const connection = chatConnection(makeRpcClient(booted.base), sessionId)
-      const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
-      const warming = nextEvent(events)
-      await settled(SETTLE_MS)
-      await sendTurn(connection, sessionId, 'push-before')
-      const before = await warming
-      if (before.type !== ChatEventType.CUSTOM)
-        throw new Error(`the chat stream served ${before.type}, not a session event`)
-
-      await booted.restartServer()
+      const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
       const seen: ChatEvent[] = []
-      const collecting = (async () => {
-        for await (const chunk of events) seen.push(chunk)
-      })().catch(() => undefined)
-      await settled(RECONNECT_MS)
-      await sendTurn(connection, sessionId, 'push-after')
-      await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
-      const frame = seen[0]
-      if (!frame) throw new Error('the resubscribed chat stream served no session event')
+      const failures: unknown[] = []
+      const collecting: {done: Promise<void>} = {done: Promise.resolve()}
+      try {
+        const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
+        const warming = nextEvent(events)
+        booted.gate.hold()
+        const turningBefore = sendTurn(connection, sessionId, 'push-before')
+        const before = await warming
+        booted.gate.release()
+        await turningBefore
+        expect(sessionRunEvent.parse(before)).toEqual({runId: 'push-before'})
 
-      expect(frame).toMatchObject({type: ChatEventType.CUSTOM, name: before.name})
-      expect(seen).toHaveLength(1)
-      abort.abort()
-      await collecting
-      browser.close()
+        await booted.restartServer()
+        async function collect(): Promise<void> {
+          for await (const chunk of events) seen.push(chunk)
+        }
+        collecting.done = collect().catch((error: unknown) => {
+          if (!abort.signal.aborted || error !== abort.signal.reason) failures.push(error)
+        })
+        booted.gate.hold()
+        const turningAfter = sendTurn(connection, sessionId, 'push-after')
+        await expect.poll(() => ({seen: seen.length, failures}), {timeout: 5_000}).toEqual({seen: 1, failures: []})
+        booted.gate.release()
+        await turningAfter
+
+        expect(seen.map((chunk) => sessionRunEvent.parse(chunk))).toEqual([{runId: 'push-after'}])
+      } finally {
+        booted.gate.release()
+        abort.abort()
+        await collecting.done
+        browser.close()
+      }
+      expect(failures).toEqual([])
     })
 
     it('hands the page plane and the chat stream the one rpc connection of the api base', async () => {
@@ -706,7 +709,7 @@ describe('session streams on the rpc socket', () => {
     async function streamedTurn(booted: ClientKit, runId: string) {
       const sessionId = await booted.session()
       const browser = makeBrowserRpcClient(booted.base)
-      const connection = chatConnection(browser.rpc, sessionId)
+      const connection = chatConnection(browser.rpc, booted.base, sessionId)
       const abort = new AbortController()
       const seen: ChatEvent[] = []
       void (async () => {
@@ -818,7 +821,11 @@ describe('session streams on the rpc socket', () => {
 
       const arriving = nextEvent(events)
       booted.gate.hold()
-      const turning = sendTurn(chatConnection(makeRpcClient(booted.base), sessionId), sessionId, 'after-tab')
+      const turning = sendTurn(
+        chatConnection(makeRpcClient(booted.base), booted.base, sessionId),
+        sessionId,
+        'after-tab',
+      )
       expect(sessionRunEvent.parse(await arriving)).toEqual({runId: 'after-tab'})
       booted.gate.release()
       await turning

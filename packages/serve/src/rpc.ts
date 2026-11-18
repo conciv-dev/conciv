@@ -50,27 +50,18 @@ function failedOnRevoke(
   stream: AsyncIteratorObject<unknown, unknown, void>,
   revoked: AbortSignal,
 ): AsyncIteratorClass<unknown, unknown> {
+  const refused = Promise.withResolvers<never>()
+  refused.promise.catch(() => undefined)
+  const refuse = (): void => refused.reject(revoked.reason)
+  revoked.addEventListener('abort', refuse, {once: true})
+  if (revoked.aborted) refuse()
   return new AsyncIteratorClass(
-    () => nextUnlessRevoked(stream, revoked),
+    () => Promise.race([stream.next(), refused.promise]),
     async () => {
+      revoked.removeEventListener('abort', refuse)
       void stream.return?.()?.catch(() => undefined)
     },
   )
-}
-
-async function nextUnlessRevoked(
-  stream: AsyncIteratorObject<unknown, unknown, void>,
-  revoked: AbortSignal,
-): Promise<IteratorResult<unknown, unknown>> {
-  revoked.throwIfAborted()
-  const refused = Promise.withResolvers<never>()
-  const refuse = (): void => refused.reject(revoked.reason)
-  revoked.addEventListener('abort', refuse, {once: true})
-  try {
-    return await Promise.race([stream.next(), refused.promise])
-  } finally {
-    revoked.removeEventListener('abort', refuse)
-  }
 }
 
 function heldUntilReplied(streams: SocketStreams, replied: Promise<boolean> | undefined): void {

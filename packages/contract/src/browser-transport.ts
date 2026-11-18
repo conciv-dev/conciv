@@ -330,15 +330,18 @@ function socketLink(
     interceptors: [
       async (options) => {
         const sent = state.token
-        const refused = (error: unknown): unknown => {
-          if (error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS) distrust(state, sent)
+        const refused = (error: unknown, credential: string | undefined): unknown => {
+          if (error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS) distrust(state, credential)
           return error
         }
         const output = await options.next().catch((error: unknown) => {
-          throw refused(error)
+          throw refused(error, sent)
         })
         if (!isEventIterator(output)) return output
-        return mapEventIterator(output, {value: async (value) => value, error: async (error) => refused(error)})
+        return mapEventIterator(output, {
+          value: async (value) => value,
+          error: async (error) => refused(error, state.token),
+        })
       },
     ],
     plugins: [retryPlugin(socket, lifetime)],

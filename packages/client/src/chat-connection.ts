@@ -18,7 +18,13 @@ import {
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
-import {type ChatHistoryWindow, type ChatHydration, type RpcClient, type RpcClientContext} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  type ChatHistoryWindow,
+  type ChatHydration,
+  type RpcClient,
+  type RpcClientContext,
+} from '@conciv/contract'
 import {readingValues, relayedValues, type RelaySink} from './stream-relay.js'
 
 export type ChatConnectionOptions = {
@@ -204,6 +210,48 @@ function watching(
   return noticing(merged(sources, abortSignal), options)
 }
 
+function trustedAgain(apiBase: string, signal: AbortSignal): Promise<void> {
+  const {trust, release} = browserRpcConnection(apiBase)
+  if (trust.isTrusted() || signal.aborted) {
+    release()
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => {
+    const settle = (): void => {
+      stopTrust()
+      signal.removeEventListener('abort', settle)
+      release()
+      resolve()
+    }
+    const stopTrust = trust.subscribe((status) => {
+      if (status === 'trusted') settle()
+    })
+    signal.addEventListener('abort', settle)
+  })
+}
+
+function refused(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
+}
+
+async function* sessionEvents(
+  rpc: RpcClient,
+  apiBase: string,
+  sessionId: string,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  while (!signal.aborted) {
+    try {
+      yield* await rpc.chat.events({sessionId}, {signal})
+      return
+    } catch (error) {
+      if (signal.aborted) return
+      if (!refused(error)) throw error
+    }
+    await trustedAgain(apiBase, signal)
+  }
+}
+
 function notice(chunk: ChatEvent, options: ChatConnectionOptions): void {
   const lifecycle = runLifecycleEvent.parse(chunk)
   if (lifecycle) options.onLifecycle?.(lifecycle)
@@ -230,11 +278,16 @@ function lastTurn<Message extends {role: string}>(messages: Message[]): Message[
   )
 }
 
-export function chatConnection(rpc: RpcClient, sessionId: string, options: ChatConnectionOptions = {}): ChatConnection {
+export function chatConnection(
+  rpc: RpcClient,
+  apiBase: string,
+  sessionId: string,
+  options: ChatConnectionOptions = {},
+): ChatConnection {
   const lifetime = new AbortController()
   const turns = overRpc(rpc, sessionId, lifetime.signal)
   const events: SessionEvents = (abortSignal) =>
-    streamed((signal) => rpc.chat.events({sessionId}, {signal}), within(lifetime.signal, abortSignal))
+    sessionEvents(rpc, apiBase, sessionId, within(lifetime.signal, abortSignal))
   const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)

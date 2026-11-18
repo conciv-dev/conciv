@@ -443,6 +443,7 @@ describe('attachment widget', () => {
   }): JSX.Element {
     const chat = useChatSession({
       rpc: makeRpcClient('http://127.0.0.1:9'),
+      apiBase: 'http://127.0.0.1:9',
       sessionId: 'conciv_widget',
     })
     return (
@@ -11485,6 +11486,7 @@ describe('the local draft store', () => {
   function AttachingComposer(props: {store: DraftStore}): JSX.Element {
     const chat = useChatSession({
       rpc: makeRpcClient('http://127.0.0.1:9'),
+      apiBase: 'http://127.0.0.1:9',
       sessionId: 'conciv_widget',
     })
     return (

@@ -123,6 +123,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const openChat = (sessionId: string, apiBase: string, reopened: boolean): ChatSession => {
     const session = useChatSession({
       rpc: deps.rpc,
+      apiBase,
       sessionId,
       onError: () => {
         if (reopened && session.loadFailed()) deps.announce('conciv could not load this conversation. Try again.')
