@@ -1,3 +1,4 @@
+import {Effect} from 'effect'
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, test, vi} from 'vitest'
 import {cdp, page, server, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
@@ -36,6 +37,7 @@ import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/a
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {makeHighlight} from '../src/page/highlight.js'
+import {openSource, type SourceOpener} from '../src/page/open-source.js'
 import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
@@ -1136,6 +1138,46 @@ describe('page effects', () => {
     await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
     await userEvent.keyboard('{/Alt}')
     await expect.element(hint).not.toBeInTheDocument()
+  })
+})
+
+describe('opening an element’s source', () => {
+  it('opens the located source, symbolicates bare frames, and settles a missing source, desktop or launch', async () => {
+    const launched: unknown[] = []
+    const desktop = {
+      launch: async (path: string, position?: {line: number; column?: number}) => void launched.push({path, position}),
+      reveal: undefined,
+      installed: undefined,
+      pick: undefined,
+    }
+    const located = {component: null, stack: [], frames: [], owners: []}
+    const open = (opener: Partial<SourceOpener>) =>
+      Effect.runPromise(
+        openSource(
+          {locate: async () => located, symbolicate: async () => null, desktop, ...opener},
+          document.createElement('div'),
+        ),
+      )
+    const source = {file: 'src/app.tsx', line: 12, column: 4}
+
+    expect(await open({locate: async () => ({...located, source})})).toBe('opened')
+    expect(launched).toEqual([{path: 'src/app.tsx', position: {line: 12, column: 4}}])
+    expect(
+      await open({
+        locate: async () => ({...located, frames: [{fileName: 'http://localhost/app.js', line: 3, column: 9}]}),
+        symbolicate: async () => ({file: 'src/page.tsx', line: 30, column: 2}),
+      }),
+    ).toBe('opened')
+    expect(launched.at(-1)).toEqual({path: 'src/page.tsx', position: {line: 30, column: 2}})
+    expect(await open({})).toBe('no-source')
+    expect(await open({locate: async () => null})).toBe('no-source')
+    expect(await open({locate: async () => ({...located, source}), desktop: undefined})).toBe('failed')
+    expect(
+      await open({
+        locate: async () => ({...located, source}),
+        desktop: {...desktop, launch: () => Promise.reject(new Error('no editor'))},
+      }),
+    ).toBe('failed')
   })
 })
 
