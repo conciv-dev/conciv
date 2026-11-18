@@ -12,10 +12,9 @@ import {
   type Procedure,
 } from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
+import {assertToolName, isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
 import {
-  assertToolName,
   FORBIDDEN_TOOL_SEGMENTS,
-  isToolError,
   type ProjectedToolBinding,
   type ToolBinding,
   type ToolErrors,
@@ -38,7 +37,7 @@ export type {ServerToolRegistryAccess, ServerToolPageAccess} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
-export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>
+export type {RegistryCallGate} from '@conciv/protocol/tool-call-types'
 
 export type RegistryCallContext = {request: ToolRequest; gate?: RegistryCallGate}
 

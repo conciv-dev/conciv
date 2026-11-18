@@ -44,6 +44,8 @@ import {
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
+import {makePaneGrabApi} from '../pane/pane-grab.js'
+import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
@@ -361,6 +363,8 @@ function PanelSession(): JSX.Element {
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
   })
 
+  const paneGrab = makePaneGrabApi(grabStaging, grabProvider)
+
   const coordinator = makeRefreshCoordinator({
     chat,
     liveSessions: useLiveSessions(),
@@ -426,6 +430,7 @@ function PanelSession(): JSX.Element {
 
   return (
     <PaneContext.Provider value={paneValue}>
+      <PaneGrabBinding sessionId={params().sessionId} grab={paneGrab} />
       <header class={RAIL}>
         <Popover.Root
           positioning={{placement: 'bottom-start'}}
