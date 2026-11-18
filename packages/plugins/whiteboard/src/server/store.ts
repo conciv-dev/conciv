@@ -41,9 +41,10 @@ export const StoreError = Schema.TaggedStruct('StoreError', {key: Schema.String,
 export type StoreError = typeof StoreError.Type
 export const RowNotFound = Schema.TaggedStruct('RowNotFound', {id: Schema.String})
 export type RowNotFound = typeof RowNotFound.Type
-export type VersionConflict = {readonly _tag: 'VersionConflict'; readonly current: ElementRow}
-
-const versionConflict = (current: ElementRow): VersionConflict => ({_tag: 'VersionConflict', current})
+const VersionConflict = Schema.TaggedStruct('VersionConflict', {
+  current: Schema.declare((input): input is ElementRow => elementRow.safeParse(input).success),
+})
+export type VersionConflict = typeof VersionConflict.Type
 
 const PENDING_CLAIM_LEASE_MS = 30_000
 const CURSOR_DIGITS = 12
@@ -152,7 +153,7 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
     const writeElement = (scope: ElementScope, row: ElementRow) =>
       Effect.gen(function* () {
         const current = yield* getElement(scope, row.room, row.elementId)
-        if (current && current.version >= row.version) return yield* Effect.fail(versionConflict(current))
+        if (current && current.version >= row.version) return yield* Effect.fail(VersionConflict.make({current}))
         const change: Change = {table: elementTable(scope), room: row.room, key: row.elementId, type: 'upsert', row}
         yield* record(change, storage.set(elementKey(scope, row.room, row.elementId), row))
         return row
