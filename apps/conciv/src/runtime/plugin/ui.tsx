@@ -28,7 +28,6 @@ import {
   type ButtonVariant,
   type LoaderSize,
 } from '@conciv/ui-kit-system'
-import {MentionField} from '@conciv/ui-kit-tap'
 import {ActionRow, Group, SettingsHeader} from '../../settings/settings-ui'
 import {useLayers} from '../../app/context'
 import {icons} from './icons'
@@ -313,17 +312,6 @@ export const ui: Ui = {
         event.preventDefault()
         props.onSubmit(event.currentTarget.value)
       }}
-    />
-  ),
-  MentionField: (props) => (
-    <MentionField
-      ariaLabel={props.label}
-      placeholder={props.placeholder}
-      class={props.class}
-      items={(query) => [...props.items(query)]}
-      onSubmit={(segments) => props.onSubmit(segments)}
-      onReady={(api) => props.onReady?.(api)}
-      onEmptyChange={(empty) => props.onEmptyChange?.(empty)}
     />
   ),
   Select: (props) => (

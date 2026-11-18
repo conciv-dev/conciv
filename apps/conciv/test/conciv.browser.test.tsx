@@ -10201,6 +10201,7 @@ module.exports = {default: {stores: {
       const [density, setDensity] = createSignal('comfortable')
       const [resolved, setResolved] = createSignal(false)
       const [sent, setSent] = createSignal('nothing')
+      const {MentionField} = require('@conciv/ui-kit-tap')
       const people = [{id: 'ada', label: 'Ada Lovelace'}, {id: 'alan', label: 'Alan Turing'}]
       return [
         createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
@@ -10223,8 +10224,8 @@ module.exports = {default: {stores: {
         }),
         line(() => 'Density: ' + density()),
         line(() => 'Show resolved: ' + resolved()),
-        createComponent(ctx.ui.MentionField, {
-          label: 'Reply with a mention',
+        createComponent(MentionField, {
+          ariaLabel: 'Reply with a mention',
           placeholder: 'Reply, @mention someone',
           items: (query) => people.filter((person) => person.label.toLowerCase().includes(query.toLowerCase())),
           onSubmit: (segments) =>
@@ -10501,8 +10502,8 @@ module.exports = {default: {setup(ctx) {
     })
   })
 
-  describe('its ctx.ui.Menu radio and checkbox entries and its ctx.ui.MentionField', () => {
-    test('a radio entry picks one value and a checkbox entry toggles, each shown checked when the menu opens again, and the mention field lists people on @, puts the picked person in the field and sends the mention', async () => {
+  describe('its ctx.ui.Menu radio and checkbox entries', () => {
+    test("a radio entry and a checkbox entry stay checked, and the app's MentionField from @conciv/ui-kit-tap sends a mention", async () => {
       const sessionId = await createSession(coreRpc(coreBase()))
       const menuButton = () => control('View options')
       const radio = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
@@ -10539,7 +10540,7 @@ module.exports = {default: {setup(ctx) {
       await expect.element(page.getByRole('option', {name: 'Ada Lovelace'})).not.toBeInTheDocument()
       await expect.element(field()).toHaveTextContent('hi @Ada Lovelace')
       await userEvent.keyboard('{Enter}')
-      await expect.element(page.getByText('Sent: hi @ada', {exact: false})).toBeVisible()
+      await expect.element(page.getByText('Sent: hi @ada', {exact: true})).toBeVisible()
       await expect.element(field()).toHaveTextContent('')
     })
   })
