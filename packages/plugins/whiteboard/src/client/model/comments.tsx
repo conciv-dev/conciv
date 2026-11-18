@@ -9,7 +9,9 @@ export function CommentsProvider(props: {
   children: JSX.Element
 }): JSX.Element {
   const model = untrack(() => createCommentsModel(props.room))
-  untrack(() => props.bindComments({threadOpen: model.threadOpen, prompting: model.prompting}))
+  untrack(() =>
+    props.bindComments({threadOpen: model.threadOpen, prompting: model.prompting, addComment: model.addComment}),
+  )
   onCleanup(() => props.bindComments(undefined))
   return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }

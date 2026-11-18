@@ -666,7 +666,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, and Escape on a thread stepped to its first closes only the thread', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, Escape on a thread stepped to its first closes only the thread, and a comment the user puts on a page element hides the canvas while picking and composing, brings it back on Escape or with the new thread open, and only toasts while the canvas is closed', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -822,6 +822,38 @@ describe('the comments of the whiteboard plugin', () => {
       await unread.dragTo(composer)
       await composer.click({timeout: 5_000})
       await expect(composer).toBeFocused()
+
+      const rectangle = page.getByRole('radio', {name: /Rectangle/})
+      const commentPill = page.getByRole('button', {name: 'Comment on an element'})
+      const newComment = page.getByRole('dialog', {name: 'New comment'})
+      const commentField = newComment.getByRole('textbox', {name: 'New comment'})
+      const pickedElement = page.getByText('page-bus-ok')
+      await commentPill.click()
+      await expect(rectangle).toBeHidden()
+      await pickedElement.click({force: true})
+      await expect(commentField).toBeFocused()
+      await expect(rectangle).toBeHidden()
+      await page.keyboard.press('Escape')
+      await expect(newComment).toBeHidden()
+      await expect(rectangle).toBeVisible()
+      await commentPill.click()
+      await pickedElement.click({force: true})
+      await commentField.pressSequentially('note over the page')
+      await page.keyboard.press('Enter')
+      await expect(rectangle).toBeVisible()
+      await expect(thread.getByText('note over the page')).toBeVisible()
+      await expect(page.getByRole('button', {name: 'Human comment, open'})).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+      await expect(rectangle).toBeHidden()
+      await commentPill.click()
+      await pickedElement.click({force: true})
+      await commentField.pressSequentially('silent note')
+      await newComment.getByRole('button', {name: 'Add comment'}).click()
+      await expect(page.getByText('Comment added to the whiteboard')).toBeVisible()
+      await expect(rectangle).toBeHidden()
+      await expect(page.getByText('silent note')).toBeHidden()
     } finally {
       await widget.close()
     }

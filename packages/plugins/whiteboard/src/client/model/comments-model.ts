@@ -2,11 +2,12 @@ import {createMemo, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {maxBy} from 'es-toolkit'
-import type {Viewport} from '../../canvas/coords.js'
+import {screenToScene, type Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
 import {useWhiteboardDb} from '../db.js'
 import {
   deleteThreadRows,
+  insertComposedComment,
   detachCommentAnchor,
   insertReply,
   markThreadRead,
@@ -18,7 +19,13 @@ import {createPinDrag} from '../pins/pin-drag.js'
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
 
-export type ChatCover = {threadOpen: Accessor<boolean>; prompting: Accessor<boolean>}
+export type ComposeTarget = {source: {file: string; line: number | null} | null; screen: {x: number; y: number}}
+
+export type ChatCover = {
+  threadOpen: Accessor<boolean>
+  prompting: Accessor<boolean>
+  addComment: (target: ComposeTarget, text: string, reveal: boolean) => void
+}
 
 export function createCommentsModel(room: Accessor<string>) {
   const db = useWhiteboardDb()
@@ -127,6 +134,12 @@ export function createCommentsModel(room: Accessor<string>) {
     const comment = findRoot(cid)
     if (comment) detachCommentAnchor(db, comment)
   }
+  const addComment = (target: ComposeTarget, text: string, reveal: boolean): void => {
+    const cid = crypto.randomUUID()
+    const at = state.viewport ? screenToScene(state.viewport, target.screen.x, target.screen.y) : target.screen
+    insertComposedComment(db, {room: room(), accountId: accountId(), cid, source: target.source, text, at})
+    if (reveal) openThread(cid)
+  }
   const drag = createPinDrag({detachAnchor, movePin, pinButton, closeThread, toggleThread})
 
   return {
@@ -150,6 +163,7 @@ export function createCommentsModel(room: Accessor<string>) {
     movePin,
     detachAnchor,
     isUnread,
+    addComment,
     drag,
     prompting: drag.prompting,
     viewport: () => state.viewport,
