@@ -1169,6 +1169,50 @@ describe('composer completion', () => {
       .toBeVisible()
     await expect.element(page.getByText('items: none')).toBeVisible()
   })
+
+  it('a note staged while the attachments finish stays staged after the send', async () => {
+    const held = Promise.withResolvers<void>()
+    const text = createTextAttachmentAdapter()
+    const adapter: AttachmentAdapter = {...text, send: (attachment) => held.promise.then(() => text.send(attachment))}
+    const [sent, setSent] = createSignal('nothing')
+    let captured: ComposerContextValue | undefined
+    mountView(() => (
+      <ChatHost
+        handlers={{
+          onSend: (_content, draft) => {
+            setSent(JSON.stringify(draft.items))
+          },
+        }}
+      >
+        <ComposerPrimitive.Root attachmentAdapter={adapter}>
+          <ComposerPrimitive.Input aria-label="Message" />
+          <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
+          <ItemsProbe
+            onReady={(context) => {
+              captured = context
+            }}
+          />
+        </ComposerPrimitive.Root>
+        <p>sent: {sent()}</p>
+      </ChatHost>
+    ))
+    if (!captured) throw new Error('expected the composer context to be captured')
+    const composer = captured
+
+    composer.addItem({key: 'note:grab:c=1', value: {comment: 'sent with the message'}})
+    await composer.addAttachment(new File(['body'], 'held.txt', {type: 'text/plain'}))
+    await page.getByRole('textbox', {name: 'Message'}).fill('a message with a held attachment')
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect.element(page.getByRole('button', {name: 'Send'})).toBeDisabled()
+
+    composer.addItem({key: 'note:grab:c=2', value: {comment: 'staged while it finished'}})
+    held.resolve()
+
+    await expect
+      .element(page.getByText('sent: [{"key":"note:grab:c=1","value":{"comment":"sent with the message"}}]'))
+      .toBeVisible()
+    await expect.element(page.getByText('items: note:grab:c=2={"comment":"staged while it finished"}')).toBeVisible()
+  })
 })
 
 describe('composer send morph', () => {

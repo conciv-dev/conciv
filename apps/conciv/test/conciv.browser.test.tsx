@@ -60,7 +60,9 @@ import {
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
 import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
-import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
+import {paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
+import {formatNoteComment, noteComment, promptWithNotes} from '../src/composer/comment-note.js'
+import {contextItemKey} from '../src/composer/note-schema.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
@@ -4631,6 +4633,40 @@ describe('queue strip', () => {
     }
     return {session, stop, attached}
   }
+
+  const item = {
+    type: 'note' as const,
+    origin: 'fixture',
+    commentId: 'c1',
+    label: 'Fixture note',
+    icon: 'terminal',
+    subject: 'the fixture subject',
+    comment: ' make it blue ',
+  }
+
+  test('a queued message whose typed text reads as its note sentence comes back with that text', () => {
+    const sentence = formatNoteComment(noteComment(item, 'make it blue'))
+    const image = {
+      type: 'image' as const,
+      source: {type: 'data' as const, value: btoa('png'), mimeType: 'image/png'},
+    }
+    const draft = {draft: sentence, attachments: [], quote: null, items: [{key: contextItemKey(item), value: item}]}
+    const content = promptWithNotes({content: [{type: 'text', content: sentence}, image]}, draft)
+    if (typeof content === 'string') throw new Error('expected the notes to make structured content')
+    const inserted: string[] = []
+    const files: string[] = []
+    const notes: string[] = []
+
+    putBackInDraft([{id: 'q1', content, createdAt: 0}], {
+      insert: (text) => inserted.push(text),
+      addFile: (file) => files.push(file.type),
+      addItem: (entry) => notes.push(entry.key.split(':c=')[0] ?? ''),
+    })
+
+    expect(inserted).toEqual([sentence])
+    expect(files).toEqual(['image/png'])
+    expect(notes).toEqual(['note:fixture'])
+  })
 })
 
 describe('quick add pane', () => {
@@ -8227,7 +8263,7 @@ module.exports = {default: {stores: {
   ctx.add(NoteCard, {
     origins: ['fixture-drawn'],
     render: (props) => {
-      if (props.note.comment === 'a card it declines') return undefined
+      if (props.note.comment.startsWith('a card it declines')) return undefined
       if (props.note.comment === 'a card that throws') throw new Error('the fixture card failed')
       return Object.assign(document.createElement('p'), {textContent: 'Fixture card: ' + props.note.comment})
     },
@@ -8304,6 +8340,8 @@ module.exports = {default: {stores: {
         props.screen.composer.attach(drawnNote('d2', 'a card it declines'))
         props.screen.composer.attach(drawnNote('d3', 'a card that throws'))
       }),
+      button('Make the failed card decline', () => props.screen.composer.update('d3', {comment: 'a card it declines, then draws'})),
+      button('Make the declined card draw', () => props.screen.composer.update('d3', {comment: 'a card drawn on change'})),
       button('Change the first note', () => props.screen.composer.update('c1', {comment: 'the changed comment'})),
       button('Detach the other note', () => props.screen.composer.detach('c2')),
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
@@ -8691,8 +8729,16 @@ module.exports = {default: {setup(ctx) {
     await expect.element(card('Fixture card: a card it draws')).toBeVisible()
     await expect.element(card('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
     await expect.element(card('a card that throws').getByText('Drawn note', {exact: true})).toBeVisible()
-    await card('a card that throws').getByRole('button', {name: 'Remove a card that throws'}).click()
-    await expect.element(card('a card that throws')).not.toBeInTheDocument()
+    await tab('Fixture tools').click()
+    await control('Make the failed card decline').click()
+    await tab('Chat').click()
+    await expect.element(card('a card it declines, then draws').getByText('Drawn note', {exact: true})).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Make the declined card draw').click()
+    await tab('Chat').click()
+    await expect.element(card('Fixture card: a card drawn on change')).toBeVisible()
+    await card('a card drawn on change').getByRole('button', {name: 'Remove a card drawn on change'}).click()
+    await expect.element(card('a card drawn on change')).not.toBeInTheDocument()
     await expect.element(notes().getByRole('listitem').nth(2)).toBeVisible()
     await expect.element(notes().getByRole('listitem').nth(3)).not.toBeInTheDocument()
     await expect.element(editor()).toHaveFocus()

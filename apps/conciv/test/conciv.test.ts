@@ -144,6 +144,21 @@ describe('draft storage', () => {
     })
   })
 
+  test('two kept drafts written at once both stay, in the order they were kept', async ({kit, core, sessionId}) => {
+    const appData = draftApp(core.base)
+    const note = {key: 'note:fixture:c=1', value: {comment: 'kept with the second line'}}
+
+    await Promise.all([
+      appendDraft(appData, sessionId, 'a first line'),
+      appendDraft(appData, sessionId, 'a second line', [note]),
+    ])
+
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({
+      text: 'a first line\na second line',
+      items: [note],
+    })
+  })
+
   test('the composer items reach the server draft, outlive an appended line and come back on a reload', async ({
     kit,
     core,
