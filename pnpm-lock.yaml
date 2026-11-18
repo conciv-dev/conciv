@@ -4928,6 +4928,9 @@ importers:
 
   packages/plugins/test-runner:
     dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
       zod:
         specifier: 'catalog:'
         version: 4.6.7
