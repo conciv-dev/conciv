@@ -7,7 +7,7 @@ export default Plugin.define({
   id: 'tanstack',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const tanstack = yield* capabilities(ctx.bundler, ctx.location.directory)
+      const tanstack = yield* capabilities(ctx)
       const connection = yield* TanstackConnection.make(ctx, {
         buildErrors: (_input, call) =>
           tanstack

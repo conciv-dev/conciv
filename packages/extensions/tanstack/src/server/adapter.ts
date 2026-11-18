@@ -1,6 +1,6 @@
 import type {z} from 'zod'
 import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
-import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   defineFrameworkAdapter,
   type AppError,
@@ -28,7 +28,7 @@ import {
   RouteNodeSchema,
 } from '../tool/def.js'
 
-type BundlerSubscribe = (listener: (diagnostic: BundlerDiagnostic) => void) => Unsubscribe
+type BundlerSubscribe = (listener: (diagnostic: Bundler.Diagnostic) => void) => Unsubscribe
 
 export type TanstackAdapterDeps = {
   tools: ServerToolRegistryAccess
@@ -39,7 +39,7 @@ export type TanstackAdapterDeps = {
   bundlerSubscribe?: BundlerSubscribe
 }
 
-function toFrameworkEvent(diagnostic: BundlerDiagnostic): FrameworkEvent {
+function toFrameworkEvent(diagnostic: Bundler.Diagnostic): FrameworkEvent {
   if (diagnostic.kind === 'build-error')
     return {kind: 'buildError', at: diagnostic.timestamp, message: diagnostic.message, detail: diagnostic}
   if (diagnostic.kind === 'hmr-update')
