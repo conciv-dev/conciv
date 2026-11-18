@@ -281,12 +281,18 @@ describe('the test card of the test-runner plugin', () => {
         page.getByRole('status').getByText('Test run in progress: 3 passed, 1 failed, 0 skipped', {exact: true}),
       ).toBeAttached({timeout: 60_000})
       await expect(page.getByText('The run has one failing test', {exact: true})).toBeHidden()
+      const failureText = page.getByText('expected 200 to be 401 // Object.is equality')
+      await page.getByText('this fails on purpose', {exact: true}).click()
+      await expect(failureText).toBeVisible()
 
       widget.kit.writeProjectFile('release', '')
       await run
       await expect(
         page.getByRole('status').getByText('Test run finished: 4 passed, 1 failed, 0 skipped', {exact: true}),
       ).toBeAttached({timeout: 60_000})
+      await expect(failureText).toBeVisible()
+      await page.keyboard.press('Enter')
+      await expect(failureText).toBeHidden()
 
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
