@@ -425,6 +425,34 @@ describe('the whiteboard store and its rpc', () => {
       deleted: 2,
     })
     expect(await listElements(kit, room, 'live')).toEqual([])
+
+    await call(kit, 'elements.bulkUpsert', {
+      room,
+      scope: 'live',
+      rows: [
+        {elementId: 'z-bottom', data: {id: 'z-bottom', index: 'a0'}, version: 1},
+        {elementId: 'a-top', data: {id: 'a-top', index: 'a1'}, version: 1},
+      ],
+    })
+    expect(await useTool(kit, 'canvas_read')).toEqual({
+      elements: [
+        {id: 'z-bottom', index: 'a0'},
+        {id: 'a-top', index: 'a1'},
+      ],
+      scope: 'live',
+    })
+    await call(kit, 'elements.upsert', {
+      room,
+      scope: 'live',
+      row: {elementId: 'z-bottom', data: {id: 'z-bottom', index: 'a2'}, version: 2},
+    })
+    expect(await useTool(kit, 'canvas_read')).toEqual({
+      elements: [
+        {id: 'a-top', index: 'a1'},
+        {id: 'z-bottom', index: 'a2'},
+      ],
+      scope: 'live',
+    })
   })
 
   it('lets one tab at a time claim a pending row, and lets a claim that outlived its lease be taken again', async () => {
