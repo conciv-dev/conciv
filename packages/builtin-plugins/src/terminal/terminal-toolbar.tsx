@@ -35,7 +35,7 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
           </ctx.ui.Button>
         </Match>
         <Match when={props.terminal.modelsFailed(props.session.id)}>
-          <ctx.ui.Button variant="danger" size="small" icon="rotate-cw" onClick={() => props.terminal.reloadModels()}>
+          <ctx.ui.Button variant="ghost" size="small" icon="rotate-cw" onClick={() => props.terminal.reloadModels()}>
             Retry
           </ctx.ui.Button>
         </Match>
