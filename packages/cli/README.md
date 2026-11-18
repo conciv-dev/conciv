@@ -125,7 +125,7 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 - `bin.conciv` (`package.json`): ./dist/bin.js
 - `exports['./bin']` (`package.json`): ./dist/bin.js is the only export
 - `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, test, publint, attw
-- `tsdown.config.ts`: entry src/bin.ts, esm, dts false
+- `tsdown.config.ts`: entry src/bin.ts, esm, dts false; every pure-JS dependency is bundled (they are devDependencies), only the native `@ast-grep/napi` stays a runtime dependency (`deps.onlyImport`), and the harness, extensions and agent SDKs are never bundled (`deps.neverBundle`, so reaching one fails the build)
 - `tsconfig.json`: declaration off, matching `dts: false` (the router's inferred route types are not nameable in a .d.ts)
 - `vitest.config.ts`: `ciTest()` from @conciv/vitest-config
 - Subdirectories:
@@ -135,6 +135,7 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 
 - `scripts.build` (`package.json`): dist/bin.js must be made executable or the `conciv` bin will not run
 - `dts: false` (`tsdown.config.ts`): the package exposes a binary and no library API
+- `dependencies` (`package.json`): native addons only; a pure-JS import goes in devDependencies and is bundled, or the build fails on `deps.onlyImport`
 
 ## Side Effects
 
