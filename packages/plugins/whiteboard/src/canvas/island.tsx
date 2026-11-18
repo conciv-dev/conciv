@@ -1,11 +1,11 @@
-import {onCleanup, onMount, type JSX} from 'solid-js'
+import {observable, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {AsyncRetryer, Batcher} from '@tanstack/pacer'
 import type {Transaction} from '@tanstack/solid-db'
-import {Component, createElement, type PropsWithChildren, type ReactNode} from 'react'
+import {Component, createElement, useSyncExternalStore, type PropsWithChildren, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
-import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types'
+import type {ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
@@ -82,10 +82,12 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
+type Theme = 'light' | 'dark'
+
 export function Island(props: {
   mount: HTMLElement
   room: string
-  theme: 'light' | 'dark'
+  theme: Theme
   visible: boolean
   onViewport: (viewport: Viewport) => void
 }): JSX.Element {
@@ -305,6 +307,17 @@ export function Island(props: {
     lifetime.abort()
   })
 
+  const themes = observable(() => props.theme)
+  const subscribeTheme = (onChange: () => void): (() => void) => {
+    const subscription = themes.subscribe(() => onChange())
+    return () => subscription.unsubscribe()
+  }
+  const readTheme = (): Theme => untrack(() => props.theme)
+  const ThemedExcalidraw = (canvasProps: ExcalidrawProps): ReactNode => {
+    const theme = useSyncExternalStore(subscribeTheme, readTheme)
+    return createElement(Excalidraw, {...canvasProps, theme: theme === 'dark' ? THEME.DARK : THEME.LIGHT})
+  }
+
   const renderExcalidraw = (): void => {
     if (!container || !container.isConnected) {
       return reportMountError(new Error('the canvas container never attached to the document'))
@@ -314,11 +327,10 @@ export function Island(props: {
       createElement(
         IslandBoundary,
         {onError: reportMountError},
-        createElement(Excalidraw, {
+        createElement(ThemedExcalidraw, {
           initialData: {elements: [], appState: {viewBackgroundColor: 'transparent'}},
           zenModeEnabled: true,
           viewModeEnabled: false,
-          theme: props.theme === 'dark' ? THEME.DARK : THEME.LIGHT,
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
             api = instance

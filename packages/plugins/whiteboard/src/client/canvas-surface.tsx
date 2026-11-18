@@ -40,12 +40,13 @@ type SurfaceProps = {
 
 function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {canvas: HTMLElement}): JSX.Element {
   const model = useComments()
+  const ctx = usePlugin()
   return (
     <>
       <Island
         mount={props.canvas}
         room={props.room}
-        theme="dark"
+        theme={ctx.appearance.mode()}
         visible={props.visible}
         onViewport={model.setViewport}
       />
