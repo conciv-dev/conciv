@@ -56,9 +56,9 @@ import {
   type ServerApi,
   type ToolMiddleware,
   imageResult,
-  toolError,
   defineAttachment,
 } from '@conciv/extension'
+import {toolError} from '@conciv/protocol/tool-call-types'
 import {openSource} from '@conciv/extension/client'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {createHubConnections} from '@conciv/harness-init/hub'
@@ -8306,7 +8306,7 @@ describe('prefixed serving', () => {
   })
 })
 
-describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', () => {
+describe('session terminal', () => {
   const SHELL = ['--noprofile', '--norc', '-i']
   const BUSY_MODEL = 'busy-model'
   const terminalHarness = (id: string, pidFile: string) => {

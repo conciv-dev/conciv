@@ -18,12 +18,11 @@ import {
   type AttachmentDocumentPart,
   type ContentPart,
   type ExtensionServerTool,
-  type ServerHarness,
   type ServerResult,
-  type ServerSessions,
   type ToolMiddleware,
-  type ToolRequest,
 } from '@conciv/extension'
+import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
+import {assertToolName, type ToolRequest} from '@conciv/protocol/tool-call-types'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
@@ -101,7 +100,6 @@ import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import {grabExpander} from './page/grab-expander.js'
-import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
 import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
