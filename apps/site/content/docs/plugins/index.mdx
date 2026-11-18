@@ -89,21 +89,8 @@ const testRunnerConfig = z.object({
 <Step>
 
 **Setup.** `Plugin.define` names the plugin and runs it when the engine loads it. It adds the tools, a skill and the
-RPC handlers. The test runner is written on the [promise entry](/docs/plugins/engine#the-promise-entry). The same
-steps on the Effect entry, from the recorder plugin:
-
-```ts title="packages/plugins/recorder/src/index.ts"
-export default Plugin.define({
-  id: 'recorder',
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
-      yield* register(ctx, runtime)
-      yield* ctx.skill.transform((editor) => editor.add(info))
-      const registration = yield* registerRpc(ctx.rpc, runtime, announce).pipe(Effect.orDie)
-    }),
-})
-```
+RPC handlers. The test runner is written on the [promise entry](/docs/plugins/engine#the-promise-entry). For the
+Effect form, see [Define the plugin](/docs/plugins/engine#define-the-plugin).
 
 </Step>
 <Step>
