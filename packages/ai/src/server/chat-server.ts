@@ -47,6 +47,11 @@ import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
+import {cloneDeepWith, isPlainObject} from 'es-toolkit'
+
+function requestOptions(options: Record<string, unknown> | undefined): Record<string, unknown> {
+  return cloneDeepWith(options ?? {}, (value) => (Array.isArray(value) || isPlainObject(value) ? undefined : value))
+}
 
 export type ChatStores = {
   messages: MessageStore & {loadMessage: (threadId: string, messageId: string) => Promise<ModelMessage | null>}
@@ -480,7 +485,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             {
               system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
               messages: [...prepared.provider, ...current.messages.slice(prepared.sent)],
-              options: {...plan.modelOptions},
+              options: requestOptions(plan.modelOptions),
               tools: next.tools,
             },
             entry.controller.signal,
