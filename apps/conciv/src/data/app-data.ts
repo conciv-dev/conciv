@@ -66,7 +66,6 @@ export type AppData = {
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (save: DraftSave) => Promise<boolean>
-  endDraftSaves: (sessionId: string) => void
   sessionDeleted: (sessionId: string) => boolean
   forgetGoneDrafts: () => Promise<void>
   forgetLocalDrafts: () => Promise<void>
@@ -237,7 +236,6 @@ export function makeAppData(
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,
-    endDraftSaves,
     forgetGoneDrafts,
     forgetLocalDrafts,
     lockedOut,

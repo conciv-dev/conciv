@@ -5097,7 +5097,7 @@ describe('panel view tabs', () => {
       await expect.element(composer()).toHaveTextContent('one two three four five')
     }, 40_000)
 
-    test('a message sent while a refused save waits for its retry leaves no row and no draft, also after a reload', async () => {
+    test('a message sent while a refused save waits for its retry leaves an emptied row and no draft, also after a reload', async () => {
       const SENT = 'sent while its save waits to be tried again'
       const rpc = coreRpc(coreBase())
       const sessionId = await openNewPanel()
@@ -5127,14 +5127,14 @@ describe('panel view tabs', () => {
       await advanceUntil(async () => (await rpc.sessions.get({sessionId})).lastRunAt !== null, 10)
       await advanceUntil(async () => (await readLocalCopy(sessionId))?.sent.length === 0, 1000)
 
-      expect(await rpc.drafts.get({sessionId})).toBeNull()
+      expect(await rpc.drafts.get({sessionId})).toMatchObject({text: '', attachments: []})
       await expect.element(composer()).not.toHaveTextContent(SENT)
       vi.useRealTimers()
       harness.dispose()
       harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       await expect.element(composer()).not.toHaveTextContent(SENT)
-      expect(await rpc.drafts.get({sessionId})).toBeNull()
+      expect(await rpc.drafts.get({sessionId})).toMatchObject({text: '', attachments: []})
     }, 30_000)
 
     test('a session deleted while its panel is open keeps in its local draft the text on screen when its pane closed, and gets no row', async () => {
