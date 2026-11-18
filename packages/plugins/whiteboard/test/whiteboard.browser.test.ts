@@ -43,7 +43,7 @@ const MOVED_DIAMOND_WRITE = {
 const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
-const PinRows = z.array(z.object({cid: z.string(), pinState: z.string()}).loose())
+const PinRows = z.array(z.object({cid: z.string(), pinState: z.string(), x: z.number(), y: z.number()}).loose())
 const ThreadRead = z.object({
   comment: z.object({status: z.string()}).loose(),
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
@@ -559,6 +559,9 @@ describe('the comments of the whiteboard plugin', () => {
       const readPin = page.getByRole('button', {name: 'AI comment, open', exact: true})
       await expect(readPin).toBeVisible()
 
+      await page.getByRole('button', {name: 'Zoom in'}).click()
+      await page.getByRole('button', {name: 'Zoom in'}).click()
+      await expect(page.getByRole('button', {name: 'Reset zoom'})).toHaveText('120%')
       const dragged = observer.mark()
       await dragPin(page, readPin, {x: 740, y: 410})
       await observer.completed({
@@ -566,6 +569,16 @@ describe('the comments of the whiteboard plugin', () => {
         input: {rpcId: 'whiteboard', method: 'pins.update'},
         since: dragged,
       })
+      const room = await widget.kit.session()
+      const moved = PinRows.parse(
+        await widget.kit.rpc.plugin.call(
+          {rpcId: 'whiteboard', method: 'pins.list', input: {room}},
+          {signal: AbortSignal.timeout(30_000)},
+        ),
+      ).find((row) => row.cid === 'agent-first')
+      const zoomedAroundCenter = (scene: number, center: number): number => center + (scene - center) * 1.2
+      expect(moved?.x).toBeCloseTo(640 + (740 - zoomedAroundCenter(640, 640)) / 1.2, 1)
+      expect(moved?.y).toBeCloseTo(360 + (410 - zoomedAroundCenter(360, 400)) / 1.2, 1)
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
