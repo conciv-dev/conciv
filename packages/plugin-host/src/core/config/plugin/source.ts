@@ -4,7 +4,7 @@ import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
-import {Context, Effect, FiberMap, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
+import {Context, Effect, FiberMap, FileSystem, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
@@ -48,7 +48,7 @@ export const layer = Layer.effect(
     const reloadLock = Semaphore.makeUnsafe(1)
     const watches = yield* FiberMap.make<string>()
     const reconcile = Effect.fn('ConfigPluginSource.reconcileWatches')(function* () {
-      const plan = watchPlan(location.directory, concivDirectory, yield* fs.isDir(concivDirectory))
+      const plan = watchPlan(location.directory, concivDirectory, yield* fs.stat(concivDirectory).pipe(Effect.option))
       for (const key of Array.from(watches, ([key]) => key)) {
         if (!plan.has(key)) yield* FiberMap.remove(watches, key)
       }
@@ -135,11 +135,14 @@ export const empty = Layer.succeed(
   }),
 )
 
-function watchPlan(root: string, concivDirectory: string, present: boolean) {
-  const directory: Watcher.WatchInput = {path: concivDirectory, type: 'directory', ignore: FSUtil.ignoreGlobs}
+function watchPlan(root: string, concivDirectory: string, folder: Option.Option<FileSystem.File.Info>) {
   const entries: Watcher.WatchInput = {path: root, type: 'entries', names: [path.basename(concivDirectory)]}
-  const targets = present ? [directory, entries] : [entries]
-  return new Map(targets.map((target) => [JSON.stringify(target), target]))
+  const entriesWatch: [string, Watcher.WatchInput] = [JSON.stringify(entries), entries]
+  const present = Option.filter(folder, (info) => info.type === 'Directory')
+  if (Option.isNone(present)) return new Map([entriesWatch])
+  const directory: Watcher.WatchInput = {path: concivDirectory, type: 'directory', ignore: FSUtil.ignoreGlobs}
+  const identity = Option.getOrUndefined(Option.map(present.value.ino, String))
+  return new Map([[JSON.stringify({...directory, identity}), directory], entriesWatch])
 }
 
 function isDirectorySource(concivDirectory: string, file: string) {

@@ -80,7 +80,7 @@ describe('ConfigPluginSource', () => {
     5_000,
   )
   it.live(
-    'reports a plugins folder created after start, a plugin folder in it, its deletion and its recreation',
+    'reports a plugins folder created after start, a plugin folder in it, its deletion, its recreation and a plugin added to it again',
     () =>
       Effect.gen(function* () {
         const root = yield* temporaryProject
@@ -106,7 +106,11 @@ describe('ConfigPluginSource', () => {
           const untilSeen = (write: Effect.Effect<void, unknown>, expected: readonly string[]) =>
             Effect.gen(function* () {
               yield* Queue.clear(changes)
-              const writes = yield* write.pipe(Effect.repeat(Schedule.spaced('10 millis')), Effect.forkScoped)
+              const writes = yield* write.pipe(
+                Effect.uninterruptible,
+                Effect.repeat(Schedule.spaced('10 millis')),
+                Effect.forkScoped,
+              )
               return yield* untilState(expected).pipe(Effect.ensuring(Fiber.interrupt(writes)))
             })
           const recreatePlugins = Effect.suspend(() =>
@@ -128,6 +132,8 @@ describe('ConfigPluginSource', () => {
           yield* Queue.clear(changes)
           yield* fs.ensureDir(plugins)
           expect(yield* untilState([])).toEqual([])
+
+          expect(yield* untilSeen(writeAlpha, [alpha])).toEqual([alpha])
         }).pipe(Effect.provide(services(root, [])))
       }),
     5_000,
