@@ -22,7 +22,7 @@ export default Plugin.define({
     const overlay: Slot = {
       at: 'page.overlay',
       get hides() {
-        return canvas.threadOpen()
+        return canvas.open && canvas.threadOpen()
       },
       render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }

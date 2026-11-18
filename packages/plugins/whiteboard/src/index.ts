@@ -14,9 +14,9 @@ function databaseDirectory(location: Plugin.Context['location']): string {
   return join(concivStateDir(location.directory), 'whiteboard')
 }
 
-async function releaseOnFailure<T>(stops: readonly (() => void)[], step: () => Promise<T>): Promise<T> {
-  return step().catch((error: unknown) => {
-    stops.toReversed().forEach((stop) => stop())
+async function releaseOnFailure<T>(release: () => Promise<void> | void, step: () => Promise<T>): Promise<T> {
+  return step().catch(async (error: unknown) => {
+    await release()
     throw error
   })
 }
@@ -27,7 +27,7 @@ export default Plugin.define({
     const directory = ctx.location.directory
     const store = await createStore(databaseDirectory(ctx.location))
     const closeStore = () => store.close()
-    const registration = await releaseOnFailure([closeStore], () =>
+    const registration = await releaseOnFailure(closeStore, () =>
       ctx.rpc.register(Whiteboard, whiteboardHandlers(store)),
     )
     const stopAnnouncing = store.onEvent((event) => {
@@ -38,8 +38,13 @@ export default Plugin.define({
       })
     })
     const stopEnrichment = startCommentEnrichment(store, directory)
-    const stops = [closeStore, stopAnnouncing, stopEnrichment]
-    await releaseOnFailure(stops, async () => {
+    const stop = async () => {
+      const drained = stopEnrichment()
+      stopAnnouncing()
+      await drained
+      closeStore()
+    }
+    await releaseOnFailure(stop, async () => {
       await ctx.agent.transform((editor) =>
         editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
       )
@@ -49,6 +54,6 @@ export default Plugin.define({
         await autoCommitDraft(store, sessionId)
       })
     })
-    return () => stops.toReversed().forEach((stop) => stop())
+    return stop
   },
 })
