@@ -8837,9 +8837,37 @@ module.exports = {default: {setup(ctx) {
       .element(sentLists().last().getByRole('listitem').first().getByText('note number 1', {exact: true}))
       .toBeVisible()
 
+    const fileShown = (body: string) => chatPanel().getByRole('article').getByText(new RegExp(body)).first()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await coreControl.chooseFiles('Add an attachment', [
+      {name: 'typed.txt', mimeType: 'text/plain', text: 'the typed file body'},
+    ])
+    await expect.element(page.getByRole('button', {name: 'Remove typed.txt'})).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(sentCard('the other comment')).toBeVisible()
+    await expect.element(fileShown('the typed file body')).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await coreControl.chooseFiles('Add an attachment', [
+      {name: 'alone.txt', mimeType: 'text/plain', text: 'the lone file body'},
+    ])
+    await expect.element(page.getByRole('button', {name: 'Remove alone.txt'})).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(fileShown('the lone file body')).toBeVisible()
+    await expect.element(sentence()).not.toBeInTheDocument()
+
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(typed('six notes'), {timeout: 15_000}).toBeVisible()
+    await expect.element(fileShown('the typed file body')).toBeVisible()
+    await expect.element(fileShown('the lone file body')).toBeVisible()
     await expect.element(typed('noted')).toBeVisible()
     await expect.element(title()).toBeInTheDocument()
     await expect.element(sentence()).not.toBeInTheDocument()
@@ -8875,6 +8903,11 @@ module.exports = {default: {setup(ctx) {
     await rpc.sessions.rename({sessionId, title: NOTED})
     const savedItems = async (id: string) => (await rpc.drafts.get({sessionId: id}))?.items.length ?? 0
     const restore = await faults.install({kind: 'gate', path: ['drafts', 'get'], input: {sessionId}})
+    const threeNotes = await faults.install({
+      kind: 'gate',
+      path: ['drafts', 'set'],
+      input: {sessionId, items: [{}, {}, {}]},
+    })
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await coreControl.awaitFaultPending(restore, 1)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
@@ -8886,7 +8919,10 @@ module.exports = {default: {setup(ctx) {
     await switchTo(NOTED, OTHER)
     expect(harness.pathname()).toBe(`/panel/${otherId}`)
     await coreControl.releaseFault(restore)
-    await expect.poll(() => savedItems(sessionId), {timeout: 8000}).toBe(3)
+    await coreControl.awaitFaultPending(threeNotes, 1)
+    await coreControl.releaseFault(threeNotes)
+    await coreControl.awaitFaultAnswered(threeNotes)
+    expect(await savedItems(sessionId)).toBe(3)
     await tab('Chat').click()
     await expect.element(editor()).toBeVisible()
     await expect.element(editor()).not.toHaveTextContent('noted')
@@ -8899,6 +8935,40 @@ module.exports = {default: {setup(ctx) {
     await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
     await expect.element(card('the held comment').getByText('Fixture note', {exact: true})).toBeVisible()
     await expect.element(editor()).toHaveTextContent('noted')
+  }, 60_000)
+
+  test('its notes written while the draft still loads never replace a saved draft that could not be read', async () => {
+    const SAVED = 'the session with an unread draft'
+    const OTHER = 'the session left open meanwhile'
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: SAVED})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'the earlier draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+      items: [],
+    })
+    const restore = await faults.install({kind: 'cut-on-release', path: ['drafts', 'get']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(restore, 1)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+
+    await switchTo(SAVED, OTHER)
+    await coreControl.releaseFault(restore)
+    await tab('Chat').click()
+    await expect.element(editor()).toBeVisible()
+    await switchTo(OTHER, SAVED)
+    await tab('Chat').click()
+    await expect.element(editor(), {timeout: 8000}).toHaveTextContent('the earlier draft')
+    await expect.element(notes()).not.toBeInTheDocument()
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'the earlier draft', items: []})
   }, 60_000)
 
   test('its notes come back to the composer as notes, with the typed text, whenever a draft is put back', async () => {
