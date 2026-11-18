@@ -1,6 +1,6 @@
 import type {LocateResult, RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
 import type {SnapdomPlugin} from '@zumer/snapdom'
-import {Contract, Registry} from './core.js'
+import {Contract} from './core.js'
 import type {ElementRect, ElementSource, GrabFrame} from './grab.js'
 
 export type PageToastTone = 'info' | 'success' | 'error'
@@ -48,12 +48,3 @@ export interface ReactTree {
 }
 
 export const ReactTree = Contract.define<ReactTree, 'page.react'>('page.react')
-
-export interface PageEffect {
-  readonly name: string
-  readonly description: string
-  set(enabled: boolean): void
-  enabled(): boolean
-}
-
-export const PageEffect = Registry.define<PageEffect>('page.effect')

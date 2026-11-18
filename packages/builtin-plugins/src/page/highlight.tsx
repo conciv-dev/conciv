@@ -5,7 +5,7 @@ import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {render} from 'solid-js/web'
 import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
-import type {PageEffect} from '@conciv/plugin/experimental/page'
+import type {PageEffect} from './operations.js'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 
