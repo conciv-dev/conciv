@@ -983,7 +983,6 @@ describe('cli', () => {
         const call = async () => fetchStatus(`/t/${token}`)
         expect(await call()).not.toBe(401)
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
-        const streams = new AbortController()
         const rpcSocket = (prefix: string, trustToken?: string) => {
           const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${prefix}${RPC_WS_PATH}`)
           if (trustToken !== undefined) {
@@ -993,24 +992,36 @@ describe('cli', () => {
           }
           return websocket
         }
-        const firstQueryKind = async (websocket: WebSocket) => {
+        const openQueries = async (websocket: WebSocket) => {
           const headers = {[CONCIV_SESSION_HEADER]: sessionId}
           const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket, headers}))
-          const stream = await rpc.page.queries({focus: {focused: true, visible: true}}, {signal: streams.signal})
+          const stream = await rpc.page.queries({focus: {focused: true, visible: true}})
           const first = await stream.next()
-          return first.done ? 'ended' : first.value.kind
+          return {kind: first.done ? 'ended' : first.value.kind, stream}
         }
         const framed = rpcSocket('', token)
         const [browser, agent] = [rpcSocket(`/t/${token}`), rpcSocket(`/t/${engine.agentToken}`)]
-        expect(await Promise.all([browser, agent, framed].map(firstQueryKind))).toEqual(['ready', 'ready', 'ready'])
+        const [browserQueries, agentQueries, framedQueries] = await Promise.all(
+          [browser, agent, framed].map(openQueries),
+        )
+        expect([browserQueries?.kind, agentQueries?.kind, framedQueries?.kind]).toEqual(['ready', 'ready', 'ready'])
         const closedCode = async (socket: WebSocket) =>
           z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
+        const pulled = Promise.all(
+          [browserQueries, framedQueries].map((queries) =>
+            queries?.stream.next().then(
+              () => 'yielded',
+              (error: unknown) => error,
+            ),
+          ),
+        )
         runRevoke({all: true, cwd: project.nested})
         expect([await call(), await fetchStatus(`/t/${linkedToken}`)]).toEqual([401, 401])
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
-        streams.abort()
+        const refused = {code: 'UNAUTHORIZED', message: 'this browser is no longer trusted'}
+        expect(await pulled).toMatchObject([refused, refused])
         agent.close()
       } finally {
         await engine.stop()
