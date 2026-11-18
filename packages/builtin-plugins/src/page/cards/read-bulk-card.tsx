@@ -3,16 +3,18 @@ import {z} from 'zod'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from './page-result-views.js'
+import {pageOperation} from './page-tool-names.js'
 import {
   ELEMENT_TARGET_KEYS,
   QUIET_TEXT_CLASS,
   cardErrorMessage,
   cardPayload,
+  countLabel,
   elementChip,
   hasPayloadOrError,
 } from './shared.js'
 
-const HtmlPayload = z.looseObject({html: z.string()})
+const HtmlPayload = pageOperation('dom').output
 
 const NodesPayload = z.looseObject({
   nodes: z.array(
@@ -26,13 +28,10 @@ const NodesPayload = z.looseObject({
   ),
 })
 
-const MatchesPayload = z.looseObject({count: z.number(), elements: z.array(z.unknown())})
-
-const COUNT_FORMAT = new Intl.NumberFormat()
-const COUNT_PLURAL = new Intl.PluralRules('en')
+const MatchesPayload = pageOperation('query').output
 
 function matchLabel(count: number): string {
-  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? 'match' : 'matches'}`
+  return countLabel(count, 'match', 'matches')
 }
 
 function readHtml(payload: unknown): string | undefined {

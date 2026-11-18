@@ -45,7 +45,7 @@ export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
 export const PAGE_ERROR_CODES = [...PAGE_REPORTED_ERROR_CODES, ...PAGE_TRANSPORT_ERROR_CODES] as const
 export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
 export type PageReportedErrorCode = (typeof PAGE_REPORTED_ERROR_CODES)[number]
-const PageRaisedErrorSchema = z.object({
+export const PageRaisedErrorSchema = z.object({
   code: z.string().min(1),
   message: z.string(),
   data: z.unknown().optional(),
@@ -101,16 +101,6 @@ export function ok(data: Record<string, unknown> = {}): PageResult {
   return {ok: true, ...data}
 }
 
-export const RawFrameSchema = z.object({
-  fileName: z.string().optional(),
-  line: z.number().optional(),
-  column: z.number().optional(),
-  fn: z.string().optional(),
-})
-export type RawFrame = z.infer<typeof RawFrameSchema>
-export const OpenSourceSchema = z.object({frames: z.array(RawFrameSchema)})
-export const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
-export type SourceLoc = z.infer<typeof SourceLocSchema>
 export const SymbolicateFrameSchema = z.object({
   fileName: z.string().min(1),
   line: z.number().int().min(1),

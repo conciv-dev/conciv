@@ -57,7 +57,7 @@ import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
-import {makePaneGrabApi} from '../extension/pane-grab.js'
+import {makePaneGrabApi} from './pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
@@ -404,9 +404,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     }
     return (
       <div class="contents">
-        <ExtensionSurface name="header" instances={instances} />
         <SessionHeaderSlot pane={pluginSession} />
-        <ExtensionSurface name="widget" instances={instances} />
         <div
           {...viewTabPanelAttributes(props.viewTab)}
           onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
@@ -477,7 +475,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <ExtensionSurface name="status" instances={instances} />
                   <SessionStatusSlot pane={pluginSession} />
                   <SessionComposerPills pane={pluginSession} />
-                  <ExtensionSurface name="footer" instances={instances} />
                 </div>
                 <QueueStrip queue={chat.queue()} />
                 <Suspense>

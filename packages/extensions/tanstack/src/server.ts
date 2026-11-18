@@ -1,6 +1,6 @@
 import {defineExtension, toolError} from '@conciv/extension'
 import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
-import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
+import type {FrameworkAdapter} from '@conciv/contract'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 import {readRouteManifest} from './server/route-manifest.js'

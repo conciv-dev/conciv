@@ -19,10 +19,9 @@ import {createBundleSource, type BundleSource, type PluginManager} from './bundl
 import {PluginExperimentalLoader, type PluginExperimental, type PluginExperimentalSource} from './plugins'
 import {PluginHostProvider, usePluginHost} from './host'
 import type {InstalledSource} from './startup'
-import {createPluginAttachment, createHostApis, PluginAttachmentProvider, type HostApis} from './host-apis'
+import {createPluginAttachment, createHostApis, PluginAttachmentProvider} from './host-apis'
+import {HostApisProvider, useHostApis} from './host-apis-context'
 import {createContext, useContext} from 'solid-js'
-
-const HostApisContext = createContext<HostApis>()
 
 const PluginsContext = createContext<{
   source: () => PluginExperimentalSource | undefined
@@ -65,14 +64,6 @@ export function usePluginsKnown() {
 
     return reported.some((id) => (host.status(id) ?? 'loading') === 'loading') ? 'pending' : 'known'
   })
-}
-
-export function useHostApis() {
-  const value = useContext(HostApisContext)
-
-  if (!value) throw new Error('Host APIs are unavailable')
-
-  return value
 }
 
 export function PluginRoot(props: ParentProps) {
@@ -152,7 +143,7 @@ export function PluginRoot(props: ParentProps) {
   const builtinIds = new Set(builtins.map((builtin) => builtin.id))
 
   return (
-    <HostApisContext.Provider value={apis}>
+    <HostApisProvider value={apis}>
       <PluginsContext.Provider
         value={{
           source: () => (ready.state === 'ready' ? experimental : undefined),
@@ -189,7 +180,7 @@ export function PluginRoot(props: ParentProps) {
           {props.children}
         </PluginHostProvider>
       </PluginsContext.Provider>
-    </HostApisContext.Provider>
+    </HostApisProvider>
   )
 }
 

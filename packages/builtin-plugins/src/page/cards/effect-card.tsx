@@ -1,23 +1,19 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
-import {z} from 'zod'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {pageOperation} from './page-tool-names.js'
 import {QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, hasPayloadOrError, mutatingBadge} from './shared.js'
 
-const SingleEffect = z.looseObject({effect: z.string(), enabled: z.boolean()})
-
-const EffectList = z.looseObject({
-  effects: z.array(z.looseObject({name: z.string(), description: z.string().optional(), enabled: z.boolean()})),
-})
+const [SingleEffect, EffectList] = pageOperation('effect').output.options
 
 const EFFECT_NAME_KEYS = new Set(['effect'])
 
 const LIST = 'm-0 p-0 list-none flex flex-col gap-1.5'
 const ROW = 'text-[length:var(--chat-text-sm)] m-0 flex gap-2 items-center'
 const NAME = '[color:var(--chat-text)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
-const DESCRIPTION = 'text-[length:var(--chat-text-xs)] flex-1 min-w-0 [color:var(--chat-text-3)]'
-const STATE = 'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-text-2)]'
+const DESCRIPTION = 'text-[length:var(--chat-text-xs)] flex-1 min-w-0 text-chat-text-3'
+const STATE = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-2'
 
 type EffectRow = {name: string; description: string | undefined; enabled: boolean}
 

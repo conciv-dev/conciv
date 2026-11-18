@@ -15,7 +15,7 @@ import {
 } from '@conciv/plugin-host'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
-import type {ToolRequest} from '@conciv/extension'
+import type {ToolRequest} from '@conciv/protocol/tool-call-types'
 import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
 

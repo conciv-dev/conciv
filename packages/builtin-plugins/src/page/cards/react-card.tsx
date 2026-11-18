@@ -1,5 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
+import type {trackReport} from '@conciv/page'
+import {RawFrameSchema} from '@conciv/contract'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {
@@ -8,34 +10,29 @@ import {
   QUIET_TEXT_CLASS,
   cardErrorMessage,
   cardPayload,
+  countLabel,
   elementChip,
   hasPayloadOrError,
   mutatingBadge,
 } from './shared.js'
+import {pageOperation} from './page-tool-names.js'
 
-const SourcePayload = z.looseObject({
-  component: z.string().nullish(),
-  source: z.looseObject({file: z.string(), line: z.number().optional()}).nullish(),
-  frames: z
-    .array(z.looseObject({fileName: z.string().optional(), line: z.number().optional(), fn: z.string().optional()}))
-    .optional(),
-})
+const SourcePayload = pageOperation('locate').output.extend({frames: z.array(RawFrameSchema).optional()})
 
-const TrackPayload = z.looseObject({
-  components: z.array(z.looseObject({component: z.string(), renders: z.number(), lastReason: z.string().optional()})),
+type TrackReport = ReturnType<typeof trackReport>
+
+const TrackPayload: z.ZodType<Pick<TrackReport, 'components' | 'note'>> = z.looseObject({
+  components: z.array(z.object({component: z.string(), renders: z.number(), lastReason: z.string()})),
   note: z.string().optional(),
 })
-
-const RENDER_FORMAT = new Intl.NumberFormat()
-const RENDER_PLURAL = new Intl.PluralRules('en')
 
 const HEADLINE = 'text-[length:var(--chat-text-sm)] m-0 flex flex-wrap gap-x-2 gap-y-0.5 items-baseline'
 const COMPONENT_NAME = '[color:var(--chat-text-hi)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
 const SOURCE_LOCATION =
-  'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
+  'text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
 
 function renderLabel(renders: number): string {
-  return `${RENDER_FORMAT.format(renders)} ${RENDER_PLURAL.select(renders) === 'one' ? 'render' : 'renders'}`
+  return countLabel(renders, 'render', 'renders')
 }
 
 function locationLabel(file: string, line: number | undefined): string {

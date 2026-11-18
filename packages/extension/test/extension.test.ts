@@ -8,13 +8,9 @@ import {defineAttachment} from '../src/define-attachment.js'
 import {collectAttachmentCards, collectToolRenderers, collectClientEffects} from '../src/collect-client.js'
 import {z} from 'zod'
 import {defineTool, type ClientToolCtx, isToolError, toolError} from '../src/define-tool.js'
-import {createSettingsStore} from '../src/settings-store.js'
-import {mergeSettings} from '../src/merge-settings.js'
-import type {SettingsSnapshot} from '@conciv/contract'
+import {createSettingsStore, type SettingsSnapshot, type SettingsState, type SettingsStore} from '@conciv/contract'
 import {
   type ClientEffect,
-  type SettingsState,
-  type SettingsStore,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
   type ToolMiddleware,
@@ -22,10 +18,7 @@ import {
 } from '../src/types.js'
 import {Hono} from 'hono'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {mkdir, readFile, realpath, rm, writeFile} from 'node:fs/promises'
-import {dirname, join} from 'node:path'
-import {createServer} from 'vite'
-import {makeViteBridge} from '../src/vite-bridge.js'
+import {readFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
 import {os, createRouterClient, onError, type AnyRouter} from '@orpc/server'
@@ -39,7 +32,6 @@ import {
 } from '../src/tool-registry.js'
 import {walkRegistryProcedures} from '../src/registry-walk.js'
 import {type PageErrorCode} from '@conciv/protocol/page-types'
-import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 describe('catalog', () => {
   describe('extension catalog (new contract projection)', () => {
@@ -50,9 +42,9 @@ describe('catalog', () => {
       expect(cat.tokens.find((t) => t.name === 'chat-accent')?.cssVar).toBe('--chat-accent')
     })
 
-    it('lists the six extension slots', () => {
+    it('lists the four extension slots', () => {
       const slots = buildCatalog().slots.map((s) => s.name)
-      for (const name of ['header', 'footer', 'composer', 'empty', 'status', 'widget']) expect(slots).toContain(name)
+      for (const name of ['composer', 'empty', 'status', 'widget']) expect(slots).toContain(name)
     })
 
     it('teaches the new entry convention (defineExtension({name}) with .client/.server)', () => {
@@ -275,23 +267,6 @@ describe('define extension', () => {
     })
     expect(ext.parseSettings(null)).toEqual({fontSize: 13, cursor: 'block', copyOnSelect: false, shell: ''})
     expect(defineExtension({name: 'plain'}).parseSettings({anything: 1})).toEqual({})
-  })
-
-  test('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
-    const global = {
-      skin: 'terminal',
-      launcher: 'hidden',
-      docksHidden: ['notes', 'terminal'],
-      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+T']},
-    }
-    const project = {launcher: null, docksHidden: ['files'], commandShortcuts: {quickTerminal: ['Mod+K']}}
-    expect(mergeSettings(project, global)).toEqual({
-      skin: 'terminal',
-      launcher: 'hidden',
-      docksHidden: ['files'],
-      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+K']},
-    })
-    expect(mergeSettings({}, global)).toEqual(global)
   })
 
   const memoryStore = (value: Record<string, unknown>) => {
@@ -1312,44 +1287,5 @@ describe('tool registry', () => {
     registry.register(bareServerTool('canvas_svg', 'draw an svg on the canvas'), {owner: 'a test registrant'})
     expect(registry.catalog.list().map((entry) => entry.name)).toEqual(['canvas_svg'])
     await expect(registry.call('canvas_svg', {}, {request: TEST_REQUEST})).resolves.toEqual({})
-  })
-})
-
-describe('vite bridge', () => {
-  it('finds a module by a path relative to the project, by its /src url and by its absolute path, and names a file it does not know', async () => {
-    const root = await realpath(tempDir('conciv-vite-bridge-'))
-    await mkdir(join(root, 'src'))
-    await writeFile(join(root, 'index.html'), '<!doctype html><script type="module" src="/src/main.ts"></script>')
-    await writeFile(join(root, 'src/main.ts'), "import {dep} from './dep'\nexport const main = dep\n")
-    await writeFile(join(root, 'src/dep.ts'), 'export const dep = 1\n')
-    const nestedDep = join(root, root, 'src/dep.ts')
-    await mkdir(dirname(nestedDep), {recursive: true})
-    await writeFile(nestedDep, 'export const dep = 2\n')
-    const server = await createServer({
-      root,
-      configFile: false,
-      logLevel: 'silent',
-      server: {host: '127.0.0.1', port: 0},
-    })
-    try {
-      await server.listen()
-      const address = server.httpServer?.address()
-      const port = typeof address === 'object' && address ? address.port : 0
-      await fetch(`http://127.0.0.1:${port}/src/main.ts`).then((response) => response.text())
-      await fetch(`http://127.0.0.1:${port}/src/dep.ts`).then((response) => response.text())
-      await fetch(`http://127.0.0.1:${port}/@fs${nestedDep}`).then((response) => response.text())
-      const bridge = makeViteBridge(server)
-      const depNode = {url: '/src/dep.ts', importers: ['/src/main.ts'], importedModules: []}
-
-      expect(bridge.moduleGraph('src/dep.ts')).toEqual([depNode])
-      expect(bridge.moduleGraph('/src/dep.ts')).toEqual([depNode])
-      expect(bridge.moduleGraph(join(root, 'src/dep.ts'))).toEqual([depNode])
-      expect(() => bridge.moduleGraph('src/missing.ts')).toThrow(
-        "no module for src/missing.ts in the dev server's module graph",
-      )
-    } finally {
-      await server.close()
-      await rm(root, {recursive: true, force: true})
-    }
   })
 })

@@ -9,7 +9,6 @@ export default defineConfig({
     'src/define-tool.ts',
     'src/rpc-mount.ts',
     'src/tool-registry.ts',
-    'src/vite-bridge.ts',
   ],
   format: 'esm',
   fixedExtension: false,

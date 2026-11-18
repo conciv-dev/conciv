@@ -115,6 +115,18 @@ describe('theme tokens', () => {
   })
 })
 
+describe('deterministic output', () => {
+  it('emits the same css for the same utilities seen in a different order', async () => {
+    const utilities = ['text-sm', 'tracking-wide', 'leading-tight', 'leading-none', 'leading-loose', 'rounded-md']
+    const forwardGenerator = await createGenerator({presets: [presetConciv()]})
+    const forward = await forwardGenerator.generate(utilities.join(' '))
+    const backwardGenerator = await createGenerator({presets: [presetConciv()]})
+    const backward = await backwardGenerator.generate(utilities.toReversed().join(' '))
+    expect(forward.getLayer('theme')).toContain('--leading-none')
+    expect(backward.css).toBe(forward.css)
+  })
+})
+
 describe('typography', () => {
   it('prose-chat generates prose css', async () => {
     const {css, matched} = await generate('prose-chat')

@@ -45,11 +45,11 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@jridgewell/trace-mapping": "catalog:",
+    "effect": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/extension-page": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@jridgewell/gen-mapping": "catalog:",

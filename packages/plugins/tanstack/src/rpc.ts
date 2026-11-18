@@ -1,6 +1,5 @@
 import {z} from 'zod'
 import {Rpc} from '@conciv/plugin/rpc'
-import {SessionId} from '@conciv/protocol/chat-types'
 
 export const FrameworkInfo = z.object({
   name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
@@ -10,7 +9,7 @@ export const FrameworkInfo = z.object({
 })
 export type FrameworkInfo = z.infer<typeof FrameworkInfo>
 
-const RouteMatch = z.object({
+export const RouteMatch = z.object({
   id: z.string(),
   routeId: z.string(),
   path: z.string(),
@@ -22,34 +21,30 @@ const RouteMatch = z.object({
   updatedAt: z.number().nullable(),
   isFetching: z.boolean(),
 })
+export type RouteMatch = z.infer<typeof RouteMatch>
+export type RouteStatus = RouteMatch['status']
 
 export const RouterCurrent = z.object({
   location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
   matches: z.array(RouteMatch),
 })
 export type RouterCurrent = z.infer<typeof RouterCurrent>
+export type RouterLocation = RouterCurrent['location']
 
 const RouteKind = z.enum(['static', 'dynamic', 'catch-all', 'layout', 'index', 'group'])
+export type RouteNodeKind = z.infer<typeof RouteKind>
 
-export type RouteNode = {
-  id: string
-  path: string
-  kind: z.infer<typeof RouteKind>
-  hasLoader: boolean
-  children: RouteNode[]
-  truncated?: number | undefined
-}
-
-export const RouteNode: z.ZodType<RouteNode> = z.lazy(() =>
-  z.object({
-    id: z.string(),
-    path: z.string(),
-    kind: RouteKind,
-    hasLoader: z.boolean(),
-    children: z.array(RouteNode),
-    truncated: z.number().optional(),
-  }),
-)
+export const RouteNode = z.object({
+  id: z.string(),
+  path: z.string(),
+  kind: RouteKind,
+  hasLoader: z.boolean(),
+  get children(): z.ZodArray<typeof RouteNode> {
+    return z.array(RouteNode)
+  },
+  truncated: z.number().optional(),
+})
+export type RouteNode = z.infer<typeof RouteNode>
 
 export const CacheEntry = z.object({
   key: z.string(),
@@ -61,6 +56,7 @@ export const CacheEntry = z.object({
   observers: z.number().nullable(),
 })
 export type CacheEntry = z.infer<typeof CacheEntry>
+export type CacheEntryState = CacheEntry['state']
 
 export const AppError = z.object({
   id: z.string(),
@@ -73,14 +69,16 @@ export const AppError = z.object({
 })
 export type AppError = z.infer<typeof AppError>
 
-const RouteInfo = z.object({
+export const RouteInfo = z.object({
   path: z.string(),
   kind: z.enum(['page', 'layout', 'api', 'middleware']),
   dynamic: z.boolean(),
   file: z.string().nullable(),
 })
+export type RouteInfo = z.infer<typeof RouteInfo>
+export type RouteInfoKind = RouteInfo['kind']
 
-const ServerFnTraces = z.object({
+export const ServerFnTraces = z.object({
   traces: z.array(
     z.object({
       id: z.string(),
@@ -94,10 +92,20 @@ const ServerFnTraces = z.object({
     z.object({id: z.string(), name: z.string(), route: z.string().nullable(), file: z.string().nullable()}),
   ),
 })
+export type ServerFnTraces = z.infer<typeof ServerFnTraces>
+export type ServerFnTrace = ServerFnTraces['traces'][number]
+export type ServerFnInfo = ServerFnTraces['functions'][number]
+
+const SessionId = z
+  .string()
+  .regex(/^conciv_[A-Za-z0-9_-]{1,128}$/u)
+  .brand<'ConcivSessionId'>()
 
 export const TabId = z.string().regex(/^tab_[a-f0-9-]{36}$/u)
 export type TabId = z.infer<typeof TabId>
-const short = z.string().max(2_048)
+export const SHORT_MAX = 2_048
+export const TAB_URL_MAX = 16_384
+const short = z.string().max(SHORT_MAX)
 const tab = {
   tabId: TabId.optional().describe(
     'Tab ID returned by tanstack.tabs.list. Omit it for the tab the user focused last, which serves the call.',
@@ -106,7 +114,7 @@ const tab = {
 
 export const Tab = z.object({
   id: TabId,
-  url: z.string().max(16_384),
+  url: z.string().max(TAB_URL_MAX),
   title: short,
   focused: z.boolean(),
   visible: z.boolean(),
@@ -230,7 +238,7 @@ export const Result = z.object({value: z.json()})
 export type Result = z.infer<typeof Result>
 export const Outcome = z.discriminatedUnion('type', [
   z.object({type: z.literal('success'), result: Result}),
-  z.object({type: z.literal('failure'), code: short, message: short}),
+  z.object({type: z.literal('failure'), code: z.string().regex(/^[a-z_]{1,64}$/u), message: short}),
 ])
 export type Outcome = z.infer<typeof Outcome>
 export const Control = z.discriminatedUnion('type', [
@@ -249,7 +257,7 @@ export const Definition = Rpc.define({
     attach: {
       input: z.object({...attachment, version: z.literal(1)}),
       output: z.enum(['closed', 'replaced']),
-      errors: unavailable,
+      errors: {...unavailable, missing: z.object({})},
     },
     state: {input: z.object({...attachment, state: Tab}), output: z.void(), errors: unavailable},
     command: {input: z.object(request), output: Command, errors: unavailable},

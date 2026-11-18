@@ -1,6 +1,8 @@
 import {TestRunResultSchema, type Summary, type TestError, type TestRow, type TestRunResult} from './shared/events.js'
 
-export type {TestError, TestRow, TestRunResult}
+export type {Summary, TestError, TestRow, TestRunResult}
+export {initialRunState, transitionRun, type RunAction} from './panel/run-state.js'
+export {followTestRun} from './panel/follow-run.js'
 
 export type FileGroup = {readonly file: string; readonly tests: readonly TestRow[]}
 
@@ -70,8 +72,12 @@ export function failedCount(group: FileGroup): number {
   return group.tests.filter((test) => test.state === 'fail').length
 }
 
-export function groupByFile(tests: readonly TestRow[]): FileGroup[] {
-  return Object.entries(Object.groupBy(tests, (test) => test.file)).map(([file, rows]) => ({file, tests: rows ?? []}))
+export function testFiles(tests: readonly TestRow[]): string[] {
+  return [...new Set(tests.map((test) => test.file))].toSorted()
+}
+
+export function fileGroup(tests: readonly TestRow[], file: string): FileGroup {
+  return {file, tests: tests.filter((test) => test.file === file)}
 }
 
 export function parseRunResult(output: unknown): TestRunResult | undefined {

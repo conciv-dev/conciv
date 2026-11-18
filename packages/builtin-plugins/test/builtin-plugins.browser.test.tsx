@@ -1,10 +1,13 @@
+import {Effect} from 'effect'
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, test, vi} from 'vitest'
 import {cdp, page, server, userEvent} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
+import {cleanup, render} from '@solidjs/testing-library'
 import {createSignal, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {ActCard} from '../src/page/cards/act-card.js'
 import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
 import {ReactCard} from '../src/page/cards/react-card.js'
@@ -19,6 +22,7 @@ import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
 import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import tokens from '@conciv/ui-kit-system/tokens.css?inline'
+import utilities from 'virtual:uno.css?inline'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
@@ -27,21 +31,25 @@ import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
-import {makePageOperations, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX} from '@conciv/plugin-page/rpc'
+import {makePageOperations, type PageEffect, type PageOperations} from '../src/page/operations.js'
+import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab} from '@conciv/plugin-page/rpc'
+import {readTab, reportChanges} from '../src/page/tab.js'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
+import {makeHighlight} from '../src/page/highlight.js'
+import {openSource, type SourceOpener} from '../src/page/open-source.js'
 import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {PageEffect, type ReactFiber} from '@conciv/plugin/experimental/page'
-import type {Registry} from '@conciv/plugin/experimental'
+import type {ReactFiber} from '@conciv/plugin/experimental/page'
+import {tanstackCards} from '../src/tanstack/cards.js'
+import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
 
-const noContributions = {list: () => []}
+const noEffects: readonly PageEffect[] = []
 
 const JsonRecord = z.record(z.string(), z.unknown())
 
@@ -100,12 +108,6 @@ describe.skipIf(inFirefox)('effects', () => {
     }
   }
 
-  const contributed = [installBanner(), installBanner()]
-  function listContributions<T>(registry: Registry<T>): readonly T[]
-  function listContributions(registry: Registry<unknown>): readonly unknown[] {
-    return registry.id === PageEffect.id ? contributed : []
-  }
-
   let driver: PageOperations
 
   const banner = () => page.getByText('fixture banner shown')
@@ -117,7 +119,7 @@ describe.skipIf(inFirefox)('effects', () => {
     readFailure(await driver.execute(command('effect', input)), 'effect')
 
   beforeAll(() => {
-    driver = makePageOperations({list: listContributions})
+    driver = makePageOperations([installBanner()])
   })
 
   afterAll(() => {
@@ -206,7 +208,7 @@ describe.skipIf(inFirefox)('page tools', () => {
     container.appendChild(mount)
     reactRoot = createRoot(mount)
     reactRoot.render(createElement(Fragment, null, createElement(FixtureApp), createElement(ControlledForm)))
-    driver = makePageOperations(noContributions)
+    driver = makePageOperations(noEffects)
     await vi.waitFor(() => {
       if (!document.querySelector('[data-fixture="leaf"]')) throw new Error('fixture not rendered yet')
     })
@@ -1021,7 +1023,7 @@ describe('page console', () => {
     new Promise((resolve) => window.addEventListener(type, () => resolve(), {once: true}))
 
   it('since is inclusive: an entry stamped exactly at since is returned, one past it is not', async () => {
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     console.log('console-marker-inclusive')
     const marker = (await consoleRead(driver)).find((entry) => entry.text === 'console-marker-inclusive')
@@ -1032,7 +1034,7 @@ describe('page console', () => {
   })
 
   it('records what the page threw, uncaught or unhandled, with its message and where it came from', async () => {
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     const thrown = Promise.all([pageEvent('error'), pageEvent('unhandledrejection')])
     setTimeout(() => {
@@ -1053,23 +1055,108 @@ describe('page console', () => {
 })
 
 describe('page effects', () => {
-  it('lists an effect two contributions register under one name exactly once', async () => {
-    const banner = (description: string): PageEffect => ({
-      name: 'banner',
-      description,
-      enabled: () => false,
-      set: () => {},
+  it('holding Alt inspects the page until Alt is released or Esc is pressed, and not while typing in a textbox', async () => {
+    const highlight = makeHighlight({opener: {symbolicate: async () => null, desktop: undefined}, toast: () => {}})
+    const layer = document.createElement('div')
+    const field = document.createElement('input')
+    field.setAttribute('aria-label', 'note')
+    document.body.append(layer, field)
+    const dispose = highlight.mount(layer)
+    onTestFinished(() => {
+      dispose()
+      layer.remove()
+      field.remove()
     })
-    const contributed = [banner('first banner'), banner('second banner')]
-    function listContributions<T>(registry: Registry<T>): readonly T[]
-    function listContributions(registry: Registry<unknown>): readonly unknown[] {
-      return registry.id === PageEffect.id ? contributed : []
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+
+    expect(document.activeElement).toBe(document.body)
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(hint).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+
+    await userEvent.click(page.getByRole('textbox', {name: 'note'}))
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+  })
+
+  it('holding Alt over conciv’s own interface picks the page element under it, never conciv’s own', async () => {
+    const highlight = makeHighlight({opener: {symbolicate: async () => null, desktop: undefined}, toast: () => {}})
+    const layer = document.createElement('div')
+    layer.setAttribute(PLUGIN_OVERLAY_ATTR, '')
+    const surface = document.createElement('div')
+    surface.setAttribute(EFFECTS_SURFACE_ATTR, '')
+    surface.style.cssText = 'position:fixed;top:64px;left:32px;z-index:2147483000'
+    const effect = document.createElement('strong')
+    effect.textContent = 'conciv effect'
+    surface.append(effect)
+    const heading = document.createElement('h1')
+    heading.textContent = 'Page heading'
+    heading.style.cssText = 'position:fixed;top:0;left:0;margin:0;width:320px;height:160px'
+    document.body.append(layer, heading, surface)
+    const dispose = highlight.mount(layer)
+    onTestFinished(() => {
+      dispose()
+      layer.remove()
+      heading.remove()
+      surface.remove()
+    })
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.hover(page.getByText('conciv effect'), {force: true})
+    await expect.element(page.getByText('<h1>', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
+  })
+})
+
+describe('opening an element’s source', () => {
+  it('opens the located source, symbolicates bare frames, and settles a missing source, desktop or launch', async () => {
+    const launched: unknown[] = []
+    const desktop = {
+      launch: async (path: string, position?: {line: number; column?: number}) => void launched.push({path, position}),
+      reveal: undefined,
+      installed: undefined,
+      pick: undefined,
     }
-    const driver = makePageOperations({list: listContributions})
-    onTestFinished(() => driver.dispose())
-    expect(readValue(await driver.execute(command('effect', {action: 'list'})), 'effect')).toEqual({
-      effects: [{name: 'banner', description: 'first banner', enabled: false}],
-    })
+    const located = {component: null, stack: [], frames: [], owners: []}
+    const open = (opener: Partial<SourceOpener>) =>
+      Effect.runPromise(
+        openSource(
+          {locate: async () => located, symbolicate: async () => null, desktop, ...opener},
+          document.createElement('div'),
+        ),
+      )
+    const source = {file: 'src/app.tsx', line: 12, column: 4}
+
+    expect(await open({locate: async () => ({...located, source})})).toBe('opened')
+    expect(launched).toEqual([{path: 'src/app.tsx', position: {line: 12, column: 4}}])
+    expect(
+      await open({
+        locate: async () => ({...located, frames: [{fileName: 'http://localhost/app.js', line: 3, column: 9}]}),
+        symbolicate: async () => ({file: 'src/page.tsx', line: 30, column: 2}),
+      }),
+    ).toBe('opened')
+    expect(launched.at(-1)).toEqual({path: 'src/page.tsx', position: {line: 30, column: 2}})
+    expect(await open({})).toBe('no-source')
+    expect(await open({locate: async () => null})).toBe('no-source')
+    expect(await open({locate: async () => ({...located, source}), desktop: undefined})).toBe('failed')
+    expect(
+      await open({
+        locate: async () => ({...located, source}),
+        desktop: {...desktop, launch: () => Promise.reject(new Error('no editor'))},
+      }),
+    ).toBe('failed')
   })
 })
 
@@ -1092,7 +1179,7 @@ describe('a capture in every engine', () => {
   }
 
   const capturedLines = async (): Promise<{firstLine: boolean; secondLine: boolean}> => {
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     const bitmap = await decodeImage(readScreenshot(await driver.execute(command('screenshot', {}))).image)
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
@@ -1200,7 +1287,7 @@ describe.skipIf(inFirefox)('the agent acts on the page like a person', () => {
         endTask()
       },
     })
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
     const act = (name: string, input: Record<string, unknown>) => driver.execute(command(name, input, AGENT))
 
@@ -1330,7 +1417,7 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     onTestFinished(endTask)
     onTestFinished(() => dropCursor(AGENT))
     window.scrollTo(0, 0)
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
     await expect.element(cursor()).toBeVisible()
     await scrolledTo(2000)
@@ -1343,7 +1430,7 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     await expect.element(cursor()).toBeVisible()
     await scrolledTo(0)
 
-    const again = makePageOperations(noContributions)
+    const again = makePageOperations(noEffects)
     onTestFinished(again.dispose)
     await aimCursor({id: AGENT, at: pageAt({target: tall, point: {x: 20, y: 20}}), look: CursorLook.AGENT})
     await expect.element(cursor()).toBeVisible()
@@ -1356,7 +1443,7 @@ describe.skipIf(inFirefox)('the page plugin leaves the host page as it found it'
     onTestFinished(() => {
       console.info = untouched
     })
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     const heard: unknown[][] = []
     const later = (...args: unknown[]) => {
       heard.push(args)
@@ -1429,7 +1516,7 @@ describe.skipIf(inFirefox)('page action queue', () => {
     const unmount = mountSimulator({root: host.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask})
     onTestFinished(unmount)
     onTestFinished(endTask)
-    const driver = makePageOperations(noContributions)
+    const driver = makePageOperations(noEffects)
     onTestFinished(driver.dispose)
     const queued = (id: string, index: number, of: number, action: Record<string, unknown>, signal?: AbortSignal) =>
       driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
@@ -2363,5 +2450,311 @@ describe('grab snapshot frame', () => {
 
     await expect.element(page.getByText('control escaped')).toBeVisible()
     await expect.element(page.getByText('snapshot escaped')).not.toBeInTheDocument()
+  })
+})
+
+describe('the tanstack cards', () => {
+  const widgetSheet = document.createElement('style')
+  widgetSheet.textContent = `${tokens}${utilities}`
+  beforeAll(() => document.head.append(widgetSheet))
+  afterAll(() => widgetSheet.remove())
+
+  type Tool = keyof typeof tanstackCards
+  type Case = {
+    tool: Tool
+    title: string
+    input?: Record<string, unknown>
+    output: unknown
+    summary: string
+    detail?: string
+    single?: string
+  }
+
+  const cardContext: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'claude',
+    sendMessage: () => {},
+    addResult: () => Promise.resolve(),
+    catalog: {loaded: () => true, meta: builtinToolMeta},
+  }
+
+  const failure = 'tab_unavailable: no TanStack page is attached to this session'
+
+  function routeMatch(routeId: string, search: Record<string, unknown>) {
+    const timing = {error: null, loaderData: null, updatedAt: null, isFetching: false}
+    return {
+      id: routeId,
+      routeId,
+      path: routeId === '__root__' ? '' : routeId,
+      params: {},
+      search,
+      status: 'success',
+      ...timing,
+    }
+  }
+
+  const routerState = {
+    location: {pathname: '/about', search: '?token=%5Bredacted%5D', hash: ''},
+    matches: [routeMatch('__root__', {}), routeMatch('/about', {token: '[redacted]'})],
+  }
+
+  const routeNode = (id: string, kind: string, hasLoader: boolean) => ({id, path: id, kind, hasLoader, children: []})
+
+  const cases: ReadonlyArray<Case> = [
+    {
+      tool: 'tanstack_router_state',
+      title: 'Read the router state',
+      output: routerState,
+      summary: '/about · 2 matches',
+      detail: '/about?token=%5Bredacted%5D',
+    },
+    {
+      tool: 'tanstack_route_tree',
+      title: 'Read the route tree',
+      output: {
+        ...routeNode('__root__', 'layout', false),
+        children: [routeNode('/', 'index', false), routeNode('/about', 'static', true)],
+      },
+      summary: '3 routes',
+      detail: '/about',
+    },
+    {
+      tool: 'tanstack_loader_data',
+      title: 'Read the loader data',
+      output: {routeId: '/about', data: {greeting: 'hello', visits: 42}},
+      summary: '2 keys · /about',
+      detail: 'greeting',
+      single: '42',
+    },
+    {
+      tool: 'tanstack_query_cache',
+      title: 'Read the query cache',
+      output: {
+        queries: [
+          {
+            key: '["todos"]',
+            state: 'fresh',
+            status: 'success',
+            value: ['card'],
+            updatedAt: Date.now(),
+            error: null,
+            observers: 1,
+          },
+          {key: '["todos",2]', state: 'error', status: 'error', value: null, error: 'Request failed with status 500'},
+        ],
+        mutations: [{key: '["addTodo"]', state: 'fresh', status: 'success', value: null, updatedAt: null}],
+      },
+      summary: '2 queries · 1 mutation',
+      detail: 'Request failed with status 500',
+      single: 'queries',
+    },
+    {
+      tool: 'tanstack_query_invalidate',
+      title: 'Invalidated a query',
+      input: {key: '["todos"]'},
+      output: {ok: true},
+      summary: 'invalidated ["todos"]',
+    },
+    {
+      tool: 'tanstack_query_refetch',
+      title: 'Refetched a query',
+      input: {key: '["todos"]'},
+      output: {ok: true},
+      summary: 'refetched ["todos"]',
+    },
+    {
+      tool: 'tanstack_navigate',
+      title: 'Navigated',
+      input: {to: '/about'},
+      output: {ok: true, to: '/about'},
+      summary: '/about',
+    },
+    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, summary: 'invalidated'},
+    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, summary: 'went back'},
+    {
+      tool: 'tanstack_build_errors',
+      title: 'Read the build errors',
+      output: [
+        {
+          id: 'build-1',
+          kind: 'build',
+          message: 'Cannot find module ./missing',
+          stack: null,
+          source: {file: 'src/routes/about.tsx', line: 4, column: 1},
+          digest: null,
+          at: 1,
+        },
+      ],
+      summary: '1 error',
+      detail: 'src/routes/about.tsx:4',
+    },
+    {
+      tool: 'tanstack_route_manifest',
+      title: 'Read the route manifest',
+      output: [
+        {path: '/', kind: 'page', dynamic: false, file: 'src/routes/index.tsx'},
+        {path: '/posts/$id', kind: 'page', dynamic: true, file: 'src/routes/posts.$id.tsx'},
+      ],
+      summary: '2 routes',
+      detail: '/posts/$id',
+    },
+    {
+      tool: 'tanstack_server_fn_trace',
+      title: 'Read the server-function calls',
+      output: {
+        traces: [{id: 'posts-fn', name: 'getPosts', durationMs: 12, status: 'ok', at: 1}],
+        functions: [{id: 'posts-fn', name: 'getPosts', route: '/posts', file: 'src/server/posts.ts'}],
+      },
+      summary: '1 call',
+      detail: 'src/server/posts.ts',
+    },
+  ]
+
+  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
+    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
+  }
+
+  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined) {
+    const part: ToolCallPart = {
+      type: 'tool-call',
+      id: `call-${tool}`,
+      name: tool,
+      arguments: JSON.stringify(input),
+      state: 'input-complete',
+    }
+    const [props, setProps] = createStore<ToolCardProps>({
+      part,
+      result,
+      ctx: cardContext,
+      addResult: () => Promise.resolve(),
+    })
+    render(() => <Dynamic component={tanstackCards[tool].render} {...props} />)
+    return setProps
+  }
+
+  const header = (title: string) => page.getByRole('button', {name: new RegExp(title)})
+  const exactText = (text: string) => page.getByText(text, {exact: true})
+
+  it("draws each tool's card on success, the error state, and the running row before the card", async () => {
+    onTestFinished(cleanup)
+    for (const call of cases) {
+      mountCard(call.tool, call.input ?? {}, resultPart(call.tool, JSON.stringify(call.output), 'complete'))
+      await expect.element(exactText(call.summary)).toBeVisible()
+      await expect.element(header(call.title)).toBeVisible()
+      if (call.detail !== undefined) {
+        await header(call.title).click()
+        await expect.element(exactText(call.detail)).toBeVisible()
+      }
+      if (call.single !== undefined) await expect.element(exactText(call.single)).toBeVisible()
+      cleanup()
+    }
+
+    const markers = {
+      items: {__conciv: 'array', size: 3, preview: 'Array(3)'},
+      lookup: {__conciv: 'Map', size: 2, preview: 'Map(2)'},
+    }
+    mountCard(
+      'tanstack_loader_data',
+      {},
+      resultPart('tanstack_loader_data', JSON.stringify({routeId: '/about', data: markers}), 'complete'),
+    )
+    await header('Read the loader data').click()
+    await expect.element(exactText('Array(3)')).toBeVisible()
+    await expect.element(exactText('Map(2)')).toBeVisible()
+    await expect.element(page.getByText(/__conciv/)).not.toBeInTheDocument()
+    cleanup()
+
+    const backPart: ToolCallPart = {
+      type: 'tool-call',
+      id: 'call-tanstack_back',
+      name: 'tanstack_back',
+      arguments: '{}',
+      state: 'input-complete',
+    }
+    render(() => (
+      <ul>
+        <ToolTraceRow
+          part={backPart}
+          result={resultPart('tanstack_back', JSON.stringify({ok: true}), 'complete')}
+          ctx={cardContext}
+          tools={() => [{names: ['tanstack_back'], ...tanstackCards.tanstack_back}]}
+        />
+      </ul>
+    ))
+    await expect.element(page.getByRole('listitem').getByRole('button').first()).toBeDisabled()
+    cleanup()
+
+    mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    await header('Read the router state').click()
+    await expect.element(page.getByText(failure)).toBeVisible()
+    await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
+    cleanup()
+
+    const finish = mountCard('tanstack_router_state', {}, undefined)
+    await expect.element(header('Reading the router state')).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
+    await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
+    finish('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
+    await expect.element(exactText('/about · 2 matches')).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
+  })
+})
+
+describe('the page tab the agent sees', () => {
+  const tabId = `tab_${crypto.randomUUID()}`
+
+  function keepLocation() {
+    const href = location.href
+    const title = document.title
+    onTestFinished(() => {
+      history.replaceState(null, '', href)
+      document.title = title
+    })
+  }
+
+  it('hides secret search and hash values and keeps the rest', () => {
+    keepLocation()
+    history.replaceState(null, '', '/shop?token=abc&q=shoes#access_token=xyz')
+    const url = new URL(readTab(tabId).url)
+    expect({
+      path: url.origin + url.pathname,
+      search: [...url.searchParams],
+      hash: [...new URLSearchParams(url.hash.slice(1))],
+    }).toEqual({
+      path: `${location.origin}/shop`,
+      search: [
+        ['token', '[redacted]'],
+        ['q', 'shoes'],
+      ],
+      hash: [['access_token', '[redacted]']],
+    })
+  })
+
+  it('fits a very long url and title inside the rpc caps', () => {
+    keepLocation()
+    history.replaceState(null, '', `/long?q=${'a'.repeat(20_000)}`)
+    document.title = 't'.repeat(5_000)
+    const read = readTab(tabId)
+    expect(Tab.safeParse(read).success).toBe(true)
+    expect(read.url.startsWith(`${location.origin}/long?q=aaa`)).toBe(true)
+  })
+
+  it('reports again after a pushState navigation and a title change', async () => {
+    keepLocation()
+    const controller = new AbortController()
+    onTestFinished(() => controller.abort())
+    const reported = {current: Promise.withResolvers<void>()}
+    reportChanges(() => reported.current.resolve(), controller.signal)
+
+    history.pushState(null, '', '/next')
+    await reported.current.promise
+    expect(readTab(tabId).url).toBe(`${location.origin}/next`)
+
+    reported.current = Promise.withResolvers<void>()
+    document.title = 'the next page'
+    await reported.current.promise
+    expect(readTab(tabId).title).toBe('the next page')
   })
 })

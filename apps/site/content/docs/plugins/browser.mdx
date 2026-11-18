@@ -1,0 +1,221 @@
+---
+title: Browser SDK
+description: The browser part of a plugin, the registries it adds to, and how it calls its engine part.
+---
+
+The browser part runs in the widget. Import it from `@conciv/plugin/experimental`. It is written with
+[Solid](https://www.solidjs.com).
+
+## Build it
+
+`experimental()` from `@conciv/plugin/experimental/vite` builds `src/plugin-experimental.tsx` into
+`dist/plugin-experimental.cjs`:
+
+```ts title="packages/plugins/test-runner/vite.config.ts"
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/plugin/experimental/vite'
+
+export default defineConfig({
+  publicDir: false,
+  plugins: [experimental()],
+})
+```
+
+Export the bundle as `./plugin-experimental` from the package. A plugin folder in the project ships it as
+`plugin-experimental.cjs` or `plugin-experimental.js` beside its engine part.
+
+The build keeps the modules the widget provides external. An import of another `effect`, `solid-js` or `@conciv`
+module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance. An
+`import()` becomes a chunk the widget loads the first time it runs.
+
+## Define it
+
+`Plugin.define({setup})` is the default export. It has no id: the widget gives it the engine part's id as `ctx.id`.
+`setup` runs synchronously. Everything it adds with `ctx.add(Registry, item)` is withdrawn when the plugin reloads or
+stops.
+
+The whiteboard's browser part, whole:
+
+```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
+import {createResource, onCleanup} from 'solid-js'
+import {createStore} from 'solid-js/store'
+import {render} from 'solid-js/web'
+import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
+import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
+
+export default Plugin.define({
+  setup(ctx) {
+    const [canvas, setCanvas] = createStore({open: false, engaged: false})
+    const [surface, {refetch}] = createResource(
+      () => canvas.engaged,
+      () => import('./client/canvas-surface.js'),
+    )
+    const close = (): void => setCanvas('open', false)
+    const overlay: Slot = {
+      at: 'page.overlay',
+      hides: false,
+      render: () => <WhiteboardNotices ctx={ctx} surface={surface} />,
+    }
+    const pill: ComposerPill = {
+      id: 'whiteboard-open',
+      order: 20,
+      show: () => ({
+        label: 'Whiteboard',
+        icon: 'presentation',
+        title: 'Open the whiteboard canvas',
+        run: () => {
+          if (surface.error === undefined) {
+            setCanvas({engaged: true, open: !canvas.open})
+            return
+          }
+          setCanvas('open', true)
+          void refetch()
+        },
+      }),
+    }
+    onCleanup(
+      render(
+        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} close={close} />,
+        document.createDocumentFragment(),
+      ),
+    )
+    ctx.add(ComposerPill, pill)
+    // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
+    ctx.add(Slot, () => (canvas.open ? overlay : undefined))
+  },
+})
+```
+
+`ctx.add` takes an item, or a function that returns one. The widget runs the function again when what it reads
+changes, and an `undefined` result adds nothing: the whiteboard's overlay slot is there only while the canvas is open.
+
+## Call the engine part
+
+`ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the [RPC contract](/docs/plugins/engine#rpc):
+
+```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
+const load = async (client: Client, signal: AbortSignal) => {
+  try {
+    const runner = client.rpc(TestRunner)
+    const result = await runner.status(undefined, {signal})
+    if (!signal.aborted) dispatch({type: 'status', result})
+    const current = await runner.current(undefined, {signal})
+    if (!signal.aborted) dispatch({type: 'current', ...current})
+  } catch (error) {
+    if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
+  }
+}
+```
+
+The engine part's events arrive on `client.event.subscribe`, as `rpc.<id>.<event>`:
+
+```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
+const follow = async (client: Client, signal: AbortSignal) => {
+  try {
+    for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
+      if (event.type === 'server.connected') {
+        dispatch({type: 'connected'})
+        void load(client, signal)
+        continue
+      }
+      const parsed = TestEventSchema.safeParse(event.data)
+      if (parsed.success) dispatch(parsed.data)
+      else console.error('[test-runner] a live test event did not match its schema', parsed.error)
+    }
+  } catch (error) {
+    if (!signal.aborted) console.error('[test-runner] the live test events stopped', error)
+  }
+}
+```
+
+## Registries
+
+### Panel
+
+A panel adds tabs to the session pane. `list` returns the tabs to show, and `render` draws a tab's content:
+
+```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
+const tab: PanelTab = {
+  id: 'tests',
+  title: 'Tests',
+  pinned: true,
+  label: () => (
+    <>
+      <ctx.ui.Icon name="flask-conical" size="small" />
+      Tests
+    </>
+  ),
+}
+```
+
+```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
+ctx.add(Panel, {
+  id: 'tests',
+  region: 'pane',
+  list: () => [tab],
+  render: (props) => (
+    <TestsPanel
+      ui={ctx.ui}
+      run={run}
+      directory={props.session.directory}
+      canOpen={ctx.desktop !== undefined}
+      onOpen={openFailure}
+      onFix={(error) => fixFailure(error, props.screen, props.session, props.session.directory)}
+    />
+  ),
+})
+```
+
+`list` gets `open`, the plugin's tab ids stored in the strip. Return the ones that still apply, plus any `pinned` tab.
+
+### Slot
+
+A slot puts content at a fixed place in the widget:
+
+```tsx title="packages/builtin-plugins/src/terminal/plugin-experimental.tsx"
+ctx.add(Slot, {
+  at: 'session.panel.end',
+  render: (input) => (
+    <Show when={ctx.layout.state(PANEL_KEY, input.session) === 'visible'}>
+      <TerminalToolbar session={input.session} terminal={terminal} />
+    </Show>
+  ),
+})
+```
+
+| `at`                | Where                                          | `render` input                          |
+| ------------------- | ---------------------------------------------- | --------------------------------------- |
+| `window.bottom`     | the bottom of the widget window                | none                                    |
+| `session.header`    | a session's header                             | `session`, `screen`, `active`, `compact` |
+| `session.status`    | above a session's composer                     | `session`, `screen`                     |
+| `session.panel.end` | the end of a session's status bar              | `session`, `screen`                     |
+| `page.overlay`      | over the page                                  | none                                    |
+
+A `page.overlay` slot holds the focus unless it sets `hides: false`.
+
+### ComposerPill
+
+A pill sits above a session's composer. `show` returns the pill, or `undefined` to show none there; `order` sorts the
+pills. The whiteboard's pill in [Define it](#define-it) opens the canvas from `run`.
+
+A pill can instead open a list of `rows`, each with a `label` and its own `run`, or your own content through `menu`.
+
+### SettingsPage
+
+A settings page adds to the widget's settings:
+
+```js title="apps/conciv/test/conciv.browser.test.tsx"
+const text = (value) => () => Object.assign(document.createElement('p'), {textContent: value})
+ctx.add(SettingsPage, {id: 'prefs', title: 'Alpha prefs', render: text('Alpha prefs body')})
+ctx.add(SettingsPage, {id: 'inline', page: 'general', section: 'general', title: 'Inline', render: text('Alpha row in general')})
+ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: text('Alpha section on general')})
+```
+
+| Fields                            | Adds                                     |
+| --------------------------------- | ---------------------------------------- |
+| no `page`                         | a page of its own                        |
+| `page: 'general'`                 | a section on the General page            |
+| `page: 'general'`, `section: 'general'` | a row in the General section       |
+
+Frame a page of your own with `ctx.ui.SettingsLayout`, a section with `ctx.ui.SettingsSection`, and a row with
+`ctx.ui.SettingsRow`, so it renders as the widget's own settings do.

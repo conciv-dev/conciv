@@ -62,13 +62,10 @@ export type {
   ServerResult,
   ToolCallContext,
   ToolMiddleware,
-  Settings,
   SettingsForNamespace,
   InferSettings,
   SettingsReader,
   SettingsRegistry,
-  SettingsState,
-  SettingsStore,
   SystemPromptFactory,
   SystemPromptResolver,
   ToolCard,
@@ -80,9 +77,8 @@ export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from 
 export {ensureEffectsSurface, openSource} from './client-host.js'
 export {EFFECTS_SURFACE_ATTR, CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
 export {makeExtRpcClient} from './ext-rpc.js'
-export {createSettingsStore} from './settings-store.js'
-export {mergeSettings} from './merge-settings.js'
-export {createClientSettings} from './settings-client.js'
+export {createSettingsStore, mergeSettings, createClientSettings} from '@conciv/contract'
+export type {Settings, SettingsState, SettingsStore} from '@conciv/contract'
 export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'
 export {pageVerbError, isPageVerbError} from './page-errors.js'

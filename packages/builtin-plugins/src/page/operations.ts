@@ -1,12 +1,12 @@
+import {Effect, Exit, Schedule, Scope} from 'effect'
 import {z} from 'zod'
 import {
-  isPageFailure,
   ok,
   PAGE_QUEUE_STOPPED,
   PAGE_QUEUE_STOPPED_MESSAGE,
   pageFailure,
   PageErrorSchema,
-  type PageError,
+  type PageFailure,
   type PageResult,
 } from '@conciv/protocol/page-types'
 import type {
@@ -16,9 +16,7 @@ import type {
   PageCaptureBundle,
   ToolCaptureMode,
 } from '@conciv/protocol/element-capture-types'
-import {toolError} from '@conciv/extension'
-import type {BaseContext} from '@conciv/plugin/experimental'
-import {PageEffect} from '@conciv/plugin/experimental/page'
+import {toolError} from '@conciv/protocol/tool-call-types'
 import {
   addRef,
   buildSnapshot,
@@ -41,11 +39,11 @@ import {
   type PendingCssText,
   type Refs,
 } from '@conciv/page'
-import {startConsoleBuffer, type ConsoleEntry} from './console-buffer.js'
+import {consoleBuffer, type ConsoleEntry} from './console-buffer.js'
 import {unwatchLayout} from './agent-cursor.js'
 import {badArgs, fail} from './page-failure.js'
-import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
-import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
+import {isJsonSerializable, toPageFailure} from './page-tool-outcome.js'
+import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './page-act.js'
 import {Operations, SHORT_MAX, type Action, type Command, type File, type Outcome} from '@conciv/plugin-page/rpc'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
@@ -53,6 +51,7 @@ import {
   acceptQueue,
   arriveAt,
   finishQueue,
+  isHtml,
   landQueued,
   pointAt,
   queueStopped,
@@ -62,7 +61,7 @@ import {
   type Beat,
 } from './simulator.js'
 
-type Locator = {ref?: string; selector?: string; name?: string}
+type Locator = Omit<Extract<Action, {type: 'dom'}>, 'type' | 'tabId'>
 
 type Queued = NonNullable<Command['queued']>
 
@@ -80,6 +79,17 @@ type Call = {
 
 type Answer = {value: unknown; files: File[]}
 
+const WAIT_POLL_MS = 100
+
+export type PageEffect = {
+  readonly name: string
+  readonly description: string
+  set(enabled: boolean): void
+  enabled(): boolean
+}
+
+const OverrideRefusal = z.object({error: z.string()})
+
 export type PageOperations = {
   execute: (command: Command, signal?: AbortSignal) => Promise<Outcome>
   dispose: () => void
@@ -96,20 +106,25 @@ function waitFor(
   timeout: number,
   signal: AbortSignal | undefined,
 ): Promise<PageResult> {
-  const deadline = Date.now() + timeout
-  return new Promise((resolve, reject) => {
-    const tick = (): void => {
-      if (signal?.aborted) return reject(signal.reason)
+  const reached = Effect.try({
+    try: () => {
+      signal?.throwIfAborted()
       const el = selectDeep(selector)[0]
       const visible = el instanceof HTMLElement && el.offsetParent !== null
-      if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
-      if (Date.now() > deadline) {
-        return reject(pageFailure('handler-error', `wait timed out for ${selector} (${state})`))
-      }
-      setTimeout(tick, 100)
-    }
-    tick()
+      return state === 'visible' ? visible : !visible
+    },
+    catch: (error) => error,
   })
+  return Effect.runPromise(
+    reached.pipe(
+      Effect.repeat({schedule: Schedule.spaced(WAIT_POLL_MS), until: (done) => done}),
+      Effect.timeoutOrElse({
+        duration: timeout,
+        orElse: () => Effect.fail(pageFailure('handler-error', `wait timed out for ${selector} (${state})`)),
+      }),
+      Effect.as(ok({state})),
+    ),
+  )
 }
 
 function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
@@ -156,15 +171,31 @@ async function acting(call: Call, input: Locator, value: () => unknown, beat: Be
     touchTask()
     return result(await value())
   }
-  try {
-    return result(await playQueued({input, call, queued, beat, value}))
-  } finally {
-    if (queued.index === queued.of - 1) finishQueue(queued.id)
-  }
+  return Effect.runPromise(
+    playQueued({input, call, queued, beat, value}).pipe(
+      Effect.map(result),
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (queued.index === queued.of - 1) finishQueue(queued.id)
+        }),
+      ),
+    ),
+  )
+}
+
+function queueStoppedError(): Error {
+  return toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
 }
 
 function stoppedBefore(queued: Queued): void {
-  if (queueStopped(queued.id)) throw toolError(PAGE_QUEUE_STOPPED, {message: PAGE_QUEUE_STOPPED_MESSAGE})
+  if (queueStopped(queued.id)) throw queueStoppedError()
+}
+
+function stillPlaying(call: Call, queued: Queued): Effect.Effect<void, unknown> {
+  return Effect.suspend(() => {
+    if (call.signal?.aborted) return Effect.fail(call.signal.reason)
+    return queueStopped(queued.id) ? Effect.fail(queueStoppedError()) : Effect.void
+  })
 }
 
 function stillQueued(call: Call): void {
@@ -178,23 +209,22 @@ function paceTarget(input: Locator, call: Call): Element | null {
   return typeof actionable(element) === 'string' ? null : element
 }
 
-async function playQueued(options: {
+const playQueued = Effect.fnUntraced(function* (options: {
   input: Locator
   call: Call
   queued: Queued
   beat: Beat
   value: () => unknown
-}): Promise<unknown> {
+}) {
   const {input, call, queued, beat, value} = options
-  stoppedBefore(queued)
+  if (queueStopped(queued.id)) return yield* Effect.fail(queueStoppedError())
   startTask(call.agentId)
   touchTask()
   const element = paceTarget(input, call)
-  if (element !== null) await arriveAt({element, agent: call.agentId, beat})
-  call.signal?.throwIfAborted()
-  stoppedBefore(queued)
-  return landQueued({beat, act: async () => value()})
-}
+  if (element !== null) yield* arriveAt({element, agent: call.agentId, beat})
+  yield* stillPlaying(call, queued)
+  return yield* landQueued({beat, act: Effect.tryPromise({try: async () => value(), catch: (error) => error})})
+})
 
 function actionableTarget(call: Call, input: Locator): Element {
   const element = actionable(call.target(input))
@@ -241,7 +271,7 @@ async function fillForm(
   return ok()
 }
 
-const INSERT_POS: Record<string, InsertPosition> = {
+const INSERT_POS: Record<NonNullable<Extract<Action, {type: 'insert'}>['position']>, InsertPosition> = {
   before: 'beforebegin',
   after: 'afterend',
   prepend: 'afterbegin',
@@ -303,7 +333,7 @@ async function shot(input: {exclude?: string[]}): Promise<Answer> {
 function perform(
   action: Action,
   call: Call,
-  effects: () => readonly PageEffect[],
+  effects: readonly PageEffect[],
   signal: AbortSignal | undefined,
 ): Answer | Promise<Answer> {
   switch (action.type) {
@@ -377,7 +407,8 @@ function perform(
         }
         const path = action.path ? action.path.split('.') : []
         const overridden = await reactBridge.override(el, action.target, path, value, action.hookId)
-        if ('error' in overridden) fail(overridden.error)
+        const refusal = OverrideRefusal.safeParse(overridden)
+        if (refusal.success) fail(refusal.data.error)
         return ok({target: action.target, path: action.path ?? '', ...(value === undefined ? {} : {value})})
       })
     case 'tree':
@@ -400,8 +431,8 @@ function perform(
     case 'effect':
       return touching(() => {
         const driven = action.action ?? 'list'
-        if (driven === 'list') return listEffects(effects(), action.effect)
-        const effect = requireEffect(effects(), action.effect, driven)
+        if (driven === 'list') return listEffects(effects, action.effect)
+        const effect = requireEffect(effects, action.effect, driven)
         driveEffect(effect, driven)
         return {effect: effect.name, enabled: effect.enabled()}
       })
@@ -535,7 +566,7 @@ function perform(
       })
     case 'insert':
       return touching(() => {
-        call.target(action).insertAdjacentHTML(INSERT_POS[action.position ?? 'append'] ?? 'beforeend', action.html)
+        call.target(action).insertAdjacentHTML(INSERT_POS[action.position ?? 'append'], action.html)
         return ok()
       })
     case 'css':
@@ -705,62 +736,56 @@ function captureMode(action: Action): ToolCaptureMode {
   return Operations.find((operation) => operation.name === action.type)?.capture ?? 'none'
 }
 
-function normalizePageError(error: unknown): PageError {
-  if (!isPageFailure(error)) {
-    return {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
-  }
+function failure(error: PageFailure): Outcome {
   const reported = PageErrorSchema.safeParse(error.error)
-  if (reported.success) return reported.data
-  return {code: 'handler-error', message: error.error.message}
+  if (reported.success) return {type: 'failure', ...reported.data, message: reported.data.message.slice(0, SHORT_MAX)}
+  return {type: 'failure', code: 'handler-error', message: error.error.message.slice(0, SHORT_MAX)}
 }
 
-function failure(error: unknown): Outcome {
-  const normalized = normalizePageError(error)
-  return {type: 'failure', ...normalized, message: normalized.message.slice(0, SHORT_MAX)}
-}
-
-export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperations {
+export function makePageOperations(effects: readonly PageEffect[]): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
-  const {buf: consoleBuf, dispose: disposeConsoleBuffer} = startConsoleBuffer()
-  const effects = () =>
-    ctx.list(PageEffect).filter((effect, index, all) => all.findIndex((other) => other.name === effect.name) === index)
+  const scope = Scope.makeUnsafe()
+  const consoleBuf = Effect.runSync(consoleBuffer.pipe(Scope.provide(scope)))
   void loadSnapshotLibrary()
 
-  async function dispatch(command: Command, signal: AbortSignal | undefined): Promise<Outcome> {
-    signal?.throwIfAborted()
+  const dispatch = Effect.fnUntraced(function* (command: Command, signal: AbortSignal | undefined) {
+    yield* Effect.try({try: () => signal?.throwIfAborted(), catch: toPageFailure})
     void loadSnapshotLibrary()
     const {action} = command
     const mode = captureMode(action)
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector(action.type)
     const call = callCtx(command.agentId, refs, consoleBuf, slot, command.queued, signal)
-    try {
-      const answer = await perform(action, capturingCall(call, mode, captures), effects, signal)
-      const record = readPlainRecord(answer.value)
-      if (!record || !isJsonSerializable(record)) fail(`${action.type} returned a non-serializable result`)
-      if (mode !== 'none' && command.queued === undefined) captures.take('after', slot.el)
-      const capture = await tryBuildCaptureBundle(captures.entries(), action.type)
-      const value = z.json().parse(record)
-      return {
-        type: 'success',
-        result: capture === undefined ? {value, files: answer.files} : {value, files: answer.files, capture},
-      }
-    } catch (error) {
-      rethrow(error)
+    const answer = yield* Effect.tryPromise({
+      try: async () => perform(action, capturingCall(call, mode, captures), effects, signal),
+      catch: toPageFailure,
+    })
+    const record = readPlainRecord(answer.value)
+    if (!record || !isJsonSerializable(record)) {
+      return yield* Effect.fail(pageFailure('handler-error', `${action.type} returned a non-serializable result`))
     }
-  }
+    if (mode !== 'none' && command.queued === undefined) captures.take('after', slot.el)
+    const capture = yield* Effect.promise(() => tryBuildCaptureBundle(captures.entries(), action.type))
+    const value = yield* Effect.try({try: () => z.json().parse(record), catch: toPageFailure})
+    const outcome: Outcome = {
+      type: 'success',
+      result: capture === undefined ? {value, files: answer.files} : {value, files: answer.files, capture},
+    }
+    return outcome
+  })
 
-  async function execute(command: Command, signal?: AbortSignal): Promise<Outcome> {
-    try {
-      return await dispatch(command, signal)
-    } catch (error) {
-      return failure(error)
-    }
+  function execute(command: Command, signal?: AbortSignal): Promise<Outcome> {
+    return Effect.runPromise(
+      dispatch(command, signal).pipe(
+        Effect.catch((error) => Effect.succeed(failure(error))),
+        Effect.catchDefect((defect) => Effect.succeed(failure(toPageFailure(defect)))),
+      ),
+    )
   }
 
   function dispose(): void {
-    for (const effect of effects()) if (effect.enabled()) effect.set(false)
-    disposeConsoleBuffer()
+    for (const effect of effects) if (effect.enabled()) effect.set(false)
+    Effect.runSync(Scope.close(scope, Exit.void))
     unwatchLayout()
   }
 

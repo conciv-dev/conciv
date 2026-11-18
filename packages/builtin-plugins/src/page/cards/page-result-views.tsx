@@ -1,6 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {CHIP, CodeBlock} from '@conciv/ui-kit-chat/tools'
+import type {buildSnapshot} from '@conciv/page'
+import {Chip, CodeBlock} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './shared.js'
 import {formatHtml} from './page-format.js'
 
@@ -11,9 +12,9 @@ const LIST_ITEM = `text-[length:var(--chat-text-xs)] ${LIST_ROW_CLASS}`
 const ROLE =
   'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-accent-link)] [font-family:var(--chat-mono)]'
 const NAME = 'flex-1 min-w-0 whitespace-nowrap text-ellipsis [color:var(--chat-text)] overflow-hidden'
-const REF = 'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
+const REF = 'text-[length:var(--chat-text-xs)] flex-none text-chat-text-3 [font-family:var(--chat-mono)]'
 
-export type A11yNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}
+export type A11yNode = Partial<ReturnType<typeof buildSnapshot>[number]>
 
 export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
   return (
@@ -47,5 +48,5 @@ export function PageHtmlBlock(props: {markup: string}): JSX.Element {
 }
 
 export function PageValueChip(props: {value: string}): JSX.Element {
-  return <code class={CHIP}>{props.value}</code>
+  return <Chip kind="pill" tone="accent" value={props.value} />
 }
