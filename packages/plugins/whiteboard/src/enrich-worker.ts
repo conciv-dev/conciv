@@ -1,8 +1,8 @@
 import {Clock, Effect, FiberMap, Stream} from 'effect'
 import {z} from 'zod'
-import {json, type CommentRow} from '../shared/rows.js'
+import {json, type CommentRow} from './rows.js'
 import type {Store, WhiteboardEvent} from './store.js'
-import {enrichAnchor, type LoadResolver} from '../tool/comment/anchor-enrich.js'
+import {enrichAnchor, type LoadResolver} from './anchor-enrich.js'
 
 const SourceAnchor = z.object({source: z.object({file: z.string()})})
 

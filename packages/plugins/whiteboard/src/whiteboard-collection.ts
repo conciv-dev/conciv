@@ -7,7 +7,7 @@ import type {
 } from '@tanstack/solid-db'
 import {Effect, Fiber, Schema, Stream} from 'effect'
 import {z} from 'zod'
-import {elementRow, type ElementRow} from '../shared/rows.js'
+import {elementRow, type ElementRow} from './rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 
 const ELEMENT_WRITE_THROTTLE_MS = 50

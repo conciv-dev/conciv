@@ -2,9 +2,9 @@ import {createMemo, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {maxBy} from 'es-toolkit'
-import type {Viewport} from '../../canvas/coords.js'
-import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
-import {useWhiteboardDb} from '../db.js'
+import type {Viewport} from './coords.js'
+import type {CommentRow, PinRow, ReadRow} from './rows.js'
+import {useWhiteboardDb} from './db.js'
 import {
   deleteThreadRows,
   detachCommentAnchor,
@@ -14,7 +14,7 @@ import {
   resolveThread,
   type PinPatch,
 } from './comment-writes.js'
-import {createPinDrag} from '../pins/pin-drag.js'
+import {createPinDrag} from './pin-drag.js'
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
 

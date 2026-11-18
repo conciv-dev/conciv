@@ -2,7 +2,7 @@ import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX, type R
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
 import {z} from 'zod'
-import type {ChatCover} from './model/comments-model.js'
+import type {ChatCover} from './comments-model.js'
 
 export type SurfaceModule = typeof import('./canvas-surface.js')
 

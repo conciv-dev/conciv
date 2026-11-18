@@ -2,8 +2,8 @@ import {For, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
-import type {CommentRow} from '../../shared/rows.js'
-import {useComments} from '../model/comments.js'
+import type {CommentRow} from './rows.js'
+import {useComments} from './comments.js'
 
 const TextPart = z.object({type: z.literal('text'), text: z.string()})
 const MentionPart = z.object({type: z.literal('mention'), id: z.string(), label: z.string()})

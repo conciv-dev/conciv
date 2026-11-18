@@ -1,5 +1,5 @@
 import {keyBy, mapValues, omit} from 'es-toolkit'
-import type {PendingRow} from '../shared/rows.js'
+import type {PendingRow} from './rows.js'
 
 export type DrainPhase =
   | {readonly phase: 'claiming' | 'running' | 'removing'; readonly attempt: number; readonly row: PendingRow}

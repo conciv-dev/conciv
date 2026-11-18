@@ -3,19 +3,19 @@ import type {Renderer} from '@takumi-rs/core'
 import {isPlainObject} from 'es-toolkit'
 import {Clock, Deferred, Effect, Option, Stream} from 'effect'
 import {z} from 'zod'
-import type {Store, StoreError, WhiteboardEvent} from '../../server/store.js'
+import type {Store, StoreError, WhiteboardEvent} from './store.js'
 import {
   startPending,
   transitionPending,
   type PendingClaim,
   type PendingOutcome,
   type PendingTransition,
-} from '../../server/pending-machine.js'
-import {json, type JsonValue, type ReplyRow} from '../../shared/rows.js'
-import {confirmed, fail, toolEdge, type Confirm} from '../refusal.js'
+} from './pending-machine.js'
+import {json, type JsonValue, type ReplyRow} from './rows.js'
+import {confirmed, fail, toolEdge, type Confirm} from './refusal.js'
 import {draftToSvg, type DraftElement} from './draft-svg.js'
 import {renderDraftPng} from './preview.js'
-import {validateSvg} from '../../shared/svg-caps.js'
+import {validateSvg} from './svg-caps.js'
 
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g

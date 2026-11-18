@@ -1,13 +1,13 @@
 import type {Context} from '@conciv/plugin/effect/plugin'
 import type {ToolEditor} from '@conciv/plugin/effect/tool'
 import type {Renderer} from '@takumi-rs/core'
-import {confirmed, fail, toolEdge, type Confirm} from './tool/refusal.js'
-import {registerCanvas} from './tool/canvas/tools.js'
+import {confirmed, fail, toolEdge, type Confirm} from './refusal.js'
+import {registerCanvas} from './canvas-tools.js'
 import {Clock, Effect} from 'effect'
 import {z} from 'zod'
-import type {Store} from './server/store.js'
-import {json} from './shared/rows.js'
-import {enrichAnchor, type LoadResolver} from './tool/comment/anchor-enrich.js'
+import type {Store} from './store.js'
+import {json} from './rows.js'
+import {enrichAnchor, type LoadResolver} from './anchor-enrich.js'
 
 const COMMENT_OPTIONS = {namespace: 'whiteboard.comment', codemode: true}
 const PIN_OPTIONS = {namespace: 'whiteboard.pin', codemode: true}

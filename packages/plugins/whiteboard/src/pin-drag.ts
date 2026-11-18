@@ -1,7 +1,7 @@
 import {createStore} from 'solid-js/store'
-import {screenToScene, type Viewport} from '../../canvas/coords.js'
-import type {CommentRow, PinRow} from '../../shared/rows.js'
-import type {PinPatch} from '../model/comment-writes.js'
+import {screenToScene, type Viewport} from './coords.js'
+import type {CommentRow, PinRow} from './rows.js'
+import type {PinPatch} from './comment-writes.js'
 
 const DRAG_THRESHOLD = 4
 

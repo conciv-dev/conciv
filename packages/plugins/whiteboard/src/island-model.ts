@@ -1,5 +1,5 @@
 import {Effect, FiberMap, Queue, Schedule, Schema, SubscriptionRef} from 'effect'
-import type {PendingRow} from '../shared/rows.js'
+import type {PendingRow} from './rows.js'
 import {startDrain, transitionDrain, type DrainEffect, type DrainEvent, type DrainState} from './drain-machine.js'
 
 export const RemoveFailed = Schema.TaggedStruct('RemoveFailed', {message: Schema.String})

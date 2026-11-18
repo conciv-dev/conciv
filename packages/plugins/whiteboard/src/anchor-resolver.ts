@@ -1,5 +1,5 @@
 import {Effect, Option} from 'effect'
-import {isSecretPath, readSource, type SourceUnreadable} from './confine.js'
+import {isSecretPath, readSource, type SourceUnreadable} from './anchor-confine.js'
 import {captureSource, hashAt, scanElements, type ElementFingerprint, type SourceAnchor} from './oxc-capture.js'
 import {headCommit, isCommittedClean, mapLineAcrossCommits} from './git-track.js'
 

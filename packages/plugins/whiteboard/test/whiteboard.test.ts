@@ -29,21 +29,15 @@ import {
   type Schema,
 } from 'effect'
 import {TestClock} from 'effect/testing'
-import {
-  makeChangeFeed,
-  SinceFailed,
-  EventsStopped,
-  type ChangeMessage,
-  type FeedEvent,
-} from '../src/client/change-feed.js'
-import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/client/change-feed-machine.js'
-import {startDrain, transitionDrain, type DrainState} from '../src/canvas/drain-machine.js'
-import {makePendingDrain, RemoveFailed} from '../src/canvas/island-model.js'
-import {replayDraft} from '../src/canvas/replay.js'
-import type {PendingRow} from '../src/shared/rows.js'
-import {startPending, transitionPending, type PendingState} from '../src/server/pending-machine.js'
-import {makeWhiteboardStore} from '../src/server/store.js'
-import {awaitDrawing, commitDraft, exportPng} from '../src/tool/canvas/tools.js'
+import {makeChangeFeed, SinceFailed, EventsStopped, type ChangeMessage, type FeedEvent} from '../src/change-feed.js'
+import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/change-feed-machine.js'
+import {startDrain, transitionDrain, type DrainState} from '../src/drain-machine.js'
+import {makePendingDrain, RemoveFailed} from '../src/island-model.js'
+import {replayDraft} from '../src/replay.js'
+import type {PendingRow} from '../src/rows.js'
+import {startPending, transitionPending, type PendingState} from '../src/pending-machine.js'
+import {makeWhiteboardStore} from '../src/store.js'
+import {awaitDrawing, commitDraft, exportPng} from '../src/canvas-tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const OTHER_ROOM = 'conciv_other_room'

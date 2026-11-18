@@ -16,7 +16,7 @@ import {
   type PinRow,
   type ReadRow,
   type ReplyRow,
-} from '../shared/rows.js'
+} from './rows.js'
 
 type TableRows = {
   canvasElements: ElementRow

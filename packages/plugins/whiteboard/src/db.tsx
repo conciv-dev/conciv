@@ -2,7 +2,7 @@ import {createContext, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import {createCollection} from '@tanstack/solid-db'
 import {usePlugin, type Context} from '@conciv/plugin/experimental'
 import {Effect, Exit, Scope} from 'effect'
-import {Whiteboard} from '../rpc.js'
+import {Whiteboard} from './rpc.js'
 import {
   elementRowToInsert,
   type CommentRow,
@@ -11,7 +11,7 @@ import {
   type PinRow,
   type ReadRow,
   type ReplyRow,
-} from '../shared/rows.js'
+} from './rows.js'
 import {makeChangeFeed, rpcChangeSource} from './change-feed.js'
 import {whiteboardStores} from './stores.js'
 import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'

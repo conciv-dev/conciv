@@ -1,6 +1,6 @@
 import type {RpcHandlers} from '@conciv/plugin/effect/rpc'
 import {Effect, Schema} from 'effect'
-import type {Whiteboard} from '../rpc.js'
+import type {Whiteboard} from './rpc.js'
 import {StoreError, type RowNotFound, type Store} from './store.js'
 
 const isStoreError = Schema.is(StoreError)

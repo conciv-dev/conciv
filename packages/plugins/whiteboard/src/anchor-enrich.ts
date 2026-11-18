@@ -1,7 +1,7 @@
 import {Effect} from 'effect'
 import {z} from 'zod'
-import type {SourceUnreadable} from '../../anchor/confine.js'
-import type {AnchorResolver} from '../../anchor/resolver.js'
+import type {SourceUnreadable} from './anchor-confine.js'
+import type {AnchorResolver} from './anchor-resolver.js'
 
 export type LoadResolver = Effect.Effect<AnchorResolver, SourceUnreadable>
 

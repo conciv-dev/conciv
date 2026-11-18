@@ -1,9 +1,9 @@
 import {For, onCleanup, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
-import {sceneToScreen} from '../../canvas/coords.js'
-import type {CommentRow} from '../../shared/rows.js'
-import {useComments} from '../model/comments.js'
+import {sceneToScreen} from './coords.js'
+import type {CommentRow} from './rows.js'
+import {useComments} from './comments.js'
 import {DragPrompt} from './drag-prompt.js'
 
 type CommentStatus = CommentRow['status']

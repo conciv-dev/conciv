@@ -3,12 +3,12 @@ import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import {usePlugin, type Context} from '@conciv/plugin/experimental'
-import {Island} from '../canvas/island.js'
+import {Island} from './island.js'
 import {WhiteboardDbProvider} from './db.js'
-import {CommentsProvider, useComments} from './model/comments.js'
-import {PinsLayer} from './pins/pins.js'
-import type {ChatCover} from './model/comments-model.js'
-import {ThreadPopover} from './pins/thread.js'
+import {CommentsProvider, useComments} from './comments.js'
+import {PinsLayer} from './pins.js'
+import type {ChatCover} from './comments-model.js'
+import {ThreadPopover} from './thread.js'
 
 const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
 

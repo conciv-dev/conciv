@@ -2,9 +2,9 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {Permission} from '@conciv/plugin/schema/permission'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Effect} from 'effect'
-import type {SourceUnreadable} from '../anchor/confine.js'
-import type {StoreError} from '../server/store.js'
-import type {RenderFailed} from './canvas/preview.js'
+import type {SourceUnreadable} from './anchor-confine.js'
+import type {StoreError} from './store.js'
+import type {RenderFailed} from './preview.js'
 
 type Failure = {code?: string; message: string; error?: unknown}
 export type Confirm = Context['permission']

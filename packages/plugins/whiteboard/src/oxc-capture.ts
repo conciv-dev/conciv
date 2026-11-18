@@ -1,7 +1,7 @@
 import {isPlainObject} from 'es-toolkit'
 import {parseSync} from 'oxc-parser'
 import {Effect} from 'effect'
-import {isSecretPath, readSource, redactSnippet} from './confine.js'
+import {isSecretPath, readSource, redactSnippet} from './anchor-confine.js'
 
 export type SourceAnchor = {
   file: string

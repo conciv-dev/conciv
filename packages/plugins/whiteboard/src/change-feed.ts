@@ -1,7 +1,7 @@
 import type {Context} from '@conciv/plugin/experimental'
 import {Deferred, Effect, FiberHandle, PubSub, Queue, Schedule, Schema, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
-import {Whiteboard} from '../rpc.js'
+import {Whiteboard} from './rpc.js'
 import {
   startChangeFeed,
   transitionChangeFeed,

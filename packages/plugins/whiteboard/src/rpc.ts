@@ -13,7 +13,7 @@ import {
   readRowInsert,
   replyRow,
   replyRowInsert,
-} from './shared/rows.js'
+} from './rows.js'
 
 const Room = z.string().regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
 const RoomInput = z.object({room: Room})
