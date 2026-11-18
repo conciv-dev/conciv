@@ -1,10 +1,11 @@
-import {createSignal, For, type JSX} from 'solid-js'
+import {createSignal, For, Show, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ComposerProvider} from '../primitives/composer/composer-context.js'
 import type {CompleteAttachment} from '../primitives/attachment/attachment-adapter.js'
-import {AttachmentProvider} from '../primitives/attachment/attachment.js'
-import {AttachmentByMime} from './attachment-dispatch.js'
+import {AttachmentProvider, useAttachment} from '../primitives/attachment/attachment.js'
+import {AttachmentByMime, type AttachmentCardProps} from './attachment-dispatch.js'
+import {CornerRemoveButton} from './corner-remove-button.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/AttachmentByMime'}
 export default meta
@@ -22,7 +23,8 @@ const SEED: CompleteAttachment[] = [
   },
 ]
 
-function FakeRecordingCard(props: {remove?: JSX.Element}): JSX.Element {
+function FakeRecordingCard(props: AttachmentCardProps): JSX.Element {
+  const attachment = useAttachment()
   const [playing, setPlaying] = createSignal(false)
   return (
     <div class="px-3 rounded-[var(--chat-radius-pill)] flex gap-2 h-10 [border:1px_solid_var(--chat-line)] items-center">
@@ -30,7 +32,11 @@ function FakeRecordingCard(props: {remove?: JSX.Element}): JSX.Element {
       <button type="button" onClick={() => setPlaying(true)}>
         {playing() ? 'Playing' : 'Play'}
       </button>
-      {props.remove}
+      <Show when={props.onRemove}>
+        {(remove) => (
+          <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove()(attachment.id)} />
+        )}
+      </Show>
     </div>
   )
 }

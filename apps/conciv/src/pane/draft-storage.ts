@@ -175,12 +175,13 @@ type DraftWrite = (appData: AppData, sessionId: string, text: string, items?: re
 
 export type DraftWriteChain = (write: () => Promise<void>) => void
 
-export function makeDraftWriteChain(): DraftWriteChain {
+export function makeDraftWriteChain(onFailure: () => void): DraftWriteChain {
   let written = Promise.resolve()
   return (write) => {
-    written = written
-      .then(write)
-      .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
+    written = written.then(write).catch((error: unknown) => {
+      console.error('[conciv] could not keep the queued message as a draft', error)
+      onFailure()
+    })
   }
 }
 
@@ -190,10 +191,9 @@ export function draftCacheSink(
   sessionId: string,
   write: DraftWrite,
 ): DraftSink {
-  return {
-    insert: (text) => keep(() => write(appData, sessionId, text)),
-    addFile: () => {},
-    addItem: (item) => keep(() => write(appData, sessionId, '', [item])),
+  return (returned) => {
+    if (returned.text === '' && returned.items.length === 0) return
+    keep(() => write(appData, sessionId, returned.text, returned.items))
   }
 }
 

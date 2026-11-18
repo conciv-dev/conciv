@@ -1,5 +1,5 @@
 import {createResource, createSignal, Show, type JSX} from 'solid-js'
-import {useAttachment} from '@conciv/ui-kit-chat'
+import {CornerRemoveButton, useAttachment} from '@conciv/ui-kit-chat'
 import {Button, Dialog} from '@conciv/ui-kit-system'
 import type {AttachmentCardProps} from '@conciv/extension'
 import {parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
@@ -77,12 +77,17 @@ function Preview(props: {preview: GrabPreview; class: string}): JSX.Element {
   )
 }
 
-function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Element {
+function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}): JSX.Element {
+  const attachment = useAttachment()
   const [open, setOpen] = createSignal(false)
   const [showAgentText, setShowAgentText] = createSignal(false)
   return (
     <div class={CARD} data-chat-grab>
-      {props.remove}
+      <Show when={props.onRemove}>
+        {(remove) => (
+          <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove()(attachment.id)} />
+        )}
+      </Show>
       <Show when={props.payload.preview} fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}>
         {(preview) => (
           <div class={PREVIEW_SLOT}>
@@ -156,7 +161,7 @@ export function GrabCard(props: AttachmentCardProps): JSX.Element {
           </div>
         }
       >
-        {(value) => <GrabBody payload={value()} remove={props.remove} />}
+        {(value) => <GrabBody payload={value()} onRemove={props.onRemove} />}
       </Show>
     </Show>
   )

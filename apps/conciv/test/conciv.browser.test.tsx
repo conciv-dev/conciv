@@ -60,7 +60,7 @@ import {
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
 import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
-import {paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
+import {composerDraftSink, paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import {formatNoteComment, noteComment, promptWithNotes} from '../src/composer/comment-note.js'
 import {contextItemKey} from '../src/composer/note-schema.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -4629,11 +4629,11 @@ describe('queue strip', () => {
         </ChatProvider>
       </EngineReachabilityContext.Provider>
     ))
-    const sink = {
+    const sink = composerDraftSink({
       insert: (text: string) => inputs[0]?.append(text),
       addFile: (file: File) => void attached.push(file),
       addItem: () => {},
-    }
+    })
     const stop = () => {
       returnQueueToDraft(session, sink)
       return session.stop()
@@ -4664,11 +4664,14 @@ describe('queue strip', () => {
     const files: string[] = []
     const notes: string[] = []
 
-    putBackInDraft([{id: 'q1', content, createdAt: 0}], {
-      insert: (text) => inserted.push(text),
-      addFile: (file) => files.push(file.type),
-      addItem: (entry) => notes.push(entry.key.split(':c=')[0] ?? ''),
-    })
+    putBackInDraft(
+      [{id: 'q1', content, createdAt: 0}],
+      composerDraftSink({
+        insert: (text) => inserted.push(text),
+        addFile: (file) => files.push(file.type),
+        addItem: (entry) => notes.push(entry.key.split(':c=')[0] ?? ''),
+      }),
+    )
 
     expect(inserted).toEqual([sentence])
     expect(files).toEqual(['image/png'])
@@ -8585,6 +8588,17 @@ module.exports = {default: {setup(ctx) {
   const typed = (text: string) => chatPanel().getByText(text, {exact: true}).first()
   const readAsked = async (sessionId: string) =>
     (await coreRpc(coreBase()).chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+  const titleButton = (title: string) =>
+    page.getByRole('banner').getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+  const switchTo = async (from: string, to: string) => {
+    await titleButton(from).click()
+    await page
+      .getByRole('dialog', {name: 'Session options'})
+      .getByRole('button', {name: `Session: ${from}`})
+      .click()
+    await page.getByRole('option', {name: new RegExp(`^${to},`)}).click()
+    await expect.element(titleButton(to), {timeout: 8000}).toBeVisible()
+  }
 
   test('its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -8809,7 +8823,6 @@ module.exports = {default: {setup(ctx) {
     await expect
       .element(page.getByRole('article', {name: 'You: 6 notes', exact: true}))
       .toMatchTextContent(/alone note 1[\s\S]*alone note 6/)
-    await expect.element(control('Show more')).not.toBeInTheDocument()
 
     await tab('Fixture tools').click()
     await control('Attach six notes').click()
@@ -8818,11 +8831,8 @@ module.exports = {default: {setup(ctx) {
     await userEvent.click(editor())
     await userEvent.keyboard('{Enter}')
     await expect.element(typed('six notes')).toBeVisible()
-    await expect.element(sentCard('note number 5')).toBeVisible()
-    await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
-    await control('Show more').click()
+    await expect.element(sentLists().last().getByRole('listitem').nth(5)).toBeVisible()
     await expect.element(sentCard('note number 6')).toBeVisible()
-    await expect.element(control('Show more')).not.toBeInTheDocument()
     await expect
       .element(sentLists().last().getByRole('listitem').first().getByText('note number 1', {exact: true}))
       .toBeVisible()
@@ -8837,9 +8847,8 @@ module.exports = {default: {setup(ctx) {
     await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
     await expect.element(sentCard('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
     await expect.element(sentCard('note number 5')).toBeVisible()
-    await expect.element(sentCard('note number 6')).not.toBeInTheDocument()
+    await expect.element(sentCard('note number 6')).toBeVisible()
     await expect.element(sentCard('alone note 6')).toBeVisible()
-    await expect.element(control('Show more')).toBeVisible()
 
     const aloneId = await createSession(rpc)
     harness.dispose()
@@ -8864,17 +8873,6 @@ module.exports = {default: {setup(ctx) {
     await rpc.sessions.rename({sessionId: otherId, title: OTHER})
     const sessionId = await createSession(rpc)
     await rpc.sessions.rename({sessionId, title: NOTED})
-    const titleButton = (title: string) =>
-      page.getByRole('banner').getByRole('button', {name: new RegExp(`^${title}, session options$`)})
-    const switchTo = async (from: string, to: string) => {
-      await titleButton(from).click()
-      await page
-        .getByRole('dialog', {name: 'Session options'})
-        .getByRole('button', {name: `Session: ${from}`})
-        .click()
-      await page.getByRole('option', {name: new RegExp(`^${to},`)}).click()
-      await expect.element(titleButton(to), {timeout: 8000}).toBeVisible()
-    }
     const savedItems = async (id: string) => (await rpc.drafts.get({sessionId: id}))?.items.length ?? 0
     const restore = await faults.install({kind: 'gate', path: ['drafts', 'get'], input: {sessionId}})
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -9025,7 +9023,35 @@ module.exports = {default: {setup(ctx) {
     await expect.element(card('alone note 1')).toBeVisible()
     await expect.element(card('alone note 6')).toBeVisible()
     expect(await readAsked(brokenId)).toHaveLength(1)
-  }, 60_000)
+
+    const returningId = await createSession(rpc)
+    const awayId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: returningId, title: 'the returning session'})
+    await rpc.sessions.rename({sessionId: awayId, title: 'the session away'})
+    const refusedSave = await faults.install({kind: 'fail', path: ['drafts', 'set'], status: 500})
+    const cut = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    harness.dispose()
+    harness.mountShell(`${tabPath(returningId, 'fixture:tools')}?open=true`)
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+    await tab('Chat').click()
+    await userEvent.click(editor())
+    await userEvent.keyboard('a turn that breaks{Enter}')
+    await coreControl.awaitFaultPending(cut, 1)
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(queued()).toBeVisible()
+    await switchTo('the returning session', 'the session away')
+    await coreControl.releaseFault(cut)
+    await expect
+      .element(page.getByRole('region', {name: /Notifications/}))
+      .toMatchTextContent(/The queued message could not be put back in its draft/)
+    await coreControl.releaseFault(refusedSave)
+    expect(await rpc.drafts.get({sessionId: returningId})).toBeNull()
+  }, 90_000)
 
   describe('its ctx.ui.Popover', () => {
     const textbox = (name: string) => page.getByRole('textbox', {name, exact: true})

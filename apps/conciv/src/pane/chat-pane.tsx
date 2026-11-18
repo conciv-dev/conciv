@@ -45,7 +45,7 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
+import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -411,8 +411,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
         </>
       )
     }
-    const renderPromptSuffix = (source: TurnPrefixSource, besideText: boolean): JSX.Element => (
-      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} bounded={besideText} />
+    const renderPromptSuffix = (source: TurnPrefixSource): JSX.Element => (
+      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} />
     )
     return (
       <div class="contents">
@@ -523,8 +523,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <DraftReturnReceiver
                       sessionId={sessionId}
                       sinks={{
-                        queue: {insert, addFile: attach, addItem},
-                        steered: {insert: insertFirst, addFile: attach, addItem},
+                        queue: composerDraftSink({insert, addFile: attach, addItem}),
+                        steered: composerDraftSink({insert: insertFirst, addFile: attach, addItem}),
                       }}
                     />
                     <Suspense fallback={<ComposerActionsPending />}>
@@ -569,7 +569,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSteer: messaging.onSteer,
               onSteerError: messaging.onSteerError,
               onCancel: () => {
-                returnQueueToDraft(chat, {insert, addFile: attach, addItem})
+                returnQueueToDraft(chat, composerDraftSink({insert, addFile: attach, addItem}))
                 void chat.stop()
               },
             }}

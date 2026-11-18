@@ -97,7 +97,7 @@ export type ThreadMessagesProps = {
   components?: ThreadComponents
   tools?: ToolCardEntry[]
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
-  promptSuffix?: (turn: TurnPrefixSource, besideText: boolean) => JSX.Element
+  promptSuffix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
   grouping?: Grouping
@@ -474,7 +474,7 @@ function UserTurn(): JSX.Element {
                   <span class={PROMPT_TEXT_CLASS}>
                     <HighlightedText text={promptText()} />
                   </span>
-                  <PromptSuffix besideText />
+                  <PromptSuffix />
                 </div>
                 <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
               </div>
@@ -482,7 +482,7 @@ function UserTurn(): JSX.Element {
             <Match when={noteCount() > 0}>
               <div class={PROMPT_NOTES_ROW_CLASS}>
                 <div class={PROMPT_BODY_CLASS}>
-                  <PromptSuffix besideText={false} />
+                  <PromptSuffix />
                 </div>
                 <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
               </div>
@@ -499,7 +499,7 @@ type ThreadConfig = {
   fallback: () => ToolCardView
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
-  promptSuffix: () => ((turn: TurnPrefixSource, besideText: boolean) => JSX.Element) | undefined
+  promptSuffix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -532,12 +532,12 @@ function TurnPrefix(): JSX.Element {
   )
 }
 
-function PromptSuffix(props: {besideText: boolean}): JSX.Element {
+function PromptSuffix(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
   return (
     <Show when={config.promptSuffix()}>
-      {(suffix) => suffix()({key: message.key, role: message.role, turn: message.message}, props.besideText)}
+      {(suffix) => suffix()({key: message.key, role: message.role, turn: message.message})}
     </Show>
   )
 }

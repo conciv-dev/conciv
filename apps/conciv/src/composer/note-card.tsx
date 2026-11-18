@@ -3,7 +3,7 @@ import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import {isEqual, isNil} from 'es-toolkit'
-import {Button, TruncatedText} from '@conciv/ui-kit-system'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {CornerRemoveButton, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
@@ -14,7 +14,6 @@ import {decodeNotes} from './note-schema'
 import {readPromptPresentation} from './comment-note'
 
 const FALLBACK_ICON: IconName = 'message-square'
-const SENT_NOTE_BOUND = 5
 
 const FRAME =
   'group relative flex flex-1 flex-col gap-0.5 min-w-0 p-3 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
@@ -137,33 +136,22 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
 export function SentNotes(props: {
   messages: Accessor<readonly ChatMessage[]>
   session: Accessor<MountedSession | undefined>
-  bounded: boolean
 }): JSX.Element {
-  const [state, setState] = createStore({expanded: false})
   const notes = createMemo(() =>
     props.messages().flatMap((message) => readPromptPresentation(message.metadata)?.comments ?? []),
   )
-  const collapsed = () => props.bounded && !state.expanded
-  const shown = createMemo(() => (collapsed() ? notes().slice(0, SENT_NOTE_BOUND) : notes()))
 
   return (
     <Show when={notes().length > 0}>
-      <div class="flex flex-col items-start gap-2 w-full max-w-80">
-        <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full list-none p-0">
-          <For each={shown()}>
-            {(note) => (
-              <li class="flex flex-col">
-                <PluginNoteCard note={note} session={props.session()} />
-              </li>
-            )}
-          </For>
-        </ul>
-        <Show when={collapsed() && notes().length > SENT_NOTE_BOUND}>
-          <Button variant="ghost" size="sm" onClick={() => setState('expanded', true)}>
-            Show more
-          </Button>
-        </Show>
-      </div>
+      <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full max-w-80 list-none p-0">
+        <For each={notes()}>
+          {(note) => (
+            <li class="flex flex-col">
+              <PluginNoteCard note={note} session={props.session()} />
+            </li>
+          )}
+        </For>
+      </ul>
     </Show>
   )
 }
