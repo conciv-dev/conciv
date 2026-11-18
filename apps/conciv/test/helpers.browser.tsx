@@ -400,6 +400,7 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
+  connect?: boolean
 }
 
 function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; dispose: () => void} {
@@ -456,7 +457,12 @@ export function createShellHarness(base: () => string): ShellHarness {
       })
     if (login) void startEngineLogin(login)
     const activeSession: {read: () => string | null} = {read: () => null}
-    const client = makeBrowserRpcClient(apiBase, {session: () => activeSession.read()})
+    const client = makeBrowserRpcClient(options.connect ? () => null : apiBase, {session: () => activeSession.read()})
+    const [boundApiBase, setBoundApiBase] = createSignal(options.connect ? '' : apiBase)
+    const bindApiBase = (next: string) => {
+      client.bind(next)
+      setBoundApiBase(next)
+    }
     mounted.closeRpc = client.close
     const shadow = options.shadow ? mountInShadowRoot() : undefined
     mounted.removeShadow = shadow?.dispose ?? (() => {})
@@ -467,8 +473,10 @@ export function createShellHarness(base: () => string): ShellHarness {
       settings: parseConcivSettings(
         JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
       ),
-      apiBase: options.apiBase ?? (() => apiBase),
-      connected: () => (login ? engineConnected(login.status()) : true),
+      apiBase: options.apiBase ?? boundApiBase,
+      connected: () => (login ? engineConnected(login.status()) : client.bound()),
+      connectMode: options.connect,
+      bindApiBase: options.connect ? bindApiBase : undefined,
       connectionGeneration: () => 0,
       extensions,
       login,

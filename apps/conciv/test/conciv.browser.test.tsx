@@ -7,6 +7,7 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   browserRpcConnection,
+  makeBrowserRpcClient,
   makeRpcClient,
   subscribeRpcReachability,
   type RpcClient,
@@ -115,6 +116,7 @@ import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {Persist, persisted, removePersisted} from '../src/runtime/persistence/storage.js'
 import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
 import {selectDisabled} from '../src/runtime/plugin/machine.js'
 import {
@@ -7767,6 +7769,115 @@ describe('terminal panel', () => {
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('interrupted')).not.toBeInTheDocument()
   }, 60_000)
+})
+
+const TYPED_CONNECT_PROBE_NAME = 'typed-connect-probe'
+
+function TypedConnectProbe(): JSX.Element {
+  const connect = getExtensionApi(TYPED_CONNECT_PROBE_NAME).useConnect()
+  const [address, setAddress] = createSignal('')
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        connect.found(address())
+      }}
+    >
+      <label>
+        Workspace address
+        <input value={address()} onInput={(event) => setAddress(event.currentTarget.value)} />
+      </label>
+      <button type="submit">Connect</button>
+    </form>
+  )
+}
+
+const typedConnectProbe = defineExtension({
+  name: TYPED_CONNECT_PROBE_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(TYPED_CONNECT_PROBE_NAME).useSlot() === 'connect'}>
+      <TypedConnectProbe />
+    </Show>
+  ),
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof typedConnectProbe> {}
+}
+
+describe('plugins before a core is bound', () => {
+  const coreBase = bootedCore('plugins-before-bind', {
+    tty: true,
+    models: [
+      {id: 'first-model', name: 'First model'},
+      {id: 'calm-model', name: 'Calm model'},
+    ],
+    files: {'conciv/plugins/neighbour.ts': "export default {id: 'neighbour', async setup() {}}\n"},
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const PREFS_KEY = 'conciv.global:plugin.terminal.prefs'
+  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
+  const picker = () => bar().getByRole('button', {name: 'Select model'})
+  const enginePluginStoreReads = () =>
+    coreControl.rpcCallCount(['settings', 'all'], {scope: 'global', namespace: 'plugins'})
+
+  test('a built-in plugin with a global store starts in connect mode, reads its value from this browser, and the installed plugins load once the core is bound', async () => {
+    await page.viewport(1000, 900)
+    localStorage.setItem(PREFS_KEY, JSON.stringify({model: 'calm-model'}))
+    onTestFinished(() => localStorage.removeItem(PREFS_KEY))
+    localStorage.removeItem('conciv:settings-tab')
+    harness.mountShell('/panel/connect?open=true', [typedConnectProbe], {connect: true})
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Workspace address'}))
+    await userEvent.keyboard(coreBase())
+    await userEvent.click(page.getByRole('button', {name: 'Connect'}))
+
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+    await terminalTab().click()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    expect(await enginePluginStoreReads()).toBe(0)
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
+  test('a project store opens from this browser with no core, imports an older key, and is removed', () => {
+    const unbound = makeBrowserRpcClient(() => null)
+    onTestFinished(unbound.close)
+    const OLDER = 'conciv.project:plugin.fixture.older'
+    const CURRENT = 'conciv.project:plugin.fixture.layout'
+    localStorage.setItem(OLDER, JSON.stringify({columns: 3}))
+    onTestFinished(() => {
+      localStorage.removeItem(OLDER)
+      localStorage.removeItem(CURRENT)
+    })
+    const schema = z.object({columns: z.number()})
+    const target = {...Persist.project('plugin.fixture.layout'), copyFrom: [{key: 'plugin.fixture.older'}]}
+
+    createRoot((dispose) => {
+      onTestFinished(dispose)
+      const [store, , , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+      expect(ready()).toBe(true)
+      expect(store.columns).toBe(3)
+      expect(localStorage.getItem(CURRENT)).toBe(JSON.stringify({columns: 3}))
+      expect(localStorage.getItem(OLDER)).toBeNull()
+    })
+
+    removePersisted(target, unbound.rpc)
+    expect(localStorage.getItem(CURRENT)).toBeNull()
+
+    createRoot((dispose) => {
+      onTestFinished(dispose)
+      const [store, , , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+      expect(ready()).toBe(true)
+      expect(store.columns).toBe(2)
+    })
+  })
 })
 
 describe('plugin composer pills', () => {
