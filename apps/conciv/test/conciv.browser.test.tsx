@@ -1461,8 +1461,14 @@ export default {
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
   })
 
-  test('the @ list offers the skills, then the agents that are neither primary nor hidden, and no tool', async () => {
-    await mountComposer(WIDE_PX)
+  test('the @ list offers the skills, then the agents that are neither primary nor hidden, then the other sessions, and no tool', async () => {
+    const rpc = coreRpc(core())
+    const ledgerId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Review ledger'})
+    const payrollId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: payrollId, title: 'Payroll audit'})
+    const mount = await mountComposer(WIDE_PX)
+    await rpc.sessions.rename({sessionId: mount.pane.sessionId(), title: 'Payroll pane'})
     const context = () => page.getByRole('listbox', {name: 'Context'})
     const mention = (label: string) => context().getByRole('option', {name: label})
 
@@ -1471,16 +1477,34 @@ export default {
 
     await expect.element(mention('@mention-guide')).toHaveTextContent('@mention-guideHow mentions are written')
     await expect.element(mention('@reviewer')).toBeVisible()
-    await expect.element(context().getByRole('option').last()).toHaveTextContent('@reviewer')
+    await expect.element(mention('@Payroll audit')).toBeVisible()
+    await expect.element(mention('@Review ledger')).toBeVisible()
+    await expect.element(mention('@Payroll pane')).not.toBeInTheDocument()
     await expect.element(mention('@lurker')).not.toBeInTheDocument()
     await expect.element(mention('@planner')).not.toBeInTheDocument()
     await expect.element(mention('@build')).not.toBeInTheDocument()
     await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
 
-    await userEvent.keyboard('review{Enter}')
+    await userEvent.keyboard('review')
+
+    await expect.element(context().getByRole('option').first()).toHaveTextContent('@reviewer')
+    await expect.element(context().getByRole('option').last()).toHaveTextContent('@Review ledger')
+
+    await userEvent.keyboard('{Enter}')
 
     await expect.element(context()).not.toBeInTheDocument()
     await expect.element(input().getByText('@reviewer')).toBeVisible()
+
+    await userEvent.keyboard('@payroll')
+
+    await expect.element(context().getByRole('option').first()).toHaveTextContent('@Payroll audit')
+    await expect.element(mention('@Review ledger')).not.toBeInTheDocument()
+    await expect.element(mention('@Payroll pane')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
   })
 })
 
