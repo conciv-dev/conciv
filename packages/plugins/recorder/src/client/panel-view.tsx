@@ -115,8 +115,13 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const saveFailed = (failure: keyof typeof SAVE_FAILURES): void =>
     void ctx.toast.show({title: SAVE_FAILURES[failure], variant: 'error'})
 
+  const save = async () => {
+    await props.capture.flushNow()
+    return recorder()['recordings.save']({clientId: props.clientId})
+  }
+
   const saveForExport = async (): Promise<string | undefined> => {
-    const stored = await recorder()['recordings.save']({clientId: props.clientId})
+    const stored = await save()
     if (stored.saved) return stored.recordingId
     saveFailed(stored.error)
     return undefined
@@ -125,7 +130,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
   const sendToAgent = async (): Promise<void> => {
     setState('sending', true)
     try {
-      const stored = await recorder()['recordings.save']({clientId: props.clientId})
+      const stored = await save()
       if (!stored.saved) {
         saveFailed(stored.error)
         return

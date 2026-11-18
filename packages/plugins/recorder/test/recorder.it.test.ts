@@ -1,4 +1,4 @@
-import {mkdir, readdir, rm, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, readdir, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, onTestFinished, vi} from 'vitest'
@@ -255,7 +255,11 @@ describe('sending a recording to the agent', () => {
       id: 'recorder-send',
       plugins: [PACKAGE_DIR],
       widgetBundle: WIDGET_BUNDLE,
-      body: '<button type="button" onclick="this.textContent = \'Pressed by the user\'">Press me</button>',
+      body: `
+        <button type="button" onclick="this.textContent = 'Pressed by the user'">Press me</button>
+        <button type="button" onclick="this.textContent = ['Pressed', 'while a batch is sending'].join(' ')">Press while a batch is sending</button>
+        <button type="button" onclick="this.textContent = ['Pressed', 'right before the send'].join(' ')">Press right before the send</button>
+      `,
     })
     try {
       const page = widget.page
@@ -325,6 +329,30 @@ describe('sending a recording to the agent', () => {
       await expect(replayDialog.getByText('Recording not found: it is no longer saved in this project.')).toBeVisible({
         timeout: 30_000,
       })
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+
+      await page.getByRole('tab', {name: 'Recorder', exact: true}).click()
+      const sendingBatch = Promise.withResolvers<() => void>()
+      const held = {batches: 0}
+      socket.rule((call) => {
+        if (held.batches > 0 || !isRecorderCall(call, 'flush')) return 'pass'
+        if (!carrying('Pressed while a batch is sending')(call.input)) return 'pass'
+        held.batches += 1
+        sendingBatch.resolve(call.forward)
+        return 'handled'
+      })
+      await page.getByRole('button', {name: 'Press while a batch is sending', exact: true}).click()
+      const deliverSendingBatch = await sendingBatch.promise
+      await page.getByRole('button', {name: 'Press right before the send', exact: true}).click()
+      await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
+      deliverSendingBatch()
+      await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible({timeout: 30_000})
+      const [lastSaved] = (await readdir(recordingsFolder)).filter((name) => name.endsWith('.json'))
+      if (lastSaved === undefined) throw new Error('the send saved no recording')
+      const savedRecording = await readFile(path.join(recordingsFolder, lastSaved), 'utf8')
+      expect(savedRecording.includes('Pressed right before the send'), 'the saved recording holds the last click').toBe(
+        true,
+      )
     } finally {
       await widget.close()
     }
