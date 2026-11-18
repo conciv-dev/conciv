@@ -31,7 +31,7 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
       ref={(element) => {
         host.element = element
       }}
-      class="bg-chat-panel flex flex-1 flex-col min-h-0"
+      class="flex flex-1 flex-col min-h-0"
     >
       <Show
         when={failure()}
