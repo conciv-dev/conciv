@@ -111,7 +111,7 @@ export function PageTool(
   },
 ): JSX.Element {
   const [local, tool] = splitProps(props, ['subtitle', 'skip', 'failed', 'hasContent', 'children'])
-  const running = () => tool.status === 'running' || tool.status === 'streaming'
+  const running = () => tool.status === 'pending' || tool.status === 'running' || tool.status === 'streaming'
   const args = () => {
     const badge = mutatingBadge(pageToolMeta(tool.tool))
     const values = inputArgs(tool.input, local.skip ?? NO_SKIP)

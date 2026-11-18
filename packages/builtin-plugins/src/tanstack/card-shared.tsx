@@ -67,14 +67,14 @@ export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {
 function tanstackTitle(tool: string, status: string | undefined): string {
   const label = tanstackToolMeta(tool)?.label
   if (label === undefined) return tool
-  return status === 'running' || status === 'streaming' ? label.running : label.done
+  return status === 'pending' || status === 'running' || status === 'streaming' ? label.running : label.done
 }
 
 export function InspectionCard(
   props: ToolProps & {summary: string; failed?: boolean; hasContent?: boolean; children?: JSX.Element},
 ): JSX.Element {
   const [local, tool] = splitProps(props, ['summary', 'failed', 'hasContent', 'children'])
-  const running = () => tool.status === 'running' || tool.status === 'streaming'
+  const running = () => tool.status === 'pending' || tool.status === 'running' || tool.status === 'streaming'
   return (
     <BasicTool
       {...tool}

@@ -291,15 +291,16 @@ function testRunCard(ctx: Context): ToolComponent {
       ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, session()?.directory ?? ''))),
   }
   return (props) => {
-    const running = () => props.status === 'running' || props.status === 'streaming'
-    const streams = () => props.tool === 'test_runner_run' && running()
+    const live = () => props.status === 'running' || props.status === 'streaming'
+    const unfinished = () => props.status === 'pending' || live()
+    const streams = () => props.tool === 'test_runner_run' && live()
     const finished = createMemo(() =>
       props.status === 'completed' ? parseRunResult(parseOutput(props.output)) : undefined,
     )
     const title = () => {
       const titles = TEST_RUNNER_TITLES[props.tool]
       if (titles === undefined) return props.tool
-      return running() ? titles.running : titles.done
+      return unfinished() ? titles.running : titles.done
     }
     return (
       <BasicTool

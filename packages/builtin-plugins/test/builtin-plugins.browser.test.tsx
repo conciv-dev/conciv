@@ -1822,6 +1822,11 @@ describe('act card body nonempty', () => {
 
     await expect.element(page.getByText('value=ada@example.com')).toBeVisible()
     await expect.element(page.getByText('#email')).toBeVisible()
+
+    render(() => (
+      <StoryTool call={{...storyCall('page_click', {selector: '#save'}, undefined, 's2'), status: 'pending'}} />
+    ))
+    await expect.element(page.getByRole('button', {name: /Clicking/})).toBeVisible()
   })
 
   it('an error-only result opens on the error', async () => {
@@ -2524,6 +2529,11 @@ describe('the tanstack cards', () => {
     await expect.element(exactText('/about · 2 matches')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'succeeded'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
+    cleanup()
+
+    const approve = mountCard('tanstack_router_state', {})
+    approve({status: 'pending'})
+    await expect.element(header('Reading the router state')).toBeVisible()
   })
 })
 
