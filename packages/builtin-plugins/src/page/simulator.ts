@@ -1,4 +1,5 @@
 import {Motion, type CSSRgbString} from 'ai-motion'
+import {Effect, type Fiber} from 'effect'
 import {createComponent} from 'solid-js'
 import {render} from 'solid-js/web'
 import {
@@ -67,15 +68,15 @@ type Simulator = {
   root: ParentNode | null
   run: Run | null
   shown: boolean
-  timeout: ReturnType<typeof setTimeout> | undefined
+  timeout: Fiber.Fiber<void> | undefined
   lastClicked: Element | null
-  armed: ReturnType<typeof setTimeout> | undefined
+  armed: Fiber.Fiber<void> | undefined
   session: () => string | null
   taskSession: string | null
   cursor: string
   onStop: (sessionId: string) => void
   running: (sessionId: string) => boolean
-  queues: Map<string, AbortController>
+  queues: Map<string, Fiber.Fiber<void>>
   stoppedQueues: Set<string>
   pacing: boolean
 }
@@ -103,6 +104,14 @@ function idle(): boolean {
   return false
 }
 
+function later(ms: number, action: () => void): Fiber.Fiber<void> {
+  return Effect.runFork(Effect.sleep(ms).pipe(Effect.andThen(Effect.sync(action))))
+}
+
+function cancel(fiber: Fiber.Fiber<void> | undefined): void {
+  fiber?.interruptUnsafe()
+}
+
 function warnUnlessCanceled(reason: unknown): void {
   if (reason === GLOW_CANCELED) return
   console.warn('[conciv] agent glow fade failed', reason)
@@ -128,7 +137,7 @@ function hint(): Element | null {
 }
 
 function disarm(): void {
-  clearTimeout(sim.armed)
+  cancel(sim.armed)
   sim.armed = undefined
   hint()?.classList.remove(HINT_SHOWN_CLASS)
 }
@@ -152,7 +161,7 @@ function onMaskClick(): void {
     disarm()
     return stop()
   }
-  sim.armed = setTimeout(disarm, STOP_CONFIRM_MS)
+  sim.armed = later(STOP_CONFIRM_MS, disarm)
   hint()?.classList.add(HINT_SHOWN_CLASS)
   shake()
 }
@@ -174,10 +183,10 @@ export function mountSimulator(options: {
 }
 
 function unmountSimulator(): void {
-  clearTimeout(sim.timeout)
+  cancel(sim.timeout)
   disarm()
   if (sim.run) unmountRun(sim.run)
-  for (const held of sim.queues.values()) held.abort()
+  for (const held of sim.queues.values()) cancel(held)
   sim.queues.clear()
   sim.stoppedQueues.clear()
   Object.assign(sim, {
@@ -261,11 +270,11 @@ function hide(): void {
   disarm()
   run.glow?.fadeOut().catch(warnUnlessCanceled)
   run.glow?.pause()
-  setTimeout(() => {
+  later(HIDE_MS, () => {
     if (sim.shown || sim.run !== run) return
     sim.run = null
     unmountRun(run)
-  }, HIDE_MS)
+  })
 }
 
 export function startTask(agent: string): void {
@@ -274,12 +283,12 @@ export function startTask(agent: string): void {
 }
 
 export function touchTask(): void {
-  clearTimeout(sim.timeout)
-  if (sim.shown) sim.timeout = setTimeout(endTask, TASK_TIMEOUT_MS)
+  cancel(sim.timeout)
+  if (sim.shown) sim.timeout = later(TASK_TIMEOUT_MS, endTask)
 }
 
 export function endTask(): void {
-  clearTimeout(sim.timeout)
+  cancel(sim.timeout)
   hide()
 }
 
@@ -291,10 +300,15 @@ export function endRun(sessionId: string): void {
 
 export type Beat = 'click' | 'input' | 'point'
 
+function aborted(plane: AbortSignal | undefined): Effect.Effect<void> {
+  if (plane === undefined) return Effect.never
+  return Effect.callback((resume, signal) => {
+    plane.addEventListener('abort', () => resume(Effect.void), {once: true, signal})
+  })
+}
+
 export function acceptQueue(queueId: string, plane: AbortSignal | undefined): void {
-  const held = new AbortController()
-  sim.queues.set(queueId, held)
-  plane?.addEventListener('abort', () => finishQueue(queueId), {once: true, signal: held.signal})
+  sim.queues.set(queueId, Effect.runFork(aborted(plane).pipe(Effect.andThen(Effect.sync(() => finishQueue(queueId))))))
   if (plane?.aborted === true) finishQueue(queueId)
 }
 
@@ -302,35 +316,40 @@ export function queueStopped(queueId: string): boolean {
   return sim.stoppedQueues.has(queueId) || !sim.queues.has(queueId)
 }
 
-function pace(ms: number): Promise<void> {
-  if (cannotAnimate()) return Promise.resolve()
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function pace(ms: number): Effect.Effect<void> {
+  return Effect.suspend(() => (cannotAnimate() ? Effect.void : Effect.sleep(ms)))
 }
 
-export async function arriveAt(options: {element: Element; agent: string; beat: Beat}): Promise<void> {
+export const arriveAt = Effect.fnUntraced(function* (options: {element: Element; agent: string; beat: Beat}) {
   const {element, agent, beat} = options
   const {arrived} = moveTo({element, agent})
-  await Promise.all([arrived, pace(MOVE_MS)])
+  yield* Effect.all([Effect.promise(() => arrived), pace(MOVE_MS)], {concurrency: 'unbounded', discard: true})
   if (beat === 'point') return
   ripple(agent)
-  await pace(AFTER_RIPPLE_MS)
-}
+  yield* pace(AFTER_RIPPLE_MS)
+})
 
-export async function landQueued<Result>(options: {beat: Beat; act: () => Promise<Result>}): Promise<Result> {
-  sim.pacing = true
-  try {
-    return await options.act()
-  } finally {
-    sim.pacing = false
-    await pace(options.beat === 'click' ? AFTER_CLICK_MS : AFTER_INPUT_MS)
-  }
+export function landQueued<Result, Failure>(options: {
+  beat: Beat
+  act: Effect.Effect<Result, Failure>
+}): Effect.Effect<Result, Failure> {
+  return Effect.sync(() => {
+    sim.pacing = true
+  }).pipe(
+    Effect.andThen(options.act),
+    Effect.ensuring(
+      Effect.sync(() => {
+        sim.pacing = false
+      }).pipe(Effect.andThen(pace(options.beat === 'click' ? AFTER_CLICK_MS : AFTER_INPUT_MS))),
+    ),
+  )
 }
 
 export function finishQueue(queueId: string): void {
   const held = sim.queues.get(queueId)
   if (held === undefined) return
   sim.queues.delete(queueId)
-  held.abort()
+  cancel(held)
   sim.stoppedQueues.delete(queueId)
   if (sim.queues.size > 0) return
   if (sim.taskSession !== null && sim.running(sim.taskSession)) return

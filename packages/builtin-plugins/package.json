@@ -39,6 +39,7 @@
     "@tanstack/solid-pacer": "catalog:",
     "@zumer/snapdom": "catalog:",
     "ai-motion": "catalog:",
+    "effect": "catalog:",
     "js-beautify": "^2.0.3",
     "lucide-solid": "catalog:",
     "solid-js": "catalog:",
