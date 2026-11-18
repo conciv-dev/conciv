@@ -42,10 +42,11 @@ import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {makeHighlight} from '../src/page/highlight.js'
 import {openSource, type SourceOpener} from '../src/page/open-source.js'
-import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {CardChromeProvider, INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ReactFiber} from '@conciv/plugin/experimental/page'
 import {tanstackCards} from '../src/tanstack/cards.js'
+import {recorderCards} from '../src/recorder/cards.js'
 import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
@@ -2707,6 +2708,95 @@ describe('the tanstack cards', () => {
     await expect.element(exactText('/about · 2 matches')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
+  })
+})
+
+describe('the recorder cards', () => {
+  const widgetSheet = document.createElement('style')
+  widgetSheet.textContent = `${tokens}${utilities}`
+  beforeAll(() => document.head.append(widgetSheet))
+  afterAll(() => widgetSheet.remove())
+
+  type Tool = keyof typeof recorderCards
+
+  const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const keyframe = {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}}
+  const log = '+0.0s [click] button "Save"\n+2.5s [navigation] /settings\n+4.1s [console] error: boom'
+
+  function call(tool: Tool, input: Record<string, unknown>): ToolCallPart {
+    return {
+      type: 'tool-call',
+      id: `call-${tool}`,
+      name: tool,
+      arguments: JSON.stringify(input),
+      state: 'input-complete',
+    }
+  }
+
+  function settled(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
+    return {
+      type: 'tool-result',
+      toolCallId: `call-${tool}`,
+      content,
+      state,
+      ...(state === 'error' ? {error: content} : {}),
+    }
+  }
+
+  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart) {
+    const Card = recorderCards[tool].render
+    render(() => (
+      <Card part={call(tool, input)} result={result} ctx={INERT_TOOL_CTX} addResult={() => Promise.resolve()} />
+    ))
+  }
+
+  const header = (tool: Tool) => page.getByRole('button', {name: new RegExp(tool)})
+
+  it('draws the pull window and its actions, the started capture, a failed stop, and the summary inside a trace', async () => {
+    onTestFinished(cleanup)
+    mountCard(
+      'recording_pull',
+      {secondsBack: 30, keyframes: 3},
+      settled('recording_pull', JSON.stringify([keyframe, keyframe, {type: 'text', content: log}]), 'complete'),
+    )
+    await expect.element(page.getByText('last 30s · 3 actions · 2 keyframes', {exact: true})).toBeVisible()
+    await header('recording_pull').click()
+    await expect.element(page.getByText('button "Save"')).toBeVisible()
+    await expect.element(page.getByText('navigation', {exact: true})).toBeVisible()
+    cleanup()
+
+    mountCard(
+      'recording_start',
+      {},
+      settled('recording_start', JSON.stringify({captureId: 'cap_1', startedAt: 1}), 'complete'),
+    )
+    await expect.element(page.getByText('capture started', {exact: true})).toBeVisible()
+    await header('recording_start').click()
+    await expect.element(page.getByText('cap_1', {exact: true})).toBeVisible()
+    cleanup()
+
+    mountCard(
+      'recording_stop',
+      {captureId: 'cap_9', keyframes: 0},
+      settled('recording_stop', 'no active capture cap_9', 'error'),
+    )
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    await header('recording_stop').click()
+    await expect.element(page.getByText('no active capture cap_9')).toBeVisible()
+    cleanup()
+
+    const Pull = recorderCards.recording_pull.render
+    render(() => (
+      <CardChromeProvider value="embedded">
+        <Pull
+          part={call('recording_pull', {secondsBack: 30, keyframes: 3})}
+          result={settled('recording_pull', JSON.stringify([keyframe, {type: 'text', content: log}]), 'complete')}
+          ctx={INERT_TOOL_CTX}
+          addResult={() => Promise.resolve()}
+        />
+      </CardChromeProvider>
+    ))
+    await expect.element(page.getByText('last 30s · 3 actions · 1 keyframe', {exact: true})).toBeVisible()
   })
 })
 

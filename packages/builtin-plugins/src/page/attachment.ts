@@ -156,11 +156,10 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
           })
           const command = Command.safeParse(raw)
           if (!command.success) return yield* reply(requestId, UNSUPPORTED)
-          const outcome = yield* Effect.promise(() =>
-            execute(command.data, AbortSignal.any([ended, abort.signal])).catch((cause: unknown) =>
-              failed('handler-error', cause),
-            ),
-          )
+          const outcome = yield* Effect.tryPromise({
+            try: () => execute(command.data, AbortSignal.any([ended, abort.signal])),
+            catch: (cause) => failed('handler-error', cause),
+          }).pipe(Effect.catch(Effect.succeed))
           const sent = yield* reply(requestId, outcome)
           if (!sent && command.data.queued?.index === -1) abort.abort()
           return sent
