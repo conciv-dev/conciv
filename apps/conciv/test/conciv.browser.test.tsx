@@ -9919,12 +9919,14 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
   const builtinTanstackCard = {id: 'tanstack-card', builtin: true, enabled: true}
+  const builtinRecorderCard = {id: 'recorder-card', builtin: true, enabled: true}
   const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
   const builtinGrab = {id: 'grab', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
     builtinTanstackCard,
+    builtinRecorderCard,
     builtinTerminal,
     builtinGrab,
     row('pane', pane),
@@ -10095,6 +10097,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
     await expect.element(page.getByText('tanstack-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'tanstack-card'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('recorder-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'recorder-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
