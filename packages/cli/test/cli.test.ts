@@ -3287,10 +3287,11 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never an extension, the harness or an agent sdk', () => {
+    test('the CLI installs alone with its native addon, never an extension, the harness or an agent sdk', () => {
       const manifests = prodClosureDirs().map(readManifest)
       const names = manifests.map((manifest) => manifest.name)
-      expect(names).toContain('@conciv/harness-init')
+      expect(names).toEqual(['@conciv/cli'])
+      expect(manifests.flatMap((manifest) => Object.keys(manifest.dependencies))).toEqual(['@ast-grep/napi'])
       expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
       for (const banned of BANNED) expect(names).not.toContain(banned)
       for (const manifest of manifests) {
