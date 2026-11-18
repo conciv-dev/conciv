@@ -9,7 +9,7 @@ import {toolErrorSubtitle, webSearchProviderLabel} from '../primitives/tool-erro
 
 export type ToolDisplayProps = ToolProps & {
   id: string
-  render?: (name: string) => ToolRegistry | undefined
+  render?: (name: string) => Pick<ToolRegistry, 'render' | 'errorComponent'> | undefined
   renderPending?: boolean
   durationMs?: number
   tag?: string

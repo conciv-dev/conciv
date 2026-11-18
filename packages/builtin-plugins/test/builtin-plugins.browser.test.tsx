@@ -2458,7 +2458,7 @@ describe('the tanstack cards', () => {
     },
   ]
 
-  const lookupCard = (name: string) => Object.entries(tanstackCards).find(([tool]) => tool === name)?.[1]
+  const lookupCard = (name: string) => ({render: Object.entries(tanstackCards).find(([tool]) => tool === name)?.[1]})
 
   function mountCard(
     tool: Tool,

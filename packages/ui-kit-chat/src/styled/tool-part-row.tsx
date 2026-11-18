@@ -11,7 +11,7 @@ import {ToolDisplay} from '../tools/styled/tool-display.js'
 import {outsideTag, ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {ROW_ITEM} from './trace/trace-row.js'
 
-export type ToolRender = (name: string) => ToolRegistry | undefined
+export type ToolRender = (name: string) => Pick<ToolRegistry, 'render' | 'errorComponent'> | undefined
 
 export type ToolDisclosure = {
   open: (partId: string) => boolean | undefined

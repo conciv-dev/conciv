@@ -20,7 +20,7 @@ export function storyFailedCall(tool: string, input: Record<string, unknown>, er
 }
 
 function pageCard(name: string) {
-  return pageToolCards.find((entry) => entry.tools.includes(name))?.card
+  return {render: pageToolCards.find((entry) => entry.tools.includes(name))?.card}
 }
 
 export function StoryTool(props: {call: StoryCall; captures?: Record<string, ToolCaptureView>}): JSX.Element {
