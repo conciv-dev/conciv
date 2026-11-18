@@ -95,6 +95,12 @@ test.describe('embed boot', () => {
       await openPanel(first)
       await first.getByRole('tab', {name: 'Terminal'}).click()
       await expect(first.getByRole('textbox', {name: 'Terminal input'})).toBeAttached({timeout: 30_000})
+      const screen = first.getByRole('tabpanel', {name: 'Terminal'}).getByRole('list')
+      await expect(screen.getByText('P>', {exact: true}).last()).toBeAttached({timeout: 30_000})
+      await expect(first.getByRole('textbox', {name: 'Terminal input'})).toBeFocused({timeout: 30_000})
+      await first.keyboard.type('echo $((6*7))')
+      await first.keyboard.press('Enter')
+      await expect(screen.getByText('42', {exact: true})).toBeAttached({timeout: 30_000})
       await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
       expect(await currentHref(kit)).toMatch(/\/terminal%3Aterminal\?.*open=true/)
       await first.close()
@@ -2275,6 +2281,49 @@ test.describe('rebind', () => {
       await expect(revokedNotice).toBeHidden({timeout: 30_000})
       await expect(retry).toBeVisible({timeout: 30_000})
       await expect(refresh).toBeEnabled()
+    })
+  })
+
+  test.describe('handle.rebind to an engine with no browser plugins', () => {
+    const PLUGIN_TEXT = 'Drawn by the first engine plugin'
+    let pluginKit: CoreKit
+
+    test.beforeEach(async () => {
+      pluginKit = await bootCoreKit({
+        id: 'fake-embed',
+        text: ASSISTANT_TEXT,
+        plugins: ['./panel-end'],
+        files: {
+          'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
+`,
+          'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {at: 'session.panel.end', render: () => Object.assign(document.createElement('span'), {textContent: '${PLUGIN_TEXT}'})})
+}}}
+`,
+        },
+      })
+    })
+
+    test.afterEach(async () => {
+      await pluginKit.cleanup()
+    })
+
+    test('the first engine plugin view is gone once the widget is bound to the second engine', async ({page}) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, pluginKit, host.base)
+      await mountHandle(page, pluginKit.base)
+      await openChatPanel(page)
+      const bar = page.getByRole('toolbar', {name: 'Session status'})
+      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toBeVisible({timeout: 30_000})
+
+      await rebindHandle(page, kit.base)
+      await logInFromPanelNotice(page, kit, LOGGED_OUT_SENTENCE)
+      await expect(page.getByRole('alert').filter({hasText: LOGGED_OUT_SENTENCE})).toHaveCount(0, {timeout: 30_000})
+      await sendChatMessage(page, USER_TEXT)
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(bar.getByRole('tab', {name: 'Chat'})).toBeVisible({timeout: 30_000})
+      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toHaveCount(0, {timeout: 30_000})
     })
   })
 })
