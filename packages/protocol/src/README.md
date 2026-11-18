@@ -17,7 +17,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - Terminal control (`terminal-types.ts`): TtyClientControlSchema (resize, inject), TtyServerControlSchema (exit, busy, error)
 - UI input (`ui-types.ts`): UiInputSchema, UiAnswerSchema, `aguiSnapshotFor`
 - `EditorOpenSchema` (`editor-types.ts`); usage helpers (`usage-types.ts`)
-- Bundler (`bundler-types.ts`): BundlerBridge, `defineBundlerBridge`; framework (`framework-types.ts`): FrameworkAdapter surfaces, `defineFrameworkAdapter`
+- Bundler (`bundler-types.ts`): BundlerConfigSchema, ModuleNodeSchema (the bridge itself is `@conciv/plugin/schema/bundler`); framework (`framework-types.ts`): FrameworkAdapter surfaces, `defineFrameworkAdapter`
 - Harness contracts (`harness-types.ts`): HarnessCapabilities, HarnessInit, TranscriptHandle, TRANSCRIPT_FAILURES
 - RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, `CONCIV_VERSION_HEADER` (`'x-conciv-version'`), `RPC_WS_PATH` (`'/rpc-ws'`), RpcContext (with optional `clientVersion` and `socket`, the per-connection `RpcSocketTrust` `{allows(path), admit(token)}` a socket-served call carries, and `replied`, a per-request promise that resolves true once that call's reply has gone out and false when it did not), `rpcHeader`
 - Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
@@ -35,7 +35,6 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - `isRunPhaseTerminal` (`chat-event-types.ts`): completed, failed and aborted are terminal
 - `TtyClientControlSchema` (`terminal-types.ts`): cols and rows 2..500; inject text 1..4096 chars
 - `SymbolicateSchema` (`page-types.ts`): 1..32 frames
-- `defineBundlerBridge` (`bundler-types.ts`): throws without an id
 - `aguiSnapshotFor` (`ui-types.ts`): throws unless the chunk is a MESSAGES_SNAPSHOT
 - `isDroppableAttribute` / `isDangerousTag` (`element-capture-sanitize.ts`): drop on* handlers, unsafe styles and non-local URLs; reject iframe, object, embed, script, link, style, meta
 - `createEventBusClient` (`event-bus.ts`): queues events until the connect handshake succeeds; retries every 300ms up to 5 times, then 'failed'

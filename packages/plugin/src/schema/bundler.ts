@@ -1,3 +1,4 @@
+import type {BundlerConfig, ModuleNode} from '@conciv/protocol/bundler-types'
 import {Schema} from 'effect'
 import {ephemeral, inventory} from './event.js'
 
@@ -42,4 +43,20 @@ export const Event = {
   Diagnostic: DiagnosticEvent,
   Status: StatusEvent,
   Definitions: inventory(DiagnosticEvent, StatusEvent),
+}
+
+export type BundlerBridge = {
+  id: string
+  config(): BundlerConfig
+  resolve(spec: string, importer?: string): Promise<{id: string | null}>
+  moduleGraph(file: string): ModuleNode[]
+  transform(url: string): Promise<{code: string | null}>
+  urls(): {local: string[]; network: string[]}
+  restart(force?: boolean): Promise<void>
+  subscribe?(listener: (diagnostic: Diagnostic) => void): () => void
+}
+
+export function defineBundlerBridge<T extends BundlerBridge>(bridge: T): T {
+  if (!bridge.id) throw new Error('bundler bridge: id is required')
+  return bridge
 }

@@ -1,6 +1,6 @@
 export * as ServerTools from './server.js'
 
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
@@ -86,9 +86,9 @@ const Definition = Rpc.define({
 const options: Tool.Options = {namespace: 'server', codemode: true}
 
 const withBundler = <A>(
-  bundler: BundlerBridge | undefined,
+  bundler: Bundler.BundlerBridge | undefined,
   failure: string,
-  read: (bundler: BundlerBridge) => A | Promise<A>,
+  read: (bundler: Bundler.BundlerBridge) => A | Promise<A>,
 ): Effect.Effect<A, ServerFailure> => {
   if (bundler === undefined) return Effect.fail(bundlerUnavailable)
   return Effect.tryPromise({

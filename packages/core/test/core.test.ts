@@ -65,7 +65,7 @@ import {
   withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {defineTool, defineExtension, makeExtRpcClient, type AnyExtension, type ExtensionScope} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
@@ -4673,7 +4673,7 @@ describe('direct tools on the MCP surface', () => {
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
     const root = tempDir('conciv-core-unit-')
     const restarts: boolean[] = []
-    const bridge = defineBundlerBridge({
+    const bridge = Bundler.defineBundlerBridge({
       id: 'unit-direct-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4882,7 +4882,7 @@ describe('plugin context keys provided by core', () => {
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
-    const devServer = defineBundlerBridge({
+    const devServer = Bundler.defineBundlerBridge({
       id: 'unit-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),

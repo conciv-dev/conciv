@@ -1,4 +1,3 @@
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {ResolvedConcivConfig} from '../config.js'
 import {join} from 'node:path'
@@ -7,11 +6,11 @@ import {App, Bus, ConfigAgentPlugin, ConfigPolicy, Global, ManagedPolicy, Plugin
 import {Effect, Layer, Queue, Schema, Stream} from 'effect'
 import corePackage from '../../package.json' with {type: 'json'}
 
-export function provideBundlerSource(bundler: BundlerBridge | undefined) {
+export function provideBundlerSource(bundler: Bundler.BundlerBridge | undefined) {
   return Layer.succeed(PluginHost.BundlerSource, bundler)
 }
 
-function diagnostics(subscribe: NonNullable<BundlerBridge['subscribe']>) {
+function diagnostics(subscribe: NonNullable<Bundler.BundlerBridge['subscribe']>) {
   return Stream.callback<Bundler.Diagnostic>((queue) =>
     Effect.acquireRelease(
       Effect.sync(() => subscribe((diagnostic) => Queue.offerUnsafe(queue, diagnostic))),
@@ -20,7 +19,7 @@ function diagnostics(subscribe: NonNullable<BundlerBridge['subscribe']>) {
   )
 }
 
-export function publishBundlerDiagnostics(bundler: BundlerBridge | undefined) {
+export function publishBundlerDiagnostics(bundler: Bundler.BundlerBridge | undefined) {
   return Layer.effectDiscard(
     Effect.gen(function* () {
       const subscribe = bundler?.subscribe?.bind(bundler)

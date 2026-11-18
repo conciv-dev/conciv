@@ -9,7 +9,7 @@ import {z} from 'zod'
 import {makeViteBridge} from '@conciv/unplugin/vite-bridge'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Definition} from '../src/rpc.js'
 
@@ -50,7 +50,7 @@ async function startVite(root: string): Promise<{vite: ViteDevServer; viteBase: 
   return {vite, viteBase: `http://127.0.0.1:${port}`}
 }
 
-async function bootProject(files: Record<string, string>, bridge?: BundlerBridge): Promise<CoreKit> {
+async function bootProject(files: Record<string, string>, bridge?: Bundler.BundlerBridge): Promise<CoreKit> {
   const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], files, ...(bridge ? {bundler: bridge} : {})})
   onTestFinished(() => kit.cleanup())
   return kit

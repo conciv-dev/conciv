@@ -1,6 +1,6 @@
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
 import {
@@ -63,7 +63,7 @@ export type PluginRuntimeInput = {
   post: readonly PluginDefinition.Plugin[]
   harness: HarnessAdapter
   signal: AbortSignal
-  bundler: BundlerBridge | undefined
+  bundler: Bundler.BundlerBridge | undefined
   openInEditor: (file: string, line?: number, column?: number) => void
   extensionSlugs: ReadonlyArray<string>
   sessions: Parameters<typeof provideSessions>[0]

@@ -11,7 +11,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   type AnyExtension,
   type AnyToolBuilder,
@@ -126,7 +126,7 @@ export type MakeAppOpts = {
   engineId?: string
   print?: (text: string) => void
   onTrusted?: () => void
-  bridge?: BundlerBridge
+  bridge?: Bundler.BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
 

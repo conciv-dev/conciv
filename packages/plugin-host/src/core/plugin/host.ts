@@ -9,7 +9,6 @@ import {Event} from '@conciv/plugin/schema/event'
 import {App} from '../app.js'
 import {Context, Effect, Schema, Stream} from 'effect'
 import type {Servers} from '@conciv/plugin'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {Agent} from '../agent.js'
 import {Bus} from '../bus.js'
 import {KV} from '../kv.js'
@@ -38,7 +37,7 @@ const isPublicEvent = (event: Event.Payload): event is EventManifest.ServerEvent
   EventManifest.isServer(event) || isRpcEvent(event)
 
 export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
-export const BundlerSource = Context.Service<BundlerBridge | undefined>('@conciv/BundlerSource')
+export const BundlerSource = Context.Service<Bundler.BundlerBridge | undefined>('@conciv/BundlerSource')
 export const ExtensionSlugs = Context.Service<ReadonlyArray<string>>('@conciv/ExtensionSlugs')
 export const EditorSource =
   Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')

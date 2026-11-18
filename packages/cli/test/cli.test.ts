@@ -17,7 +17,7 @@ import {createServer as createHttpServer, type Server} from 'node:http'
 import {Hono} from 'hono'
 import {proxy} from 'hono/proxy'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runLink, runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
@@ -701,7 +701,7 @@ describe('cli', () => {
     })
 
     function restartCapableBridge() {
-      return defineBundlerBridge({
+      return Bundler.defineBundlerBridge({
         id: 'cli-restart-test',
         config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
         resolve: async (spec) => ({id: spec}),
@@ -1975,7 +1975,7 @@ describe('cli', () => {
     it('answers the server methods from a real bundler bridge as the tools do, and refuses them without one', async () => {
       const home = tempDir('conciv-home-')
       const restarts: boolean[] = []
-      const bridge = defineBundlerBridge({
+      const bridge = Bundler.defineBundlerBridge({
         id: 'cli-server-methods',
         config: () => ({
           root: '/repo',

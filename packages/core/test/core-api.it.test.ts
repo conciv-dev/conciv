@@ -107,7 +107,7 @@ import {InstructionEntry, Location, PluginHost, Session} from '@conciv/plugin-ho
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   readApprovalAsk,
   type ChatEvent,
@@ -2106,7 +2106,7 @@ describe('rpc wire', () => {
 
     it('server.* round-trips a real bundler bridge', async () => {
       const restarted: boolean[] = []
-      const bridge = defineBundlerBridge({
+      const bridge = Bundler.defineBundlerBridge({
         id: 'wire-test',
         config: () => ({
           root: '/repo',

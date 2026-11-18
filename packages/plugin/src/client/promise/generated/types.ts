@@ -1,5 +1,6 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {Json} from '../../../experimental/core.js'
+import type * as Bundler from '../../../schema/bundler.js'
 import type {PublicRef, Ref as LocationRef} from '../../../schema/location.js'
 import type {Ref} from '../../../schema/model.js'
 import type {Ruleset, Source} from '../../../schema/permission.js'
@@ -326,18 +327,7 @@ type BundlerDiagnostic = {
   metadata?: Record<string, unknown>
   type: 'bundler.diagnostic'
   location?: LocationRef
-  data: {
-    diagnostic:
-      | {
-          kind: 'build-error'
-          message: string
-          file: string | null
-          loc: {line: number; column: number} | null
-          timestamp: number
-        }
-      | {kind: 'hmr-update'; file: string; timestamp: number}
-      | {kind: 'request-trace'; method: string; url: string; status: number; durationMs: number; timestamp: number}
-  }
+  data: {diagnostic: typeof Bundler.Diagnostic.Type}
 }
 
 type BundlerStatus = {
@@ -346,7 +336,7 @@ type BundlerStatus = {
   metadata?: Record<string, unknown>
   type: 'bundler.status'
   location?: LocationRef
-  data: {status: 'connected' | 'disconnected'}
+  data: {status: typeof Bundler.Status.Type}
 }
 
 type PermissionAsked = {
