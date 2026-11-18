@@ -530,7 +530,7 @@ describe('chat pane', () => {
 
     await expect.element(input()).toHaveTextContent('kept across the reload')
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 
   describe('the composer never waits on the server draft', () => {
@@ -1985,7 +1985,7 @@ describe('grab staging', () => {
     api.stage(HERO_GRAB)
 
     await expect.element(snapshot()).toBeVisible()
-    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
 
     api.clear()
@@ -2009,7 +2009,7 @@ describe('grab staging', () => {
     await expect.element(thread.getByText('what is this element')).toBeVisible()
     await expect.element(removeGrab()).not.toBeInTheDocument()
     await expect.element(thread.getByTitle('Grabbed element snapshot')).toBeVisible()
-    await expect.element(thread.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(thread.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 })
 
