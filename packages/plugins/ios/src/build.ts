@@ -1,6 +1,6 @@
 import {arch} from 'node:os'
 import {join} from 'node:path'
-import {Clock, Data, Effect, FileSystem, Option, Path, Schema, type PlatformError} from 'effect'
+import {Clock, Data, Effect, FileSystem, Option, Path, Schema, Semaphore, type PlatformError} from 'effect'
 import {uniq} from 'es-toolkit'
 import {z} from 'zod'
 import {
@@ -223,10 +223,14 @@ const buildSwiftc = Effect.fn('ios.build.swiftc')(function* (runtime: IosRuntime
   return yield* finished(true, appDir, diagnostics)
 })
 
-export function build(runtime: IosRuntime, input: {clean?: boolean | undefined}) {
+function build(runtime: IosRuntime, input: {clean?: boolean | undefined}) {
   const clean = input.clean ?? false
   if (runtime.config.buildMode === 'swiftc') return buildSwiftc(runtime, clean)
   return buildXcodebuild(runtime, clean)
 }
 
-export const makeBuild = Effect.succeed(build)
+export const makeBuild = Effect.map(
+  Semaphore.make(1),
+  (permit) => (runtime: IosRuntime, input: {clean?: boolean | undefined}) =>
+    permit.withPermits(1)(build(runtime, input)),
+)
