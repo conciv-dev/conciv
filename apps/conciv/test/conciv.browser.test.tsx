@@ -769,6 +769,47 @@ describe('chat pane', () => {
 
       await expect.element(input()).toHaveTextContent('saved once and held!')
     })
+
+    test('text typed while this browser still reads its stored draft keeps the stored stamps, so a reload before that read lands brings the text back', async () => {
+      const {rpc, sessionId} = await newSession()
+      const TYPED = 'typed while the local read waits'
+      await typeSyncedDraft(sessionId, 'saved before the reload')
+      const saved = await rpc.drafts.get({sessionId})
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('conciv-drafts', 1)
+        request.addEventListener('success', () => resolve(request.result))
+        request.addEventListener('error', () => reject(request.error))
+      })
+      const holding = database.transaction('documents', 'readwrite')
+      const documents = holding.objectStore('documents')
+      const hold = {kept: true}
+      const keepHolding = (): void => {
+        if (hold.kept) documents.count().addEventListener('success', keepHolding)
+      }
+      keepHolding()
+      const released = new Promise<void>((resolve, reject) => {
+        holding.addEventListener('complete', () => resolve())
+        holding.addEventListener('abort', () => reject(holding.error))
+      })
+      onTestFinished(() => {
+        hold.kept = false
+        database.close()
+      })
+      const mount = mountChatPane(sessionId)
+
+      await userEvent.click(input())
+      await userEvent.keyboard(TYPED)
+      await expect.element(input()).toMatchTextContent(new RegExp(`^${TYPED}$`))
+      mount.dispose()
+      hold.kept = false
+      await released
+      await mount.keepDraft(() => Promise.resolve())
+      expect(await readLocalCopy(sessionId)).toMatchObject({text: TYPED, syncedAt: saved?.updatedAt})
+      mountChatPane(sessionId)
+
+      await coreControl.rpcStartedOnceServed(DRAFT_SET_PATH, 1, [], {sessionId, text: TYPED})
+      await expect.element(input()).toHaveTextContent(TYPED)
+    })
   })
 
   describe('the composer never waits on the server draft', () => {
