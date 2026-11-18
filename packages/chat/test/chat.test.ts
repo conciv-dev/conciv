@@ -4,7 +4,7 @@ import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
-import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
+import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
@@ -268,7 +268,8 @@ describe('plugin tools in code mode', () => {
 
     const {root, db} = openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
-    const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), () => undefined)
+    const published: ChatEvent[] = []
+    const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), (chunk) => published.push(chunk))
     expect(runner?.code?.capabilities.map((capability) => capability.name)).toEqual([
       'unit_taken',
       'unit_shout',
@@ -317,6 +318,19 @@ describe('plugin tools in code mode', () => {
       logs: [],
       files: snapFiles,
     })
+    const snapCall = published.find(
+      (chunk) => chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallName === 'unit_snap',
+    )
+    const snapResult = published.find(
+      (chunk) =>
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        snapCall?.type === ChatEventType.TOOL_CALL_START &&
+        chunk.toolCallId === snapCall.toolCallId,
+    )
+    expect(snapResult?.type === ChatEventType.TOOL_CALL_RESULT ? JSON.parse(snapResult.content) : null).toEqual([
+      {type: 'text', content: 'untrusted page data'},
+      ...snapFiles,
+    ])
     await expect(
       runner?.code?.run(
         'await external_unit_snap({}); await external_unit_shout({text: "a"}); return "done"',
