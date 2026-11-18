@@ -104,7 +104,7 @@ function CommentIcon(): JSX.Element {
   return <MessageSquare size={14} />
 }
 
-const THREAD_TEXT = 'text-chat-xs text-chat-text-2 min-w-0 break-words'
+const THREAD_TEXT = 'text-chat-sm text-chat-text-2 min-w-0 break-words'
 
 function ThreadRows(props: {rows: CommentRow[]}): JSX.Element {
   return (
@@ -113,7 +113,7 @@ function ThreadRows(props: {rows: CommentRow[]}): JSX.Element {
         <For each={props.rows}>
           {(row) => (
             <div class="flex flex-col gap-0.5 min-w-0">
-              <div class="text-chat-micro font-chat-mono flex gap-1.5 min-w-0 items-baseline">
+              <div class="text-chat-micro leading-4 font-chat-mono flex gap-1.5 min-w-0 items-baseline">
                 <span class="text-chat-dim flex-none">{authorLabel(row)}</span>
                 <Show when={row.createdAt}>
                   {(createdAt) => <span class="text-chat-faint flex-none">{CLOCK_FORMAT.format(createdAt())}</span>}
@@ -124,7 +124,9 @@ function ThreadRows(props: {rows: CommentRow[]}): JSX.Element {
               </div>
               <Show when={readText(row.parts)}>{(text) => <p class={THREAD_TEXT}>{text()}</p>}</Show>
               <Show when={readAnchor(row)}>
-                {(target) => <p class="text-chat-micro text-chat-target font-chat-mono min-w-0 truncate">{target()}</p>}
+                {(target) => (
+                  <p class="text-chat-micro text-chat-target leading-4 font-chat-mono min-w-0 truncate">{target()}</p>
+                )}
               </Show>
             </div>
           )}

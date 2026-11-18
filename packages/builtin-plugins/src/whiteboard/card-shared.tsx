@@ -34,8 +34,8 @@ const MICROLABEL = 'text-chat-micro font-chat-mono uppercase tracking-wider'
 function FieldRow(props: Field): JSX.Element {
   return (
     <div class="flex gap-2 min-w-0 items-baseline">
-      <span class={`${MICROLABEL} text-chat-microlabel flex-none w-20 truncate`}>{props.label}</span>
-      <span class={`text-chat-xs font-chat-mono flex-1 min-w-0 truncate ${VALUE_TONE[props.tone ?? 'default']}`}>
+      <span class={`${MICROLABEL} text-chat-microlabel leading-4.5 flex-none w-20 truncate`}>{props.label}</span>
+      <span class={`text-chat-sm font-chat-mono flex-1 min-w-0 truncate ${VALUE_TONE[props.tone ?? 'default']}`}>
         {props.value}
       </span>
     </div>
@@ -59,7 +59,7 @@ const OP_TAG_TONE: Record<FieldTone, string> = {
 
 export function OpTag(props: {op: string; tone?: FieldTone}): JSX.Element {
   return (
-    <span class={`${MICROLABEL} inline-flex flex-none items-center ${OP_TAG_TONE[props.tone ?? 'default']}`}>
+    <span class={`${MICROLABEL} leading-4 inline-flex flex-none items-center ${OP_TAG_TONE[props.tone ?? 'default']}`}>
       {props.op}
     </span>
   )
@@ -67,6 +67,6 @@ export function OpTag(props: {op: string; tone?: FieldTone}): JSX.Element {
 
 export function MonoLine(props: {text: string; tone?: FieldTone}): JSX.Element {
   return (
-    <p class={`text-chat-xs font-chat-mono min-w-0 truncate ${VALUE_TONE[props.tone ?? 'default']}`}>{props.text}</p>
+    <p class={`text-chat-sm font-chat-mono min-w-0 truncate ${VALUE_TONE[props.tone ?? 'default']}`}>{props.text}</p>
   )
 }
