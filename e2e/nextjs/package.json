@@ -11,7 +11,6 @@
     "test:packed": "playwright test -c playwright.packed.config.ts"
   },
   "dependencies": {
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "next": "catalog:",
@@ -32,9 +31,6 @@
     "typescript": "catalog:"
   },
   "dependenciesMeta": {
-    "@conciv/extension-terminal": {
-      "injected": true
-    },
     "@conciv/it": {
       "injected": true
     }

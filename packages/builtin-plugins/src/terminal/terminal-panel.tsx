@@ -9,7 +9,7 @@ function FailureNotice(props: {message: string; onRetry: () => void}): JSX.Eleme
   return (
     <div class="p-2.5">
       <div
-        class="text-xs text-chat-text px-3 py-2.5 border border-chat-danger-line rounded-chat-surface-md bg-chat-fill flex gap-2 items-center justify-between"
+        class="text-chat-xs text-chat-text px-3 py-2.5 border border-chat-danger-line rounded-chat-surface-md bg-chat-fill flex gap-2 items-center justify-between"
         role="alert"
       >
         <span>{props.message}</span>
@@ -24,14 +24,14 @@ function FailureNotice(props: {message: string; onRetry: () => void}): JSX.Eleme
 export function TerminalPanel(props: {session: MountedSession; terminal: TerminalState}): JSX.Element {
   const key = createMemo(() => props.terminal.key(props.session.id))
   const failure = createMemo(() => props.terminal.failure(props.session.id))
-  const host: {element: Element | undefined} = {element: undefined}
-  const themeHost = () => host.element ?? document.body
+  let host: HTMLDivElement | undefined
+  const themeHost = () => host ?? document.body
   return (
     <div
       ref={(element) => {
-        host.element = element
+        host = element
       }}
-      class="bg-chat-panel flex flex-1 flex-col min-h-0"
+      class="flex flex-1 flex-col min-h-0"
     >
       <Show
         when={failure()}

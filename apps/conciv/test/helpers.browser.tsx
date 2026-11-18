@@ -22,6 +22,7 @@ import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types
 import {QueryClient, QueryClientProvider, type ChatTransportPreference} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
+import type {DraftWriteChain} from '../src/pane/draft-storage.js'
 import {createWarmSession} from '../src/app/warm-session.js'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
@@ -45,6 +46,7 @@ import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
 import {RouterProvider, createMemoryHistory, createRootRoute, createRouter} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {createBrowserDraftStore} from '../src/runtime/persistence/drafts.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
@@ -58,6 +60,8 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
+    openNewerDraftTab: (version: number) => Promise<void>
+    closeNewerDraftTab: () => Promise<void>
     downloadFrom: (name: string) => Promise<{name: string; text: string}>
     openedFrom: (name: string) => Promise<string>
     editorOpened: () => Promise<ReadonlyArray<{file: string; line?: number; column?: number}>>
@@ -90,7 +94,7 @@ declare module 'vitest/internal/browser' {
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>
-    rpcStartedOnceServed: (served: string[], count: number, started: string[][]) => Promise<number[]>
+    rpcStartedOnceServed: (served: string[], count: number, started: string[][], input?: unknown) => Promise<number[]>
     rpcMark: () => Promise<number>
     awaitRpcFailedCount: (path: string[], status: number, count: number, since: number) => Promise<void>
     installFault: (spec: FaultSpec) => Promise<string>
@@ -132,6 +136,7 @@ export async function seedDraft(rpc: RpcClient, sessionId: string, draft: Seeded
     selectionStart: text.length,
     selectionEnd: text.length,
     attachments: draft.attachments ?? [],
+    updatedAt: Date.now(),
   })
 }
 
@@ -209,13 +214,14 @@ type AppContextValueOptions = {
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
   transport?: ChatTransportPreference
+  engineOnlyDrafts?: boolean
 }
 
 function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpcClient): AppContextValue {
   const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient)
+  const data = makeAppData(rpc, queryClient, options.engineOnlyDrafts ? null : createBrowserDraftStore(), () => false)
   const connected = () => true
   const liveSessions = makeLiveSessions({
     active: () => null,
@@ -273,12 +279,14 @@ export type PaneMountOptions = {
   width?: number
   transport?: ChatTransportPreference
   onNewSession?: () => void
+  engineOnlyDrafts?: boolean
 }
 
 export type PaneMount = {
   dispose: () => void
   pane: PaneContextValue
   data: AppData
+  keepDraft: DraftWriteChain
   queryClient: QueryClient
   refetch: () => Promise<void>
   setWidth: (pixels: number) => void
@@ -307,6 +315,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         announce: (message) => setAnnounced((entries) => [...entries, message]),
         instances,
         transport: options.transport,
+        engineOnlyDrafts: options.engineOnlyDrafts,
       },
       client,
     )
@@ -383,12 +392,14 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     dispose: () => {
       mounted.unmount()
       for (const instance of instances) instance.dispose()
+      chatRoot.app.data.dispose()
       chatRoot.dispose()
       reachabilityRoot.dispose()
       client.close()
     },
     pane,
     data,
+    keepDraft: app.liveSessions.keepDraft,
     queryClient,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
     setWidth,

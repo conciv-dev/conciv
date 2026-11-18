@@ -7,7 +7,13 @@ import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event
 import type {QueuedMessage} from '@conciv/protocol/chat-message-types'
 import {sessionCapturesCall, type AppData} from '../data/app-data.js'
 import {putBackInDraft, returnQueueToDraft, type DraftSink, type QueueOwner} from '../pane/pane-attachments.js'
-import {appendDraft, draftCacheSink, makeDraftWriteChain, prependDraft} from '../pane/draft-storage.js'
+import {
+  appendDraft,
+  draftCacheSink,
+  makeDraftWriteChain,
+  prependDraft,
+  type DraftWriteChain,
+} from '../pane/draft-storage.js'
 import {becameTrusted} from './engine-login.js'
 import type {Notify} from '../shell/notices.js'
 
@@ -24,6 +30,7 @@ export type LiveSessions = {
   stop: (sessionId: string) => void
   receiveDraftReturns: (sessionId: string, sinks: PaneDraftSinks) => void
   returnSteered: (sessionId: string, owner: QueueOwner, item: QueuedMessage) => void
+  keepDraft: DraftWriteChain
 }
 
 export type LiveSessionsDeps = {
@@ -53,7 +60,8 @@ function clientWorking(chat: ChatSession): boolean {
 }
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
-  const keepDraft = makeDraftWriteChain(() => deps.notify(DRAFT_RETURN_FAILED, {tone: 'danger'}))
+  const keepDraft = makeDraftWriteChain()
+  const notifyReturnFailed = () => deps.notify(DRAFT_RETURN_FAILED, {tone: 'danger'})
   const [state, setState] = createStore<{
     openers: Accessor<string>[]
     runs: Record<string, RunWatch>
@@ -105,7 +113,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const returnLostQueue = (sessionId: string, session: ChatSession): void => {
     returnQueueToDraft(
       session,
-      state.paneDraftSinks[sessionId]?.queue ?? draftCacheSink(keepDraft, deps.appData, sessionId, appendDraft),
+      state.paneDraftSinks[sessionId]?.queue ??
+        draftCacheSink(keepDraft, deps.appData, sessionId, appendDraft, notifyReturnFailed),
     )
   }
 
@@ -176,6 +185,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const findChat = (sessionId: string | null) => chats().find((entry) => entry.sessionId === sessionId)
 
   return {
+    keepDraft,
     runLive: (sessionId) => readRun(sessionId).live !== null,
     activityIn(sessionId) {
       const entry = findChat(sessionId)
@@ -213,7 +223,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       if (owner.queue().some((queued) => queued.id === item.id)) return
       putBackInDraft(
         [item],
-        state.paneDraftSinks[sessionId]?.steered ?? draftCacheSink(keepDraft, deps.appData, sessionId, prependDraft),
+        state.paneDraftSinks[sessionId]?.steered ??
+          draftCacheSink(keepDraft, deps.appData, sessionId, prependDraft, notifyReturnFailed),
       )
     },
   }
