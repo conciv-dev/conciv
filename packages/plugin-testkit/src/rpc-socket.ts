@@ -46,6 +46,8 @@ export type RpcSocket = {
   opened: () => number
   liveSockets: () => number
   awaitLive: () => Promise<void>
+  engineCloses: (code: number) => number
+  awaitEngineCloses: (code: number, count: number) => Promise<void>
   hold: () => Promise<void>
   release: () => void
   holdCloses: () => void
@@ -58,12 +60,16 @@ export type RpcSocket = {
 
 type HandshakeWaiter = {count: number; deliver: () => void}
 
+type CloseWaiter = {code: number; count: number; deliver: () => void}
+
 type SocketState = {
   rules: RpcSocketRule[]
   listeners: Set<RpcSocketListener>
   live: Set<WebSocketRoute>
   speaking: Set<WebSocketRoute>
   speakingWaiters: (() => void)[]
+  engineCloseCodes: number[]
+  closeWaiters: CloseWaiter[]
   opened: number
   held: boolean
   heldCloses: (() => void)[] | null
@@ -83,6 +89,8 @@ export function rpcSocketFor(page: Page): RpcSocket {
     live: new Set(),
     speaking: new Set(),
     speakingWaiters: [],
+    engineCloseCodes: [],
+    closeWaiters: [],
     opened: 0,
     held: false,
     heldCloses: null,
@@ -113,6 +121,11 @@ export function rpcSocketFor(page: Page): RpcSocket {
     liveSockets: () => state.speaking.size,
     awaitLive: () =>
       state.speaking.size > 0 ? Promise.resolve() : new Promise((resolve) => state.speakingWaiters.push(resolve)),
+    engineCloses: (code) => engineCloseCount(state, code),
+    awaitEngineCloses: (code, count) =>
+      engineCloseCount(state, code) >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => state.closeWaiters.push({code, count, deliver: resolve})),
     hold: async () => {
       state.held = true
       const closing = [...state.live].map((route) => route.close({code: CUT_CLOSE_CODE}))
@@ -190,6 +203,7 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
   })
   server.onClose((code, reason) => {
     state.speaking.delete(route)
+    engineClosed(state, code)
     const close = (): void => void route.close({code, reason})
     if (state.heldCloses === null) close()
     else state.heldCloses.push(close)
@@ -200,6 +214,18 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
       .catch((error: unknown) => console.error('[extension-testkit] an rpc reply could not be decoded', error))
       .then(() => route.send(message))
   })
+}
+
+function engineCloseCount(state: SocketState, code: number): number {
+  return state.engineCloseCodes.filter((closed) => closed === code).length
+}
+
+function engineClosed(state: SocketState, code: number | undefined): void {
+  if (code === undefined) return
+  state.engineCloseCodes.push(code)
+  const reached = state.closeWaiters.filter((waiter) => engineCloseCount(state, waiter.code) >= waiter.count)
+  state.closeWaiters = state.closeWaiters.filter((waiter) => !reached.includes(waiter))
+  for (const waiter of reached) waiter.deliver()
 }
 
 function speaks(route: WebSocketRoute, state: SocketState): void {

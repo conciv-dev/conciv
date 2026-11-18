@@ -3,7 +3,7 @@ import {createServer, type Socket} from 'node:net'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import type {EngineStaleness} from '@conciv/contract'
+import {REVOKED_SOCKET_CLOSE_CODE, type EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
@@ -214,8 +214,8 @@ const projectFileExists: BrowserCommand<[string]> = (ctx, path): boolean =>
 
 const chatStreamsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).startedSince(CHAT_EVENTS_PATH)
 
-const rpcSocketsLive: BrowserCommand<[]> = async (ctx): Promise<number> =>
-  (await importTestkit(ctx)).rpcSocketFor(ctx.page).liveSockets()
+const rpcSocketsRevoked: BrowserCommand<[]> = async (ctx): Promise<number> =>
+  (await importTestkit(ctx)).rpcSocketFor(ctx.page).engineCloses(REVOKED_SOCKET_CLOSE_CODE)
 
 const rpcSocketsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).socketsSince()
 
@@ -758,6 +758,13 @@ const awaitRpcSocketLive: BrowserCommand<[]> = async (ctx): Promise<void> =>
     () => `no rpc socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
   )
 
+const awaitRpcSocketsRevoked: BrowserCommand<[number]> = async (ctx, count): Promise<void> =>
+  withinDeadline(
+    (await importTestkit(ctx)).rpcSocketFor(ctx.page).awaitEngineCloses(REVOKED_SOCKET_CLOSE_CODE, count),
+    AWAIT_RPC_TIMEOUT_MS,
+    () => `the engine did not close ${count} rpc sockets as revoked within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+  )
+
 const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
   const box = await ctx.iframe.getByRole('button', {name, exact: true}).boundingBox()
   if (!box) throw new Error(`no button named ${name} to point at`)
@@ -833,7 +840,8 @@ export const coreCommands = {
   writeProjectFile,
   projectFileExists,
   chatStreamsOpened,
-  rpcSocketsLive,
+  rpcSocketsRevoked,
+  awaitRpcSocketsRevoked,
   awaitRpcSocketLive,
   rpcSocketsOpened,
   printedCode,

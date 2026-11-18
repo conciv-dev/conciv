@@ -661,6 +661,14 @@ describe('session streams on the rpc socket', () => {
       expect(held.link).toBe(plane.link)
       plane.release()
       held.release()
+      const keptByKit = browserRpcConnection(booted.base)
+      expect(keptByKit.link).toBe(plane.link)
+      keptByKit.release()
+      kit = undefined
+      await booted.cleanup()
+      const reopened = browserRpcConnection(booted.base)
+      expect(reopened.link).not.toBe(plane.link)
+      reopened.release()
     })
   })
 
