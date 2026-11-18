@@ -17,7 +17,7 @@ fallbacks, and every path carries the same result.
 
 - Hub spec revision 7 part 6 (Omri's yes, 2026-11-10) made every action apply and reply at once, with the pointer as
   decoration. Agents got fast, but a block of actions in one `execute_typescript` now retargets the pointer every
-  page turn: `aimCursor` (`packages/extensions/page/src/client/agent-cursor.tsx:174`) replaces the agent's aim
+  page turn: `aimCursor` (`packages/builtin-plugins/src/page/agent-cursor.tsx:201`) replaces the agent's aim
   (`aims.set`), so the pointer heads for the last field while every field changes at once. Each replaced aim also
   leaves an `arrived` promise that never settles, with its ripple callback.
 - The preview-branches toolbar (`mono/packages/preview-branches/preview-branches-toolbar/src/simulator/simulator.ts`)
@@ -48,8 +48,8 @@ Two registry tools in the page extension, so they appear in the sandbox as `exte
 `external_page_queue_async` for every caller, in-page and outside alike (the hub adds no MCP tools of its own:
 revision 5).
 
-- Defined in `packages/extensions/page/src/shared/defs.ts` next to the act defs, through `pageTool()`, category
-  `act`, `mutating: true`.
+- Defined next to the act tools, now in `packages/plugin-page/src/tools.ts` (first in the old page extension's
+  defs, through `pageTool()`), category `act`, `mutating: true`.
 - Input: `{actions: Action[]}`, where `Action` is a discriminated union on `tool` over the act defs, each reusing that
   def's own `inputSchema`: `page_click`, `page_hover`, `page_fill`, `page_select`, `page_check`, `page_uncheck`,
   `page_press`, `page_scroll`. The `page_submit` tool, reads, edit-live and reload are rejected by the schema; a
@@ -172,7 +172,7 @@ per launch, and they break on protocol revision 2026-07-28, which path 1 needs.
 
 ## Tests (existing files only, a new `describe` in each; no mocks; no timing asserts or sleeps)
 
-- `packages/extensions/page/test/page.browser.test.tsx`, describe "page action queue":
+- the old page extension browser test (deleted in #988), describe "page action queue":
   - a queue of fill, check and press plays in order: each field changes only after the previous one changed (observe
     the page's own input events in order, not timings);
   - a queue with a missing target and a read-only field in the middle plays to the end; the result lists both

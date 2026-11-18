@@ -1,7 +1,6 @@
 import {eq, lt} from 'drizzle-orm'
 import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
-import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
-import type {EngineStaleness, ToolCommandSignature} from '@conciv/contract'
+import type {EngineStaleness, RawFrame, SourceLoc, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
 import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'

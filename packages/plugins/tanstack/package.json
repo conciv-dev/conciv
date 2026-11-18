@@ -1,7 +1,6 @@
 {
   "name": "@conciv/plugin-tanstack",
   "version": "0.0.22",
-  "private": true,
   "description": "The conciv TanStack plugin: build errors, the route manifest and server-function traces of a TanStack Router or Start app, read from the dev server by code-mode tools.",
   "keywords": [
     "conciv",
@@ -36,36 +35,52 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
+    "./plugin-experimental": "./dist/plugin-experimental.cjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/cli": "workspace:^",
+    "@conciv/embed": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
     "@conciv/unplugin": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "playwright": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "unocss": "catalog:",
     "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {

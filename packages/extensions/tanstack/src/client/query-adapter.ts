@@ -1,5 +1,5 @@
 import {dehydrate} from '@conciv/page'
-import type {CacheEntry, CacheEntryState} from '@conciv/protocol/framework-types'
+import type {CacheEntry, CacheEntryState} from '@conciv/contract'
 import {findInFibers, type Fiber} from './router-adapter.js'
 
 type QueryClientLike = {

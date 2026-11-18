@@ -2,7 +2,7 @@ import {readdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {defineExtension} from '@conciv/extension'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {designConfig} from './shared/config.js'
 import {DESIGN_EXTENSION_NAME} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
@@ -19,7 +19,7 @@ async function cssFiles(cwd: string): Promise<string[]> {
   return names.filter((name) => name.endsWith('.css') && !name.includes('node_modules')).map((name) => join(root, name))
 }
 
-function lazyCssMap(input: {cwd: string; bundler: BundlerBridge | undefined}): {
+function lazyCssMap(input: {cwd: string; bundler: Bundler.BundlerBridge | undefined}): {
   cssMap: () => Promise<CssMap>
   dispose: () => void
 } {
@@ -38,7 +38,7 @@ function lazyCssMap(input: {cwd: string; bundler: BundlerBridge | undefined}): {
   }
 }
 
-function sourceChanges(bundler: BundlerBridge | undefined): {
+function sourceChanges(bundler: Bundler.BundlerBridge | undefined): {
   sourceChangedAt: () => number | null
   dispose: () => void
 } {

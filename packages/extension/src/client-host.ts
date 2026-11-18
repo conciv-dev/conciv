@@ -1,6 +1,6 @@
 import {makeBrowserRpcClient} from '@conciv/contract'
 import {EFFECTS_SURFACE_ATTR, type OpenSourceResult} from '@conciv/protocol/page-types'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import type {LocateResult} from '@conciv/plugin/experimental/page'
 
 function createEffectsHost(): HTMLElement {
   const host = document.createElement('div')

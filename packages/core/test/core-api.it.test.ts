@@ -107,7 +107,7 @@ import {InstructionEntry, Location, PluginHost, Session} from '@conciv/plugin-ho
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   readApprovalAsk,
   type ChatEvent,
@@ -2106,7 +2106,7 @@ describe('rpc wire', () => {
 
     it('server.* round-trips a real bundler bridge', async () => {
       const restarted: boolean[] = []
-      const bridge = defineBundlerBridge({
+      const bridge = Bundler.defineBundlerBridge({
         id: 'wire-test',
         config: () => ({
           root: '/repo',
@@ -2863,7 +2863,7 @@ describe('rpc wire', () => {
         const ended = nextTurnEnd(sessionId)
         const turn = await send(sessionId, 'silence', {runId: 'silent-run'})
         await turn.waitForRunStart({runId: 'silent-run'})
-        const error = turn.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: SILENCE_MS * 2})
+        const error = turn.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR)
         await ended()
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
           runId: 'silent-run',
@@ -6581,7 +6581,6 @@ const Seer = {
 export default {
   id: 'seer',
   async setup(ctx) {
-    const mcpUrl = ctx.harness.mcpUrl
     await ctx.tool.transform((tools) => {
       tools.add({
         name: 'seer_echo',
@@ -6627,7 +6626,6 @@ export default {
     })
     const registration = await ctx.rpc.register(Seer, {
       seen: async () => ({
-        mcpUrl,
         app: ctx.app,
         directory: ctx.location.directory,
         servers: ctx.servers.list(),
@@ -6806,7 +6804,6 @@ export default {
 
     const seen = z
       .object({
-        mcpUrl: z.string(),
         app: z.object({name: z.string()}),
         directory: z.string(),
         servers: z.array(z.string()),
@@ -6819,7 +6816,6 @@ export default {
         ),
       })
       .parse(await call(base, 'seer', 'seen'))
-    expect(seen.mcpUrl).toBe(`${base}/api/mcp`)
     expect(seen.app.name).toBe('conciv')
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
@@ -7020,9 +7016,7 @@ export default {
     const again = await bootWithPlugins(home, root)
     onTestFinished(() => again.stop())
     const againBase = `http://127.0.0.1:${again.port}/t/${again.agentToken}`
-    expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
-      `${againBase}/api/mcp`,
-    )
+    expect(z.object({directory: z.string()}).parse(await call(againBase, 'seer', 'seen')).directory).toBe(root)
   })
 
   it('an engine with no plugin offers its built-in conciv and report skills and a skill added to the project conciv/skills folder', async () => {
@@ -8306,7 +8300,7 @@ describe('prefixed serving', () => {
   })
 })
 
-describe.skipIf(process.execArgv.includes('--no-addons'))('session terminal', () => {
+describe('session terminal', () => {
   const SHELL = ['--noprofile', '--norc', '-i']
   const BUSY_MODEL = 'busy-model'
   const terminalHarness = (id: string, pidFile: string) => {

@@ -72,7 +72,7 @@ import {createMobileViews} from './mobile'
 import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
-import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
+import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
 import {ui} from './ui'
 
 type Attached = {
@@ -91,6 +91,7 @@ type Attached = {
   path: Accessor<string>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
+  directory: string
 }
 
 export type ComposerBinding = {
@@ -192,11 +193,13 @@ export function createHostApis() {
   const target = (
     plugin: string,
     key: string,
-    scope: Exclude<StorageScope, 'global' | 'project'>,
+    scope: Exclude<StorageScope, 'global'>,
     from: StoreFrom | readonly StoreFrom[] | undefined,
     connected: Attached,
   ) => {
     const name = storeName(plugin, key)
+
+    if (scope === 'project') return projectStoreTarget(plugin, key, from, connected.directory)
 
     if ('session' in scope) {
       const location = scope.session.location
@@ -208,7 +211,7 @@ export function createHostApis() {
 
     if (!connected.server(scope.server)) throw new Error(`Server ${scope.server} is unavailable`)
 
-    return {...Persist.project(name), copyFrom: storeImports(from)}
+    return {...Persist.server(name), copyFrom: storeImports(from)}
   }
 
   const apis: HostApiFactories = {
@@ -223,13 +226,12 @@ export function createHostApis() {
         const scope = options.scope
 
         return runWithOwner(getOwner() ?? owner, () => {
-          if (!scope || scope === 'global' || scope === 'project')
-            return open(globalStoreTarget(plugin, key, options.from, scope ?? 'global'))
+          if (!scope || scope === 'global') return open(globalStoreTarget(plugin, key, options.from))
 
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
 
-          if (!('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
+          if (scope === 'project' || !('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
 
           const directory = createMemo(() => scope.session.location?.directory)
 
@@ -258,13 +260,16 @@ export function createHostApis() {
       remove(key, options) {
         const scope = options?.scope
 
-        if (!scope || scope === 'global' || scope === 'project')
-          return removePersisted(globalStoreTarget(plugin, key, options?.from, scope ?? 'global'), rpc)
+        if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
 
         const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
 
         write((connected) => {
-          if (!('session' in scope) || (scope.session.location && !located.pending(scope.session.key)))
+          if (
+            scope === 'project' ||
+            !('session' in scope) ||
+            (scope.session.location && !located.pending(scope.session.key))
+          )
             return run(connected)
           located.hold(scope.session, () => write(run))
         })
@@ -582,7 +587,7 @@ export function createPluginAttachment(apis: HostApis) {
       })
       .catch((cause: unknown) => console.error(`[plugin] ${plugin}: the draft did not open`, cause))
 
-  const mounted: Attached = {
+  const mounted: Omit<Attached, 'directory'> = {
     sessions,
     current,
     tabs: shell,
@@ -637,8 +642,9 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
-    attach: () => {
-      const detach = apis.attach(mounted)
+    root: () => (project.isSuccess ? project.data?.project.root : undefined),
+    attach: (directory: string) => {
+      const detach = apis.attach({...mounted, directory})
 
       recheckPluginView()
 
