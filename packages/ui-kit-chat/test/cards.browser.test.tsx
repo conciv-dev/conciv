@@ -26,6 +26,7 @@ import {ToolCallCard, ToolTraceRow} from '../src/tools/styled/tool-call-card.js'
 import {createSignal, type JSX} from 'solid-js'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
 import {ToolDisplay} from '../src/tools/styled/tool-display.js'
+import {ToolPartRow, type ToolDisclosure} from '../src/styled/tool-part-row.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
 import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 
@@ -1158,9 +1159,46 @@ describe('trace row card header', () => {
 })
 
 describe('a failed tool row', () => {
+  const closedRows: ToolDisclosure = {open: () => undefined, setOpen: () => {}}
+  const legacyBash: ToolCardEntry = {
+    names: ['Bash'],
+    render: () => <p>the legacy bash card</p>,
+    hasEmbeddedBody: () => true,
+  }
+
   it('reads its title, subtitle and error summary, and opens to the error with its copy button', async () => {
     mountView(() => (
       <>
+        <section aria-label="failed bash">
+          <ToolPartRow
+            part={{...cardPart('Bash', {command: 'make'}), id: 'bash-1'}}
+            result={{type: 'tool-result', toolCallId: 'bash-1', content: 'make: no rule', state: 'error'}}
+            ctx={INERT_TOOL_CTX}
+            entries={[legacyBash]}
+            render={undefined}
+            renderPending={false}
+            disclosure={closedRows}
+            chain={false}
+          />
+        </section>
+        <section aria-label="failed lookup">
+          <ToolPartRow
+            part={{...cardPart('lookup', {}), id: 'lookup-1'}}
+            result={{
+              type: 'tool-result',
+              toolCallId: 'lookup-1',
+              content: '',
+              state: 'error',
+              error: 'the lookup timed out',
+            }}
+            ctx={INERT_TOOL_CTX}
+            entries={[]}
+            render={undefined}
+            renderPending={false}
+            disclosure={closedRows}
+            chain={false}
+          />
+        </section>
         <section aria-label="failed shell">
           <ToolDisplay
             id="shell-1"
@@ -1198,5 +1236,12 @@ describe('a failed tool row', () => {
     await expect
       .element(search.getByRole('button', {name: /TinyFish Web Search solid stores Rate limited/}))
       .toBeVisible()
+
+    const bash = page.getByRole('region', {name: 'failed bash', exact: true})
+    await expect.element(bash.getByRole('img', {name: 'error'})).toBeVisible()
+    await expect.element(bash.getByText('the legacy bash card')).not.toBeInTheDocument()
+
+    const lookup = page.getByRole('region', {name: 'failed lookup', exact: true})
+    await expect.element(lookup.getByRole('button', {name: /lookup The lookup timed out/})).toBeVisible()
   })
 })

@@ -12,6 +12,7 @@ export type ToolDisplayProps = ToolProps & {
   render?: (name: string) => ToolComponent | undefined
   renderPending?: boolean
   durationMs?: number
+  tag?: string
 }
 
 const ProviderSchema = z.string().optional().catch(undefined)
@@ -26,7 +27,7 @@ function toolDisplayError(status: string | undefined, error: string | undefined)
 }
 
 export function ToolDisplay(props: ToolDisplayProps): JSX.Element {
-  const [local, tool] = splitProps(props, ['id', 'render', 'renderPending', 'durationMs'])
+  const [local, tool] = splitProps(props, ['id', 'render', 'renderPending', 'durationMs', 'tag'])
   const error = createMemo(() => toolDisplayError(tool.status, tool.error))
   const durationMs = (): number | undefined => local.durationMs
   const errorTitle = () =>
@@ -36,7 +37,7 @@ export function ToolDisplay(props: ToolDisplayProps): JSX.Element {
     (): ToolComponent => local.render?.(tool.tool) ?? (local.renderPending ? PendingTool : GenericTool),
   )
   return (
-    <ToolPartProvider callId={local.id} duration={durationMs}>
+    <ToolPartProvider callId={local.id} tag={local.tag} duration={durationMs}>
       <div data-component="tool-part-wrapper" data-timeline-part-id={local.id} class="min-w-0 w-full">
         <Switch>
           <Match when={error() !== undefined}>

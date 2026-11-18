@@ -15,7 +15,8 @@ import {TraceBodyFrame} from '../../styled/trace/output-block.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import type {ToolRowMark} from '../primitives/tool-row.js'
-import {useToolCallDuration} from './card-chrome.js'
+import {useToolCallDuration, useToolCallTag} from './card-chrome.js'
+import {Chip} from './chip.js'
 
 export type TriggerTitle = {
   title: string
@@ -77,6 +78,7 @@ export function BasicTool(props: BasicToolProps): JSX.Element {
   }
   const controlled = () => props.forceOpen === true || props.open !== undefined || !canToggle()
   const duration = useToolCallDuration()
+  const tag = useToolCallTag()
   const durationText = () => (pending() ? undefined : formatDuration(duration()))
   const triggerContent = createMemo(() => {
     const value = props.trigger
@@ -135,6 +137,7 @@ export function BasicTool(props: BasicToolProps): JSX.Element {
           </Match>
           <Match when={true}>{triggerElement()}</Match>
         </Switch>
+        <Show when={tag()}>{(value) => <Chip kind="pill" maxWidth="compact" value={value()} />}</Show>
         <Show when={durationText()}>{(text) => <span class={DURATION}>{text()}</span>}</Show>
         {showToggle() ? <FoldIndicator /> : <span aria-hidden="true" class={FOLD_SLOT} />}
       </Collapsible.Trigger>

@@ -134,7 +134,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   )
 }
 
-function outsideTag(part: ToolCallPart): string | undefined {
+export function outsideTag(part: ToolCallPart): string | undefined {
   const marker = OutsideCallMetadataSchema.safeParse(part.metadata)
   if (!marker.success) return undefined
   return `from ${marker.data.conciv.client ?? 'outside agent'}`

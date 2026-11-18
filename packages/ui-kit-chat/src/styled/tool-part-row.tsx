@@ -8,7 +8,7 @@ import {findToolEntry} from '../tools/primitives/define-toolkit.js'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {parseInput, resultText} from '../tools/primitives/tool-util.js'
 import {ToolDisplay} from '../tools/styled/tool-display.js'
-import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
+import {outsideTag, ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {ROW_ITEM} from './trace/trace-row.js'
 
 export type ToolRender = (name: string) => ToolComponent | undefined
@@ -49,10 +49,12 @@ export function ToolPartRow(props: {
   ring?: boolean
   chain: boolean
 }): JSX.Element {
-  const entry = createMemo(() =>
-    props.render?.(props.part.name) === undefined ? findToolEntry(props.entries, props.part) : undefined,
-  )
   const status = () => STATUS[toolStatus(props.part, props.result)]
+  const entry = createMemo(() =>
+    status() === 'error' || props.render?.(props.part.name) !== undefined
+      ? undefined
+      : findToolEntry(props.entries, props.part),
+  )
   const settled = () => status() !== 'running' && status() !== 'pending'
   const output = () => (settled() ? toolOutput(props.part, props.result) : undefined)
   const input = createMemo(() => parseInput(ToolInputSchema, props.part) ?? {})
@@ -65,7 +67,8 @@ export function ToolPartRow(props: {
       input={input()}
       metadata={metadata()}
       output={output()}
-      error={status() === 'error' ? output() : undefined}
+      error={status() === 'error' ? props.result?.error || output() : undefined}
+      tag={outsideTag(props.part)}
       status={status()}
       sessionID={props.sessionID}
       defaultOpen={status() !== 'error'}
