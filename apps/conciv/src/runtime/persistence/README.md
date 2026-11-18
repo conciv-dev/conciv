@@ -18,6 +18,13 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   app's one draft write chain, and a write queued behind a write still in flight never opened its transaction before
   the page was gone: the `pagehide` flush has to open its transaction in the `pagehide` task, so its writer skips the
   chain (`pane/README.md`).
+- The persist machine knows the write it started and has not seen settle (`persist-machine.ts`, `writing` on the
+  `clean` and `dirty` states, cleared by `write.settled` or `write.failed` for that same save), and a store stays in
+  `pending` while one is in flight (`holdsUnsavedWork`). The flush when the page is left first sends the machine a
+  `left` event, which starts that unsettled write again through `writeLeaving`. The source drops a store from `pending`
+  as soon as its batch timer fires, so `pagehide` never sees a write still in flight. Its draft writer opens its
+  transaction at once, so that rarely matters there; conciv's batch write can wait on the draft write chain, or be
+  committing when the page goes, and was lost on a reload right after typing.
 - The draft database closes itself when another tab opens it at a newer version (`drafts.ts`, the `versionchange`
   listener). The source keeps it open, so one old tab blocks every newer one for as long as it lives. After the close,
   the old tab stays closed: each later write or blob put fails, is logged, and the composer keeps what is on screen.

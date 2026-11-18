@@ -3,6 +3,7 @@ import {batch, createMemo, createSignal, getOwner, onCleanup, untrack} from 'sol
 import {reconcile, type SetStoreFunction, type Store} from 'solid-js/store'
 import {
   createPersistStoreState,
+  holdsUnsavedWork,
   isPersistReady,
   needsPersistFlush,
   transitionPersistStore,
@@ -15,6 +16,8 @@ const persistSaveDelay = 100
 const pending = new Set<(leaving: boolean) => void>()
 
 const EDITED: PersistStoreEvent = Object.freeze({type: 'edited', baseline: undefined})
+
+const LEFT: PersistStoreEvent = Object.freeze({type: 'left'})
 
 export function flushPersisted(leaving = false) {
   for (const save of [...pending]) save(leaving)
@@ -48,7 +51,6 @@ export function persistStore<T extends object>(input: {
   const stopSave = () => {
     clearTimeout(timer)
     timer = undefined
-    pending.delete(save)
   }
 
   const dispatch = (event: PersistStoreEvent, write = input.write) => {
@@ -56,6 +58,9 @@ export function persistStore<T extends object>(input: {
     const next = transitionPersistStore(prev, event)
 
     if (next.state === prev && next.effects.length === 0) return
+
+    if (holdsUnsavedWork(next.state)) pending.add(save)
+    else pending.delete(save)
 
     batch(() => {
       setPersistState(next.state)
@@ -67,14 +72,14 @@ export function persistStore<T extends object>(input: {
     if (effect.type === 'hydrate') return input.setStore(reconcile(input.deserialize(effect.raw)))
 
     if (effect.type === 'schedule-save') {
-      pending.add(save)
       timer ??= setTimeout(flush, delay)
 
       return
     }
 
     input.sync?.[1](input.name, effect.serialized)
-    const failed = () => dispatch({type: 'write.failed', attempted: effect.serialized, fallback: effect.fallback})
+    const failed = () => dispatch({type: 'write.failed', save: effect})
+    const settled = () => dispatch({type: 'write.settled', save: effect})
 
     const result: unknown = write
       ? write(input.store, effect.serialized)
@@ -82,12 +87,12 @@ export function persistStore<T extends object>(input: {
 
     if (result === false) return failed()
 
-    if (result instanceof Promise) {
-      result.catch((error) => {
-        console.error(`[persistence] write failed for ${input.name}`, error)
-        failed()
-      })
-    }
+    if (!(result instanceof Promise)) return settled()
+
+    result.then(settled, (error: unknown) => {
+      console.error(`[persistence] write failed for ${input.name}`, error)
+      failed()
+    })
   }
 
   const flushWith = (write: typeof input.write) => () => {
@@ -97,7 +102,11 @@ export function persistStore<T extends object>(input: {
     dispatch({type: 'flushed', serialized: untrack(() => input.serialize(input.store))}, write)
   }
   const flush = flushWith(input.write)
-  const flushLeaving = flushWith(input.writeLeaving ?? input.write)
+  const writeLeaving = input.writeLeaving ?? input.write
+  const flushLeaving = () => {
+    dispatch(LEFT, writeLeaving)
+    flushWith(writeLeaving)()
+  }
   const save = (leaving: boolean) => (leaving ? flushLeaving : flush)()
 
   const apply = input.setStore as unknown as (...values: unknown[]) => void
