@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

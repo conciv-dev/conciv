@@ -2,6 +2,7 @@ import {arch} from 'node:os'
 import {existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {Effect} from 'effect'
+import {uniq} from 'es-toolkit'
 import {z} from 'zod'
 import type {Tool} from '@conciv/plugin/schema/tool'
 import type {IosConfig} from './config.js'
@@ -51,7 +52,7 @@ function resolveSourceRoot(root: string, dir: string): string {
 function collectSwiftSources(root: string, extraSourceDirs: readonly string[]): string[] {
   const roots = [join(root, 'Sources'), ...extraSourceDirs.map((dir) => resolveSourceRoot(root, dir))]
   const files = roots.filter((dir) => existsSync(dir)).flatMap(walkSwiftSources)
-  return [...new Set(files)].toSorted()
+  return uniq(files).toSorted()
 }
 
 function swiftTarget(): string {

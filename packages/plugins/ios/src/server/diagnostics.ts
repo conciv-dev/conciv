@@ -1,3 +1,4 @@
+import {uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 
 export const DiagnosticSchema = z.object({
@@ -25,5 +26,5 @@ function diagnosticKey(diagnostic: Diagnostic): string {
 
 export function parseDiagnostics(output: string): Diagnostic[] {
   const parsed = output.split('\n').flatMap((raw) => parseDiagnosticLine(raw) ?? [])
-  return [...new Map(parsed.map((diagnostic) => [diagnosticKey(diagnostic), diagnostic])).values()]
+  return uniqBy(parsed, diagnosticKey)
 }
