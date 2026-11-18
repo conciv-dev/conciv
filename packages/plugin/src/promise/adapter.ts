@@ -444,7 +444,6 @@ export function fromPromise(plugin: Plugin.Plugin) {
             },
           },
           servers: host.servers,
-          bundler: host.bundler,
         }
 
         yield* Effect.acquireRelease(

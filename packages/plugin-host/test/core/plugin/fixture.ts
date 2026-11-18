@@ -2,7 +2,8 @@ import {randomUUID} from 'node:crypto'
 import path from 'node:path'
 import {NodeFileSystem} from '@effect/platform-node'
 import {Context, Effect, Layer} from 'effect'
-import type {BundlerDomain, SessionInfo} from '@conciv/plugin'
+import type {SessionInfo} from '@conciv/plugin'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {Agent} from '../../../src/core/agent.js'
 import {App} from '../../../src/core/app.js'
 import {Bus} from '../../../src/core/bus.js'
@@ -182,7 +183,7 @@ const permissionSessionsLayer = Layer.effect(
   }),
 )
 
-const sourcesLayer = (bundler: BundlerDomain | undefined) =>
+const sourcesLayer = (bundler: BundlerBridge | undefined) =>
   Layer.mergeAll(
     Layer.succeed(App.Service, App.make()),
     Layer.succeed(ServersSource, {list: () => [], get: () => undefined}),
@@ -198,7 +199,7 @@ const watcherLayer = Layer.effect(Watcher.Service, Effect.service(Watcher.Servic
   Layer.provide(Watcher.testLayer),
 )
 
-const pluginLayer = (directory: AbsolutePath, bundler?: BundlerDomain) =>
+const pluginLayer = (directory: AbsolutePath, bundler?: BundlerBridge) =>
   Plugin.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(Permission.layer, Tool.layer)),
     Layer.provideMerge(
@@ -242,7 +243,7 @@ export const supervisorLayer = (
     readonly builtin?: InstancePlugins.Builtin
     readonly configured?: readonly ConfigPlugin.Plugin[]
     readonly source?: Layer.Layer<Context.Service.Identifier<typeof ConfigPluginSource.Service>>
-    readonly bundler?: BundlerDomain
+    readonly bundler?: BundlerBridge
   } = {},
 ) =>
   PluginSupervisor.layer.pipe(

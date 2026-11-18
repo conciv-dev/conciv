@@ -46,6 +46,7 @@ import {
   provideEditorSource,
   provideExtensionSlugs,
   provideGlobalRoots,
+  publishBundlerDiagnostics,
 } from './plugin-sources.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
@@ -112,7 +113,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     ),
     Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
-    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer)),
+    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer, publishBundlerDiagnostics(input.bundler))),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(
       Layer.mergeAll(

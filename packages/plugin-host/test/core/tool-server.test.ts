@@ -54,10 +54,11 @@ const bridge = defineBundlerBridge({
 const activate = (bundler: typeof bridge | undefined) =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
-    const context = yield* PluginHost.make(plugins, ServerTools.Plugin.id).pipe(
+    const context = yield* PluginHost.make(plugins, ServerTools.Plugin.id)
+    yield* ServerTools.Plugin.effect(context).pipe(
       Effect.provideService(PluginHost.BundlerSource, bundler),
+      Effect.provideService(PluginHost.EditorSource, openInEditor),
     )
-    yield* ServerTools.Plugin.effect(context).pipe(Effect.provideService(PluginHost.EditorSource, openInEditor))
     const snapshot = yield* (yield* Tool.Service).snapshot()
     const rpc = yield* Rpc.Service
     const call = (name: string, input: unknown) =>

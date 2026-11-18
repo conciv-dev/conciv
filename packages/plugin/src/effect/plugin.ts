@@ -3,7 +3,6 @@ import type {Plugin as PluginSchema} from '../schema/plugin.js'
 import type {Effect, Scope} from 'effect'
 import type {App} from '../app.js'
 import type {PluginOptions} from '../options.js'
-import type {BundlerDomain} from '../promise/bundler.js'
 import type {Servers} from '../promise/servers.js'
 import type {AgentDomain} from './agent.js'
 import type {EventDomain} from './event.js'
@@ -40,7 +39,6 @@ export interface Context {
   readonly storage: StorageDomain
   readonly tool: ToolDomain
   readonly servers: Servers
-  readonly bundler: BundlerDomain | undefined
 }
 
 export interface Plugin<R = Scope.Scope> {

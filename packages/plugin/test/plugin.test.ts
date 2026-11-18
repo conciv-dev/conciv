@@ -10,7 +10,6 @@ import {build} from 'vite'
 import * as Zod from 'zod'
 import * as Effect from 'effect'
 import {z} from 'zod'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {
@@ -154,7 +153,7 @@ describe('define', () => {
     }
     expectTypeOf<Parameters<Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
     expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
-    expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
+    expectTypeOf<Plugin.Context>().not.toHaveProperty('bundler')
     expectTypeOf<Omit<ToolContext, 'signal' | 'progress'>>().toEqualTypeOf<Omit<Tool.Context, 'progress' | 'cancel'>>()
     expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<SessionMessage.Id | undefined>()
     expect(tool.name).toBe('wait')

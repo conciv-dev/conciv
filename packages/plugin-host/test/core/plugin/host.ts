@@ -105,7 +105,6 @@ export function host(overrides: Overrides = {}): Plugin.Context {
         throw new Error('unused servers.get')
       },
     },
-    bundler: overrides.bundler,
   }
 }
 

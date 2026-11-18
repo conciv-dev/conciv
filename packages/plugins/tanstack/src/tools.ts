@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {Effect} from 'effect'
+import {Effect, Stream} from 'effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import type {Connection} from './connection.js'
@@ -22,40 +22,36 @@ type Failure = {
   readonly error: unknown
 }
 
-export type Capabilities = ReturnType<typeof makeCapabilities>
+export type Capabilities = Effect.Success<ReturnType<typeof capabilities>>
 
 function toFailure(code: Failure['code']) {
   return (error: unknown): Failure => ({code, message: error instanceof Error ? error.message : String(error), error})
 }
 
-function makeCapabilities(bundler: Context['bundler'], directory: string) {
+export const capabilities = Effect.fn('TanstackTools.capabilities')(function* (
+  ctx: Pick<Context, 'event' | 'location'>,
+) {
   const ring = makeDiagnosticsRing()
   const serverFnRing = makeServerFnTraceRing()
-  const bundlerAvailable = typeof bundler?.subscribe === 'function'
-  const unsubscribe = bundler?.subscribe?.((diagnostic) => {
-    if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
-    serverFnRing.observe(diagnostic)
-  })
+  yield* ctx.event.subscribe({types: ['bundler.diagnostic']}).pipe(
+    Stream.runForEach(({data: {diagnostic}}) =>
+      Effect.sync(() => {
+        if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
+        serverFnRing.observe(diagnostic)
+      }),
+    ),
+    Effect.forkScoped({startImmediately: true}),
+  )
   return {
-    buildErrors: (): Effect.Effect<AppError[], Failure> =>
-      bundlerAvailable
-        ? Effect.sync(() => ring.list())
-        : Effect.fail(toFailure('BUNDLER_UNAVAILABLE')(new Error('bundler bridge unavailable'))),
-    routeManifest: () => readRouteManifest(directory).pipe(Effect.mapError(toFailure('MANIFEST_UNREADABLE'))),
+    buildErrors: (): Effect.Effect<AppError[], Failure> => Effect.sync(() => ring.list()),
+    routeManifest: () =>
+      readRouteManifest(ctx.location.directory).pipe(Effect.mapError(toFailure('MANIFEST_UNREADABLE'))),
     serverFnTrace: (count: number | undefined) => ({
       traces: serverFnRing.traces(count ?? Number.MAX_SAFE_INTEGER),
       functions: serverFnRing.functions(),
     }),
-    dispose: () => unsubscribe?.(),
   }
-}
-
-export function capabilities(bundler: Context['bundler'], directory: string) {
-  return Effect.acquireRelease(
-    Effect.sync(() => makeCapabilities(bundler, directory)),
-    (tanstack) => Effect.sync(tanstack.dispose),
-  )
-}
+})
 
 function toolFailure(failure: Failure) {
   return Tool.toolError({message: failure.message, error: failure.error, metadata: {code: failure.code}})

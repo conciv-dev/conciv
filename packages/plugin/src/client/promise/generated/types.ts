@@ -320,6 +320,26 @@ type PluginUpdated = {
   data: {}
 }
 
+type BundlerDiagnostic = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'bundler.diagnostic'
+  location?: LocationRef
+  data: {
+    diagnostic:
+      | {
+          kind: 'build-error'
+          message: string
+          file: string | null
+          loc: {line: number; column: number} | null
+          timestamp: number
+        }
+      | {kind: 'hmr-update'; file: string; timestamp: number}
+      | {kind: 'request-trace'; method: string; url: string; status: number; durationMs: number; timestamp: number}
+  }
+}
+
 type PermissionAsked = {
   id: string
   created: number
@@ -398,6 +418,7 @@ export type EventSubscribeOutput =
   | AgentUpdated
   | SkillUpdated
   | PluginUpdated
+  | BundlerDiagnostic
   | PermissionAsked
   | PermissionReplied
   | SessionCreated

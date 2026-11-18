@@ -15,7 +15,6 @@ export type {Hooks, Registration, Transform} from './registration.js'
 export type {Rule, Ruleset} from '../schema/permission.js'
 
 export type {AgentDomain, AgentEditor} from './agent.js'
-export type {BundlerDomain} from './bundler.js'
 export type {EventDomain} from './event.js'
 export type {ModelDomain, ModelEditor} from './model.js'
 export type {PermissionDomain, PermissionEvaluation, PermissionHooks} from './permission.js'
