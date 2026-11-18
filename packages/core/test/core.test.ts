@@ -4296,6 +4296,62 @@ describe('session prompt hook', () => {
   })
 })
 
+describe('session context hook', () => {
+  test('a context hook sees the system prompt and what it appends reaches the model request, and a hook that edits nothing changes nothing', async () => {
+    const sent: string[][] = []
+    const seen: Array<{sessionId: string; agent: string; system: string[]}> = []
+    const adding = {text: ''}
+    const harness = defineHarness({
+      id: 'context-cli',
+      binName: 'true',
+      chatConfig: () => ({
+        adapter: makeTextAdapter('context-cli', async function* (options) {
+          sent.push([...(options.systemPrompts ?? [])].map(String))
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+    const plugin = Plugin.define({
+      id: 'context-rules',
+      async setup(ctx) {
+        await ctx.session.hook('context', (event) => {
+          seen.push({sessionId: event.sessionId, agent: event.agent, system: event.system.map((part) => part.text)})
+          if (adding.text !== '') event.system.push({type: 'text', text: adding.text})
+        })
+      },
+    })
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env, {plugins: [plugin], systemPromptText: 'the base prompt'})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    await booted[0]?.awaitActivation()
+
+    const untouched = await kit.session()
+    expect((await (await kit.turn('hello', {session: untouched})).done()).errors()).toEqual([])
+    const first = seen[0]
+    expect(first?.sessionId).toBe(untouched)
+    expect(first?.agent).toBe('build')
+    expect(first?.system).toContain('the base prompt')
+    expect(sent[0]?.slice(0, first?.system.length)).toEqual(first?.system)
+
+    adding.text = 'Always-on rules from the plugin.'
+    const told = await kit.session()
+    expect((await (await kit.turn('hello', {session: told})).done()).errors()).toEqual([])
+    expect(seen[1]?.system).toEqual(first?.system)
+    expect(sent[1]).toEqual([
+      ...(first?.system ?? []),
+      'Always-on rules from the plugin.',
+      ...(sent[0]?.slice(first?.system.length) ?? []),
+    ])
+  })
+})
+
 describe('plugin rpc over the socket', () => {
   const Acme = Rpc.define({
     id: 'acme',
