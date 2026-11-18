@@ -7239,6 +7239,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
     await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
 
     await page.getByRole('button', {name: 'Clear the grabs', exact: true}).click()
 
