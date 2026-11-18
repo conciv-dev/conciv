@@ -12,6 +12,8 @@ import {ThreadPopover} from './pins/thread.js'
 
 const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
 
+const EXCALIDRAW_INSIDE_MARKER = 'data-prevent-outside-click'
+
 const OPEN_CHAT_LAYER =
   '[data-scope]:not([data-scope="tabs"], [data-scope="dialog"])[data-part="content"][data-state="open"]'
 
@@ -63,6 +65,8 @@ function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {c
 export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   const ctx = usePlugin()
   const canvas = ctx.overlay({styles: [CANVAS_STYLES]})
+  const overlayRoot = canvas.element.getRootNode()
+  if (overlayRoot instanceof ShadowRoot) overlayRoot.host.setAttribute(EXCALIDRAW_INSIDE_MARKER, '')
   onMount(() =>
     makeEventListener(
       window,

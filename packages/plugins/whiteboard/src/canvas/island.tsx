@@ -5,7 +5,7 @@ import type {Transaction} from '@tanstack/solid-db'
 import {Component, createElement, useSyncExternalStore, type PropsWithChildren, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
-import type {ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
+import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
@@ -83,6 +83,9 @@ function toBase64(bytes: Uint8Array): string {
 }
 
 type Theme = 'light' | 'dark'
+
+const keptSidebar = (state: AppState): AppState['openSidebar'] =>
+  state.defaultSidebarDockedPreference ? state.openSidebar : null
 
 export function Island(props: {
   mount: HTMLElement
@@ -318,6 +321,14 @@ export function Island(props: {
     return createElement(Excalidraw, {...canvasProps, theme: theme === 'dark' ? THEME.DARK : THEME.LIGHT})
   }
 
+  const closeLayersOnCanvasPointer = (): void => {
+    const state = api?.getAppState()
+    if (!state) return
+    const openSidebar = keptSidebar(state)
+    if (state.openMenu === null && openSidebar === state.openSidebar) return
+    api?.updateScene({appState: {openMenu: null, openSidebar}, captureUpdate: CAPTURE_NEVER})
+  }
+
   const renderExcalidraw = (): void => {
     if (!container || !container.isConnected) {
       return reportMountError(new Error('the canvas container never attached to the document'))
@@ -353,6 +364,7 @@ export function Island(props: {
             })
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
+          onPointerDown: closeLayersOnCanvasPointer,
         }),
       ),
     )

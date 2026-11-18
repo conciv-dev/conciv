@@ -132,7 +132,7 @@ async function dragPin(page: Page, pin: Locator, to: {x: number; y: number}): Pr
 }
 
 describe('the whiteboard canvas of the whiteboard plugin', () => {
-  test('opens from its composer pill, draws with the keyboard and the pointer at its real size, drags one shape the full distance in few writes and a selected group in bulk writes, closes on Escape and still takes what the agent draws, reopens with the drawing kept, converts what the agent draws, commits it, exports a PNG, caps a dense svg and skips a broken node, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
+  test('opens from its composer pill, draws with the keyboard and the pointer at its real size, drags one shape the full distance in few writes and a selected group in bulk writes, closes on Escape and still takes what the agent draws, reopens with the drawing kept, keeps its main menu open while the canvas background is picked and closes it on a canvas click, converts what the agent draws, commits it, exports a PNG, caps a dense svg and skips a broken node, a second tab catches up after a reconnect, the canvas outlives a minimized chat and a failed load tells the user', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -253,6 +253,24 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await expect(rectangleTool).toBeVisible()
         await expect(composer).toBeVisible()
       }
+
+      const mainMenu = page.getByRole('button', {name: '', exact: true})
+      await mainMenu.click()
+      const resetCanvas = page.getByRole('button', {name: 'Reset the canvas'})
+      await expect(resetCanvas).toBeVisible()
+      await page.getByRole('button', {name: '#fffce8'}).click()
+      await expect(resetCanvas).toBeVisible()
+      await page.getByRole('button', {name: 'Canvas background'}).click()
+      const backgroundHex = page.getByRole('textbox', {name: 'Canvas background'})
+      await expect(backgroundHex).toHaveValue('fffce8')
+      await page.keyboard.press('Escape')
+      await expect(backgroundHex).toBeHidden()
+      await expect(resetCanvas).toBeHidden()
+      await mainMenu.click()
+      await expect(resetCanvas).toBeVisible()
+      await page.mouse.click(300, 760)
+      await expect(resetCanvas).toBeHidden()
+      await expect(rectangleTool).toBeVisible()
 
       expect(
         Pending.parse(
