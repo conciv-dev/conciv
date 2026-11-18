@@ -60,6 +60,7 @@ export function guardedAttachmentCards(extensions: AnyExtension[], fallback: 'ca
     const owner = extensions.find((extension) =>
       extension.attachments?.some((attachment) => attachment.mime === entry.mime && attachment.__card === entry.render),
     )
-    return guardPluginAttachmentCard(owner?.name ?? entry.mime, fallback, entry)
+    const Card = entry.render
+    return guardPluginAttachmentCard(owner?.name ?? entry.mime, fallback, {mime: entry.mime, render: () => <Card />})
   })
 }
