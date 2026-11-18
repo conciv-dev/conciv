@@ -7663,7 +7663,7 @@ describe('terminal panel', () => {
     await expect.element(bar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
   }, 60_000)
 
-  test('a model list that failed to load offers Retry, which then lists the models', async () => {
+  test('a model list that failed to load offers Retry, says Models… while Retry reads it, then lists the models', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     harness.mountShell(terminalRoute(sessionId))
@@ -7671,7 +7671,12 @@ describe('terminal panel', () => {
     const retry = () => bar().getByRole('button', {name: 'Retry'})
     await expect.element(retry(), {timeout: 15_000}).toBeEnabled()
     await coreControl.releaseFault(broken)
+    const retried = await faults.install({kind: 'gate', path: ['meta', 'models']})
     await retry().click()
+    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeDisabled()
+    await expect.element(retry()).not.toBeInTheDocument()
+    await coreControl.awaitFaultPending(retried, 1)
+    await faults.releaseAll()
     await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
     await expect.element(retry()).not.toBeInTheDocument()
   }, 60_000)
