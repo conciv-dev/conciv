@@ -259,6 +259,11 @@ export function Island(props: {
     })
 
   const snapshotElements = (): ElementRow[] => [...db.canvasElements.state.values()]
+  const initialScene = () => {
+    const rows = snapshotElements()
+    setVersions(Object.fromEntries(rows.map((row) => [row.elementId, row.version])))
+    return {elements: rows.map((row) => asScene(row.data))}
+  }
   const sceneSubscription = db.canvasElements.subscribeChanges(() => applyRemote(snapshotElements()), {
     includeInitialState: true,
   })
@@ -336,7 +341,7 @@ export function Island(props: {
         IslandBoundary,
         {onError: reportMountError},
         createElement(ThemedExcalidraw, {
-          initialData: {elements: []},
+          initialData: initialScene,
           zenModeEnabled: true,
           viewModeEnabled: false,
           isCollaborating: true,
@@ -355,7 +360,6 @@ export function Island(props: {
             pushViewport()
             const unsubscribeScroll = instance.onScrollChange(pushViewport)
             Effect.runSync(Scope.addFinalizer(islandScope, Effect.sync(unsubscribeScroll)))
-            applyRemote(snapshotElements())
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
           onPointerDown: closeLayersOnCanvasPointer,
