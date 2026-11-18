@@ -785,6 +785,17 @@ describe('the comments of the whiteboard plugin', () => {
         ),
       )
       expect(pins.find((row) => row.cid === 'linked')).toMatchObject({pinState: 'offset'})
+
+      const refused = await failRpcCalls(page, {
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'comments.update'},
+      })
+      await readPin.click()
+      await expect(thread.getByText('this label is off by one')).toBeVisible()
+      await thread.getByRole('button', {name: 'Resolve thread'}).click()
+      await expect(page.getByText('Could not save your whiteboard change. Try again.')).toBeVisible()
+      await expect(readPin).toBeVisible()
+      await refused.dispose()
     } finally {
       await widget.close()
     }
