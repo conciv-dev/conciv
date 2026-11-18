@@ -6,14 +6,11 @@ import {
   type ConnectEvent,
   type ConnectState,
 } from './connect-machine.js'
-import type {ProbeSilent} from './probe.js'
+import {TryItProbe} from './probe.js'
 
 export type ConnectTimings = {readonly probeMs: number; readonly holdMs: number; readonly slowMs: number}
 
-export type ConnectInput = {
-  readonly probe: Effect.Effect<string, ProbeSilent>
-  readonly timings: ConnectTimings
-}
+export type ConnectInput = {readonly timings: ConnectTimings}
 
 type Connection = {
   readonly state: SubscriptionRef.SubscriptionRef<ConnectState>
@@ -22,14 +19,15 @@ type Connection = {
 
 export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInput) {
   const scope = yield* Scope.Scope
+  const {probe} = yield* TryItProbe
   const state = yield* SubscriptionRef.make(initialConnect.state)
   const slowHint = yield* FiberHandle.make()
 
   const sweep = Effect.fn('try-it.sweep')(function* (attempt: number, retry: boolean) {
-    const spaced = input.probe.pipe(
+    const spaced = probe.pipe(
       Effect.retry({while: Predicate.isTagged('ProbeSilent'), schedule: Schedule.spaced(input.timings.probeMs)}),
     )
-    yield* (retry ? spaced : input.probe).pipe(
+    yield* (retry ? spaced : probe).pipe(
       Effect.matchEffect({
         onFailure: () => dispatch({type: 'silent', attempt}),
         onSuccess: (base) => dispatch({type: 'answered', attempt, base}),

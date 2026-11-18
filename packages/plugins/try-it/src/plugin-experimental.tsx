@@ -1,4 +1,4 @@
-import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
+import {Effect, Exit, Fiber, Layer, Scope, Stream, SubscriptionRef} from 'effect'
 import {from, onCleanup, type Accessor} from 'solid-js'
 import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
 import {connectPorts} from '@conciv/protocol/connect-ports'
@@ -7,7 +7,7 @@ import {awaitingFirstSweep, type ConnectState} from './connect-machine.js'
 import {ConnectPane} from './connect-pane.js'
 import {localNetworkAccess} from './local-network-access.js'
 import {TryItOptions} from './options.js'
-import {probeCore} from './probe.js'
+import {probeCore, TryItProbe} from './probe.js'
 
 function follow<A>(ref: SubscriptionRef.SubscriptionRef<A>): Accessor<A> {
   return from<A>((set) => {
@@ -30,9 +30,12 @@ export default Plugin.define({
     onCleanup(() => void Effect.runFork(Scope.close(scope, Exit.void)))
     const started = Effect.runSync(
       Effect.all({
-        connection: connect({probe: probeCore(options.token, connectPorts(), options.probeMs), timings: options}),
+        connection: connect({timings: options}),
         access: localNetworkAccess(),
-      }).pipe(Scope.provide(scope)),
+      }).pipe(
+        Effect.provide(Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)})),
+        Scope.provide(scope),
+      ),
     )
     const state = follow(started.connection.state)
     const access = follow(started.access)

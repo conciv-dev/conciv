@@ -1,11 +1,11 @@
 import {createServer} from 'node:http'
-import {Deferred, Effect, Exit, Fiber, Queue, Scope, Stream, SubscriptionRef} from 'effect'
+import {Deferred, Effect, Exit, Fiber, Layer, Queue, Scope, Stream, SubscriptionRef} from 'effect'
 import {TestClock} from 'effect/testing'
 import {afterAll, describe, expect, it} from 'vitest'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import {connect} from '../src/connect.js'
 import {initialConnect, transitionConnect, type ConnectEvent, type ConnectState} from '../src/connect-machine.js'
-import {probeCore, ProbeSilent} from '../src/probe.js'
+import {probeCore, ProbeSilent, TryItProbe} from '../src/probe.js'
 
 const closers: Array<() => Promise<void>> = []
 
@@ -162,9 +162,11 @@ const runClocked = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>) =>
   Effect.runPromise(effect.pipe(Effect.scoped, Effect.provide(TestClock.layer())))
 
 const scriptedProbe = (outcomes: Queue.Queue<Outcome>) =>
-  Queue.take(outcomes).pipe(
-    Effect.flatMap((outcome) => (outcome === null ? Effect.fail(new ProbeSilent()) : Effect.succeed(outcome))),
-  )
+  Layer.succeed(TryItProbe, {
+    probe: Queue.take(outcomes).pipe(
+      Effect.flatMap((outcome) => (outcome === null ? Effect.fail(new ProbeSilent()) : Effect.succeed(outcome))),
+    ),
+  })
 
 const reach = (state: SubscriptionRef.SubscriptionRef<ConnectState>, done: (current: ConnectState) => boolean) =>
   SubscriptionRef.changes(state).pipe(Stream.filter(done), Stream.runHead)
@@ -192,7 +194,7 @@ describe('connect driver', () => {
     runClocked(
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings})
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
         const seen = yield* collectUntil(connection.state, (current) => current.status === 'connected')
         yield* Queue.offer(outcomes, base)
         expect(yield* seen).toEqual([
@@ -206,7 +208,7 @@ describe('connect driver', () => {
     runClocked(
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings})
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
         const seen = yield* collectUntil(connection.state, (current) => current.status === 'connected')
         yield* Queue.offerAll(outcomes, [null, base])
         yield* reach(connection.state, (current) => current.status === 'holding')
@@ -226,7 +228,7 @@ describe('connect driver', () => {
     runClocked(
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings})
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
         yield* Queue.offerAll(outcomes, [null, null, base])
         yield* reach(connection.state, (current) => current.status === 'probing' && current.attempt === 2)
         yield* TestClock.adjust(timings.probeMs - 1)
@@ -241,7 +243,7 @@ describe('connect driver', () => {
     runClocked(
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings})
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
         const seen = yield* collectUntil(connection.state, (current) => current.status === 'probing' && current.slow)
         yield* Queue.offer(outcomes, null)
         yield* reach(connection.state, (current) => current.status === 'probing' && current.attempt === 2)
@@ -265,7 +267,9 @@ describe('connect driver', () => {
     runClocked(
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings: {...timings, holdMs: 120_000}})
+        const connection = yield* connect({timings: {...timings, holdMs: 120_000}}).pipe(
+          Effect.provide(scriptedProbe(outcomes)),
+        )
         yield* Queue.offerAll(outcomes, [null, base])
         yield* reach(connection.state, (current) => current.status === 'holding')
         const seen = yield* collectUntil(connection.state, (current) => current.status === 'holding' && current.copied)
@@ -282,7 +286,7 @@ describe('connect driver', () => {
     runClocked(
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings})
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
         yield* connection.dispatch({type: 'copied'})
         expect(yield* SubscriptionRef.get(connection.state)).toEqual({
           status: 'probing',
@@ -298,7 +302,7 @@ describe('connect driver', () => {
       Effect.gen(function* () {
         const outcomes = yield* Queue.unbounded<Outcome>()
         const scope = yield* Scope.make()
-        const connection = yield* connect({probe: scriptedProbe(outcomes), timings}).pipe(Scope.provide(scope))
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)), Scope.provide(scope))
         yield* Queue.offer(outcomes, null)
         yield* reach(connection.state, (current) => current.status === 'probing' && current.attempt === 2)
         yield* Scope.close(scope, Exit.void)

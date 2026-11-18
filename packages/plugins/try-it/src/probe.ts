@@ -1,9 +1,13 @@
-import {Data, Effect} from 'effect'
+import {Context, Data, Effect} from 'effect'
 
 const ProbeFailed = Data.TaggedError('TryItProbeFailed')<{readonly port: number; readonly cause: unknown}>
 export const ProbeSilent = Data.TaggedError('ProbeSilent')<Record<never, never>>
 
 export type ProbeSilent = InstanceType<typeof ProbeSilent>
+
+export const TryItProbe = Context.Service<{readonly probe: Effect.Effect<string, ProbeSilent>}>(
+  '@conciv/plugin-try-it/Probe',
+)
 
 function probePort(token: string, port: number) {
   const base = `http://127.0.0.1:${port}/t/${token}`
