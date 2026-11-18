@@ -3,4 +3,4 @@
 '@conciv/plugin-host': patch
 ---
 
-A plugin's Effect can use FileSystem, Path and ChildProcessSpawner from the host. The requirements of `Plugin` and `define` are bounded by the exported `Services`.
+The host gives a plugin's Effect FileSystem, Path and ChildProcessSpawner. An external plugin may require only those services plus Scope; the SDK exports them as `Services`.

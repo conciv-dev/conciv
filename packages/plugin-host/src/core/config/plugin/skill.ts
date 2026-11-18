@@ -1,6 +1,6 @@
 export * as ConfigSkillPlugin from './skill.js'
 
-import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
+import {define} from '@conciv/plugin/effect/plugin'
 import {FSUtil} from '../../../util/fs-util.js'
 import {Global} from '../../../util/global.js'
 import path from 'path'
@@ -14,9 +14,9 @@ import {SkillScan} from './skill-scan.js'
 
 type Source = Skill.DirectorySource
 
-export const Plugin = {
+export const Plugin = define({
   id: 'conciv.config.skill',
-  effect: Effect.fn(function* (ctx: PluginContext) {
+  effect: Effect.fn(function* (ctx) {
     const fs = yield* FSUtil.Service
     const global = yield* Global.Service
     const location = yield* Location.Service
@@ -145,4 +145,4 @@ export const Plugin = {
       for (const skill of loaded.skills) editor.add(skill)
     })
   }),
-}
+})

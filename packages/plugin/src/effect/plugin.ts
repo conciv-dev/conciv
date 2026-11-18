@@ -44,11 +44,11 @@ export interface Context {
 
 export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 
-export interface Plugin<R extends Services = Services> {
+export interface Plugin<R = Scope.Scope> {
   readonly id: string
   readonly effect: (context: Context) => Effect.Effect<void, never, R>
 }
 
-export function define<R extends Services = Services>(plugin: Plugin<R>) {
+export function define<R = Scope.Scope>(plugin: Plugin<R>) {
   return plugin
 }

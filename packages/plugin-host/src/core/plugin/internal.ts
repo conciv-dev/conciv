@@ -1,6 +1,6 @@
 export * as PluginInternal from './internal.js'
 
-import type {Context as PluginContext, Services} from '@conciv/plugin/effect/plugin'
+import type {Plugin, Services} from '@conciv/plugin/effect/plugin'
 import type {Generation} from './service.js'
 import {Context, Effect} from 'effect'
 import {FSUtil} from '../../util/fs-util.js'
@@ -34,10 +34,7 @@ const services = [
 
 export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
-export interface InternalPlugin {
-  readonly id: string
-  readonly effect: (context: PluginContext) => Effect.Effect<void, never, Requirements | Services>
-}
+export type InternalPlugin = Plugin<Requirements | Services>
 
 const pre = [SkillPlugin.Plugin, SkillTool.Plugin, ServerTools.Plugin] as const satisfies readonly InternalPlugin[]
 
