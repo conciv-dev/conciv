@@ -1,4 +1,5 @@
 import type {JSX} from 'solid-js'
+import type {ToolComponent} from '@conciv/protocol/tool-view-types'
 import type {IconName} from './icon-name.js'
 import {Registry} from './core.js'
 import type {ComposerNote, SessionRef, MountedSession, SessionScreen} from './host-apis.js'
@@ -537,3 +538,23 @@ export const NoteCard = Registry.define<NoteCard>('note-card')
  * ```
  */
 export const Slot = Registry.define<Slot>('slot')
+
+export interface ToolRegistry {
+  readonly name: string
+  readonly render?: ToolComponent
+}
+
+/**
+ * The registry of tool renders, by tool name. A call to the tool draws the render of the most recently loaded plugin
+ * that registered the name; when that plugin unloads, the earlier one draws again. A tool with no render draws the
+ * generic card, and a call that failed draws the error card.
+ *
+ * @example
+ * ```tsx
+ * ctx.add(ToolRegistry, {
+ *   name: "page_click",
+ *   render: (props) => <BasicTool {...props} icon="mouse-pointer" trigger={{title: "Click", subtitle: selector(props.input)}} />,
+ * })
+ * ```
+ */
+export const ToolRegistry = Registry.define<ToolRegistry>('tool-registry')
