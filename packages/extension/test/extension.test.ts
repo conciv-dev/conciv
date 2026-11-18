@@ -8,13 +8,9 @@ import {defineAttachment} from '../src/define-attachment.js'
 import {collectAttachmentCards, collectToolRenderers, collectClientEffects} from '../src/collect-client.js'
 import {z} from 'zod'
 import {defineTool, type ClientToolCtx, isToolError, toolError} from '../src/define-tool.js'
-import {createSettingsStore} from '../src/settings-store.js'
-import {mergeSettings} from '../src/merge-settings.js'
-import type {SettingsSnapshot} from '@conciv/contract'
+import {createSettingsStore, type SettingsSnapshot, type SettingsState, type SettingsStore} from '@conciv/contract'
 import {
   type ClientEffect,
-  type SettingsState,
-  type SettingsStore,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
   type ToolMiddleware,
@@ -271,23 +267,6 @@ describe('define extension', () => {
     })
     expect(ext.parseSettings(null)).toEqual({fontSize: 13, cursor: 'block', copyOnSelect: false, shell: ''})
     expect(defineExtension({name: 'plain'}).parseSettings({anything: 1})).toEqual({})
-  })
-
-  test('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
-    const global = {
-      skin: 'terminal',
-      launcher: 'hidden',
-      docksHidden: ['notes', 'terminal'],
-      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+T']},
-    }
-    const project = {launcher: null, docksHidden: ['files'], commandShortcuts: {quickTerminal: ['Mod+K']}}
-    expect(mergeSettings(project, global)).toEqual({
-      skin: 'terminal',
-      launcher: 'hidden',
-      docksHidden: ['files'],
-      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+K']},
-    })
-    expect(mergeSettings({}, global)).toEqual(global)
   })
 
   const memoryStore = (value: Record<string, unknown>) => {
