@@ -63,7 +63,7 @@ function PluginNoteCard(props: {
   )
 
   return (
-    <div class={`${FRAME} ${props.remove ? 'pe-7' : ''}`}>
+    <div class={`${FRAME} ${props.remove ? 'pe-8' : ''}`}>
       <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
         {(item) => (
           <Contribution plugin={item.plugin} failed={decline}>
