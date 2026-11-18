@@ -6617,7 +6617,7 @@ describe('page action queue delivery', () => {
 
   const routed = (href: string) => pageSuccess({pathname: href, search: '', href, title: 'Example', state: 'visible'})
 
-  it('queues and calls share each tab in turn: a queue started while another plays or while a changing call is in flight reaches the tab only after it, on the tab focused when it started, and a lost tab resends a reading call to the next tab but never a changing one', async () => {
+  it('queues and calls share each tab in turn: a queue started while another plays or while a changing call is in flight reaches the tab only after it, on the tab serving the session when its turn comes, even once the tab it waited on closes, and a lost tab resends a reading call to the next tab but never a changing one', async () => {
     const engine = await engineWithTabs()
     const first = await engine.open(true)
     const probe = async (tab: Awaited<ReturnType<typeof engine.open>>, href: string) => {
@@ -6688,7 +6688,22 @@ describe('page action queue delivery', () => {
     expect(await engine.wait(afterFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
     expect(first.seen().slice(seenOnFirst)).toEqual([])
 
+    const blocking = parseHandle(await engine.hub(queued(CHECK)))
+    await accept(second, blocking.queueId)
+    const waiting = parseHandle(await engine.hub(queued(CHECK)))
+    expect(await engine.wait(waiting.queueId)).toEqual({queueId: waiting.queueId, status: 'playing', done: 0, of: 1})
     second.end()
+    expect(await engine.wait(blocking.queueId, 5000)).toMatchObject({status: 'lost'})
+    const nextOnFirst = first.next()
+    expect(
+      await Promise.race([
+        nextOnFirst.then(({command}) => command.queued),
+        engine.wait(waiting.queueId, WINDOW_LONGER_THAN_THE_CASE_MS),
+      ]),
+    ).toEqual({id: waiting.queueId, index: -1, of: 1})
+    await first.reply((await nextOnFirst).requestId, pageSuccess({queueId: waiting.queueId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(waiting.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
 
     const other = await engine.open(false)
     await first.focus(true)
