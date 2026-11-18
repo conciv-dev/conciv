@@ -1,3 +1,5 @@
+import type {SourceLoc} from './source-location.js'
+
 export type FrameworkName = 'nextjs' | 'tanstack-start' | 'vue' | 'solid-start' | 'astro'
 
 export type RouterKind = 'app' | 'pages' | 'file-based' | 'unknown'
@@ -73,7 +75,7 @@ export type AppError = {
   kind: AppErrorKind
   message: string
   stack: string | null
-  source: {file: string; line: number; column: number} | null
+  source: SourceLoc | null
   digest: string | null
   at: number
 }

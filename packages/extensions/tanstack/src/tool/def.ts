@@ -1,13 +1,6 @@
 import {toolDefinition} from '@conciv/extension/tool'
 import {z} from 'zod'
-import type {
-  AppError,
-  CacheEntry,
-  FrameworkInfo,
-  RouteMatch,
-  RouteNode,
-  RouterCurrent,
-} from '@conciv/protocol/framework-types'
+import type {AppError, CacheEntry, FrameworkInfo, RouteMatch, RouteNode, RouterCurrent} from '@conciv/contract'
 
 const FrameworkInfoSchema: z.ZodType<FrameworkInfo> = z.object({
   name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),

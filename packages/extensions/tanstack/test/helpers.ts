@@ -5,7 +5,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {createServer, type ViteDevServer} from 'vite'
 import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {pagePlaneWatchFor} from '@conciv/plugin-testkit/page-plane'
-import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
+import type {FrameworkAdapter} from '@conciv/contract'
 import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
 import tanstackExtension from '../src/server.js'
 
