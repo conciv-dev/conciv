@@ -93,8 +93,9 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
   table: string
   ops: TableClient<Row, Insert>
   toInsert: (row: Row) => Insert
+  onWriteFailed: (error: unknown) => void
 }) {
-  const {feed, room, table, ops, toInsert} = deps
+  const {feed, room, table, ops, toInsert, onWriteFailed} = deps
   const sync: {params?: SyncParams<Row>} = {}
 
   const confirm = (row: Row): void => {
@@ -104,6 +105,14 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
     params.write({type: params.collection.has(row.id) ? 'update' : 'insert', value: row})
     params.commit()
   }
+  const reported = (write: () => Promise<void>): Promise<{refetch: false}> =>
+    write().then(
+      () => ({refetch: false}),
+      (error: unknown) => {
+        onWriteFailed(error)
+        throw error
+      },
+    )
   const confirmDelete = (key: string): void => {
     const params = sync.params
     if (!params) return
@@ -122,25 +131,25 @@ export function whiteboardCollectionOptions<Row extends {id: string}, Insert>(de
       readRow: ops.get,
       onReady: (params) => void (sync.params = params),
     }),
-    onInsert: async ({transaction}: InsertMutationFnParams<Row, string>) => {
-      for (const mutation of transaction.mutations) {
-        confirm(await ops.insert(toInsert(mutation.modified)))
-      }
-      return {refetch: false}
-    },
-    onUpdate: async ({transaction}: UpdateMutationFnParams<Row, string>) => {
-      for (const mutation of transaction.mutations) {
-        confirm(await ops.update(String(mutation.key), mutation.changes))
-      }
-      return {refetch: false}
-    },
-    onDelete: async ({transaction}: DeleteMutationFnParams<Row, string>) => {
-      for (const mutation of transaction.mutations) {
-        await ops.remove(String(mutation.key))
-        confirmDelete(String(mutation.key))
-      }
-      return {refetch: false}
-    },
+    onInsert: ({transaction}: InsertMutationFnParams<Row, string>) =>
+      reported(async () => {
+        for (const mutation of transaction.mutations) {
+          confirm(await ops.insert(toInsert(mutation.modified)))
+        }
+      }),
+    onUpdate: ({transaction}: UpdateMutationFnParams<Row, string>) =>
+      reported(async () => {
+        for (const mutation of transaction.mutations) {
+          confirm(await ops.update(String(mutation.key), mutation.changes))
+        }
+      }),
+    onDelete: ({transaction}: DeleteMutationFnParams<Row, string>) =>
+      reported(async () => {
+        for (const mutation of transaction.mutations) {
+          await ops.remove(String(mutation.key))
+          confirmDelete(String(mutation.key))
+        }
+      }),
   }
 }
 
