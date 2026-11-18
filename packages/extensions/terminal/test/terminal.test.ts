@@ -515,6 +515,10 @@ describe('terminal view', () => {
     try {
       const {page} = api
       await openTerminalView(page)
+      await page.keyboard.press('Tab')
+      await page.keyboard.press('Tab')
+      await page.keyboard.press('Tab')
+      await expectLocator(page.getByRole('textbox', {name: 'Terminal input'})).toBeFocused()
       await page.keyboard.type('echo reload-marker-$((40+2))')
       await page.keyboard.press('Enter')
       await expectLocator(page.getByText('reload-marker-42').first()).toBeVisible({timeout: 30_000})

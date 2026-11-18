@@ -790,7 +790,64 @@ export interface UiMenuGroup {
   readonly items: readonly UiMenuItem[]
 }
 
-export type UiMenuEntry = UiMenuItem | UiMenuSeparator | UiMenuGroup
+export interface UiMenuRadioItem {
+  readonly value: string
+  readonly label: string
+  readonly disabled?: boolean
+}
+
+/**
+ * Rows of a menu of which one is picked, as radio buttons are: the picked row shows a check, and picking another calls
+ * `onValueChange` with its value. The menu closes on a pick.
+ *
+ * @example
+ * ```tsx
+ * <ctx.ui.Menu
+ *   label="View"
+ *   items={[
+ *     {
+ *       type: "radio-group",
+ *       label: "Density",
+ *       value: density(),
+ *       onValueChange: setDensity,
+ *       items: [
+ *         { value: "comfortable", label: "Comfortable" },
+ *         { value: "compact", label: "Compact" },
+ *       ],
+ *     },
+ *   ]}
+ * />
+ * ```
+ */
+export interface UiMenuRadioGroup {
+  readonly type: 'radio-group'
+  readonly label?: string
+  readonly value: string
+  readonly items: readonly UiMenuRadioItem[]
+  onValueChange(value: string): void
+}
+
+/**
+ * A menu row that is on or off, as a checkbox is: it shows a check while `checked`, and picking it calls
+ * `onCheckedChange` with the other state. The menu closes on a pick.
+ *
+ * @example
+ * ```tsx
+ * <ctx.ui.Menu
+ *   label="View"
+ *   items={[{ type: "checkbox", label: "Show resolved", checked: resolved(), onCheckedChange: setResolved }]}
+ * />
+ * ```
+ */
+export interface UiMenuCheckbox {
+  readonly type: 'checkbox'
+  readonly label: string
+  readonly checked: boolean
+  readonly disabled?: boolean
+  onCheckedChange(checked: boolean): void
+}
+
+export type UiMenuEntry = UiMenuItem | UiMenuSeparator | UiMenuGroup | UiMenuRadioGroup | UiMenuCheckbox
 
 export interface UiMenuProps {
   readonly label: string
@@ -882,6 +939,55 @@ export interface UiTextInputProps {
   readonly disabled?: boolean
   readonly invalid?: boolean
   readonly autofocus?: boolean
+  readonly class?: string
+}
+
+export interface UiMention {
+  readonly id: string
+  readonly label: string
+}
+
+export type UiMentionSegment =
+  | {readonly type: 'text'; readonly text: string}
+  | {readonly type: 'mention'; readonly id: string; readonly label: string}
+
+export interface UiMentionFieldApi {
+  readonly element: HTMLElement
+  focus(): void
+  clear(): void
+  submit(): void
+}
+
+export interface UiMentionFieldProps {
+  readonly label: string
+  readonly placeholder?: string
+  /**
+   * The people the field lists after `@`.
+   *
+   * @param query - The text typed after `@`.
+   * @returns The people that match it, in the order to list them.
+   */
+  readonly items: (query: string) => readonly UiMention[]
+  /**
+   * Called on Enter, or on `submit()` of the handle, when the field is not empty. The field then clears.
+   *
+   * @param segments - The message as runs, in order: plain text, or a person mentioned by their `id` and the `label`
+   *   the field showed.
+   */
+  readonly onSubmit: (segments: readonly UiMentionSegment[]) => void
+  /**
+   * Called once the field is in the page, with a handle for a send button and for the focus of a popover around it.
+   *
+   * @param api - The field's element, and `focus`, `clear` and `submit`.
+   */
+  readonly onReady?: (api: UiMentionFieldApi) => void
+  /**
+   * Called when the field becomes empty or stops being empty, so a send button can be turned off while there is
+   * nothing to send.
+   *
+   * @param empty - Whether the field is empty now.
+   */
+  readonly onEmptyChange?: (empty: boolean) => void
   readonly class?: string
 }
 
@@ -1136,6 +1242,25 @@ export interface Ui {
    * ```
    */
   TextInput(props: UiTextInputProps): JSX.Element
+  /**
+   * A message field where `@` lists people to mention, as the app's comment replies do. Picking one puts them in the
+   * field as a mention; Enter sends the message as text and mention runs and clears the field, and Shift+Enter starts
+   * a new line.
+   *
+   * @param props - Its accessible name, the people to list, and its handlers.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.MentionField
+   *   label="Reply"
+   *   placeholder="Reply, @mention someone"
+   *   items={(query) => people().filter((person) => person.label.toLowerCase().includes(query.toLowerCase()))}
+   *   onSubmit={reply}
+   *   onEmptyChange={setEmpty}
+   * />
+   * ```
+   */
+  MentionField(props: UiMentionFieldProps): JSX.Element
   /**
    * A select that opens a list of choices, as the app's settings rows do. The value is a string; `T` narrows it to
    * your choices' values.

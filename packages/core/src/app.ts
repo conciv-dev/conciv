@@ -11,7 +11,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   type AnyExtension,
   type AnyToolBuilder,
@@ -67,7 +67,7 @@ import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host
 import type {Plugin} from '@conciv/plugin'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, drafts, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -126,7 +126,7 @@ export type MakeAppOpts = {
   engineId?: string
   print?: (text: string) => void
   onTrusted?: () => void
-  bridge?: BundlerBridge
+  bridge?: Bundler.BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
 
@@ -662,11 +662,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ],
     harness,
     signal: engineLife.signal,
-    harnessSource: {
-      harness: serverHarness,
-      sessions: serverSessions,
-      tokenScopedBase: opts.tokenScopedBase ?? (() => undefined),
-    },
     bundler: opts.bridge,
     openInEditor: opts.openInEditor,
     extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
@@ -760,7 +755,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessions: sessionPort(db, rows, {
       onRunStart: async (sessionId) => {
         runStartListeners.forEach((listener) => listener(sessionId))
-        await db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       },
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),

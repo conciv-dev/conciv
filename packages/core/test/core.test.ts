@@ -65,7 +65,7 @@ import {
   withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {defineTool, defineExtension, makeExtRpcClient, type AnyExtension, type ExtensionScope} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
@@ -178,7 +178,6 @@ import {
   currentRow,
   ensureRow,
   isDeletedRow,
-  nativeIdFor,
   recordNativeId,
   rowById,
   setMetadata,
@@ -194,7 +193,6 @@ import {
   provideConfiguredPolicies,
   provideExtensionSlugs,
   provideGlobalRoots,
-  provideHarnessSource,
 } from '../src/runtime/plugin-sources.js'
 import {
   answerPermission,
@@ -3226,7 +3224,13 @@ describe('plugin host bus', () => {
     const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
     const key = sessionKey(served.made)
     const {sessionId} = await rpc.sessions.create(undefined)
-    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'an unsent draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      updatedAt: Date.now(),
+    })
     const readBack = () =>
       Promise.all([
         key.run((sessions) =>
@@ -3253,6 +3257,73 @@ describe('plugin host bus', () => {
     const afterDelete = await readBack()
     expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
     expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('an engine restart sweeps the sessions that never ran and hold nothing, keeps one that holds a typed draft, and a deleted one stays deleted with its id not taken again', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const first = await serveCore(root, [], {})
+    const firstRpc = makeRpcClient(`${first.origin}/t/${first.made.agentToken}`)
+    const draftFor = (sessionId: SessionId, text: string) => ({
+      sessionId,
+      text,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      updatedAt: Date.now(),
+    })
+    const made = await Promise.all([
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+    ])
+      .then(async ([deleted, typed, cleared, empty]) => {
+        await firstRpc.sessions.delete({sessionId: deleted.sessionId})
+        await firstRpc.drafts.set(draftFor(typed.sessionId, 'typed before the restart'))
+        await firstRpc.drafts.set(draftFor(cleared.sessionId, ''))
+        return {
+          deleted: deleted.sessionId,
+          typed: typed.sessionId,
+          cleared: cleared.sessionId,
+          empty: empty.sessionId,
+        }
+      })
+      .finally(() => first.stop())
+    const restarted = await serveCore(root, [], {})
+    onTestFinished(() => restarted.stop())
+    const rpc = makeRpcClient(`${restarted.origin}/t/${restarted.made.agentToken}`)
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({id: made.deleted, hidden: true})
+    await expect(rpc.sessions.resolve({id: made.deleted})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({hidden: true})
+    const refusedSend = await fetch(`${restarted.origin}/t/${restarted.made.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: made.deleted,
+        runId: 'sent-after-the-restart',
+        messages: [{id: 'sent-after-the-restart-user', role: 'user', content: 'sent after the restart'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    const refusedFrames = (await refusedSend.text())
+      .split('\n')
+      .flatMap((line) =>
+        line.startsWith('data: ')
+          ? [
+              z
+                .object({type: z.string(), message: z.string().optional(), code: z.string().optional()})
+                .parse(JSON.parse(line.slice('data: '.length))),
+            ]
+          : [],
+      )
+      .filter((frame) => frame.type === ChatEventType.RUN_ERROR)
+    expect(refusedFrames).toEqual([
+      {type: ChatEventType.RUN_ERROR, message: `session "${made.deleted}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    await expect(rpc.sessions.get({sessionId: made.empty})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    await expect(rpc.sessions.get({sessionId: made.cleared})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.typed})).toMatchObject({id: made.typed, hidden: false})
+    expect(await rpc.drafts.get({sessionId: made.typed})).toMatchObject({text: 'typed before the restart'})
   })
 
   test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
@@ -4675,7 +4746,7 @@ describe('direct tools on the MCP surface', () => {
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
     const root = tempDir('conciv-core-unit-')
     const restarts: boolean[] = []
-    const bridge = defineBundlerBridge({
+    const bridge = Bundler.defineBundlerBridge({
       id: 'unit-direct-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4884,8 +4955,7 @@ describe('plugin context keys provided by core', () => {
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
-    const base: {current: string | undefined} = {current: undefined}
-    const devServer = defineBundlerBridge({
+    const devServer = Bundler.defineBundlerBridge({
       id: 'unit-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4899,14 +4969,6 @@ describe('plugin context keys provided by core', () => {
         SkillInstructions.layer,
         SessionProjector.layer,
         provideInstructionEntries,
-        provideHarnessSource({
-          harness: (sessionId) => ({id: `fake-cli:${sessionId}`}),
-          sessions: {
-            resumeToken: (sessionId) => nativeIdFor(db, sessionId),
-            recordToken: (sessionId, token) => recordNativeId(db, sessionId, 'fake-cli', token),
-          },
-          tokenScopedBase: () => base.current,
-        }),
         provideBundlerSource(devServer),
         provideExtensionSlugs(['page']),
         provideApp(),
@@ -4964,14 +5026,6 @@ describe('plugin context keys provided by core', () => {
     expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
       {key: 'brief', value: 'ship it'},
     ])
-
-    const harness = await host.runPromise(PluginHost.HarnessSource)
-    expect(harness.mcpUrl).toBeUndefined()
-    base.current = 'http://127.0.0.1:4100/agent-token'
-    expect(harness.mcpUrl).toBe('http://127.0.0.1:4100/agent-token/api/mcp')
-    expect(harness.get(id).id).toBe(`fake-cli:${id}`)
-    await harness.recordToken(id, HarnessSessionId.parse('native-entries'))
-    expect(await harness.resumeToken(id)).toBe('native-entries')
 
     const bundler = await host.runPromise(PluginHost.BundlerSource)
     expect(bundler?.config().root).toBe(root)
@@ -5354,18 +5408,26 @@ describe('pty sessions', () => {
 
     it('injects into live sinks and the replay buffer', async () => {
       const sessions = make()
-      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const silentUntilInput = {bin: 'cat', args: [], env: {TERM: 'xterm-256color'}}
+      const session = await sessions.open('s7', silentUntilInput, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
       const injected = Promise.withResolvers<string>()
       const live = collect((update) => {
-        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+        if (update.kind !== 'data') return
+        if (/typed-line\r\n.*typed-line\r\n$/s.test(update.text)) echoed.resolve(update.text)
+        if (update.text.includes('\r\nconciv second marker\r\n')) injected.resolve(update.text)
       })
       const detach = session.attach(live.sink)
       session.inject('conciv marker')
-      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      expect(live.chunks.join('')).toBe('conciv marker\r\n')
+      session.write('typed-line\r')
+      expect(await echoed.promise).toMatch(/^conciv marker\r\ntyped-line\r\n.*typed-line\r\n$/s)
+      session.inject('conciv second marker')
+      expect(await injected.promise).toMatch(/typed-line.*\r\nconciv second marker\r\n$/s)
       detach()
       const late = collect()
       session.attach(late.sink)
-      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+      expect(late.chunks.join('')).toMatch(/^conciv marker\r\n.*typed-line.*\r\nconciv second marker\r\n$/s)
     })
 
     it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {

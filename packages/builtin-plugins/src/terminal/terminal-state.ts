@@ -50,6 +50,8 @@ export function createTerminalState(ctx: TerminalContext) {
   const key = (sessionId: string) => `${sessionId}:${run.generation}`
   const busy = (sessionId: string) => run.live?.key === key(sessionId) && run.live.busy()
 
+  const locked = (sessionId: string) => run.restarting || busy(sessionId)
+
   const spawnModel = (sessionId: string) => {
     const picked = ctx.stores.prefs.value.model
     return picked !== null && models(sessionId).some((model) => model.id === picked) ? picked : undefined
@@ -82,7 +84,7 @@ export function createTerminalState(ctx: TerminalContext) {
     shownModel,
     key,
     busy,
-    locked: (sessionId: string) => run.restarting || busy(sessionId),
+    locked,
     failure: (sessionId: string) => (run.failure?.key === key(sessionId) ? run.failure.message : null),
     opened: (live: LiveTerminal) => setRun('live', live),
     closed: (terminalKey: string) => {
@@ -92,7 +94,7 @@ export function createTerminalState(ctx: TerminalContext) {
     retry: () => setRun({generation: run.generation + 1, failure: null}),
     restart,
     pick: (session: MountedSession, model: string) => {
-      if (busy(session.id) || run.restarting || model === shownModel(session.id)) return
+      if (locked(session.id) || model === shownModel(session.id)) return
       ctx.stores.prefs.set({model})
       void restart(session)
     },

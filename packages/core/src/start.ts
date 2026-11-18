@@ -3,7 +3,7 @@ import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {checkEngines, concivHome, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
 import {z} from 'zod'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
@@ -29,7 +29,7 @@ export type PortRequest = {exact: number} | {preferred: number}
 export type StartOpts = {
   options: ConcivConfig
   root: string
-  bridge?: BundlerBridge
+  bridge?: Bundler.BundlerBridge
   launchEditor: (file: string, line: number, column?: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
   port?: PortRequest

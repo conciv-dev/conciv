@@ -2,10 +2,10 @@ import type {IncomingMessage, ServerResponse} from 'node:http'
 import {join, resolve} from 'node:path'
 import {ORPCError} from '@orpc/server'
 import type {ErrorPayload, ModuleNode, ViteDevServer} from 'vite'
-import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 
-export function makeViteBridge(server: ViteDevServer): BundlerBridge {
-  return defineBundlerBridge({
+export function makeViteBridge(server: ViteDevServer): Bundler.BundlerBridge {
+  return Bundler.defineBundlerBridge({
     id: 'vite',
     config: () => viteConfig(server),
     resolve: (spec, importer) => viteResolve(server, spec, importer),
@@ -62,9 +62,9 @@ function viteUrls(server: ViteDevServer) {
 
 function makeDiagnosticSubscribe(
   server: ViteDevServer,
-): (listener: (diagnostic: BundlerDiagnostic) => void) => () => void {
-  const listeners = new Set<(diagnostic: BundlerDiagnostic) => void>()
-  const emit = (diagnostic: BundlerDiagnostic): void => {
+): (listener: (diagnostic: Bundler.Diagnostic) => void) => () => void {
+  const listeners = new Set<(diagnostic: Bundler.Diagnostic) => void>()
+  const emit = (diagnostic: Bundler.Diagnostic): void => {
     for (const listener of listeners) listener(diagnostic)
   }
   let installed = false
