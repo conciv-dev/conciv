@@ -602,6 +602,7 @@ packageExtensionsChecksum: sha256-IwwPaGDkQEqfamVoYxdkgFO5CMpzVeMRN9n1rNC0/lk=
 
 patchedDependencies:
   '@tanstack/solid-query@5.107.1': 6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f
+  react-grab@0.2.0: e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57
 
 importers:
 
@@ -2997,7 +2998,7 @@ importers:
         version: 4.1.0
       react-grab:
         specifier: 'catalog:'
-        version: 0.2.0(react@19.3.1)
+        version: 0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -4405,7 +4406,7 @@ importers:
         version: 10.0.0
       react-grab:
         specifier: 'catalog:'
-        version: 0.2.0(react@19.3.1)
+        version: 0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1)
       rrweb-snapshot:
         specifier: 'catalog:'
         version: 2.2.0
@@ -33971,7 +33972,7 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-grab@0.2.0(react@19.3.1):
+  react-grab@0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1):
     dependencies:
       '@react-grab/cli': 0.2.0
       bippy: 0.6.1(react@19.3.1)
