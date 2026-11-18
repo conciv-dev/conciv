@@ -2517,6 +2517,35 @@ test.describe('reload continuity', () => {
       }
     })
 
+    test('a follow-up typed after a send, with the engine refusing its save, is back after a reload', async ({
+      page,
+    }) => {
+      const FOLLOW_UP = 'typed after the send'
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set'], input: {text: FOLLOW_UP}})
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('saved, then sent')
+        await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === 'saved, then sent')
+
+        await page.getByRole('button', {name: 'Send message'}).click()
+        await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible()
+        await expect(input).toHaveText('')
+        await input.click()
+        await input.pressSequentially(FOLLOW_UP)
+        await refused.answered()
+        refused.repair()
+        await page.reload({waitUntil: 'domcontentloaded'})
+
+        await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
+        await untilPanelDraft(page, suite.kit(), sessionId, (draft) => draft.text === FOLLOW_UP)
+        await expect(chatBox(page)).toHaveText(FOLLOW_UP)
+      } finally {
+        await refused.dispose()
+      }
+    })
+
     test('a page with no local copy, as in a fresh profile, gets the draft the engine holds', async ({
       page,
       browser,
