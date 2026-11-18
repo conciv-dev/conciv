@@ -131,6 +131,11 @@ export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard>
       })),
     'elements.bulkDelete': ({room, scope, elementIds}) =>
       Effect.promise(async () => ({deleted: await store.deleteElements(scope, room, elementIds)})),
+    'cursor.move': ({room, cursor}) =>
+      Effect.sync((): {ok: true} => {
+        store.cursor({...cursor, room})
+        return {ok: true}
+      }),
     since: ({room, cursor}) => Effect.promise(() => store.since(room, cursor)),
   }
 }

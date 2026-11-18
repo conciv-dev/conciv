@@ -24,10 +24,10 @@ function databaseDirectory(location: Context['location']): string {
   return join(concivStateDir(location.directory), 'whiteboard')
 }
 
-function reportUnannounced([, change]: Announcement) {
+function reportUnannounced([name]: Announcement) {
   return (error: unknown) =>
     Effect.sync(() => {
-      console.error(`[whiteboard] change ${change.table} ${change.key} was not announced: ${String(error)}`)
+      console.error(`[whiteboard] a ${name} event was not announced: ${String(error)}`)
     })
 }
 
@@ -46,7 +46,7 @@ export default Plugin.define({
       yield* Effect.acquireRelease(
         Effect.sync(() =>
           store.onEvent((event) => {
-            if (event.table === 'cursor') return
+            if (event.table === 'cursor') return void Queue.offerUnsafe(announcements, ['cursor', event.cursor])
             const {room, table, key, type, cursor} = event
             Queue.offerUnsafe(announcements, ['changed', {room, table, key, type, cursor}])
           }),

@@ -5,14 +5,22 @@ import type {Transaction} from '@tanstack/solid-db'
 import {Component, createElement, useSyncExternalStore, type PropsWithChildren, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
-import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
+import type {
+  AppState,
+  Collaborator,
+  ExcalidrawImperativeAPI,
+  ExcalidrawProps,
+  SocketId,
+} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {isPlainObject} from 'es-toolkit'
+import {Effect, Fiber, Stream, SubscriptionRef} from 'effect'
 import {z} from 'zod'
 import {useWhiteboardDb} from '../client/db.js'
-import {json, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
+import type {LiveCursors} from '../client/live-cursors.js'
+import {json, type CursorEvent, type ElementRow, type JsonValue, type PendingRow} from '../shared/rows.js'
 import {validateSvg} from '../shared/svg-caps.js'
 import type {Viewport} from './coords.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
@@ -24,6 +32,26 @@ const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_DRAIN_TASK_MS = 0
 const PENDING_REMOVE_RETRY_MS = 100
 const PENDING_REMOVE_MAX_WAIT_MS = 10_000
+
+const ScenePoint = z.object({x: z.number(), y: z.number()})
+const isSocketId = (id: string): id is SocketId => id.length > 0
+const collaboratorsFrom = (cursors: readonly CursorEvent[]): Map<SocketId, Collaborator> =>
+  new Map(
+    cursors.flatMap((cursor): [SocketId, Collaborator][] =>
+      isSocketId(cursor.peerId)
+        ? [
+            [
+              cursor.peerId,
+              {
+                username: cursor.name,
+                color: {background: cursor.color, stroke: cursor.color},
+                pointer: {x: cursor.x, y: cursor.y, tool: 'pointer'},
+              },
+            ],
+          ]
+        : [],
+    ),
+  )
 
 const sceneElement = z.custom<SceneElement>(isPlainObject)
 const skeleton = z.custom<ExcalidrawElementSkeleton>(isPlainObject)
@@ -94,11 +122,13 @@ export function Island(props: {
   visible: boolean
   onViewport: (viewport: Viewport) => void
   registerPan: (pan: (sceneX: number, sceneY: number) => void) => void
+  cursors: LiveCursors
 }): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
   let root: Root | undefined
   let unsubscribeScroll: (() => void) | undefined
+  let stopPainting: (() => void) | undefined
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
@@ -201,13 +231,16 @@ export function Island(props: {
 
   const commitStep = (draft: ElementRow): ReplayStep<Transaction<ElementRow>> => ({
     elementId: draft.elementId,
-    write: () =>
-      db.canvasElements.utils.write({
+    write: () => {
+      const point = ScenePoint.safeParse(draft.data)
+      if (point.success) Effect.runFork(props.cursors.drawAt(point.data))
+      return db.canvasElements.utils.write({
         room: props.room,
         elementId: draft.elementId,
         data: draft.data,
         version: draft.version,
-      }),
+      })
+    },
   })
 
   const performCommit = async (row: PendingRow): Promise<void> => {
@@ -358,6 +391,14 @@ export function Island(props: {
             }
             pushViewport()
             unsubscribeScroll = instance.onScrollChange(pushViewport)
+            const painting = Effect.runFork(
+              Stream.runForEach(SubscriptionRef.changes(props.cursors.cursors), (cursors) =>
+                Effect.sync(() =>
+                  instance.updateScene({collaborators: collaboratorsFrom(cursors), captureUpdate: CAPTURE_NEVER}),
+                ),
+              ),
+            )
+            stopPainting = () => void Effect.runFork(Fiber.interrupt(painting))
             props.registerPan((sceneX, sceneY) => {
               const state = instance.getAppState()
               instance.updateScene({
@@ -385,6 +426,7 @@ export function Island(props: {
 
   onCleanup(() => {
     unsubscribeScroll?.()
+    stopPainting?.()
     root?.unmount()
   })
 

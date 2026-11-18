@@ -520,7 +520,7 @@ describe('the whiteboard store and its rpc', () => {
     expect(existsSync(join(folder, '.conciv', 'whiteboard', 'whiteboard.db'))).toBe(true)
   })
 
-  it('announces each stored change as ids and a per-room cursor, and answers the missed changes since a cursor', async () => {
+  it('announces each stored change as ids and a per-room cursor, answers the missed changes since a cursor, and broadcasts a live cursor to the room without storing it', async () => {
     const {kit, room} = await boot()
     const seen: Change[] = []
     const settled = Promise.withResolvers<void>()
@@ -551,6 +551,27 @@ describe('the whiteboard store and its rpc', () => {
     expect((await since(kit, room, 1)).changes.map((change) => change.cursor)).toEqual([2, 3])
     expect(await since(kit, room, 3)).toEqual({changes: [], cursor: 3})
     expect((await since(kit, OTHER_ROOM, 0)).cursor).toBe(1)
+
+    const closing = new AbortController()
+    const cursors = await kit.rpc.event.subscribe({types: ['rpc.whiteboard.cursor']}, {signal: closing.signal})
+    expect(await cursors.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+    const drawing = {
+      peerId: `agent:${room}`,
+      kind: 'agent',
+      name: 'drawing…',
+      color: '#8a86e8',
+      x: 4,
+      y: 5,
+      lastSeen: 1,
+    }
+    expect(await call(kit, 'cursor.move', {room, cursor: drawing})).toEqual({ok: true})
+    for await (const delivered of cursors) {
+      if (delivered.type === 'server.heartbeat') continue
+      expect(delivered).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, room}})
+      break
+    }
+    closing.abort()
+    expect(await since(kit, room, 3)).toEqual({changes: [], cursor: 3})
   })
 })
 
