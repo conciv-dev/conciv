@@ -1,4 +1,6 @@
-import type {ToolDomain} from '@conciv/plugin'
+import type {Context} from '@conciv/plugin/effect/plugin'
+import {Tool} from '@conciv/plugin/schema/tool'
+import {Effect} from 'effect'
 import {z} from 'zod'
 import type {TestRunnerManager} from './runner/contract.js'
 import {TestRunResultSchema} from './shared/events.js'
@@ -7,8 +9,16 @@ import {ListResultSchema} from './rpc.js'
 const codeMode = {namespace: 'test_runner', codemode: true}
 const direct = {namespace: 'test_runner', codemode: false}
 
-export function register(tool: ToolDomain, manager: TestRunnerManager) {
-  return tool.transform((editor) => {
+function toolFailure(error: unknown): Tool.Error {
+  if (error instanceof globalThis.Error && Tool.isToolError(error)) return error
+  return Tool.makeError({message: error instanceof globalThis.Error ? error.message : String(error), error})
+}
+
+export const register = Effect.fn('TestRunnerTools.register')(function* (
+  ctx: Pick<Context, 'tool'>,
+  manager: TestRunnerManager,
+) {
+  yield* ctx.tool.transform((editor) => {
     editor.namespace({
       name: 'test_runner',
       description: "The project's test runner: list the test files, run them or a pattern, read the last result.",
@@ -19,7 +29,8 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       input: z.object({}),
       output: ListResultSchema,
       options: codeMode,
-      execute: async () => ({output: await manager.list()}),
+      execute: () =>
+        Effect.tryPromise({try: () => manager.list(), catch: toolFailure}).pipe(Effect.map((output) => ({output}))),
     })
     editor.add({
       name: 'run',
@@ -27,7 +38,11 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       input: z.object({pattern: z.string().optional()}),
       output: TestRunResultSchema,
       options: direct,
-      execute: async ({pattern}) => ({output: await manager.run({patterns: pattern ? [pattern] : undefined})}),
+      execute: ({pattern}) =>
+        Effect.tryPromise({
+          try: () => manager.run({patterns: pattern ? [pattern] : undefined}),
+          catch: toolFailure,
+        }).pipe(Effect.map((output) => ({output}))),
     })
     editor.add({
       name: 'status',
@@ -35,7 +50,7 @@ export function register(tool: ToolDomain, manager: TestRunnerManager) {
       input: z.object({}),
       output: TestRunResultSchema,
       options: direct,
-      execute: async () => ({output: manager.status()}),
+      execute: () => Effect.try({try: () => ({output: manager.status()}), catch: toolFailure}),
     })
   })
-}
+})
