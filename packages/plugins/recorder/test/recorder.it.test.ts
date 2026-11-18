@@ -650,8 +650,9 @@ describe('the Recorder tab when a page library fails to load', () => {
     const failure = page.getByRole('alert').filter({hasText: 'Could not load the player.'})
     await expect(failure).toBeVisible({timeout: 30_000})
     stopFailing()
+    const reloaded = page.waitForEvent('domcontentloaded')
     await failure.getByRole('button', {name: 'Retry', exact: true}).click()
-    await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
+    await reloaded
     await page.getByRole('tab', {name: 'Recorder', exact: true}).click({timeout: 30_000})
     await expect(replayed(page, 'Recorded fixture')).toBeAttached({timeout: 30_000})
     await expect(page.getByText('Could not load the player.', {exact: true})).toHaveCount(0)
