@@ -16,9 +16,9 @@ test('widget boots from dist in a solid vite app', async ({page}) => {
 test('a rebuilt project plugin bundle reloads in the open widget without a page reload', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
-  await expectWidgetBoots(page, failures)
   await expectPluginBundleReloadsInPlace(
     page,
+    failures,
     join(import.meta.dirname, '../conciv/plugins/live-line/plugin-experimental.js'),
   )
 })

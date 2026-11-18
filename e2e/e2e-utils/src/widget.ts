@@ -135,7 +135,16 @@ export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promi
   return printedCodes(logPath).at(-1) ?? ''
 }
 
-export async function expectPluginBundleReloadsInPlace(page: Page, bundlePath: string): Promise<void> {
+export async function expectPluginBundleReloadsInPlace(
+  page: Page,
+  failures: PageFailures,
+  bundlePath: string,
+): Promise<void> {
+  const launcher = page.getByRole('button', {name: /conciv chat$/})
+  await expect(launcher).toBeVisible()
+  if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
+  await page.getByRole('tab', {name: 'Chat'}).click()
+  await expectWidgetBoots(page, failures)
   const original = readFileSync(bundlePath, 'utf8')
   const draft = 'a draft the reload keeps'
   const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})

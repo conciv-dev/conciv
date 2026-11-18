@@ -128,9 +128,9 @@ test.describe('a workspace-linked @conciv/it under next dev and then next build'
 test('a rebuilt project plugin bundle reloads in the open widget without a page reload', async ({page}) => {
   const failures = collectFailures(page)
   await loginWidget(page)
-  await expectWidgetBoots(page, failures)
   await expectPluginBundleReloadsInPlace(
     page,
+    failures,
     join(import.meta.dirname, '../conciv/plugins/live-line/plugin-experimental.js'),
   )
 })
