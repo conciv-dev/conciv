@@ -3285,6 +3285,55 @@ describe('page session card', () => {
     expect(document.body.textContent).not.toContain('Called page_click')
   })
 
+  test('a tanstack call draws the card the tanstack plugin claims, not the generic card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const routerState: ToolCallPart = {
+      type: 'tool-call',
+      id: 't1',
+      name: 'tanstack_router_state',
+      arguments: '{}',
+      input: {},
+      state: 'complete',
+    }
+    const match = (routeId: string) => ({
+      id: routeId,
+      routeId,
+      path: routeId,
+      params: {},
+      search: {},
+      status: 'success',
+      error: null,
+      loaderData: null,
+      updatedAt: null,
+      isFetching: false,
+    })
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 't1',
+      content: JSON.stringify({
+        location: {pathname: '/about', search: '', hash: ''},
+        matches: [match('__root__'), match('/about')],
+      }),
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={routerState}
+            result={result}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
+  })
+
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
@@ -8104,11 +8153,13 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const row = (id: string, enabled: boolean) => ({id, builtin: false, enabled, server: true})
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
+  const builtinTanstackCard = {id: 'tanstack-card', builtin: true, enabled: true}
   const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
   const builtinGrab = {id: 'grab', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
+    builtinTanstackCard,
     builtinTerminal,
     builtinGrab,
     row('pane', pane),
@@ -8277,6 +8328,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
     await expect.element(page.getByText('test-runner-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('tanstack-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'tanstack-card'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('each engine-only plugin a user adds one after another gets its own row', async () => {

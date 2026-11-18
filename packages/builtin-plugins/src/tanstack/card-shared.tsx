@@ -1,0 +1,115 @@
+import {Show, splitProps, Switch, Match, type JSX} from 'solid-js'
+import {z} from 'zod'
+import {isPlainObject} from 'es-toolkit'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {Operations, type Operation} from '@conciv/plugin-tanstack/rpc'
+import {cardErrorMessage} from '../page/cards/shared.js'
+import {
+  CardShell,
+  CodeBlock,
+  ErrorBlock,
+  JsonTree,
+  cardHeader,
+  parseResultPayload,
+  toolStatus,
+  type ToolStatus,
+} from '@conciv/ui-kit-chat/tools'
+
+const COUNT_FORMAT = new Intl.NumberFormat()
+const COUNT_PLURAL = new Intl.PluralRules('en')
+
+export function countLabel(count: number, one: string, other: string): string {
+  return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
+}
+
+export function tanstackOperation<const Name extends Operation['name']>(name: Name): Extract<Operation, {name: Name}> {
+  const operation = Operations.find(
+    (candidate): candidate is Extract<Operation, {name: Name}> => candidate.name === name,
+  )
+  if (operation === undefined) throw new Error(`no tanstack operation named ${name}`)
+  return operation
+}
+
+const OkResult = z.looseObject({ok: z.literal(true)})
+
+export function resultOk(result: ToolCardProps['result']): boolean {
+  return OkResult.safeParse(parseResultPayload(result)).success
+}
+
+function readError(result: ToolCardProps['result']): string | null {
+  if (result?.state !== 'error') return null
+  return cardErrorMessage(result) ?? 'tool failed'
+}
+
+function isRunning(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
+  return toolStatus(part, result) === 'running'
+}
+
+export function settledCardBody(
+  part: ToolCardProps['part'],
+  result: ToolCardProps['result'],
+  hasContent: boolean,
+): boolean {
+  if (readError(result) !== null) return true
+  if (isRunning(part, result)) return false
+  return hasContent
+}
+
+export function actionCardBody(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
+  return readError(result) !== null
+}
+
+export function CardRows(props: {children: JSX.Element}): JSX.Element {
+  return <div class="flex flex-col gap-0.5">{props.children}</div>
+}
+
+export function CardRow(props: {children: JSX.Element}): JSX.Element {
+  return <div class="text-chat-xs font-chat-mono flex gap-2 items-baseline">{props.children}</div>
+}
+
+export function CardNote(props: {children: JSX.Element; class?: string}): JSX.Element {
+  return <div class={`text-chat-xs text-chat-text-3 ${props.class ?? ''}`}>{props.children}</div>
+}
+
+function isTreeable(value: unknown): value is object {
+  return Array.isArray(value) || isPlainObject(value)
+}
+
+export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {
+  return (
+    <Switch>
+      <Match when={isTreeable(props.value) && props.value}>{(value) => <JsonTree data={value()} />}</Match>
+      <Match when={!isTreeable(props.value)}>
+        <CodeBlock
+          size="xs"
+          file={{name: props.name ?? 'value.json', lang: 'json', contents: JSON.stringify(props.value, null, 2)}}
+        />
+      </Match>
+    </Switch>
+  )
+}
+
+export function InspectionCard(
+  props: ToolCardProps & {summary: string; failed?: boolean; children?: JSX.Element},
+): JSX.Element {
+  const [local, card] = splitProps(props, ['summary', 'failed', 'children'])
+  const {meta, title} = cardHeader(card)
+  const error = () => readError(card.result)
+  const running = () => isRunning(card.part, card.result)
+  const subtitle = () => (error() || running() ? undefined : local.summary)
+  const status = (): ToolStatus | undefined => (local.failed === true ? 'error' : undefined)
+  return (
+    <CardShell
+      meta={meta()}
+      title={title()}
+      subtitle={subtitle()}
+      part={card.part}
+      result={card.result}
+      durationMs={card.durationMs}
+      status={status()}
+    >
+      <Show when={error()}>{(message) => <ErrorBlock message={message()} outcome={card.result?.outcome} />}</Show>
+      <Show when={!error() && !running()}>{local.children}</Show>
+    </CardShell>
+  )
+}
