@@ -1,6 +1,7 @@
 import type {Location} from '../schema/location.js'
 import type {Plugin as PluginSchema} from '../schema/plugin.js'
-import type {Effect, Scope} from 'effect'
+import type {Effect, FileSystem, Path, Scope} from 'effect'
+import type {ChildProcessSpawner} from 'effect/process'
 import type {App} from '../app.js'
 import type {PluginOptions} from '../options.js'
 import type {Servers} from '../promise/servers.js'
@@ -40,6 +41,8 @@ export interface Context {
   readonly tool: ToolDomain
   readonly servers: Servers
 }
+
+export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 
 export interface Plugin<R = Scope.Scope> {
   readonly id: string
