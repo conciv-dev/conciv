@@ -11,7 +11,7 @@ import {ConfigSkillPlugin} from '../config/plugin/skill.js'
 import {Watcher} from '../filesystem/watcher.js'
 import {Location} from '../location.js'
 import {Permission} from '../permission.js'
-import {EditorSource} from './host.js'
+import {BundlerSource, EditorSource} from './host.js'
 import {Skill} from '../skill.js'
 import {SkillPlugin} from './skill.js'
 import {ServerTools} from '../tool/plugin/server.js'
@@ -21,6 +21,7 @@ import {Tool} from '../tool.js'
 const services = [
   ConfigAgentPlugin.ConfiguredPermissions,
   ConfigPluginSource.ConfiguredPlugins,
+  BundlerSource,
   EditorSource,
   FSUtil.Service,
   Global.Service,

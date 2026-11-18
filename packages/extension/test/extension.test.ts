@@ -42,9 +42,9 @@ describe('catalog', () => {
       expect(cat.tokens.find((t) => t.name === 'chat-accent')?.cssVar).toBe('--chat-accent')
     })
 
-    it('lists the six extension slots', () => {
+    it('lists the four extension slots', () => {
       const slots = buildCatalog().slots.map((s) => s.name)
-      for (const name of ['header', 'footer', 'composer', 'empty', 'status', 'widget']) expect(slots).toContain(name)
+      for (const name of ['composer', 'empty', 'status', 'widget']) expect(slots).toContain(name)
     })
 
     it('teaches the new entry convention (defineExtension({name}) with .client/.server)', () => {

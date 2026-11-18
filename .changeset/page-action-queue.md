@@ -1,5 +1,4 @@
 ---
-'@conciv/extension-page': patch
 '@conciv/core': patch
 '@conciv/cli': patch
 '@conciv/protocol': patch

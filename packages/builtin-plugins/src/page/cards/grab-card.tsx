@@ -1,6 +1,9 @@
-import {createResource, createSignal, Show, type JSX} from 'solid-js'
-import {CornerRemoveButton, useAttachment} from '@conciv/ui-kit-chat'
-import {Button, Dialog} from '@conciv/ui-kit-system'
+import {createResource, Show, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
+import {z} from 'zod'
+import CornerDownRight from 'lucide-solid/icons/corner-down-right'
+import {CornerRemoveButton, isCompleteAttachment, useAttachment} from '@conciv/ui-kit-chat'
+import {Button, Dialog, Loader} from '@conciv/ui-kit-system'
 import type {AttachmentCardProps} from '@conciv/extension'
 import {parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {sourceLabel} from '@conciv/grab'
@@ -20,23 +23,24 @@ const AGENT_TEXT =
   'text-chat-text-2 [font-family:var(--chat-mono)] text-xs whitespace-pre-wrap [word-break:break-all] m-0'
 const CARD_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[40cqh]'
 
+const LOADING_ROW = 'flex items-center gap-2'
+
 const DIALOG_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[70vh]'
 
 const SNAPSHOT_LABEL = 'Grabbed element snapshot'
 
+const READING_LABEL = 'Reading grabbed element'
+
 function decodeBase64Utf8(value: string): string | null {
   try {
-    const binary = atob(value)
-    const bytes = new Uint8Array(binary.length)
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-    return new TextDecoder().decode(bytes)
+    return new TextDecoder().decode(z.util.base64ToUint8Array(value))
   } catch {
     return null
   }
 }
 
 async function resolvePayload(attachment: AttachmentState): Promise<GrabPayload | null> {
-  if ('content' in attachment)
+  if (isCompleteAttachment(attachment))
     for (const part of attachment.content)
       if (part.type === 'document' && part.source.type === 'data') {
         const body = decodeBase64Utf8(part.source.value)
@@ -79,8 +83,7 @@ function Preview(props: {preview: GrabPreview; class: string}): JSX.Element {
 
 function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}): JSX.Element {
   const attachment = useAttachment()
-  const [open, setOpen] = createSignal(false)
-  const [showAgentText, setShowAgentText] = createSignal(false)
+  const [view, setView] = createStore({open: false, agentText: false})
   return (
     <div class={CARD} data-chat-grab>
       <Show when={props.onRemove}>
@@ -97,7 +100,7 @@ function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}
               size="none"
               class={OPEN_BUTTON}
               aria-label="Open grabbed element"
-              onClick={() => setOpen(true)}
+              onClick={() => setView('open', true)}
             />
           </div>
         )}
@@ -107,9 +110,7 @@ function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}
           <Show when={sourceLabel(source())}>
             {(label) => (
               <span class={SOURCE_LINE}>
-                <span class="text-chat-accent" aria-hidden="true">
-                  ↳
-                </span>{' '}
+                <CornerDownRight class="text-chat-accent flex-none" size={12} aria-hidden="true" />
                 in {label()}
               </span>
             )}
@@ -117,20 +118,20 @@ function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}
         )}
       </Show>
       <Dialog
-        open={open()}
-        onOpenChange={setOpen}
+        open={view.open}
+        onOpenChange={(open) => setView('open', open)}
         title="Grabbed element"
         size="xl"
         dismissable
         footer={
-          <Button variant="link" size="bare" onClick={() => setShowAgentText((shown) => !shown)}>
-            {showAgentText() ? 'Show snapshot' : 'What the agent sees'}
+          <Button variant="link" size="bare" onClick={() => setView('agentText', (shown) => !shown)}>
+            {view.agentText ? 'Show snapshot' : 'What the agent sees'}
           </Button>
         }
       >
-        <Show when={open()}>
+        <Show when={view.open}>
           <Show
-            when={showAgentText() ? null : props.payload.preview}
+            when={view.agentText ? null : props.payload.preview}
             fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}
           >
             {(preview) => <Preview preview={preview()} class={DIALOG_SNAPSHOT} />}
@@ -149,7 +150,12 @@ export function GrabCard(props: AttachmentCardProps): JSX.Element {
       when={payload.state === 'ready' || payload.state === 'errored'}
       fallback={
         <div class={CARD} aria-busy="true">
-          <span class={AGENT_TEXT}>Reading grabbed element…</span>
+          <div class={LOADING_ROW}>
+            <Loader.Root size="sm" bare translations={{value: () => READING_LABEL}}>
+              <Loader.Indicator class="text-chat-text-3 size-4" />
+            </Loader.Root>
+            <span class={AGENT_TEXT}>{`${READING_LABEL}…`}</span>
+          </div>
         </div>
       }
     >

@@ -88,6 +88,10 @@
       "types": "./dist/schema/agent.d.ts",
       "import": "./dist/schema/agent.js"
     },
+    "./schema/bundler": {
+      "types": "./dist/schema/bundler.d.ts",
+      "import": "./dist/schema/bundler.js"
+    },
     "./schema/event": {
       "types": "./dist/schema/event.d.ts",
       "import": "./dist/schema/event.js"

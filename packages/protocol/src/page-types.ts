@@ -101,16 +101,6 @@ export function ok(data: Record<string, unknown> = {}): PageResult {
   return {ok: true, ...data}
 }
 
-export const RawFrameSchema = z.object({
-  fileName: z.string().optional(),
-  line: z.number().optional(),
-  column: z.number().optional(),
-  fn: z.string().optional(),
-})
-export type RawFrame = z.infer<typeof RawFrameSchema>
-export const OpenSourceSchema = z.object({frames: z.array(RawFrameSchema)})
-export const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
-export type SourceLoc = z.infer<typeof SourceLocSchema>
 export const SymbolicateFrameSchema = z.object({
   fileName: z.string().min(1),
   line: z.number().int().min(1),

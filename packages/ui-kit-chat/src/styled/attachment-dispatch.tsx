@@ -30,7 +30,7 @@ export function AttachmentByMime(props: {
   return (
     <Show when={card()} fallback={<AttachmentUI onRemove={props.onRemove} />}>
       {(entry) => (
-        <Attachment.Root class="group">
+        <Attachment.Root class="group shrink-0">
           <Dynamic component={entry().render} onRemove={props.onRemove} />
         </Attachment.Root>
       )}

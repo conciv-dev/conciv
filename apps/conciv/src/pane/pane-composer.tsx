@@ -137,7 +137,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
       draftKey={props.draftKey}
       class="flex flex-col relative shrink-0 [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >
-      <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
+      <div class="flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-2 pt-2 pb-1 shrink-0 empty:hidden">
         {props.notes}
         <ComposerPrimitive.Attachments component={() => <StagedAttachment component={props.AttachmentComponent} />} />
       </div>

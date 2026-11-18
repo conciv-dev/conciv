@@ -13,7 +13,7 @@ import {
   ComposerActionsHost,
   createDocumentAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
-import {Dialog, Popover} from '@conciv/ui-kit-system'
+import {Dialog} from '@conciv/ui-kit-system'
 import {makeHostGrab} from '@conciv/plugin-testkit/host/grab'
 import {FixtureElement} from './fixture-element.js'
 import {startPageHost} from './page-host.js'
@@ -166,7 +166,7 @@ function mountHost(
       document.body.appendChild(el)
       render(
         () => (
-          <HostApiProvider rpc={rpc} apiBase={() => apiBase} toast={showToast} dialog={Dialog} popover={Popover}>
+          <HostApiProvider rpc={rpc} apiBase={() => apiBase} toast={showToast} dialog={Dialog}>
             <AttachmentProvider value={pending}>
               <AttachmentByMime cards={cards} />
             </AttachmentProvider>
@@ -194,17 +194,10 @@ function mountHost(
         rpc={rpc}
         apiBase={() => apiBase}
         toast={showToast}
-        openEditor={(file, line) =>
-          void rpc.plugin
-            .call({rpcId: 'server', method: 'open', input: {file, ...(line === undefined ? {} : {line})}})
-            .catch(() => {})
-        }
         registerLayer={() => () => {}}
         dialog={Dialog}
-        popover={Popover}
         sessionId={() => (session ? session : null)}
         grab={makeHostGrab(document)}
-        insert={() => {}}
         attach={attachFile}
         newSession={() => {}}
         viewLock={() => {}}

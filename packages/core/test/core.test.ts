@@ -65,7 +65,7 @@ import {
   withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {defineTool, defineExtension, makeExtRpcClient, type AnyExtension, type ExtensionScope} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
@@ -178,7 +178,6 @@ import {
   currentRow,
   ensureRow,
   isDeletedRow,
-  nativeIdFor,
   recordNativeId,
   rowById,
   setMetadata,
@@ -194,7 +193,6 @@ import {
   provideConfiguredPolicies,
   provideExtensionSlugs,
   provideGlobalRoots,
-  provideHarnessSource,
 } from '../src/runtime/plugin-sources.js'
 import {
   answerPermission,
@@ -4255,6 +4253,45 @@ describe('session prompt hook', () => {
     expect(later).toEqual(['Refused'])
     expect(userTexts(await kit.hydrate(session))).toEqual(['Refused'])
   })
+
+  test('a grabbed element reaches the harness as its text, and an empty or unreadable grab adds nothing', async () => {
+    const grabMime = 'application/vnd.conciv.grab+json'
+    const encoded = (body: string) => Buffer.from(body).toString('base64')
+    const grabBody = (text: string) => JSON.stringify({text, source: null, rect: null, preview: null})
+    const grabbed = (value: string) => ({
+      role: 'user',
+      content: [
+        {type: 'text', content: 'look at this'},
+        {type: 'document', source: {type: 'data', mimeType: grabMime, value}},
+      ],
+    })
+    const sentDocument = (value: string) =>
+      expect.objectContaining({type: 'document', source: {type: 'data', mimeType: grabMime, value}})
+    const {kit, asked} = await promptKit([])
+    const session = await kit.session()
+    const element = encoded(grabBody('<button class="save">Save</button>\n  in src/form.tsx:12'))
+    const empty = encoded(grabBody(''))
+    const unreadable = encoded('not a grab payload')
+
+    expect((await (await kit.turn(grabbed(element), {session})).done()).errors()).toEqual([])
+    expect(asked).toEqual([
+      [
+        {type: 'text', content: 'look at this'},
+        sentDocument(element),
+        {
+          type: 'text',
+          content: '<button class="save">Save</button>\n  in src/form.tsx:12',
+          metadata: {modelOnly: true},
+        },
+      ],
+    ])
+
+    expect((await (await kit.turn(grabbed(empty), {session})).done()).errors()).toEqual([])
+    expect(asked[1]).toEqual([{type: 'text', content: 'look at this'}, sentDocument(empty)])
+
+    expect((await (await kit.turn(grabbed(unreadable), {session})).done()).errors()).toEqual([])
+    expect(asked[2]).toEqual([{type: 'text', content: 'look at this'}, sentDocument(unreadable)])
+  })
 })
 
 describe('plugin rpc over the socket', () => {
@@ -4636,7 +4673,7 @@ describe('direct tools on the MCP surface', () => {
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
     const root = tempDir('conciv-core-unit-')
     const restarts: boolean[] = []
-    const bridge = defineBundlerBridge({
+    const bridge = Bundler.defineBundlerBridge({
       id: 'unit-direct-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4845,8 +4882,7 @@ describe('plugin context keys provided by core', () => {
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
-    const base: {current: string | undefined} = {current: undefined}
-    const devServer = defineBundlerBridge({
+    const devServer = Bundler.defineBundlerBridge({
       id: 'unit-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4860,14 +4896,6 @@ describe('plugin context keys provided by core', () => {
         SkillInstructions.layer,
         SessionProjector.layer,
         provideInstructionEntries,
-        provideHarnessSource({
-          harness: (sessionId) => ({id: `fake-cli:${sessionId}`}),
-          sessions: {
-            resumeToken: (sessionId) => nativeIdFor(db, sessionId),
-            recordToken: (sessionId, token) => recordNativeId(db, sessionId, 'fake-cli', token),
-          },
-          tokenScopedBase: () => base.current,
-        }),
         provideBundlerSource(devServer),
         provideExtensionSlugs(['page']),
         provideApp(),
@@ -4925,14 +4953,6 @@ describe('plugin context keys provided by core', () => {
     expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
       {key: 'brief', value: 'ship it'},
     ])
-
-    const harness = await host.runPromise(PluginHost.HarnessSource)
-    expect(harness.mcpUrl).toBeUndefined()
-    base.current = 'http://127.0.0.1:4100/agent-token'
-    expect(harness.mcpUrl).toBe('http://127.0.0.1:4100/agent-token/api/mcp')
-    expect(harness.get(id).id).toBe(`fake-cli:${id}`)
-    await harness.recordToken(id, HarnessSessionId.parse('native-entries'))
-    expect(await harness.resumeToken(id)).toBe('native-entries')
 
     const bundler = await host.runPromise(PluginHost.BundlerSource)
     expect(bundler?.config().root).toBe(root)
