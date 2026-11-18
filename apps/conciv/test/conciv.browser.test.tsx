@@ -10200,6 +10200,9 @@ module.exports = {default: {stores: {
     render: () => {
       const [density, setDensity] = createSignal('comfortable')
       const [resolved, setResolved] = createSignal(false)
+      const [sent, setSent] = createSignal('nothing')
+      const {MentionField} = require('@conciv/ui-kit-tap')
+      const people = [{id: 'ada', label: 'Ada Lovelace'}, {id: 'alan', label: 'Alan Turing'}]
       return [
         createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
         createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
@@ -10221,6 +10224,14 @@ module.exports = {default: {stores: {
         }),
         line(() => 'Density: ' + density()),
         line(() => 'Show resolved: ' + resolved()),
+        createComponent(MentionField, {
+          ariaLabel: 'Reply with a mention',
+          placeholder: 'Reply, @mention someone',
+          items: (query) => people.filter((person) => person.label.toLowerCase().includes(query.toLowerCase())),
+          onSubmit: (segments) =>
+            setSent(segments.map((segment) => (segment.type === 'mention' ? '@' + segment.id : segment.text)).join('')),
+        }),
+        line(() => 'Sent: ' + sent()),
       ]
     },
   })
@@ -10492,11 +10503,12 @@ module.exports = {default: {setup(ctx) {
   })
 
   describe('its ctx.ui.Menu radio and checkbox entries', () => {
-    test('a radio entry picks one value and a checkbox entry toggles, each shown checked when the menu opens again', async () => {
+    test("a radio entry and a checkbox entry stay checked, and the app's MentionField from @conciv/ui-kit-tap sends a mention", async () => {
       const sessionId = await createSession(coreRpc(coreBase()))
       const menuButton = () => control('View options')
       const radio = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
       const checkbox = () => page.getByRole('menuitemcheckbox', {name: 'Show resolved', exact: true})
+      const field = () => page.getByRole('textbox', {name: 'Reply with a mention', exact: true})
       harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
       await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
       await tab('Fixture people').click()
@@ -10517,6 +10529,19 @@ module.exports = {default: {setup(ctx) {
       await expect.element(checkbox()).toHaveAttribute('aria-checked', 'true')
       await userEvent.keyboard('{Escape}')
       await expect.element(checkbox()).not.toBeInTheDocument()
+
+      await field().click()
+      await expect.element(field()).toHaveFocus()
+      await userEvent.keyboard('hi @')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).toBeVisible()
+      await userEvent.keyboard('Ad')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).not.toBeInTheDocument()
+      await page.getByRole('option', {name: 'Ada Lovelace'}).click()
+      await expect.element(page.getByRole('option', {name: 'Ada Lovelace'})).not.toBeInTheDocument()
+      await expect.element(field()).toHaveTextContent('hi @Ada Lovelace')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('Sent: hi @ada', {exact: true})).toBeVisible()
+      await expect.element(field()).toHaveTextContent('')
     })
   })
 
