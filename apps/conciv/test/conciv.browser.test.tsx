@@ -6208,6 +6208,12 @@ describe('engine login', () => {
   const LOCAL_ONLY = 'held by the engine and kept only in this browser'
   const keptDrafts = (): Promise<string[]> => createBrowserDraftStore().keys()
 
+  const unlockOnNewSession = async (): Promise<void> => {
+    await createSession(coreRpc(core()))
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+  }
+
   const typeEngineAndLocalDrafts = async (): Promise<void> => {
     const {sessionId} = await coreRpc(core()).sessions.resolve({})
     const held = {sessionId, text: ENGINE_HELD}
@@ -6221,8 +6227,7 @@ describe('engine login', () => {
   }
 
   test('a revoke while the panel is open empties this browser draft store, refuses typing, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
-    await unlock()
+    await unlockOnNewSession()
     await typeEngineAndLocalDrafts()
     await coreControl.awaitPushSocketLive()
 
@@ -6269,8 +6274,7 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is closed locks the launcher and empties this browser draft store, and after a reload the panel shows only what the engine holds', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
-    await unlock()
+    await unlockOnNewSession()
     await typeEngineAndLocalDrafts()
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect.element(opener()).toBeVisible()
