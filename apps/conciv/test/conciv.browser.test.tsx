@@ -10,6 +10,7 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   browserRpcConnection,
+  makeBrowserRpcClient,
   makeRpcClient,
   subscribeRpcReachability,
   type RpcClient,
@@ -118,6 +119,7 @@ import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {Persist, persisted, removePersisted} from '../src/runtime/persistence/storage.js'
 import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
 import {selectDisabled} from '../src/runtime/plugin/machine.js'
 import {
@@ -7000,7 +7002,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: base})
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
@@ -7821,6 +7823,245 @@ describe('terminal panel', () => {
   }, 60_000)
 })
 
+const TYPED_CONNECT_PROBE_NAME = 'typed-connect-probe'
+
+function TypedConnectProbe(): JSX.Element {
+  const connect = getExtensionApi(TYPED_CONNECT_PROBE_NAME).useConnect()
+  const [address, setAddress] = createSignal('')
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        connect.found(address())
+      }}
+    >
+      <label>
+        Workspace address
+        <input value={address()} onInput={(event) => setAddress(event.currentTarget.value)} />
+      </label>
+      <button type="submit">Connect</button>
+    </form>
+  )
+}
+
+const typedConnectProbe = defineExtension({
+  name: TYPED_CONNECT_PROBE_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(TYPED_CONNECT_PROBE_NAME).useSlot() === 'connect'}>
+      <TypedConnectProbe />
+    </Show>
+  ),
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof typedConnectProbe> {}
+}
+
+const projectNoteBundle = `const {Slot, Store} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+const {createRenderEffect} = require('solid-js')
+const {z} = require('zod')
+module.exports = {default: {stores: {
+  note: Store.project(z.object({text: z.string()}), {text: 'none'}),
+}, setup(ctx) {
+  const shown = document.createElement('p')
+  createRenderEffect(() => {
+    shown.textContent = 'Project note: ' + ctx.stores.note.value.text
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => shown})
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => createComponent(ctx.ui.Button, {onClick: () => ctx.stores.note.set({text: 'saved note'}), children: 'Save the project note'}),
+  })
+}}}
+`
+
+function fillBrowserStorage(prefix: string): string[] {
+  const keys: string[] = []
+  for (const size of [1 << 19, 1 << 14, 1 << 9, 1 << 4]) {
+    for (;;) {
+      const key = `${prefix}${keys.length}`
+      try {
+        localStorage.setItem(key, 'x'.repeat(size))
+        keys.push(key)
+      } catch {
+        break
+      }
+    }
+  }
+  const tail = `${prefix}tail`
+  for (let value = 'x'; ; value += 'x') {
+    try {
+      localStorage.setItem(tail, value)
+    } catch {
+      break
+    }
+  }
+  return localStorage.getItem(tail) === null ? keys : [...keys, tail]
+}
+
+function projectStoreKeys(name: string): string[] {
+  return Array.from({length: localStorage.length}, (_, index) => localStorage.key(index) ?? '').filter(
+    (key) => key.startsWith('conciv.project') && key.endsWith(`:${name}`),
+  )
+}
+
+describe('plugins before a core is bound', () => {
+  const coreBase = bootedCore('plugins-before-bind', {
+    tty: true,
+    models: [
+      {id: 'first-model', name: 'First model'},
+      {id: 'calm-model', name: 'Calm model'},
+    ],
+    plugins: ['./layout'],
+    files: {
+      'conciv/plugins/neighbour.ts': "export default {id: 'neighbour', async setup() {}}\n",
+      'layout/index.ts': "export default {id: 'layout', async setup() {}}\n",
+      'layout/plugin-experimental.js': projectNoteBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const PREFS_KEY = 'conciv.global:plugin.terminal.prefs'
+  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
+  const picker = () => bar().getByRole('button', {name: 'Select model'})
+  const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
+  const notSaved = () => page.getByText('Some changes are not being saved', {exact: true})
+  const enginePluginStoreReads = (scope: 'global' | 'project') =>
+    coreControl.rpcCallCount(['settings', 'all'], {scope, namespace: 'plugins'})
+  const pick = async (name: string) => {
+    await picker().click()
+    await page.getByRole('option', {name}).click()
+  }
+
+  test('a built-in plugin with a global store starts in connect mode and reads its value from this browser, a project store waits for the core, a write the full storage refuses is told once, and the installed plugins load once the core is bound', async () => {
+    await page.viewport(1000, 900)
+    localStorage.setItem(PREFS_KEY, JSON.stringify({model: 'calm-model'}))
+    const hostKeys: string[] = []
+    onTestFinished(() => {
+      hostKeys.forEach((key) => localStorage.removeItem(key))
+      projectStoreKeys('plugin.layout.note').forEach((key) => localStorage.removeItem(key))
+      localStorage.removeItem(PREFS_KEY)
+    })
+    localStorage.removeItem('conciv:settings-tab')
+    harness.mountShell('/panel/connect?open=true', [typedConnectProbe], {connect: true})
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Workspace address'}))
+    await userEvent.keyboard(coreBase())
+    await userEvent.click(page.getByRole('button', {name: 'Connect'}))
+
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+    await terminalTab().click()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    expect(await enginePluginStoreReads('global')).toBe(0)
+    await expect.element(page.getByText('Project note: none', {exact: true}), {timeout: 15_000}).toBeVisible()
+    expect(await enginePluginStoreReads('project')).toBe(0)
+
+    localStorage.removeItem(PREFS_KEY)
+    hostKeys.push(...fillBrowserStorage('host.page.filler.'))
+    await pick('First model')
+    await expect.element(notSaved()).toBeVisible()
+    await expect.element(picker()).toHaveTextContent('First model')
+    expect(hostKeys.filter((key) => localStorage.getItem(key) === null)).toEqual([])
+    expect(localStorage.getItem(PREFS_KEY)).toBeNull()
+
+    hostKeys.forEach((key) => localStorage.removeItem(key))
+    await userEvent.click(page.getByRole('button', {name: 'Save the project note'}))
+    await expect.element(page.getByText('Project note: saved note', {exact: true})).toBeVisible()
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+
+    harness.dispose()
+    const noteKeys = projectStoreKeys('plugin.layout.note')
+    expect(noteKeys).toHaveLength(1)
+    expect(noteKeys[0]).toMatch(/^conciv\.project\.[\w.-]+:plugin\.layout\.note$/)
+    expect(localStorage.getItem(noteKeys[0] ?? '')).toBe(JSON.stringify({text: 'saved note'}))
+  }, 60_000)
+
+  test('a project store keeps each project apart, imports an older key of its project, and is removed', () => {
+    const unbound = makeBrowserRpcClient(() => null)
+    onTestFinished(unbound.close)
+    onTestFinished(() =>
+      ['plugin.fixture.layout', 'plugin.fixture.older'].forEach((name) =>
+        projectStoreKeys(name).forEach((key) => localStorage.removeItem(key)),
+      ),
+    )
+    const schema = z.object({columns: z.number()})
+    const first = {
+      ...Persist.project('/work/first', 'plugin.fixture.layout'),
+      copyFrom: [{key: 'plugin.fixture.older'}],
+    }
+    const second = {
+      ...Persist.project('/work/second', 'plugin.fixture.layout'),
+      copyFrom: [{key: 'plugin.fixture.older'}],
+    }
+    const open = (target: Parameters<typeof persisted>[0]) =>
+      createRoot((dispose) => {
+        onTestFinished(dispose)
+        const [store, setStore, , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+        expect(ready()).toBe(true)
+        const save = (columns: number) => {
+          setStore({columns})
+          dispose()
+        }
+        return {store, save}
+      })
+
+    open(Persist.project('/work/first', 'plugin.fixture.older')).save(3)
+
+    expect(open(first).store.columns).toBe(3)
+    expect(open(Persist.project('/work/first', 'plugin.fixture.older')).store.columns).toBe(2)
+    expect(open(second).store.columns).toBe(2)
+
+    open(second).save(5)
+    expect(open(first).store.columns).toBe(3)
+    expect(open(second).store.columns).toBe(5)
+
+    removePersisted(first, unbound.rpc)
+    expect(open(first).store.columns).toBe(2)
+    expect(open(second).store.columns).toBe(5)
+  })
+
+  test('a full browser storage makes room by evicting older conciv values, never the host page', () => {
+    vi.useFakeTimers({toFake: ['Date']})
+    vi.setSystemTime(Date.now() + 60_000)
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const unbound = makeBrowserRpcClient(() => null)
+    onTestFinished(unbound.close)
+    const STALE = 'conciv.global:plugin.retired.cache'
+    const FRESH = 'conciv.global:plugin.fixture.fresh'
+    const hostKeys: string[] = []
+    onTestFinished(() => [STALE, FRESH, ...hostKeys].forEach((key) => localStorage.removeItem(key)))
+    localStorage.setItem(STALE, 'x'.repeat(1 << 20))
+    hostKeys.push(...fillBrowserStorage('host.page.filler.'))
+
+    createRoot((dispose) => {
+      onTestFinished(dispose)
+      const [, setStore, , ready] = persisted(
+        Persist.global('plugin.fixture.fresh'),
+        z.object({text: z.string()}),
+        {text: 'none'},
+        unbound.rpc,
+      )
+      expect(ready()).toBe(true)
+      setStore({text: 'fresh'})
+      dispose()
+    })
+
+    expect(localStorage.getItem(FRESH)).toBe(JSON.stringify({text: 'fresh'}))
+    expect(localStorage.getItem(STALE)).toBeNull()
+    expect(hostKeys.filter((key) => localStorage.getItem(key) === null)).toEqual([])
+  })
+})
+
 describe('plugin composer pills', () => {
   const pillsBundle = `const {Command, ComposerPill, Slot} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
@@ -8562,8 +8803,8 @@ const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
 const ToolCall = Registry.define('tool-call')
 module.exports = {default: {stores: {
-  note: Store.global(z.object({text: z.string()}), {text: 'none'}),
-  visits: Store.global(z.object({count: z.number()}), {count: 0}),
+  note: Store.session(z.object({text: z.string()}), {text: 'none'}),
+  visits: Store.session(z.object({count: z.number()}), {count: 0}),
 }, setup(ctx) {
   const button = (label, onClick) => createComponent(ctx.ui.Button, {onClick, children: label})
   const line = (read) => {
@@ -8656,11 +8897,11 @@ module.exports = {default: {stores: {
       button('Open a draft session', () =>
         ctx.layout.draft({server: props.session.server.id, directory: props.session.directory, prompt: 'a drafted prompt'}),
       ),
-      line(() => 'Stored note: ' + String(ctx.stores.note.value.text)),
-      line(() => 'Visits: ' + String(ctx.stores.visits.value.count)),
-      button('Save the note', () => ctx.stores.note.set({text: 'saved note'})),
-      button('Save a broken note', () => ctx.stores.note.set({text: 42})),
-      button('Count a visit', () => ctx.stores.visits.update((draft) => {
+      line(() => 'Stored note: ' + String(ctx.stores.note(props.session).value?.text ?? 'loading')),
+      line(() => 'Visits: ' + String(ctx.stores.visits(props.session).value?.count ?? 'loading')),
+      button('Save the note', () => ctx.stores.note(props.session).set({text: 'saved note'})),
+      button('Save a broken note', () => ctx.stores.note(props.session).set({text: 42})),
+      button('Count a visit', () => ctx.stores.visits(props.session).update((draft) => {
         draft.count += 1
       })),
       button('Save a fixture file', () => ctx.system.save({name: 'fixture-note.txt', content: 'saved through the host'})),
@@ -9027,6 +9268,7 @@ module.exports = {default: {setup(ctx) {
   })
 
   test('its overlay draws a widget-styled label above the page, takes a click on a control that opts back into pointer events, follows the color mode chosen in Settings, applies its own styles, and goes away on dispose and when the plugin is turned off', async () => {
+    await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const label = () => page.getByText('Fixture overlay label', {exact: true})
     const colors = (scheme: string) => page.getByText(`Overlay colors: ${scheme}`, {exact: true})
@@ -9202,40 +9444,48 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(tabPath(sessionId, 'fixture:tools'))
   }, 60_000)
 
-  test('its store load cut off by a lost engine waits for the engine and the plugin comes back, while an engine error on that load still fails it', async () => {
+  test('its session store read cut off by a lost engine shows loading until the engine is back and the read is retried, and an engine error on that read leaves it loading', async () => {
     const CALL_DEADLINE_MS = 3000
     const CONNECTION_LOSS_RETRY_DELAY_MS = 250
     const MARGIN_MS = 750
     const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
     const STORE_READS = 2
     const STORE_READ = ['settings', 'all']
+    const SERVER_ERROR = 500
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
-    const failedRow = () => page.getByText('Failed', {exact: true})
-    const fixtureReload = () => page.getByRole('button', {name: 'Reload', exact: true}).first()
+    const note = (text: string) => page.getByText(`Stored note: ${text}`, {exact: true})
+    const visits = (text: string) => page.getByText(`Visits: ${text}`, {exact: true})
 
-    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
     harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
+    await tab('Fixture tools').click()
     await coreControl.awaitFaultPending(reads, STORE_READS)
+    await expect.element(note('loading')).toBeVisible()
+    await expect.element(visits('loading')).toBeVisible()
     const offline = await faults.install({kind: 'offline'})
     const retries = await faults.install({kind: 'gate', path: STORE_READ})
     await coreControl.releaseFault(reads)
 
     await expect(coreControl.awaitFaultPending(retries, 1, OUTAGE_WINDOW_MS)).rejects.toThrow('captured 0 of 1')
-    await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
+    await expect.element(note('loading')).toBeVisible()
+    await expect.element(note('none')).not.toBeInTheDocument()
 
     await coreControl.releaseFault(retries)
     await coreControl.releaseFault(offline)
-    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(note('none'), {timeout: 15_000}).toBeVisible()
+    await expect.element(visits('0')).toBeVisible()
     await expect.element(control('Write a held note')).toBeVisible()
-    await page.getByRole('link', {name: 'Settings'}).click()
-    await tab('Plugins').click()
-    await expect.element(fixtureReload()).toBeVisible()
-    await expect.element(failedRow()).not.toBeInTheDocument()
+    harness.dispose()
 
-    await faults.install({kind: 'fail', path: STORE_READ, status: 500})
-    await fixtureReload().click()
-    await expect.element(failedRow(), {timeout: 15_000}).toBeVisible()
+    await faults.install({kind: 'fail', path: STORE_READ, status: SERVER_ERROR})
+    const beforeTheFailedRead = await coreControl.rpcMark()
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
+    await coreControl.awaitRpcFailedCount(STORE_READ, SERVER_ERROR, STORE_READS, beforeTheFailedRead)
+    await expect.element(note('loading')).toBeVisible()
+    await expect.element(visits('loading')).toBeVisible()
+    await expect.element(note('none')).not.toBeInTheDocument()
   }, 60_000)
 
   test('a cold link to a tab no panel lists ends on the chat, and a cold link to its tab with the engine unreachable keeps its address under the lost connection notice and opens the tab once the engine is back', async () => {

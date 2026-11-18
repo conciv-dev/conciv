@@ -9,7 +9,7 @@ import {z} from 'zod'
 import {makeViteBridge} from '@conciv/unplugin/vite-bridge'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Definition} from '../src/rpc.js'
 
@@ -50,7 +50,7 @@ async function startVite(root: string): Promise<{vite: ViteDevServer; viteBase: 
   return {vite, viteBase: `http://127.0.0.1:${port}`}
 }
 
-async function bootProject(files: Record<string, string>, bridge?: BundlerBridge): Promise<CoreKit> {
+async function bootProject(files: Record<string, string>, bridge?: Bundler.BundlerBridge): Promise<CoreKit> {
   const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], files, ...(bridge ? {bundler: bridge} : {})})
   onTestFinished(() => kit.cleanup())
   return kit
@@ -84,12 +84,32 @@ async function toolFailure(pending: Promise<unknown>): Promise<string> {
   return ExecuteFailureSchema.parse(JSON.parse(failure.message)).error.message
 }
 
-function diagnosticSeen(bridge: BundlerBridge, matches: (diagnostic: BundlerDiagnostic) => boolean): Promise<void> {
-  const seen = Promise.withResolvers<void>()
-  const stop = bridge.subscribe?.((diagnostic) => {
-    if (matches(diagnostic)) seen.resolve()
-  })
-  return seen.promise.finally(() => stop?.())
+const DiagnosticEventSchema = z.object({
+  diagnostic: z.discriminatedUnion('kind', [
+    z.object({kind: z.literal('build-error'), file: z.string().nullable()}),
+    z.object({kind: z.literal('hmr-update'), file: z.string()}),
+    z.object({kind: z.literal('request-trace'), url: z.string()}),
+  ]),
+})
+
+type PublishedDiagnostic = z.infer<typeof DiagnosticEventSchema>['diagnostic']
+
+async function diagnosticPublished(
+  kit: CoreKit,
+  matches: (diagnostic: PublishedDiagnostic) => boolean,
+): Promise<() => Promise<void>> {
+  const closing = new AbortController()
+  onTestFinished(() => closing.abort())
+  const stream = await kit.rpc.event.subscribe({types: ['bundler.diagnostic']}, {signal: closing.signal})
+  expect(await stream.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+  const seen = async (): Promise<void> => {
+    const frame = await stream.next()
+    if (frame.done) throw new Error('the engine event stream ended before the diagnostic')
+    if (frame.value.type !== 'bundler.diagnostic') return seen()
+    if (matches(DiagnosticEventSchema.parse(frame.value.data).diagnostic)) return closing.abort()
+    return seen()
+  }
+  return seen
 }
 
 describe('the tanstack plugin without a bundler', () => {
@@ -367,34 +387,34 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     const bridge = makeViteBridge(vite)
     const kit = await bootProject({}, bridge)
 
-    const failed = diagnosticSeen(bridge, (diagnostic) => diagnostic.kind === 'build-error')
+    const failed = await diagnosticPublished(kit, (diagnostic) => diagnostic.kind === 'build-error')
     await fetch(`${viteBase}/broken.ts`, {headers: {'sec-fetch-dest': 'script'}}).catch(() => undefined)
-    await failed
+    await failed()
     const buildErrors = await useTool(kit, 'build_errors')
     const buildError = Definition.methods.buildErrors.output.parse(buildErrors).find((error) => error.kind === 'build')
     expect(buildError?.message.length).toBeGreaterThan(0)
     expect(buildError?.source?.file).toContain('broken.ts')
     expect(await terminalCall(kit, 'buildErrors')).toEqual({ok: true, data: buildErrors})
 
-    const traced = diagnosticSeen(
-      bridge,
+    const traced = await diagnosticPublished(
+      kit,
       (diagnostic) => diagnostic.kind === 'request-trace' && diagnostic.url.includes(SERVER_FN_ID),
     )
     await fetch(`${viteBase}/`).catch(() => undefined)
     await fetch(`${viteBase}/_serverFn/${SERVER_FN_ID}`).catch(() => undefined)
-    await traced
+    await traced()
     const payload = Definition.methods.serverFnTrace.output.parse(await useTool(kit, 'server_fn_trace'))
     expect(payload.traces.map((trace) => trace.name)).toEqual([SERVER_FN.export])
     expect(payload.traces[0]?.durationMs).toBeGreaterThanOrEqual(0)
     expect(payload.functions).toEqual([{id: SERVER_FN_ID, name: SERVER_FN.export, route: null, file: SERVER_FN.file}])
     expect(await terminalCall(kit, 'serverFnTrace', '{}')).toEqual({ok: true, data: payload})
 
-    const underBase = diagnosticSeen(
-      bridge,
+    const underBase = await diagnosticPublished(
+      kit,
       (diagnostic) => diagnostic.kind === 'request-trace' && diagnostic.url.includes(BASEPATH_FN_ID),
     )
     await fetch(`${viteBase}/app/_serverFn/${BASEPATH_FN_ID}`).catch(() => undefined)
-    await underBase
+    await underBase()
     const based = Definition.methods.serverFnTrace.output.parse(await useTool(kit, 'server_fn_trace', {count: 1}))
     expect(based.traces.map((trace) => trace.id)).toEqual([BASEPATH_FN_ID])
     expect(based.functions.find((serverFunction) => serverFunction.name === BASEPATH_FN.export)).toEqual({

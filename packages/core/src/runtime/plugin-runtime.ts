@@ -1,7 +1,7 @@
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
 import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
 import {
@@ -47,7 +47,7 @@ import {
   provideEditorSource,
   provideExtensionSlugs,
   provideGlobalRoots,
-  provideHarnessSource,
+  publishBundlerDiagnostics,
 } from './plugin-sources.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
@@ -64,8 +64,7 @@ export type PluginRuntimeInput = {
   post: readonly EffectPlugin[]
   harness: HarnessAdapter
   signal: AbortSignal
-  harnessSource: Parameters<typeof provideHarnessSource>[0]
-  bundler: BundlerBridge | undefined
+  bundler: Bundler.BundlerBridge | undefined
   openInEditor: (file: string, line?: number, column?: number) => void
   extensionSlugs: ReadonlyArray<string>
   sessions: Parameters<typeof provideSessions>[0]
@@ -115,14 +114,13 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     ),
     Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(input.db), Skill.layer)),
     Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
-    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer)),
+    Layer.provideMerge(Layer.mergeAll(Rpc.layer, KV.layer, EventFeed.layer, publishBundlerDiagnostics(input.bundler))),
     Layer.provideMerge(Bus.configured()),
     Layer.provideMerge(
       Layer.mergeAll(
         locationLayer(input.cwd),
         provideApp(),
         provideServersSource({home: input.home, engineId: input.engineId}),
-        provideHarnessSource(input.harnessSource),
         provideBundlerSource(input.bundler),
         provideEditorSource(input.openInEditor),
         provideExtensionSlugs(input.extensionSlugs),
