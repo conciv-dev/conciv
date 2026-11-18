@@ -26,7 +26,8 @@ export type AnchoredListboxHandle = {
   handleKeyDown: (event: KeyboardEvent) => boolean
 }
 
-const CONTENT = 'flex flex-col max-h-64 max-w-80 overflow-y-auto overscroll-contain outline-none'
+const CONTENT = 'flex flex-col min-h-0 max-h-64 max-w-80 overflow-y-auto overscroll-contain outline-none'
+const PANEL = 'max-h-[var(--available-height)]'
 const ITEM = `${LIST_PANEL_ITEM} flex-col items-stretch gap-0.5 min-h-11 data-[active]:bg-chat-fill-strong data-[active]:text-chat-text`
 const HIDDEN_INPUT = 'sr-only'
 
@@ -92,7 +93,7 @@ function Root(props: {
         event.stopPropagation()
         props.onDismiss()
       }}
-      positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: 4, getAnchorRect: () => props.anchor}}
+      positioning={{strategy: 'fixed', placement: 'top-start', gutter: 4, getAnchorRect: () => props.anchor}}
     >
       <Popover.Context>
         {(popover) => {
@@ -104,7 +105,7 @@ function Root(props: {
           )
           return (
             <Popover.Positioner>
-              <Popover.ListContent>
+              <Popover.ListContent class={PANEL}>
                 <Listbox.RootProvider value={listbox}>
                   <Listbox.Input
                     ref={(element) => (inputElement = element)}

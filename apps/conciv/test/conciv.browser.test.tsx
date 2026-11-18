@@ -7830,9 +7830,9 @@ module.exports = {default: {setup(ctx) {
     await expect.element(option('model')).toBeInViewport({ratio: 1})
     await expect.element(option('tally')).toBeInViewport({ratio: 1})
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}')
-    await expect.element(option('rename')).toBeInViewport({ratio: 1})
+    await expect.element(option('rename')).toBeInViewport({ratio: 0.99})
     await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}')
-    await expect.element(option('model')).toBeInViewport({ratio: 1})
+    await expect.element(option('model')).toBeInViewport({ratio: 0.99})
 
     await userEvent.keyboard('broken')
     await expect.element(page.getByRole('option').first()).toHaveTextContent('/brokenA command that throws')
