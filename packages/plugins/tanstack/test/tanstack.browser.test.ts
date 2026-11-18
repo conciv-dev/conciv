@@ -99,7 +99,7 @@ function tabSecrets(tab: {url: string}) {
 }
 
 describe('the tanstack plugin in the page', () => {
-  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates and lists the new tab url, refetches and invalidates one exact query, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
+  test('shows its chip, attaches to a draft chat once its first send makes it, reads the real location, navigates and lists the new tab url, refetches and invalidates one exact query, refetches every query a redacted key names or the one its raw key names, redacts secret params, search, hash, query keys and the tab url, reports a reloading loader as fetching, answers a long handler error with its code, reports a thrown page error, still reads the newest of fifty long errors in order and answers a router-less page', async ({
     browser,
   }) => {
     const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR]})
@@ -146,7 +146,18 @@ describe('the tanstack plugin in the page', () => {
 
     const cache = QueryCacheSchema.parse(await call('tanstack_query_cache', {}))
     expect(cache.queries.map((query) => query.key)).toContain('["user",{"token":"[redacted]"}]')
-    expect(JSON.stringify(cache)).not.toContain('query-key-secret-value')
+    expect(JSON.stringify(cache)).not.toMatch(/query-key-secret-value|second-key-secret-value/)
+
+    await expect(page.getByText('First user runs: 1')).toBeVisible()
+    await expect(page.getByText('Second user runs: 1')).toBeVisible()
+    expect(await call('tanstack_query_refetch', {key: '["user",{"token":"[redacted]"}]'})).toEqual({ok: true})
+    await expect(page.getByText('First user runs: 2')).toBeVisible()
+    await expect(page.getByText('Second user runs: 2')).toBeVisible()
+    expect(await call('tanstack_query_refetch', {key: '["user",{"token":"second-key-secret-value"}]'})).toEqual({
+      ok: true,
+    })
+    await expect(page.getByText('Second user runs: 3')).toBeVisible()
+    await expect(page.getByText('First user runs: 2')).toBeVisible()
 
     expect(
       await call('tanstack_navigate', {
