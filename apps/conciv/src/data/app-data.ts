@@ -110,7 +110,7 @@ export function makeAppData(
       if (lockedOut()) return null
       const row = DraftRowSchema.parse(input)
       const held = queryClient.getQueryData(draftQuery(row.sessionId).queryKey)
-      if (!held || held.updatedAt > row.updatedAt) return null
+      if (!held || held.updatedAt !== row.updatedAt) return null
       queryClient.setQueryData(draftQuery(row.sessionId).queryKey, row)
       return rpc.drafts.set(row)
     },
