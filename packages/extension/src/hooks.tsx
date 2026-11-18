@@ -31,7 +31,6 @@ const hostApi = {
   useViewLock: (): HostWiring['viewLock'] => use('viewLock', 'useViewLock'),
   useLeaveView: (): HostWiring['viewLeave'] => use('viewLeave', 'useLeaveView'),
   useSlot: (): HostWiring['slot'] => use('slot', 'useSlot'),
-  useConnect: (): HostWiring['connect'] => use('connect', 'useConnect'),
   useColorScheme: (): HostWiring['colorScheme'] => use('colorScheme', 'useColorScheme'),
   Suppress: layerComponent(true, 'Suppress'),
   YieldFocus: layerComponent(false, 'YieldFocus'),
