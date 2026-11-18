@@ -69,7 +69,7 @@ test.describe('embed boot', () => {
   let host: {base: string; close: () => Promise<void>}
 
   test.beforeEach(async () => {
-    kit = await bootEmbedKit({text: ASSISTANT_TEXT})
+    kit = await bootEmbedKit({text: ASSISTANT_TEXT, terminal: true})
     host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   })
 
@@ -94,14 +94,15 @@ test.describe('embed boot', () => {
       const first = await openPage(page)
       await openPanel(first)
       await first.getByRole('tab', {name: 'Terminal'}).click()
-      await expect(
-        first
-          .getByRole('tabpanel', {name: 'Terminal'})
-          .getByRole('alert')
-          .filter({hasText: 'Couldn’t open the terminal.'}),
-      ).toBeVisible({timeout: 30_000})
+      await expect(first.getByRole('textbox', {name: 'Terminal input'})).toBeAttached({timeout: 30_000})
+      const screen = first.getByRole('tabpanel', {name: 'Terminal'}).getByRole('list')
+      await expect(screen.getByText('P>', {exact: true}).last()).toBeAttached({timeout: 30_000})
+      await expect(first.getByRole('textbox', {name: 'Terminal input'})).toBeFocused({timeout: 30_000})
+      await first.keyboard.type('echo $((6*7))')
+      await first.keyboard.press('Enter')
+      await expect(screen.getByText('42', {exact: true})).toBeAttached({timeout: 30_000})
       await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
-      expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
+      expect(await currentHref(kit)).toMatch(/\/terminal%3Aterminal\?.*open=true/)
       await first.close()
       const second = await reopenPage(await context.newPage())
       await expect(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
@@ -2327,6 +2328,49 @@ test.describe('rebind', () => {
       await expect(refresh).toBeEnabled()
     })
   })
+
+  test.describe('handle.rebind to an engine with no browser plugins', () => {
+    const PLUGIN_TEXT = 'Drawn by the first engine plugin'
+    let pluginKit: CoreKit
+
+    test.beforeEach(async () => {
+      pluginKit = await bootCoreKit({
+        id: 'fake-embed',
+        text: ASSISTANT_TEXT,
+        plugins: ['./panel-end'],
+        files: {
+          'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
+`,
+          'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {at: 'session.panel.end', render: () => Object.assign(document.createElement('span'), {textContent: '${PLUGIN_TEXT}'})})
+}}}
+`,
+        },
+      })
+    })
+
+    test.afterEach(async () => {
+      await pluginKit.cleanup()
+    })
+
+    test('the first engine plugin view is gone once the widget is bound to the second engine', async ({page}) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, pluginKit, host.base)
+      await mountHandle(page, pluginKit.base)
+      await openChatPanel(page)
+      const bar = page.getByRole('toolbar', {name: 'Session status'})
+      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toBeVisible({timeout: 30_000})
+
+      await rebindHandle(page, kit.base)
+      await logInFromPanelNotice(page, kit, LOGGED_OUT_SENTENCE)
+      await expect(page.getByRole('alert').filter({hasText: LOGGED_OUT_SENTENCE})).toHaveCount(0, {timeout: 30_000})
+      await sendChatMessage(page, USER_TEXT)
+      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+      await expect(bar.getByRole('tab', {name: 'Chat'})).toBeVisible({timeout: 30_000})
+      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toHaveCount(0, {timeout: 30_000})
+    })
+  })
 })
 
 test.describe('recording attachment', () => {
@@ -2458,7 +2502,7 @@ test.describe('recording attachment', () => {
 test.describe('reload continuity', () => {
   const ASSISTANT_TEXT = 'Continuity reply'
 
-  const suite = setupWidgetSuite({text: ASSISTANT_TEXT, imageInput: 'native'})
+  const suite = setupWidgetSuite({text: ASSISTANT_TEXT, imageInput: 'native', terminal: true})
 
   test.describe('reload continuity through the db-backed navigation row', () => {
     test('restores the open panel route, the transcript, and the draft after a reload', async ({page}) => {
@@ -2836,7 +2880,7 @@ test.describe('unknown view restore', () => {
         intervalMs: 100,
       })
 
-      await page.goto(`${suite.host().base}/?extensions=terminal`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${suite.host().base}/?extensions=`, {waitUntil: 'domcontentloaded'})
 
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(page.getByRole('tab', {name: 'Recorder'})).toHaveCount(0)

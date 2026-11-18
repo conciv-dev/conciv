@@ -7,6 +7,7 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -23,6 +24,14 @@ import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
 export type EmbedKit = CoreKit
 
+function shellTerminal(): TtyCommand {
+  return {
+    bin: 'bash',
+    args: ['-c', "export PS1='P> '; exec bash --noprofile --norc -i"],
+    env: {TERM: 'xterm-256color', BASH_SILENCE_DEPRECATION_WARNING: '1'},
+  }
+}
+
 export async function bootEmbedKit(
   opts: Pick<ConcivConfig, 'permission' | 'permissions'> & {
     text?: string
@@ -31,6 +40,7 @@ export async function bootEmbedKit(
     commands?: HarnessCommand[]
     history?: HarnessSessionMeta[]
     imageInput?: HarnessCapabilities['imageInput']
+    terminal?: boolean
   } = {},
 ): Promise<EmbedKit> {
   const kit = await bootCoreKit({
@@ -43,6 +53,7 @@ export async function bootEmbedKit(
     imageInput: opts.imageInput,
     permission: opts.permission,
     permissions: opts.permissions,
+    tty: opts.terminal ? {command: shellTerminal} : undefined,
   })
   return {
     ...kit,
