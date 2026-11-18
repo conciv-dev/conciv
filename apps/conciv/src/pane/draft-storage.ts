@@ -179,6 +179,8 @@ function sendableAttachments(
   return draft.attachments.flatMap((attachment) => byId[attachment.id] ?? [])
 }
 
+type DraftSendKind = 'feed' | 'retry'
+
 type LocalDraftWriter = {
   writer: ComposerDraftWriter
   typed: () => DraftContent | null
@@ -203,15 +205,29 @@ function makeLocalDraftWriter(
     draft: null,
     files: [],
   })
-  const send = (recorded: LocalDraft, attachments: DraftRow['attachments']) => {
+  const storedRead = readLocalDraft(drafts, sessionId)
+  void storedRead.then((read) => {
+    if (!read || !document.draft) return
+    persisted.setStore(
+      'draft',
+      (draft) => draft && {...draft, syncedAt: read.syncedAt, sent: union(read.sent, draft.sent)},
+    )
+  })
+  const writeDocument = () =>
+    storedRead.then(() => drafts.setDocument(sessionId, structuredClone(unwrap(document.draft))))
+  const send = (recorded: LocalDraft, attachments: DraftRow['attachments'], kind: DraftSendKind) => {
     const current = document.draft
     if (!current || !sameContent(current, recorded) || appData.sessionDeleted(sessionId)) return
     const updatedAt = Date.now()
     persisted.setStore('draft', 'sent', (sent) => union(sent, [updatedAt]))
-    void keepLocally(drafts, sessionId, structuredClone(unwrap(current)))
+    void keep(writeDocument)
+      .catch((error: unknown) => {
+        console.error('[conciv] could not keep the draft stamp in the local draft', error)
+      })
       .then(() => {
         const latest = document.draft
         if (!latest || !sameContent(latest, recorded)) return false
+        if (kind === 'feed' && sameAsRow({...recorded, attachments}, appData.cachedDraft(sessionId))) return false
         return appData.saveDraft({
           sessionId,
           text: recorded.text,
@@ -232,7 +248,7 @@ function makeLocalDraftWriter(
   ) => {
     if (sameAsRow({...recorded, attachments}, row)) return
     if (row === null && isEmptied(recorded)) return
-    send(recorded, attachments)
+    send(recorded, attachments, 'feed')
   }
   const encoded = (
     then: (recorded: LocalDraft, attachments: DraftRow['attachments'], row: DraftRow | null | undefined) => void,
@@ -249,16 +265,8 @@ function makeLocalDraftWriter(
   const feed = () => {
     if (sendable()) encoded(sendChanged)
   }
-  const resend = () => encoded(send)
-  const stored = readLocalDraft(drafts, sessionId)
-  void stored.then((read) => {
-    if (!read || !document.draft) return
-    persisted.setStore(
-      'draft',
-      (draft) => draft && {...draft, syncedAt: read.syncedAt, sent: union(read.sent, draft.sent)},
-    )
-  })
-  const writeDocument = () => stored.then(() => drafts.setDocument(sessionId, structuredClone(unwrap(document.draft))))
+  const sendAgain = (recorded: LocalDraft, attachments: DraftRow['attachments']) => send(recorded, attachments, 'retry')
+  const resend = () => encoded(sendAgain)
   const persisted = persistStore({
     store: document,
     setStore: setDocument,
@@ -285,7 +293,7 @@ function makeLocalDraftWriter(
       sent: untrack(() => document.draft?.sent ?? []),
     })
   }
-  const read = () => stored
+  const read = () => storedRead
   const kept = (): LocalDraft | null => {
     const state = persisted.state()
     if (state.status === 'hydrating' || state.status === 'disposed' || state.last === undefined) return null
