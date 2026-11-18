@@ -25,7 +25,7 @@ const ActionLogEntrySchema = z.object({
 })
 
 const SaveOutput = z.union([
-  z.object({saved: z.literal(true), recordingId: z.string()}),
+  z.object({saved: z.literal(true), recordingId: z.string(), poster: z.string()}),
   z.object({saved: z.literal(false), error: z.enum(['too-large', 'empty', 'io-error'])}),
 ])
 
@@ -38,9 +38,10 @@ const VideoPieceOutput = z.strictObject({
   mime: z.literal('video/webm'),
 })
 
-const RecordingOutput = z.union([
-  z.object({expired: z.literal(false), events: z.array(RrwebEventSchema)}),
-  z.object({expired: z.literal(true)}),
+const RecordingOutput = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('found'), events: z.array(RrwebEventSchema)}),
+  z.object({kind: z.literal('expired')}),
+  z.object({kind: z.literal('missing')}),
 ])
 
 export const Recorder = Rpc.define({
@@ -60,7 +61,7 @@ export const Recorder = Rpc.define({
     'recordings.exportVideo': {
       input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
       output: VideoPieceOutput,
-      errors: {expired: z.undefined(), 'render-failed': z.undefined()},
+      errors: {expired: z.undefined(), missing: z.undefined(), 'render-failed': z.undefined()},
     },
   },
   events: {

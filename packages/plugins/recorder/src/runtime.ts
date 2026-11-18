@@ -6,6 +6,8 @@ import type {RecordingStore} from './recordings.js'
 import {distill} from './distill.js'
 import {pickKeyframeTimestamps, recordingParts, type RecordingResult} from './format.js'
 
+export const MAX_SECONDS_BACK = 600
+
 export type RecorderRuntime = {
   rings: ClientRings
   control: CaptureControl
@@ -19,7 +21,8 @@ export async function renderRecording(
   events: RrwebEvent[],
   keyframeCount: number,
 ): Promise<RecordingResult> {
-  const log = distill(events)
+  const fromTs = (events.at(-1)?.timestamp ?? 0) - MAX_SECONDS_BACK * 1000
+  const log = distill(events).filter((entry) => entry.ts >= fromTs)
   const frames = await renderFrames(runtime, events, log, keyframeCount)
   return recordingParts(log, frames, keyframeCount > 0)
 }

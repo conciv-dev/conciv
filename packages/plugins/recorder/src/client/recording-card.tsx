@@ -38,10 +38,10 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
     () => props.recording.recordingId,
     (recordingId) => ctx.client.rpc(Recorder)['recordings.get']({recordingId}, {signal: ctx.signal}),
   )
+  const recording = createMemo(() => (saved.state === 'ready' ? saved() : undefined))
   const events = createMemo((): RrwebEvent[] | undefined => {
-    if (saved.state !== 'ready') return undefined
-    const recording = saved()
-    return recording.expired ? undefined : recording.events
+    const read = recording()
+    return read?.kind === 'found' ? read.events : undefined
   })
   const playerKit = usePlayerKit()
   const replayRef = (kit: PlayerKit, playable: RrwebEvent[]) => (container: HTMLDivElement) => {
@@ -80,6 +80,9 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
           </Match>
           <Match when={saved.state === 'pending' || saved.state === 'refreshing'}>
             <RecorderNotice text="Loading recording…" />
+          </Match>
+          <Match when={recording()?.kind === 'missing'}>
+            <RecorderNotice text="Recording not found: it is no longer saved in this project." />
           </Match>
           <Match when={!events()}>
             <RecorderNotice text="Recording expired." />

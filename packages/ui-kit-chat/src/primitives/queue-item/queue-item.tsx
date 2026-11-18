@@ -2,7 +2,7 @@ import {createContext, useContext, type JSX} from 'solid-js'
 import {Primitive} from '../util/primitive.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useChatContext} from '../../store/chat-context.js'
-import type {SendContent, QueuedMessage} from '@conciv/protocol/chat-message-types'
+import {PromptPresentationSchema, type SendContent, type QueuedMessage} from '@conciv/protocol/chat-message-types'
 import {reportUnsent, useComposerHandlers} from '../composer/composer-handlers.js'
 
 export type {QueuedMessage} from '@conciv/protocol/chat-message-types'
@@ -29,8 +29,17 @@ function contentPartsText(parts: ContentParts): string {
   return text || attachmentLabel(parts)
 }
 
+const COUNT_PLURALS = new Intl.PluralRules('en')
+
+function noteLabel(count: number): string {
+  return `${count} ${COUNT_PLURALS.select(count) === 'one' ? 'note' : 'notes'}`
+}
+
 function queuedText(content: QueuedMessage['content']): string {
   if (typeof content === 'string') return content
+  const presented = PromptPresentationSchema.safeParse(content.metadata).data
+  if (presented?.displayText.trim()) return presented.displayText
+  if (presented && presented.comments.length > 0) return noteLabel(presented.comments.length)
   if (typeof content.content === 'string') return content.content
   return contentPartsText(content.content)
 }

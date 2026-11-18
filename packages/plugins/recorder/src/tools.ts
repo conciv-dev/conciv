@@ -2,7 +2,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Effect} from 'effect'
 import {z} from 'zod'
-import {pullWindow, renderRecording, type RecorderRuntime} from './runtime.js'
+import {MAX_SECONDS_BACK, pullWindow, renderRecording, type RecorderRuntime} from './runtime.js'
 
 const options = {namespace: 'recording', codemode: true}
 
@@ -74,7 +74,10 @@ export const register = Effect.fn('RecorderTools.register')(function* (
       name: 'pull',
       description:
         'Pull the last N seconds of the on-demand page recording. Recording happens only while a requested recording is live, so data exists only during or after a recording_start; start one before acting. Returns a semantic action log plus keyframe screenshots.',
-      input: z.object({secondsBack: z.number().int().positive().max(600).default(60), keyframes: Keyframes}),
+      input: z.object({
+        secondsBack: z.number().int().positive().max(MAX_SECONDS_BACK).default(60),
+        keyframes: Keyframes,
+      }),
       output: z.string(),
       options,
       execute: ({secondsBack, keyframes}) =>

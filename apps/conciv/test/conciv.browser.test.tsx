@@ -8821,6 +8821,8 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('{Enter}')
     await expect.element(queued()).toBeVisible()
     await expect.element(notes()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('listitem').filter({has: queued()})).toMatchTextContent(/noted/)
+    await expect.element(page.getByRole('listitem').filter({has: queued()})).not.toMatchTextContent(/The user made/)
     await stopButton().click()
     await expect.element(stopButton()).not.toBeInTheDocument()
     await expect.element(editor()).toHaveTextContent('noted')
