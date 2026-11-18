@@ -13,6 +13,7 @@ import {
   failingLabel,
   failureLocation,
   fixPrompt,
+  followTestRun,
   groupByFile,
   initialRunState,
   parseRunResult,
@@ -20,7 +21,6 @@ import {
   relativePath,
   shortDuration,
   STATE_LABEL,
-  TestEventSchema,
   transitionRun,
   type FileGroup,
   type RunAction,
@@ -231,30 +231,9 @@ function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.E
   const [run, setRun] = createStore(initialRunState)
   const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
 
-  const load = async (client: Client, signal: AbortSignal) => {
-    try {
-      const current = await client.rpc(TestRunner).current(undefined, {signal})
-      if (!signal.aborted) dispatch({type: 'current', ...current})
-    } catch (error) {
-      if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
-    }
-  }
-
-  const follow = async (client: Client, signal: AbortSignal) => {
-    try {
-      for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
-        if (event.type === 'server.connected') {
-          dispatch({type: 'connected'})
-          void load(client, signal)
-          continue
-        }
-        const parsed = TestEventSchema.safeParse(event.data)
-        if (parsed.success) dispatch(parsed.data)
-        else console.error('[test-runner] a live test event did not match its schema', parsed.error)
-      }
-    } catch (error) {
-      if (!signal.aborted) console.error('[test-runner] the live test events stopped', error)
-    }
+  const read = async (client: Client, signal: AbortSignal) => {
+    const current = await client.rpc(TestRunner).current(undefined, {signal})
+    if (!signal.aborted) dispatch({type: 'current', ...current})
   }
 
   createKeyed(
@@ -262,7 +241,7 @@ function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.E
     (client) => {
       const controller = new AbortController()
       onCleanup(() => controller.abort())
-      void follow(client, controller.signal)
+      void followTestRun(client, controller.signal, {dispatch, read})
     },
   )
 
