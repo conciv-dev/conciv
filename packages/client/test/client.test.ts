@@ -638,31 +638,40 @@ describe('session streams on the rpc socket', () => {
       const browser = makeBrowserRpcClient(booted.base)
       const abort = new AbortController()
       const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
-      const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
-      const warming = nextEvent(events)
-      booted.gate.hold()
-      const turningBefore = sendTurn(connection, sessionId, 'push-before')
-      const before = await warming
-      booted.gate.release()
-      await turningBefore
-      expect(sessionRunEvent.parse(before)).toEqual({runId: 'push-before'})
-
-      await booted.restartServer()
       const seen: ChatEvent[] = []
-      async function collect(): Promise<void> {
-        for await (const chunk of events) seen.push(chunk)
-      }
-      const collecting = collect().catch(() => undefined)
-      booted.gate.hold()
-      const turningAfter = sendTurn(connection, sessionId, 'push-after')
-      await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
-      booted.gate.release()
-      await turningAfter
+      const failures: unknown[] = []
+      const collecting: {done: Promise<void>} = {done: Promise.resolve()}
+      try {
+        const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
+        const warming = nextEvent(events)
+        booted.gate.hold()
+        const turningBefore = sendTurn(connection, sessionId, 'push-before')
+        const before = await warming
+        booted.gate.release()
+        await turningBefore
+        expect(sessionRunEvent.parse(before)).toEqual({runId: 'push-before'})
 
-      expect(seen.map((chunk) => sessionRunEvent.parse(chunk))).toEqual([{runId: 'push-after'}])
-      abort.abort()
-      await collecting
-      browser.close()
+        await booted.restartServer()
+        async function collect(): Promise<void> {
+          for await (const chunk of events) seen.push(chunk)
+        }
+        collecting.done = collect().catch((error: unknown) => {
+          if (!abort.signal.aborted || error !== abort.signal.reason) failures.push(error)
+        })
+        booted.gate.hold()
+        const turningAfter = sendTurn(connection, sessionId, 'push-after')
+        await expect.poll(() => ({seen: seen.length, failures}), {timeout: 5_000}).toEqual({seen: 1, failures: []})
+        booted.gate.release()
+        await turningAfter
+
+        expect(seen.map((chunk) => sessionRunEvent.parse(chunk))).toEqual([{runId: 'push-after'}])
+      } finally {
+        booted.gate.release()
+        abort.abort()
+        await collecting.done
+        browser.close()
+      }
+      expect(failures).toEqual([])
     })
 
     it('hands the page plane and the chat stream the one rpc connection of the api base', async () => {
