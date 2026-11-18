@@ -400,6 +400,7 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
+  connect?: boolean
 }
 
 function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; dispose: () => void} {
@@ -416,6 +417,24 @@ function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; disp
       host.remove()
     },
   }
+}
+
+function boundShellRpc(apiBase: string, session: () => string | null) {
+  return {client: makeBrowserRpcClient(apiBase, {session}), apiBase: () => apiBase, bindApiBase: undefined}
+}
+
+function connectShellRpc(session: () => string | null) {
+  const client = makeBrowserRpcClient(() => null, {session})
+  const [apiBase, setApiBase] = createSignal('')
+  const bindApiBase = (next: string) => {
+    client.bind(next)
+    setApiBase(next)
+  }
+  return {client, apiBase, bindApiBase}
+}
+
+function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
+  return options.connect ? connectShellRpc(session) : boundShellRpc(apiBase, session)
 }
 
 type ShellHarness = {
@@ -456,7 +475,9 @@ export function createShellHarness(base: () => string): ShellHarness {
       })
     if (login) void startEngineLogin(login)
     const activeSession: {read: () => string | null} = {read: () => null}
-    const client = makeBrowserRpcClient(apiBase, {session: () => activeSession.read()})
+    const session = () => activeSession.read()
+    const shellRpc = shellRpcFor(options, apiBase, session)
+    const client = shellRpc.client
     mounted.closeRpc = client.close
     const shadow = options.shadow ? mountInShadowRoot() : undefined
     mounted.removeShadow = shadow?.dispose ?? (() => {})
@@ -467,8 +488,10 @@ export function createShellHarness(base: () => string): ShellHarness {
       settings: parseConcivSettings(
         JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
       ),
-      apiBase: options.apiBase ?? (() => apiBase),
-      connected: () => (login ? engineConnected(login.status()) : true),
+      apiBase: options.apiBase ?? shellRpc.apiBase,
+      connected: () => (login ? engineConnected(login.status()) : client.bound()),
+      connectMode: options.connect,
+      bindApiBase: shellRpc.bindApiBase,
       connectionGeneration: () => 0,
       extensions,
       login,

@@ -21,6 +21,8 @@ import type {RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
 import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
+import type {GrabApi} from '@conciv/plugin/experimental/grab'
+import type {GrabApi as PaneGrab} from '@conciv/grab'
 import type {
   Layout,
   MountedSession,
@@ -78,6 +80,7 @@ type Attached = {
   current: Accessor<MountedSession | undefined>
   tabs: Omit<Tabs, 'move'>
   screen: Accessor<SessionScreen | undefined>
+  grab: Accessor<PaneGrab | undefined>
   layout: Pick<Layout, 'open' | 'close' | 'toggle' | 'hide' | 'state'> & {
     stored(plugin: string, session: SessionRef): readonly string[]
   }
@@ -205,7 +208,7 @@ export function createHostApis() {
 
     if (!connected.server(scope.server)) throw new Error(`Server ${scope.server} is unavailable`)
 
-    return {...Persist.project(name), copyFrom: storeImports(from)}
+    return {...Persist.server(name), copyFrom: storeImports(from)}
   }
 
   const apis: HostApiFactories = {
@@ -380,9 +383,25 @@ export function createHostApis() {
     ui: () => ui,
   }
 
+  const pane = () => current()?.grab()
+
+  const grab: GrabApi = {
+    pick: () => pane()?.pick() ?? Promise.resolve(null),
+    comment: () => pane()?.comment() ?? Promise.resolve(null),
+    grabbable: () => {
+      const bound = pane()
+
+      return bound ? (bound.grabbable?.() ?? true) : false
+    },
+    stage: (value) => pane()?.stage(value),
+    staged: () => pane()?.staged() ?? [],
+    clear: () => pane()?.clear(),
+  }
+
   return {
     apis,
     engine,
+    grab,
     unavailableClient: (): ConcivClient => unavailable,
     whenMounted: (run: () => void) => write(() => run()),
     attach(value: Attached) {
@@ -429,6 +448,7 @@ export function createPluginAttachment(apis: HostApis) {
   const [screen, setScreen] = createSignal<SessionScreen>()
   const [routedView, setRoutedView] = createSignal<Accessor<MountedSession | undefined>>()
   const [composer, setComposer] = createSignal<ComposerBinder>()
+  const [grab, setGrab] = createSignal<PaneGrab>()
   const refs = new Map<string, SessionRef>()
 
   const project = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
@@ -568,6 +588,7 @@ export function createPluginAttachment(apis: HostApis) {
     tabs: shell,
     mode: () => theme().scheme,
     screen,
+    grab,
     draft,
     routing: useRouterState({select: (value) => value.status === 'pending'}),
     path: useLocation({select: (location) => `${location.pathname}${location.searchStr}`}),
@@ -649,6 +670,13 @@ export function createPluginAttachment(apis: HostApis) {
 
       return () => {
         if (composer() === value) setComposer(undefined)
+      }
+    },
+    bindGrab(value: PaneGrab) {
+      setGrab(() => value)
+
+      return () => {
+        if (grab() === value) setGrab(undefined)
       }
     },
     region(value: Region) {

@@ -29,7 +29,8 @@ import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {makePageOperations, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX} from '@conciv/plugin-page/rpc'
+import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab} from '@conciv/plugin-page/rpc'
+import {readTab, reportChanges} from '../src/page/tab.js'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
 import {aimCursor, CursorLook, dropCursor, pageAt, windowAt} from '../src/page/agent-cursor.js'
@@ -2429,5 +2430,62 @@ describe('grab snapshot frame', () => {
 
     await expect.element(page.getByText('control escaped')).toBeVisible()
     await expect.element(page.getByText('snapshot escaped')).not.toBeInTheDocument()
+  })
+})
+
+describe('the page tab the agent sees', () => {
+  const tabId = `tab_${crypto.randomUUID()}`
+
+  function keepLocation() {
+    const href = location.href
+    const title = document.title
+    onTestFinished(() => {
+      history.replaceState(null, '', href)
+      document.title = title
+    })
+  }
+
+  it('hides secret search and hash values and keeps the rest', () => {
+    keepLocation()
+    history.replaceState(null, '', '/shop?token=abc&q=shoes#access_token=xyz')
+    const url = new URL(readTab(tabId).url)
+    expect({
+      path: url.origin + url.pathname,
+      search: [...url.searchParams],
+      hash: [...new URLSearchParams(url.hash.slice(1))],
+    }).toEqual({
+      path: `${location.origin}/shop`,
+      search: [
+        ['token', '[redacted]'],
+        ['q', 'shoes'],
+      ],
+      hash: [['access_token', '[redacted]']],
+    })
+  })
+
+  it('fits a very long url and title inside the rpc caps', () => {
+    keepLocation()
+    history.replaceState(null, '', `/long?q=${'a'.repeat(20_000)}`)
+    document.title = 't'.repeat(5_000)
+    const read = readTab(tabId)
+    expect(Tab.safeParse(read).success).toBe(true)
+    expect(read.url.startsWith(`${location.origin}/long?q=aaa`)).toBe(true)
+  })
+
+  it('reports again after a pushState navigation and a title change', async () => {
+    keepLocation()
+    const controller = new AbortController()
+    onTestFinished(() => controller.abort())
+    const reported = {current: Promise.withResolvers<void>()}
+    reportChanges(() => reported.current.resolve(), controller.signal)
+
+    history.pushState(null, '', '/next')
+    await reported.current.promise
+    expect(readTab(tabId).url).toBe(`${location.origin}/next`)
+
+    reported.current = Promise.withResolvers<void>()
+    document.title = 'the next page'
+    await reported.current.promise
+    expect(readTab(tabId).title).toBe('the next page')
   })
 })

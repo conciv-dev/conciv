@@ -7,6 +7,7 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
   browserRpcConnection,
+  makeBrowserRpcClient,
   makeRpcClient,
   subscribeRpcReachability,
   type RpcClient,
@@ -115,6 +116,7 @@ import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {Persist, persisted, removePersisted} from '../src/runtime/persistence/storage.js'
 import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
 import {selectDisabled} from '../src/runtime/plugin/machine.js'
 import {
@@ -1992,6 +1994,35 @@ describe('grab staging', () => {
 
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
+  })
+
+  test('the composer grab button stages the picked element, and a pick that fails says so and stages nothing', async () => {
+    let picks = 0
+    const pick = async (): Promise<Grab> => {
+      picks += 1
+      if (picks > 1) throw new Error('the page went away')
+      return HERO_GRAB
+    }
+    const grabProvider = () => ({pick, comment: pick, cancel: () => {}, isActive: () => false})
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, grabProvider}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+    const pickFromOverflow = async () => {
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    }
+
+    await pickFromOverflow()
+
+    await expect.element(snapshot()).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await userEvent.click(removeGrab())
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await pickFromOverflow()
+
+    await expect.element(page.getByText('Couldn’t grab that element. Try again.')).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
   })
 
   test('a grabbed element in a sent message shows its grab card', async () => {
@@ -6919,7 +6950,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: base})
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
@@ -7182,6 +7213,94 @@ module.exports = {default: {setup(ctx) {
     await expect
       .element(page.getByText('Page and ReactTree, fibers listed, src/app.tsx:1:0', {exact: true}))
       .toBeVisible()
+  }, 30_000)
+})
+
+describe('the grab contract reaches a plugin', () => {
+  const grabberBundle = `const {Panel, Slot, createKeyed} = require('@conciv/plugin/experimental')
+const {GrabApi} = require('@conciv/plugin/experimental/grab')
+const {createComponent, insert} = require('solid-js/web')
+const hero = () => ({
+  text: '<h1 class="title">Payroll Deposit</h1> at src/routes/index.tsx:12:9',
+  snippet: '<h1 class="title">Payroll Deposit</h1>',
+  preview: {kind: 'dom', html: '<p>Payroll Deposit clone</p>', width: 200, height: 40},
+  source: {componentName: 'Hero', filePath: 'src/routes/index.tsx', lineNumber: 12},
+  rect: {x: 0, y: 0, width: 200, height: 40},
+})
+module.exports = {default: {setup(ctx) {
+  const body = document.createElement('div')
+  const tab = document.createElement('div')
+  createKeyed(ctx.use(GrabApi), (grab) => {
+    const count = document.createElement('p')
+    insert(count, () => 'Staged ' + grab.staged().length)
+    insert(body, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage a grab'}),
+      createComponent(ctx.ui.Button, {onClick: () => grab.clear(), children: 'Clear the grabs'}),
+      count,
+    ])
+    const tabCount = document.createElement('p')
+    insert(tabCount, () => 'Tab staged ' + grab.staged().length)
+    insert(tab, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage from the tab'}),
+      tabCount,
+    ])
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => body})
+  ctx.add(Panel, {
+    id: 'grabs',
+    region: 'pane',
+    list: () => [{id: 'grabs', title: 'Grab tab', pinned: true}],
+    render: () => tab,
+  })
+}}}
+`
+  const coreBase = bootedCore('grab-contract', {
+    plugins: ['./grabber'],
+    files: {
+      'grabber/index.ts': `export default {id: 'grabber', async setup() {}}
+`,
+      'grabber/plugin-experimental.js': grabberBundle,
+    },
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin that uses GrabApi stages a grab into the composer from beside the chat and from its own tab, reads it back and clears it', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
+    const stage = page.getByRole('button', {name: 'Stage a grab', exact: true})
+    await expect.element(stage, {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await stage.click()
+
+    await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Clear the grabs', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Grab tab'}).click()
+    const stageFromTab = page.getByRole('button', {name: 'Stage from the tab', exact: true})
+    await expect.element(stageFromTab).toBeVisible()
+    await expect.element(page.getByText('Tab staged 0', {exact: true})).toBeVisible()
+
+    await stageFromTab.click()
+
+    await expect.element(page.getByText('Tab staged 1', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
   }, 30_000)
 })
 
@@ -7652,6 +7771,115 @@ describe('terminal panel', () => {
   }, 60_000)
 })
 
+const TYPED_CONNECT_PROBE_NAME = 'typed-connect-probe'
+
+function TypedConnectProbe(): JSX.Element {
+  const connect = getExtensionApi(TYPED_CONNECT_PROBE_NAME).useConnect()
+  const [address, setAddress] = createSignal('')
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        connect.found(address())
+      }}
+    >
+      <label>
+        Workspace address
+        <input value={address()} onInput={(event) => setAddress(event.currentTarget.value)} />
+      </label>
+      <button type="submit">Connect</button>
+    </form>
+  )
+}
+
+const typedConnectProbe = defineExtension({
+  name: TYPED_CONNECT_PROBE_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(TYPED_CONNECT_PROBE_NAME).useSlot() === 'connect'}>
+      <TypedConnectProbe />
+    </Show>
+  ),
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof typedConnectProbe> {}
+}
+
+describe('plugins before a core is bound', () => {
+  const coreBase = bootedCore('plugins-before-bind', {
+    tty: true,
+    models: [
+      {id: 'first-model', name: 'First model'},
+      {id: 'calm-model', name: 'Calm model'},
+    ],
+    files: {'conciv/plugins/neighbour.ts': "export default {id: 'neighbour', async setup() {}}\n"},
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const PREFS_KEY = 'conciv.global:plugin.terminal.prefs'
+  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
+  const picker = () => bar().getByRole('button', {name: 'Select model'})
+  const enginePluginStoreReads = () =>
+    coreControl.rpcCallCount(['settings', 'all'], {scope: 'global', namespace: 'plugins'})
+
+  test('a built-in plugin with a global store starts in connect mode, reads its value from this browser, and the installed plugins load once the core is bound', async () => {
+    await page.viewport(1000, 900)
+    localStorage.setItem(PREFS_KEY, JSON.stringify({model: 'calm-model'}))
+    onTestFinished(() => localStorage.removeItem(PREFS_KEY))
+    localStorage.removeItem('conciv:settings-tab')
+    harness.mountShell('/panel/connect?open=true', [typedConnectProbe], {connect: true})
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Workspace address'}))
+    await userEvent.keyboard(coreBase())
+    await userEvent.click(page.getByRole('button', {name: 'Connect'}))
+
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+    await terminalTab().click()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    expect(await enginePluginStoreReads()).toBe(0)
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
+  test('a project store opens from this browser with no core, imports an older key, and is removed', () => {
+    const unbound = makeBrowserRpcClient(() => null)
+    onTestFinished(unbound.close)
+    const OLDER = 'conciv.project:plugin.fixture.older'
+    const CURRENT = 'conciv.project:plugin.fixture.layout'
+    localStorage.setItem(OLDER, JSON.stringify({columns: 3}))
+    onTestFinished(() => {
+      localStorage.removeItem(OLDER)
+      localStorage.removeItem(CURRENT)
+    })
+    const schema = z.object({columns: z.number()})
+    const target = {...Persist.project('plugin.fixture.layout'), copyFrom: [{key: 'plugin.fixture.older'}]}
+
+    createRoot((dispose) => {
+      onTestFinished(dispose)
+      const [store, , , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+      expect(ready()).toBe(true)
+      expect(store.columns).toBe(3)
+      expect(localStorage.getItem(CURRENT)).toBe(JSON.stringify({columns: 3}))
+      expect(localStorage.getItem(OLDER)).toBeNull()
+    })
+
+    removePersisted(target, unbound.rpc)
+    expect(localStorage.getItem(CURRENT)).toBeNull()
+
+    createRoot((dispose) => {
+      onTestFinished(dispose)
+      const [store, , , ready] = persisted(target, schema, {columns: 2}, unbound.rpc)
+      expect(ready()).toBe(true)
+      expect(store.columns).toBe(2)
+    })
+  })
+})
+
 describe('plugin composer pills', () => {
   const pillsBundle = `const {ComposerPill, Slot} = require('@conciv/plugin/experimental')
 const {createComponent} = require('solid-js/web')
@@ -7988,10 +8216,12 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
   const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
+  const builtinGrab = {id: 'grab', builtin: true, enabled: true}
   const rows = (pane: boolean) => [
     builtinPage,
     builtinTestRunnerCard,
     builtinTerminal,
+    builtinGrab,
     row('pane', pane),
     {...row('broken', true), error: expect.stringMatching(/./)},
   ]
