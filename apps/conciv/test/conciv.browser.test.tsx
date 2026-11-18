@@ -413,7 +413,7 @@ describe('attachment widget', () => {
 
   function ComposerFixture(props: {
     adapter: AttachmentAdapter
-    AttachmentComponent: Component<{removable?: boolean}>
+    AttachmentComponent: Component<{onRemove?: (id: string) => void}>
     onSend?: (content: unknown) => void
     children: JSX.Element
   }): JSX.Element {
@@ -445,7 +445,7 @@ describe('attachment widget', () => {
               <AttachmentByMime cards={cards} />
             </section>
             <section aria-label="composer chip">
-              <AttachmentByMime cards={chips} removable={slotProps.removable} />
+              <AttachmentByMime cards={chips} onRemove={slotProps.onRemove} />
             </section>
           </>
         )}

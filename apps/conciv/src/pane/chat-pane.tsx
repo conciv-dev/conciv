@@ -334,8 +334,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       imageInput(),
     ),
   )
-  const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
-    <AttachmentByMime cards={attachments().chips} removable={slotProps.removable} />
+  const PaneAttachment = (slotProps: {onRemove?: (id: string) => void}): JSX.Element => (
+    <AttachmentByMime cards={attachments().chips} onRemove={slotProps.onRemove} />
   )
   const stageGrab = (grab: Grab) => {
     pane.grabStaging.stage(grab)

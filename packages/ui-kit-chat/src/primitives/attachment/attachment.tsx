@@ -7,17 +7,6 @@ const AttachmentContext = createContext<AttachmentState>()
 
 export const AttachmentProvider = AttachmentContext.Provider
 
-const AttachmentRemoveContext = createContext<(id: string) => void>()
-
-export const AttachmentRemoveProvider = AttachmentRemoveContext.Provider
-
-function useRemoveAttachment(): (id: string) => void {
-  const remove = useContext(AttachmentRemoveContext)
-  if (remove) return remove
-  const composer = useComposerContext()
-  return (id) => void composer.removeAttachment(id)
-}
-
 export function useAttachment(): AttachmentState {
   const context = useContext(AttachmentContext)
   if (!context) throw new Error('Attachment.* must be used within a Composer.Attachments / Message.Attachments')
@@ -46,9 +35,14 @@ function Thumb(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
 
 function Remove(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   const attachment = useAttachment()
-  const remove = useRemoveAttachment()
+  const composer = useComposerContext()
   return (
-    <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => remove(attachment.id)} {...props} />
+    <button
+      type="button"
+      aria-label={`Remove ${attachment.name}`}
+      onClick={() => void composer.removeAttachment(attachment.id)}
+      {...props}
+    />
   )
 }
 

@@ -2,7 +2,7 @@ import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstac
 import {For, Show, createMemo, createSignal, createUniqueId, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {AttachmentByMime, AttachmentProvider, AttachmentRemoveProvider, type AttachmentState} from '@conciv/ui-kit-chat'
+import {AttachmentByMime, AttachmentProvider, type AttachmentState} from '@conciv/ui-kit-chat'
 import type {Grab} from '@conciv/grab'
 import {GRAB_MIME, grabToFile} from '@conciv/grab/grab-attachment'
 import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
@@ -59,9 +59,7 @@ function StagedGrabStrip(): JSX.Element {
         <For each={pane.grabStaging.staged()}>
           {(grab) => (
             <AttachmentProvider value={stagedGrabAttachment(grab)}>
-              <AttachmentRemoveProvider value={() => pane.grabStaging.remove(grab)}>
-                <AttachmentByMime cards={chips()} removable />
-              </AttachmentRemoveProvider>
+              <AttachmentByMime cards={chips()} onRemove={() => pane.grabStaging.remove(grab)} />
             </AttachmentProvider>
           )}
         </For>

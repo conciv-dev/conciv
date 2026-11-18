@@ -35,7 +35,7 @@ export type PaneComposerProps = {
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
   attachmentAdapter?: AttachmentAdapter
-  AttachmentComponent?: Component<{removable?: boolean}>
+  AttachmentComponent?: Component<{onRemove?: (id: string) => void}>
 }
 
 const GHOST =
@@ -57,6 +57,20 @@ const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
 const STOPPING_LABEL = 'Stopping the run'
 const MAX_INLINE_AUTO_ACTIONS = 0
+
+function ComposerAttachment(props: {component?: Component<{onRemove?: (id: string) => void}>}): JSX.Element {
+  const context = useComposerContext()
+  const remove = (id: string): void => {
+    context.removeAttachment(id).catch((error: unknown) => {
+      console.error('[conciv] could not remove the attachment', error)
+    })
+  }
+  return (
+    <Show when={props.component} fallback={<AttachmentUI onRemove={remove} />}>
+      {(component) => <Dynamic component={component()} onRemove={remove} />}
+    </Show>
+  )
+}
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
@@ -126,13 +140,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
       class="flex flex-col relative shrink-0 [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >
       <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
-        <ComposerPrimitive.Attachments
-          component={() => (
-            <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
-              {(component) => <Dynamic component={component()} removable />}
-            </Show>
-          )}
-        />
+        <ComposerPrimitive.Attachments component={() => <ComposerAttachment component={props.AttachmentComponent} />} />
       </div>
       <div class="flex flex-wrap items-center gap-[10px] min-h-9 pe-2 ps-5">
         <Show
