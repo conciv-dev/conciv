@@ -1,11 +1,14 @@
 import {z} from 'zod'
+import {Effect, Schema} from 'effect'
 import type {Live} from '@conciv/plugin/experimental'
 import type {ReactTree} from '@conciv/plugin/experimental/page'
+import {ErrorRingService, type ErrorRing} from './error-ring.js'
+import {invalidateQuery, readQueryCache, refetchQuery, type QueryClientNotFound} from './query-adapter.js'
 import {Action, SHORT_MAX, type Method, type Reply} from './rpc.js'
-import {readRuntimeErrors} from './error-ring.js'
-import {invalidateQuery, readMutations, readQueryCache, refetchQuery} from './query-adapter.js'
 import {
+  failureMessage,
   goBack,
+  type HandlerFailed,
   invalidateRouter,
   invalidateRouterMatch,
   navigateTo,
@@ -14,40 +17,42 @@ import {
   readLoaderData,
   readRouterState,
   readRouteTree,
+  type RouterNotFound,
 } from './router-adapter.js'
 
-export type TanstackOperations = {
-  readonly execute: (name: Method, input: unknown, signal: AbortSignal) => Promise<Reply>
-}
+const PagePending = Schema.TaggedStruct('Tanstack.PagePending', {})
+const PageDisabled = Schema.TaggedStruct('Tanstack.PageDisabled', {})
+const PageFailed = Schema.TaggedStruct('Tanstack.PageFailed', {})
+const InvalidAction = Schema.TaggedStruct('Tanstack.InvalidAction', {message: Schema.String})
+const ResultTooLarge = Schema.TaggedStruct('Tanstack.ResultTooLarge', {})
+
+type OperationError =
+  | typeof PagePending.Type
+  | typeof PageDisabled.Type
+  | typeof PageFailed.Type
+  | typeof InvalidAction.Type
+  | typeof ResultTooLarge.Type
+  | RouterNotFound
+  | QueryClientNotFound
+  | HandlerFailed
 
 const JsonObject = z.record(z.string(), z.json())
-
-const PAGE_DISABLED: Reply = {
-  type: 'failure',
-  code: 'page_disabled',
-  message:
-    'The page plugin is disabled in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to enable the page plugin, then call tanstack.tabs.list({}).',
-}
-
-const PAGE_FAILED: Reply = {
-  type: 'failure',
-  code: 'page_failed',
-  message:
-    'The page plugin failed to start in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to reload the page, then call tanstack.tabs.list({}).',
-}
-
-const PAGE_PENDING: Reply = {
-  type: 'failure',
-  code: 'page_pending',
-  message:
-    'The page plugin is still starting in this tab; no action ran. Call tanstack.tabs.list({}) once it finishes starting, then retry.',
-}
 
 const RESULT_MAX = 512_000
 
 type ActionMap = {[Entry in Action as Entry['type']]: Entry}
 
-type Handlers = {[Type in keyof ActionMap]: (tree: ReactTree, action: ActionMap[Type]) => unknown}
+type Handlers = {
+  [Type in keyof ActionMap]: (
+    tree: ReactTree,
+    action: ActionMap[Type],
+  ) => Effect.Effect<unknown, OperationError, ErrorRing>
+}
+
+const readErrors = Effect.fn('tanstack.operations.errors')(function* () {
+  const ring = yield* ErrorRingService
+  return yield* ring.read(RESULT_MAX)
+})
 
 const handlers: Handlers = {
   detect: (tree) => readDetect(tree),
@@ -56,8 +61,8 @@ const handlers: Handlers = {
   data_entries: (tree) => readDataEntries(tree),
   loader_data: (tree, action) => readLoaderData(tree, action.routeId),
   data_invalidate: (tree, action) => invalidateRouterMatch(tree, action.routeId),
-  errors_snapshot: () => readRuntimeErrors(RESULT_MAX),
-  query_cache: (tree) => ({queries: readQueryCache(tree), mutations: readMutations(tree)}),
+  errors_snapshot: () => readErrors(),
+  query_cache: (tree) => readQueryCache(tree),
   query_invalidate: (tree, action) => invalidateQuery(tree, action.key),
   query_refetch: (tree, action) => refetchQuery(tree, action.key),
   navigate: (tree, action) => navigateTo(tree, action),
@@ -65,33 +70,79 @@ const handlers: Handlers = {
   back: (tree) => goBack(tree),
 }
 
-function perform<Type extends keyof ActionMap>(tree: ReactTree, type: Type, action: ActionMap[Type]): unknown {
+function perform<Type extends keyof ActionMap>(tree: ReactTree, type: Type, action: ActionMap[Type]) {
   return handlers[type](tree, action)
 }
 
-function inactive(live: Exclude<Live<ReactTree>, {readonly status: 'active'}>): Reply {
-  if (live.status === 'pending') return PAGE_PENDING
-  return live.reason === 'disabled' ? PAGE_DISABLED : PAGE_FAILED
+function invalidAction(cause: unknown) {
+  return InvalidAction.make({message: failureMessage(cause)})
 }
 
-export function makeTanstackOperations(tree: () => Live<ReactTree>): TanstackOperations {
-  async function execute(name: Method, input: unknown, signal: AbortSignal): Promise<Reply> {
-    const live = tree()
-    if (live.status !== 'active') return inactive(live)
-    try {
-      signal.throwIfAborted()
-      const action = Action.parse({...JsonObject.parse(input), type: name})
-      const value = z.json().parse(await perform(live.value, action.type, action))
-      if ((JSON.stringify(value) ?? '').length > RESULT_MAX)
-        throw new Error(
-          'TanStack result exceeds 512000 JSON characters. Ask for one route with loader_data, or a single query key, instead of the whole cache. Repeating the same request will not reduce its output.',
-        )
-      return {type: 'success', value}
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return {type: 'failure', code: 'handler_error', message: message.slice(0, SHORT_MAX)}
-    }
-  }
-
-  return {execute}
+function requireTree(live: Live<ReactTree>): Effect.Effect<ReactTree, OperationError> {
+  if (live.status === 'active') return Effect.succeed(live.value)
+  if (live.status === 'pending') return Effect.fail(PagePending.make({}))
+  if (live.reason === 'disabled') return Effect.fail(PageDisabled.make({}))
+  return Effect.fail(PageFailed.make({}))
 }
+
+function failure(code: string, message: string): Reply {
+  return {type: 'failure', code, message: message.slice(0, SHORT_MAX)}
+}
+
+const run = Effect.fn('tanstack.operations.run')(function* (name: Method, input: unknown, live: Live<ReactTree>) {
+  const tree = yield* requireTree(live)
+  const action = yield* Effect.try({
+    try: () => Action.parse({...JsonObject.parse(input), type: name}),
+    catch: invalidAction,
+  })
+  const result = yield* perform(tree, action.type, action)
+  const value = yield* Effect.try({try: () => z.json().parse(result), catch: invalidAction})
+  if ((JSON.stringify(value) ?? '').length > RESULT_MAX) return yield* Effect.fail(ResultTooLarge.make({}))
+  const reply: Reply = {type: 'success', value}
+  return reply
+})
+
+export const execute = Effect.fn('tanstack.operations.execute')(function* (
+  name: Method,
+  input: unknown,
+  live: Live<ReactTree>,
+) {
+  return yield* run(name, input, live).pipe(
+    Effect.catchTags({
+      'Tanstack.PagePending': () =>
+        Effect.succeed(
+          failure(
+            'page_pending',
+            'The page plugin is still starting in this tab; no action ran. Call tanstack.tabs.list({}) once it finishes starting, then retry.',
+          ),
+        ),
+      'Tanstack.PageDisabled': () =>
+        Effect.succeed(
+          failure(
+            'page_disabled',
+            'The page plugin is disabled in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to enable the page plugin, then call tanstack.tabs.list({}).',
+          ),
+        ),
+      'Tanstack.PageFailed': () =>
+        Effect.succeed(
+          failure(
+            'page_failed',
+            'The page plugin failed to start in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to reload the page, then call tanstack.tabs.list({}).',
+          ),
+        ),
+      'Tanstack.RouterNotFound': () => Effect.succeed(failure('router_not_found', 'TanStack router not found on page')),
+      'Tanstack.QueryClientNotFound': () =>
+        Effect.succeed(failure('query_client_not_found', 'TanStack QueryClient not found on page')),
+      'Tanstack.ResultTooLarge': () =>
+        Effect.succeed(
+          failure(
+            'handler_error',
+            'TanStack result exceeds 512000 JSON characters. Ask for one route with loader_data, or a single query key, instead of the whole cache. Repeating the same request will not reduce its output.',
+          ),
+        ),
+      'Tanstack.InvalidAction': (error) => Effect.succeed(failure('handler_error', error.message)),
+      'Tanstack.HandlerFailed': (error) => Effect.succeed(failure('handler_error', error.message)),
+    }),
+    Effect.catchDefect((defect) => Effect.succeed(failure('handler_error', failureMessage(defect)))),
+  )
+})
