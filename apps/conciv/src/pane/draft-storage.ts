@@ -250,7 +250,15 @@ function makeLocalDraftWriter(
     if (sendable()) encoded(sendChanged)
   }
   const resend = () => encoded(send)
-  const writeDocument = (serialized: string) => drafts.setDocument(sessionId, JSON.parse(serialized))
+  const stored = readLocalDraft(drafts, sessionId)
+  void stored.then((read) => {
+    if (!read || !document.draft) return
+    persisted.setStore(
+      'draft',
+      (draft) => draft && {...draft, syncedAt: read.syncedAt, sent: union(read.sent, draft.sent)},
+    )
+  })
+  const writeDocument = () => stored.then(() => drafts.setDocument(sessionId, structuredClone(unwrap(document.draft))))
   const persisted = persistStore({
     store: document,
     setStore: setDocument,
@@ -259,8 +267,8 @@ function makeLocalDraftWriter(
     delay: 0,
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
-    write: (_value, serialized) => keep(() => writeDocument(serialized)).finally(feed),
-    writeLeaving: (_value, serialized) => writeDocument(serialized).finally(feed),
+    write: () => keep(writeDocument).finally(feed),
+    writeLeaving: () => writeDocument().finally(feed),
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
     const offsets = clampSelection(selection(), draft.draft)
@@ -277,7 +285,7 @@ function makeLocalDraftWriter(
       sent: untrack(() => document.draft?.sent ?? []),
     })
   }
-  const read = () => readLocalDraft(drafts, sessionId)
+  const read = () => stored
   const kept = (): LocalDraft | null => {
     const state = persisted.state()
     if (state.status === 'hydrating' || state.status === 'disposed' || state.last === undefined) return null
