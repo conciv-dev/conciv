@@ -327,7 +327,8 @@ describe('plugin tools in code mode', () => {
         snapCall?.type === ChatEventType.TOOL_CALL_START &&
         chunk.toolCallId === snapCall.toolCallId,
     )
-    expect(snapResult?.type === ChatEventType.TOOL_CALL_RESULT ? JSON.parse(snapResult.content) : null).toEqual([
+    const snapContent = snapResult?.type === ChatEventType.TOOL_CALL_RESULT ? snapResult.content : null
+    expect(typeof snapContent === 'string' ? JSON.parse(snapContent) : snapContent).toEqual([
       {type: 'text', content: 'untrusted page data'},
       ...snapFiles,
     ])
