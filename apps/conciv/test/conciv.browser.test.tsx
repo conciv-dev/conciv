@@ -5649,7 +5649,7 @@ describe('quick refresh', () => {
 })
 
 describe('a deleted session', () => {
-  const core = bootedCore('deleted-session')
+  const core = bootedCore('deleted-session', {imageInput: 'native'})
   const harness = createShellHarness(core)
   const faults = trackedFaults()
 
@@ -5942,6 +5942,76 @@ describe('a deleted session', () => {
     await expect.element(editor().getByText(KEPT), {timeout: 8000}).toBeVisible()
     expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
     expect(await readLocalCopy(deletedId)).toBeNull()
+  }, 40_000)
+
+  describe('a draft with an image moves with New session', () => {
+    const chip = () => page.getByRole('button', {name: 'Remove pictured.png'})
+
+    async function draftThenDelete(text: string): Promise<string> {
+      const rpc = coreRpc(core())
+      const deletedId = await createSession(rpc)
+      harness.mountShell(`/panel/${deletedId}?open=true`)
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      if (text !== '') await editor().fill(text)
+      await coreControl.chooseFiles('Add an attachment', [
+        {name: 'pictured.png', mimeType: 'image/png', text: 'the bytes of pictured.png'},
+      ])
+      await expect.element(chip()).toBeVisible()
+      await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: deletedId, text})
+      await rpc.sessions.delete({sessionId: deletedId})
+      await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+      return deletedId
+    }
+
+    test('text and an image both reach the new session composer', async () => {
+      const deletedId = await draftThenDelete('words beside a picture')
+      await expect.element(movesLine()).toBeVisible()
+
+      await userEvent.click(newSessionButton())
+
+      await expect.element(editor().getByText('words beside a picture'), {timeout: 8000}).toBeVisible()
+      await expect.element(chip()).toBeVisible()
+      expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    }, 40_000)
+
+    test('an image with no text says the draft moves and reaches the new session composer', async () => {
+      await draftThenDelete('')
+      await expect.element(movesLine()).toBeVisible()
+
+      await userEvent.click(newSessionButton())
+
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      await expect.element(chip()).toBeVisible()
+    }, 40_000)
+  })
+
+  test('a draft whose session was deleted while its pane was open survives a reload of that pane and moves with New session', async () => {
+    const TYPED = 'typed in a pane whose session is then deleted'
+    const origin = new URL(core()).origin
+    onTestFinished(() => {
+      localStorage.removeItem(`conciv:engine-token:${origin}`)
+    })
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${window.location.search}#conciv_otp=${await coreControl.requestCode()}`,
+    )
+    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await editor().fill(TYPED)
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: deletedId, text: TYPED})
+    await rpc.sessions.delete({sessionId: deletedId})
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+
+    await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
+    await expect.element(movesLine()).toBeVisible()
+    await userEvent.click(newSessionButton())
+    await expect.element(editor().getByText(TYPED), {timeout: 8000}).toBeVisible()
   }, 40_000)
 
   test('compacting a session deleted elsewhere and compacting an id no session ever had both say the session no longer exists', async () => {
