@@ -46,6 +46,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:packed": "vitest run --mode packed --tags-filter=packed",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },

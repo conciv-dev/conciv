@@ -85,7 +85,16 @@ function AboutPage() {
   )
 }
 
-const aboutRoute = createRoute({getParentRoute: () => rootRoute, path: '/about', component: AboutPage})
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/about',
+  loader: async () => ({
+    server: {greeting: 'hello'},
+    local: {n: 42, tags: ['a', 'b']},
+    deep: {a: {b: {c: {d: {e: 'too-deep'}}}}},
+  }),
+  component: AboutPage,
+})
 
 function BoomPage() {
   const trigger = () => {
