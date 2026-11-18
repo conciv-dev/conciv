@@ -28,7 +28,9 @@ export type Attaching = {
 
 const CONTROL: `rpc.${typeof Definition.id}.control` = `rpc.${Definition.id}.control`
 
-const RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Schedule.recurs(6)])
+const STATE_RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Schedule.recurs(6)])
+
+const TRANSIENT_RETRY = Schedule.min([Schedule.exponential(Duration.seconds(1)), Schedule.spaced(Duration.seconds(30))])
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
@@ -135,7 +137,7 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
       const sendState = (state: Tab) =>
         send(
           Effect.tryPromise({try: (signal) => rpc.state({...attachment, state}, {signal}), catch: caught}).pipe(
-            Effect.retry({schedule: RETRY, while: retryable}),
+            Effect.retry({schedule: STATE_RETRY, while: retryable}),
           ),
         )
 
@@ -225,7 +227,7 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
 
 export function keepAttached(input: Attaching): Effect.Effect<AttachmentEnd> {
   return connectOnce(input).pipe(
-    Effect.repeat({schedule: RETRY, while: (end) => end.outcome === 'transient'}),
+    Effect.repeat({schedule: TRANSIENT_RETRY, while: (end) => end.outcome === 'transient'}),
     Effect.tap((end) => (end.outcome === 'closed' && end.attached ? woken() : Effect.void)),
     Effect.repeat({while: (end) => end.outcome === 'born' || (end.outcome === 'closed' && end.attached)}),
   )

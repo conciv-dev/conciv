@@ -26,8 +26,9 @@ engine ends while the stream stays up waits for the user to focus, click or type
 suspended pane waits for those edges (`machine.ts:739-748`, `model.ts:513-528`). An attach the engine refuses because the session
 does not exist (deleted, or a new session before its first send; the refusal type `missing`) waits on the event stream
 for `session.created` and nothing else, with no timer. An attach that fails for a passing reason (the refusal type
-`transient`: the session could not be read, or its page permissions could not be granted in time) tries again on
-`RETRY` in `attachment.ts`, 250 ms doubling, six times. Any other refusal before it attached (the session belongs to
+`transient`: the session could not be read, or its page permissions could not be granted in time) tries again
+without end on `TRANSIENT_RETRY` in `attachment.ts`, 1 s doubling to at most 30 s, as the source's registration-closed
+back-off does. Any other refusal before it attached (the session belongs to
 another location, or the page plugin is shutting down; the type `unavailable`) stops attaching until the server
 reconnects or the panel routes another session.
 
