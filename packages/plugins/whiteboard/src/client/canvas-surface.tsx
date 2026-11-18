@@ -30,14 +30,10 @@ const layerOpenBeside = (node: unknown): boolean => {
   return (root instanceof ShadowRoot || root instanceof Document) && root.querySelector(OPEN_CHAT_LAYER) !== null
 }
 
-const chatLayerOpen = (event: KeyboardEvent, layer: HTMLElement): boolean =>
-  layerOpenBeside(event.composedPath()[0]) || layerOpenBeside(layer)
+const chatLayerOpen = (event: KeyboardEvent): boolean => layerOpenBeside(event.composedPath()[0])
 
 const escapeLeftToOthers = (event: KeyboardEvent, layer: HTMLElement): boolean =>
-  event.key !== 'Escape' ||
-  insideExcalidraw(event) ||
-  event.composedPath().includes(layer) ||
-  chatLayerOpen(event, layer)
+  event.key !== 'Escape' || insideExcalidraw(event) || event.composedPath().includes(layer) || chatLayerOpen(event)
 
 type SurfaceProps = {
   client: Context['client']
