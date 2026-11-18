@@ -144,9 +144,6 @@ catalogs:
     '@solid-primitives/storage':
       specifier: ^4.4.0
       version: 4.4.0
-    '@solid-primitives/timer':
-      specifier: ^1.4.4
-      version: 1.4.4
     '@solidjs/testing-library':
       specifier: ^0.8.10
       version: 0.8.10
@@ -591,6 +588,7 @@ catalogs:
       version: 6.0.3
 
 overrides:
+  '@solid-primitives/timer': 1.4.4
   lodash-es@<4.18.0: '>=4.18.1'
   nanoid@<3.3.8: '>=3.3.8 <4'
   nanoid@>=4.0.0 <5.0.9: '>=5.0.9 <6'
@@ -3373,7 +3371,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@solid-primitives/timer':
-        specifier: 'catalog:'
+        specifier: 1.4.4
         version: 1.4.4(solid-js@1.9.17)
       '@tanstack/solid-router':
         specifier: 'catalog:'
@@ -3485,7 +3483,7 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0
       '@solid-primitives/timer':
-        specifier: 'catalog:'
+        specifier: 1.4.4
         version: 1.4.4(solid-js@1.9.17)
       lucide-solid:
         specifier: 'catalog:'
@@ -3821,7 +3819,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@solid-primitives/timer':
-        specifier: 'catalog:'
+        specifier: 1.4.4
         version: 1.4.4(solid-js@1.9.17)
       lucide-solid:
         specifier: 'catalog:'
@@ -4838,7 +4836,7 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0
       '@solid-primitives/timer':
-        specifier: 'catalog:'
+        specifier: 1.4.4
         version: 1.4.4(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
@@ -5748,7 +5746,7 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
       '@solid-primitives/timer':
-        specifier: 'catalog:'
+        specifier: 1.4.4
         version: 1.4.4(solid-js@1.9.17)
       '@tanstack/pacer':
         specifier: 'catalog:'
@@ -5942,7 +5940,7 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)
       '@solid-primitives/timer':
-        specifier: 'catalog:'
+        specifier: 1.4.4
         version: 1.4.4(solid-js@1.9.17)
       '@tanstack/solid-hotkeys':
         specifier: 'catalog:'
