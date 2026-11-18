@@ -15,9 +15,7 @@ export type {Hooks, Registration, Transform} from './registration.js'
 export type {Rule, Ruleset} from '../schema/permission.js'
 
 export type {AgentDomain, AgentEditor} from './agent.js'
-export type {BundlerDomain} from './bundler.js'
 export type {EventDomain} from './event.js'
-export type {HarnessDomain, ServerHarness} from './harness.js'
 export type {ModelDomain, ModelEditor} from './model.js'
 export type {PermissionDomain, PermissionEvaluation, PermissionHooks} from './permission.js'
 export type {RpcCallContext, RpcDomain, RpcHandlers, RpcRegistration} from './rpc.js'
@@ -28,11 +26,17 @@ export type {
   PromptInput,
   PromptInputFileAttachment,
   PromptInputSkillAttachment,
+  SessionCompaction,
+  SessionCompactionResult,
+  SessionContext,
   SessionDomain,
   SessionHooks,
   SessionIdle,
   SessionIdleBackground,
   SessionPrompt,
+  SessionRequest,
+  SessionRequestOptions,
+  SystemPart,
 } from './session.js'
 export type {SkillDomain, SkillEditor} from './skill.js'
 export type {StorageDomain} from './storage.js'

@@ -159,6 +159,8 @@ type RankedSession = {entry: RichTextFieldTriggerItem; local: boolean; rank: num
 
 const SESSION_LIMIT = 5
 
+const SESSION_READ_LIMIT = 50
+
 function rankSession(candidate: SessionCandidate, query: string, context: SessionContext): RankedSession[] {
   const session = candidate.session
   if (session.id === context.sessionId) return []
@@ -257,10 +259,15 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
   const sessionCandidates = (query: string): Promise<SessionCandidate[]> => {
     return query
       ? queryClient
-          .ensureQueryData(appData.utils.sessions.search.queryOptions({input: {term: query, everywhere: true}}))
+          .fetchQuery({
+            ...appData.utils.sessions.search.queryOptions({
+              input: {term: query, everywhere: true, limit: SESSION_READ_LIMIT},
+            }),
+            staleTime: 0,
+          })
           .then((page) => page.sessions.map((session) => ({session, local: session.cwd === null})))
       : queryClient
-          .ensureQueryData(appData.utils.sessions.list.queryOptions())
+          .fetchQuery({...appData.utils.sessions.list.queryOptions({input: {limit: SESSION_READ_LIMIT}}), staleTime: 0})
           .then((page) => page.sessions.map((session) => ({session, local: true})))
   }
   const filter = useFilter({sensitivity: 'base'})

@@ -20,6 +20,18 @@ function Root(props: {model: TerminalModel; class?: string; children: JSX.Elemen
   )
 }
 
+function focusedElement(root: Document | ShadowRoot): Element | null {
+  const active = root.activeElement
+  return active?.shadowRoot ? (focusedElement(active.shadowRoot) ?? active) : active
+}
+
+function focusStayedOnTheTab(screen: HTMLElement): boolean {
+  const focused = focusedElement(screen.ownerDocument)
+  if (focused === null || focused === screen.ownerDocument.body) return true
+  const panel = screen.closest('[role="tabpanel"]') ?? screen
+  return panel.contains(focused) || (panel.id !== '' && focused.getAttribute('aria-controls') === panel.id)
+}
+
 function Screen(props: {class?: string}): JSX.Element {
   const model = useTerminal()
   let element: HTMLDivElement | undefined = undefined
@@ -34,7 +46,7 @@ function Screen(props: {class?: string}): JSX.Element {
       injectXtermCss(screen.getRootNode())
       model.fit()
       model.connect()
-      model.focus()
+      if (focusStayedOnTheTab(screen)) model.focus()
     }
     start()
     const observer = new ResizeObserver(() => (started ? model.fit() : start()))

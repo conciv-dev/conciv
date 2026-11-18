@@ -1,0 +1,3 @@
+2026-07-24 10:15:02.100 PayApp[4210:99] booted
+2026-07-24 10:15:02.220 PayApp[4210:99] CONCIV_URL=http://127.0.0.1:8891/native
+2026-07-24 10:15:03.010 PayApp[4210:99] overlay attached
