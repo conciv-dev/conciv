@@ -7186,31 +7186,41 @@ module.exports = {default: {setup(ctx) {
 })
 
 describe('the grab contract reaches a plugin', () => {
-  const grabberBundle = `const {Slot, createKeyed} = require('@conciv/plugin/experimental')
+  const grabberBundle = `const {Panel, Slot, createKeyed} = require('@conciv/plugin/experimental')
 const {GrabApi} = require('@conciv/plugin/experimental/grab')
 const {createComponent, insert} = require('solid-js/web')
+const hero = () => ({
+  text: '<h1 class="title">Payroll Deposit</h1> at src/routes/index.tsx:12:9',
+  snippet: '<h1 class="title">Payroll Deposit</h1>',
+  preview: {kind: 'dom', html: '<p>Payroll Deposit clone</p>', width: 200, height: 40},
+  source: {componentName: 'Hero', filePath: 'src/routes/index.tsx', lineNumber: 12},
+  rect: {x: 0, y: 0, width: 200, height: 40},
+})
 module.exports = {default: {setup(ctx) {
   const body = document.createElement('div')
+  const tab = document.createElement('div')
   createKeyed(ctx.use(GrabApi), (grab) => {
     const count = document.createElement('p')
     insert(count, () => 'Staged ' + grab.staged().length)
     insert(body, [
-      createComponent(ctx.ui.Button, {
-        onClick: () =>
-          grab.stage({
-            text: '<h1 class="title">Payroll Deposit</h1> at src/routes/index.tsx:12:9',
-            snippet: '<h1 class="title">Payroll Deposit</h1>',
-            preview: {kind: 'dom', html: '<p>Payroll Deposit clone</p>', width: 200, height: 40},
-            source: {componentName: 'Hero', filePath: 'src/routes/index.tsx', lineNumber: 12},
-            rect: {x: 0, y: 0, width: 200, height: 40},
-          }),
-        children: 'Stage a grab',
-      }),
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage a grab'}),
       createComponent(ctx.ui.Button, {onClick: () => grab.clear(), children: 'Clear the grabs'}),
       count,
     ])
+    const tabCount = document.createElement('p')
+    insert(tabCount, () => 'Tab staged ' + grab.staged().length)
+    insert(tab, [
+      createComponent(ctx.ui.Button, {onClick: () => grab.stage(hero()), children: 'Stage from the tab'}),
+      tabCount,
+    ])
   })
   ctx.add(Slot, {at: 'window.bottom', render: () => body})
+  ctx.add(Panel, {
+    id: 'grabs',
+    region: 'pane',
+    list: () => [{id: 'grabs', title: 'Grab tab', pinned: true}],
+    render: () => tab,
+  })
 }}}
 `
   const coreBase = bootedCore('grab-contract', {
@@ -7225,7 +7235,7 @@ module.exports = {default: {setup(ctx) {
 
   afterEach(harness.dispose)
 
-  test('a plugin that uses GrabApi stages a grab into the composer, reads it back and clears it', async () => {
+  test('a plugin that uses GrabApi stages a grab into the composer from beside the chat and from its own tab, reads it back and clears it', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
 
@@ -7245,6 +7255,21 @@ module.exports = {default: {setup(ctx) {
 
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).not.toBeInTheDocument()
     await expect.element(page.getByText('Staged 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Grab tab'}).click()
+    const stageFromTab = page.getByRole('button', {name: 'Stage from the tab', exact: true})
+    await expect.element(stageFromTab).toBeVisible()
+    await expect.element(page.getByText('Tab staged 0', {exact: true})).toBeVisible()
+
+    await stageFromTab.click()
+
+    await expect.element(page.getByText('Tab staged 1', {exact: true})).toBeVisible()
+
+    await page.getByRole('tab', {name: 'Chat', exact: true}).click()
+
+    await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
+    await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
+    await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
   }, 30_000)
 })
 

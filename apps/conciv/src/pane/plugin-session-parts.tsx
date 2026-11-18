@@ -26,7 +26,7 @@ export function createPaneSession(sessionId: string) {
     return current?.sessionId() === sessionId ? current : undefined
   })
 
-  return {ready: host.ready, screen: attachment.shownScreen, view, binder, bindGrab: attachment.bindGrab}
+  return {ready: host.ready, screen: attachment.shownScreen, view, binder}
 }
 
 function SessionParts(props: {
@@ -112,7 +112,6 @@ export function SessionComposerBinding(props: {
   input: Accessor<ComposerInputHandle | undefined>
   focus: () => void
   restored: Promise<unknown>
-  grab: GrabApi
 }) {
   return (
     <Show when={props.pane.binder()} keyed>
@@ -127,7 +126,20 @@ export function SessionComposerBinding(props: {
           }),
         )
         binder.bindDraft(props.restored)
-        onCleanup(props.pane.bindGrab(props.grab))
+
+        return null
+      }}
+    </Show>
+  )
+}
+
+export function PaneGrabBinding(props: {sessionId: string; grab: GrabApi}) {
+  const attachment = usePluginAttachment()
+
+  return (
+    <Show when={attachment.composer()?.sessionId() === props.sessionId ? props.grab : undefined} keyed>
+      {(grab) => {
+        onCleanup(attachment.bindGrab(grab))
 
         return null
       }}
