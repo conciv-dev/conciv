@@ -88,29 +88,20 @@ const testRunnerConfig = z.object({
 </Step>
 <Step>
 
-**Setup.** `Plugin.define` names the plugin and runs `setup` when the engine loads it. `setup` adds the tools, a
-skill and the RPC handlers, then returns a cleanup.
+**Setup.** `Plugin.define` names the plugin and runs it when the engine loads it. It adds the tools, a skill and the
+RPC handlers. The test runner is written on the [promise entry](/docs/plugins/engine#the-promise-entry). The same
+steps on the Effect entry, from the recorder plugin:
 
-```ts title="src/index.ts"
+```ts title="packages/plugins/recorder/src/index.ts"
 export default Plugin.define({
-  id: 'test-runner',
-  async setup(ctx) {
-    const config = testRunnerConfig.parse(ctx.options)
-    const adapter = getRunner(config.runner) ?? vitest
-    const manager = adapter.create(ctx.location.directory)
-    await register(ctx.tool, manager)
-    await ctx.skill.transform((editor) => editor.add(info))
-    const registration = await registerRpc(ctx.rpc, manager)
-    const unsubscribe = manager.subscribeRaw((event) => {
-      registration.events.emit('event', event).catch((error: unknown) => {
-        console.error(`[test-runner] a live test event was not delivered: ${String(error)}`)
-      })
-    })
-    return () => {
-      unsubscribe()
-      return manager.stop()
-    }
-  },
+  id: 'recorder',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
+      yield* register(ctx, runtime)
+      yield* ctx.skill.transform((editor) => editor.add(info))
+      const registration = yield* registerRpc(ctx.rpc, runtime, announce).pipe(Effect.orDie)
+    }),
 })
 ```
 
