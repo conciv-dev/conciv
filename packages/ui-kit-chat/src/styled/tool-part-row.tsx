@@ -43,6 +43,7 @@ export function ToolPartRow(props: {
   ctx: ToolViewCtx
   entries: readonly ToolCardEntry[]
   render: ToolRender | undefined
+  renderPending: boolean
   disclosure: ToolDisclosure
   sessionID?: string
   ring?: boolean
@@ -71,6 +72,7 @@ export function ToolPartRow(props: {
       open={props.disclosure.open(props.part.id) ?? status() !== 'error'}
       onOpenChange={(open) => props.disclosure.setOpen(props.part.id, open)}
       render={props.render}
+      renderPending={props.renderPending}
       durationMs={durationMs()}
     />
   )

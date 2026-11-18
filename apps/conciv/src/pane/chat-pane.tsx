@@ -406,56 +406,53 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     when={!chat.isHydrating()}
                     fallback={<ConversationLoading reopened={props.opened.reopened} sessionId={sessionId} />}
                   >
-                    <Show when={toolRender.ready()} fallback={<ConversationSkeleton />}>
-                      <OlderMessages sessionId={sessionId} chat={chat} />
-                      <Show when={!chat.loadFailed()}>
-                        <Thread.Welcome>
-                          <EmptyStateSlot onStarter={sendFromButton} instances={instances} />
-                        </Thread.Welcome>
-                      </Show>
-                      <Thread.Messages
-                        sessionID={sessionId}
-                        tools={tools()}
-                        attachmentCards={attachments().cards}
-                        render={toolRender.render}
-                        turnPrefix={renderTurnPrefix}
-                        pageSession={PAGE_SESSION}
-                        refreshDisabled={!messaging.resendAllowed()}
-                      />
-                      <Show when={lastTurnStopped()}>
-                        <Divider kind="stopped" />
-                      </Show>
-                      <Show when={!chat.loadFailed()}>
-                        <For each={markerRowsAfter(lastMessageId())}>{renderDivider}</For>
-                      </Show>
-                      <Show when={compacting()}>
-                        <Divider kind="compact" pending />
-                      </Show>
-                      <Show when={asks().length > 0}>
-                        <PendingApprovals asks={asks()} ctx={toolCtx} />
-                      </Show>
-                      <Show when={narrating()}>
-                        <NarrationRow />
-                      </Show>
-                      <Show when={messaging.visibleError()}>
-                        {(error) => (
-                          <Show
-                            when={!chat.loadFailed() || sessionDeleted(error())}
-                            fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
-                          >
-                            <RunErrorRow
-                              error={error()}
-                              compacting={compacting()}
-                              onRetry={
-                                messaging.retryable() && messaging.resendAllowed()
-                                  ? () => void chat.reload()
-                                  : undefined
-                              }
-                              onCompact={() => messaging.compact.mutate()}
-                            />
-                          </Show>
-                        )}
-                      </Show>
+                    <OlderMessages sessionId={sessionId} chat={chat} />
+                    <Show when={!chat.loadFailed()}>
+                      <Thread.Welcome>
+                        <EmptyStateSlot onStarter={sendFromButton} instances={instances} />
+                      </Thread.Welcome>
+                    </Show>
+                    <Thread.Messages
+                      sessionID={sessionId}
+                      tools={tools()}
+                      attachmentCards={attachments().cards}
+                      render={toolRender.render}
+                      renderPending={toolRender.pending()}
+                      turnPrefix={renderTurnPrefix}
+                      pageSession={PAGE_SESSION}
+                      refreshDisabled={!messaging.resendAllowed()}
+                    />
+                    <Show when={lastTurnStopped()}>
+                      <Divider kind="stopped" />
+                    </Show>
+                    <Show when={!chat.loadFailed()}>
+                      <For each={markerRowsAfter(lastMessageId())}>{renderDivider}</For>
+                    </Show>
+                    <Show when={compacting()}>
+                      <Divider kind="compact" pending />
+                    </Show>
+                    <Show when={asks().length > 0}>
+                      <PendingApprovals asks={asks()} ctx={toolCtx} />
+                    </Show>
+                    <Show when={narrating()}>
+                      <NarrationRow />
+                    </Show>
+                    <Show when={messaging.visibleError()}>
+                      {(error) => (
+                        <Show
+                          when={!chat.loadFailed() || sessionDeleted(error())}
+                          fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
+                        >
+                          <RunErrorRow
+                            error={error()}
+                            compacting={compacting()}
+                            onRetry={
+                              messaging.retryable() && messaging.resendAllowed() ? () => void chat.reload() : undefined
+                            }
+                            onCompact={() => messaging.compact.mutate()}
+                          />
+                        </Show>
+                      )}
                     </Show>
                   </Show>
                 </Suspense>

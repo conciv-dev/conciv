@@ -3447,6 +3447,7 @@ module.exports = {default: {setup(ctx) {
     },
   })
   const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
 
   afterEach(async () => {
     harness.dispose()
@@ -3519,7 +3520,28 @@ module.exports = {default: {setup(ctx) {
       .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
       .toBeVisible()
     expect(reloaded.generic).toBe(false)
-  }, 60_000)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: new URL(coreBase()).origin}})
+    const loadFailed = page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})
+    await expect.element(loadFailed, {timeout: 15_000}).toBeVisible()
+    await expect.element(loadFailed.getByRole('button', {name: 'Retry', exact: true})).toBeVisible()
+
+    harness.dispose()
+    const reading = await faults.install({kind: 'gate', path: ['plugin', 'experimental']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(reading, 1)
+    await expect
+      .element(page.getByRole('button', {name: 'running registry_probe', exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(page.getByText('the registry calls are done')).toBeVisible()
+    await expect.element(page.getByText('Earlier probe card for hero', {exact: false})).not.toBeInTheDocument()
+    await coreControl.releaseFault(reading)
+    await expect
+      .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    expect(reloaded.generic).toBe(false)
+  }, 90_000)
 })
 
 describe('pane composer stopping', () => {
@@ -5349,7 +5371,10 @@ describe('engine login', () => {
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    await coreControl.scriptTurn({toolCalls: [], text: 'Answer before the revoke.'})
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'mystery_tool', input: {path: 'src/a.ts'}, result: {done: true}}],
+      text: 'Answer before the revoke.',
+    })
     await editor().fill('first question')
     await page.getByRole('button', {name: 'Send message'}).click()
     const earlierAnswer = () => page.getByRole('log').getByText('Answer before the revoke.')
@@ -5358,6 +5383,7 @@ describe('engine login', () => {
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(earlierAnswer()).toBeVisible()
+    await expect.element(page.getByRole('log').getByText('Called mystery_tool', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).not.toBeInTheDocument()
     await reloginNotice().getByRole('button', {name: 'Log in'}).click()
     await userEvent.type(firstDigit(), await coreControl.requestCode())

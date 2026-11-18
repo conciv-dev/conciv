@@ -90,6 +90,7 @@ export type ThreadMessagesProps = {
   components?: ThreadComponents
   tools?: ToolCardEntry[]
   render?: ToolRender
+  renderPending?: boolean
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
@@ -292,6 +293,7 @@ function AssistantTurn(props: {
                     ctx={ctx}
                     entries={props.entries}
                     render={props.render}
+                    renderPending={config.renderPending()}
                     disclosure={disclosure}
                     sessionID={config.sessionID()}
                     ring={branch.ring}
@@ -356,6 +358,7 @@ function AssistantTurn(props: {
                     ctx={ctx}
                     entries={props.entries}
                     render={props.render}
+                    renderPending={config.renderPending()}
                     disclosure={disclosure}
                     sessionID={config.sessionID()}
                     chain={false}
@@ -463,6 +466,7 @@ type ThreadConfig = {
   sessionID: () => string | undefined
   entries: () => ToolCardEntry[]
   render: () => ToolRender | undefined
+  renderPending: () => boolean
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
@@ -477,6 +481,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   sessionID: () => undefined,
   entries: () => [],
   render: () => undefined,
+  renderPending: () => false,
   assistant: () => undefined,
   turnPrefix: () => undefined,
   attachmentCards: () => [],
@@ -594,6 +599,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         sessionID: () => props.sessionID,
         entries: () => props.tools ?? [],
         render: () => props.render,
+        renderPending: () => props.renderPending ?? false,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
         attachmentCards: () => props.attachmentCards ?? [],

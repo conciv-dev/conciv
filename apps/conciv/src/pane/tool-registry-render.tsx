@@ -6,6 +6,7 @@ import {GenericTool} from '@conciv/ui-kit-chat/tools'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {usePluginsKnown} from '../runtime/plugin/root'
+import {useEngineReachability} from '../app/reachability'
 
 function contributed(item: Item<ToolRegistry>, render: ToolComponent): ToolComponent {
   return (props: ToolProps): JSX.Element => (
@@ -16,18 +17,22 @@ function contributed(item: Item<ToolRegistry>, render: ToolComponent): ToolCompo
 }
 
 export type ToolRender = {
-  ready: () => boolean
+  pending: () => boolean
   render: (name: string) => ToolComponent | undefined
 }
 
 export function createToolRender(): ToolRender {
   const host = usePluginHost()
   const known = usePluginsKnown()
+  const reachability = useEngineReachability()
   const renders = createMemo(() =>
     mapValues(
       keyBy(host.items(ToolRegistry), (item) => item.value.name),
       (item) => (item.value.render === undefined ? undefined : contributed(item, item.value.render)),
     ),
   )
-  return {ready: () => host.ready() && known() === 'known', render: (name) => renders()[name]}
+  return {
+    pending: () => reachability.locked() === null && !(host.ready() && known() === 'known'),
+    render: (name) => renders()[name],
+  }
 }
