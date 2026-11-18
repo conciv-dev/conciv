@@ -1,4 +1,7 @@
-export type ConsoleEntry = {level: string; ts: number; text: string}
+import type {z} from 'zod'
+import type {Operation} from '@conciv/plugin-page/rpc'
+
+export type ConsoleEntry = z.output<Extract<Operation, {readonly name: 'console'}>['output']>['entries'][number]
 
 const CONSOLE_CAP = 200
 
