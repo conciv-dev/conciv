@@ -52,12 +52,11 @@ const ThreadRead = z.object({
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
 })
 const CommentList = z.object({comments: z.array(z.object({cid: z.string()}).loose())})
-const StoredRows = z.array(z.object({id: z.string(), cid: z.string()}).loose())
 const QUIET_WRITE = {
   path: WHITEBOARD_CALL,
   input: {
     rpcId: 'whiteboard',
-    method: /^(elements\.(bulkU|u)psert|comments\.update|reads\.(insert|update|remove))$/,
+    method: /^(?!.*\.(list|get|since)$)/,
   },
 }
 
@@ -83,17 +82,17 @@ async function drawnBoxes(kit: CoreKit): Promise<z.infer<typeof DrawnBox>[]> {
   return DrawnBox.array().parse(CanvasRead.parse(await kit.callTool('whiteboard_canvas_read', {})).elements)
 }
 
-function writeBudget(startedAt: number): number {
-  return Math.ceil((Date.now() - startedAt) / ELEMENT_WRITE_THROTTLE_MS) + 2
+function writeBudget(dragMs: number): number {
+  return Math.ceil(dragMs / ELEMENT_WRITE_THROTTLE_MS) + 2
 }
 
 async function pointerDrag(page: Page, from: {x: number; y: number}, to: {x: number; y: number}): Promise<number> {
   const startedAt = Date.now()
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
-  await page.mouse.move(to.x, to.y, {steps: 40})
+  await page.mouse.move(to.x, to.y, {steps: 90})
   await page.mouse.up()
-  return startedAt
+  return Date.now() - startedAt
 }
 
 async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise<unknown> {
@@ -153,16 +152,12 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await page.mouse.click(120, 640)
       await page.keyboard.press('r')
       await expect(rectangleTool).toBeChecked()
-      const drawn = observer.mark()
       await dragRectangle(page, {x: 200, y: 200}, {x: 360, y: 320})
-      await observer.completed({
-        path: WHITEBOARD_CALL,
-        input: {rpcId: 'whiteboard', method: 'elements.upsert'},
-        since: drawn,
-      })
+      await expect
+        .poll(async () => (await drawnBoxes(widget.kit)).map((box) => ({width: box.width, height: box.height})))
+        .toEqual([{width: 160, height: 120}])
       expect(await canvasTypes(widget.kit)).toEqual(['rectangle'])
       const [drawnBox] = await drawnBoxes(widget.kit)
-      expect(drawnBox).toMatchObject({width: 160, height: 120})
       const startX = drawnBox?.x ?? 0
 
       const elementWrite = (method: string, since: number) => ({
@@ -173,12 +168,13 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       const selectionTool = page.getByRole('radio', {name: /Selection/})
       await expect(selectionTool).toBeChecked()
       const singleDrag = observer.mark()
-      const singleStartedAt = await pointerDrag(page, {x: 280, y: 260}, {x: 280 + DRAG_DISTANCE, y: 260})
+      const singleDragMs = await pointerDrag(page, {x: 280, y: 260}, {x: 280 + DRAG_DISTANCE, y: 260})
       await expect.poll(async () => (await drawnBoxes(widget.kit))[0]?.x).toBe(startX + DRAG_DISTANCE)
       const singleWrites = observer.startedCount(elementWrite('elements.upsert', singleDrag))
       expect(singleWrites).toBeGreaterThan(1)
-      expect(singleWrites).toBeLessThanOrEqual(writeBudget(singleStartedAt))
+      expect(singleWrites).toBeLessThanOrEqual(writeBudget(singleDragMs))
       expect(observer.startedCount(elementWrite('elements.bulkUpsert', singleDrag))).toBe(0)
+      expect((await drawnBoxes(widget.kit))[0]).toMatchObject({width: 160, height: 120})
 
       await page.keyboard.press('r')
       await expect(rectangleTool).toBeChecked()
@@ -190,15 +186,16 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       await expect(selectionTool).toBeChecked()
       await dragRectangle(page, {x: 380, y: 170}, {x: 800, y: 350})
       const groupDrag = observer.mark()
-      const groupStartedAt = await pointerDrag(page, {x: 480, y: 260}, {x: 480, y: 260 + DRAG_DISTANCE})
+      const groupDragMs = await pointerDrag(page, {x: 480, y: 260}, {x: 480, y: 260 + DRAG_DISTANCE})
       await expect
         .poll(async () => (await drawnBoxes(widget.kit)).map((box) => box.y))
         .toEqual(beforeGroupDrag.map((box) => box.y + DRAG_DISTANCE))
       const groupBulkWrites = observer.startedCount(elementWrite('elements.bulkUpsert', groupDrag))
       expect(groupBulkWrites).toBeGreaterThan(0)
       expect(groupBulkWrites + observer.startedCount(elementWrite('elements.upsert', groupDrag))).toBeLessThanOrEqual(
-        writeBudget(groupStartedAt),
+        writeBudget(groupDragMs),
       )
+      expect((await drawnBoxes(widget.kit))[0]).toMatchObject({width: 160, height: 120})
 
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
       const stop = page.getByRole('button', {name: 'Stop generating'})
@@ -629,6 +626,13 @@ describe('the comments of the whiteboard plugin', () => {
       await openChat(page)
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+      await page.mouse.click(120, 700)
+      await page.keyboard.press('r')
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeChecked()
+      await dragRectangle(page, {x: 180, y: 560}, {x: 460, y: 640})
+      await expect
+        .poll(async () => (await drawnBoxes(widget.kit)).map((box) => ({width: box.width, height: box.height})))
+        .toEqual([{width: 280, height: 80}])
 
       await widget.kit.callTool('whiteboard_comment_create', {
         cid: 'agent-first',
@@ -667,7 +671,7 @@ describe('the comments of the whiteboard plugin', () => {
         input: {rpcId: 'whiteboard', method: 'pins.update'},
         since: dragged,
       })
-      expect(observer.startedCount({...QUIET_WRITE, since: quiet})).toBe(0)
+      expect(observer.startedCount({...QUIET_WRITE, since: quiet})).toBe(1)
       expect(
         observer.startedCount({
           path: WHITEBOARD_CALL,
@@ -927,21 +931,7 @@ describe('the comments of the whiteboard plugin', () => {
 
       await readPin.click()
       await expect(thread.getByText('this label is off by one')).toBeVisible()
-      const removeRow = async (table: 'comments' | 'pins') => {
-        const rows = StoredRows.parse(
-          await widget.kit.rpc.plugin.call(
-            {rpcId: 'whiteboard', method: `${table}.list`, input: {room}},
-            {signal: AbortSignal.timeout(30_000)},
-          ),
-        )
-        const linked = rows.find((row) => row.cid === 'linked')
-        await widget.kit.rpc.plugin.call(
-          {rpcId: 'whiteboard', method: `${table}.remove`, input: {room, id: linked?.id}},
-          {signal: AbortSignal.timeout(30_000)},
-        )
-      }
-      await removeRow('comments')
-      await removeRow('pins')
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'linked'})
       await expect(thread).toBeHidden()
       await expect(page.getByRole('button', {name: 'Close thread'})).toHaveCount(0)
       await expect(page.getByRole('button', {name: 'Resolve thread'})).toHaveCount(0)
