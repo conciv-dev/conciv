@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTool` row (through `PageTool` in `shared.tsx`) with the page operation's own label as its title. `page-tool-cards.ts` binds the cards to the page tool names, the page plugin registers one render per name in its setup, and each render reads its element captures through the page plugin's own captures query (`../session-captures.tsx`). `SessionCard` is the group entry for `PAGE_SESSION_GROUP_KEY` groups and reads the same captures. An errored call never reaches a card: the thread draws it as the error card. `session-steps.ts` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.tsx` holds the builders the stories use.
+Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTool` row (through `PageTool` in `shared.tsx`) with the page operation's own label as its title. `page-tool-cards.ts` binds the cards to the page tool names, the page plugin registers one render per name in its setup, and each render reads its element captures through the page plugin's own captures query (`../session-captures.tsx`). `SessionCard` is the group entry for `PAGE_SESSION_GROUP_KEY` groups and reads the same captures. An errored call never reaches a card: the plugin registers `PageFailedTool` (`shared.tsx`) as each name's `errorComponent`, the error card titled with the page operation. `session-steps.ts` turns a run of page tool calls into `PageSessionStep` rows. `story.fixtures.tsx` holds the builders the stories use.
 
 ## Invariants
 

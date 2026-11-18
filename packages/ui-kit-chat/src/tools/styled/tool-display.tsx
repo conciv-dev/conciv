@@ -1,7 +1,7 @@
 import {createMemo, Match, splitProps, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Dynamic} from 'solid-js/web'
-import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import type {ToolComponent, ToolProps, ToolRegistry} from '@conciv/plugin/experimental'
 import {BasicTool, GenericTool} from './basic-tool.js'
 import {ToolErrorCard} from './tool-error-card.js'
 import {ToolPartProvider} from './card-chrome.js'
@@ -9,7 +9,7 @@ import {toolErrorSubtitle, webSearchProviderLabel} from '../primitives/tool-erro
 
 export type ToolDisplayProps = ToolProps & {
   id: string
-  render?: (name: string) => ToolComponent | undefined
+  render?: (name: string) => ToolRegistry | undefined
   renderPending?: boolean
   durationMs?: number
   tag?: string
@@ -33,13 +33,15 @@ export function ToolDisplay(props: ToolDisplayProps): JSX.Element {
   const errorTitle = () =>
     tool.tool === 'websearch' ? webSearchProviderLabel(ProviderSchema.parse(tool.metadata.provider)) : undefined
   const errorSubtitle = createMemo(() => toolErrorSubtitle(tool))
-  const render = createMemo(
-    (): ToolComponent => local.render?.(tool.tool) ?? (local.renderPending ? PendingTool : GenericTool),
-  )
+  const entry = createMemo(() => local.render?.(tool.tool))
+  const render = createMemo((): ToolComponent => entry()?.render ?? (local.renderPending ? PendingTool : GenericTool))
   return (
     <ToolPartProvider callId={local.id} tag={local.tag} duration={durationMs}>
       <div data-component="tool-part-wrapper" data-timeline-part-id={local.id} class="min-w-0 w-full">
         <Switch>
+          <Match when={error() !== undefined && entry()?.errorComponent}>
+            {(errorComponent) => <Dynamic component={errorComponent()} {...tool} error={error()} />}
+          </Match>
           <Match when={error() !== undefined}>
             <ToolErrorCard
               tool={tool.tool}

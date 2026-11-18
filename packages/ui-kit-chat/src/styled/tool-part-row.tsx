@@ -1,6 +1,6 @@
 import {createMemo, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolComponent} from '@conciv/plugin/experimental'
+import type {ToolRegistry} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {toolCallDuration} from '@conciv/protocol/chat-event-types'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
@@ -11,7 +11,7 @@ import {ToolDisplay} from '../tools/styled/tool-display.js'
 import {outsideTag, ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {ROW_ITEM} from './trace/trace-row.js'
 
-export type ToolRender = (name: string) => ToolComponent | undefined
+export type ToolRender = (name: string) => ToolRegistry | undefined
 
 export type ToolDisclosure = {
   open: (partId: string) => boolean | undefined
@@ -51,7 +51,7 @@ export function ToolPartRow(props: {
 }): JSX.Element {
   const status = () => STATUS[toolStatus(props.part, props.result)]
   const entry = createMemo(() =>
-    status() === 'error' || props.render?.(props.part.name) !== undefined
+    status() === 'error' || props.render?.(props.part.name)?.render !== undefined
       ? undefined
       : findToolEntry(props.entries, props.part),
   )

@@ -565,12 +565,13 @@ export type ToolComponent = Component<ToolProps>
 export interface ToolRegistry {
   readonly name: string
   readonly render?: ToolComponent
+  readonly errorComponent?: ToolComponent
 }
 
 /**
  * The registry of tool renders, by tool name. A call to the tool draws the render of the most recently loaded plugin
  * that registered the name; when that plugin unloads, the earlier one draws again. A tool with no render draws the
- * generic card, and a call that failed draws the error card.
+ * generic card. A call that failed draws the winning entry's errorComponent, or the error card when it has none.
  *
  * @example
  * ```tsx

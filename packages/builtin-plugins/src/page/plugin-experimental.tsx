@@ -10,6 +10,7 @@ import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCards} from './cards/page-tool-cards.js'
 import {SessionCaptures} from './session-captures.js'
+import {PageFailedTool} from './cards/shared.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
 import {readTab, reportChanges} from './tab.js'
 
@@ -136,6 +137,7 @@ export default Plugin.define({
               <Dynamic component={card} {...props} />
             </SessionCaptures>
           ),
+          errorComponent: PageFailedTool,
         }),
       ),
     )

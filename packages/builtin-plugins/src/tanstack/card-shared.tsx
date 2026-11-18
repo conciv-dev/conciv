@@ -1,10 +1,10 @@
 import {splitProps, Switch, Match, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {isPlainObject} from 'es-toolkit'
+import {isPlainObject, lowerCase, upperFirst} from 'es-toolkit'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import {Operations, type Operation} from '@conciv/plugin-tanstack/rpc'
 import {tanstackToolMeta} from './tanstack-tool-names.js'
-import {BasicTool, CodeBlock, JsonTree} from '@conciv/ui-kit-chat/tools'
+import {BasicTool, CodeBlock, JsonTree, ToolErrorCard} from '@conciv/ui-kit-chat/tools'
 
 export function tanstackOperation<const Name extends Operation['name']>(name: Name): Extract<Operation, {name: Name}> {
   const operation = Operations.find(
@@ -84,5 +84,18 @@ export function InspectionCard(
     >
       {local.children}
     </BasicTool>
+  )
+}
+
+export function TanstackFailedCard(props: ToolProps): JSX.Element {
+  return (
+    <ToolErrorCard
+      tool={props.tool}
+      error={props.error ?? ''}
+      title={upperFirst(lowerCase(props.tool.replace(/^tanstack_/, '')))}
+      defaultOpen={props.defaultOpen}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+    />
   )
 }

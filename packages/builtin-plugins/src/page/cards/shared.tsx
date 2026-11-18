@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {lowerCase} from 'es-toolkit'
 import {For, Show, splitProps, type JSX} from 'solid-js'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -13,9 +14,10 @@ import {
   parseInput,
   parseResultMedia,
   resultText,
+  ToolErrorCard,
   type CardChip,
 } from '@conciv/ui-kit-chat/tools'
-import {pageToolMeta} from './page-tool-names.js'
+import {pageToolMeta, pageVerbOfTool} from './page-tool-names.js'
 
 export const ELEMENT_TARGET_KEYS = new Set(['selector', 'ref', 'name'])
 
@@ -135,4 +137,17 @@ export function cardErrorMessage(result: ToolResultPart | undefined): string | u
   if (typeof direct === 'string' && direct.length > 0) return direct
   const text = resultText(result)
   return text.length > 0 ? text : undefined
+}
+
+export function PageFailedTool(props: ToolProps): JSX.Element {
+  return (
+    <ToolErrorCard
+      tool={props.tool}
+      error={props.error ?? ''}
+      title={`Page ${lowerCase(pageVerbOfTool(props.tool))}`}
+      defaultOpen={props.defaultOpen}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+    />
+  )
 }

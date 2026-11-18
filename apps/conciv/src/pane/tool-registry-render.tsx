@@ -2,23 +2,35 @@ import {createMemo, mapArray, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {keyBy, mapValues} from 'es-toolkit'
 import {ToolRegistry, type ToolComponent, type ToolProps} from '@conciv/plugin/experimental'
-import {GenericTool} from '@conciv/ui-kit-chat/tools'
+import {GenericTool, ToolErrorCard} from '@conciv/ui-kit-chat/tools'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {usePluginsKnown} from '../runtime/plugin/root'
 import {useEngineReachability} from '../app/reachability'
 
-function contributed(item: Item<ToolRegistry>, render: ToolComponent): ToolComponent {
+function contributed(item: Item<ToolRegistry>, render: ToolComponent, Fallback: ToolComponent): ToolComponent {
   return (props: ToolProps): JSX.Element => (
-    <Contribution plugin={item.plugin} fallback={() => <GenericTool {...props} />}>
+    <Contribution plugin={item.plugin} fallback={() => <Fallback {...props} />}>
       {() => <Dynamic component={render} {...props} />}
     </Contribution>
   )
 }
 
+function FailedTool(props: ToolProps): JSX.Element {
+  return (
+    <ToolErrorCard
+      tool={props.tool}
+      error={props.error ?? ''}
+      defaultOpen={props.defaultOpen}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+    />
+  )
+}
+
 export type ToolRender = {
   pending: () => boolean
-  render: (name: string) => ToolComponent | undefined
+  render: (name: string) => ToolRegistry | undefined
 }
 
 export function createToolRender(): ToolRender {
@@ -28,16 +40,20 @@ export function createToolRender(): ToolRender {
   const wrapped = createMemo(
     mapArray(
       () => host.items(ToolRegistry),
-      (item) => ({
+      (item): ToolRegistry => ({
         name: item.value.name,
-        render: item.value.render === undefined ? undefined : contributed(item, item.value.render),
+        render: item.value.render === undefined ? undefined : contributed(item, item.value.render, GenericTool),
+        errorComponent:
+          item.value.errorComponent === undefined
+            ? undefined
+            : contributed(item, item.value.errorComponent, FailedTool),
       }),
     ),
   )
   const renders = createMemo(() =>
     mapValues(
       keyBy(wrapped(), (entry) => entry.name),
-      (entry) => entry.render,
+      (entry) => entry,
     ),
   )
   return {
