@@ -256,6 +256,7 @@ function makeLocalDraftWriter(
     setStore: setDocument,
     name: sessionId,
     storage: NoLocalHydration,
+    delay: 0,
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
     write: (_value, serialized) => keep(() => writeDocument(serialized)).finally(feed),

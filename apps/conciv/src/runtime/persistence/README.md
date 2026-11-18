@@ -12,7 +12,7 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   write before it. A write whose blobs are looked up first still needs those lookups to answer before it commits.
 - `persistStore` takes a `writeLeaving` writer beside `write` (`persist.ts`): the flush when the page is left
   (`flushPersisted(true)`, on `pagehide`) uses it; the flush when the page is hidden (`flushPersisted()`, on
-  `visibilitychange` to hidden), the 100 ms batch and the flush when the owner is disposed use `write`, so while the
+  `visibilitychange` to hidden), the batch (none for the drafts, whose store takes a zero `delay`) and the flush when the owner is disposed use `write`, so while the
   page lives on every write stays on the chain in order and an older chain step never lands after a newer direct
   write. The source has one writer. conciv's draft writer queues each write on the
   app's one draft write chain, and a write queued behind a write still in flight never opened its transaction before
@@ -23,7 +23,7 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   `pending` while one is in flight (`holdsUnsavedWork`). The flush when the page is left first sends the machine a
   `left` event, which starts that unsettled write again through `writeLeaving`. The source drops a store from `pending`
   as soon as its batch timer fires, so `pagehide` never sees a write still in flight. Its draft writer opens its
-  transaction at once, so that rarely matters there; conciv's batch write can wait on the draft write chain, or be
+  transaction at once, so that rarely matters there; conciv's draft write can wait on the draft write chain, or be
   committing when the page goes, and was lost on a reload right after typing.
 - The draft database closes itself when another tab opens it at a newer version (`drafts.ts`, the `versionchange`
   listener). The source keeps it open, so one old tab blocks every newer one for as long as it lives. After the close,
