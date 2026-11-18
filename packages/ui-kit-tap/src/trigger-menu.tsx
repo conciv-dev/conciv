@@ -148,7 +148,7 @@ function MenuPanel(props: {
         <Show when={icon}>
           {(shown) => (
             <span role="img" aria-label={shown().name} class={`${ROW_ICON}  ${ICON_TONE[shown().tone ?? 'neutral']}`}>
-              <Dynamic component={shown().component} class="size-4" />
+              <Dynamic component={shown().component} class="size-3.5" />
             </span>
           )}
         </Show>
