@@ -79,6 +79,10 @@ function placeAfterSlash(commands: WidgetCommand[]): WidgetCommand[] {
   return commands.filter((command) => !follows(command)).flatMap(place)
 }
 
+function findWidgetCommand(commands: WidgetCommand[], name: string): WidgetCommand | undefined {
+  return commands.find((command) => command.name === name)
+}
+
 function widgetCommandEntry(command: WidgetCommand): RichTextFieldTriggerItem {
   return {
     id: command.name,
@@ -149,9 +153,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
   const runTyped = (text: string): boolean => {
     const typed = parseTyped(text)
     if (!typed) return false
-    const command = widgetCommands().find(
-      (candidate) => candidate.name === typed.name && (candidate.arguments || typed.input === undefined),
-    )
+    const command = findWidgetCommand(widgetCommands(), typed.name)
     if (!command) return false
     command.run(typed.input)
     return true
@@ -174,7 +176,7 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
           .catch(() => [])
         const widget = widgetCommands()
         const harnessEntries = harnessCommands
-          .filter((command) => !widget.some((candidate) => candidate.name === command.name))
+          .filter((command) => !findWidgetCommand(widget, command.name))
           .map(commandEntry)
         return matchingItems([...widget.map(widgetCommandEntry), ...harnessEntries], query, matcher())
       },
