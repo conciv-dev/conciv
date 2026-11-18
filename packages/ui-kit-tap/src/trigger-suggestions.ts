@@ -102,7 +102,9 @@ function insertChip(char: string) {
 
 function anchorRect(dispatch: SuggestionDispatch): AnchoredListboxRect | null {
   const rect = dispatch.clientRect?.() ?? null
-  return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
+  if (!rect) return null
+  const editorTop = dispatch.editor.view.dom.getBoundingClientRect().top
+  return {x: rect.x, y: editorTop, width: rect.width, height: rect.bottom - editorTop}
 }
 
 function commitItem(dispatch: SuggestionDispatch, item: RichTextFieldTriggerItem): void {
