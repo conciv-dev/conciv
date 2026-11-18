@@ -598,6 +598,7 @@ describe('the comments of the whiteboard plugin', () => {
       await thread.getByRole('button', {name: 'Previous thread'}).click()
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
       await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
+      await expect(thread.getByRole('button', {name: 'Next thread'})).toBeFocused()
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
@@ -679,6 +680,7 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(thread.getByText('the button has no focus ring')).toBeVisible()
       await expect(thread.getByText('the header overlaps the logo')).toBeHidden()
       await expect(thread.getByRole('button', {name: 'Next thread'})).toBeDisabled()
+      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeFocused()
       await thread.getByRole('button', {name: 'Previous thread'}).click()
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
 
