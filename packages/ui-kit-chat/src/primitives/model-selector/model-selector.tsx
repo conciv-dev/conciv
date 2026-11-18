@@ -169,7 +169,7 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
         }}
         openOnClick
         selectionBehavior="clear"
-        positioning={{strategy: 'fixed', placement: 'top-start', gutter: 6}}
+        positioning={{strategy: 'fixed', placement: 'top-start', gutter: 6, sameWidth: false}}
       >
         {props.children}
       </Combobox.Root>

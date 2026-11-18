@@ -45,7 +45,7 @@ import {startConsoleBuffer, type ConsoleEntry} from './console-buffer.js'
 import {unwatchLayout} from './agent-cursor.js'
 import {badArgs, fail} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
-import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
+import {actionable, fill, focusedElement, hover, isDisabled, press, select, setChecked} from './page-act.js'
 import {Operations, SHORT_MAX, type Action, type Command, type File, type Outcome} from '@conciv/plugin-page/rpc'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
@@ -53,6 +53,7 @@ import {
   acceptQueue,
   arriveAt,
   finishQueue,
+  isHtml,
   landQueued,
   pointAt,
   queueStopped,
@@ -62,7 +63,7 @@ import {
   type Beat,
 } from './simulator.js'
 
-type Locator = {ref?: string; selector?: string; name?: string}
+type Locator = Omit<Extract<Action, {type: 'dom'}>, 'type' | 'tabId'>
 
 type Queued = NonNullable<Command['queued']>
 
@@ -241,7 +242,7 @@ async function fillForm(
   return ok()
 }
 
-const INSERT_POS: Record<string, InsertPosition> = {
+const INSERT_POS: Record<NonNullable<Extract<Action, {type: 'insert'}>['position']>, InsertPosition> = {
   before: 'beforebegin',
   after: 'afterend',
   prepend: 'afterbegin',
@@ -535,7 +536,7 @@ function perform(
       })
     case 'insert':
       return touching(() => {
-        call.target(action).insertAdjacentHTML(INSERT_POS[action.position ?? 'append'] ?? 'beforeend', action.html)
+        call.target(action).insertAdjacentHTML(INSERT_POS[action.position ?? 'append'], action.html)
         return ok()
       })
     case 'css':

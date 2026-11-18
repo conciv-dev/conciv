@@ -1,6 +1,58 @@
-import type {RpcClient, SettingsScope, SettingsSnapshot} from '@conciv/contract'
-import {createSettingsStore} from './settings-store.js'
-import type {Settings, SettingsState} from './types.js'
+import {createDefu} from 'defu'
+import {z} from 'zod'
+import type {RpcClient} from './client.js'
+import type {SettingsScope, SettingsSnapshot} from './contract.js'
+
+export type SettingsStore<T extends object = Record<string, unknown>> = {
+  get: <K extends keyof T>(key: K) => Promise<T[K] | undefined>
+  set: <K extends keyof T>(key: K, value: T[K]) => Promise<void>
+  delete: <K extends keyof T>(key: K) => Promise<void>
+  all: () => Promise<Readonly<T>>
+  onChange: (fn: (value: Readonly<T>) => void) => Promise<() => void>
+}
+
+export type Settings<T extends object = Record<string, unknown>> = {
+  global: SettingsStore<T>
+  project: SettingsStore<T>
+}
+
+export type SettingsState = {
+  read: () => Promise<SettingsSnapshot>
+  set: (key: string, value: unknown) => Promise<SettingsSnapshot>
+  delete: (key: string) => Promise<SettingsSnapshot>
+  subscribe: (listener: (snapshot: SettingsSnapshot) => void) => Promise<() => void>
+}
+
+export function createSettingsStore<T extends object>(store: () => Promise<SettingsState>): SettingsStore<T> {
+  const settings = z.custom<T>((value) => typeof value === 'object' && value !== null)
+  return {
+    get: async (key) => {
+      const value = settings.parse((await (await store()).read()).value)
+      return Object.hasOwn(value, key) ? value[key] : undefined
+    },
+    set: async (key, value) => {
+      await (await store()).set(String(key), value)
+    },
+    delete: async (key) => {
+      await (await store()).delete(String(key))
+    },
+    all: async () => settings.parse((await (await store()).read()).value),
+    onChange: async (fn) => (await store()).subscribe((snapshot) => fn(settings.parse(snapshot.value))),
+  }
+}
+
+const projectOverGlobal = createDefu((object: Record<PropertyKey, unknown>, key, value) => {
+  if (!Array.isArray(value)) return false
+  object[key] = value
+  return true
+})
+
+export function mergeSettings(
+  project: Record<string, unknown>,
+  global: Record<string, unknown>,
+): Record<string, unknown> {
+  return projectOverGlobal(project, global)
+}
 
 export function createClientSettings<T extends object = Record<string, unknown>>(
   rpc: RpcClient,
