@@ -75,14 +75,10 @@ export function hasPayloadOrError(result: ToolCardProps['result']): boolean {
   return cardErrorMessage(result) !== undefined || cardPayload(result) !== undefined
 }
 
-const ErrorPayload = z.looseObject({message: z.string().min(1)})
-
 export function cardErrorMessage(result: ToolCardProps['result']): string | undefined {
   if (result?.state !== 'error') return undefined
   const direct = result.error
   if (typeof direct === 'string' && direct.length > 0) return direct
-  const payload = ErrorPayload.safeParse(parseResultPayload(result))
-  if (payload.success) return payload.data.message
   const text = resultText(result)
   return text.length > 0 ? text : undefined
 }
