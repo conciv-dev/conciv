@@ -200,8 +200,8 @@ export function PluginAttachment(props: ParentProps) {
           />
         )}
       </Show>
-      <Show when={host.ready()}>
-        <MountedInterface attach={attachment.attach} />
+      <Show when={host.ready() ? attachment.root() : undefined}>
+        {(root) => <MountedInterface attach={() => attachment.attach(root())} />}
       </Show>
       {props.children}
     </PluginAttachmentProvider>

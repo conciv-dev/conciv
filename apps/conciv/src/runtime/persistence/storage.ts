@@ -2,10 +2,17 @@ import type {RpcClient, SettingsScope} from '@conciv/contract'
 import type {AsyncStorage, SyncStorage} from '@solid-primitives/storage'
 import type {StoreType} from '@conciv/plugin/experimental'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {getOwner, onCleanup, type Accessor} from 'solid-js'
+import {createSignal, getOwner, onCleanup, untrack, type Accessor} from 'solid-js'
 import {createStore, type SetStoreFunction, type Store} from 'solid-js/store'
 import {persistStore} from './persist'
 import {canWriteBackHydration} from './persist-machine'
+import {
+  canEvict,
+  INITIAL_LOCAL_STORAGE_STATE,
+  isStorageNoticePending,
+  transitionLocalStorage,
+  type LocalStorageEvent,
+} from './storage-machine'
 import {assertStoreDefinition, assertStoreWrite, withInitial, type Encode} from './schema'
 import {settingsStorage} from './settings-storage'
 
@@ -58,38 +65,207 @@ const GLOBAL_STORAGE = 'conciv.global'
 
 const PROJECT_STORAGE = 'conciv.project'
 
+const LOCAL_PREFIXES = [`${GLOBAL_STORAGE}:`, `${PROJECT_STORAGE}.`]
+
+const [localStorageState, setLocalStorageState] = createSignal(INITIAL_LOCAL_STORAGE_STATE)
+
+function dispatchLocalStorage(event: LocalStorageEvent) {
+  setLocalStorageState((state) => transitionLocalStorage(state, event))
+}
+
+export function localStorageNoticePending() {
+  return isStorageNoticePending(localStorageState())
+}
+
+export function acknowledgeLocalStorageNotice() {
+  dispatchLocalStorage({type: 'notice.shown'})
+}
+
+const CACHE_MAX_ENTRIES = 500
+
+const CACHE_MAX_BYTES = 8 * 1024 * 1024
+
+type CacheEntry = {value: string; bytes: number}
+
+const cache = new Map<string, CacheEntry>()
+
+const cacheTotal = {bytes: 0}
+
+function cacheDelete(key: string) {
+  const entry = cache.get(key)
+
+  if (!entry) return
+  cacheTotal.bytes -= entry.bytes
+  cache.delete(key)
+}
+
+function cachePrune() {
+  for (;;) {
+    if (cache.size <= CACHE_MAX_ENTRIES && cacheTotal.bytes <= CACHE_MAX_BYTES) return
+    const oldest = cache.keys().next()
+
+    if (oldest.done) return
+    cacheDelete(oldest.value)
+  }
+}
+
+function cacheSet(key: string, value: string) {
+  const bytes = value.length * 2
+
+  if (bytes > CACHE_MAX_BYTES) {
+    cacheDelete(key)
+
+    return
+  }
+
+  const entry = cache.get(key)
+
+  if (entry) cacheTotal.bytes -= entry.bytes
+  cache.delete(key)
+  cache.set(key, {value, bytes})
+  cacheTotal.bytes += bytes
+  cachePrune()
+}
+
+function cacheGet(key: string) {
+  const entry = cache.get(key)
+
+  if (!entry) return
+  cache.delete(key)
+  cache.set(key, entry)
+
+  return entry.value
+}
+
+const QUOTA_NAMES = new Set(['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED', 'QUOTA_EXCEEDED_ERR'])
+
+function quota(error: unknown) {
+  if (error instanceof DOMException) return QUOTA_NAMES.has(error.name) || error.code === 22 || error.code === 1014
+
+  if (!(error instanceof Error)) return false
+
+  return QUOTA_NAMES.has(error.name) || /quota/i.test(error.name) || /quota/i.test(error.message)
+}
+
+function write(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+    cacheSet(key, value)
+
+    return true
+  } catch (error) {
+    if (!quota(error) || !canEvict(untrack(localStorageState), Date.now())) {
+      console.error(`[persistence] write failed for ${key}`, error)
+      dispatchLocalStorage({type: 'write.failed'})
+
+      return false
+    }
+  }
+
+  if (evict(localStorage, key, value)) {
+    dispatchLocalStorage({type: 'eviction.succeeded'})
+
+    return true
+  }
+
+  console.error(`[persistence] write failed for ${key}: this browser's storage is full`)
+  dispatchLocalStorage({type: 'eviction.failed', now: Date.now()})
+
+  return false
+}
+
+function evict(storage: Storage, keep: string, value: string) {
+  const items = Array.from({length: storage.length}, (_, index) => storage.key(index))
+    .filter(
+      (name): name is string =>
+        name !== null && (name === keep || LOCAL_PREFIXES.some((prefix) => name.startsWith(prefix))),
+    )
+    .flatMap((name) => {
+      const stored = storage.getItem(name)
+
+      return stored === null ? [] : [{key: name, value: stored}]
+    })
+    .toSorted((a, b) => Number(b.key === keep) - Number(a.key === keep) || b.value.length - a.value.length)
+
+  const removed: typeof items = []
+
+  for (const item of items) {
+    storage.removeItem(item.key)
+    removed.push(item)
+
+    try {
+      storage.setItem(keep, value)
+      removed.forEach((entry) => cacheDelete(entry.key))
+      cacheSet(keep, value)
+
+      return true
+    } catch (error) {
+      if (!quota(error)) break
+    }
+  }
+
+  removed.forEach((entry) => {
+    try {
+      storage.setItem(entry.key, entry.value)
+    } catch (error) {
+      console.error(`[persistence] could not put back ${entry.key}`, error)
+    }
+  })
+
+  return false
+}
+
+function readStored(name: string) {
+  try {
+    return localStorage.getItem(name)
+  } catch (error) {
+    console.error(`[persistence] read failed for ${name}`, error)
+
+    return null
+  }
+}
+
 function localStorageView(prefix: string): LocalStorageView {
   const item = (key: string) => `${prefix}:${key}`
 
   return {
     getItem: (key) => {
-      try {
-        return localStorage.getItem(item(key))
-      } catch (error) {
-        console.error(`[persistence] read failed for ${item(key)}`, error)
+      const name = item(key)
+      const stored = readStored(name)
 
-        return null
-      }
+      if (stored === null) return cacheGet(name) ?? null
+      cacheSet(name, stored)
+
+      return stored
     },
-    setItem: (key, value) => {
-      try {
-        localStorage.setItem(item(key), value)
-
-        return true
-      } catch (error) {
-        console.error(`[persistence] write failed for ${item(key)}`, error)
-
-        return false
-      }
-    },
+    setItem: (key, value) => write(item(key), value),
     removeItem: (key) => {
+      const name = item(key)
+      cacheDelete(name)
+
       try {
-        localStorage.removeItem(item(key))
+        localStorage.removeItem(name)
       } catch (error) {
-        console.error(`[persistence] remove failed for ${item(key)}`, error)
+        console.error(`[persistence] remove failed for ${name}`, error)
       }
     },
   }
+}
+
+function checksum(content: string): string | undefined {
+  if (!content) return
+  const hash = Array.from({length: content.length}, (_, index) => content.charCodeAt(index)).reduce(
+    (sum, code) => Math.imul(sum ^ code, 0x01000193),
+    0x811c9dc5,
+  )
+
+  return (hash >>> 0).toString(36)
+}
+
+function projectStorage(directory: string) {
+  const head = (directory.slice(0, 12) || 'project').replace(/[^a-zA-Z0-9._-]/g, '-')
+
+  return `${PROJECT_STORAGE}.${head}.${checksum(directory) ?? '0'}`
 }
 
 function readCurrent(input: {storage: LocalStorageView; key: string; normalize: Normalize}) {
@@ -218,8 +394,8 @@ export const Persist = {
   global(key: string): PersistTarget {
     return {kind: 'browser', storage: GLOBAL_STORAGE, key}
   },
-  project(key: string): PersistTarget {
-    return {kind: 'browser', storage: PROJECT_STORAGE, key}
+  project(directory: string, key: string): PersistTarget {
+    return {kind: 'browser', storage: projectStorage(directory), key}
   },
   server(key: string): PersistTarget {
     return {kind: 'engine', scope: 'project', namespace: PLUGIN_STORAGE, key}
