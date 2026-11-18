@@ -11,7 +11,6 @@ import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
-import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 import {becameTrusted, engineLocked, type EngineLogin} from './app/engine-login.js'
@@ -162,7 +161,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     openDraftStore(() => !lockedOut()),
     lockedOut,
   )
-  const extensions = [highlight, ...(config.extensions ?? [])]
+  const extensions = config.extensions ?? []
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)

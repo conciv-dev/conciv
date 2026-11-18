@@ -67,6 +67,7 @@
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/unplugin": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-query": "catalog:",

@@ -3,6 +3,7 @@ import {Dynamic} from 'solid-js/web'
 import type {Ui, UiIconProps, UiMenuItem, UiMenuSubProps} from '@conciv/plugin/experimental'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {
+  Avatar,
   Button,
   createListCollection,
   Dialog,
@@ -11,6 +12,7 @@ import {
   Loader,
   Menu,
   Popover,
+  RelativeTime,
   Select,
   Switch,
   TextField,
@@ -257,6 +259,13 @@ export const ui: Ui = {
       </Popover.Positioner>
     </Popover.Root>
   ),
+  RelativeTime: (props) => <RelativeTime value={props.value} />,
+  Avatar: (props) => (
+    <Avatar.Root role="img" aria-label={props.name}>
+      <Show when={props.src}>{(src) => <Avatar.Image src={src()} alt={props.name} />}</Show>
+      <Avatar.Fallback>{initials(props.name)}</Avatar.Fallback>
+    </Avatar.Root>
+  ),
   Switch: (props) => (
     <Switch.Root
       checked={props.checked}
@@ -373,6 +382,16 @@ function Icon(props: UiIconProps): JSX.Element {
       aria-hidden="true"
     />
   )
+}
+
+function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word.charAt(0))
+    .join('')
+    .toUpperCase()
 }
 
 function OpenLayer(): JSX.Element {

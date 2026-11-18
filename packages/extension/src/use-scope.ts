@@ -1,6 +1,6 @@
 import {onCleanup} from 'solid-js'
 import {use} from './host-context.js'
-import {createClientSettings} from './settings-client.js'
+import {createClientSettings} from '@conciv/contract'
 import type {ExtensionScope, SettingsForNamespace} from './types.js'
 
 export function useScope<Namespace extends string>(namespace: Namespace): ExtensionScope<Namespace> {

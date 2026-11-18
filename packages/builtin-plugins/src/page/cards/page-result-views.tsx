@@ -1,5 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {TruncatedText} from '@conciv/ui-kit-system'
+import type {buildSnapshot} from '@conciv/page'
 import {CHIP, CodeBlock} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './shared.js'
 import {formatHtml} from './page-format.js'
@@ -13,7 +14,7 @@ const ROLE =
 const NAME = 'flex-1 min-w-0 whitespace-nowrap text-ellipsis [color:var(--chat-text)] overflow-hidden'
 const REF = 'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
 
-export type A11yNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}
+export type A11yNode = Partial<ReturnType<typeof buildSnapshot>[number]>
 
 export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
   return (
