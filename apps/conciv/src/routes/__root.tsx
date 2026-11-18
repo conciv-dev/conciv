@@ -106,7 +106,7 @@ function AppRoot() {
 
   const [arrivedFromConnect, setArrivedFromConnect] = createSignal(false)
   const connectBind = async (apiBase: string): Promise<string> => {
-    app.bindApiBase?.(apiBase)
+    if (app.apiBase() !== apiBase) app.bindApiBase?.(apiBase)
     const {sessionId} = await app.rpc.sessions.resolve({})
     setArrivedFromConnect(true)
     return sessionId
