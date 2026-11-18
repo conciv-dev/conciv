@@ -12,14 +12,15 @@ import {
   failingLabel,
   failureLocation,
   fixPrompt,
+  fileGroup,
   followTestRun,
-  groupByFile,
   initialRunState,
   parseRunResult,
   pathTail,
   relativePath,
   shortDuration,
   STATE_LABEL,
+  testFiles,
   transitionRun,
   type FileGroup,
   type RunAction,
@@ -216,8 +217,8 @@ function RunCard(props: Actions & RunView): JSX.Element {
         </div>
       </div>
       <div class="flex flex-col gap-0.5">
-        <For each={groupByFile(props.tests)}>
-          {(group) => <FileSection {...props} group={group} accordion={accordion} />}
+        <For each={testFiles(props.tests)}>
+          {(file) => <FileSection {...props} group={fileGroup(props.tests, file)} accordion={accordion} />}
         </For>
       </div>
     </div>

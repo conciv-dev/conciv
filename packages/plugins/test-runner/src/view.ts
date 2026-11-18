@@ -72,8 +72,12 @@ export function failedCount(group: FileGroup): number {
   return group.tests.filter((test) => test.state === 'fail').length
 }
 
-export function groupByFile(tests: readonly TestRow[]): FileGroup[] {
-  return Object.entries(Object.groupBy(tests, (test) => test.file)).map(([file, rows]) => ({file, tests: rows ?? []}))
+export function testFiles(tests: readonly TestRow[]): string[] {
+  return [...new Set(tests.map((test) => test.file))].toSorted()
+}
+
+export function fileGroup(tests: readonly TestRow[], file: string): FileGroup {
+  return {file, tests: tests.filter((test) => test.file === file)}
 }
 
 export function parseRunResult(output: unknown): TestRunResult | undefined {
