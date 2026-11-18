@@ -288,6 +288,14 @@ describe('the test card of the test-runner plugin', () => {
         page.getByRole('status').getByText('Test run finished: 4 passed, 1 failed, 0 skipped', {exact: true}),
       ).toBeAttached({timeout: 60_000})
 
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible({timeout: 30_000})
+      await expect(
+        page.getByRole('status').getByText('Test run finished: 4 passed, 1 failed, 0 skipped', {exact: true}),
+      ).toBeAttached({timeout: 30_000})
+      await expect(page.getByText('this fails on purpose', {exact: true})).toBeVisible()
+      await expect(page.getByText('The run has one failing test', {exact: true})).toBeHidden()
+
       script.releaseResults()
       await expect(page.getByText('The run has one failing test', {exact: true})).toBeVisible({timeout: 30_000})
       await expect(
