@@ -3,15 +3,13 @@ import type {ServerHarness, ServerSessions} from '@conciv/extension'
 import {Cache, Duration, Effect} from 'effect'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
-import {createTtySessions, type TtySession} from './pty-sessions.js'
+import {createTtySessions, type PtySize, type TtySession} from './pty-sessions.js'
 
 const TICKET_TTL = Duration.seconds(60)
 
 const TICKET_CAPACITY = 10_000
 
 const RESUMED_BANNER = '\u001b[2m─ conciv: resumed session ─\u001b[0m'
-
-type PtySize = {cols: number; rows: number}
 
 type PersistentPtyInfo = {id: string; sessionId: SessionId; size: PtySize; busy: boolean}
 

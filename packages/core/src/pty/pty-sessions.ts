@@ -41,10 +41,10 @@ export type TtySession = {
   exited(): {code: number} | null
 }
 
-type TtySize = {cols: number; rows: number}
+export type PtySize = {cols: number; rows: number}
 
 export type TtySessions = {
-  open(sessionId: string, command: TtyCommand, cwd: string, owner: string, size?: TtySize): Promise<TtySession>
+  open(sessionId: string, command: TtyCommand, cwd: string, owner: string, size?: PtySize): Promise<TtySession>
   get(sessionId: string): TtySession | undefined
   find(id: string): TtySession | undefined
   close(sessionId: string): void
@@ -107,7 +107,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     return {...Object.fromEntries(kept), ...command.env}
   }
 
-  const spawnPty = (entry: Entry, spawn: Spawn, command: TtyCommand, cwd: string, size: TtySize | undefined): void => {
+  const spawnPty = (entry: Entry, spawn: Spawn, command: TtyCommand, cwd: string, size: PtySize | undefined): void => {
     try {
       ensureSpawnHelperExecutable()
       entry.pty = spawn(command.bin, command.args, {
@@ -137,7 +137,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     command: TtyCommand,
     cwd: string,
     owner: string,
-    size?: TtySize,
+    size?: PtySize,
   ): Promise<TtySession> => {
     const spawn = await loadSpawn()
     drop(sessionId)
