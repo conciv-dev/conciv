@@ -1,8 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
-import {useComposerContext} from '../primitives/composer/composer-context.js'
-import {AttachmentUI} from './attachment-ui.js'
+import {AttachmentUI, type RemoveAttachment} from './attachment-ui.js'
 import {CornerRemoveButton} from './corner-remove-button.js'
 import {
   attachmentId,
@@ -23,25 +22,22 @@ function attachmentMime(attachment: AttachmentState): string | undefined {
   return documentMimes[0] ?? attachment.contentType
 }
 
-function RemoveCardButton(): JSX.Element {
-  const attachment = useAttachment()
-  const composer = useComposerContext()
-  return (
-    <CornerRemoveButton
-      label={`Remove ${attachment.name}`}
-      onRemove={() => void composer.removeAttachment(attachment.id)}
-    />
-  )
-}
-
-export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; removable?: boolean}): JSX.Element {
+export function AttachmentByMime(props: {
+  cards: readonly AttachmentCardSlot[]
+  onRemove?: RemoveAttachment
+}): JSX.Element {
   const attachment = useAttachment()
   const card = () => props.cards.find((entry) => entry.mime === attachmentMime(attachment))
+  const removeBadge = (): JSX.Element => {
+    const remove = props.onRemove
+    if (!remove) return undefined
+    return <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove(attachment.id)} />
+  }
   return (
-    <Show when={card()} fallback={<AttachmentUI removable={props.removable} />}>
+    <Show when={card()} fallback={<AttachmentUI onRemove={props.onRemove} />}>
       {(entry) => (
-        <Attachment.Root class={props.removable ? 'group pt-3 pe-3' : undefined}>
-          <Dynamic component={entry().render} remove={props.removable ? <RemoveCardButton /> : undefined} />
+        <Attachment.Root class="group">
+          <Dynamic component={entry().render} remove={removeBadge()} />
         </Attachment.Root>
       )}
     </Show>

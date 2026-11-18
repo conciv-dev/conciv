@@ -117,7 +117,7 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
 
   return (
     <Show when={notes().length > 0}>
-      <ul aria-label="Notes" class="flex flex-wrap items-start gap-3 list-none ps-0 pb-0 pt-3 pe-3">
+      <ul aria-label="Notes" class="flex flex-wrap items-start gap-3 list-none p-0">
         <Key each={notes()} by={(entry) => entry.key}>
           {(entry) => (
             <li class="flex min-w-24 max-w-56 anim-presence-in">

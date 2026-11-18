@@ -37,6 +37,7 @@ function FakeRecordingCard(props: {remove?: JSX.Element}): JSX.Element {
 
 function Frame(): JSX.Element {
   const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
+  const remove = (id: string) => setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
   return (
     <ComposerProvider
       value={{
@@ -69,7 +70,7 @@ function Frame(): JSX.Element {
         <For each={attachments()}>
           {(draft) => (
             <AttachmentProvider value={draft}>
-              <AttachmentByMime cards={[{mime: RECORDING_MIME, render: FakeRecordingCard}]} removable />
+              <AttachmentByMime cards={[{mime: RECORDING_MIME, render: FakeRecordingCard}]} onRemove={remove} />
             </AttachmentProvider>
           )}
         </For>
@@ -85,7 +86,11 @@ export const CardChipWithRemove: Story = {
 
     await waitFor(() => expect(c.getByRole('button', {name: 'Play'})).toBeVisible())
     const remove = c.getByRole('button', {name: 'Remove Screen recording'})
-    await expect(remove).toBeVisible()
+    await userEvent.tab()
+    await userEvent.tab()
+    await waitFor(() => expect(remove).toHaveFocus())
+    expect(remove.matches(':focus-visible')).toBe(true)
+    await waitFor(() => expect(remove).toBeVisible())
     expect(remove.querySelector('svg')).not.toBeNull()
 
     const playRect = c.getByRole('button', {name: 'Play'}).getBoundingClientRect()

@@ -415,7 +415,7 @@ describe('attachment widget', () => {
 
   function ComposerFixture(props: {
     adapter: AttachmentAdapter
-    AttachmentComponent: Component<{removable?: boolean}>
+    AttachmentComponent: Component<{onRemove?: (id: string) => void}>
     onSend?: (content: unknown) => void
     children: JSX.Element
   }): JSX.Element {
@@ -447,7 +447,7 @@ describe('attachment widget', () => {
               <AttachmentByMime cards={cards} />
             </section>
             <section aria-label="composer chip">
-              <AttachmentByMime cards={chips} removable={slotProps.removable} />
+              <AttachmentByMime cards={chips} onRemove={slotProps.onRemove} />
             </section>
           </>
         )}
@@ -464,6 +464,10 @@ describe('attachment widget', () => {
     await expect
       .element(composerChips.getByRole('button', {name: 'Failed to render crash-attachment'}), {timeout: 2000})
       .toBeVisible()
+    await composerChips.getByRole('button', {name: 'Remove crashing.bin'}).click()
+    await expect
+      .element(composerChips.getByRole('button', {name: 'Failed to render crash-attachment'}))
+      .not.toBeInTheDocument()
     expect(crash.mock.calls.filter((call) => call[0] === '[conciv] extension "crash-attachment" crashed').length).toBe(
       2,
     )
@@ -1990,8 +1994,8 @@ describe('grab staging', () => {
     await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
 
-    await userEvent.hover(removeGrab())
-    await expect.element(page.getByRole('tooltip')).toHaveTextContent(`Remove ${GRAB_FILE_NAME}`)
+    await userEvent.hover(page.getByRole('button', {name: 'Open grabbed element'}))
+    await expect.element(removeGrab()).toBeVisible()
 
     api.clear()
 
