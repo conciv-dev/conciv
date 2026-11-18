@@ -9,8 +9,6 @@ import {serveArgv} from './serve-argv.js'
 
 const AgentModelSchema = z.object({agent: HubAgentSchema})
 
-const ServeModelSchema = z.object({agent: HubAgentSchema})
-
 const serveCommand = command(
   name('serve'),
   description('Serve conciv to an outside agent over MCP stdio, through the running conciv dev server.'),
@@ -21,7 +19,7 @@ const serveCommand = command(
   ),
   handler(async (model) => {
     const {runHub} = await import('./hub.js')
-    return runHub(process.env, ServeModelSchema.parse(model).agent)
+    return runHub(process.env, AgentModelSchema.parse(model).agent)
   }),
 )
 

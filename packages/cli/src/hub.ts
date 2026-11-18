@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {z} from 'zod'
-import {differenceBy, partition} from 'es-toolkit/array'
+import {differenceBy, partition} from 'es-toolkit'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'

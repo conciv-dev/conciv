@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
-import {differenceBy, partition} from 'es-toolkit/array'
+import {differenceBy, partition} from 'es-toolkit'
 import {checkEngines, concivHome} from '@conciv/db'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'

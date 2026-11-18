@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {z} from 'zod'
-import {kebabCase} from 'es-toolkit/string'
+import {kebabCase} from 'es-toolkit'
 import {argument, cli, command, description, multiple, name, option, schema, toggle, type Schema} from '@bomb.sh/router'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {handler} from './router/handler.js'
