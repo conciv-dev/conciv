@@ -269,6 +269,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     reachability,
     notices,
     refetchMarkers: () => markers.refetch(),
+    endDraftSaves: draftStorage.endSaves,
   })
   const sendFromButton = (text: string): void => {
     void messaging.onSend(text).catch(messaging.onSendError)

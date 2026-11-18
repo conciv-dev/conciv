@@ -41,6 +41,7 @@ export type PaneDraftStorage = {
   restore: (apply: DraftApply, signal: AbortSignal) => Promise<void>
   retry: () => void
   keptHere: (draft: DraftContent) => boolean
+  endSaves: () => void
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -187,6 +188,7 @@ type LocalDraftWriter = {
   kept: () => LocalDraft | null
   takeStored: (stored: LocalDraft) => void
   settle: (verdict: DraftReconcile, row: DraftRow | null, edited: boolean) => void
+  endSynced: () => void
 }
 
 function makeLocalDraftWriter(
@@ -292,7 +294,8 @@ function makeLocalDraftWriter(
     if (verdict.kind === 'cleared') return persisted.setStore('draft', 'syncedAt', undefined)
     if (row) persisted.setStore('draft', 'syncedAt', row.updatedAt)
   }
-  return {writer, typed: () => document.draft, feed, resend, read, kept, takeStored, settle}
+  const endSynced = () => persisted.setStore('draft', (draft) => draft && {...draft, syncedAt: undefined, sent: []})
+  return {writer, typed: () => document.draft, feed, resend, read, kept, takeStored, settle, endSynced}
 }
 
 function serializeDraft(text: string, attachments: DraftRow['attachments']): string {
@@ -626,6 +629,10 @@ export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessio
   return {
     writer: local?.writer,
     retry,
+    endSaves: () => {
+      appData.endDraftSaves(sessionId)
+      local?.endSynced()
+    },
     keptHere: (draft) => holdsDraft(local?.kept(), draft),
     storage: {
       getItem: () => {

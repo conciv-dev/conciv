@@ -68,6 +68,7 @@ type PaneMessagingDeps = {
   reachability: EngineNotices['reachability']
   notices: EngineNotices['notices']
   refetchMarkers: () => Promise<unknown>
+  endDraftSaves: () => void
 }
 
 export type PaneMessaging = {
@@ -133,7 +134,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const onSend = async (content: string | SendContent): Promise<void> => {
     const verdict = checkSend(content, sendState())
     if (!verdict.ok) throw sendRejection(verdict)
-    deps.appData.endDraftSaves(deps.sessionId)
+    deps.endDraftSaves()
     await deps.chat.sendMessage(content).catch((error: unknown) => {
       throw deps.chat.withdrawn() ? WITHDRAWN : error
     })
