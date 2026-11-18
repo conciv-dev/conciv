@@ -51,7 +51,7 @@ function CommentEntry(props: {comment: CommentRow}): JSX.Element {
   const model = useComments()
   const parts = (): unknown[] => (Array.isArray(props.comment.parts) ? props.comment.parts : [])
   return (
-    <article class="px-3 py-2 border-t border-chat-line-soft flex flex-col gap-1 first:border-t-0">
+    <article class="py-2 border-t border-chat-line-soft flex flex-col gap-1 first:border-t-0">
       <div class="flex gap-2 items-center">
         <ui.Avatar name={model.displayName(props.comment)} src={props.comment.authorAvatar ?? undefined} />
         <span class="text-chat-sm text-chat-text font-medium truncate">{model.displayName(props.comment)}</span>
@@ -105,7 +105,7 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
     ))
   }
   return (
-    <header class="px-2 py-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
+    <header class="pb-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
       <ui.Tooltip value="Previous thread" placement="bottom">
         <ui.IconButton
           icon="chevron-left"
@@ -149,7 +149,7 @@ function ThreadReply(): JSX.Element {
     setDraft('text', '')
   }
   return (
-    <div class="p-2 border-t border-chat-line-soft flex gap-2 items-center">
+    <div class="pt-2 border-t border-chat-line-soft flex gap-2 items-center">
       <ui.Avatar name="You" />
       <ui.TextInput
         class="flex-1"

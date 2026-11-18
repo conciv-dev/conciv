@@ -18,7 +18,7 @@ export function DragPrompt(props: DragPromptProps): JSX.Element {
       onOpenChange={(open) => open || props.onCancel()}
       label="Pin drift"
     >
-      <div class="p-1 flex flex-col min-w-45 pointer-events-auto">
+      <div class="flex flex-col min-w-45 pointer-events-auto">
         <ui.Button variant="ghost" size="small" class="justify-start" onClick={() => props.onDisconnect()}>
           Disconnect from source
         </ui.Button>
