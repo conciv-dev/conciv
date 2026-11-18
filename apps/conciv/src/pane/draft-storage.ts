@@ -293,7 +293,7 @@ function makeLocalDraftWriter(
     if (!edited && verdict.kind === 'engine' && row) return persisted.setStore('draft', rowLocalDraft(row))
     if (!document.draft) return
     if (verdict.kind === 'cleared') return persisted.setStore('draft', 'syncedAt', undefined)
-    if (row) persisted.setStore('draft', 'syncedAt', row.updatedAt)
+    if (row) persisted.setStore('draft', (draft) => draft && settledDraft(draft, row.updatedAt, true))
   }
   const endSynced = () => persisted.setStore('draft', (draft) => draft && {...draft, syncedAt: undefined, sent: []})
   return {writer, typed: () => document.draft, feed, resend, read, kept, takeStored, settle, endSynced}
@@ -434,7 +434,14 @@ function keepLocally(drafts: DraftStore, sessionId: string, draft: LocalDraft): 
   })
 }
 
-async function keepInDraft(appData: AppData, sessionId: string, text: string, place: DraftPlace): Promise<void> {
+type KeptSave = {updatedAt: number; saving: Promise<boolean>}
+
+async function keepInDraft(
+  appData: AppData,
+  sessionId: string,
+  text: string,
+  place: DraftPlace,
+): Promise<KeptSave | undefined> {
   const drafts = appData.drafts
   const {base, encoded} = await readKeptBase(appData, sessionId)
   const {text: nextText, caret} = joinReturned(base.text, text, place)
@@ -442,7 +449,15 @@ async function keepInDraft(appData: AppData, sessionId: string, text: string, pl
   const updatedAt = Date.now()
   if (drafts) await keepLocally(drafts, sessionId, withSent({...base, ...selection}, updatedAt))
   const saving = appData.saveDraft({sessionId, ...selection, attachments: encoded, updatedAt})
-  if (!drafts) await saving
+  if (drafts) return {updatedAt, saving}
+  await saving
+  return undefined
+}
+
+async function settleKept(drafts: DraftStore, sessionId: string, updatedAt: number, saved: boolean): Promise<void> {
+  const stored = await readLocalDraft(drafts, sessionId)
+  if (!stored?.sent.includes(updatedAt)) return
+  await keepLocally(drafts, sessionId, settledDraft(stored, updatedAt, saved))
 }
 
 export async function keepDraftImage(drafts: DraftStore, file: File): Promise<BlobReference | undefined> {
@@ -456,7 +471,7 @@ export async function keepDraftImage(drafts: DraftStore, file: File): Promise<Bl
   })
 }
 
-async function keepImageInDraft(appData: AppData, sessionId: string, file: File): Promise<void> {
+async function keepImageInDraft(appData: AppData, sessionId: string, file: File): Promise<KeptSave | undefined> {
   const drafts = appData.drafts
   const {base, encoded} = await readKeptBase(appData, sessionId)
   const attachment = {id: crypto.randomUUID(), type: 'image', name: file.name}
@@ -477,7 +492,9 @@ async function keepImageInDraft(appData: AppData, sessionId: string, file: File)
     attachments: [...encoded, ...added],
     updatedAt,
   })
-  if (!drafts) await saving
+  if (drafts) return {updatedAt, saving}
+  await saving
+  return undefined
 }
 
 export async function readMovedDraft(appData: AppData, keep: DraftWriteChain, sessionId: string): Promise<string> {
@@ -505,15 +522,15 @@ export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, s
   })
 }
 
-export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
+export function appendDraft(appData: AppData, sessionId: string, text: string): Promise<KeptSave | undefined> {
   return keepInDraft(appData, sessionId, text, 'last')
 }
 
-export function prependDraft(appData: AppData, sessionId: string, text: string): Promise<void> {
+export function prependDraft(appData: AppData, sessionId: string, text: string): Promise<KeptSave | undefined> {
   return keepInDraft(appData, sessionId, text, 'first')
 }
 
-type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<void>
+type DraftWrite = (appData: AppData, sessionId: string, text: string) => Promise<KeptSave | undefined>
 
 export type DraftWriteChain = <T>(step: () => Promise<T>) => Promise<T>
 
@@ -534,9 +551,14 @@ export function draftCacheSink(
 ): DraftSink {
   const logKeepFailure = (error: unknown) =>
     console.error('[conciv] could not keep the queued message as a draft', error)
+  const settleLater = (kept: KeptSave | undefined): void => {
+    const drafts = appData.drafts
+    if (!kept || !drafts) return
+    void kept.saving.then((saved) => keep(() => settleKept(drafts, sessionId, kept.updatedAt, saved)))
+  }
   return {
-    insert: (text) => keep(() => write(appData, sessionId, text).catch(logKeepFailure)),
-    addFile: (file) => keep(() => keepImageInDraft(appData, sessionId, file).catch(logKeepFailure)),
+    insert: (text) => keep(() => write(appData, sessionId, text).then(settleLater).catch(logKeepFailure)),
+    addFile: (file) => keep(() => keepImageInDraft(appData, sessionId, file).then(settleLater).catch(logKeepFailure)),
   }
 }
 
