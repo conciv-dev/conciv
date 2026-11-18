@@ -3,6 +3,9 @@ import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {uniq} from 'es-toolkit'
+import {createElement} from 'react'
+import {createRoot as createReactRoot} from 'react-dom/client'
+import {installReactBridge} from '@conciv/page'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {CONNECTION_CHANGED_EVENT} from '@conciv/protocol/event-bus'
 import {
@@ -9807,6 +9810,34 @@ export default {
     expect(typed).toEqual([])
     expect([await replied(before), await replied(after)]).toEqual([0, 2])
     await cut
+  }, 60_000)
+
+  test('holding Alt and clicking a React element opens its source in the editor through the engine', async () => {
+    const sessionId = await createSession(coreRpc(core.base))
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    installReactBridge()
+    const reactRoot = createReactRoot(mount)
+    reactRoot.render(createElement('span', {'data-tsd-source': 'src/app.tsx:12:4'}, 'React source probe'))
+    onTestFinished(() => {
+      reactRoot.unmount()
+      mount.remove()
+    })
+    harness.mountShell(panel(sessionId))
+    await attached()
+    const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
+    const probe = page.getByText('React source probe', {exact: true})
+
+    await userEvent.click(probe, {force: true})
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).not.toHaveFocus()
+    await userEvent.keyboard('{Alt>}')
+    await expect.element(hint).toBeVisible()
+    await userEvent.hover(probe, {force: true})
+    await userEvent.click(probe, {force: true})
+    await expect.element(page.getByText('Opened src/app.tsx', {exact: true})).toBeVisible()
+    expect(await coreControl.editorOpened()).toEqual([{file: 'src/app.tsx', line: 12, column: 4}])
+    await userEvent.keyboard('{/Alt}')
+    await expect.element(hint).not.toBeInTheDocument()
   }, 60_000)
 
   test('an eval card offers no Always, so a later eval with other code is asked again', async () => {
