@@ -4,7 +4,7 @@ import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
-import {Context, Effect, Exit, Fiber, FiberMap, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
+import {Context, Effect, Exit, Fiber, FiberMap, Layer, Option, PubSub, Schedule, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
@@ -53,6 +53,8 @@ export const layer = Layer.effect(
         Effect.flatMap((exit) => (Exit.isSuccess(exit) && Option.isSome(exit.value) ? announce : Effect.void)),
         Effect.forkIn(layerScope),
       )
+    const untilArmed = (watch: Effect.Effect<Option.Option<Watcher.Update>>) =>
+      watch.pipe(Effect.repeat({schedule: Schedule.exponential('100 millis'), times: 4, until: Option.isSome}))
     const reconcile = Effect.fn('ConfigPluginSource.reconcileWatches')(function* () {
       const plan = watchPlan(location.directory, concivDirectory, yield* fs.isDir(concivDirectory))
       for (const key of Array.from(watches, ([existing]) => existing)) {
@@ -67,6 +69,7 @@ export const layer = Layer.effect(
               Stream.runLast,
             ),
           ),
+          untilArmed,
           FiberMap.run(watches, key, {startImmediately: true}),
         )
         yield* afterRootDeleted(watch, requestReload)
@@ -89,15 +92,18 @@ export const layer = Layer.effect(
     )
 
     const configuredChanged = PubSub.publish(configuredChanges, undefined).pipe(Effect.asVoid)
+    const configuredTargets = Effect.sync(() =>
+      configuredOperations(location, plugins).flatMap((operation) =>
+        operation.type === 'add' &&
+        path.isAbsolute(operation.target) &&
+        !isDirectorySource(concivDirectory, operation.target)
+          ? [operation.target]
+          : [],
+      ),
+    )
     const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(
-      function* (operations: readonly Operation[]) {
-        const targets = operations.flatMap((operation) =>
-          operation.type === 'add' &&
-          path.isAbsolute(operation.target) &&
-          !isDirectorySource(concivDirectory, operation.target)
-            ? [operation.target]
-            : [],
-        )
+      function* () {
+        const targets = yield* configuredTargets
         const inputs = yield* Effect.forEach(targets, (target) =>
           fs
             .isDir(target)
@@ -118,6 +124,7 @@ export const layer = Layer.effect(
                 Stream.runLast,
               ),
             ),
+            untilArmed,
             Effect.catchCause((cause) =>
               Effect.logError('configured plugin watch failed', {target: input.path, cause}).pipe(
                 Effect.as(Option.none<Watcher.Update>()),
@@ -136,7 +143,7 @@ export const layer = Layer.effect(
     return Service.of({
       operations: Effect.fn('ConfigPluginSource.operations')(function* () {
         const operations = yield* scan(fs, location, concivDirectory, plugins)
-        yield* watchConfiguredSources(operations)
+        yield* watchConfiguredSources()
         return operations
       }),
       changes: () =>
@@ -185,6 +192,18 @@ function parse(input: ConfigPlugin.Plugin): Operation {
   return {type: 'remove', target: input.slice(1)}
 }
 
+function configuredOperations(location: Location.Interface, plugins: readonly ConfigPlugin.Plugin[]) {
+  return plugins.map(parse).map((operation): Operation => {
+    if (operation.type === 'remove') return operation
+    const target = operation.target.startsWith('file://')
+      ? fileURLToPath(operation.target)
+      : operation.target.startsWith('./') || operation.target.startsWith('../')
+        ? path.resolve(location.directory, operation.target)
+        : operation.target
+    return {...operation, target}
+  })
+}
+
 const scan = Effect.fn('ConfigPluginSource.scan')(function* (
   fs: FSUtil.Interface,
   location: Location.Interface,
@@ -194,15 +213,7 @@ const scan = Effect.fn('ConfigPluginSource.scan')(function* (
   const discovered = yield* PluginSourceDirectory.discover(fs, concivDirectory).pipe(
     Effect.map((targets) => targets.map((target): Operation => ({type: 'add', target, options: {}}))),
   )
-  const configured = plugins.map(parse).map((operation) => {
-    if (operation.type === 'remove') return operation
-    const target = operation.target.startsWith('file://')
-      ? fileURLToPath(operation.target)
-      : operation.target.startsWith('./') || operation.target.startsWith('../')
-        ? path.resolve(location.directory, operation.target)
-        : operation.target
-    return {...operation, target}
-  })
+  const configured = configuredOperations(location, plugins)
   const resolved = yield* Effect.forEach(configured, (operation) =>
     Effect.gen(function* () {
       if (operation.type === 'remove' || !path.isAbsolute(operation.target)) return Option.some(operation)

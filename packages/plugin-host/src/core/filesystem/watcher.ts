@@ -265,16 +265,23 @@ function subscribeDirectory(
   }
   const callback: SubscribeCallback = (error, updates) => {
     if (error) Effect.runFork(Effect.logError('watcher callback failed', {error}))
+    if (updates.some((update) => update.type === 'delete' && update.path === directory)) {
+      unsubscribe().catch((unsubscribeError: unknown) =>
+        Effect.runFork(Effect.logError('failed to unsubscribe', {directory, error: unsubscribeError})),
+      )
+    }
     for (const update of updates) publish(update)
   }
   const options = bindingOptions(directory, ignore, backend)
-  const unsubscribe = () => native.unsubscribe(directory, callback, options)
+  const unsubscribe = lazy(() => native.unsubscribe(directory, callback, options))
   const pending = native.subscribe(directory, callback, options)
   return Effect.promise(() => pending).pipe(
     Effect.map(() => ({unsubscribe, backend})),
     Effect.onInterrupt(() =>
       Effect.sync(() => {
-        pending.then(unsubscribe).catch(() => {})
+        pending
+          .then(unsubscribe)
+          .catch((error: unknown) => Effect.runFork(Effect.logError('failed to unsubscribe', {directory, error})))
       }),
     ),
     Effect.timeout(SUBSCRIBE_TIMEOUT_MS),
