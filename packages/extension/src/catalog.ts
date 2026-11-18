@@ -1,8 +1,6 @@
 import {TOKENS} from '@conciv/ui-kit-system/tokens'
 
 const SLOTS = [
-  {name: 'header', description: 'Above the message list (panel header region).'},
-  {name: 'footer', description: 'Below the composer (panel footer region).'},
   {
     name: 'composer',
     description:

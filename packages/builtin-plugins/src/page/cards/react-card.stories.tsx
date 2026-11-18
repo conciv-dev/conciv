@@ -1,37 +1,13 @@
-import type {JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {Trace as ChatTrace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
+import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReactCard, reactCard} from './react-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {traceGallery, traceRow} from './trace.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReactCard'}
 export default meta
 type Story = StoryObj
-
-const TRACE_FRAME_CLASS = 'p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]'
-
-function traceRow(
-  entry: ToolCardEntry,
-  part: ToolCallPart,
-  result: ToolResultPart | undefined,
-  ctx: ToolViewCtx = storyCtx({}),
-): TraceItem {
-  return {
-    key: part.id,
-    render: (branch) => <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => [entry]} ring={branch.ring} />,
-  }
-}
-
-function traceGallery(summary: string, items: TraceItem[]): JSX.Element {
-  return (
-    <div class={TRACE_FRAME_CLASS}>
-      <ChatTrace summary={summary} compactLine={summary} items={items} defaultOpen />
-    </div>
-  )
-}
 
 const locateMeta: ToolViewMeta = {
   summary: 'find the source location that rendered an element',

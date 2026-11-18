@@ -19,7 +19,7 @@ import {
   createTestHarness,
   type TestHarness,
 } from '@conciv/harness-testkit'
-import {type BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {HarnessSessionId, type HubAccess, SessionId} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
@@ -145,7 +145,7 @@ export type BootOverrides = {
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number, column?: number) => void
-  bridge?: BundlerBridge
+  bridge?: Bundler.BundlerBridge
   firstChunkTimeoutMs?: number
   pageReplyTimeoutMs?: number
   queuedActionTimeoutMs?: number

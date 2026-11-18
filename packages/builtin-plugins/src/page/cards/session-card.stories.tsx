@@ -1,6 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {createSignal} from 'solid-js'
 import {Splitter} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ElementCapture, ToolCaptureView} from '@conciv/protocol/element-capture-types'
@@ -34,31 +33,27 @@ function readSplit(parameters: Record<string, unknown>): number[] {
 const meta: Meta = {
   title: 'Extensions/Page/tool/SessionCard',
   decorators: [
-    (Story, context) => {
-      const [size, setSize] = createSignal(readSplit(context.parameters))
-      return (
-        <div class={STAGE}>
-          <Splitter.Root
-            panels={[
-              {id: 'card', minSize: 40},
-              {id: 'space', minSize: 0},
-            ]}
-            size={size()}
-            onResize={(details) => setSize(details.size)}
-            keyboardResizeBy={64}
-            class="flex w-full"
-          >
-            <Splitter.Panel id="card" class="min-w-0">
-              <Story />
-            </Splitter.Panel>
-            <Splitter.ResizeTrigger id="card:space" aria-label="Resize card" class={RESIZE_TRIGGER}>
-              <Splitter.ResizeTriggerIndicator class={RESIZE_INDICATOR} />
-            </Splitter.ResizeTrigger>
-            <Splitter.Panel id="space" />
-          </Splitter.Root>
-        </div>
-      )
-    },
+    (Story, context) => (
+      <div class={STAGE}>
+        <Splitter.Root
+          panels={[
+            {id: 'card', minSize: 40},
+            {id: 'space', minSize: 0},
+          ]}
+          defaultSize={readSplit(context.parameters)}
+          keyboardResizeBy={64}
+          class="flex w-full"
+        >
+          <Splitter.Panel id="card" class="min-w-0">
+            <Story />
+          </Splitter.Panel>
+          <Splitter.ResizeTrigger id="card:space" aria-label="Resize card" class={RESIZE_TRIGGER}>
+            <Splitter.ResizeTriggerIndicator class={RESIZE_INDICATOR} />
+          </Splitter.ResizeTrigger>
+          <Splitter.Panel id="space" />
+        </Splitter.Root>
+      </div>
+    ),
   ],
 }
 export default meta
@@ -317,5 +312,29 @@ export const HeaderSummary: Story = {
     await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
       timeout: 2000,
     })
+  },
+}
+
+const LONG_ROUTE_RESULT = {
+  pathname: '/settings/billing/invoices/2026/november',
+  search: '?tab=details&sort=desc',
+  href: 'http://localhost:3000/settings/billing/invoices/2026/november?tab=details&sort=desc',
+}
+
+export const LongUrl: Story = {
+  render: () =>
+    sessionFrame(
+      sessionParts(storyPart('page_check', {selector: '#terms'}, 'complete', 'c5')),
+      {
+        ...settledResults(storyResult({ok: true}, 'complete', 'c5')),
+        c2: storyResult(LONG_ROUTE_RESULT, 'complete', 'c2'),
+      },
+      SESSION_CAPTURES,
+      false,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Edited the page')).toBeVisible()
+    await expect(canvas.getByText('localhost:3000/settings/billing/invoices/2026/november')).toBeInTheDocument()
   },
 }

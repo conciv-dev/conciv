@@ -1,5 +1,6 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {Json} from '../../../experimental/core.js'
+import type * as Bundler from '../../../schema/bundler.js'
 import type {PublicRef, Ref as LocationRef} from '../../../schema/location.js'
 import type {Ref} from '../../../schema/model.js'
 import type {Ruleset, Source} from '../../../schema/permission.js'
@@ -320,6 +321,24 @@ type PluginUpdated = {
   data: {}
 }
 
+type BundlerDiagnostic = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'bundler.diagnostic'
+  location?: LocationRef
+  data: {diagnostic: typeof Bundler.Diagnostic.Type}
+}
+
+type BundlerStatus = {
+  id: string
+  created: number
+  metadata?: Record<string, unknown>
+  type: 'bundler.status'
+  location?: LocationRef
+  data: {status: typeof Bundler.Status.Type}
+}
+
 type PermissionAsked = {
   id: string
   created: number
@@ -398,6 +417,8 @@ export type EventSubscribeOutput =
   | AgentUpdated
   | SkillUpdated
   | PluginUpdated
+  | BundlerDiagnostic
+  | BundlerStatus
   | PermissionAsked
   | PermissionReplied
   | SessionCreated

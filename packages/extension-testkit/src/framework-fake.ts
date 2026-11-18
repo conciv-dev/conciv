@@ -15,7 +15,7 @@ import {
   type ServerFnTrace,
   type ServerFunctionsSurface,
   type ServerRouteInfo,
-} from '@conciv/protocol/framework-types'
+} from '@conciv/contract'
 
 const fakeFrameworkInfo: FrameworkInfo = {name: 'tanstack-start', version: '1.4.2', router: 'file-based', dev: true}
 
