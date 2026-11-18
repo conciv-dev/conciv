@@ -14,8 +14,11 @@ import {
   resolveThread,
   type PinPatch,
 } from './comment-writes.js'
+import {createPinDrag} from '../pins/pin-drag.js'
 
 export type CommentsModel = ReturnType<typeof createCommentsModel>
+
+export type ChatCover = {threadOpen: Accessor<boolean>; prompting: Accessor<boolean>}
 
 export function createCommentsModel(room: Accessor<string>) {
   const db = useWhiteboardDb()
@@ -124,6 +127,7 @@ export function createCommentsModel(room: Accessor<string>) {
     const comment = findRoot(cid)
     if (comment) detachCommentAnchor(db, comment)
   }
+  const drag = createPinDrag({detachAnchor, movePin, pinButton, closeThread, toggleThread})
 
   return {
     pins,
@@ -146,6 +150,8 @@ export function createCommentsModel(room: Accessor<string>) {
     movePin,
     detachAnchor,
     isUnread,
+    drag,
+    prompting: drag.prompting,
     viewport: () => state.viewport,
     setViewport: (viewport: Viewport) => void setState('viewport', viewport),
   }

@@ -5,7 +5,6 @@ import {sceneToScreen} from '../../canvas/coords.js'
 import type {CommentRow} from '../../shared/rows.js'
 import {useComments} from '../model/comments.js'
 import {DragPrompt} from './drag-prompt.js'
-import {createPinDrag} from './pin-drag.js'
 
 type CommentStatus = CommentRow['status']
 
@@ -43,7 +42,7 @@ const anchorLabel = (comment: CommentRow | undefined): string | undefined => {
 export function PinsLayer(): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
-  const drag = createPinDrag(model)
+  const drag = model.drag
 
   return (
     <>

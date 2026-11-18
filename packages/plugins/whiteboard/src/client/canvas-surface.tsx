@@ -1,4 +1,4 @@
-import {onMount, Show, type Accessor, type JSX} from 'solid-js'
+import {onMount, Show, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
@@ -7,6 +7,7 @@ import {Island} from '../canvas/island.js'
 import {WhiteboardDbProvider} from './db.js'
 import {CommentsProvider, useComments} from './model/comments.js'
 import {PinsLayer} from './pins/pins.js'
+import type {ChatCover} from './model/comments-model.js'
 import {ThreadPopover} from './pins/thread.js'
 
 function injectExcalidrawCss(doc: Document): void {
@@ -42,7 +43,7 @@ type SurfaceProps = {
   visible: boolean
   layer: HTMLElement
   close: () => void
-  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
+  bindComments: (comments: ChatCover | undefined) => void
 }
 
 function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'>): JSX.Element {
@@ -77,7 +78,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider room={() => props.room} bindThreadOpen={props.bindThreadOpen}>
+      <CommentsProvider room={() => props.room} bindComments={props.bindComments}>
         <CanvasView room={props.room} visible={props.visible} layer={props.layer} />
       </CommentsProvider>
     </WhiteboardDbProvider>

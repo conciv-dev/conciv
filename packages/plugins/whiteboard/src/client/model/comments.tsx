@@ -1,16 +1,16 @@
 import {createContext, onCleanup, untrack, useContext, type Accessor, type JSX} from 'solid-js'
-import {createCommentsModel, type CommentsModel} from './comments-model.js'
+import {createCommentsModel, type ChatCover, type CommentsModel} from './comments-model.js'
 
 const CommentsContext = createContext<CommentsModel>()
 
 export function CommentsProvider(props: {
   room: Accessor<string>
-  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
+  bindComments: (comments: ChatCover | undefined) => void
   children: JSX.Element
 }): JSX.Element {
   const model = untrack(() => createCommentsModel(props.room))
-  untrack(() => props.bindThreadOpen(model.threadOpen))
-  onCleanup(() => props.bindThreadOpen(() => false))
+  untrack(() => props.bindComments({threadOpen: model.threadOpen, prompting: model.prompting}))
+  onCleanup(() => props.bindComments(undefined))
   return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }
 

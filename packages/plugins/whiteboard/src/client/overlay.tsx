@@ -1,7 +1,8 @@
-import {ErrorBoundary, Match, onMount, Show, Switch, type Accessor, type JSX, type Resource} from 'solid-js'
+import {ErrorBoundary, Match, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Context} from '@conciv/plugin/experimental'
 import {z} from 'zod'
+import type {ChatCover} from './model/comments-model.js'
 
 export type SurfaceModule = typeof import('./canvas-surface.js')
 
@@ -47,7 +48,7 @@ export function WhiteboardNotices(props: {
   layer: HTMLElement
 }): JSX.Element {
   return (
-    <div class="text-chat-text font-chat pointer-events-none inset-0 fixed">
+    <div class="text-chat-text font-chat pointer-events-none inset-0 fixed -z-1">
       <Switch>
         <Match when={props.surface.error} keyed>
           {(error) => <OverlayError toast={props.ctx.toast} error={error} />}
@@ -70,7 +71,7 @@ export function WhiteboardCanvas(props: {
   visible: boolean
   layer: HTMLElement
   close: () => void
-  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
+  bindComments: (comments: ChatCover | undefined) => void
 }): JSX.Element {
   const module = (): SurfaceModule | undefined => (props.surface.state === 'ready' ? props.surface() : undefined)
   return (
@@ -87,7 +88,7 @@ export function WhiteboardCanvas(props: {
                 visible={props.visible}
                 layer={props.layer}
                 close={props.close}
-                bindThreadOpen={props.bindThreadOpen}
+                bindComments={props.bindComments}
               />
             )}
           </Show>

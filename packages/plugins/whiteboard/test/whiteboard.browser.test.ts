@@ -774,6 +774,11 @@ describe('the comments of the whiteboard plugin', () => {
       const focusedPin = page.getByRole('button', {name: 'AI comment, open', exact: true}).first()
       await focusedPin.focus()
       await expect(focusedPin).toBeFocused()
+      const focusedTooltip = page.getByText('AI comment, open', {exact: true})
+      await expect(focusedTooltip).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(focusedTooltip).toBeHidden()
+      await expect(focusedPin).toBeFocused()
       await page.keyboard.press('Escape')
       await expect(focusedPin).not.toBeFocused()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
@@ -787,6 +792,19 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(page.getByRole('button', {name: /^AI comment/})).toHaveCount(0)
       await expect(thread).toBeHidden()
       await expect(composer).toBeVisible()
+
+      await widget.kit.callTool('whiteboard_comment_create', {
+        cid: 'agent-third',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'the chat covers this'}],
+        x: 640,
+        y: 360,
+        authorKind: 'ai',
+      })
+      await expect(unread).toBeVisible()
+      await unread.dragTo(composer)
+      await composer.click({timeout: 5_000})
+      await expect(composer).toBeFocused()
     } finally {
       await widget.close()
     }
@@ -922,19 +940,24 @@ describe('the comments of the whiteboard plugin', () => {
       await page.mouse.up()
       const drift = page.getByRole('dialog', {name: 'Pin drift'})
       await expect(drift.getByRole('button', {name: 'Disconnect from source'})).toBeVisible()
-      await expect(drift.getByRole('button', {name: 'Cancel'})).toBeVisible()
-      const pill = page.getByRole('button', {name: 'Open the whiteboard canvas'})
-      await pill.click()
-      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeHidden()
-      await pill.click()
-      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
+      await expect(chat).toBeHidden()
+      await drift.getByRole('button', {name: 'Cancel'}).click()
       await expect(drift).toBeHidden()
+      await expect(chat).toBeVisible()
       await unreadPin.click()
       await expect(thread.getByText('this label is off by one')).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()
-      await dragPin(page, readPin, {x: 620, y: 580})
+      const readTooltip = page.getByText('AI comment, open', {exact: true})
+      await readPin.hover()
+      await page.mouse.down()
+      await page.mouse.move(600, 570, {steps: 60})
+      await expect(readTooltip).toBeHidden()
+      await page.mouse.move(620, 580, {steps: 30})
+      await expect(readTooltip).toBeHidden()
+      await page.mouse.up()
       await expect(drift.getByRole('button', {name: 'Keep link, accept drift'})).toBeVisible()
+      await expect(readTooltip).toBeHidden()
       const kept = observer.mark()
       await drift.getByRole('button', {name: 'Keep link, accept drift'}).click()
       await expect(drift).toBeHidden()

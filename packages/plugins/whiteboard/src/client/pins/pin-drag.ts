@@ -1,7 +1,7 @@
 import {createStore} from 'solid-js/store'
 import {screenToScene, type Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow} from '../../shared/rows.js'
-import type {CommentsModel} from '../model/comments-model.js'
+import type {PinPatch} from '../model/comment-writes.js'
 
 const DRAG_THRESHOLD = 4
 
@@ -11,7 +11,15 @@ type Prompt = {cid: string; x: number; y: number; originX: number; originY: numb
 const movedPastThreshold = (drag: Drag): boolean =>
   Math.abs(drag.x - drag.originX) > DRAG_THRESHOLD || Math.abs(drag.y - drag.originY) > DRAG_THRESHOLD
 
-export function createPinDrag(model: CommentsModel) {
+type PinDragModel = {
+  detachAnchor: (cid: string) => void
+  movePin: (cid: string, patch: PinPatch) => void
+  pinButton: (cid: string) => HTMLButtonElement | undefined
+  closeThread: () => void
+  toggleThread: (cid: string) => void
+}
+
+export function createPinDrag(model: PinDragModel) {
   const [state, setState] = createStore<{drag: Drag | null; prompt: Prompt | null}>({drag: null, prompt: null})
 
   const scenePosition = (pin: PinRow): {x: number; y: number} => {

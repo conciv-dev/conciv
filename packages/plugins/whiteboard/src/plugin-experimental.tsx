@@ -1,17 +1,18 @@
-import {createResource, getOwner, onCleanup, type Accessor} from 'solid-js'
+import {createResource, getOwner, onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 import {whiteboardStores} from './client/stores.js'
+import type {ChatCover} from './client/model/comments-model.js'
 
 export default Plugin.define({
   stores: whiteboardStores,
   setup(ctx) {
-    const [canvas, setCanvas] = createStore<{open: boolean; engaged: boolean; threadOpen: Accessor<boolean>}>({
+    const [canvas, setCanvas] = createStore<{open: boolean; engaged: boolean; comments: ChatCover | undefined}>({
       open: false,
       engaged: false,
-      threadOpen: () => false,
+      comments: undefined,
     })
     const [surface, {refetch}] = createResource(
       () => canvas.engaged,
@@ -22,11 +23,11 @@ export default Plugin.define({
     const overlay: Slot = {
       at: 'page.overlay',
       get hides() {
-        return canvas.open && canvas.threadOpen()
+        return canvas.open && Boolean(canvas.comments?.threadOpen() || canvas.comments?.prompting())
       },
       render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }
-    const bindThreadOpen = (threadOpen: Accessor<boolean>): void => void setCanvas('threadOpen', () => threadOpen)
+    const bindComments = (comments: ChatCover | undefined): void => void setCanvas({comments})
     const pill: ComposerPill = {
       id: 'whiteboard-open',
       order: 20,
@@ -53,7 +54,7 @@ export default Plugin.define({
             visible={canvas.open}
             layer={layer}
             close={close}
-            bindThreadOpen={bindThreadOpen}
+            bindComments={bindComments}
           />
         ),
         document.createDocumentFragment(),
