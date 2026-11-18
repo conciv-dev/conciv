@@ -32,7 +32,6 @@ export type ToolViewCtx = {
   addResult: (toolCallId: string, value: UiAnswerValue) => Promise<void>
 
   respondApproval?: (approvalId: string, approved: boolean, scope: PermissionScope) => void
-  durationFor?: (toolCallId: string) => number | undefined
 }
 
 export type ToolCardProps = {

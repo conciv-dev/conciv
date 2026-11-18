@@ -6,7 +6,6 @@ export type ToolViewCtxDeps = {
   decide: (approvalId: string, approved: boolean, scope: PermissionScope) => Promise<void>
   onError: (error: unknown) => void
   addResult: ToolViewCtx['addResult']
-  durationFor: NonNullable<ToolViewCtx['durationFor']>
 }
 
 export function makeToolViewCtx(deps: ToolViewCtxDeps): ToolViewCtx {
@@ -16,6 +15,5 @@ export function makeToolViewCtx(deps: ToolViewCtxDeps): ToolViewCtx {
     respondApproval: (approvalId, approved, scope) => {
       void deps.decide(approvalId, approved, scope).catch(deps.onError)
     },
-    durationFor: deps.durationFor,
   }
 }

@@ -92,13 +92,18 @@ import {
 } from '@conciv/ai/client'
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
-import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {
+  ChatEventType,
+  toolTimeEvent,
+  type ChatEvent,
+  type RunClockSource,
+  type RunLifecycle,
+} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {sessionPickerSearchSchema} from '../src/lib/session-search-schemas.js'
 import {
@@ -283,7 +288,6 @@ describe('approval replay', () => {
         decide: session.decide,
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
-        durationFor: () => undefined,
       })
       render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
       const callbacks = announced[0]
@@ -352,7 +356,6 @@ describe('approval replay', () => {
         decide: session.decide,
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
-        durationFor: () => undefined,
       })
       render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
       const callbacks = announced[0]
@@ -6440,6 +6443,7 @@ describe('run errors', () => {
 describe('tool durations across row eviction', () => {
   const EARLIER_EXCHANGES = 24
   const PROBE_CALL = 'probe-call'
+  const PROBE_START = 1_700_000_000_000
 
   function ProbeCard(props: ToolCardProps): JSX.Element {
     return <p>{`probe took ${formatDuration(props.durationMs) ?? 'no time yet'}`}</p>
@@ -6465,9 +6469,12 @@ describe('tool durations across row eviction', () => {
       async *connect(_messages, _data, _signal, runContext) {
         const run = {threadId: runContext?.threadId ?? 'durations', runId: runContext?.runId ?? 'durations-run'}
         yield {type: ChatEventType.RUN_STARTED, ...run}
-        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL})
+        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL}).map((chunk) =>
+          chunk.type === ChatEventType.TOOL_CALL_START ? {...chunk, metadata: {time: {start: PROBE_START}}} : chunk,
+        )
         await resultGate
         yield createToolResultChunk(PROBE_CALL, 'probed')
+        yield toolTimeEvent.create({toolCallId: PROBE_CALL, time: {start: PROBE_START, end: PROBE_START + 1500}})
         yield* createTextChunks('probe finished')
         yield {type: ChatEventType.RUN_FINISHED, ...run, finishReason: 'stop'}
       },
@@ -6482,7 +6489,7 @@ describe('tool durations across row eviction', () => {
   function mountProbeThread(resultGate: Promise<void>): void {
     function ProbeThread(): JSX.Element {
       const chat = createChat({threadId: 'tool-durations', connection: gatedProbeRun(resultGate)})
-      const ctx = {...INERT_TOOL_CTX, durationFor: createToolDurations(chat.messages, Date.now)}
+      const ctx = INERT_TOOL_CTX
       onMount(() => {
         chat.setMessages(earlierExchanges())
         void chat.sendMessage('run the probe')
@@ -6506,7 +6513,7 @@ describe('tool durations across row eviction', () => {
   }
 
   const log = () => page.getByRole('log')
-  const probeTook = () => page.getByText(/^probe took \d+(\.\d)?s$/)
+  const probeTook = () => page.getByText('probe took 1.5s', {exact: true})
   const probeCard = () => page.getByText(/^probe took/)
 
   async function scrollAway(): Promise<void> {
@@ -7496,7 +7503,7 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('Error: the probe card render failed', {exact: true})).toBeVisible()
   }, 45_000)
 
-  test('a call no card claims draws the generic card: Called and the tool, the label input beside it, then up to three other arguments', async () => {
+  test('a call no card claims draws the generic card: Called and the tool, the label input beside it, then up to three other arguments, and the time the engine took once it finished, also after a reload', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.scriptTurn({
       toolCalls: [
@@ -7506,11 +7513,19 @@ module.exports = {default: {setup(ctx) {
       ],
       text: 'the generic calls are done',
     })
+    await coreControl.holdResults()
     harness.mountShell(`/panel/${sessionId}?open=true`)
+    const resolveRow = () => page.getByRole('button', {name: /Called server_resolve/})
+    const took = /^\d+(\.\d)?s$/
 
     await editor().click()
     await userEvent.keyboard('run the generic calls{Enter}')
+    await expect.element(resolveRow(), {timeout: 15_000}).toBeVisible()
+    await expect.element(resolveRow().getByText(took)).not.toBeInTheDocument()
+
+    await coreControl.releaseResults()
     await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(resolveRow().getByText(took)).toBeVisible()
     await expect.element(page.getByText('Called server_resolve', {exact: true})).toBeVisible()
     await expect.element(page.getByText('spec=solid-js', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Called note_open', {exact: true})).toBeVisible()
@@ -7518,6 +7533,11 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByText('line=3', {exact: true})).toBeVisible()
     await expect.element(page.getByText('force=true', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Called server_urls', {exact: true})).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(resolveRow().getByText(took)).toBeVisible()
   }, 45_000)
 })
 

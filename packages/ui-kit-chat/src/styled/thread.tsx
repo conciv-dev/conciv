@@ -20,7 +20,7 @@ import {isEqual, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -202,10 +202,6 @@ function TurnFrame(props: ParentProps): JSX.Element {
   return <div class={lead() ? `${TURN_FRAME_CLASS} ${TURN_LEAD_CLASS}` : TURN_FRAME_CLASS}>{props.children}</div>
 }
 
-function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Accessor<number | undefined> {
-  return createMemo(() => (callId === undefined ? undefined : ctx.durationFor?.(callId)))
-}
-
 function AssistantTurn(props: {
   entries: ToolCardEntry[]
   render: ToolRender | undefined
@@ -269,7 +265,6 @@ function AssistantTurn(props: {
           const current = call()
           return current !== null && resolveRowMark(current, result()) === 'run'
         })
-        const durationMs = createCallDuration(callId, ctx)
         return {
           key: item.key,
           get live() {
@@ -299,7 +294,6 @@ function AssistantTurn(props: {
                     render={props.render}
                     disclosure={disclosure}
                     sessionID={config.sessionID()}
-                    durationMs={durationMs()}
                     ring={branch.ring}
                     chain
                   />
@@ -355,7 +349,6 @@ function AssistantTurn(props: {
               {(part) => {
                 const callId = untrack(part).id
                 const result = createMemo(() => turnParts.resultFor(callId))
-                const durationMs = createCallDuration(callId, ctx)
                 return (
                   <ToolPartRow
                     part={part()}
@@ -365,7 +358,6 @@ function AssistantTurn(props: {
                     render={props.render}
                     disclosure={disclosure}
                     sessionID={config.sessionID()}
-                    durationMs={durationMs()}
                     chain={false}
                   />
                 )

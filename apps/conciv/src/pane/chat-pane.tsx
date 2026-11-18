@@ -49,7 +49,6 @@ import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
-import {createToolDurations} from './tool-durations.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
@@ -282,7 +281,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: messaging.onAnswer,
-    durationFor: createToolDurations(chat.messages, Date.now),
   })
 
   const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))

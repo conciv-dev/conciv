@@ -162,7 +162,7 @@ from inside a page handler using exactly this pattern).
 type ToolCardProps = {
   part: ToolCallPart // the call: id, name, arguments
   result: ToolResultPart | undefined // undefined while streaming; .content / .error once landed
-  ctx: ToolViewCtx // catalog, addResult, respondApproval?, durationFor?
+  ctx: ToolViewCtx // catalog, addResult, respondApproval?
   durationMs?: number
 }
 ```

@@ -2,6 +2,7 @@ import {createMemo, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolComponent} from '@conciv/plugin/experimental'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {toolCallDuration} from '@conciv/protocol/chat-event-types'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {findToolEntry} from '../tools/primitives/define-toolkit.js'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
@@ -41,7 +42,6 @@ export function ToolPartRow(props: {
   entries: readonly ToolCardEntry[]
   render: ToolRender | undefined
   disclosure: ToolDisclosure
-  durationMs: number | undefined
   sessionID?: string
   ring?: boolean
   chain: boolean
@@ -53,6 +53,7 @@ export function ToolPartRow(props: {
   const settled = () => status() !== 'running' && status() !== 'pending'
   const output = () => (settled() ? toolOutput(props.part, props.result) : undefined)
   const input = createMemo(() => parseInput(ToolInputSchema, props.part) ?? {})
+  const durationMs = () => toolCallDuration(props.part)
   const display = (): JSX.Element => (
     <ToolDisplay
       id={props.part.id}
@@ -67,7 +68,7 @@ export function ToolPartRow(props: {
       open={props.disclosure.open(props.part.id) ?? status() !== 'error'}
       onOpenChange={(open) => props.disclosure.setOpen(props.part.id, open)}
       render={props.render}
-      durationMs={props.durationMs}
+      durationMs={durationMs()}
     />
   )
   const legacy = (): JSX.Element =>
@@ -76,7 +77,7 @@ export function ToolPartRow(props: {
         part={props.part}
         result={props.result}
         ctx={props.ctx}
-        durationMs={props.durationMs}
+        durationMs={durationMs()}
         tools={() => [...props.entries]}
         ring={props.ring}
       />
@@ -85,7 +86,7 @@ export function ToolPartRow(props: {
         part={props.part}
         result={props.result}
         ctx={props.ctx}
-        durationMs={props.durationMs}
+        durationMs={durationMs()}
         tools={() => [...props.entries]}
       />
     )
