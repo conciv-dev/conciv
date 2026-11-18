@@ -3234,6 +3234,55 @@ describe('page session card', () => {
     expect(document.body.textContent).not.toContain('Called page_click')
   })
 
+  test('a tanstack call draws the card the tanstack plugin claims, not the generic card', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    const routerState: ToolCallPart = {
+      type: 'tool-call',
+      id: 't1',
+      name: 'tanstack_router_state',
+      arguments: '{}',
+      input: {},
+      state: 'complete',
+    }
+    const match = (routeId: string) => ({
+      id: routeId,
+      routeId,
+      path: routeId,
+      params: {},
+      search: {},
+      status: 'success',
+      error: null,
+      loaderData: null,
+      updatedAt: null,
+      isFetching: false,
+    })
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 't1',
+      content: JSON.stringify({
+        location: {pathname: '/about', search: '', hash: ''},
+        matches: [match('__root__'), match('/about')],
+      }),
+      state: 'complete',
+    }
+    keep(
+      mountPane({base: core(), sessionId}, () => {
+        const pluginCards = createPluginToolCards(() => undefined)
+
+        return (
+          <ToolCallCard
+            part={routerState}
+            result={result}
+            ctx={INERT_TOOL_CTX}
+            tools={() => [...pluginCards(), ...builtinToolCards]}
+          />
+        )
+      }),
+    )
+
+    await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
+  })
+
   test('a reloaded transcript of page acts renders one aggregated session card with the reply', async () => {
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
