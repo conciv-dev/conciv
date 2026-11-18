@@ -17,8 +17,6 @@ import type {
   ToolCaptureMode,
 } from '@conciv/protocol/element-capture-types'
 import {toolError} from '@conciv/protocol/tool-call-types'
-import type {BaseContext} from '@conciv/plugin/experimental'
-import {PageEffect} from '@conciv/plugin/experimental/page'
 import {
   addRef,
   buildSnapshot,
@@ -82,6 +80,15 @@ type Call = {
 type Answer = {value: unknown; files: File[]}
 
 const WAIT_POLL_MS = 100
+
+export type PageEffect = {
+  readonly name: string
+  readonly description: string
+  set(enabled: boolean): void
+  enabled(): boolean
+}
+
+const OverrideRefusal = z.object({error: z.string()})
 
 export type PageOperations = {
   execute: (command: Command, signal?: AbortSignal) => Promise<Outcome>
@@ -326,7 +333,7 @@ async function shot(input: {exclude?: string[]}): Promise<Answer> {
 function perform(
   action: Action,
   call: Call,
-  effects: () => readonly PageEffect[],
+  effects: readonly PageEffect[],
   signal: AbortSignal | undefined,
 ): Answer | Promise<Answer> {
   switch (action.type) {
@@ -400,7 +407,8 @@ function perform(
         }
         const path = action.path ? action.path.split('.') : []
         const overridden = await reactBridge.override(el, action.target, path, value, action.hookId)
-        if ('error' in overridden) fail(overridden.error)
+        const refusal = OverrideRefusal.safeParse(overridden)
+        if (refusal.success) fail(refusal.data.error)
         return ok({target: action.target, path: action.path ?? '', ...(value === undefined ? {} : {value})})
       })
     case 'tree':
@@ -423,8 +431,8 @@ function perform(
     case 'effect':
       return touching(() => {
         const driven = action.action ?? 'list'
-        if (driven === 'list') return listEffects(effects(), action.effect)
-        const effect = requireEffect(effects(), action.effect, driven)
+        if (driven === 'list') return listEffects(effects, action.effect)
+        const effect = requireEffect(effects, action.effect, driven)
         driveEffect(effect, driven)
         return {effect: effect.name, enabled: effect.enabled()}
       })
@@ -734,12 +742,10 @@ function failure(error: PageFailure): Outcome {
   return {type: 'failure', code: 'handler-error', message: error.error.message.slice(0, SHORT_MAX)}
 }
 
-export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperations {
+export function makePageOperations(effects: readonly PageEffect[]): PageOperations {
   const refs: Refs = {map: new Map(), n: 0}
   const scope = Scope.makeUnsafe()
   const consoleBuf = Effect.runSync(consoleBuffer.pipe(Scope.provide(scope)))
-  const effects = () =>
-    ctx.list(PageEffect).filter((effect, index, all) => all.findIndex((other) => other.name === effect.name) === index)
   void loadSnapshotLibrary()
 
   const dispatch = Effect.fnUntraced(function* (command: Command, signal: AbortSignal | undefined) {
@@ -778,7 +784,7 @@ export function makePageOperations(ctx: Pick<BaseContext, 'list'>): PageOperatio
   }
 
   function dispose(): void {
-    for (const effect of effects()) if (effect.enabled()) effect.set(false)
+    for (const effect of effects) if (effect.enabled()) effect.set(false)
     Effect.runSync(Scope.close(scope, Exit.void))
     unwatchLayout()
   }

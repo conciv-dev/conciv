@@ -403,10 +403,16 @@ export type ShellMountOptions = {
   connect?: boolean
 }
 
-function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; dispose: () => void} {
-  const host = document.createElement('div')
-  document.body.append(host)
-  const shadow = createShadowRoot(host)
+function mountConcivRoot(inShadow: boolean): {
+  root: ShadowRoot | undefined
+  container: HTMLDivElement
+  dispose: () => void
+} {
+  const inner = document.createElement('div')
+  inner.setAttribute('data-conciv-root', '')
+  document.body.append(inner)
+  if (!inShadow) return {root: undefined, container: inner, dispose: () => inner.remove()}
+  const shadow = createShadowRoot(inner)
   const container = document.createElement('div')
   shadow.root.append(container)
   return {
@@ -414,7 +420,7 @@ function mountInShadowRoot(): {root: ShadowRoot; container: HTMLDivElement; disp
     container,
     dispose: () => {
       shadow.dispose()
-      host.remove()
+      inner.remove()
     },
   }
 }
@@ -451,13 +457,13 @@ export function createShellHarness(base: () => string): ShellHarness {
     disposeLogin: () => void
     unmount: () => void
     closeRpc: () => void
-    removeShadow: () => void
+    removeRoot: () => void
   } = {
     router: null,
     disposeLogin: () => {},
     unmount: () => {},
     closeRpc: () => {},
-    removeShadow: () => {},
+    removeRoot: () => {},
   }
 
   const mountShell = (
@@ -479,12 +485,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     const shellRpc = shellRpcFor(options, apiBase, session)
     const client = shellRpc.client
     mounted.closeRpc = client.close
-    const shadow = options.shadow ? mountInShadowRoot() : undefined
-    mounted.removeShadow = shadow?.dispose ?? (() => {})
+    const shell = mountConcivRoot(options.shadow ?? false)
+    mounted.removeRoot = shell.dispose
     const router = createConcivRouter({
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
-      environment: {rootNode: shadow?.root ?? document, document},
+      environment: {rootNode: shell.root ?? document, document},
       settings: parseConcivSettings(
         JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
       ),
@@ -500,7 +506,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       },
     })
     mounted.router = router
-    mounted.unmount = render(() => <RouterProvider router={router} />, {container: shadow?.container}).unmount
+    mounted.unmount = render(() => <RouterProvider router={router} />, {container: shell.container}).unmount
   }
 
   const dispose = (): void => {
@@ -512,8 +518,8 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.disposeLogin = () => {}
     mounted.closeRpc()
     mounted.closeRpc = () => {}
-    mounted.removeShadow()
-    mounted.removeShadow = () => {}
+    mounted.removeRoot()
+    mounted.removeRoot = () => {}
     window.dispatchEvent(new Event('online'))
   }
 

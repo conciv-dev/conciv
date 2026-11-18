@@ -21,6 +21,7 @@ const SHELL_DEPS = [
   'semver/functions/lt',
   'semver/functions/valid',
 ]
+const REACT_PAGE_DEPS = ['react', 'react-dom/client']
 const BUILT_PACKAGE = /\/packages\/.+\/dist\//
 const BROWSER_SUITES = [
   'test/**/*.browser.test.ts',
@@ -32,6 +33,7 @@ type BrowserName = 'chromium' | 'firefox'
 
 const TIMEZONE = 'Pacific/Kiritimati'
 const PERMISSIONS: Record<BrowserName, string[]> = {chromium: ['clipboard-read', 'clipboard-write'], firefox: []}
+const LAUNCH_ARGS: Record<BrowserName, string[]> = {chromium: ['--disable-lcd-text'], firefox: []}
 
 function browserProject(
   name: string,
@@ -41,7 +43,7 @@ function browserProject(
 ): TestProjectInlineConfiguration {
   return {
     plugins: [UnoCSS(), solidPlugin()],
-    optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS]),
+    optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS, ...REACT_PAGE_DEPS]),
     test: {
       ...ciTestSolidBrowser(),
       name,
@@ -54,7 +56,10 @@ function browserProject(
         provider: playwright({contextOptions: {timezoneId: TIMEZONE}}),
         instances: browsers.map((browser) => ({
           browser,
-          provider: playwright({contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]}}),
+          provider: playwright({
+            launchOptions: {args: LAUNCH_ARGS[browser]},
+            contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]},
+          }),
         })),
         commands: coreCommands,
       },

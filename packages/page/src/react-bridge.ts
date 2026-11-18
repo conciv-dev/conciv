@@ -14,26 +14,10 @@ import {installTracker} from './render-tracker.js'
 import {sourceFromAttr} from './source-attr.js'
 import type {RefAdder} from './page-snapshot.js'
 
-export type {
-  RawFrame,
-  SourceLoc,
-  Owner,
-  Rect,
-  TreeNode,
-  HookNode,
-  LocateResult,
-  InspectResult,
-  TreeResult,
-} from '@conciv/protocol/page-introspect-types'
-import type {
-  RawFrame,
-  Owner,
-  TreeNode,
-  HookNode,
-  LocateResult,
-  InspectResult,
-  TreeResult,
-} from '@conciv/protocol/page-introspect-types'
+export type {RawFrame, SourceLoc, Owner, LocateResult} from '@conciv/plugin/experimental/page'
+export type {Rect, TreeNode, HookNode, InspectResult, TreeResult} from '@conciv/protocol/page-introspect-types'
+import type {RawFrame, Owner, LocateResult} from '@conciv/plugin/experimental/page'
+import type {TreeNode, HookNode, InspectResult, TreeResult} from '@conciv/protocol/page-introspect-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any

@@ -4,7 +4,7 @@ import {resolve, sep} from 'node:path'
 import {AnyMap, originalPositionFor} from '@jridgewell/trace-mapping'
 import {Duration, Effect} from 'effect'
 
-import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {RawFrame, SourceLoc} from '@conciv/contract'
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
