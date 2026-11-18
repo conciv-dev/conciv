@@ -383,21 +383,26 @@ export const make = Effect.fn('PageConnection.make')(function* (
         {discard: true},
       )
     })
-    Effect.runFork(
-      lane(sessionId)
-        .withPermit(playing)
-        .pipe(
-          Effect.catchCause((cause) =>
-            Effect.sync(() =>
-              played.forEach((each) =>
-                each.resolve({
-                  ok: false,
-                  error: Tool.toolError({message: `The queue could not be played: ${Cause.pretty(cause)}`}),
-                }),
-              ),
+    Effect.runSync(
+      Effect.forkIn(
+        lane(sessionId)
+          .withPermit(playing)
+          .pipe(
+            Effect.onExit((exit) =>
+              Exit.isSuccess(exit)
+                ? Effect.void
+                : Effect.sync(() =>
+                    played.forEach((each) =>
+                      each.resolve({
+                        ok: false,
+                        error: Tool.toolError({message: `The queue could not be played: ${Cause.pretty(exit.cause)}`}),
+                      }),
+                    ),
+                  ),
             ),
           ),
-        ),
+        work,
+      ),
     )
     return played.map((each) => each.promise)
   }
@@ -416,9 +421,9 @@ export const make = Effect.fn('PageConnection.make')(function* (
     },
   })
 
-  const unavailable = <A, F>(work: (signal: AbortSignal) => Promise<A>, refuse: (message: string) => F) =>
+  const unavailable = <A, F>(task: (signal: AbortSignal) => Promise<A>, refuse: (message: string) => F) =>
     Effect.tryPromise({
-      try: work,
+      try: task,
       catch: (error) => refuse(error instanceof Error ? error.message : String(error)),
     })
 
