@@ -21,7 +21,7 @@ Headless Solid compound components for the terminal: a Root that provides the mo
 
 ## Side Effects
 
-- `Screen` (`terminal.tsx`): opens xterm, injects xterm CSS, calls `model.connect()` and `focus()`; installs a ResizeObserver; calls `model.disconnect()` on cleanup
+- `Screen` (`terminal.tsx`): opens xterm, injects xterm CSS, calls `model.connect()`, and `focus()` only while focus is still on the page body, its tab panel or its tab; installs a ResizeObserver; calls `model.disconnect()` on cleanup
 
 ## Verification
 
