@@ -23,9 +23,9 @@ test('widget boots from dist in a nextjs app with the built-in Terminal tab', as
   const failures = collectFailures(page)
   await loginWidget(page)
   await expectWidgetBoots(page, failures)
-  const terminalTab = page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('tab', {name: 'Terminal'})
-  await expect(terminalTab.first()).toBeVisible()
-  await expect(terminalTab).toHaveCount(1)
+  const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
+  await chat.getByRole('tab', {name: 'Terminal'}).click()
+  await expect(chat.getByRole('button', {name: 'New terminal'})).toBeVisible()
 })
 
 test('the engine started by next.config offers its built-in terminal for a session', async ({page}) => {
