@@ -124,8 +124,8 @@ export const makeSceneVersions = Effect.fn('whiteboard.sceneVersions')(function*
 })
 
 export const asJson = (element: ExcalidrawElement): JsonValue => json.parse(JSON.parse(JSON.stringify(element)))
-export const sceneOfRows = (rows: readonly ElementRow[]): SceneElement[] => rows.map((row) => asScene(row.data))
-export const rowsOfElements = (room: string, elements: readonly ExcalidrawElement[]): ElementRow[] =>
+export const rowsToScene = (rows: readonly ElementRow[]): SceneElement[] => rows.map((row) => asScene(row.data))
+export const elementsToRows = (room: string, elements: readonly ExcalidrawElement[]): ElementRow[] =>
   elements.map((element) => ({room, elementId: element.id, data: asJson(element), version: element.version}))
 
 type ExportScope = 'live' | 'draft' | 'both'
@@ -194,7 +194,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
 
   const drawPending = (row: PendingRow) =>
     Effect.tryPromise(() => buildSkeletons(row)).pipe(
-      Effect.map((skeletons) => rowsOfElements(db.room, canvas.toElements(skeletons))),
+      Effect.map((skeletons) => elementsToRows(db.room, canvas.toElements(skeletons))),
       Effect.flatMap((rows) =>
         Effect.tryPromise(() => db.bulkUpsertElements(row.stage === 'draft' ? 'draft' : 'live', rows)),
       ),
@@ -238,7 +238,7 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
   const draftExportElements = async (scope: ExportScope): Promise<SceneElement[]> => {
     if (scope === 'live') return []
     await db.canvasDraftElements.preload()
-    return sceneOfRows([...db.canvasDraftElements.state.values()])
+    return rowsToScene([...db.canvasDraftElements.state.values()])
   }
 
   const exportReply = async (scope: ExportScope): Promise<JsonValue> => {

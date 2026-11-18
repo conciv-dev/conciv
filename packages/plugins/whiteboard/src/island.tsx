@@ -12,8 +12,8 @@ import type {Viewport} from './coords.js'
 import {
   makeCanvasPending,
   makeSceneVersions,
-  rowsOfElements,
-  sceneOfRows,
+  elementsToRows,
+  rowsToScene,
   type CanvasPort,
   type SceneElement,
 } from './island-model.js'
@@ -66,16 +66,16 @@ export function Island(props: {
     const instance = Ref.getUnsafe(attached)
     const rows = [...db.canvasElements.state.values()]
     if (!instance || !Effect.runSync(scene.acceptRemote(rows, instance.getSceneElementsIncludingDeleted()))) return
-    instance.updateScene({elements: sceneOfRows(rows), captureUpdate: CAPTURE_NEVER})
+    instance.updateScene({elements: rowsToScene(rows), captureUpdate: CAPTURE_NEVER})
   }
 
   const writeLocal = (next: readonly SceneElement[]): void =>
-    rowsOfElements(db.room, Effect.runSync(scene.takeLocal(next))).forEach((row) => db.canvasElements.utils.write(row))
+    elementsToRows(db.room, Effect.runSync(scene.takeLocal(next))).forEach((row) => db.canvasElements.utils.write(row))
 
   const initialScene = () => {
     const rows = [...db.canvasElements.state.values()]
     Effect.runSync(scene.seed(rows))
-    return {elements: sceneOfRows(rows)}
+    return {elements: rowsToScene(rows)}
   }
 
   const skipOnPointer = (skipped: Deferred.Deferred<void>) => {
