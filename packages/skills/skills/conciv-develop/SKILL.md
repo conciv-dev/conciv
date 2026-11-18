@@ -260,13 +260,15 @@ tool `.server` handlers get typed context.
 - **`views`** is an array of full panels the host can route to (`ExtensionView = {id, label, icon?,
   Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route:
 
-```tsx title="packages/extensions/terminal/src/client.tsx:8-19"
-export const terminal = defineExtension({
-  name: TERMINAL_NAME,
-  views: [
-    {id: 'terminal', label: 'Terminal', icon: SquareTerminal, Component: TerminalPanelView, actions: TerminalActions},
-  ],
-}).client(() => ({value: {store: createTerminalStore()}}))
+```tsx title="packages/extensions/recorder/src/client.tsx:20-27"
+export const recorder = defineExtension({
+  name: RECORDER_NAME,
+  configSchema: recorderConfig,
+  tools: [startToolClient, stopToolClient, pullToolClient],
+  attachments: [recordingAttachment],
+  views: [{id: 'recorder', label: 'Recorder', icon: Clapperboard, Component: RecorderPanelView}],
+  Surface,
+}).client(() => ({value: {store: createRecorderStore()}}))
 ```
 
 `getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
@@ -284,17 +286,17 @@ component reused by two extensions takes the capability it needs as a prop from 
 of calling `getExtensionApi` itself. Use it from a sibling module that needs your own extension's
 client value without importing the whole `defineExtension(...)` object:
 
-```ts title="packages/extensions/terminal/src/client/terminal-context.ts"
+```ts title="packages/extensions/recorder/src/client/recorder-context.ts"
 import {getExtensionApi} from '@conciv/extension'
-export const useTerminalContext = getExtensionApi(TERMINAL_NAME).useContext
+export const useRecorderContext = getExtensionApi(RECORDER_NAME).useContext
 ```
 
 Declare `RegisterExtension<typeof yourExtension>` against `@conciv/protocol/config-types`'s
 `ExtensionRegistry` interface to get `getExtensionApi('your-name')` fully typed instead of `object`:
 
-```ts title="packages/extensions/terminal/src/client.tsx:21-23"
+```ts title="packages/extensions/recorder/src/client.tsx:29-31"
 declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof terminal> {}
+  interface ExtensionRegistry extends RegisterExtension<typeof recorder> {}
 }
 ```
 
@@ -399,8 +401,8 @@ non-installed extensions).
 - `packages/protocol/src/tool-view-types.ts`
 - `packages/extensions/whiteboard/src/client.tsx`
 - `packages/extensions/whiteboard/src/tool/comment/def.ts`
-- `packages/extensions/terminal/src/client.tsx`
-- `packages/extensions/terminal/src/client/terminal-context.ts`
+- `packages/extensions/recorder/src/client.tsx`
+- `packages/extensions/recorder/src/client/recorder-context.ts`
 - `packages/extensions/tanstack/src/tool/server.ts`
 - `packages/extensions/tanstack/src/tool/client.ts`
 - `packages/extensions/tanstack/test/helpers.ts`

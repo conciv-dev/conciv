@@ -29,7 +29,7 @@ conversation so far, and the message log shows which harness produced each assis
   system prompt capability), `packages/chat/src/transcript.ts` (native transcript import),
   `packages/core/src/sessions/commands.ts` (slash commands), `packages/core/src/api/rpc/router.ts:150` and
   `api/rpc/sessions.ts` (models, harness meta, session list, native session import),
-  `packages/extensions/terminal/src/server.ts` (TTY / connect plan / release), `ServerHarness` in
+  `packages/core/src/pty/persistent-ptys.ts` (the session terminal built into core: TTY / release), `ServerHarness` in
   `packages/extension/src/types.ts`.
 - Assistant messages already carry `metadata.tanstack.run.id` (`transcript.ts:29`), and `chat_runs`
   (`packages/ai/src/server/chat-tables.ts`) has one row per run.

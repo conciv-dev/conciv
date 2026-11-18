@@ -1,7 +1,7 @@
 # The session terminal lives in core
 
 Status: ruled 2026-11-17 (orchestrator, "as opencode"; the owner may reverse any point). Port of the old
-`packages/extensions/terminal` extension. Reference: opencode at a1aa513 (`_ref/opencode`).
+`packages/extensions/terminal` extension, now deleted: the terminal is built into core. Reference: opencode at a1aa513 (`_ref/opencode`).
 
 ## What moves where
 

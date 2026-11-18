@@ -66,7 +66,6 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
   'packages/core/src/pty/pty-sessions.ts',
-  'packages/extensions/terminal/src/server/pty-sessions.ts',
   'packages/page/src/react-bridge.ts',
   'packages/try/src/cli.ts',
   'packages/vitest-config/src/summary.ts',
