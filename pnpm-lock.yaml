@@ -2024,12 +2024,12 @@ importers:
 
   native/swift:
     dependencies:
-      '@conciv/extension-ios':
-        specifier: workspace:*
-        version: link:../../packages/extensions/ios
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
+      '@conciv/plugin-ios':
+        specifier: workspace:*
+        version: link:../../packages/plugins/ios
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -3422,12 +3422,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/core':
-        specifier: workspace:^
-        version: link:../../core
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
