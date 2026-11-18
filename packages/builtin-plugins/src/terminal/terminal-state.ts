@@ -70,15 +70,14 @@ export function createTerminalState(ctx: TerminalContext) {
 
   const spawnModel = (sessionId: string) => {
     const picked = ctx.stores.prefs.value.model
-    return picked !== null && models(sessionId).some((model) => model.id === picked) ? picked : undefined
+    if (picked !== null && models(sessionId).some((model) => model.id === picked)) return picked
+    return meta(sessionId)?.defaultModel ?? undefined
   }
 
-  const runningModel = (sessionId: string) => {
+  const shownModel = (sessionId: string) => {
     const live = run.live?.key === key(sessionId) && !run.restarting ? run.live : null
     return live ? live.model : spawnModel(sessionId)
   }
-
-  const shownModel = (sessionId: string) => runningModel(sessionId) ?? meta(sessionId)?.defaultModel ?? undefined
 
   const restart = async (session: MountedSession): Promise<void> => {
     if (run.restarting) return
