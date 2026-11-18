@@ -1,6 +1,5 @@
-import {createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
-import {createStore, reconcile, unwrap} from 'solid-js/store'
-import {createKeyed, Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
+import {createMemo, createUniqueId, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
@@ -13,7 +12,7 @@ import {
   failureLocation,
   fixPrompt,
   fileGroup,
-  followTestRun,
+  followRunView,
   initialRunView,
   parseRunResult,
   pathTail,
@@ -23,10 +22,8 @@ import {
   testFiles,
   selectSummary,
   selectTests,
-  transitionRunView,
   type FileGroup,
   type RunView,
-  type RunViewAction,
   type Summary,
   type TestError,
   type TestRow,
@@ -231,25 +228,28 @@ function RunCard(props: Actions & RunCardView): JSX.Element {
 type Client = Context['client']
 
 function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
-  const [run, setRun] = createStore<RunView>(initialRunView)
-  const dispatch = (action: RunViewAction) => setRun(reconcile(transitionRunView(unwrap(run), action), {key: 'id'}))
-
-  createKeyed(
-    () => props.client(),
-    (client) => {
-      const controller = new AbortController()
-      onCleanup(() => controller.abort())
-      void followTestRun(client, controller.signal, dispatch)
-    },
-  )
+  const follow = createMemo(() => {
+    const client = props.client()
+    return client ? followRunView(client) : undefined
+  })
+  const run = (): RunView => follow()?.() ?? initialRunView
+  const unavailable = () => {
+    const view = run()
+    return view.status === 'unavailable' ? view : undefined
+  }
 
   return (
     <Switch
       fallback={
-        <RunCard {...props} summary={selectSummary(run)} tests={selectTests(run)} running={run.status === 'running'} />
+        <RunCard
+          {...props}
+          summary={selectSummary(run())}
+          tests={selectTests(run())}
+          running={run().status === 'running'}
+        />
       }
     >
-      <Match when={run.status === 'unavailable' ? run : undefined}>
+      <Match when={unavailable()}>
         {(view) => (
           <div class="flex flex-col gap-1">
             <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
@@ -259,7 +259,7 @@ function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.E
           </div>
         )}
       </Match>
-      <Match when={run.status === 'idle'}>
+      <Match when={run().status === 'idle'}>
         <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
           No test run yet
         </p>

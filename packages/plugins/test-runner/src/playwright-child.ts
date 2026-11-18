@@ -1,3 +1,4 @@
-import {runChild} from './playwright-run.js'
+import {runChildMain} from './child-main.js'
+import {runPlaywrightChild} from './playwright-run.js'
 
-void runChild()
+runChildMain(runPlaywrightChild)

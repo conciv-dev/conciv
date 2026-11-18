@@ -1,3 +1,4 @@
-import {runChild} from './vitest-run.js'
+import {runChildMain} from './child-main.js'
+import {runVitestChild} from './vitest-run.js'
 
-void runChild()
+runChildMain(runVitestChild)

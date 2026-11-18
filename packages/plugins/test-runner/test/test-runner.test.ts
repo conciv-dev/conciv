@@ -7,7 +7,7 @@ import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {Effect, Exit, Fiber, Layer, Ref, Scope, Sink, Stream} from 'effect'
+import {Effect, Exit, Fiber, Layer, Logger, Ref, Scope, Sink, Stream} from 'effect'
 import * as PlatformError from 'effect/PlatformError'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import * as FollowMachine from '../src/follow-machine.js'
@@ -576,7 +576,9 @@ function fakeSpawner(children: Ref.Ref<readonly FakeChild[]>, launched: Ref.Ref<
 }
 
 describe('the test-runner driver over a fake child process', () => {
-  it('runs, streams, reports a failed start and a signal, lists, stops a hanging run and settles callers on dispose', async () => {
+  it('runs, streams, warns on a line that is not a child message, reports a failed start and a signal, lists, stops a hanging run and settles callers on dispose', async () => {
+    const logged: {readonly level: string; readonly message: unknown}[] = []
+    const capture = Logger.layer([Logger.make(({logLevel, message}) => logged.push({level: logLevel, message}))])
     const program = Effect.gen(function* () {
       const children = yield* Ref.make<readonly FakeChild[]>([
         {lines: [JSON.stringify(RUN_START), 'not json', JSON.stringify(PASSED), JSON.stringify(RUN_END)], exit: 0},
@@ -599,6 +601,10 @@ describe('the test-runner driver over a fake child process', () => {
       expect(result).toEqual({summary: SUMMARY, failures: [], tests: [PASSED_ROW]})
       expect(yield* Fiber.join(seen)).toEqual([RUN_START, PASSED, RUN_END])
       expect(yield* manager.status).toEqual(result)
+      expect(logged).toContainEqual({
+        level: 'Warn',
+        message: ['the test runner child sent a line that is not a child message'],
+      })
       expect((yield* Ref.get(launched))[0]).toEqual(expect.arrayContaining(['--mode', 'run', '--pattern', 'pass']))
 
       const failed = yield* manager.run({}).pipe(Effect.flip)
@@ -623,6 +629,6 @@ describe('the test-runner driver over a fake child process', () => {
       yield* Scope.close(scope, Exit.void)
       expect((yield* Fiber.join(disposing)).message).toBe('vitest unavailable: the test runner stopped')
     })
-    await Effect.runPromise(Effect.scoped(program))
+    await Effect.runPromise(Effect.scoped(program).pipe(Effect.provide(capture)))
   })
 })

@@ -54,7 +54,9 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
+    "@effect/platform-node": "catalog:",
     "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -79,6 +81,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@conciv/plugin": "workspace:^"
+    "@conciv/plugin": "workspace:^",
+    "solid-js": "catalog:"
   }
 }

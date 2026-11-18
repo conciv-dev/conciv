@@ -1,16 +1,9 @@
+import {uniq} from 'es-toolkit'
 import {TestRunResultSchema, type Summary, type TestError, type TestRow, type TestRunResult} from './events.js'
 
 export type {Summary, TestError, TestRow, TestRunResult}
-export {
-  initialRunView,
-  selectEndedFiles,
-  selectSummary,
-  selectTests,
-  transitionRunView,
-  type RunView,
-  type RunViewAction,
-} from './run-state.js'
-export {followTestRun} from './follow-run.js'
+export {initialRunView, selectEndedFiles, selectSummary, selectTests, type RunView} from './run-state.js'
+export {followRunView} from './follow.js'
 
 export type FileGroup = {readonly file: string; readonly tests: readonly TestRow[]}
 
@@ -81,7 +74,7 @@ export function failedCount(group: FileGroup): number {
 }
 
 export function testFiles(tests: readonly TestRow[]): string[] {
-  return [...new Set(tests.map((test) => test.file))].toSorted()
+  return uniq(tests.map((test) => test.file)).toSorted()
 }
 
 export function fileGroup(tests: readonly TestRow[], file: string): FileGroup {

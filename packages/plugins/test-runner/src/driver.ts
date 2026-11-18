@@ -73,8 +73,14 @@ const makeChildManager = Effect.fn('TestRunner.makeChildManager')(function* (spe
         yield* handle.getOutputFd(3).pipe(
           Stream.decodeText(),
           Stream.splitLines,
-          Stream.filterMap(decodeLine),
-          Stream.runForEach((message) => dispatch({type: 'child-event', attempt, message})),
+          Stream.filter((line) => line.trim() !== ''),
+          Stream.runForEach((line) => {
+            const decoded = decodeLine(line)
+            if (Result.isSuccess(decoded)) return dispatch({type: 'child-event', attempt, message: decoded.success})
+            return Effect.logWarning('the test runner child sent a line that is not a child message').pipe(
+              Effect.annotateLogs({plugin: 'test-runner', runner: spec.id, line}),
+            )
+          }),
         )
         const status = yield* readChildExit(handle)
         yield* dispatch({type: 'child-exited', attempt, exit: {type: 'exited', ...status}})
