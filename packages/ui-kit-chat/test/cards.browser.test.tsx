@@ -127,7 +127,7 @@ describe('card body nonempty', () => {
   })
 })
 
-describe('a generic card given a body', () => {
+describe('a generic card', () => {
   const saveMeta: ToolViewMeta = {
     summary: 'save the form the user filled',
     label: {running: 'Saving the form', done: 'Saved the form'},
@@ -158,32 +158,14 @@ describe('a generic card given a body', () => {
   const catalogCtx = ctxWith(makeCatalog({page_save: saveMeta}))
   const region = (name: string) => page.getByRole('region', {name, exact: true})
 
-  it('draws the given body in place of its own under the same header, and its own body without one', async () => {
+  it('draws its own body under its header', async () => {
     mountView(() => (
       <>
         <section aria-label="catalog card">
           <MetaToolCard part={savePart} result={saveResult} ctx={catalogCtx} addResult={INERT_ADD_RESULT} />
         </section>
-        <section aria-label="catalog card with a body">
-          <MetaToolCard
-            part={savePart}
-            result={saveResult}
-            ctx={catalogCtx}
-            addResult={INERT_ADD_RESULT}
-            body={<p>Plugin drew the save</p>}
-          />
-        </section>
         <section aria-label="fallback card">
           <ToolFallback part={pingPart} result={pingResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />
-        </section>
-        <section aria-label="fallback card with a body">
-          <ToolFallback
-            part={pingPart}
-            result={pingResult}
-            ctx={INERT_TOOL_CTX}
-            addResult={INERT_ADD_RESULT}
-            body={<p>Plugin drew the ping</p>}
-          />
         </section>
       </>
     ))
@@ -194,23 +176,10 @@ describe('a generic card given a body', () => {
     await expect.element(catalog.getByText('saved to drafts')).toBeVisible()
     await expect.element(catalog.getByText('Ada', {exact: true})).toBeVisible()
 
-    const catalogBodied = region('catalog card with a body')
-    await expect.element(catalogBodied.getByText('Saved the form #signup', {exact: true})).toBeVisible()
-    await userEvent.click(catalogBodied.getByRole('button').first())
-    await expect.element(catalogBodied.getByText('Plugin drew the save')).toBeVisible()
-    await expect.element(catalogBodied.getByText('Ada', {exact: true})).toBeVisible()
-    await expect.element(catalogBodied.getByText('saved to drafts')).not.toBeInTheDocument()
-
     const fallback = region('fallback card')
     await expect.element(fallback.getByRole('button', {name: /Called ping/})).toBeVisible()
     await userEvent.click(fallback.getByRole('button', {name: /Called ping/}))
     await expect.element(fallback.getByText('pong from example.org')).toBeVisible()
-
-    const fallbackBodied = region('fallback card with a body')
-    await expect.element(fallbackBodied.getByRole('button', {name: /Called ping/})).toBeVisible()
-    await userEvent.click(fallbackBodied.getByRole('button', {name: /Called ping/}))
-    await expect.element(fallbackBodied.getByText('Plugin drew the ping')).toBeVisible()
-    await expect.element(fallbackBodied.getByText('pong from example.org')).not.toBeInTheDocument()
   })
 })
 
@@ -655,42 +624,6 @@ describe('tool call card dispatch', () => {
     await expect.element(page.getByText('Run this action?')).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: 'Allow'})).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
-  })
-
-  it('an entry that declines a call hands it to the next match, then to the fallback, until it accepts', async () => {
-    const pluginEntry: ToolCardEntry = {
-      names: ['mcp__weather__forecast'],
-      render: cardSaying('the plugin card'),
-      hasEmbeddedBody: () => true,
-      accepts: (_call, result) => result !== undefined,
-    }
-    const catalogEntry: ToolCardEntry = {
-      names: ['mcp__weather__forecast'],
-      render: cardSaying('the second card'),
-      hasEmbeddedBody: () => true,
-    }
-    const fallbackRow = page.getByRole('button', {name: /Called mcp__weather__forecast/})
-    const [tools, setTools] = createSignal<ToolCardEntry[]>([pluginEntry, catalogEntry])
-    const [result, setResult] = createSignal<ToolResultPart | undefined>(undefined)
-    mountView(() => (
-      <ToolCallCard
-        part={{...part('mcp__weather__forecast'), id: 'e1'}}
-        result={result()}
-        ctx={ctxAsking(makeCatalog({}))}
-        tools={tools}
-      />
-    ))
-
-    await expect.element(page.getByText('the second card')).toBeVisible()
-    await expect.element(page.getByText('the plugin card')).not.toBeInTheDocument()
-
-    setTools([pluginEntry])
-    await expect.element(fallbackRow).toBeVisible()
-    await expect.element(page.getByText('the plugin card')).not.toBeInTheDocument()
-
-    setResult(cardResult('sunny', 'complete'))
-    await expect.element(page.getByText('the plugin card')).toBeVisible()
-    await expect.element(fallbackRow).not.toBeInTheDocument()
   })
 })
 

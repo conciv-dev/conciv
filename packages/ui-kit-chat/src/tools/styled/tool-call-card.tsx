@@ -39,7 +39,7 @@ export type CardBodyQuery = {
 }
 
 export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
-  const entry = findToolEntry(query.tools, query.part, query.result)
+  const entry = findToolEntry(query.tools, query.part)
   if (entry) return entry.hasEmbeddedBody(query.part, query.result, query.ctx)
   if (query.ctx.catalog.meta(query.part.name)) return metaToolHasEmbeddedBody(query.part, query.result, query.ctx)
   const fallback = query.fallback?.hasEmbeddedBody ?? toolFallbackHasEmbeddedBody
@@ -57,7 +57,7 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
 
 function ToolCardView(props: ToolCallCardProps): JSX.Element {
   const render = (): ToolUIComponent => {
-    const card = findToolEntry(props.tools?.(), props.part, props.result)?.render
+    const card = findToolEntry(props.tools?.(), props.part)?.render
     if (card) return card
     if (props.ctx.catalog.meta(props.part.name)) return MetaToolCard
     return props.fallback?.render ?? ToolFallback
@@ -70,7 +70,6 @@ function ToolCardView(props: ToolCallCardProps): JSX.Element {
       ctx={props.ctx}
       addResult={(value) => props.ctx.addResult(props.part.id, value)}
       durationMs={props.durationMs}
-      capture={props.ctx.captureFor?.(props.part.id)}
     />
   )
 }

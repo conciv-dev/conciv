@@ -99,7 +99,7 @@ A page failure is the plugin's own error, a `[page.<code>]` message; the old reg
 ## test-runner-card
 
 The card the thread draws for a finished `test_runner_run` or `test_runner_status` call of the test-runner plugin
-(built-in id `test-runner-card`, a `ToolCall` contribution): the count pills, each file as a disclosure named by the
+(built-in id `test-runner-card`, a `ToolRegistry` contribution): the count pills, each file as a disclosure named by the
 last two path segments, a failing test closed until opened, and its failure with Open (the desktop editor, at the
 failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
 streams the live rows.

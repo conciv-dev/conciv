@@ -1,9 +1,8 @@
-import {children, Match, Show, Switch, type JSX} from 'solid-js'
+import {Match, Show, Switch, type JSX} from 'solid-js'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardProps, ToolViewCtx, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
 import {MUTATING_BADGE, clip, displayValue} from '../primitives/tool-presentation.js'
 import {namedArgument} from '../primitives/tool-row.js'
@@ -11,7 +10,6 @@ import {CardShell, cardHeader} from './card-shell.js'
 import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ShapedValue} from './shaped-content.js'
-import {ElementPreview} from './element-preview.js'
 import {NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
 import {ErrorBlock} from './error-block.js'
@@ -117,8 +115,6 @@ export function metaToolHasEmbeddedBody(
   ctx: ToolViewCtx,
 ): boolean {
   const meta = ctx.catalog.meta(part.name)
-  const capture = ctx.captureFor?.(part.id)
-  if ((capture?.after ?? capture?.before) !== undefined) return true
   if (summaryLine(part, meta) !== undefined) return true
   if (meta?.hint !== undefined || meta?.approval === 'ask') return true
   if (failureText(result, meta?.errors) !== undefined) return true
@@ -138,7 +134,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     const value = positionalValue()
     return value === undefined ? title() : `${title()} ${value}`
   }
-  const capture = (): ElementCapture | undefined => props.capture?.after ?? props.capture?.before
   const errorMessage = (): string | undefined => failureText(props.result, meta()?.errors)
   const raw = () => resultText(props.result)
   const payload = (): unknown => {
@@ -152,17 +147,8 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
   }
   const accent = () => CATEGORY_ACCENT[meta()?.category ?? ''] ?? NEUTRAL_ACCENT
   const bodySummary = () => summaryLine(props.part, meta())
-  const body = children(() => props.body)
   const ownBody = (): JSX.Element => (
     <>
-      <Show when={capture()}>
-        {(value) => (
-          <ElementPreview.Root capture={value()} css={props.capture?.css}>
-            <ElementPreview.Frame />
-            <ElementPreview.Descriptor />
-          </ElementPreview.Root>
-        )}
-      </Show>
       <Show when={bodySummary()}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
       <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
       <Show when={meta()?.approval === 'ask'}>
@@ -188,9 +174,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       durationMs={props.durationMs}
       iconClass={accent()}
     >
-      <Show when={body()} fallback={ownBody()}>
-        {body()}
-      </Show>
+      {ownBody()}
     </CardShell>
   )
 }

@@ -47,7 +47,7 @@ export function ToolPartRow(props: {
   chain: boolean
 }): JSX.Element {
   const entry = createMemo(() =>
-    props.render?.(props.part.name) === undefined ? findToolEntry(props.entries, props.part, props.result) : undefined,
+    props.render?.(props.part.name) === undefined ? findToolEntry(props.entries, props.part) : undefined,
   )
   const status = () => STATUS[toolStatus(props.part, props.result)]
   const settled = () => status() !== 'running' && status() !== 'pending'

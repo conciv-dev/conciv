@@ -122,12 +122,6 @@ entry with the chunks it requires at start, and each `import()`ed chunk the firs
 socket. The build fails on an import of a `@conciv/*` or `solid-js/*` module the conciv app does not provide to
 plugins.
 
-### `@conciv/plugin/experimental/builtin` (`experimental/builtin.ts`)
-
-The first-party tier, for conciv's own plugins only: `onIdle` and the `ToolCall` registry, which either fills the body of a
-finished tool call's card (`render`, `ToolCallProps`) or draws the whole card while the call runs and after (`card`, the
-kit's `ToolCardView`, with the call's duration and page capture).
-
 ### `@conciv/plugin/experimental/page` (`experimental/page.ts`)
 
 What the built-in page plugin offers other plugins' browser parts, shaped as opencode's `gui/browser.ts` (interface and
@@ -321,8 +315,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 
 ### App part (`experimental/`)
 
-- Files follow `plugin/src/gui/`: `core.ts`, `declarations.ts`, `plugin.ts`, `context.ts`, `host-apis.ts`, `registries.ts`, `icon-name.ts`, `builtin.ts`; `index.ts` mirrors `gui/index.ts`. `host-apis.ts` (about 1700 lines) stays one file, as in source.
-- Package exports `./experimental` and `./experimental/builtin` (source keeps `builtin.ts` out of its published build; conciv's built-in plugins live in other workspace packages, so it is exported).
+- Files follow `plugin/src/gui/`: `core.ts`, `declarations.ts`, `plugin.ts`, `context.ts`, `host-apis.ts`, `registries.ts`, `icon-name.ts`; `index.ts` mirrors `gui/index.ts`. `host-apis.ts` (about 1700 lines) stays one file, as in source.
 - `Json` and `PluginOptions` are declared in `core.ts`, as in source (the same shape as the engine part's).
 - `App` keeps the source's fields. `Context.app` is `App` (implemented), unlike the engine part's `App | undefined`.
 - `Token` is `Contract<unknown>` only, `TokenValue` has no Ipc branch, `Live` and `Context.use` / `provide` speak of contracts only: no main process, so no `Ipc`, `IpcSpec`, `IpcClient`, `IpcImpl`, `IpcProvider`, `IpcMethod`, `IpcCallOptions`, `Caller`, `Ipc.define`, `Context.main`, `Definition.main`, `MainSetup`, `MainContext`.
@@ -366,7 +359,7 @@ and `Scope` plus the Solid contexts (`PluginContext`, `LifetimeContext`, `PanelC
 - A `page.overlay` item with `hides: false` is drawn over the page inside the widget and is no layer: Escape, the panel's focus trap, the launcher and the quick bar behave as if it were not there.
 - The `NoteCard` registry is conciv-only, shaped like `CodeBlock` (`plugin/src/gui/registries.ts:719`), so a plugin can draw the inside of its own composer notes (a recording as a player); it is keyed by the note's existing `origin` field (`origins`, as `CodeBlock` lists `languages`), so the note type gains no field.
 - Not ported (spec "Not ported" list and its brief): `MenuItem` and its three item types, `TitlebarItem`, `Style`, `Theme` and its colour types.
-- `builtin.ts` ports `onIdle` and adds the built-in `ToolCall` registry (ruling). `ToolCallProps` follows `CodeBlockProps`: `tool`, `id`, `input`, `result` (`success` with `output`, or `error`), `session`; it is what a finished call has in conciv's tool card props (`ToolCardProps`, `packages/protocol/src/tool-view-types.ts:43`, through `ToolCard`, `packages/extension/src/types.ts:55`), without the card's `ctx`, `addResult`, `durationMs` and `capture`; the `card` form takes a `ToolCardView` as it is, so a built-in draws the whole card with all of them, and carries `streamTitle` and `display` as a `ToolCardEntry` does. Not ported: the legacy-key migration helpers `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (conciv has no shipped plugin keys to migrate), so `Entry.stores` is `Declarations.stores`; absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
+- `gui/builtin.ts` is not ported: its `onIdle` has no caller here, and a plugin draws a tool call through `ToolRegistry`. Not ported either: the legacy-key migration helpers `BuiltinStoreFrom`, `BuiltinStoreDeclaration`, `BuiltinStore`, `BuiltinCommand`, `BuiltinPanel`, `BuiltinPanelTab`, `BuiltinSlotMap`, `BuiltinSlot`, `BuiltinStoreOptions`, `BuiltinStorage`, `BuiltinDesktop`, `BuiltinLayout`, `BuiltinLocale`, `BuiltinContext`, `builtinContext` (conciv has no shipped plugin keys to migrate), so `Entry.stores` is `Declarations.stores`; absent: `MainStoreFrom`, `BuiltinMainStorage`, `Lifecycle`, `BuiltinMainContext`, `builtinMainContext`, `BuiltinCatalog`, `builtinCatalog` (no main process, no i18n).
 - `gui/file.ts`, `gui/review.ts`, `gui/browser.ts`, `gui/updater.ts` are not ported: they are contracts of opencode's own built-in plugins, and the audit has no row for any of them.
 
 ### Server registry
