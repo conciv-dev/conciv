@@ -1,4 +1,4 @@
-import {onMount, Show, type JSX} from 'solid-js'
+import {onMount, Show, type Accessor, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
@@ -30,11 +30,10 @@ const layerOpenBeside = (node: unknown): boolean => {
   return (root instanceof ShadowRoot || root instanceof Document) && root.querySelector(OPEN_CHAT_LAYER) !== null
 }
 
-const chatLayerOpen = (event: KeyboardEvent, layer: HTMLElement): boolean =>
-  layerOpenBeside(event.composedPath()[0]) || layerOpenBeside(layer)
+const chatLayerOpen = (event: KeyboardEvent): boolean => layerOpenBeside(event.composedPath()[0])
 
 const escapeLeftToOthers = (event: KeyboardEvent, layer: HTMLElement): boolean =>
-  event.key !== 'Escape' || insideExcalidraw(event) || chatLayerOpen(event, layer)
+  event.key !== 'Escape' || insideExcalidraw(event) || event.composedPath().includes(layer) || chatLayerOpen(event)
 
 type SurfaceProps = {
   client: Context['client']
@@ -43,7 +42,7 @@ type SurfaceProps = {
   visible: boolean
   layer: HTMLElement
   close: () => void
-  onThreadChange: (open: boolean) => void
+  bindThreadOpen: (threadOpen: Accessor<boolean>) => void
 }
 
 function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'>): JSX.Element {
@@ -78,7 +77,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   )
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
-      <CommentsProvider room={() => props.room} onThreadChange={props.onThreadChange}>
+      <CommentsProvider room={() => props.room} bindThreadOpen={props.bindThreadOpen}>
         <CanvasView room={props.room} visible={props.visible} layer={props.layer} />
       </CommentsProvider>
     </WhiteboardDbProvider>

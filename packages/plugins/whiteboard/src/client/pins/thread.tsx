@@ -82,15 +82,6 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
   const ctx = usePlugin()
   const ui = ctx.ui
   const model = useComments()
-  let header: HTMLElement | undefined
-  const step = (delta: 1 | -1): void => {
-    model.stepThread(delta)
-    if (model.canStep(delta)) return
-    const fallback = model.canStep(-delta)
-      ? header?.querySelector<HTMLElement>(`button[aria-label="${delta === 1 ? NEXT_THREAD : PREVIOUS_THREAD}"]`)
-      : header?.parentElement?.querySelector<HTMLElement>('input')
-    fallback?.focus()
-  }
   const confirmDelete = (): void => {
     const root = props.root
     ctx.dialogs.open((dialog) => (
@@ -117,17 +108,13 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
     ))
   }
   return (
-    <header
-      ref={(element) => (header = element)}
-      class="pb-1.5 border-b border-chat-line-soft flex gap-0.5 items-center"
-    >
+    <header class="pb-1.5 border-b border-chat-line-soft flex gap-0.5 items-center">
       <ui.Tooltip value={PREVIOUS_THREAD} placement="bottom">
         <ui.IconButton
           icon="chevron-left"
           label={PREVIOUS_THREAD}
           variant="ghost-muted"
-          disabled={!model.canStep(1)}
-          onClick={() => step(1)}
+          onClick={() => model.stepThread(1)}
         />
       </ui.Tooltip>
       <ui.Tooltip value={NEXT_THREAD} placement="bottom">
@@ -135,8 +122,7 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
           icon="chevron-right"
           label={NEXT_THREAD}
           variant="ghost-muted"
-          disabled={!model.canStep(-1)}
-          onClick={() => step(-1)}
+          onClick={() => model.stepThread(-1)}
         />
       </ui.Tooltip>
       <span class="flex-1" />
@@ -170,6 +156,7 @@ function ThreadReply(): JSX.Element {
         class="flex-1"
         label="Reply"
         placeholder="Reply"
+        autofocus
         value={draft.text}
         onInput={(value) => setDraft('text', value)}
         onSubmit={send}
@@ -203,16 +190,14 @@ function ThreadContent(): JSX.Element {
 export function ThreadPopover(props: {visible: boolean}): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
-  let content: HTMLDivElement | undefined
   return (
     <ui.Popover
       anchor={model.openPinButton}
       open={props.visible && model.openRoot() !== undefined}
       onOpenChange={(open) => open || model.closeThread()}
       label="Comment thread"
-      initialFocus={() => content?.querySelector('input') ?? undefined}
     >
-      <div ref={(element) => (content = element)} class="flex flex-col max-h-120 w-85 pointer-events-auto">
+      <div class="flex flex-col max-h-120 w-85 pointer-events-auto">
         <ThreadContent />
       </div>
     </ui.Popover>

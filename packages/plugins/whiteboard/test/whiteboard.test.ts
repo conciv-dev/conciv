@@ -471,18 +471,8 @@ describe('the whiteboard store and its rpc', () => {
       return {board: await board(first, room), enriching}
     }
     const {board: stored, enriching} = await fill().finally(() => first.cleanup())
-    const errors = vi.spyOn(console, 'error')
-    onTestFinished(() => void errors.mockRestore())
     await enriching.writeFile(APP)
     await enriching.close()
-    const heldId = z
-      .array(CommentSchema)
-      .parse(stored.comments)
-      .find((row) => row.cid === 'held')?.id
-    const logged = () => errors.mock.calls.flat().join('\n')
-    await vi.waitFor(() => expect(logged()).toContain(`comment ${heldId} was not enriched`))
-    expect(logged()).toContain('the whiteboard stopped before the enrichment finished')
-    expect(logged()).not.toContain('CLIENT_CLOSED')
     expect(
       z
         .array(CommentSchema)

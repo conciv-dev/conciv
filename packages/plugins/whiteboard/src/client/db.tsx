@@ -22,7 +22,12 @@ const withoutSession = <Row extends {sessionId: string}>({sessionId: _session, .
 export function createWhiteboardDb(client: Context['client'], room: string, catchUpRetryMs: number) {
   const whiteboard = client.rpc(Whiteboard)
   const feed = createChangeFeed(client, room, {retryMs: catchUpRetryMs})
-  const account = usePlugin<{stores: typeof whiteboardStores}>().stores.account
+  const plugin = usePlugin<{stores: typeof whiteboardStores}>()
+  const account = plugin.stores.account
+  const onWriteFailed = (error: unknown): void => {
+    console.error('[whiteboard] a change could not be saved', error)
+    void plugin.toast.show({title: 'Could not save your whiteboard change. Try again.', variant: 'error'})
+  }
   const fresh = account.value.id ?? crypto.randomUUID()
   if (account.value.id === null) account.set({id: fresh})
 
@@ -39,6 +44,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         remove: (id) => whiteboard['comments.remove']({room, id}),
       },
       toInsert: withoutSession,
+      onWriteFailed,
     }),
   )
   const pins = createCollection(
@@ -54,6 +60,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         remove: (id) => whiteboard['pins.remove']({room, id}),
       },
       toInsert: withoutRoom,
+      onWriteFailed,
     }),
   )
   const reads = createCollection(
@@ -69,6 +76,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         remove: (id) => whiteboard['reads.remove']({room, id}),
       },
       toInsert: withoutSession,
+      onWriteFailed,
     }),
   )
   const canvasPending = createCollection(
@@ -84,6 +92,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         remove: (id) => whiteboard['canvasPending.remove']({room, id}),
       },
       toInsert: withoutRoom,
+      onWriteFailed,
     }),
   )
   const canvasReplies = createCollection(
@@ -99,6 +108,7 @@ export function createWhiteboardDb(client: Context['client'], room: string, catc
         remove: (id) => whiteboard['canvasReplies.remove']({room, id}),
       },
       toInsert: withoutRoom,
+      onWriteFailed,
     }),
   )
   const elementOps = (scope: 'live' | 'draft') => ({

@@ -7,7 +7,10 @@ import {expect} from '@playwright/test'
 import type {Locator, Page} from 'playwright'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
+import {makeRpcClient} from '@conciv/harness-testkit'
 import {magicLink} from '@conciv/harness-testkit/login'
+import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {failRpcCalls, garbleRpcReplies, gateRpcCalls, holdRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
@@ -43,7 +46,7 @@ const MOVED_DIAMOND_WRITE = {
 const SAVED_BEFORE_POSITION = 'saved-before-position'
 const CATCH_UP_RETRY_MS = 20
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
-const PinRows = z.array(z.object({cid: z.string(), pinState: z.string()}).loose())
+const PinRows = z.array(z.object({cid: z.string(), pinState: z.string(), x: z.number(), y: z.number()}).loose())
 const ThreadRead = z.object({
   comment: z.object({status: z.string()}).loose(),
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
@@ -91,6 +94,17 @@ async function pointerDrag(page: Page, from: {x: number; y: number}, to: {x: num
   await page.mouse.move(to.x, to.y, {steps: 40})
   await page.mouse.up()
   return startedAt
+}
+
+async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise<unknown> {
+  const room = await kit.session()
+  const events = await kit.events(room)
+  const result = kit.callTool(name, input)
+  const asked = readApprovalAsk(await events.waitFor((event) => readApprovalAsk(event) !== null))
+  if (asked === null) throw new Error(`${name} raised no permission ask`)
+  const session = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: room}})
+  await session.chat.permissionDecision({approvalId: asked.approvalId, approved: true, scope: 'once'})
+  return result
 }
 
 async function openChat(page: Page): Promise<void> {
@@ -643,6 +657,9 @@ describe('the comments of the whiteboard plugin', () => {
         await page.mouse.move(200 + step * 10, 600 + (step % 2 === 0 ? -8 : 8))
       }
       expect(observer.startedCount({...QUIET_WRITE, since: quiet})).toBe(0)
+      await page.getByRole('button', {name: 'Zoom in'}).click()
+      await page.getByRole('button', {name: 'Zoom in'}).click()
+      await expect(page.getByRole('button', {name: 'Reset zoom'})).toHaveText('120%')
       const dragged = observer.mark()
       await dragPin(page, readPin, {x: 740, y: 410})
       await observer.completed({
@@ -658,6 +675,16 @@ describe('the comments of the whiteboard plugin', () => {
           since: quiet,
         }),
       ).toBe(1)
+      const room = await widget.kit.session()
+      const moved = PinRows.parse(
+        await widget.kit.rpc.plugin.call(
+          {rpcId: 'whiteboard', method: 'pins.list', input: {room}},
+          {signal: AbortSignal.timeout(30_000)},
+        ),
+      ).find((row) => row.cid === 'agent-first')
+      const zoomedAroundCenter = (scene: number, center: number): number => center + (scene - center) * 1.2
+      expect(moved?.x).toBeCloseTo(640 + (740 - zoomedAroundCenter(640, 640)) / 1.2, 1)
+      expect(moved?.y).toBeCloseTo(360 + (410 - zoomedAroundCenter(360, 400)) / 1.2, 1)
       await page.reload({waitUntil: 'domcontentloaded'})
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
@@ -703,12 +730,31 @@ describe('the comments of the whiteboard plugin', () => {
 
       await thread.getByRole('button', {name: 'Previous thread'}).click()
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
-      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
-      await expect(thread.getByRole('button', {name: 'Next thread'})).toBeFocused()
+      await thread.getByRole('button', {name: 'Previous thread'}).click()
+      await expect(thread.getByText('the button has no focus ring')).toBeVisible()
+      await expect(thread.getByText('the header overlaps the logo')).toBeHidden()
+      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeFocused()
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
       await expect(page.getByRole('button', {name: 'AI comment, open', exact: true})).toHaveCount(2)
+
+      const focusedPin = page.getByRole('button', {name: 'AI comment, open', exact: true}).first()
+      await focusedPin.focus()
+      await expect(focusedPin).toBeFocused()
+      await page.keyboard.press('Escape')
+      await expect(focusedPin).not.toBeFocused()
+      await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible()
+
+      await page.getByRole('button', {name: 'AI comment, open', exact: true}).first().click()
+      await expect(thread).toBeVisible()
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await expect(composer).toBeHidden()
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'agent-first'})
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'agent-second'})
+      await expect(page.getByRole('button', {name: /^AI comment/})).toHaveCount(0)
+      await expect(thread).toBeHidden()
+      await expect(composer).toBeVisible()
     } finally {
       await widget.close()
     }
@@ -781,14 +827,13 @@ describe('the comments of the whiteboard plugin', () => {
       await readPin.click()
       await expect(thread.getByText('moving it left')).toBeVisible()
 
-      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeDisabled()
       await thread.getByRole('button', {name: 'Next thread'}).click()
       await expect(thread.getByText('the button has no focus ring')).toBeVisible()
       await expect(thread.getByText('the header overlaps the logo')).toBeHidden()
-      await expect(thread.getByRole('button', {name: 'Next thread'})).toBeDisabled()
-      await expect(thread.getByRole('button', {name: 'Previous thread'})).toBeFocused()
-      await thread.getByRole('button', {name: 'Previous thread'}).click()
+      await thread.getByRole('button', {name: 'Next thread'}).click()
       await expect(thread.getByText('the header overlaps the logo')).toBeVisible()
+      await expect(thread.getByText('the button has no focus ring')).toBeHidden()
+      await expect(thread.getByRole('button', {name: 'Next thread'})).toBeFocused()
 
       const resolved = observer.mark()
       await thread.getByRole('button', {name: 'Resolve thread'}).click()
@@ -834,6 +879,7 @@ describe('the comments of the whiteboard plugin', () => {
         authorKind: 'ai',
       })
       await expect(unreadPin).toBeVisible({timeout: 30_000})
+      await expect(page.getByText('app.tsx:3', {exact: true})).toBeVisible()
       await expect(readPin).toHaveCount(0)
       await dragPin(page, unreadPin, {x: 300, y: 580})
       const drift = page.getByRole('dialog', {name: 'Pin drift'})
@@ -867,6 +913,17 @@ describe('the comments of the whiteboard plugin', () => {
         ),
       )
       expect(pins.find((row) => row.cid === 'linked')).toMatchObject({pinState: 'offset'})
+
+      const refused = await failRpcCalls(page, {
+        path: WHITEBOARD_CALL,
+        input: {rpcId: 'whiteboard', method: 'comments.update'},
+      })
+      await readPin.click()
+      await expect(thread.getByText('this label is off by one')).toBeVisible()
+      await thread.getByRole('button', {name: 'Resolve thread'}).click()
+      await expect(page.getByText('Could not save your whiteboard change. Try again.')).toBeVisible()
+      await expect(readPin).toBeVisible()
+      await refused.dispose()
 
       await readPin.click()
       await expect(thread.getByText('this label is off by one')).toBeVisible()
