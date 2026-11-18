@@ -12,6 +12,11 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {createFlusher} from '../src/client/flusher.js'
 import {MAX_FLUSH_BYTES} from '../src/protocol.js'
+import {createCaptureControl} from '../src/capture-control.js'
+import {createRecordingStore} from '../src/recordings.js'
+import {createClientRings} from '../src/rings.js'
+import {renderRecording, type RecorderRuntime} from '../src/runtime.js'
+import {createChromiumRenderer} from '../src/render.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -578,20 +583,41 @@ describe('the recording tools', () => {
   })
 })
 
-describe('a pulled window with no full snapshot', () => {
-  it('answers the log with the keyframes skipped when the window holds no full snapshot to render', async () => {
-    const kit = await bootRecorder()
-    const base = Date.now() - 2000
-    await call(kit, 'flush', {
-      clientId: 'no-snapshot',
-      events: [
-        {type: 4, data: {href: 'http://localhost/app', width: 640, height: 480}, timestamp: base},
-        {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: base + 1000},
-      ],
-    })
-    const pulled = z.string().parse(await useTool(kit, 'pull', {secondsBack: 60, keyframes: 2}))
-    expect(pulled).toContain('[navigation] http://localhost/app')
-    expect(pulled).toMatch(/\(keyframes skipped: no renderer available\)$/)
+describe('a keyframe render with no full snapshot', () => {
+  it('renders no keyframes from a stream that holds no full snapshot', async () => {
+    const renderer = await createChromiumRenderer()
+    if (!renderer) throw new Error('the Chromium renderer did not launch')
+    onTestFinished(() => renderer.dispose())
+    const events = [
+      {type: 4, data: {href: 'http://localhost/app', width: 640, height: 480}, timestamp: 1000},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+    ]
+    expect(await renderer.render(events, [2000])).toEqual([])
+  })
+})
+
+describe('a recording rendered with no renderer', () => {
+  it('holds the text log and no image, and logs the failed render', async () => {
+    const rings = createClientRings({windowMs: 60_000})
+    const failure = new Error('no browser to render with')
+    const runtime: RecorderRuntime = {
+      rings,
+      control: createCaptureControl(rings),
+      config: {masking: 'none', windowMinutes: 1, console: true},
+      useRenderer: () => Promise.reject(failure),
+      recordings: createRecordingStore(tempDir('conciv-recorder-no-renderer-')),
+    }
+    const logged = vi.spyOn(console, 'error')
+    onTestFinished(() => logged.mockRestore())
+    const events = [
+      {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2},
+    ]
+    const parts = await renderRecording(runtime, events, 2)
+    expect(parts.output).toContain('[navigation] https://example.test/app')
+    expect(parts.output).toMatch(/\(keyframes skipped: no renderer available\)$/)
+    expect(parts.content.every((part) => part.type === 'text')).toBe(true)
+    expect(logged).toHaveBeenCalledWith(`[recorder] rendering the keyframes failed: ${String(failure)}`)
   })
 })
 
