@@ -5,7 +5,15 @@ import type {PageOperation} from '@conciv/plugin/experimental/page'
 import {Command, Control, Definition, Outcome, type Tab} from '@conciv/plugin-page/rpc'
 import type {PageOperations} from './operations.js'
 
-export type AttachmentOutcome = 'born' | 'closed' | 'missing' | 'refused' | 'replaced' | 'unavailable' | 'unsupported'
+export type AttachmentOutcome =
+  | 'born'
+  | 'closed'
+  | 'missing'
+  | 'refused'
+  | 'replaced'
+  | 'transient'
+  | 'unavailable'
+  | 'unsupported'
 
 export type AttachmentEnd = {readonly outcome: AttachmentOutcome; readonly attached: boolean}
 
@@ -20,7 +28,7 @@ export type Attaching = {
 
 const CONTROL: `rpc.${typeof Definition.id}.control` = `rpc.${Definition.id}.control`
 
-const STATE_RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Schedule.recurs(6)])
+const RETRY = Schedule.max([Schedule.exponential(Duration.millis(250)), Schedule.recurs(6)])
 
 const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
 
@@ -38,7 +46,7 @@ const UNSUPPORTED: Outcome = {
 function attachmentFailure(cause: unknown): AttachmentOutcome {
   const type = RpcFailure.safeParse(cause).data?.type
 
-  if (type === 'missing') return 'missing'
+  if (type === 'missing' || type === 'transient') return type
 
   if (type === 'unavailable') return 'refused'
 
@@ -127,7 +135,7 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
       const sendState = (state: Tab) =>
         send(
           Effect.tryPromise({try: (signal) => rpc.state({...attachment, state}, {signal}), catch: caught}).pipe(
-            Effect.retry({schedule: STATE_RETRY, while: retryable}),
+            Effect.retry({schedule: RETRY, while: retryable}),
           ),
         )
 
@@ -208,7 +216,8 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
       const outcome = yield* Effect.raceFirst(joining, Fiber.join(reading))
       const wasAttached = Deferred.isDoneUnsafe(attached)
       if (outcome === 'missing') return {outcome: yield* Fiber.join(reading), attached: false}
-      if (outcome === 'refused') return {outcome: wasAttached ? 'closed' : 'refused', attached: wasAttached}
+      if (outcome === 'refused' || outcome === 'transient')
+        return {outcome: wasAttached ? 'closed' : outcome, attached: wasAttached}
       return {outcome, attached: wasAttached}
     }),
   )
@@ -216,6 +225,7 @@ function connectOnce(input: Attaching): Effect.Effect<AttachmentEnd> {
 
 export function keepAttached(input: Attaching): Effect.Effect<AttachmentEnd> {
   return connectOnce(input).pipe(
+    Effect.repeat({schedule: RETRY, while: (end) => end.outcome === 'transient'}),
     Effect.tap((end) => (end.outcome === 'closed' && end.attached ? woken() : Effect.void)),
     Effect.repeat({while: (end) => end.outcome === 'born' || (end.outcome === 'closed' && end.attached)}),
   )

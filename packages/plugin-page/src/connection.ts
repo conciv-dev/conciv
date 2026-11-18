@@ -446,7 +446,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
                   Effect.andThen(
                     Effect.fail(
                       call.error(
-                        'unavailable',
+                        'transient',
                         `Session ${input.sessionId} could not be opened: ${error instanceof Error ? error.message : String(error)}`,
                         {},
                       ),
@@ -476,7 +476,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
             ),
             (attached) =>
               Deferred.await(attached.closed).pipe(
-                Effect.mapError(() => call.error('unavailable', 'Page permissions could not be granted.', {})),
+                Effect.mapError(() => call.error('transient', 'Page permissions could not be granted.', {})),
               ),
             (attached) =>
               dispatch({type: 'attach.closed', sessionId: input.sessionId, attempt: attached.attempt}).pipe(
