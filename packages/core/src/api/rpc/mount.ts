@@ -173,7 +173,10 @@ const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the 
 const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.create',
   'experimental.persistentPty.remove',
-  'experimental.persistentPty.connectToken',
+  'experimental.persistentPty.output',
+  'experimental.persistentPty.write',
+  'experimental.persistentPty.resize',
+  'experimental.persistentPty.inject',
 ])
 
 const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"

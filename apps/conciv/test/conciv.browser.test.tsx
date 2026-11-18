@@ -7590,6 +7590,7 @@ describe('terminal panel', () => {
     await typeLine('echo $((6*7))')
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
+    expect(await coreControl.rpcCallCount(['experimental', 'persistentPty', 'write'])).toBeGreaterThan(0)
 
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))

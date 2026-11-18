@@ -23,7 +23,7 @@ A wrapper over `@hono/node-server`'s `serve()` that listens with WebSocket suppo
 
 - `serve.ts:serveHono` - binds a TCP port and creates a `ws` `WebSocketServer` in `noServer` mode.
 - `serve.ts:closeServer` - closes the HTTP server and calls `closeAllConnections` when available.
-- `rpc.ts:rpcWebsocketRoute` - closes the socket with 1011 on a rejected frame; a `{type: 'conciv:trust', token}` frame never reaches oRPC, it goes to the optional per-connection `gate` (dropped when there is none); when the gate closes the socket (a revoke), every open event-iterator call on it first fails with `UNAUTHORIZED` and the close waits until those error frames are sent
+- `rpc.ts:rpcWebsocketRoute` - closes the socket with 1011 on a rejected frame; a `{type: 'conciv:trust', token}` frame never reaches oRPC, it goes to the optional per-connection `gate` (dropped when there is none); when the gate closes the socket (a revoke), every open event-iterator call on it first fails with `UNAUTHORIZED` and the close waits until those error frames are sent; an event-iterator call is no longer pulled once the socket holds more than `MAX_UNSENT_BYTES` (8 MiB) it has not sent yet: it fails with `SLOW_CONSUMER` instead of the engine buffering for a reader that stopped reading
 
 ## Verification
 
