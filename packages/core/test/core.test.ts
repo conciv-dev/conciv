@@ -3959,6 +3959,11 @@ describe('session.created on the plugin host bus', () => {
   })
 })
 
+const userTexts = (thread: {messages: ChatMessage[]}) =>
+  thread.messages
+    .filter((message) => message.role === 'user')
+    .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
+
 describe('session prompt hook', () => {
   const NOTE = Buffer.from('a note the user attached').toString('base64')
 
@@ -3996,11 +4001,6 @@ describe('session prompt hook', () => {
     if (started) await made.awaitActivation()
     return {kit, made, asked}
   }
-
-  const userTexts = (thread: {messages: ChatMessage[]}) =>
-    thread.messages
-      .filter((message) => message.role === 'user')
-      .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
 
   const noted = (text: string) => ({
     role: 'user',
@@ -4298,14 +4298,21 @@ describe('session prompt hook', () => {
 })
 
 describe('session context hook', () => {
+  type ModelRequest = {system: string[]; tools: string[]; lastUser: unknown; options: Record<string, unknown>}
+
   async function contextKit(plugins: Plugin.Plugin[]) {
-    const sent: string[][] = []
+    const requests: ModelRequest[] = []
     const harness = defineHarness({
       id: 'context-cli',
       binName: 'true',
       chatConfig: () => ({
         adapter: makeTextAdapter('context-cli', async function* (options) {
-          sent.push([...(options.systemPrompts ?? [])].map(String))
+          requests.push({
+            system: [...(options.systemPrompts ?? [])].map(String),
+            tools: (options.tools ?? []).map((tool) => tool.name),
+            lastUser: options.messages.findLast((message) => message.role === 'user')?.content,
+            options: {...options.modelOptions},
+          })
           const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
           yield {type: ChatEventType.RUN_STARTED, ...run}
           yield {type: ChatEventType.RUN_FINISHED, ...run}
@@ -4323,7 +4330,8 @@ describe('session context hook', () => {
     const made = booted[0]
     if (made === undefined) throw new Error('the context kit booted no app')
     await made.awaitActivation()
-    return {kit, made, sent}
+    const sent = () => requests.map((request) => request.system)
+    return {kit, made, requests, sent}
   }
 
   test('a context hook sees the system prompt and what it appends reaches the model request, and a hook that edits nothing changes nothing', async () => {
@@ -4345,14 +4353,54 @@ describe('session context hook', () => {
     const system = seen.flatMap((event) => event.system)
     expect(seen).toEqual([{sessionId: untouched, agent: 'build', system}])
     expect(system).toContain('the base prompt')
-    const [untold = []] = sent
-    expect(untold.slice(0, system.length)).toEqual(system)
+    expect(sent()).toEqual([system])
 
     adding.text = 'Always-on rules from the plugin.'
     const told = await kit.session()
     expect((await (await kit.turn('hello', {session: told})).done()).errors()).toEqual([])
     expect(seen[1]).toEqual({sessionId: told, agent: 'build', system})
-    expect(sent[1]).toEqual([...system, 'Always-on rules from the plugin.', ...untold.slice(system.length)])
+    expect(sent()[1]).toEqual([...system, 'Always-on rules from the plugin.'])
+  })
+
+  test('a context hook drops a tool, rewrites a message and sets an option, and the model request carries all three while the stored message stays', async () => {
+    const offered: string[][] = []
+    const plugin = Plugin.define({
+      id: 'context-request',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'context_probe',
+            description: 'A tool the context hook may drop',
+            input: z.object({}),
+            output: z.object({}),
+            execute: async () => ({output: {}}),
+          })
+        })
+        await ctx.session.hook('context', (event) => {
+          const names = Object.keys(event.tools)
+          offered.push(names)
+          const [dropped] = names
+          if (dropped !== undefined) delete event.tools[dropped]
+          const lastUser = event.messages.findLastIndex((message) => message.role === 'user')
+          event.messages = event.messages.map((message, index) =>
+            index === lastUser ? {...message, content: 'rewritten by the plugin'} : message,
+          )
+          event.options.contextFlag = 'set by the plugin'
+        })
+      },
+    })
+    const {kit, requests} = await contextKit([plugin])
+    const session = await kit.session()
+
+    expect((await (await kit.turn('the user words', {session})).done()).errors()).toEqual([])
+    const [names = []] = offered
+    expect(names.length).toBeGreaterThan(0)
+    expect(requests).toHaveLength(1)
+    const [request] = requests
+    expect(request?.tools).toEqual(names.slice(1))
+    expect(request?.lastUser).toBe('rewritten by the plugin')
+    expect(request?.options.contextFlag).toBe('set by the plugin')
+    expect(userTexts(await kit.hydrate(session))).toEqual(['the user words'])
   })
 
   test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
@@ -4389,7 +4437,7 @@ describe('session context hook', () => {
     await hookEnded.promise
 
     expect(hookTrail).toEqual(['context hook interrupted'])
-    expect(sent).toEqual([])
+    expect(sent()).toEqual([])
     expect(ended.errors()).toHaveLength(1)
     expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
