@@ -5381,18 +5381,26 @@ describe('pty sessions', () => {
 
     it('injects into live sinks and the replay buffer', async () => {
       const sessions = make()
-      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const silentUntilInput = {bin: 'cat', args: [], env: {TERM: 'xterm-256color'}}
+      const session = await sessions.open('s7', silentUntilInput, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
       const injected = Promise.withResolvers<string>()
       const live = collect((update) => {
-        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+        if (update.kind !== 'data') return
+        if (/typed-line\r\n.*typed-line\r\n$/s.test(update.text)) echoed.resolve(update.text)
+        if (update.text.includes('\r\nconciv second marker\r\n')) injected.resolve(update.text)
       })
       const detach = session.attach(live.sink)
       session.inject('conciv marker')
-      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      expect(live.chunks.join('')).toBe('conciv marker\r\n')
+      session.write('typed-line\r')
+      expect(await echoed.promise).toMatch(/^conciv marker\r\ntyped-line\r\n.*typed-line\r\n$/s)
+      session.inject('conciv second marker')
+      expect(await injected.promise).toMatch(/typed-line.*\r\nconciv second marker\r\n$/s)
       detach()
       const late = collect()
       session.attach(late.sink)
-      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+      expect(late.chunks.join('')).toMatch(/^conciv marker\r\n.*typed-line.*\r\nconciv second marker\r\n$/s)
     })
 
     it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {
