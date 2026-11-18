@@ -126,6 +126,7 @@ function openInput(file: string, position: {line: number; column?: number} | und
 export function createHostApis() {
   const rpc = useRpc()
   const apiBase = useApiBase()
+  const connected = useConnected()
   const notices = useNotices()
   const theme = useHostTheme()
   const systemDark = createMediaQuery('(prefers-color-scheme: dark)')
@@ -137,7 +138,7 @@ export function createHostApis() {
   const client = Conciv.make(rpc)
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
 
-  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
   const engineStream = from<ClientConnectionStatus>((set) => {
     set(client.connection.status())
     return client.connection.on(set)

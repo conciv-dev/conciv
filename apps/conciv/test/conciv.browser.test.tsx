@@ -1909,17 +1909,25 @@ describe('engine staleness', () => {
 describe('engine version', () => {
   const core = bootedCore('engine-version')
   const keep = keptPane()
+  const harness = createShellHarness(core)
 
-  test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
+  afterEach(harness.dispose)
+
+  const outdated = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
+
+  test('an engine from before release versions still answers the widget, and the widget asks to update it, a same-origin engine included', async () => {
+    harness.mountShell('/panel?open=true', [], {apiBase: () => ''})
+
+    await expect
+      .element(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('alert'), {timeout: 10_000})
+      .toHaveTextContent(outdated)
+
+    harness.dispose()
     await coreControl.installFault({kind: 'pre-version-engine'})
     const sessionId = await createSession(coreRpc(core()))
     keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
 
-    await expect
-      .element(page.getByRole('alert'))
-      .toHaveTextContent(
-        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
-      )
+    await expect.element(page.getByRole('alert')).toHaveTextContent(outdated)
   })
 })
 
