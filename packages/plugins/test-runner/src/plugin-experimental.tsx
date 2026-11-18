@@ -1,4 +1,3 @@
-import {createMemo} from 'solid-js'
 import {Panel, Plugin, type PanelTab, type SessionRef, type SessionScreen} from '@conciv/plugin/experimental'
 import type {TestError} from './events.js'
 import {followRunView} from './follow.js'
@@ -38,11 +37,11 @@ export default Plugin.define({
       region: 'pane',
       list: () => [tab],
       render: (props) => {
-        const run = createMemo(() => followRunView(ctx.client))
+        const run = followRunView(ctx.client)
         return (
           <TestsPanel
             ui={ctx.ui}
-            run={run()()}
+            run={run()}
             directory={props.session.directory}
             canOpen={ctx.desktop !== undefined}
             onOpen={openFailure}
