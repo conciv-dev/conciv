@@ -1,14 +1,11 @@
 import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
-import type {
-  ClientEffect,
-  ExtensionTool,
-  ServerToolRegistryAccess,
-  ServerToolPageAccess,
-  ToolCard,
-  ToolRequest,
-} from './types.js'
+import type {ToolRequest} from '@conciv/protocol/tool-call-types'
+import type {ClientEffect, ExtensionTool, ServerToolRegistryAccess, ServerToolPageAccess, ToolCard} from './types.js'
+
+export {assertToolName, isToolError, TOOL_NAME_RULE, toolError} from '@conciv/protocol/tool-call-types'
+export type {ToolError} from '@conciv/protocol/tool-call-types'
 
 export type ToolMeta = {
   summary: string
@@ -27,8 +24,6 @@ export type ToolErrors = Record<string, ToolErrorSpec>
 
 export type ToolBinding = 'server' | 'client'
 
-export type ToolError = Error & {readonly isToolError: true; code: string; data?: unknown}
-
 export type ClientToolLocator = {ref?: string; selector?: string; name?: string}
 
 export type ClientConsoleEntry = {level: string; ts: number; text: string}
@@ -44,14 +39,6 @@ export type ClientToolCtx = {
   effects: readonly ClientEffect[]
   queued?: {id: string; index: number; of: number}
   signal?: AbortSignal
-}
-
-export function toolError(code: string, options: {message?: string; data?: unknown} = {}): ToolError {
-  return Object.assign(new Error(options.message ?? code), {isToolError: true as const, code, data: options.data})
-}
-
-export function isToolError(value: unknown): value is ToolError {
-  return value instanceof Error && 'isToolError' in value && value.isToolError === true
 }
 
 export type ToolDefinition<
@@ -171,17 +158,6 @@ export type EmptySegmentToolNames<Names extends string> = Extract<
   Names,
   '' | `.${string}` | `${string}.` | `${string}..${string}`
 >
-
-export const TOOL_NAME_RULE = /^[a-z][a-z0-9_]*$/
-
-const ToolNameSchema = z.string().regex(TOOL_NAME_RULE)
-
-export function assertToolName(name: string): void {
-  if (ToolNameSchema.safeParse(name).success) return
-  throw new Error(
-    `tool "${name}": a tool name is a lowercase snake_case identifier matching ${TOOL_NAME_RULE.source}, so the code-mode isolate can bind it as a JavaScript function name; write page_click, never a dotted name`,
-  )
-}
 
 export const FORBIDDEN_TOOL_SEGMENTS = ['__proto__', 'constructor', 'prototype'] as const
 

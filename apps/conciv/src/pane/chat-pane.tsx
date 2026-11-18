@@ -45,7 +45,7 @@ import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
+import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -343,8 +343,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       imageInput(),
     ),
   )
-  const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
-    <AttachmentByMime cards={attachments().chips} removable={slotProps.removable} />
+  const PaneAttachment = (slotProps: {onRemove?: (id: string) => void}): JSX.Element => (
+    <AttachmentByMime cards={attachments().chips} onRemove={slotProps.onRemove} />
   )
   const stageGrab = (grab: Grab) => {
     pane.grabStaging.stage(grab)
@@ -411,14 +411,12 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
         </>
       )
     }
-    const renderPromptSuffix = (source: TurnPrefixSource, besideText: boolean): JSX.Element => (
-      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} bounded={besideText} />
+    const renderPromptSuffix = (source: TurnPrefixSource): JSX.Element => (
+      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} />
     )
     return (
       <div class="contents">
-        <ExtensionSurface name="header" instances={instances} />
         <SessionHeaderSlot pane={pluginSession} />
-        <ExtensionSurface name="widget" instances={instances} />
         <div
           {...viewTabPanelAttributes(props.viewTab)}
           onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
@@ -490,7 +488,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <ExtensionSurface name="status" instances={instances} />
                   <SessionStatusSlot pane={pluginSession} />
                   <SessionComposerPills pane={pluginSession} />
-                  <ExtensionSurface name="footer" instances={instances} />
                 </div>
                 <QueueStrip queue={chat.queue()} />
                 <Suspense>
@@ -523,8 +520,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <DraftReturnReceiver
                       sessionId={sessionId}
                       sinks={{
-                        queue: {insert, addFile: attach, addItem},
-                        steered: {insert: insertFirst, addFile: attach, addItem},
+                        queue: composerDraftSink({insert, addFile: attach, addItem}),
+                        steered: composerDraftSink({insert: insertFirst, addFile: attach, addItem}),
                       }}
                     />
                     <Suspense fallback={<ComposerActionsPending />}>
@@ -553,13 +550,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   return (
-    <HostApiProvider
-      sessionId={() => sessionId}
-      grab={paneGrab}
-      insert={insert}
-      attach={attach}
-      newSession={() => pane.newSession()}
-    >
+    <HostApiProvider sessionId={() => sessionId} grab={paneGrab} attach={attach} newSession={() => pane.newSession()}>
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider
@@ -569,7 +560,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
               onSteer: messaging.onSteer,
               onSteerError: messaging.onSteerError,
               onCancel: () => {
-                returnQueueToDraft(chat, {insert, addFile: attach, addItem})
+                returnQueueToDraft(chat, composerDraftSink({insert, addFile: attach, addItem}))
                 void chat.stop()
               },
             }}

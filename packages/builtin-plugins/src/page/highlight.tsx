@@ -1,3 +1,4 @@
+import {Effect} from 'effect'
 import {Show, createMemo, onCleanup, untrack, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -5,14 +6,12 @@ import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {render} from 'solid-js/web'
 import {Kbd} from '@conciv/ui-kit-system'
 import {addRef, describe, locate, type Refs} from '@conciv/page'
-import type {PageEffect} from '@conciv/plugin/experimental/page'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import type {PageEffect} from './operations.js'
 import {CONCIV_UI_SELECTOR} from '@conciv/protocol/page-types'
-
-export type OpenedSource = 'opened' | 'no-source' | 'failed'
+import {openSource, type OpenedSource, type SourceOpener} from './open-source.js'
 
 export type HighlightOptions = {
-  open: (located: LocateResult) => Promise<OpenedSource>
+  opener: Omit<SourceOpener, 'locate'>
   toast: (title: string, variant: 'success' | 'error') => void
 }
 
@@ -65,8 +64,8 @@ function HighlightInspector(props: HighlightOptions & {onExit: () => void}): JSX
     if (!hovered) return
     event.preventDefault()
     event.stopPropagation()
-    const located = await locate(hovered.host, (element) => addRef(element, refs))
-    const result = located ? await props.open(located) : 'no-source'
+    const opener = {...props.opener, locate: (element: Element) => locate(element, (ref) => addRef(ref, refs))}
+    const result = await Effect.runPromise(openSource(opener, hovered.host))
     const out = OPEN_RESULT[result]
     props.toast(out.label(hovered.file ?? hovered.tag), out.variant)
   }
@@ -153,7 +152,7 @@ export function makeHighlight(options: HighlightOptions): {
 
     return (
       <Show when={state.driven || inspecting()}>
-        <HighlightInspector open={options.open} toast={options.toast} onExit={exit} />
+        <HighlightInspector opener={options.opener} toast={options.toast} onExit={exit} />
       </Show>
     )
   }

@@ -6,13 +6,13 @@ import {dirname, extname, join} from 'node:path'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
 import * as PageMachine from '../src/machine.js'
 import * as PageQueue from '../src/queue.js'
 import * as Page from '../src/rpc.js'
 import * as PageSkill from '../src/skill.js'
 import {symbolicateFrame} from '../src/symbolicate.js'
+import {PAGE_TOOL_DEFS, readPageVerb} from './fixtures/page-tool-defs.js'
 
 const tabId = `tab_${crypto.randomUUID()}`
 
@@ -31,7 +31,7 @@ function withoutTab(schema: z.ZodType) {
 }
 
 function pairWithOperation<Definition extends (typeof PAGE_TOOL_DEFS)[number]>(definition: Definition) {
-  const operation = Page.Operations.find((candidate) => candidate.name === pageVerbOfTool(definition.name))
+  const operation = Page.Operations.find((candidate) => candidate.name === readPageVerb(definition.name))
   if (!operation) throw new Error(`${definition.name} has no page operation`)
   return [definition.name, definition, operation] as const
 }
@@ -113,15 +113,14 @@ describe('page rpc', () => {
     '%s keeps its input and output schema, mutating and capture as an operation',
     (_name, definition, operation) => {
       expect(withoutTab(operation.input)).toEqual(exported(definition.inputSchema))
-      if (operation.name !== 'screenshot')
-        expect(exported(operation.output)).toEqual(exported(definition.outputSchema ?? z.null()))
-      expect([operation.mutating, operation.capture]).toEqual([definition.meta?.mutating, definition.meta?.capture])
+      if (operation.name !== 'screenshot') expect(exported(operation.output)).toEqual(exported(definition.outputSchema))
+      expect([operation.mutating, operation.capture]).toEqual([definition.meta.mutating, definition.meta.capture])
     },
   )
 
   it('the operations are the page tools plus tabs.list and fill_form', () => {
     expect(Page.Operations.map((operation) => operation.name).toSorted()).toEqual(
-      ['tabs.list', 'fill_form', ...PAGE_TOOL_DEFS.map((definition) => pageVerbOfTool(definition.name))].toSorted(),
+      ['tabs.list', 'fill_form', ...PAGE_TOOL_DEFS.map((definition) => readPageVerb(definition.name))].toSorted(),
     )
   })
 })

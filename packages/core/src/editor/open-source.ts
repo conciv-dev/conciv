@@ -1,6 +1,6 @@
 import type {z} from 'zod'
-import type {OpenSourceResultSchema, OpenSourceSchema} from '@conciv/protocol/page-types'
-import type {RawFrame, SourceLoc} from '@conciv/protocol/page-introspect-types'
+import type {OpenSourceResultSchema} from '@conciv/protocol/page-types'
+import type {OpenSourceSchema, RawFrame, SourceLoc} from '@conciv/contract'
 import type {OpenInEditor} from './open.js'
 
 export type OpenSourceFrames = z.infer<typeof OpenSourceSchema>['frames']

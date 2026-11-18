@@ -130,15 +130,15 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState; p
         saveFailed(stored.error)
         return
       }
-      const {recordingId, poster} = stored
+      const {recordingId, summary} = stored
       props.panel.screen.composer.attach({
         type: 'note',
         origin: ctx.id,
         commentId: crypto.randomUUID(),
         label: 'Screen recording',
-        subtitle: poster,
+        subtitle: summary,
         icon: 'clapperboard',
-        subject: `the screen recording ${recordingId} (${poster})`,
+        subject: `the screen recording ${recordingId} (Screen recording · ${summary})`,
         href: recordingId,
         comment: '',
       })

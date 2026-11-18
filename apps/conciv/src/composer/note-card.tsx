@@ -2,11 +2,11 @@ import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
-import {isNil} from 'es-toolkit'
-import {Button, TruncatedText} from '@conciv/ui-kit-system'
+import {isEqual, isNil} from 'es-toolkit'
+import {TruncatedText} from '@conciv/ui-kit-system'
 import {CornerRemoveButton, useComposerContext} from '@conciv/ui-kit-chat'
 import {NoteCard, type IconName, type MountedSession, type NoteCardProps} from '@conciv/plugin/experimental'
-import {usePluginHost} from '../runtime/plugin/host'
+import {usePluginHost, type Item} from '../runtime/plugin/host'
 import {Contribution} from '../runtime/plugin/render'
 import {icons} from '../runtime/plugin/icons'
 import type {ChatMessage, NoteComment} from '@conciv/protocol/chat-message-types'
@@ -14,10 +14,9 @@ import {decodeNotes} from './note-schema'
 import {readPromptPresentation} from './comment-note'
 
 const FALLBACK_ICON: IconName = 'message-square'
-const SENT_NOTE_BOUND = 5
 
 const FRAME =
-  'group relative flex flex-1 flex-col gap-0.5 min-w-0 py-2 px-2.5 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
+  'group relative flex flex-1 flex-col gap-0.5 min-w-0 p-3 rounded-chat-surface-sm border border-chat-line bg-chat-fill text-chat-sm text-chat-text-hi'
 const HEADING = 'block truncate text-chat-sm text-chat-text-hi'
 const META = 'flex items-center gap-1 min-w-0 text-chat-xs text-chat-text-3'
 
@@ -49,42 +48,56 @@ function NoteChip(props: {note: NoteComment}): JSX.Element {
   )
 }
 
+function DrawnNoteCard(props: {
+  claimant: Item<NoteCard>
+  note: Accessor<NoteComment>
+  session: MountedSession | undefined
+}): JSX.Element {
+  const [state, setState] = createStore({failed: false})
+  const pluginNote = createMemo((): NoteCardProps['note'] => ({...props.note(), icon: noteIcon(props.note().icon)}))
+
+  return (
+    <Show when={!state.failed} fallback={<NoteChip note={props.note()} />}>
+      <Contribution plugin={props.claimant.plugin} failed={() => setState('failed', true)}>
+        {() => {
+          const drawn = props.claimant.value.render({
+            get note() {
+              return pluginNote()
+            },
+            get session() {
+              return props.session
+            },
+          })
+
+          return (
+            <Show when={!isNil(drawn)} fallback={<NoteChip note={props.note()} />}>
+              {drawn}
+            </Show>
+          )
+        }}
+      </Contribution>
+    </Show>
+  )
+}
+
 function PluginNoteCard(props: {
   note: NoteComment
   session: MountedSession | undefined
   remove?: {label: string; onRemove: () => void}
 }): JSX.Element {
   const host = usePluginHost()
-  const [state, setState] = createStore({declined: false})
-  const decline = () => setState('declined', true)
-  const pluginNote = createMemo((): NoteCardProps['note'] => ({...props.note, icon: noteIcon(props.note.icon)}))
-  const claimant = createMemo(() =>
-    state.declined ? undefined : host.items(NoteCard).find((item) => item.value.origins.includes(props.note.origin)),
-  )
+  const note = createMemo(() => props.note, undefined, {equals: isEqual})
+  const attempt = createMemo(() => {
+    const current = note()
+    const claimant = host.items(NoteCard).find((item) => item.value.origins.includes(current.origin))
+
+    return claimant && {claimant, note: current}
+  })
 
   return (
-    <div class={`${FRAME} ${props.remove ? 'pe-8' : ''}`}>
-      <Show when={claimant()} keyed fallback={<NoteChip note={props.note} />}>
-        {(item) => (
-          <Contribution plugin={item.plugin} failed={decline}>
-            {() => {
-              const drawn = item.value.render({
-                get note() {
-                  return pluginNote()
-                },
-                get session() {
-                  return props.session
-                },
-              })
-
-              return (
-                <Show when={!isNil(drawn)} fallback={<NoteChip note={props.note} />}>
-                  {drawn}
-                </Show>
-              )
-            }}
-          </Contribution>
-        )}
+    <div class={FRAME}>
+      <Show when={attempt()} keyed fallback={<NoteChip note={props.note} />}>
+        {(current) => <DrawnNoteCard claimant={current.claimant} note={note} session={props.session} />}
       </Show>
       <Show when={props.remove}>
         {(remove) => <CornerRemoveButton label={remove().label} onRemove={remove().onRemove} />}
@@ -103,10 +116,10 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
 
   return (
     <Show when={notes().length > 0}>
-      <ul aria-label="Notes" class="flex flex-wrap items-start gap-1 list-none p-0">
+      <ul aria-label="Notes" class="flex shrink-0 items-start gap-2 list-none p-0">
         <Key each={notes()} by={(entry) => entry.key}>
           {(entry) => (
-            <li class="flex min-w-24 max-w-56 anim-presence-in">
+            <li class="flex shrink-0 min-w-24 max-w-56 anim-presence-in">
               <PluginNoteCard
                 note={entry().note}
                 session={props.session()}
@@ -123,33 +136,22 @@ export function ComposerNotes(props: {session: Accessor<MountedSession | undefin
 export function SentNotes(props: {
   messages: Accessor<readonly ChatMessage[]>
   session: Accessor<MountedSession | undefined>
-  bounded: boolean
 }): JSX.Element {
-  const [state, setState] = createStore({expanded: false})
   const notes = createMemo(() =>
     props.messages().flatMap((message) => readPromptPresentation(message.metadata)?.comments ?? []),
   )
-  const collapsed = () => props.bounded && !state.expanded
-  const shown = createMemo(() => (collapsed() ? notes().slice(0, SENT_NOTE_BOUND) : notes()))
 
   return (
     <Show when={notes().length > 0}>
-      <div class="flex flex-col items-start gap-2 w-full max-w-80">
-        <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full list-none p-0">
-          <For each={shown()}>
-            {(note) => (
-              <li class="flex flex-col">
-                <PluginNoteCard note={note} session={props.session()} />
-              </li>
-            )}
-          </For>
-        </ul>
-        <Show when={collapsed() && notes().length > SENT_NOTE_BOUND}>
-          <Button variant="ghost" size="sm" onClick={() => setState('expanded', true)}>
-            Show more
-          </Button>
-        </Show>
-      </div>
+      <ul aria-label="Notes on this message" class="flex flex-col gap-2 w-full max-w-80 list-none p-0">
+        <For each={notes()}>
+          {(note) => (
+            <li class="flex flex-col">
+              <PluginNoteCard note={note} session={props.session()} />
+            </li>
+          )}
+        </For>
+      </ul>
     </Show>
   )
 }

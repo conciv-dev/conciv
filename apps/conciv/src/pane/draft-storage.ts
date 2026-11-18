@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {keyBy, uniqBy} from 'es-toolkit'
+import {Mutex, uniqBy} from 'es-toolkit'
 import type {DraftRow} from '@conciv/contract'
 import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {WebStorage} from '@conciv/storage-history'
@@ -53,10 +53,10 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
 const ClaimsNoteSchema = z.object({type: z.literal('note')})
 
 function durableItems(items: readonly DraftItem[]): DraftItem[] {
-  const notes = keyBy(decodeNotes(items), (entry) => entry.key)
+  const notes = new Map(decodeNotes(items).map((entry) => [entry.key, entry]))
 
   return items.flatMap((item) => {
-    const note = notes[item.key]
+    const note = notes.get(item.key)
 
     if (note) return [{key: item.key, value: noteValue(durableNote(note.note))}]
 
@@ -89,25 +89,70 @@ function joinDraftText(saved: string, text: string, place: DraftPlace): string {
   return place === 'first' ? `${text}\n${saved}` : `${saved}\n${text}`
 }
 
-async function keepInDraft(
+export type SavedDraft = {
+  readonly text: string
+  readonly selection: SelectionOffsets
+  readonly items: readonly DraftItem[]
+}
+
+async function saveEditedDraft(
+  appData: AppData,
+  sessionId: string,
+  row: DraftRow | null,
+  edit: (draft: SavedDraft) => SavedDraft,
+): Promise<void> {
+  const text = row?.text ?? ''
+  const edited = edit({
+    text,
+    selection: clampSelection(row ? {start: row.selectionStart, end: row.selectionEnd} : null, text),
+    items: row?.items ?? [],
+  })
+  await appData.saveDraft({
+    sessionId,
+    text: edited.text,
+    selectionStart: edited.selection.start,
+    selectionEnd: edited.selection.end,
+    attachments: row?.attachments ?? [],
+    items: [...edited.items],
+  })
+}
+
+const keptDraftLock = new Mutex()
+
+async function withDraftLock(write: () => Promise<void>): Promise<void> {
+  await keptDraftLock.acquire()
+  try {
+    await write()
+  } finally {
+    keptDraftLock.release()
+  }
+}
+
+export function editDraft(appData: AppData, sessionId: string, edit: (draft: SavedDraft) => SavedDraft): Promise<void> {
+  return withDraftLock(async () => saveEditedDraft(appData, sessionId, await appData.readDraft(sessionId), edit))
+}
+
+function keepInDraft(
   appData: AppData,
   sessionId: string,
   kept: {text: string; items: readonly DraftItem[]},
   place: DraftPlace,
 ): Promise<void> {
-  const row = await appData.readDraft(sessionId).catch((error: unknown) => {
-    console.error('[conciv] could not read the saved draft', error)
-    return null
-  })
-  const nextText = joinDraftText(row?.text ?? '', kept.text, place)
-  const caret = place === 'first' ? kept.text.length : nextText.length
-  await appData.saveDraft({
-    sessionId,
-    text: nextText,
-    selectionStart: caret,
-    selectionEnd: caret,
-    attachments: row?.attachments ?? [],
-    items: uniqBy([...(row?.items ?? []), ...kept.items], (item) => item.key),
+  return withDraftLock(async () => {
+    const row = await appData.readDraft(sessionId).catch((error: unknown) => {
+      console.error('[conciv] could not read the saved draft', error)
+      return null
+    })
+    await saveEditedDraft(appData, sessionId, row, (draft) => {
+      const text = joinDraftText(draft.text, kept.text, place)
+      const caret = place === 'first' ? kept.text.length : text.length
+
+      return {
+        text,
+        selection: {start: caret, end: caret},
+        items: uniqBy([...draft.items, ...kept.items], (item) => item.key),
+      }
+    })
   })
 }
 
@@ -133,12 +178,13 @@ type DraftWrite = (appData: AppData, sessionId: string, text: string, items?: re
 
 export type DraftWriteChain = (write: () => Promise<void>) => void
 
-export function makeDraftWriteChain(): DraftWriteChain {
+export function makeDraftWriteChain(onFailure: () => void): DraftWriteChain {
   let written = Promise.resolve()
   return (write) => {
-    written = written
-      .then(write)
-      .catch((error: unknown) => console.error('[conciv] could not keep the queued message as a draft', error))
+    written = written.then(write).catch((error: unknown) => {
+      console.error('[conciv] could not keep the queued message as a draft', error)
+      onFailure()
+    })
   }
 }
 
@@ -148,10 +194,9 @@ export function draftCacheSink(
   sessionId: string,
   write: DraftWrite,
 ): DraftSink {
-  return {
-    insert: (text) => keep(() => write(appData, sessionId, text)),
-    addFile: () => {},
-    addItem: (item) => keep(() => write(appData, sessionId, '', [item])),
+  return (returned) => {
+    if (returned.text === '' && returned.items.length === 0) return
+    keep(() => write(appData, sessionId, returned.text, returned.items))
   }
 }
 
@@ -170,7 +215,7 @@ export function makeDraftStorage(appData: AppData, sessionId: string): PaneDraft
         attachments: draft.attachments,
         items: draft.items,
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => console.error('[conciv] could not save the draft', error))
   }
   const cached = () => (cache === null ? null : parseDraft(cache))
   return {

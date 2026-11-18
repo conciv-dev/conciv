@@ -20,6 +20,7 @@ import {useAppData, useConnected, useLiveSessions} from '../../app/context'
 import {usePluginAttachment} from './attachment'
 import {decodeNotes, NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
 import type {ComposerBinding} from './host-apis'
+import {editDraft, type SavedDraft} from '../../pane/draft-storage'
 import {
   createComposerWriteState,
   transitionComposerWrite,
@@ -43,6 +44,37 @@ type ComposerTarget = {
 const commentNotes = (items: readonly DraftItem[], commentId: string) =>
   decodeNotes(items).filter((entry) => entry.note.commentId === commentId)
 
+type BoundComposer = {readonly sessionId: string; readonly binding: ComposerBinding}
+
+function editSavedDraft(saved: SavedDraft, sessionId: string, change: (draft: ComposerTarget) => void): SavedDraft {
+  const edited = {draft: saved}
+  const place = (text: string, caret: number) => {
+    edited.draft = {...edited.draft, text, selection: {start: caret, end: caret}}
+  }
+  const setItems = (items: readonly DraftItem[]) => {
+    edited.draft = {...edited.draft, items}
+  }
+
+  change({
+    sessionId,
+    text: () => edited.draft.text,
+    setText: (value) => place(value, value.length),
+    insert(text) {
+      const {start, end} = edited.draft.selection
+
+      place(edited.draft.text.slice(0, start) + text + edited.draft.text.slice(end), start + text.length)
+    },
+    items: () => [...edited.draft.items],
+    addItem(item) {
+      if (!edited.draft.items.some((entry) => entry.key === item.key)) setItems([...edited.draft.items, item])
+    },
+    updateItem: (key, value) => setItems(edited.draft.items.map((entry) => (entry.key === key ? {key, value} : entry))),
+    removeItem: (key) => setItems(edited.draft.items.filter((entry) => entry.key !== key)),
+  })
+
+  return edited.draft
+}
+
 type ComposerSlot = {
   readonly target: ComposerTarget
   readonly draft: PromiseWithResolvers<unknown>
@@ -57,22 +89,21 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const engine = attachment.engine
   const listed = useQuery(() => ({...appData.utils.tabs.list.queryOptions(), enabled: connection()}))
   const owner = getOwner()
-  const [binding, setBinding] = createSignal<ComposerBinding>()
+  const [binding, setBinding] = createSignal<BoundComposer>()
   const bound = createMemo(() => binding() !== undefined)
 
-  const bindingFor = () => {
-    const value = untrack(binding)
+  const shown = (sessionId: string) => {
+    const value = binding()
+
+    return value?.sessionId === sessionId ? value.binding : undefined
+  }
+
+  const shownFor = (sessionId: string) => {
+    const value = untrack(() => shown(sessionId))
 
     if (!value) throw new Error('The composer is not shown')
 
     return value
-  }
-
-  const insertAtCaret = (text: string) => {
-    const handle = bindingFor().input()
-
-    if (!handle) throw new Error('The composer input is not ready')
-    handle.insert(text)
   }
 
   const createSlot = (sessionId: string): ComposerSlot => {
@@ -82,13 +113,18 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     return {
       target: {
         sessionId,
-        text: () => binding()?.composer.text() ?? '',
-        setText: (value) => bindingFor().composer.setText(value),
-        insert: insertAtCaret,
-        items: () => binding()?.composer.items() ?? [],
-        addItem: (item) => bindingFor().composer.addItem(item),
-        updateItem: (key, value) => bindingFor().composer.updateItem(key, value),
-        removeItem: (key) => bindingFor().composer.removeItem(key),
+        text: () => shown(sessionId)?.composer.text() ?? '',
+        setText: (value) => shownFor(sessionId).composer.setText(value),
+        insert(text) {
+          const handle = shownFor(sessionId).input()
+
+          if (!handle) throw new Error('The composer input is not ready')
+          handle.insert(text)
+        },
+        items: () => shown(sessionId)?.composer.items() ?? [],
+        addItem: (item) => shownFor(sessionId).composer.addItem(item),
+        updateItem: (key, value) => shownFor(sessionId).composer.updateItem(key, value),
+        removeItem: (key) => shownFor(sessionId).composer.removeItem(key),
       },
       draft,
       ready: () => loaded.state === 'ready',
@@ -96,11 +132,13 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   }
 
   const composer = createMemo(
-    on([session.id, bound], ([sessionId, isBound], _, previous?: ComposerSlot) =>
-      previous && isBound && previous.target.sessionId === sessionId
-        ? previous
-        : createRoot(() => createSlot(sessionId), owner),
-    ),
+    on([session.id, bound], ([sessionId, isBound], _, previous?: ComposerSlot) => {
+      if (previous && isBound && previous.target.sessionId === sessionId) return previous
+
+      previous?.draft.resolve(undefined)
+
+      return createRoot(() => createSlot(sessionId), owner)
+    }),
   )
 
   const writes = {state: createComposerWriteState<ComposerTarget>()}
@@ -134,9 +172,11 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   }
 
   const apply = (target: ComposerTarget, change: (draft: ComposerTarget) => void) => {
-    if (untrack(binding) || untrack(composer).target.sessionId !== target.sessionId) return change(target)
+    if (untrack(() => shown(target.sessionId))) return change(target)
 
-    write(change)
+    if (!untrack(binding) && untrack(composer).target.sessionId === target.sessionId) return write(change)
+
+    return editDraft(appData, target.sessionId, (saved) => editSavedDraft(saved, target.sessionId, change))
   }
 
   const runWrite = (effect: ComposerWriteEffect<ComposerTarget>) => {
@@ -189,7 +229,7 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     },
     quotable: undefined,
     focus(commentId) {
-      if (commentId === undefined) return binding()?.prompt.focus()
+      if (commentId === undefined) return binding()?.binding.prompt.focus()
     },
     update(id, patch) {
       const comment = patch.comment
@@ -270,10 +310,12 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
   const binder = {
     sessionId: session.id,
     bind(value: ComposerBinding) {
-      setBinding(() => value)
+      const entry = {sessionId: untrack(session.id), binding: value}
+
+      setBinding(entry)
 
       return () => {
-        if (untrack(binding) === value) setBinding(undefined)
+        if (untrack(binding) === entry) setBinding(undefined)
       }
     },
     bindDraft: (ready: Promise<unknown>) => untrack(composer).draft.resolve(ready),

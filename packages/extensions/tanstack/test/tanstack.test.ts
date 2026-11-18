@@ -14,7 +14,7 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/unplugin/vite-bridge'
 import {buildAndPack, installPacked, packTarball} from '@conciv/vitest-config/pack'
-import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import tanstackExtension from '../src/server.js'
 import {
   gotoAbout,
@@ -463,7 +463,10 @@ describe('server tools', () => {
     return root
   }
 
-  async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
+  async function bootEngine(
+    root: string,
+    bridge?: Bundler.BundlerBridge,
+  ): Promise<{engine: Engine; callTool: CallTool}> {
     const {engine, apiBase} = await startTrusted({
       options: {stateRoot: await makeStateRoot(), systemPrompt: false},
       root,
@@ -494,7 +497,7 @@ describe('server tools', () => {
       const {engine, callTool} = await bootEngine(buildApp, bridge)
       state.engine = engine
 
-      const failed = Promise.withResolvers<BundlerDiagnostic>()
+      const failed = Promise.withResolvers<Bundler.Diagnostic>()
       const stopWatching = bridge.subscribe?.((diagnostic) => {
         if (diagnostic.kind === 'build-error') failed.resolve(diagnostic)
       })
@@ -592,7 +595,10 @@ describe('serverfn trace', () => {
     return realpath(tempDir('conciv-ts-serverfn-'))
   }
 
-  async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
+  async function bootEngine(
+    root: string,
+    bridge?: Bundler.BundlerBridge,
+  ): Promise<{engine: Engine; callTool: CallTool}> {
     const {engine, apiBase} = await startTrusted({
       options: {stateRoot: await makeStateRoot(), systemPrompt: false},
       root,
@@ -621,7 +627,7 @@ describe('serverfn trace', () => {
       const {engine, callTool} = await bootEngine(SERVERFN_APP, bridge)
       state.engine = engine
 
-      const traced = Promise.withResolvers<BundlerDiagnostic>()
+      const traced = Promise.withResolvers<Bundler.Diagnostic>()
       const stopWatching = bridge.subscribe?.((diagnostic) => {
         if (diagnostic.kind === 'request-trace' && diagnostic.url.includes(SERVER_FN_ID)) traced.resolve(diagnostic)
       })
@@ -651,7 +657,7 @@ describe('serverfn trace', () => {
       const {engine, callTool} = await bootEngine(SERVERFN_APP, bridge)
       state.engine = engine
 
-      const traced = Promise.withResolvers<BundlerDiagnostic>()
+      const traced = Promise.withResolvers<Bundler.Diagnostic>()
       const stopWatching = bridge.subscribe?.((diagnostic) => {
         if (diagnostic.kind === 'request-trace' && diagnostic.url.includes(BASEPATH_FN_ID)) traced.resolve(diagnostic)
       })

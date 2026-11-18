@@ -25,7 +25,7 @@ const ActionLogEntrySchema = z.object({
 })
 
 const SaveOutput = z.union([
-  z.object({saved: z.literal(true), recordingId: z.string(), poster: z.string()}),
+  z.object({saved: z.literal(true), recordingId: z.string(), summary: z.string()}),
   z.object({saved: z.literal(false), error: z.enum(['too-large', 'empty', 'io-error'])}),
 ])
 

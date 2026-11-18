@@ -1,9 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import X from 'lucide-solid/icons/x'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
-import {AttachmentUI} from './attachment-ui.js'
-import {FOCUS} from './classes.js'
+import {AttachmentUI, type RemoveAttachment} from './attachment-ui.js'
 import {
   attachmentId,
   fileToDataSource,
@@ -11,7 +9,7 @@ import {
   type AttachmentAdapter,
 } from '../primitives/attachment/attachment-adapter.js'
 
-export type AttachmentCardProps = {remove?: JSX.Element}
+export type AttachmentCardProps = {onRemove?: RemoveAttachment}
 
 export type AttachmentCardSlot = {mime: string; render: Component<AttachmentCardProps>}
 
@@ -23,24 +21,17 @@ function attachmentMime(attachment: AttachmentState): string | undefined {
   return documentMimes[0] ?? attachment.contentType
 }
 
-function RemoveChipButton(): JSX.Element {
-  return (
-    <Attachment.Remove
-      class={`rounded-[var(--chat-radius-pill)] inline-flex shrink-0 size-7 cursor-pointer [color:var(--chat-text-2)] items-center justify-center hover:[background:var(--chat-fill-strong)] hover:[color:var(--chat-danger)] ${FOCUS}`}
-    >
-      <X size={14} />
-    </Attachment.Remove>
-  )
-}
-
-export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; removable?: boolean}): JSX.Element {
+export function AttachmentByMime(props: {
+  cards: readonly AttachmentCardSlot[]
+  onRemove?: RemoveAttachment
+}): JSX.Element {
   const attachment = useAttachment()
   const card = () => props.cards.find((entry) => entry.mime === attachmentMime(attachment))
   return (
-    <Show when={card()} fallback={<AttachmentUI removable={props.removable} />}>
+    <Show when={card()} fallback={<AttachmentUI onRemove={props.onRemove} />}>
       {(entry) => (
-        <Attachment.Root>
-          <Dynamic component={entry().render} remove={props.removable ? <RemoveChipButton /> : undefined} />
+        <Attachment.Root class="group shrink-0">
+          <Dynamic component={entry().render} onRemove={props.onRemove} />
         </Attachment.Root>
       )}
     </Show>

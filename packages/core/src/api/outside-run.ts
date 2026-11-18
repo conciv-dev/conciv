@@ -1,5 +1,5 @@
 import type {CodeCapability} from '@conciv/chat'
-import {toolError} from '@conciv/extension'
+import {toolError} from '@conciv/protocol/tool-call-types'
 
 const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
 

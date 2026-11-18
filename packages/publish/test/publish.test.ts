@@ -282,14 +282,14 @@ describe('cli', () => {
       const root = await scaffoldWorkspaceRoot('deps-private-')
       await Promise.all([
         writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
-        writeManifest(join(root, 'packages', 'extension-page'), {
-          name: '@conciv/extension-page',
+        writeManifest(join(root, 'packages', 'public-consumer'), {
+          name: '@conciv/public-consumer',
           version: '0.0.19',
           [field]: {'@conciv/page': 'workspace:^'},
         }),
       ])
       await expect(assertPublicDepsPublic(root), field).rejects.toThrow(
-        /@conciv\/extension-page depends on private workspace package @conciv\/page/,
+        /@conciv\/public-consumer depends on private workspace package @conciv\/page/,
       )
     }
   })

@@ -3,9 +3,11 @@ import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
-import {getHostApi} from '@conciv/extension/host'
+import {showToast} from '@conciv/page'
 import type {Grab} from '@conciv/grab'
 import {ConnectAgentsMenu} from './connect-agents-menu.js'
+import {usePane} from '../app/pane-context.js'
+import {makePaneGrabApi} from '../pane/pane-grab.js'
 
 const ACT =
   'size-8 rounded-chat-pill [border:none] bg-transparent text-chat-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-chat-text-hi hover:bg-chat-fill-strong'
@@ -21,8 +23,8 @@ export function ComposerActions(props: {
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
 }): JSX.Element {
-  const grab = getHostApi().useGrab()
-  const toast = getHostApi().useToast()
+  const pane = usePane()
+  const grab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
 
   const [picking, setPicking] = createSignal(false)
@@ -32,7 +34,7 @@ export function ComposerActions(props: {
       const picked = await grab.pick()
       if (picked) props.onStageGrab(picked)
     } catch {
-      toast('Couldn’t grab that element. Try again.', 'error')
+      showToast('Couldn’t grab that element. Try again.', 'error')
     } finally {
       setPicking(false)
     }

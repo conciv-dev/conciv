@@ -41,11 +41,9 @@ export function paneAttachments(
   return {cards, chips: attachmentCards(extensions, 'chip'), adapter}
 }
 
-export type DraftSink = {
-  insert: (text: string) => void
-  addFile: (file: File) => void
-  addItem: (item: DraftItem) => void
-}
+export type ReturnedDraft = {text: string; files: File[]; items: DraftItem[]}
+
+export type DraftSink = (returned: ReturnedDraft) => void
 
 export type QueueOwner = {queue: () => readonly QueuedMessage[]; cancelQueued: (id: string) => void}
 
@@ -64,8 +62,13 @@ function typedParts(content: QueuedMessage['content']): ContentPart[] {
   if (typeof content === 'string' || notes.length === 0) return visibleParts(content)
   const displayText = readPromptPresentation(content.metadata)?.displayText ?? ''
   if (typeof content.content === 'string') return displayText === '' ? [] : [{type: 'text', content: displayText}]
-  const sentences = notes.map(formatNoteComment).join('\n')
-  return visibleParts(content).filter((part) => part.type !== 'text' || part.content !== sentences)
+  return withoutAppendedSentences(visibleParts(content), notes.map(formatNoteComment).join('\n'))
+}
+
+function withoutAppendedSentences(parts: ContentPart[], sentences: string): ContentPart[] {
+  const appended = parts.at(-1)
+  if (appended?.type !== 'text' || appended.content !== sentences) return parts
+  return parts.slice(0, -1)
 }
 
 function partFile(part: ContentPart): File[] {
@@ -82,9 +85,21 @@ export function returnQueueToDraft(owner: QueueOwner, sink: DraftSink): void {
 
 export function putBackInDraft(items: readonly QueuedMessage[], sink: DraftSink): void {
   const parts = items.flatMap((item) => typedParts(item.content))
-  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
-  if (text.length > 0) sink.insert(text.join('\n'))
-  for (const file of parts.flatMap(partFile)) sink.addFile(file)
-  for (const note of items.flatMap((item) => queuedNotes(item.content)))
-    sink.addItem(noteItem(commentContextItem(note)))
+  sink({
+    text: parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n'),
+    files: parts.flatMap(partFile),
+    items: items.flatMap((item) => queuedNotes(item.content)).map((note) => noteItem(commentContextItem(note))),
+  })
+}
+
+export function composerDraftSink(composer: {
+  insert: (text: string) => void
+  addFile: (file: File) => void
+  addItem: (item: DraftItem) => void
+}): DraftSink {
+  return (returned) => {
+    if (returned.text !== '') composer.insert(returned.text)
+    for (const file of returned.files) composer.addFile(file)
+    for (const item of returned.items) composer.addItem(item)
+  }
 }

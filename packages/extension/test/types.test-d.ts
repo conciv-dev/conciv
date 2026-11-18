@@ -18,11 +18,10 @@ const extension = defineExtension({name: 'canvas'})
 function ProbeComponent() {
   const host = getHostApi()
   const slot: string = host.useSlot()
-  const insert: (text: string) => void = host.useComposerInsert()
   const selection: Accessor<string | null> = extension.useContext((context) => context.selection)
   const full = extension.useContext()
   const fullSelection: Accessor<string | null> = full.selection
-  return {slot, insert, selection, fullSelection}
+  return {slot, selection, fullSelection}
 }
 
 const reversedOrder = defineExtension({name: 'reversed'})

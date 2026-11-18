@@ -7,20 +7,24 @@ import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {mountPlayer, type PlayerKit} from './player.js'
 import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 
-type RecordingNote = {readonly recordingId: string; readonly poster: string}
+type RecordingNote = {readonly recordingId: string; readonly summary?: string}
 
 export function RecordingCard(props: NoteCardProps & {clientId: string}): JSX.Element {
   const ctx = usePlugin()
-  const poster = (): string => props.note.subtitle ?? props.note.label
   const play = (recordingId: string): void =>
     void ctx.dialogs.open(() => (
-      <RecordingReplay recording={{recordingId, poster: poster()}} clientId={props.clientId} />
+      <RecordingReplay recording={{recordingId, summary: props.note.subtitle}} clientId={props.clientId} />
     ))
 
   return (
     <div class="flex gap-2 min-w-0 items-center">
       <ctx.ui.Icon name="clapperboard" size="small" class="text-chat-text-3 shrink-0" />
-      <span class="text-chat-sm text-chat-text-hi font-chat flex-1 min-w-0 break-words text-balance">{poster()}</span>
+      <span class="flex flex-1 flex-col min-w-0">
+        <span class="text-chat-sm text-chat-text-hi font-chat truncate">{props.note.label}</span>
+        <Show when={props.note.subtitle}>
+          {(subtitle) => <span class="text-chat-xs text-chat-text-3 font-chat truncate">{subtitle()}</span>}
+        </Show>
+      </span>
       <Show when={props.note.href}>
         {(recordingId) => (
           <ctx.ui.Button variant="neutral" size="small" onClick={() => play(recordingId())}>
@@ -51,7 +55,7 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string}): J
   return (
     <ctx.ui.Dialog
       title="Screen recording replay"
-      description={props.recording.poster}
+      description={props.recording.summary}
       size="x-large"
       footer={
         <ExportVideoButton

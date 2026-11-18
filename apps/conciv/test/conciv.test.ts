@@ -144,13 +144,31 @@ describe('draft storage', () => {
     })
   })
 
+  test('two kept drafts written at once both stay, in the order they were kept', async ({kit, core, sessionId}) => {
+    const appData = draftApp(core.base)
+    const note = {key: 'note:fixture:c=1', value: {comment: 'kept with the second line'}}
+
+    await Promise.all([
+      appendDraft(appData, sessionId, 'a first line'),
+      appendDraft(appData, sessionId, 'a second line', [note]),
+    ])
+
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({
+      text: 'a first line\na second line',
+      items: [note],
+    })
+  })
+
   test('the composer items reach the server draft, outlive an appended line and come back on a reload', async ({
     kit,
     core,
     sessionId,
   }) => {
     const staged = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
-    const updated = [{key: 'note:grab:c=1', value: {comment: 'make it red'}}]
+    const updated = [
+      {key: 'note:grab:c=1', value: {comment: 'make it red'}},
+      {key: 'toString', value: {comment: 'an item whose key an object inherits'}},
+    ]
     const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
