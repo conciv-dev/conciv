@@ -5,8 +5,16 @@ import {enrichAnchor} from '../tool/comment/anchor-enrich.js'
 
 const SourceAnchor = z.object({source: z.object({file: z.string()})})
 
-const enrichRow = async (store: Store, cwd: string, id: string, room: string, anchor: JsonValue): Promise<void> => {
+const enrichRow = async (
+  store: Store,
+  cwd: string,
+  signal: AbortSignal,
+  id: string,
+  room: string,
+  anchor: JsonValue,
+): Promise<void> => {
   const enriched = await enrichAnchor(cwd, anchor)
+  signal.throwIfAborted()
   if (!enriched.hash) return
   await store.updateComment(id, room, {
     anchor: json.nullable().parse(enriched.anchor ?? null),
@@ -19,15 +27,20 @@ const enrichRow = async (store: Store, cwd: string, id: string, room: string, an
 
 export const startCommentEnrichment = (store: Store, cwd: string): (() => void) => {
   const attempted = new Set<string>()
-  return store.onEvent((event) => {
+  const stopping = new AbortController()
+  const unsubscribe = store.onEvent((event) => {
     if (event.table !== 'comments') return
     if (event.type === 'delete') return void attempted.delete(event.key)
     const row = event.row
     if (row.kind !== 'source-linked' || attempted.has(row.id) || row.anchorHash) return
     if (!SourceAnchor.safeParse(row.anchor).success) return
     attempted.add(row.id)
-    enrichRow(store, cwd, row.id, event.room, row.anchor).catch((error: unknown) => {
+    enrichRow(store, cwd, stopping.signal, row.id, event.room, row.anchor).catch((error: unknown) => {
       console.error(`[whiteboard] comment ${row.id} was not enriched: ${String(error)}`)
     })
   })
+  return () => {
+    unsubscribe()
+    stopping.abort(new Error('the whiteboard stopped before the enrichment finished'))
+  }
 }
