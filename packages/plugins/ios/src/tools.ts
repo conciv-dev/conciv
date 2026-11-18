@@ -5,7 +5,7 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import type {Permission} from '@conciv/plugin/schema/permission'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {BuildOutputSchema, makeBuild} from './build.js'
-import {IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
+import {InvalidOptions, IosConfigSchema, NotConfiguredSchema, type IosRuntime, type NotConfigured} from './config.js'
 import {iosSystemPrompt} from './prompt.js'
 import * as Simctl from './simctl.js'
 import {capture, launch, readLogs} from './simulator.js'
@@ -167,7 +167,9 @@ function confirmed(permission: Context['permission'], action: string, tool: Tool
 export const register = Effect.fn('ios.tools.register')(function* (ctx: Registration) {
   const services = yield* Effect.context<Services>()
   const build = yield* makeBuild
-  const config = yield* Effect.sync(() => IosConfigSchema.parse(ctx.options))
+  const parsed = IosConfigSchema.safeParse(ctx.options)
+  if (!parsed.success) return yield* new InvalidOptions({message: z.prettifyError(parsed.error)})
+  const config = parsed.data
   const configuredRuntime: IosRuntime | undefined = config && {
     config,
     cwd: ctx.location.directory,

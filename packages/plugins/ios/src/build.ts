@@ -46,7 +46,10 @@ const collectSwiftSources = Effect.fn('ios.build.collectSwiftSources')(function*
     Effect.gen(function* () {
       if (!(yield* fileSystem.exists(dir))) return []
       const entries = yield* fileSystem.readDirectory(dir, {recursive: true})
-      return entries.filter((entry) => entry.endsWith('.swift')).map((entry) => path.join(dir, entry))
+      const swiftNamed = entries.filter((entry) => entry.endsWith('.swift')).map((entry) => path.join(dir, entry))
+      return yield* Effect.filter(swiftNamed, (candidate) =>
+        fileSystem.stat(candidate).pipe(Effect.map((info) => info.type === 'File')),
+      )
     }),
   )
   return uniq(files.flat()).toSorted()
