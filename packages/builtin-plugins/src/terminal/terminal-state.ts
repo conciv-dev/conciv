@@ -1,7 +1,8 @@
 import {createMemo, untrack} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
-import {createLatest, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
+import {useQuery} from '@conciv/client'
+import {type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
 import type {terminalDeclarations} from './stores.js'
 
 export const PANEL_KEY = 'terminal:terminal'
@@ -21,9 +22,9 @@ type TerminalRun = {
   failure: {key: string; message: string} | null
 }
 
-async function readMeta(ctx: TerminalContext, sessionId: string, signal: AbortSignal) {
+async function readMeta(ctx: TerminalContext, sessionId: string | undefined, signal: AbortSignal) {
   const session = untrack(() => ctx.sessions.current())
-  if (session?.id !== sessionId) throw new Error(`the terminal read ${sessionId} after it was left`)
+  if (!session || session.id !== sessionId) throw new Error(`the terminal read ${sessionId} after it was left`)
   const meta = await session.server.client.meta.models({sessionId}, {signal})
   return {sessionId, meta}
 }
@@ -42,10 +43,18 @@ function restartMessage(cause: unknown): string {
 
 export function createTerminalState(ctx: TerminalContext) {
   const readSessionId = createMemo((previous: string | undefined) => ctx.sessions.current()?.id ?? previous)
-  const read = createLatest(readSessionId, (sessionId, signal) => readMeta(ctx, sessionId, signal))
+  const read = useQuery(() => ({
+    queryKey: ['terminal', 'models', readSessionId()],
+    queryFn: ({queryKey, signal}) => readMeta(ctx, queryKey[2], signal),
+    enabled: readSessionId() !== undefined,
+  }))
   const [run, setRun] = createStore<TerminalRun>({generation: 0, restarting: false, live: null, failure: null})
 
-  const meta = (sessionId: string) => (read.latest?.sessionId === sessionId ? read.latest.meta : undefined)
+  const loaded = () => (read.isPending ? undefined : read.data)
+  const meta = (sessionId: string) => {
+    const known = loaded()
+    return known?.sessionId === sessionId ? known.meta : undefined
+  }
   const models = (sessionId: string) => meta(sessionId)?.models ?? []
   const key = (sessionId: string) => `${sessionId}:${run.generation}`
   const busy = (sessionId: string) => run.live?.key === key(sessionId) && run.live.busy()
@@ -77,9 +86,12 @@ export function createTerminalState(ctx: TerminalContext) {
     supported: (sessionId: string) => meta(sessionId)?.harness.persistentPty,
     ready: (sessionId: string) => {
       const known = meta(sessionId)
-      return known ? known.harness.persistentPty === true : read.error !== undefined
+      return known ? known.harness.persistentPty === true : read.isError
     },
     models,
+    modelsFailed: (sessionId: string) => meta(sessionId) === undefined && read.isError,
+    modelsLoading: (sessionId: string) => meta(sessionId) === undefined && !read.isError,
+    reloadModels: () => void read.refetch(),
     spawnModel,
     shownModel,
     key,

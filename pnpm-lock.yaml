@@ -2255,6 +2255,9 @@ importers:
 
   packages/builtin-plugins:
     dependencies:
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../client
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract

@@ -1,4 +1,4 @@
-import {createMemo, Show, type JSX} from 'solid-js'
+import {createMemo, Match, Switch, type JSX} from 'solid-js'
 import {pick} from 'es-toolkit'
 import {ModelSelector, type ModelOption} from '@conciv/ui-kit-chat'
 import {usePlugin, type MountedSession} from '@conciv/plugin/experimental'
@@ -14,19 +14,37 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
   const locked = () => props.terminal.locked(props.session.id)
   return (
     <div class="flex gap-1 items-center">
-      <Show when={options().length > 0}>
-        <ModelSelector.Root
-          models={options()}
-          value={props.terminal.shownModel(props.session.id)}
-          onValueChange={(model) => props.terminal.pick(props.session, model)}
-        >
-          <ModelSelector.Trigger disabled={locked()} />
-          <ModelSelector.Content>
-            <ModelSelector.Search placeholder="Search models…" />
-            <ModelSelector.List />
-          </ModelSelector.Content>
-        </ModelSelector.Root>
-      </Show>
+      <Switch
+        fallback={
+          <ModelSelector.Root
+            models={options()}
+            value={props.terminal.shownModel(props.session.id)}
+            onValueChange={(model) => props.terminal.pick(props.session, model)}
+          >
+            <ModelSelector.Trigger disabled={locked()} />
+            <ModelSelector.Content>
+              <ModelSelector.Search placeholder="Search models…" />
+              <ModelSelector.List />
+            </ModelSelector.Content>
+          </ModelSelector.Root>
+        }
+      >
+        <Match when={props.terminal.modelsLoading(props.session.id)}>
+          <ctx.ui.Button variant="neutral" size="small" disabled>
+            Models…
+          </ctx.ui.Button>
+        </Match>
+        <Match when={props.terminal.modelsFailed(props.session.id)}>
+          <ctx.ui.Button variant="danger" size="small" icon="rotate-cw" onClick={() => props.terminal.reloadModels()}>
+            Retry
+          </ctx.ui.Button>
+        </Match>
+        <Match when={options().length === 0}>
+          <ctx.ui.Button variant="neutral" size="small" disabled>
+            No models
+          </ctx.ui.Button>
+        </Match>
+      </Switch>
       <ctx.ui.Tooltip value="New terminal">
         <ctx.ui.IconButton
           icon="plus"

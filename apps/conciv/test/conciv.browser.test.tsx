@@ -7650,6 +7650,81 @@ describe('terminal panel', () => {
     await expect.element(newTerminal()).toBeDisabled()
     await expect.element(output('interrupted')).not.toBeInTheDocument()
   }, 60_000)
+
+  test('the model picker says Models… while the list is read, then lists the models', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeDisabled()
+    await coreControl.awaitFaultPending(modelsRead, 1)
+    await faults.releaseAll()
+    await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
+    await expect.element(bar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a model list that failed to load offers Retry, which then lists the models', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.mountShell(terminalRoute(sessionId))
+
+    const retry = () => bar().getByRole('button', {name: 'Retry'})
+    await expect.element(retry(), {timeout: 15_000}).toBeEnabled()
+    await coreControl.releaseFault(broken)
+    await retry().click()
+    await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
+    await expect.element(retry()).not.toBeInTheDocument()
+  }, 60_000)
+})
+
+describe('terminal panel for a harness that lists no models', () => {
+  const coreBase = bootedCore('terminal-panel-no-models', {tty: true})
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
+  const output = (text: string) => page.getByText(text, {exact: true})
+  const terminalRoute = (sessionId: string) =>
+    `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
+
+  const typeLine = async (line: string) => {
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    await userEvent.keyboard(line)
+    await userEvent.keyboard('{Enter}')
+  }
+
+  test('the model picker says No models', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await expect.element(bar().getByRole('button', {name: 'No models'}), {timeout: 15_000}).toBeDisabled()
+    await expect.element(bar().getByRole('button', {name: 'Select model'})).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a terminal opened again shows the earlier lines and runs at the size the user sees', async () => {
+    await page.viewport(1000, 700)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
+
+    await typeLine(`printf '=%.0s' $(seq 1 $(tput cols)); echo FIRSTEND`)
+    await expect.element(output('FIRSTEND'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('FIRSTEND'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).toBeInTheDocument()
+
+    await typeLine(`printf '=%.0s' $(seq 1 $(tput cols)); echo SECONDEND`)
+    await expect.element(output('SECONDEND'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine(`seq -f 'ROW%g' 1 $(tput lines)`)
+    await expect.element(output('ROW2'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('ROW1')).not.toBeInTheDocument()
+  }, 60_000)
 })
 
 describe('plugin composer pills', () => {
