@@ -2,9 +2,9 @@ import {ClipboardCopyButton, Collapsible, TruncatedText} from '@conciv/ui-kit-sy
 import Check from 'lucide-solid/icons/check'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {autofocus} from '@solid-primitives/autofocus'
-import {createSignal, Show, type Accessor, type JSX} from 'solid-js'
-import type {ConnectState} from './connect-model.js'
-import {useLocalNetworkAccessPermission} from './local-network-access.js'
+import {Show, type Accessor, type JSX} from 'solid-js'
+import type {ConnectState} from './connect-machine.js'
+import type {LocalNetworkAccessState} from './local-network-access.js'
 import {stepStates, type StepState, type TryStep} from './try-steps.js'
 
 const COPY_FEEDBACK_MS = 1_400
@@ -64,18 +64,25 @@ function Step(props: {index: number; state: StepState; title: string; children?:
   )
 }
 
-export function ConnectPane(props: {token: string; state: Accessor<ConnectState | undefined>}): JSX.Element {
-  const [copied, setCopied] = createSignal(false)
+export function ConnectPane(props: {
+  token: string
+  state: Accessor<ConnectState>
+  localNetworkAccess: Accessor<LocalNetworkAccessState>
+  onCopied: () => void
+}): JSX.Element {
   const connected = () => {
-    const phase = props.state()?.phase
-    return phase === 'holding' || phase === 'connected'
+    const status = props.state().status
+    return status === 'holding' || status === 'connected'
   }
   const slow = () => {
     const current = props.state()
-    return current?.phase === 'probing' && current.slow
+    return current.status === 'probing' && current.slow
   }
-  const localNetworkAccess = useLocalNetworkAccessPermission()
-  const localNetworkBlocked = () => localNetworkAccess() === 'denied'
+  const copied = () => {
+    const current = props.state()
+    return (current.status === 'probing' || current.status === 'holding') && current.copied
+  }
+  const localNetworkBlocked = () => props.localNetworkAccess() === 'denied'
   const states = () => stepStates({copied: copied(), connected: connected()})
   const origin = window.location.origin
   const promptText = () =>
@@ -85,7 +92,6 @@ export function ConnectPane(props: {token: string; state: Accessor<ConnectState 
     `inspect it first if you want (details: ${origin}/pair/${props.token}). ` +
     `If you'd rather not run it, tell me and I'll run it in my own terminal.`
   const npxText = () => `npx @conciv/try --token ${props.token}`
-  const markCopied = () => setCopied(true)
 
   return (
     <div ref={autofocus} autofocus tabindex={-1} class="p-5 outline-none flex flex-col gap-3.5 h-full">
@@ -99,14 +105,14 @@ export function ConnectPane(props: {token: string; state: Accessor<ConnectState 
 
       <ol class="m-0 p-0 list-none flex flex-1 flex-col gap-3.5 min-h-0 overflow-y-auto anim-rise-d">
         <Step index={1} state={states().copy} title={STEP_TITLES.copy}>
-          <CopyRow label="Copy connect command" text={npxText()} onCopy={markCopied} />
+          <CopyRow label="Copy connect command" text={npxText()} onCopy={props.onCopied} />
           <Collapsible.Root>
             <Collapsible.Trigger class="text-[12px] text-chat-text-3 w-fit cursor-pointer focus-ring trans-color-bg hover:text-chat-text-2">
               or hand it to your coding agent
             </Collapsible.Trigger>
             <Collapsible.Content>
               <div class="pt-2 flex flex-col gap-1.5">
-                <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
+                <CopyRow label="Copy agent prompt" text={promptText()} onCopy={props.onCopied} />
                 <p class="text-[11.5px] text-chat-text-3">
                   Some agents will ask you to run the command yourself, and that works too.
                 </p>
