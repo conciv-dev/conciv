@@ -7117,7 +7117,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     const loaded = arrivals<{plugins: readonly PluginExperimental[]; reserved: readonly string[]}>()
     const rendered = render(() => (
       <PluginExperimentalLoader
-        source={second}
+        source={() => second}
         client={() => undefined}
         onChange={(plugins, reserved) => loaded.add({plugins, reserved})}
       />
@@ -8390,7 +8390,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
       return (
         <>
           <PluginExperimentalLoader
-            source={first}
+            source={() => first}
             client={() => undefined}
             onChange={(plugins) => loaded.add(plugins)}
           />
