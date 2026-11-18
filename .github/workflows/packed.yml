@@ -64,8 +64,8 @@ on:
       - packages/mascot/vitest.config.ts
       - packages/mascot-react/test/unit/mascot-react.test.ts
       - packages/mascot-react/vitest.config.ts
-      - packages/extensions/tanstack/test/tanstack.test.ts
-      - packages/extensions/tanstack/vitest.config.ts
+      - packages/plugins/tanstack/test/tanstack.test.ts
+      - packages/plugins/tanstack/vitest.config.ts
   workflow_call: {}
   workflow_dispatch: {}
 
@@ -119,7 +119,7 @@ jobs:
       # The vitest suites pack the package's own dist (and tanstack its closure), so build
       # those first; the e2e suites build their closure themselves.
       - name: Build packed packages
-        run: pnpm exec turbo run build --filter=@conciv/mascot --filter=@conciv/mascot-react --filter=@conciv/extension-tanstack
+        run: pnpm exec turbo run build --filter=@conciv/mascot --filter=@conciv/mascot-react --filter=@conciv/plugin-tanstack
       # Each suite runs even when an earlier one failed, so one run reports them all.
       - name: mascot
         if: ${{ !cancelled() }}
@@ -127,9 +127,9 @@ jobs:
       - name: mascot-react
         if: ${{ !cancelled() }}
         run: pnpm --filter @conciv/mascot-react run test:packed
-      - name: extension-tanstack
+      - name: plugin-tanstack
         if: ${{ !cancelled() }}
-        run: pnpm --filter @conciv/extension-tanstack run test:packed
+        run: pnpm --filter @conciv/plugin-tanstack run test:packed
       - name: nextjs
         if: ${{ !cancelled() }}
         run: pnpm --filter conciv-e2e-nextjs run test:packed

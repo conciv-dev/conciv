@@ -55,41 +55,34 @@ builder; the base stays unbound and can still be `.client(...)`'d separately
 
 For a package meant to be installed by other apps, keep tool metadata, server execution, and card
 rendering in separate files so the server build never imports Solid and the client build never
-imports node-only code. Real example, `@conciv/extension-tanstack`:
+imports node-only code. Real example, `@conciv/extension-recorder`:
 
-```ts title="packages/extensions/tanstack/src/tool/def.ts (shape)"
+```ts title="packages/extensions/recorder/src/tool/def.ts (shape)"
 import {toolDefinition} from '@conciv/extension/tool'
-export const routerStateDef = toolDefinition({
-  name: 'tanstack_router_state',
+export const startToolDef = toolDefinition({
+  name: 'recording_start',
   description: '…',
-  inputSchema: z.object({}),
-  outputSchema: RouterCurrentSchema,
+  inputSchema: StartInput,
+  outputSchema: z.union([z.object({error: z.string()}), z.object({captureId: z.string(), startedAt: z.number()})]),
 })
 ```
 
-```ts title="packages/extensions/tanstack/src/tool/client.ts (shape)"
+```ts title="packages/extensions/recorder/src/tool/client.ts"
 import {defineTool} from '@conciv/extension'
-import {routerStateDef /* … */} from './def.js'
-import {readRouterState} from '../client/router-adapter.js'
-import {routerStateCard} from './router-state-card.js'
+import {pullToolDef, startToolDef, stopToolDef} from './def.js'
+import {recordingToolCard} from './card.js'
 
-export const tanstackClientTools = [
-  defineTool(routerStateDef)
-    .client(() => readRouterState())
-    .render(routerStateCard),
-]
+export const startToolClient = defineTool(startToolDef).render(recordingToolCard)
 ```
 
-```ts title="packages/extensions/tanstack/src/tool/server.ts (shape)"
-import {defineTool, toolError} from '@conciv/extension'
-import {routeManifestDef, TANSTACK_PAGE_TOOL_DEFS} from './def.js'
+```ts title="packages/extensions/recorder/src/tool/server.ts (shape)"
+import {defineTool} from '@conciv/extension'
+import {pullToolDef, startToolDef, stopToolDef} from './def.js'
 
-export const tanstackServerTools = [
-  defineTool(routeManifestDef).server((_input, ctx: ToolCtx, _request, _page, tools) =>
-    ctx.makeAdapter(tools).server.manifest.routes(),
-  ),
-  ...TANSTACK_PAGE_TOOL_DEFS.map(pageToolDeclaration),
-]
+export const startTool = defineTool(startToolDef).server(async (_input, ctx: Ctx) => {
+  const {captureId, startTs} = ctx.recorder.control.startCapture()
+  return {captureId, startedAt: startTs}
+})
 ```
 
 One tool per verb, one name. A page verb IS the tool: the browser build binds it with `.client(impl)`

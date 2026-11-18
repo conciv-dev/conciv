@@ -25,12 +25,12 @@ import {
   type NextHandle,
 } from '../packed/harness.js'
 
-const CLIENT_SENTINEL_ID = 'CONCIV_TANSTACK_CLIENT_SENTINEL'
-const SERVER_ONLY_SYMBOLS = ['makeTanstackAdapter', 'readRouteManifest']
+const CLIENT_SENTINEL_ID = 'TanStack inspector active'
+const SERVER_ONLY_SYMBOLS = ['readRouteManifest', 'TanstackRouteManifest.read']
 const SETUP_TIMEOUT = 6 * 60_000
 const CELL_TIMEOUT = 12 * 60_000
 
-test.describe.serial('installed extension on packed Next 16.2 (turbopack + webpack)', () => {
+test.describe.serial('installed TanStack plugin and extensions on packed Next 16.2 (turbopack + webpack)', () => {
   let fixture: Fixture
   let handle: NextHandle | undefined
 
@@ -114,7 +114,9 @@ test.describe.serial('installed extension on packed Next 16.2 (turbopack + webpa
     expect(copies).toHaveLength(1)
   })
 
-  test('turbopack: renders the chip, degrades gracefully router-less, and lives through add/remove', async ({page}) => {
+  test('turbopack: renders the chip, degrades gracefully without a TanStack app, and lives through add/remove', async ({
+    page,
+  }) => {
     test.setTimeout(CELL_TIMEOUT)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -128,14 +130,14 @@ test.describe.serial('installed extension on packed Next 16.2 (turbopack + webpa
 
     const apiBase = agentApiBase(fixture.appDir)
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
-    await expect(callTool('tanstack_router_state', {})).rejects.toThrow(/TanStack router not found on page/)
+    await expect(callTool('tanstack_route_manifest', {})).rejects.toThrow(/routeTree\.gen\.ts/)
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])
 
     await assertLiveAddRemove(page, false)
   })
 
-  test('turbopack: the dev client graph excludes the extension server module', async ({page}) => {
+  test('turbopack: the dev client graph excludes the plugin engine module', async ({page}) => {
     test.setTimeout(CELL_TIMEOUT)
     handle = startNext(fixture.appDir, {webpack: false, devPort: DEV_PORT})
     await waitReady(handle, ENGINE_PORT)
@@ -174,7 +176,7 @@ test.describe.serial('installed extension on packed Next 16.2 (turbopack + webpa
       'extensions-client.gen',
       CLIENT_SENTINEL_ID,
       '__CONCIV_API_BASE__',
-      'makeTanstackAdapter',
+      'readRouteManifest',
     ]
     expect(prodConcivChunkHits(fixture.appDir, markers)).toEqual([])
   })
