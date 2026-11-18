@@ -693,7 +693,7 @@ export async function clearMovedDraft(appData: AppData, keep: DraftWriteChain, s
         console.error('[conciv] could not remove the local draft of the deleted session', error)
       }),
     )
-  await appData.saveDraft({
+  void appData.saveDraft({
     sessionId,
     text: '',
     selectionStart: 0,

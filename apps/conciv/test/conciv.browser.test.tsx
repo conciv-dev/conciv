@@ -5965,6 +5965,30 @@ describe('a deleted session', () => {
     expect(await readLocalCopy(deletedId)).toBeNull()
   }, 40_000)
 
+  test('New session shows the moved text while the engine is still clearing the deleted session draft', async () => {
+    const MOVED = 'moved while the engine clears'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: MOVED})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+    const clear = await faults.install({kind: 'gate', path: ['drafts', 'set'], input: {sessionId: deletedId, text: ''}})
+
+    await userEvent.click(newSessionButton())
+    await coreControl.awaitFaultPending(clear, 1)
+
+    await expect.element(editor().getByText(MOVED), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    expect(await readLocalCopy(deletedId)).toBeNull()
+
+    await coreControl.releaseFault(clear)
+    await coreControl.awaitFaultAnswered(clear)
+
+    expect(await rpc.drafts.get({sessionId: deletedId})).toEqual(expect.objectContaining({text: ''}))
+  }, 40_000)
+
   test('text kept only in this browser moves with New session, and the deleted session keeps no local copy', async () => {
     const KEPT = 'kept only in this browser'
     const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
@@ -10933,9 +10957,12 @@ module.exports = {default: {setup(ctx) {
     await expect.element(queued()).toBeVisible()
     await switchTo('the returning session', 'the session away')
     await coreControl.releaseFault(cut)
-    await expect
-      .element(page.getByRole('region', {name: /Notifications/}))
-      .toMatchTextContent(/The queued message could not be put back in its draft/)
+    await switchTo('the session away', 'the returning session')
+    await expect.element(card('the first comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment')).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(editor()).not.toMatchTextContent(/The user made/)
     await coreControl.releaseFault(refusedSave)
     expect(await rpc.drafts.get({sessionId: returningId})).toBeNull()
   }, 90_000)
