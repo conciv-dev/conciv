@@ -138,7 +138,12 @@ function receive(state: RunState, event: Extract<RunEvent, {readonly type: 'chil
   if (state.status === 'listing')
     return message.type === 'list' ? {state: {...state, files: message.files}, effects: []} : {state, effects: []}
 
-  if (message.type === 'list' || message.type === 'run-unavailable') return {state, effects: []}
+  return record(state, message)
+}
+
+function record(state: Extract<RunState, {readonly status: 'running'}>, message: ChildMessage): RunTransition {
+  if (message.type === 'list' || message.type === 'error' || message.type === 'run-unavailable')
+    return {state, effects: []}
 
   if (message.type === 'run-start')
     return {state: {...state, buffer: [message], unavailable: null}, effects: [{type: 'publish', event: message}]}

@@ -190,13 +190,13 @@ function FileSection(props: Actions & {group: FileGroup; accordion: string}): JS
   )
 }
 
-type RunView = {
+type RunCardView = {
   readonly summary: Summary
   readonly tests: readonly TestRow[]
   readonly running: boolean
 }
 
-function RunCard(props: Actions & RunView): JSX.Element {
+function RunCard(props: Actions & RunCardView): JSX.Element {
   const accordion = createUniqueId()
   const sentence = () => `${props.running ? 'Test run in progress' : 'Test run finished'}: ${counts(props.summary)}`
   return (
