@@ -1,6 +1,6 @@
 export * as PluginModule from './module.js'
 
-import type {Plugin, Services} from '@conciv/plugin/effect/plugin'
+import type {Plugin, Services, TaggedError} from '@conciv/plugin/effect/plugin'
 import * as Host from '@conciv/plugin/host'
 import {ExperimentalBundle, type Source} from '@conciv/plugin/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
@@ -77,8 +77,8 @@ const Module = Schema.Struct({
   default: Schema.Union([
     Schema.Struct({
       id: Schema.String,
-      effect: Schema.declare<Plugin<Services>['effect']>(
-        (input): input is Plugin<Services>['effect'] => typeof input === 'function',
+      effect: Schema.declare<Plugin<Services, TaggedError>['effect']>(
+        (input): input is Plugin<Services, TaggedError>['effect'] => typeof input === 'function',
       ),
     }),
     Schema.Struct({
