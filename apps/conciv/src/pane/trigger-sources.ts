@@ -107,9 +107,9 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
 
 type RpcOutputs = InferClientOutputs<RpcClient>
 
-const SKILL_ICON = {component: BookOpen, name: 'Skill'}
+const SKILL_ICON: RichTextFieldTriggerItem['icon'] = {component: BookOpen, name: 'Skill'}
 
-const AGENT_ICON = {component: Brain, name: 'Agent'}
+const AGENT_ICON: RichTextFieldTriggerItem['icon'] = {component: Brain, name: 'Agent', tone: 'chat-agent'}
 
 function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
   return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}

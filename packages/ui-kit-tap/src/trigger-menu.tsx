@@ -20,7 +20,8 @@ type TriggerMenuItemContent = (item: RichTextFieldTriggerItem) => JSX.Element
 const BACK = 'w-full gap-1.5 min-h-11 px-2.5 text-[0.8125rem] text-chat-text-2'
 const BACK_LABEL = 'flex-1 text-start truncate'
 const ROW_LINE = 'flex items-center gap-2 min-w-0'
-const ROW_ICON = 'inline-flex shrink-0 text-chat-text-2'
+const ROW_ICON = 'inline-flex shrink-0'
+const ICON_TONE = {neutral: 'text-chat-text-2', 'chat-agent': 'text-chat-agent'}
 
 export type TriggerMenuController = {
   state: () => TriggerMenuState | null
@@ -145,7 +146,7 @@ function MenuPanel(props: {
       <span class={ROW_LINE}>
         <Show when={icon}>
           {(shown) => (
-            <span role="img" aria-label={shown().name} class={ROW_ICON}>
+            <span role="img" aria-label={shown().name} class={`${ROW_ICON}  ${ICON_TONE[shown().tone ?? 'neutral']}`}>
               <Dynamic component={shown().component} class="size-4" />
             </span>
           )}
