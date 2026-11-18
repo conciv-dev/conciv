@@ -9,12 +9,11 @@ import {
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
+import {PromptPresentationSchema, type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isEqual} from 'es-toolkit'
-import {z} from 'zod'
 import {
   ChatContentPartSchema,
   isHarnessSessionId,
@@ -242,17 +241,10 @@ function isBlank(message: ModelMessage): boolean {
   return !hasParts && readText(message).trim() === ''
 }
 
-const PromptDisplaySchema = z.object({
-  displayText: z.string(),
-  comments: z.array(z.object({label: z.string()}).nullable().catch(null)).catch([]),
-})
-
 function titleText(message: ModelMessage | undefined): string {
-  const display = PromptDisplaySchema.safeParse(message?.metadata)
+  const display = PromptPresentationSchema.safeParse(message?.metadata)
   if (!display.success) return readText(message).trim()
-  return (
-    display.data.displayText.trim() || display.data.comments.find((comment) => comment !== null)?.label.trim() || ''
-  )
+  return display.data.displayText.trim() || display.data.comments[0]?.label.trim() || ''
 }
 
 export function firstUserTitle(messages: readonly ModelMessage[]): string {

@@ -1,5 +1,6 @@
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   onMount,
@@ -19,7 +20,8 @@ import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
 import {useComposerDraftPersistence} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
-import {ComposerProvider, useComposerContext, type ComposerDraft, type ComposerItem} from './composer-context.js'
+import type {DraftItem} from '@conciv/protocol/chat-types'
+import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {
   fileMatchesAccept,
@@ -43,7 +45,7 @@ type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
 type ComposerState = {
   attachments: Attachment[]
   quote: string | null
-  items: ComposerItem[]
+  items: DraftItem[]
   editing: boolean
   dictating: boolean
   sendingAttachments: boolean
@@ -201,6 +203,7 @@ function Root(props: FormProps): JSX.Element {
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
   const attachments = () => state.attachments
+  const staged = createMemo(() => state.attachments.length + state.items.length)
   const draftKey = () => local.draftKey ?? DEFAULT_DRAFT_KEY
   const upsertAttachment = (attachment: PendingAttachment) => {
     if (removedIds.has(attachment.id)) return
@@ -288,14 +291,14 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', '')
     setState({attachments: [], quote: null, items: []})
   }
-  const addItem = (item: ComposerItem) => {
+  const addItem = (item: DraftItem) => {
     if (state.items.some((value) => value.key === item.key)) return
     setState('items', (current) => [...current, item])
   }
   const removeItem = (key: string) => {
     setState('items', (current) => current.filter((value) => value.key !== key))
   }
-  const updateItem = (key: string, value: ComposerItem['value']) => {
+  const updateItem = (key: string, value: DraftItem['value']) => {
     setState('items', (current) => current.map((item) => (item.key === key ? {key, value} : item)))
   }
   onMount(() => {
@@ -344,8 +347,7 @@ function Root(props: FormProps): JSX.Element {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    const staged = state.attachments.length + state.items.length
-    if (!canSubmit(composer.canSend(), staged, state.sendingAttachments || composer.isStopping())) return
+    if (!canSubmit(composer.canSend(), staged(), state.sendingAttachments || composer.isStopping())) return
     await sendFromUser(deliverDraft)
   }
   return (
@@ -364,6 +366,7 @@ function Root(props: FormProps): JSX.Element {
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
         items: () => state.items,
+        staged,
         addItem,
         removeItem,
         updateItem,
@@ -473,7 +476,7 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
         local.disabled ||
         context.sendingAttachments() ||
         composer.isStopping() ||
-        (!composer.canSend() && context.attachments().length + context.items().length === 0)
+        (!composer.canSend() && context.staged() === 0)
       }
       {...rest}
       type="submit"

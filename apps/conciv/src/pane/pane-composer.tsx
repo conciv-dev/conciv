@@ -65,7 +65,7 @@ function ComposerSendControl(): JSX.Element {
   const reachability = useEngineReachability()
   const locked = () => lockedMessage(reachability.locked())
   const blocked = () => !reachability.online() || locked() !== null
-  const empty = () => composer.isEmpty() && context.attachments().length + context.items().length === 0
+  const empty = () => composer.isEmpty() && context.staged() === 0
   const idle = () => empty() || composer.isStopping() || blocked() || context.sendingAttachments()
   const sendLabel = (): string => {
     const lockedLabel = locked()

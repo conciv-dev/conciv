@@ -13,12 +13,12 @@ import {
   type Accessor,
 } from 'solid-js'
 import type {Composer, MountedSession, SessionScreen} from '@conciv/plugin/experimental'
-import type {ComposerItem} from '@conciv/ui-kit-chat'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {useQuery} from '@conciv/client'
 import {useAppData, useConnected, useLiveSessions} from '../../app/context'
 import {usePluginAttachment} from './attachment'
-import {NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
+import {decodeNotes, NoteContextItem, noteItem, noteValue} from '../../composer/note-schema'
 import type {ComposerBinding} from './host-apis'
 import {
   createComposerWriteState,
@@ -34,18 +34,14 @@ type ComposerTarget = {
   readonly text: Accessor<string>
   readonly setText: (value: string) => void
   readonly insert: (text: string) => void
-  readonly items: Accessor<ComposerItem[]>
-  readonly addItem: (item: ComposerItem) => void
-  readonly updateItem: (key: string, value: ComposerItem['value']) => void
+  readonly items: Accessor<DraftItem[]>
+  readonly addItem: (item: DraftItem) => void
+  readonly updateItem: (key: string, value: DraftItem['value']) => void
   readonly removeItem: (key: string) => void
 }
 
-const commentNotes = (items: readonly ComposerItem[], commentId: string) =>
-  items.flatMap((item) => {
-    const note = NoteContextItem.safeParse(item.value)
-
-    return note.success && note.data.commentId === commentId ? [{key: item.key, note: note.data}] : []
-  })
+const commentNotes = (items: readonly DraftItem[], commentId: string) =>
+  decodeNotes(items).filter((entry) => entry.note.commentId === commentId)
 
 type ComposerSlot = {
   readonly target: ComposerTarget
@@ -182,7 +178,10 @@ export function createMountedSession(session: {readonly id: Accessor<string>}) {
     setModel: () => false,
     setVariant: () => false,
     attach(part) {
-      if (part.type !== 'note') return console.error('[plugin] Composer.attach is not implemented yet', part.type)
+      if (part.type !== 'note') {
+        console.error('[plugin] Composer.attach is not implemented yet', part.type)
+        return
+      }
 
       const item = noteItem(NoteContextItem.parse(part))
 

@@ -1,11 +1,12 @@
 import {z} from 'zod'
-import {uniqBy} from 'es-toolkit'
-import {DraftItemSchema, type DraftItem, type DraftRow} from '@conciv/contract'
+import {keyBy, uniqBy} from 'es-toolkit'
+import type {DraftRow} from '@conciv/contract'
+import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 import type {DraftSink} from './pane-attachments.js'
-import {durableNote, NoteContextItem, noteValue} from '../composer/note-schema.js'
+import {decodeNotes, durableNote, noteValue} from '../composer/note-schema.js'
 
 const PersistedAttachmentSchema = z.object({
   id: z.string(),
@@ -51,12 +52,16 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
 
 const ClaimsNoteSchema = z.object({type: z.literal('note')})
 
-function durableItems(item: DraftItem): DraftItem[] {
-  const note = NoteContextItem.safeParse(item.value)
+function durableItems(items: readonly DraftItem[]): DraftItem[] {
+  const notes = keyBy(decodeNotes(items), (entry) => entry.key)
 
-  if (note.success) return [{key: item.key, value: noteValue(durableNote(note.data))}]
+  return items.flatMap((item) => {
+    const note = notes[item.key]
 
-  return ClaimsNoteSchema.safeParse(item.value).success ? [] : [item]
+    if (note) return [{key: item.key, value: noteValue(durableNote(note.note))}]
+
+    return ClaimsNoteSchema.safeParse(item.value).success ? [] : [item]
+  })
 }
 
 function serializeRow(row: DraftRow): string {
@@ -64,7 +69,7 @@ function serializeRow(row: DraftRow): string {
     text: row.text,
     quote: null,
     attachments: row.attachments,
-    items: row.items.flatMap(durableItems),
+    items: durableItems(row.items),
   })
 }
 

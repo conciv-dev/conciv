@@ -34,7 +34,7 @@ describe('draft storage', () => {
 
   type StoredDraft = {sessionId: string; text: string; selectionStart: number; selectionEnd: number}
 
-  const draftTest = baseTest.extend<{kit: CoreKit; core: ProxyCore; sessionId: string}>({
+  const test = baseTest.extend<{kit: CoreKit; core: ProxyCore; sessionId: string}>({
     kit: [
       // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
       async ({}, use) => {
@@ -75,7 +75,7 @@ describe('draft storage', () => {
     }
   }
 
-  draftTest('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
+  test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
     const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
 
@@ -92,24 +92,21 @@ describe('draft storage', () => {
     })
   })
 
-  draftTest(
-    'a composer cleared before the server draft arrives clears the server draft',
-    async ({kit, core, sessionId}) => {
-      await seedDraft(kit.rpc, sessionId, {text: 'stale on the server'})
-      const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+  test('a composer cleared before the server draft arrives clears the server draft', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'stale on the server'})
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
 
-      draftStorage.storage.setItem('any', composerDraft('typed early'))
-      draftStorage.storage.setItem('any', composerDraft(''))
-      const restored: ServerDraft[] = []
-      await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
-      await core.awaitRequest(DRAFTS_SET_PATH)
+    draftStorage.storage.setItem('any', composerDraft('typed early'))
+    draftStorage.storage.setItem('any', composerDraft(''))
+    const restored: ServerDraft[] = []
+    await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
+    await core.awaitRequest(DRAFTS_SET_PATH)
 
-      expect(restored).toEqual([])
-      expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
-    },
-  )
+    expect(restored).toEqual([])
+    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
+  })
 
-  draftTest('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId}) => {
+  test('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'restored then cleared'})
     const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
     await draftStorage.restore(() => {}, new AbortController().signal)
@@ -120,20 +117,21 @@ describe('draft storage', () => {
     expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
   })
 
-  draftTest(
-    'the latest text typed before the server draft arrives is written once it has',
-    async ({kit, core, sessionId}) => {
-      const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+  test('the latest text typed before the server draft arrives is written once it has', async ({
+    kit,
+    core,
+    sessionId,
+  }) => {
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
 
-      draftStorage.storage.setItem('any', composerDraft('typed while loading'))
-      await draftStorage.restore(() => {}, new AbortController().signal)
-      await core.awaitRequest(DRAFTS_SET_PATH)
+    draftStorage.storage.setItem('any', composerDraft('typed while loading'))
+    await draftStorage.restore(() => {}, new AbortController().signal)
+    await core.awaitRequest(DRAFTS_SET_PATH)
 
-      expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: 'typed while loading'})
-    },
-  )
+    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: 'typed while loading'})
+  })
 
-  draftTest('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
+  test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'a first line'})
 
     await appendDraft(draftApp(core.base), sessionId, 'a second line')
@@ -146,39 +144,40 @@ describe('draft storage', () => {
     })
   })
 
-  draftTest(
-    'the composer items reach the server draft, outlive an appended line and come back on a reload',
-    async ({kit, core, sessionId}) => {
-      const staged = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
-      const updated = [{key: 'note:grab:c=1', value: {comment: 'make it red'}}]
-      const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
-      await draftStorage.restore(() => {}, new AbortController().signal)
+  test('the composer items reach the server draft, outlive an appended line and come back on a reload', async ({
+    kit,
+    core,
+    sessionId,
+  }) => {
+    const staged = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
+    const updated = [{key: 'note:grab:c=1', value: {comment: 'make it red'}}]
+    const draftStorage = makeDraftStorage(draftApp(core.base), sessionId)
+    await draftStorage.restore(() => {}, new AbortController().signal)
 
-      draftStorage.storage.setItem('any', composerDraft('a noted draft', staged))
-      await core.awaitRequest(DRAFTS_SET_PATH)
-      expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a noted draft', items: staged})
+    draftStorage.storage.setItem('any', composerDraft('a noted draft', staged))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a noted draft', items: staged})
 
-      draftStorage.storage.setItem('any', composerDraft('', staged))
-      await core.awaitRequest(DRAFTS_SET_PATH)
-      draftStorage.storage.setItem('any', composerDraft('', updated))
-      await core.awaitRequest(DRAFTS_SET_PATH)
-      expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: '', items: updated})
+    draftStorage.storage.setItem('any', composerDraft('', staged))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    draftStorage.storage.setItem('any', composerDraft('', updated))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: '', items: updated})
 
-      await appendDraft(draftApp(core.base), sessionId, 'a queued line')
-      expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a queued line', items: updated})
+    await appendDraft(draftApp(core.base), sessionId, 'a queued line')
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a queued line', items: updated})
 
-      const restored: ServerDraft[] = []
-      await makeDraftStorage(draftApp(core.base), sessionId).restore(
-        (draft) => restored.push(draft),
-        new AbortController().signal,
-      )
-      expect(restored.map((draft) => JSON.parse(draft.snapshot.getItem('any') ?? 'null'))).toEqual([
-        {text: 'a queued line', quote: null, attachments: [], items: updated},
-      ])
-    },
-  )
+    const restored: ServerDraft[] = []
+    await makeDraftStorage(draftApp(core.base), sessionId).restore(
+      (draft) => restored.push(draft),
+      new AbortController().signal,
+    )
+    expect(restored.map((draft) => JSON.parse(draft.snapshot.getItem('any') ?? 'null'))).toEqual([
+      {text: 'a queued line', quote: null, attachments: [], items: updated},
+    ])
+  })
 
-  draftTest('a staged note read back from the server draft drops its live part', async ({kit, core, sessionId}) => {
+  test('a staged note read back from the server draft drops its live part', async ({kit, core, sessionId}) => {
     const note = {
       type: 'note',
       origin: 'fixture',
@@ -210,7 +209,7 @@ describe('draft storage', () => {
     ])
   })
 
-  draftTest('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
+  test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
 

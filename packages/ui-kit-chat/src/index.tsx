@@ -95,7 +95,6 @@ export {
   useComposerContext,
   type ComposerContextValue,
   type ComposerDraft,
-  type ComposerItem,
 } from './primitives/composer/composer-context.js'
 export {
   ComposerHandlersProvider,
@@ -202,7 +201,7 @@ export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
 export {BranchPicker} from './styled/branch-picker.js'
 export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
-export {NoteFrame, type NoteFrameProps} from './styled/note-frame.js'
+export {CornerRemoveButton} from './styled/corner-remove-button.js'
 export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attachment-dispatch.js'
 export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'

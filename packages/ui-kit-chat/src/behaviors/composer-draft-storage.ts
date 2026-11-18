@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {uniqBy} from 'es-toolkit'
 import type {WebStorage} from '@conciv/storage-history'
+import {DraftItemSchema} from '@conciv/protocol/chat-types'
 import {fileToDataSource, type Attachment, type PendingAttachment} from '../primitives/attachment/attachment-adapter.js'
 import type {ComposerDraft} from '../primitives/composer/composer-context.js'
 
@@ -18,7 +19,7 @@ const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
   quote: z.string().nullable().catch(null),
   attachments: z.array(PersistedAttachmentSchema).catch([]),
-  items: z.array(z.object({key: z.string(), value: z.json()})).catch([]),
+  items: z.array(DraftItemSchema).catch([]),
 })
 
 export type PersistedComposerDraft = z.infer<typeof PersistedDraftSchema>

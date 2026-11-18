@@ -24,11 +24,11 @@ import {
   useComposerContext,
   useThread,
   type ComposerDraft,
-  type ComposerItem,
   type PageSessionConfig,
   type TurnItem,
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {
   PAGE_ACT_TOOL_NAMES,
@@ -111,7 +111,7 @@ function resetSlideOnSelf(reset: () => void) {
 
 type ComposerApi = {
   addAttachment: (file: File) => Promise<string | null>
-  addItem: (item: ComposerItem) => void
+  addItem: (item: DraftItem) => void
 }
 
 function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
@@ -309,7 +309,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     sessionId,
     openModelMenu: () => modelMenu.popover().setOpen(true),
   })
-  const addItem = (item: ComposerItem) => composerApi.current?.addItem(item)
+  const addItem = (item: DraftItem) => composerApi.current?.addItem(item)
   const sendOrRunCommand = async (content: string | SendContent, draft: ComposerDraft): Promise<void> => {
     if (typeof content === 'string' && commandSources.runTyped(content)) {
       draft.items.forEach(addItem)

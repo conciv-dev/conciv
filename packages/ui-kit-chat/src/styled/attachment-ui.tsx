@@ -8,7 +8,7 @@ import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/at
 import {FOCUS_INSET, REMOVE, REMOVE_WRAPPER} from './classes.js'
 
 const TILE =
-  'relative size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default anim-presence-in'
+  'group relative size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default anim-presence-in'
 
 const IMAGE_TRIGGER = `size-full block !border-0 !cursor-zoom-in ${FOCUS_INSET}`
 

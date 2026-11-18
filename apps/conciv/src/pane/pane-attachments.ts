@@ -1,5 +1,6 @@
 import type {QueuedMessage} from '@conciv/ai/client'
-import type {ContentPart} from '@conciv/protocol/chat-message-types'
+import type {ContentPart, NoteComment} from '@conciv/protocol/chat-message-types'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import type {AnyExtension} from '@conciv/extension'
 import {
   composeAttachmentAdapters,
@@ -9,12 +10,11 @@ import {
   partIsModelOnly,
   type AttachmentAdapter,
   type AttachmentCardSlot,
-  type ComposerItem,
 } from '@conciv/ui-kit-chat'
 import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
 import {guardedAttachmentCard, guardedAttachmentCards} from '../extension/extension-boundary.js'
 import {commentContextItem, formatNoteComment, readPromptPresentation} from '../composer/comment-note.js'
-import {noteItem, type NoteComment} from '../composer/note-schema.js'
+import {noteItem} from '../composer/note-schema.js'
 
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 const TEXT_ATTACHMENT_ADAPTER = createTextAttachmentAdapter()
@@ -43,7 +43,7 @@ export function paneAttachments(
 export type DraftSink = {
   insert: (text: string) => void
   addFile: (file: File) => void
-  addItem: (item: ComposerItem) => void
+  addItem: (item: DraftItem) => void
 }
 
 export type QueueOwner = {queue: () => readonly QueuedMessage[]; cancelQueued: (id: string) => void}

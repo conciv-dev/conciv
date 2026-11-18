@@ -18,8 +18,12 @@ import {Key} from '@solid-primitives/keyed'
 import {isEqual, sumBy, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
-import {z} from 'zod'
-import type {ChatMessage, ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import {
+  PromptPresentationSchema,
+  type ChatMessage,
+  type ChatPart,
+  type ToolCallPart,
+} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
@@ -64,7 +68,6 @@ import {
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
   TURN_FRAME_CLASS,
-  TURN_INDENT_CLASS,
   USER_ROOT_CLASS,
   TURN_LEAD_CLASS,
 } from './turn-classes.js'
@@ -331,8 +334,8 @@ function AssistantTurn(props: {
   }
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
-    const pageSession = props.pageSession
-    return [chain, ...(pageSession ? [pageSession.entry] : []), ...(props.groupEntries ?? [])]
+    const config = props.pageSession
+    return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => {
@@ -418,16 +421,15 @@ function AssistantTurn(props: {
   )
 }
 
-const PromptDisplaySchema = z.object({displayText: z.string()})
-
-const SentNotesSchema = z.object({comments: z.array(z.unknown())})
-
 function sentNoteCount(turn: Turn): number {
-  return sumBy(turn.messages, (message) => SentNotesSchema.safeParse(message.metadata).data?.comments.length ?? 0)
+  return sumBy(
+    turn.messages,
+    (message) => PromptPresentationSchema.safeParse(message.metadata).data?.comments.length ?? 0,
+  )
 }
 
 function messagePromptText(message: ChatMessage): string[] {
-  const display = PromptDisplaySchema.safeParse(message.metadata)
+  const display = PromptPresentationSchema.safeParse(message.metadata)
   if (display.success) return display.data.displayText.trim() ? [display.data.displayText] : []
   return message.parts
     .filter(
@@ -462,39 +464,30 @@ function UserTurn(): JSX.Element {
               <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
             </div>
           </Message.If>
-          <Show
-            when={promptText()}
-            fallback={
-              <Show
-                when={noteCount() > 0}
-                fallback={
-                  <div class={`${TURN_INDENT_CLASS} empty:hidden`}>
-                    <PromptSuffix besideText={false} />
-                  </div>
-                }
-              >
-                <div class={PROMPT_NOTES_ROW_CLASS}>
-                  <div class={PROMPT_BODY_CLASS}>
-                    <PromptSuffix besideText={false} />
-                  </div>
-                  <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
-                </div>
-              </Show>
-            }
-          >
-            <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
-              <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
-                ❯
-              </span>
-              <div class={PROMPT_BODY_CLASS}>
-                <span class={PROMPT_TEXT_CLASS}>
-                  <HighlightedText text={promptText()} />
+          <Switch>
+            <Match when={promptText()}>
+              <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
+                <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
+                  ❯
                 </span>
-                <PromptSuffix besideText />
+                <div class={PROMPT_BODY_CLASS}>
+                  <span class={PROMPT_TEXT_CLASS}>
+                    <HighlightedText text={promptText()} />
+                  </span>
+                  <PromptSuffix besideText />
+                </div>
+                <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
               </div>
-              <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
-            </div>
-          </Show>
+            </Match>
+            <Match when={noteCount() > 0}>
+              <div class={PROMPT_NOTES_ROW_CLASS}>
+                <div class={PROMPT_BODY_CLASS}>
+                  <PromptSuffix besideText={false} />
+                </div>
+                <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+              </div>
+            </Match>
+          </Switch>
         </Message.Root>
       </Show>
     </TurnFrame>
