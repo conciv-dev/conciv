@@ -1515,3 +1515,37 @@ describe('react bridge', () => {
     })
   })
 })
+
+describe('a real pointer pick', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('returns a grab for a click on a heading beside its text, plain or react-rendered, in comment and pick mode', async () => {
+    const {grabApi} = await import('../src/grab-api.js')
+    document.body.innerHTML = '<div id="react-host"></div><h2 style="font-size: 16px">Plain heading to pick</h2>'
+    const host = document.getElementById('react-host')
+    if (!host) throw new Error('react host missing')
+    const reactRoot = createRoot(host)
+    onTestFinished(() => reactRoot.unmount())
+    reactRoot.render(<h2 style={{fontSize: '16px'}}>React heading to pick</h2>)
+    const plainHeading = page.getByRole('heading', {name: 'Plain heading to pick'})
+    const reactHeading = page.getByRole('heading', {name: 'React heading to pick'})
+    await expect.element(reactHeading).toBeVisible()
+
+    const plainComment = grabApi.comment()
+    await expect.poll(() => grabApi.isActive()).toBe(true)
+    await plainHeading.click({force: true})
+    await expect(plainComment).resolves.toMatchObject({text: expect.stringContaining('Plain heading to pick')})
+
+    const plainPick = grabApi.pick()
+    await expect.poll(() => grabApi.isActive()).toBe(true)
+    await plainHeading.click({force: true})
+    await expect(plainPick).resolves.toMatchObject({text: expect.stringContaining('Plain heading to pick')})
+
+    const reactPick = grabApi.pick()
+    await expect.poll(() => grabApi.isActive()).toBe(true)
+    await reactHeading.click({force: true})
+    await expect(reactPick).resolves.toMatchObject({text: expect.stringContaining('React heading to pick')})
+  })
+})

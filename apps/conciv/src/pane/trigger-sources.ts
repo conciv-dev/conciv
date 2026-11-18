@@ -1,9 +1,12 @@
+import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {uniqBy} from 'es-toolkit'
+import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
-import type {ExtensionCommand} from '@conciv/extension'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
 import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
+import type {ExtensionInstance} from '../extension/extension-slots.js'
+import {usePluginHost, type Item} from '../runtime/plugin/host'
 import type {ComposerTriggerSources} from './composer-input-adapter.js'
 
 export type PaneCommandProps = {sessionId: string; openModelMenu: () => void}
@@ -21,18 +24,81 @@ function commandEntry(command: ChatCommand): RichTextFieldTriggerItem {
   }
 }
 
-function builtinCommands(props: PaneCommandProps): ExtensionCommand[] {
+type WidgetCommand = {
+  name: string
+  description?: string
+  arguments?: true
+  after?: string
+  run: (input?: string) => void
+}
+
+function guardedRun(owner: string, run: () => unknown): void {
+  void Promise.try(run).catch((cause: unknown) => console.error(owner, cause))
+}
+
+function builtinCommands(props: PaneCommandProps): WidgetCommand[] {
   return [{name: 'model', description: 'Switch the model', run: () => props.openModelMenu()}]
 }
 
-function widgetCommandEntry(command: ExtensionCommand, props: PaneCommandProps): RichTextFieldTriggerItem {
+function extensionCommands(instances: ExtensionInstance[], props: PaneCommandProps): WidgetCommand[] {
+  return instances.flatMap((instance) =>
+    (instance.extension.commands ?? []).map((command) => ({
+      name: command.name,
+      description: command.description,
+      run: () => guardedRun(`[extension] ${instance.extension.name}`, () => command.run({sessionId: props.sessionId})),
+    })),
+  )
+}
+
+function pluginCommand(item: Item<Command>): WidgetCommand[] {
+  const slash = item.value.slash
+  if (!slash || item.value.enabled === false) return []
+  return [
+    {
+      name: slash.name,
+      description: item.value.description,
+      arguments: slash.arguments,
+      after: slash.after,
+      run: (input) => guardedRun(`[plugin] ${item.plugin}`, () => item.value.run(input)),
+    },
+  ]
+}
+
+function placeAfterSlash(commands: WidgetCommand[]): WidgetCommand[] {
+  const anchorFor = (command: WidgetCommand) => commands.find((anchor) => anchor.name === command.after)
+  const reachesRoot = (command: WidgetCommand, steps: number): boolean => {
+    const anchor = anchorFor(command)
+    if (!anchor) return true
+    return steps > 0 && reachesRoot(anchor, steps - 1)
+  }
+  const follows = (command: WidgetCommand) => anchorFor(command) !== undefined && reachesRoot(command, commands.length)
+  const place = (command: WidgetCommand): WidgetCommand[] => [
+    command,
+    ...commands.filter((follower) => follower.after === command.name && follows(follower)).flatMap(place),
+  ]
+  return commands.filter((command) => !follows(command)).flatMap(place)
+}
+
+function findWidgetCommand(commands: WidgetCommand[], name: string): WidgetCommand | undefined {
+  return commands.find((command) => command.name === name)
+}
+
+function widgetCommandEntry(command: WidgetCommand): RichTextFieldTriggerItem {
   return {
     id: command.name,
     label: `/${command.name}`,
     group: SOURCE_LABEL.harness,
     description: command.description,
-    run: () => command.run({sessionId: props.sessionId}),
+    run: command.arguments ? undefined : () => command.run(),
   }
+}
+
+function parseTyped(text: string): {name: string; input?: string} | undefined {
+  const typed = text.trim()
+  if (!typed.startsWith('/')) return undefined
+  const separator = typed.search(/\s/)
+  if (separator === -1) return {name: typed.slice(1)}
+  return {name: typed.slice(1, separator), input: typed.slice(separator).trim()}
 }
 
 function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
@@ -66,14 +132,30 @@ function matchingItems(entries: RichTextFieldTriggerItem[], query: string, match
 }
 
 export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandSources {
-  const extensionCommands = useInstances().flatMap((instance) => instance.extension.commands ?? [])
-  const widgetCommands = uniqBy([...builtinCommands(props), ...extensionCommands], (command) => command.name)
-  const widgetNames = new Set(widgetCommands.map((command) => command.name))
-  const widgetEntries = widgetCommands.map((command) => widgetCommandEntry(command, props))
+  const host = usePluginHost()
+  const instances = useInstances()
+  const pluginRank = (plugin: string): number => {
+    const index = host.definitions().findIndex((definition) => definition.id === plugin)
+    return index === -1 ? Number.POSITIVE_INFINITY : index
+  }
+  const widgetCommands = createMemo(() => {
+    const pluginCommands = host
+      .items(Command)
+      .toSorted((first, second) => pluginRank(first.plugin) - pluginRank(second.plugin))
+      .flatMap(pluginCommand)
+    return placeAfterSlash(
+      uniqBy(
+        [...builtinCommands(props), ...pluginCommands, ...extensionCommands(instances, props)],
+        (command) => command.name,
+      ),
+    )
+  })
   const runTyped = (text: string): boolean => {
-    const command = widgetCommands.find((candidate) => `/${candidate.name}` === text.trim())
+    const typed = parseTyped(text)
+    if (!typed) return false
+    const command = findWidgetCommand(widgetCommands(), typed.name)
     if (!command) return false
-    command.run({sessionId: props.sessionId})
+    command.run(command.arguments ? typed.input : undefined)
     return true
   }
   const appData = useAppData()
@@ -92,8 +174,11 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
           .ensureQueryData(appData.utils.meta.commands.queryOptions({input: {sessionId: props.sessionId}}))
           .then((data) => data.commands)
           .catch(() => [])
-        const harnessEntries = harnessCommands.filter((command) => !widgetNames.has(command.name)).map(commandEntry)
-        return matchingItems([...widgetEntries, ...harnessEntries], query, matcher())
+        const widget = widgetCommands()
+        const harnessEntries = harnessCommands
+          .filter((command) => !findWidgetCommand(widget, command.name))
+          .map(commandEntry)
+        return matchingItems([...widget.map(widgetCommandEntry), ...harnessEntries], query, matcher())
       },
     },
     mention: {

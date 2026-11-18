@@ -4,9 +4,8 @@ import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/exp
 import {ToolCall} from '@conciv/plugin/experimental/builtin'
 import {Page, PageEffect, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition} from '@conciv/plugin-page/rpc'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import {openAttachment} from './attachment.js'
-import {makeHighlight, type OpenedSource} from './highlight.js'
+import {makeHighlight} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
 import {pageToolCalls} from './cards/page-tool-cards.js'
@@ -120,26 +119,8 @@ export default Plugin.define({
       return session.server.client.rpc(Definition).symbolicate({frames: [...frames]})
     }
 
-    const openSource = async (located: LocateResult): Promise<OpenedSource> => {
-      const desktop = ctx.desktop
-
-      if (!desktop) return 'failed'
-      try {
-        const frames = located.frames.flatMap(({fileName, line, column}) =>
-          fileName === undefined || line === undefined ? [] : [{fileName, line, column}],
-        )
-        const source = located.source ?? (frames.length > 0 ? await symbolicate(frames) : null)
-
-        if (!source) return 'no-source'
-        await desktop.launch(source.file, {line: source.line, column: source.column})
-        return 'opened'
-      } catch {
-        return 'failed'
-      }
-    }
-
     const highlight = makeHighlight({
-      open: openSource,
+      opener: {symbolicate, desktop: ctx.desktop},
       toast: (title, variant) => void ctx.toast.show({title, variant}),
     })
     ctx.add(PageEffect, highlight.effect)

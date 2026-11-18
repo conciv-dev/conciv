@@ -33,8 +33,13 @@ const DOM_PAYLOAD: GrabPayload = {
   text: '<button class="primary">Ship it</button>',
   snippet: undefined,
   source: {componentName: 'ShipButton', filePath: 'src/checkout/ship-button.tsx', lineNumber: 14},
-  rect: {x: 24, y: 96, width: 120, height: 36},
-  preview: {kind: 'dom', html: '<button style="padding:8px 16px">Ship it</button>', width: 160, height: 48},
+  rect: {x: 24, y: 96, width: 160, height: 48},
+  preview: {
+    kind: 'dom',
+    html: '<button style="display:block;box-sizing:border-box;width:160px;height:48px;padding:8px 16px">Ship it</button>',
+    width: 160,
+    height: 48,
+  },
 }
 
 export const GrabbedElement: Story = {
