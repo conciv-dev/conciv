@@ -10683,6 +10683,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
   const builtinPage = {id: 'page', builtin: true, enabled: true}
   const builtinTestRunnerCard = {id: 'test-runner-card', builtin: true, enabled: true}
   const builtinTanstackCard = {id: 'tanstack-card', builtin: true, enabled: true}
+  const builtinWhiteboardCard = {id: 'whiteboard-card', builtin: true, enabled: true}
   const builtinRecorderCard = {id: 'recorder-card', builtin: true, enabled: true}
   const builtinTerminal = {id: 'terminal', builtin: true, enabled: true}
   const builtinGrab = {id: 'grab', builtin: true, enabled: true}
@@ -10690,6 +10691,7 @@ module.exports = {default: {stores: {${label}: {scope: 'global', schema: z.strin
     builtinPage,
     builtinTestRunnerCard,
     builtinTanstackCard,
+    builtinWhiteboardCard,
     builtinRecorderCard,
     builtinTerminal,
     builtinGrab,
@@ -10861,6 +10863,8 @@ describe('installed plugins in settings', () => {
     await expect.element(page.getByRole('switch', {name: 'test-runner-card'})).not.toBeInTheDocument()
     await expect.element(page.getByText('tanstack-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'tanstack-card'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('whiteboard-card', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('switch', {name: 'whiteboard-card'})).not.toBeInTheDocument()
     await expect.element(page.getByText('recorder-card', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'recorder-card'})).not.toBeInTheDocument()
   }, 60_000)
@@ -10909,20 +10913,6 @@ module.exports = {default: {stores: {
       return card
     },
   })
-  const fixtureNote = (commentId, comment) =>
-    ({type: 'note', origin: 'fixture', commentId, label: 'Fixture note', icon: 'terminal', subject: 'the fixture subject', comment})
-  const drawnNote = (commentId, comment) =>
-    ({type: 'note', origin: 'fixture-drawn', commentId, label: 'Drawn note', icon: 'pencil', subject: 'a drawn subject', comment})
-  ctx.add(NoteCard, {
-    origins: ['fixture-drawn'],
-    render: (props) => {
-      if (props.note.comment.startsWith('a card it declines')) return undefined
-      if (props.note.comment === 'a card that throws') throw new Error('the fixture card failed')
-      return Object.assign(document.createElement('p'), {textContent: 'Fixture card: ' + props.note.comment})
-    },
-  })
-  ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
-  ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
   const fixtureNote = (commentId, comment) =>
     ({type: 'note', origin: 'fixture', commentId, label: 'Fixture note', icon: 'terminal', subject: 'the fixture subject', comment})
   const drawnNote = (commentId, comment) =>
