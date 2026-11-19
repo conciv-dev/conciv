@@ -19,7 +19,7 @@ import {test, expect, type ConsoleMessage, type Page} from '@playwright/test'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
-import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/plugin-ios/bridge'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
 export type EmbedKit = CoreKit

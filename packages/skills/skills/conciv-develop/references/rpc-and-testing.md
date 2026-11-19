@@ -1,168 +1,76 @@
 # RPC and testing, in depth
 
-## `.server(...)`'s return contract
+## The contract
+
+`Rpc.define({id, methods, events})` from `@conciv/plugin/rpc`. Each method has an `input` and
+`output` schema and optional named `errors`; each event has a `schema`. An error name that starts
+with `rpc.` is reserved and throws. Keep the contract in its own module so the engine part, the
+browser part and the terminal import the same object.
+
+## Registering handlers
+
+`ctx.rpc.register(contract, handlers)` returns a registration with `dispose` and
+`events.emit(name, data)`. A handler gets the parsed input and a call context with
+`error(name, message, data)`, which builds one of the method's declared errors, and returns an
+`Effect`:
 
 ```ts
-type ServerResult<Context> = {
-  context: Context // feeds every tool's .server(input, ctx, request) second argument
-  router?: AnyRouter // an oRPC router, mounted at /rpc/ext/<name>
-  app?: unknown // an optional Hono app for routes an oRPC procedure can't express
-  turnEnd?: (sessionId: string) => void | Promise<void>
-  dispose?: () => void | Promise<void>
-}
+list: (input, call) =>
+  guarded(
+    () => manager.list(input.failedOnly),
+    (reason) => call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: reason}),
+  ),
 ```
 
-(`packages/extension/src/types.ts:110-116`.) Reach for `router` first — it gets you typed
-request/response validation and streaming for free via `@orpc/server`'s `os` builder. Reach for
-`app` only for things a procedure genuinely cannot express (the recorder's video export writes a
-`File` response; several extensions use `app` for raw multipart uploads or a plain SSE endpoint that
-predates their oRPC router).
+Map each typed failure to a declared error once, with `Effect.catchTags`. RPC methods never ask the
+user; an operation that must ask is a tool.
 
-## Building the router
+## Calling it
 
-```ts title="removed whiteboard extension: src/server/router.ts"
-import {eventIterator, ORPCError, os} from '@orpc/server'
-import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
+- Another plugin's engine part: `ctx.rpc(Contract)` returns a typed client.
+- The browser part: `ctx.client.rpc(Contract).method(input, {signal})`. Events arrive on
+  `ctx.client.event.subscribe({types: ['rpc.<id>.<event>'], signal})`; the stream starts with
+  `server.connected`, the moment to read current state. Wrap the follow in
+  `createKeyed(() => ctx.client, (client) => ...)` and abort it in `onCleanup`.
+- A terminal: `conciv plugin call <id> <method> [json]`.
 
-function serverRoom(context: RpcContext): SessionId {
-  const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
-  if (!raw) throw new ORPCError('BAD_REQUEST', {message: `the ${CONCIV_SESSION_HEADER} header is required`})
-  if (!isSessionId(raw)) throw new ORPCError('BAD_REQUEST', {message: 'malformed session id'})
-  return raw
-}
+## Testing with `@conciv/plugin-testkit`
 
-const wbOs = os.$context<RpcContext>()
-const roomOs = wbOs.use(({context, next}) => next({context: {room: serverRoom(context)}}))
+The testkit boots the real engine with a fake model; only the model and the agent CLIs are faked.
 
-export function makeWhiteboardRouter(store: Store) {
-  return wbOs.router({
-    list: roomOs.output(z.array(schema)).handler(({context}) => ops.list(context.room)),
-    // …
-  })
-}
-export type WhiteboardRouter = ReturnType<typeof makeWhiteboardRouter>
-```
-
-An extension router's context is `RpcContext` (`{origin, headers}`), the same context the core
-mount builds — NOT `{request: Request}`. Derive the session (and anything scoped to it, like the
-whiteboard's room) from that context in one middleware, and never accept it as procedure input: an
-input the caller controls lets one session read and write another session's rows.
-
-Export the router's inferred type (`WhiteboardRouter` above) — `makeExtRpcClient<TRouter>` needs it
-as its type parameter to give the browser client full type inference.
-
-## Streaming a subscription
-
-`eventIterator(schema)` as an oRPC procedure's `.output(...)` declares a server-sent-events style
-streaming return; the handler is an async generator. `subscriptionIterator` adapts a plain
-`emit`-callback subscription (an event emitter, a store's `onEvent`) into the `AsyncGenerator` such
-a handler must `yield*`:
-
-```ts title="removed whiteboard extension: src/server/router.ts"
-import {eventIterator, os} from '@orpc/server'
-import {subscriptionIterator} from '@conciv/extension'
-
-changes: roomOs.output(eventIterator(z.custom<WhiteboardEvent>())).handler(async function* ({context, signal}) {
-  yield* subscriptionIterator<WhiteboardEvent>(
-    (emit) => store.onEvent((event) => { if (event.room === context.room) emit(event) }),
-    signal,
-  )
-}),
-```
-
-Signature: `subscriptionIterator<T>(subscribe: (emit: (value: T) => void) => (() => void), signal:
-AbortSignal | undefined): AsyncGenerator<T>` (`packages/extension/src/server-stream.ts:1-4`).
-`subscribe` must return an unsubscribe function — `subscriptionIterator` calls it in its `finally`
-block when the consumer stops iterating or `signal` aborts, so a subscription that never returns one
-leaks. Pass the oRPC handler's own `signal` through so the generator tears down when the client
-disconnects.
-
-## Calling it from the browser
-
-```ts title="removed whiteboard extension: src/client/db.tsx:3,28"
-import {makeExtRpcClient} from '@conciv/extension'
-const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
-```
-
-`makeExtRpcClient(apiBase, extensionSlug)` (`packages/extension/src/ext-rpc.ts:20-26`) picks the
-transport for you: inside a browser (`typeof location !== 'undefined'`) it reuses the widget's own
-`browserRpcConnection`, scoped to `['ext', extensionSlug]`; from node (a test harness, an SSR
-context) it builds a plain fetch-based `RPCLink` at `${apiBase}/rpc/ext/${extensionSlug}` with a
-retry plugin. `apiBase` is the value `getExtensionApi(YOUR_NAME).useApiBase()` gives you inside a mounted
-component, or the `apiBase` the testkit hands you.
-
-## Testing: the real `ExtensionTestApi`
+- `bootCoreKit({id, plugins, files, stateRoot})` from `@conciv/plugin-testkit/core-kit`. `stateRoot`
+  is the project folder (its `conciv/plugins` load as in an app); `files` writes more files there.
+  The kit has `rpc.plugin.list()` (each plugin's `state` is `{status: 'active'}` or
+  `{status: 'failed', error}`), `callTool(name, input)` (code mode, name without `external_`),
+  `writeProjectFile`, `base`, `origin`, `token`, `home`, `stateRoot` and `cleanup()`.
+- `openPluginWidget(browser, {id, plugins, widgetBundle, files, stateRoot, body})` from
+  `@conciv/plugin-testkit/widget-suite` serves a page with `@conciv/embed`'s
+  `conciv-widget.global.js` and returns `{page, kit, close}`.
+- `rpcObserverFor(page)`, `rpcSocketFor(page)` and the `rpc-fault` helpers (`failRpcCalls`,
+  `abortRpcCalls`, `garbleRpcReplies`, `holdRpcCalls`, `gateRpcCalls`) observe or break the widget's
+  RPC socket without swapping the transport.
 
 ```ts
-function getExtensionTestApi(extension: {
-  server: AnyExtension
-  host: (engine: {apiBase: string; session: string}) => Promise<{origin: string; close: () => Promise<void>}>
-  harness?: HarnessAdapter
-}): Promise<{
-  page: Page
-  callTool: (name: string, input: unknown) => Promise<unknown>
-  callToolApproved: (name: string, input: unknown) => Promise<unknown>
-  runTypescript: (code: string) => Promise<unknown>
-  session: string
-  apiBase: string
-  serverContext: unknown
-  secondClient: () => Promise<{page: Page; close: () => Promise<void>}>
-  dispose: () => Promise<void>
-}>
-```
-
-(`packages/extension-testkit/src/get-extension-test-api.ts:18-22` for the input shape,
-`packages/extension-testkit/src/get-extension-test-api.ts:26-38` for the returned shape.) `server` is your
-extension's default export (the one with `.server(...)` already chained on it — import from your
-`server.ts` entry, not `client.tsx`, if you split files). `host` produces the page the Playwright
-`page` navigates to; it needs a **built** client bundle, not source:
-
-- `fixtureHost(distDir)` (`packages/extension-testkit/src/fixture-host.ts`) serves a prebuilt
-  `dist/test-host` directory and throws with a clear "run this package's build first" message if
-  it's missing:
-
-```ts title="removed whiteboard extension: test/canvas-it-helpers.ts:1-9"
-import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
-import whiteboard from '../src/server.js'
-
-export const testHost = fixtureHost(fileURLToPath(new URL('../dist/test-host', import.meta.url)))
-export function bootWhiteboard(): Promise<ExtensionTestApi> {
-  return getExtensionTestApi({server: whiteboard, host: testHost})
-}
-```
-
-- A hand-written `host` for a custom fixture app that mounts your extension alongside real framework
-  code (used when the extension needs to probe a router/query client that only exists inside a real
-  app):
-
-```ts
-ctx.api = await getExtensionTestApi({
-  server: myExtension,
-  host: async ({apiBase, session}) => {
-    const served = await serveDir(hostDist, {apiBase, session})
-    ctx.origin = served.origin
-    return {origin: served.origin, close: () => served.close()}
-  },
+const widget = await openPluginWidget(browser, {
+  id: 'fake',
+  plugins: [PACKAGE_DIR],
+  widgetBundle: WIDGET_BUNDLE,
+  files: {...fixtureFiles(), 'gate.test.ts': GATED_VITEST_TEST},
+  stateRoot: realpathSync(tempDir('conciv-test-runner-panel-')),
 })
 ```
 
-`serverContext` is exactly what your `.server(...)` factory returned as `context` — reach into it
-when a test needs to assert on server-side state your tools don't expose directly. `callToolApproved` sends the tool
-call and also answers the resulting Approve/Deny prompt, so use it for any tool with `approval:
-'ask'`; plain `callTool` leaves the prompt unanswered.
+Rules: drive the widget by role and visible text; no `page.evaluate`, test-ids or class selectors;
+`browser.newPage()`, not `newContext()`; wait for `domcontentloaded` or a visible signal, never
+`networkidle`; rebuild the plugin's `dist` before a run.
 
-## Two clients, one room
+## Sources
 
-`secondClient()` opens a second browser page against the same session/room — the way to prove a
-realtime feature actually syncs, not just that one client can read back its own write:
-
-```ts
-const second = await api.secondClient()
-await api.callTool('deploy_run', {env: 'staging'})
-await second.page.getByText('staging.example.com').waitFor()
-await second.close()
-```
-
-Always `dispose()` in `afterAll` — it tears down the browser, the served host, and the booted
-extension server in one call.
+- `packages/plugin/src/effect/rpc.ts`
+- `packages/plugins/test-runner/src/rpc.ts`
+- `packages/plugins/test-runner/src/index.ts`
+- `packages/plugins/test-runner/src/panel/follow-run.ts`
+- `packages/plugins/test-runner/test/test-runner.browser.test.ts`
+- `packages/plugin-testkit/src/core-kit.ts`
+- `packages/plugin-testkit/src/widget-suite.ts`
+- `packages/plugin-testkit/src/rpc-fault.ts`

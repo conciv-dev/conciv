@@ -7,7 +7,7 @@ import {useComposerContext} from '../primitives/composer/composer-context.js'
 import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
 import {useComposer} from '../store/chat-context.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
-import {AttachmentUI} from './attachment-ui.js'
+import {AttachmentUI, type RemoveAttachment} from './attachment-ui.js'
 import {QueueItem} from '../primitives/queue-item/queue-item.js'
 import {Slot} from '../primitives/util/slot.js'
 import {FOCUS} from './classes.js'
@@ -20,7 +20,7 @@ export type ComposerProps = {
   busy?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
   attachmentAdapter?: AttachmentAdapter
-  AttachmentComponent?: Component<{onRemove?: (id: string) => void}>
+  AttachmentComponent?: Component<{onRemove?: RemoveAttachment}>
 }
 
 const GHOST =
@@ -47,7 +47,7 @@ function reportRemoveFailed(error: unknown): void {
 }
 
 export function ComposerAttachment(props: {
-  component?: Component<{onRemove?: (id: string) => void}>
+  component?: Component<{onRemove?: RemoveAttachment}>
   onRemoveFailed: (error: unknown) => void
 }): JSX.Element {
   const context = useComposerContext()
@@ -66,7 +66,7 @@ function TrailingControls(): JSX.Element {
   const context = useComposerContext()
   const handlers = useComposerHandlers()
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
-  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
+  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.staged() === 0)
   return (
     <Show
       when={composer.isRunning()}
@@ -121,7 +121,7 @@ export function Composer(props: ComposerProps): JSX.Element {
           )}
         </ComposerPrimitive.Queue>
       </div>
-      <div class="px-3 pt-2 flex flex-wrap gap-1 empty:hidden">
+      <div class="px-2 pb-1 pt-2 flex shrink-0 flex-nowrap gap-2 [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden empty:hidden">
         <ComposerPrimitive.Attachments
           component={() => (
             <ComposerAttachment component={props.AttachmentComponent} onRemoveFailed={reportRemoveFailed} />

@@ -41,6 +41,7 @@ const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestam
 const EventWindowSchema = z.object({events: z.array(RrwebEventSchema), cursor: z.number()})
 const LogSchema = z.object({entries: z.array(z.object({ts: z.number(), kind: z.string(), detail: z.string()}))})
 const SavedSchema = z.object({recordingId: z.string()})
+const SavedSummarySchema = z.object({recordingId: z.string(), summary: z.string()})
 const RpcFailureSchema = z.object({data: z.object({type: z.string()})})
 const RpcErrorSchema = z.object({code: z.string(), status: z.number(), message: z.string(), data: z.unknown()})
 
@@ -144,7 +145,7 @@ async function followEvents(kit: CoreKit): Promise<() => Promise<z.infer<typeof 
   return next
 }
 
-function useTool(kit: CoreKit, name: 'start' | 'stop' | 'pull', input: unknown = {}): Promise<unknown> {
+function useTool(kit: CoreKit, name: 'start' | 'stop' | 'pull' | 'get', input: unknown = {}): Promise<unknown> {
   return kit.callTool(`recording_${name}`, input)
 }
 
@@ -229,6 +230,8 @@ async function rpcFailure(pending: Promise<unknown>): Promise<z.infer<typeof Rpc
 
 const RECORDING_CAP_BYTES = 16 * 1024 * 1024
 
+const RETENTION_PASSED_MS = 7 * 24 * 60 * 60 * 1000 + 60_000
+
 function sizedEvent(type: number, timestamp: number, bytes: number): RrwebEvent {
   const bare = Buffer.byteLength(JSON.stringify({type, data: {blob: ''}, timestamp}))
   return {type, data: {blob: 'x'.repeat(bytes - bare)}, timestamp}
@@ -257,7 +260,7 @@ describe('the recorder plugin in a real engine', () => {
 })
 
 describe('the recorder RPC', () => {
-  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the project .conciv/recorder/recordings within the size cap and the newest 50, reads a corrupt file as expired, reports an unwritable folder, sweeps stray partial files on start, resets, and serves a saved recording after the engine reopens the same project', async () => {
+  it('serves config defaults, round trips flush to window to log, pins reads and saves to a client id, keeps recordings in the project .conciv/recorder/recordings within the size cap and the newest 50, reads a corrupt or pruned file as missing, reports an unwritable folder, sweeps stray partial files on start, resets, and serves a saved recording after the engine reopens the same project', async () => {
     const kit = await bootRecorder()
 
     expect(await call(kit, 'config')).toEqual({masking: 'none', windowMinutes: 10, console: true})
@@ -363,12 +366,15 @@ describe('the recorder RPC', () => {
     ])
 
     const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'mine'}))
-    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events: mine.events})
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({
+      kind: 'found',
+      events: mine.events,
+    })
     const stored = await filesNamed(kit.stateRoot, `${saved.recordingId}.json`)
     expect(stored).toEqual([join(recordingsDirectory(kit), `${saved.recordingId}.json`)])
 
-    expect(await call(kit, 'recordings.get', {recordingId: 'missing-recording'})).toEqual({expired: true})
-    expect(await call(kit, 'recordings.save', {clientId: 'nobody'})).toEqual({error: 'empty'})
+    expect(await call(kit, 'recordings.get', {recordingId: 'missing-recording'})).toEqual({kind: 'missing'})
+    expect(await call(kit, 'recordings.save', {clientId: 'nobody'})).toEqual({saved: false, error: 'empty'})
     expect(await failureType(call(kit, 'recordings.save', {clientId: ''}))).toBe('rpc.invalid_input')
 
     const recordingsDir = recordingsDirectory(kit)
@@ -376,16 +382,22 @@ describe('the recorder RPC', () => {
     const trimSnapshot = sizedEvent(2, recent, 100)
     const keptSnapshot = sizedEvent(2, recent + 3, 100)
     const keptTail = sizedEvent(3, recent + 4, 100)
-    const trimFiller = (RECORDING_CAP_BYTES - 300) / 2
+    const trimmedClick = {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: recent + 1}
+    const trimFiller = RECORDING_CAP_BYTES - 300 - Buffer.byteLength(JSON.stringify(trimmedClick))
     for (const events of [
-      [trimSnapshot, sizedEvent(3, recent + 1, trimFiller)],
-      [sizedEvent(3, recent + 2, trimFiller)],
+      [trimSnapshot, trimmedClick, sizedEvent(3, recent + 1, Math.floor(trimFiller / 2))],
+      [sizedEvent(3, recent + 2, Math.ceil(trimFiller / 2))],
       [keptSnapshot, keptTail],
     ]) {
       expect(await call(kit, 'flush', {clientId: 'trim', events})).toEqual({ok: true})
     }
-    const trimmed = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'trim'}))
+    expect(LogSchema.parse(await call(kit, 'log', {clientId: 'trim'})).entries.map((entry) => entry.kind)).toEqual([
+      'click',
+    ])
+    const trimmed = SavedSummarySchema.parse(await call(kit, 'recordings.save', {clientId: 'trim'}))
+    expect(trimmed.summary).toBe('0 actions · 0s')
     expect(await call(kit, 'recordings.get', {recordingId: trimmed.recordingId})).toEqual({
+      kind: 'found',
       events: [keptSnapshot, keptTail],
     })
 
@@ -397,7 +409,7 @@ describe('the recorder RPC', () => {
     ]) {
       expect(await call(kit, 'flush', {clientId: 'tail', events})).toEqual({ok: true})
     }
-    expect(await call(kit, 'recordings.save', {clientId: 'tail'})).toEqual({error: 'too-large'})
+    expect(await call(kit, 'recordings.save', {clientId: 'tail'})).toEqual({saved: false, error: 'too-large'})
 
     await writeFile(join(recordingsDir, `${saved.recordingId}.webm`), 'rendered', 'utf8')
     const kept = await Array.from({length: 50}).reduce<Promise<string[]>>(
@@ -410,16 +422,16 @@ describe('the recorder RPC', () => {
     const [survivor, newest] = kept.slice(-2)
     if (survivor === undefined || newest === undefined) throw new Error('the 50 saves returned no ids')
     expect((await readdir(recordingsDir)).toSorted()).toEqual(kept.map((id) => `${id}.json`).toSorted())
-    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({expired: true})
-    expect(await call(kit, 'recordings.get', {recordingId: trimmed.recordingId})).toEqual({expired: true})
-    expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({events: mine.events})
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({kind: 'missing'})
+    expect(await call(kit, 'recordings.get', {recordingId: trimmed.recordingId})).toEqual({kind: 'missing'})
+    expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({kind: 'found', events: mine.events})
 
     await writeFile(join(recordingsDir, `${newest}.json`), '{corrupt', 'utf8')
-    expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({expired: true})
+    expect(await call(kit, 'recordings.get', {recordingId: newest})).toEqual({kind: 'missing'})
 
     await chmod(recordingsDir, 0o500)
     onTestFinished(() => chmod(recordingsDir, 0o700))
-    expect(await call(kit, 'recordings.save', {clientId: 'mine'})).toEqual({error: 'io-error'})
+    expect(await call(kit, 'recordings.save', {clientId: 'mine'})).toEqual({saved: false, error: 'io-error'})
     await chmod(recordingsDir, 0o700)
 
     const stray = join(recordingsDir, '123-dead.json.tmp')
@@ -429,6 +441,7 @@ describe('the recorder RPC', () => {
     await expect
       .poll(() => call(kit, 'recordings.get', {recordingId: survivor}), {timeout: 15_000})
       .toEqual({
+        kind: 'found',
         events: mine.events,
       })
 
@@ -445,7 +458,10 @@ describe('the recorder RPC', () => {
     const reopenEvents = fixtureStream(Date.now())
     const reopened = await flushAndSave(first, 'reopen', reopenEvents).finally(() => first.cleanup())
     const second = await bootRecorder(folder)
-    expect(await call(second, 'recordings.get', {recordingId: reopened.recordingId})).toEqual({events: reopenEvents})
+    expect(await call(second, 'recordings.get', {recordingId: reopened.recordingId})).toEqual({
+      kind: 'found',
+      events: reopenEvents,
+    })
   })
 })
 
@@ -497,17 +513,18 @@ describe('the recorder viewer presence', () => {
 })
 
 describe('the recording tools', () => {
-  it('are offered as recording_start, recording_stop and recording_pull, fail to start without a page client, record what a flushing client sends between start and stop, and pull the last seconds with the log clipped to them', async () => {
+  it('are offered as recording_start, recording_stop, recording_pull and recording_get, fail to start without a page client, record what a flushing client sends between start and stop, pull the last seconds with the log clipped to them, and read a saved recording by its id until it is gone', async () => {
     const kit = await bootRecorder()
 
     const discovered = await makeDiscoverTools(
       kit.base,
       await kit.session(),
-    )(['recording_start', 'recording_stop', 'recording_pull'])
+    )(['recording_start', 'recording_stop', 'recording_pull', 'recording_get'])
     expect(discovered.tools.map((tool) => tool.name)).toEqual([
       'external_recording_start',
       'external_recording_stop',
       'external_recording_pull',
+      'external_recording_get',
     ])
     for (const tool of discovered.tools) expect(tool.description).toContain('recording')
 
@@ -547,6 +564,42 @@ describe('the recording tools', () => {
     const clipped = z.string().parse(await useTool(kit, 'pull', {secondsBack: 10, keyframes: 0}))
     expect(clipped).toContain('New')
     expect(clipped).not.toContain('Old')
+
+    const saved = SavedSchema.parse(await call(kit, 'recordings.save', {clientId: 'clip'}))
+    const read = z.string().parse(await useTool(kit, 'get', {recordingId: saved.recordingId, keyframes: 0}))
+    expect(read).toContain('Old')
+    expect(read).toContain('New')
+    const hourLong = [
+      {type: 2, data: {node: page}, timestamp: clip - 3_600_000},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: clip - 3_599_000},
+      {type: 3, data: {source: 2, type: 2, id: 6}, timestamp: clip},
+    ]
+    await writeFile(join(recordingsDirectory(kit), 'hour-long.json'), JSON.stringify({events: hourLong}), 'utf8')
+    const capped = z.string().parse(await useTool(kit, 'get', {recordingId: 'hour-long', keyframes: 0}))
+    expect(capped).toContain('New')
+    expect(capped).not.toContain('Old')
+    expect(await toolFailure(useTool(kit, 'get', {recordingId: 'gone-recording', keyframes: 0}))).toBe(
+      'there is no saved recording gone-recording',
+    )
+  })
+
+  it('reads a saved recording until it is older than the seven day retention, then reports it as expired', async () => {
+    vi.useFakeTimers({toFake: ['Date'], shouldAdvanceTime: true})
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const kit = await bootRecorder()
+    const {recordingId} = await flushAndSave(kit, 'kept', fixtureStream(Date.now()))
+    expect(z.string().parse(await useTool(kit, 'get', {recordingId, keyframes: 0}))).toContain('Buy')
+
+    vi.setSystemTime(Date.now() + RETENTION_PASSED_MS)
+    expect(await toolFailure(useTool(kit, 'get', {recordingId, keyframes: 0}))).toBe(
+      `the recording ${recordingId} has expired`,
+    )
+    expect(await call(kit, 'recordings.get', {recordingId})).toEqual({kind: 'expired'})
+    expect(await failureType(call(kit, 'recordings.exportVideo', {clientId: 'kept', id: recordingId, offset: 0}))).toBe(
+      'expired',
+    )
   })
 
   it('answers the log as output and the keyframes rendered in Chromium as image file parts after the untrusted-data note', async () => {
@@ -646,7 +699,7 @@ describe('a saved recording that fits the size cap', () => {
     const click = (timestamp: number): RrwebEvent => ({type: 3, data: {source: 2, type: 2, id: 3}, timestamp})
     const events = [snapshot(base), click(base + 1), click(base + 2), snapshot(base + 3)]
     const saved = await flushAndSave(kit, 'tail-snapshot', events)
-    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events})
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({kind: 'found', events})
   })
 })
 
@@ -724,7 +777,7 @@ describe('the recording video export', () => {
     })
     expect(
       await failureType(call(kit, 'recordings.exportVideo', {clientId: 'stored', id: 'missing-recording', offset: 0})),
-    ).toBe('expired')
+    ).toBe('missing')
   })
 })
 
@@ -827,16 +880,22 @@ describe('the page flusher', () => {
 })
 
 describe('the recorder skill', () => {
-  it('is loadable and names the three tools', async () => {
+  it('is loadable and names the four tools', async () => {
     const kit = await bootRecorder()
     const mcp = await connectMcpClient(`${kit.base}/api/mcp`, {[SESSION_HEADER]: await kit.session()})
     onTestFinished(() => mcp.close())
     const skill = (await mcp.tools()).find((tool) => tool.name === 'skill')
     if (!skill) throw new Error('the skill tool is not on /api/mcp')
     const loaded = JSON.stringify(await skill.execute({id: 'recorder'}))
-    for (const name of ['external_recording_start', 'external_recording_stop', 'external_recording_pull']) {
+    for (const name of [
+      'external_recording_start',
+      'external_recording_stop',
+      'external_recording_pull',
+      'external_recording_get',
+    ]) {
       expect(loaded).toContain(name)
     }
+    expect(loaded).toContain('screen recording')
   })
 })
 
@@ -1527,6 +1586,7 @@ describe('the panel model', () => {
         const panel = yield* openPanel({
           presence: (live) => Ref.update(leases, (current) => [...current, live]),
           exportRecording: Deferred.await(exported),
+          sendToAgent: Effect.void,
           reset: Ref.update(resets, (count) => count + 1),
           report: () => Effect.void,
         }).pipe(Scope.provide(inner))

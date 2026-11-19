@@ -1,381 +1,239 @@
 ---
 name: conciv-develop
-description: Use when building a conciv extension in your own app — a file under conciv/extensions/ (or a package you plan to publish) that adds an agent tool via defineTool, a chat-attachment type via defineAttachment, or UI in the widget via Component/Surface/views. Covers defineExtension, the tool contract (server/client/render, errors, approval, meta), getExtensionApi, RPC to your extension's own server (makeExtRpcClient, subscriptionIterator), and testing with @conciv/extension-testkit. This is the consumer-facing skill, for an app that imports @conciv/extension as a dependency, not conciv's own source.
+description: Use when building a conciv plugin in your own app or as a package, a folder or file under conciv/plugins/ (or a package listed in the conciv() `plugins` option) that adds agent tools, skills, prompt rules or RPC methods to the engine with Plugin.define from @conciv/plugin/effect, and panels, slots, composer pills, commands or settings to the widget with @conciv/plugin/experimental. Covers the engine part, the RPC contract (Rpc.define), the browser part and its vite build, approvals, and testing with @conciv/plugin-testkit. This is the consumer-facing skill, for an app that depends on @conciv/plugin, not conciv's own source.
 metadata:
   package: '@conciv/skills'
 ---
 
-# Building a conciv extension
+# Building a conciv plugin
 
 ## Who this is for
 
-You are a developer (or an agent working in a developer's app) adding a `conciv/extensions/*.tsx`
-file to teach the conciv agent widget a new capability, or publishing a package that does the same
-for other people's apps. Everything here is the public contract of `@conciv/extension`, installed
-as a normal dependency.
+You are a developer (or an agent working in a developer's app) adding a plugin to teach the conciv
+agent a new capability, or publishing a package that does the same for other people's apps.
+Everything here is the public contract of `@conciv/plugin`, installed as a normal dev dependency:
 
-## The shape: one file, two runtimes
+```bash
+pnpm add -D @conciv/plugin effect zod
+```
 
-An extension is one `.tsx`/`.ts` file default-exporting a `defineExtension(...)` builder. A bundler
-transform splits it: `.server(...)` code runs in your dev-server's node process, everything else
-(`Component`, `Surface`, `views`, tool `.render(...)` cards) compiles into the browser widget as
-Solid JSX — even inside a React host app, because the conciv plugin compiles `conciv/extensions/**`
-as its own Solid zone. You never wire the two halves together yourself.
+## The shape: up to three parts
+
+| Part         | Runs in                     | Written with                                                  | In a folder                        | In a package                        |
+| ------------ | --------------------------- | ------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
+| Engine part  | the conciv engine (Node)    | `Plugin.define({id, effect})` from `@conciv/plugin/effect`    | `server` file, else `index` file   | `./server` export, else main export |
+| RPC contract | both parts and the terminal | `Rpc.define({id, methods, events})` from `@conciv/plugin/rpc` | `rpc` file                         | `./rpc` export                      |
+| Browser part | the widget (Solid)          | `Plugin.define({setup})` from `@conciv/plugin/experimental`   | `plugin-experimental.cjs` or `.js` | `./plugin-experimental` export      |
+
+conciv finds plugins two ways:
+
+- every top-level `.ts`/`.js` file and every folder in `conciv/plugins` (or `conciv/plugin`) at the
+  project root, with no config; the engine watches the folder and reloads a plugin when it changes;
+- the `plugins` option of `conciv()`: a package name, a `./` path, or `[name, options]`. The engine
+  installs a package name with npm into its own cache. `'-<id>'` turns off an earlier plugin,
+  built-ins included (`'-conciv.page'`); `'-*'` turns off all of them.
+
+Node imports the engine part as source, with types stripped: write it as `.ts`, `.js`, `.mts`,
+`.mjs`, `.cts` or `.cjs`, use only erasable syntax (no `enum`, no parameter properties), and import
+siblings by their real name (`./rpc.ts`). A `.tsx`/`.jsx` engine file fails: the plugin shows as
+failed with `Plugin failed to load`. The browser part is always a built bundle.
+
+## The engine part
+
+```ts
+import {Plugin} from '@conciv/plugin/effect'
+import {Effect, Ref} from 'effect'
+import {z} from 'zod'
+import {Deploy} from './rpc.ts'
+
+export default Plugin.define({
+  id: 'deploy',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const last = yield* Ref.make<string | null>(null)
+      const registration = yield* ctx.rpc.register(Deploy, {
+        last: () => Effect.map(Ref.get(last), (url) => ({url})),
+      })
+      yield* ctx.tool.transform((editor) => {
+        editor.namespace({name: 'deploy', description: 'Deploy a branch of this app to a preview URL.'})
+        editor.add({
+          name: 'run',
+          description: 'Deploy a branch to its preview URL and return the URL.',
+          input: z.object({branch: z.string().regex(/^[a-z0-9-]+$/)}),
+          output: z.object({url: z.string()}),
+          options: {namespace: 'deploy'},
+          execute: ({branch}) =>
+            Effect.gen(function* () {
+              const url = `https://${branch}.preview.example.com`
+              yield* Ref.set(last, url)
+              yield* registration.events.emit('deployed', {url}).pipe(Effect.ignore)
+              return {output: {url}}
+            }),
+        })
+      })
+    }),
+})
+```
+
+The effect runs in a scope that closes when the plugin stops or reloads: every tool, skill and RPC
+handler it registered is removed, fibers forked with `forkScoped` are interrupted, finalizers run.
+`ctx.options` holds the `[name, options]` config value: parse it with zod and fail the effect with a
+tagged value on a bad one (`Plugin.define<Plugin.Services, ConfigInvalid>`), so the plugin shows as
+failed with that message.
+
+`ctx` domains: `options`, `location.directory`, `tool`, `skill`, `rpc`, `session`, `permission`,
+`agent`, `event`, `storage`, `servers`. Each returns an `Effect`. The promise entry `@conciv/plugin`
+is the same with `setup(ctx)` and `Promise`s.
+
+See [tool-contract](references/tool-contract.md) for every tool field, the name rule, errors, approvals, skills and
+prompt hooks.
+
+## The RPC contract
+
+```ts
+import {Rpc} from '@conciv/plugin/rpc'
+import {z} from 'zod'
+
+export const Deploy = Rpc.define({
+  id: 'deploy',
+  methods: {
+    last: {input: z.unknown(), output: z.object({url: z.string().nullable()})},
+  },
+  events: {
+    deployed: {schema: z.object({url: z.string()})},
+  },
+})
+```
+
+Call it from a terminal in the project: `conciv plugin call deploy last`. RPC methods never ask the
+user: an operation that must ask is a tool. See [rpc-and-testing](references/rpc-and-testing.md).
+
+## The browser part
 
 ```tsx
-export {defineExtension} from '@conciv/extension'
-export {defineTool, toolDefinition, toolError, isToolError} from '@conciv/extension'
-export {defineAttachment} from '@conciv/extension'
-export {getExtensionApi} from '@conciv/extension'
-export {MountedExtension, MountedSurface, MountedView} from '@conciv/extension'
-export {makeExtRpcClient, subscriptionIterator} from '@conciv/extension'
-```
+import {createSignal, onCleanup} from 'solid-js'
+import {ComposerPill, createKeyed, Plugin} from '@conciv/plugin/experimental'
+import {Deploy} from './rpc.ts'
 
-(`packages/extension/src/index.ts` — every name above, plus their types, is what `@conciv/extension`
-publishes. `./client` re-exports the identical module, so `@conciv/extension` and
-`@conciv/extension/client` are interchangeable import specifiers.)
+export default Plugin.define({
+  setup(ctx) {
+    const [url, setUrl] = createSignal<string | null>(null)
 
-`@conciv/extension/host` is a separate, host-integration-only surface (`getHostApi`,
-`HostApiProvider`, `HostWiring`, `ConnectHostApi`): it is what an app embedding the widget uses to
-WIRE the host capabilities. Extension code never imports it — `getExtensionApi(id)` already carries
-every host hook.
-
-## Your first extension, trimmed for brevity
-
-The example below is the whole file, shown inline:
-
-```tsx title="conciv/extensions/deploy-button.tsx"
-import {z} from 'zod'
-import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
-import {ComposerActions} from '@conciv/ui-kit-chat'
-
-const DEPLOY_NAME = 'deploy'
-
-const RocketIcon = (props: {class?: string}) => (
-  <svg
-    class={props.class}
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-  >
-    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
-    <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
-  </svg>
-)
-
-const deployRun = defineTool({
-  name: 'deploy_run',
-  description: 'Deploy the current branch',
-  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
-  outputSchema: z.object({url: z.string()}),
-  promptSnippet: 'You can deploy with the deploy_run tool.',
-  meta: {summary: 'deploy the current branch', category: 'deploy', mutating: true},
-  approval: 'ask',
-})
-  .server(({env}) => ({url: `https://${env}.example.com`}))
-  .render((props) => <div data-conciv-deploy-card>Deploying… ({props.part.name})</div>)
-
-const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
-export default deploy
-
-function DeploySurface() {
-  const host = getExtensionApi(DEPLOY_NAME)
-  const slot = host.useSlot()
-  const notify = host.useToast()
-  if (slot === 'composer')
-    return (
-      <ComposerActions.ActionButton
-        priority={10}
-        visible="always"
-        tooltip="Deploy"
-        onClick={() => notify('Deploy requested')}
-      >
-        <RocketIcon />
-      </ComposerActions.ActionButton>
+    createKeyed(
+      () => ctx.client,
+      (client) => {
+        const controller = new AbortController()
+        onCleanup(() => controller.abort())
+        const follow = async () => {
+          for await (const event of client.event.subscribe({
+            types: ['rpc.deploy.deployed'],
+            signal: controller.signal,
+          })) {
+            if (event.type === 'server.connected') {
+              const last = await client.rpc(Deploy).last(undefined, {signal: controller.signal})
+              setUrl(last.url)
+              continue
+            }
+            const deployed = Deploy.events.deployed.schema.safeParse(event.data)
+            if (deployed.success) setUrl(deployed.data.url)
+          }
+        }
+        follow().catch((error: unknown) => {
+          if (!controller.signal.aborted) console.error('[deploy] the deploy events stopped', error)
+        })
+      },
     )
-  if (slot === 'status') return <span>env: staging</span>
-  return null
-}
-```
 
-`deployRun` sets `approval: 'ask'` because `mutating: true` tools should ask by default (see the red
-flags below). The composer slot never renders a raw
-`<button>`: a `ComposerActions.ActionButton` declares the action once, and the host renders it inline
-or — from that same registration, no extra JSX — as a menu item once the row runs out of room.
-conciv's own composer sets `maxInlineAuto={0}`, so every `visible="auto"` button (the default) always
-lands in the menu there; `visible="always"` is what reaches the row. To try it, save the sample (or
-your own version of it) as a file under `conciv/extensions/` at your project root — create
-the directory if it does not exist. No registration, no config: conciv discovers every file there.
-Restart your dev server (`.server(...)` code and top-level `systemPrompt` load at boot; `Component`
-and `.render(...)` hot-reload). Ask the widget to "deploy this to staging" and the agent calls
-`deploy_run`, your `.server` runs in node, and your `.render` card draws the result.
-
-Extensions never override the widget's look. They style through the `--chat-*` tokens and the
-shared utilities, which follow whichever skin and colour scheme the host page selected. Derive a
-bespoke visual locally with `color-mix` over a public token; the full readable surface is generated
-into `packages/ui-kit-system/docs/extension-tokens.md`.
-
-## `defineExtension` fields
-
-```ts
-defineExtension({
-  name, // required, unique — this is the registered id, not the filename
-  configSchema, // optional zod schema; plugin options land here, parsed before .server() sees them
-  tools, // AnyToolBuilder[] — see below
-  attachments, // AnyAttachmentBuilder[] — see below
-  commands, // ExtensionCommand[] — {name, description, run({sessionId})}; runs in the widget from the / menu (or typed alone and sent), never sent to the agent, replaces a harness command of the same name
-  views, // ExtensionView[] — {id, label, icon?, Component, actions?}, one per full panel
-  Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface)
-  Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot
-  systemPrompt, // string, or (config, {cwd}) => string, appended to the agent's system prompt
+    ctx.add(ComposerPill, {
+      id: 'deploy-preview',
+      show: () => {
+        const current = url()
+        if (current === null) return undefined
+        return {label: 'Preview', icon: 'external-link', title: current, run: () => window.open(current, '_blank')}
+      },
+    })
+  },
 })
 ```
 
-(`packages/extension/src/define-extension.ts:29-46` for the exact `ExtensionMeta` type.) Chain
-`.client(factory)` and `.server(factory)` on the returned builder for the two runtime halves — both
-optional, chain only what you need:
-
-```tsx title="removed whiteboard extension: src/client.tsx:43-84 (trimmed)"
-const whiteboard = defineExtension({
-  name: WHITEBOARD_NAME,
-  tools: whiteboardToolClients,
-  systemPrompt: WHITEBOARD_PROMPT,
-  Component,
-  Surface,
-}).client(() =>
-  createRoot((dispose) => ({
-    value: {toggle, open, engaged /* … */},
-    dispose,
-  })),
-)
-export default whiteboard
-```
-
-`.client(factory)`'s return `{value, effects?, dispose?}` — `value` is merged into what
-`getExtensionApi(name).useContext()` / your own `useContext` return, typed. `.server(factory)`
-receives a `ServerApi<Config>` (`config`, `settings`, `scope`, `cwd`, `basePath`, `stateDir`,
-`sessions`, `harness`, `symbolicate`, `bundler?`, `nativeUrl()`, `upgradeWebSocket` —
-`packages/extension/src/types.ts:107-120`) and returns `{context, router?, app?, turnEnd?, dispose?}`:
-`context` feeds your tools' server handlers, `router` is an oRPC router mounted at
-`/rpc/ext/<name>` (see RPC below), `app` is an optional Hono app for anything a tool result can't
-carry (SSE, uploads), `dispose` runs at shutdown.
-
-## The tool contract
-
-`defineTool(definition)` returns a builder; chain `.server(execute)` to bind it to node (calling it
-twice throws — a tool has exactly one binding), then optionally `.render(renderer)` for a card. `toolDefinition(definition)` is the identity function used when a
-def needs to be imported by both a `server.ts` and a `client.ts` file (split-bundle packages);
-`defineTool` itself works for `toolDefinition`'s return value too.
+Build it with vite (`pnpm add -D vite vite-plugin-solid solid-js`):
 
 ```ts
-const tool = defineTool({
-  name: 'deploy_run',            // the id the agent calls, snake_case by convention
-  description: '…',              // what the agent reads to decide when to call it
-  inputSchema: z.object({...}),  // zod object; reparsed at the boundary, invalid calls never reach you
-  outputSchema: z.object({...}), // optional, documents the result shape
-  errors: {CODE: {message: '…', data?: someZodType}}, // optional named error contract
-  approval: 'ask',               // optional: surface an Approve/Deny card before every run
-  promptSnippet: '…',            // optional line merged into the system prompt
-  promptGuidelines: ['…'],       // optional bullet list of usage rules
-  streamTitle: '…',              // optional label while the card streams
-  meta: {summary, category?, mutating?, keywords?, positional?, hint?, icon?, label?},
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/plugin/experimental/vite'
+
+export default defineConfig({
+  publicDir: false,
+  plugins: [experimental({entry: 'app.tsx', outFile: 'plugin-experimental.cjs'})],
 })
-  .server(async (input, ctx, request) => ({ /* small structured result the agent reads verbatim */ }))
-  .render((props) => <Card {...props} />)
 ```
 
-(`packages/extension/src/define-tool.ts:27-79` for the exact `ToolDefinition`/`ToolBuilder` types.)
-`meta.summary` is required whenever you pass `meta` at all, and must not just repeat the tool name —
-`defineTool` throws at module-load time otherwise
-(`packages/extension/src/define-tool.ts:186-194`).
+`experimental()` with no options builds `src/plugin-experimental.tsx` into
+`dist/plugin-experimental.cjs`. `vite build --watch` reloads only that plugin in the widget.
 
-- `.server(execute)` runs in node. `execute(input, ctx, request)`: `input` is fully typed and
-  already `inputSchema.parse`d; `ctx` is whatever your extension's `.server(...)` factory returned
-  as `context` (unknown unless you annotate the handler's `ctx` parameter — the generic
-  `server<HandlerCtx>` signature lets you write `ctx: YourCtxType`, as
-  `packages/extensions/recorder/src/tool/server.ts:5` does with a `type Ctx =
-  {recorder: RecorderRuntime}` annotation); `request` is `{sessionId: string; model: string | null}`
-  for the calling chat turn.
-- Work that has to run in the page (a DOM inspection, the router) is not a tool binding: it is an
-  operation of a plugin's browser half, which the engine calls over the plugin's connection to the
-  tab (`packages/builtin-plugins/src/page/operations.ts` for the page plugin). A tool with no
-  `.server` is render-only and carries the card for such work.
-- `.render(renderer)` replaces the generic result card. The renderer is a Solid component receiving
-  `ToolCardProps`: `{part, result, ctx, durationMs?}` — `part` is the tool call, `result` is
-  `undefined` while running and carries `.content`/`.error` once it lands, `ctx` is the widget's
-  `ToolViewCtx` (`packages/protocol/src/tool-view-types.ts:32-37`). To restyle a **built-in** tool
-  you don't own, define a render-only tool with its exact name (no `.server`) — a
-  same-name tool wins over the built-in card.
+Registries for `ctx.add`: `Panel` (tabs in the session pane), `Slot` (`window.bottom`,
+`session.header`, `session.status`, `session.panel.end`, `page.overlay`), `ComposerPill`, `Command`
+(keybind and slash command), `SettingsPage`, `CodeBlock`, `CodeBlockAction`, `NoteCard`,
+`LinkHandler`, and the page plugin's `PageOperation`. `ctx.add` takes an item or a function that
+returns one (or `undefined` for none). Everything added is withdrawn on reload.
+`Plugin.define({stores})` declares `Store.global`, `Store.project` and `Store.session` values.
+`ctx.provide`/`ctx.use` share contracts between plugins: `Page` and `ReactTree` from
+`@conciv/plugin/experimental/page`, `GrabApi` from `@conciv/plugin/experimental/grab`. Draw with
+`ctx.ui` components.
 
-### Errors: `toolError` / `isToolError`
-
-Throw a `toolError(code, {message?, data?})` from inside `.server` for a structured
-failure the card can branch on; `isToolError(value)` narrows it back on the render side.
-
-```ts title="packages/extensions/design/src/client/capture.ts (excerpted)"
-import {toolError} from '@conciv/extension'
-// …
-if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
-```
-
-(`packages/extensions/design/src/client/capture.ts:78` for the throw.) Declare
-the codes you can throw in the definition's `errors` field so the contract is visible from the type
-alone — the removed whiteboard extension's `src/tool/comment/def.ts:18` declares
-`const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}`
-and the removed whiteboard extension's `src/tool/comment/def.ts:59` attaches it via
-`errors: COMMENT_NOT_FOUND` on a tool that can throw it.
-
-Full field-by-field reference and the split `def.ts`/`server.ts`/`client.ts` pattern for
-installable packages: [tool-contract](references/tool-contract.md).
-
-## Attachments
-
-`defineAttachment<Ctx>({mime})` registers a chat-attachment type: `.card(component)` renders it in
-the composer/thread, `.server(expand)` turns the raw document part into `ContentPart[]` the model
-sees.
-
-```ts title="packages/extensions/recorder/src/shared/attachment.ts"
-import {defineAttachment} from '@conciv/extension'
-export const recordingAttachment = defineAttachment<{recorder: RecorderRuntime}>({mime: RECORDER_MIME})
-```
-
-Register it on the extension's `attachments` array; the `Ctx` generic ties `.server(expand)`'s
-second argument to whatever your extension's `.server(...)` factory context provides, the same way
-tool `.server` handlers get typed context.
-
-## Widget UI: `Component`, `Surface`, `views`
-
-- **`Component`** mounts once per slot (`composer`, `empty`, `status`, `widget`,
-  `surface`, `connect`); branch on `getExtensionApi(YOUR_NAME).useSlot()` inside it, as
-  `deploy-button.tsx` does above. The host wraps it in `MountedExtension` — you normally never call
-  that directly; it exists for custom hosts (see Testing below).
-- **`Surface`** is a second, always-mounted component for the dedicated `'surface'` slot — used for
-  a persistent overlay (the whiteboard canvas) that coexists with whatever `Component` currently
-  renders. Mounted via `MountedSurface`.
-- **`views`** is an array of full panels the host can route to (`ExtensionView = {id, label, icon?,
-  Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route.
-
-`getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
-uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `useSessionId`, `useGrab`,
-`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useViewLock`,
-`useLeaveView`, `useScope`, `useColorScheme`, plus the `Suppress`/`YieldFocus`
-layer-gate components — and adds `useContext`, scoped to the extension you named. Each hook throws
-with a clear "used outside a host that provides…" message if called where the host never wired that
-value — that error means the component rendered outside
-`MountedExtension`/`MountedSurface`/`MountedView` (a stray render in your own test harness,
-usually), not a bug in the hook.
-
-Pass your extension's own name, so a shared component is never bound to someone else's id: a
-component reused by two extensions takes the capability it needs as a prop from each owner instead
-of calling `getExtensionApi` itself. Use it from a sibling module that needs your own extension's
-client value without importing the whole `defineExtension(...)` object.
-
-Declare `RegisterExtension<typeof yourExtension>` against `@conciv/protocol/config-types`'s
-`ExtensionRegistry` interface to get `getExtensionApi('your-name')` fully typed instead of `object`.
-
-## RPC to your own extension's server
-
-`.server(...)`'s return can include an oRPC `router`; the host mounts it at `/rpc/ext/<name>`.
-`makeExtRpcClient<TRouter>(apiBase, extensionSlug)` builds a typed client for it from the browser
-(it auto-picks the browser transport when `location` exists, a node fetch client otherwise):
-
-```ts title="removed whiteboard extension: src/client/db.tsx:3,28"
-import {makeExtRpcClient} from '@conciv/extension'
-const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
-```
-
-For a push stream (SSE, a subscription) from a plain callback-based source, `subscriptionIterator`
-turns an `emit`-style subscribe function into an `AsyncGenerator`, which oRPC's `eventIterator`
-output type expects directly:
-
-```ts title="packages/extensions/recorder/src/server.ts:5,6"
-import {eventIterator, os} from '@orpc/server'
-import {subscriptionIterator} from '@conciv/extension'
-```
-
-Deeper RPC and streaming patterns (custom Hono routes vs. an oRPC router, `subscriptionIterator`'s
-exact signature): [rpc-and-testing](references/rpc-and-testing.md).
+The widget provides `effect`, `zod`, `solid-js`, `solid-js/web`, `solid-js/store`,
+`@conciv/plugin/experimental`, `@conciv/plugin/experimental/page`, `@conciv/plugin/experimental/grab`
+and `@conciv/plugin/rpc`; the build keeps them external and fails on another `effect`, `solid-js`
+or `@conciv` import.
 
 ## Testing
 
-`@conciv/extension-testkit`'s `getExtensionTestApi({server, host, harness?})` boots your real
-`.server(...)` half, serves a real (prebuilt) client bundle through `host`, opens a real Playwright
-page, and returns `{page, callTool, callToolApproved, runTypescript, session, apiBase,
-serverContext, secondClient, dispose}` — no mocks, the same HTTP contract the widget uses.
+`@conciv/plugin-testkit` boots the real engine with a fake model:
 
-```ts title="removed whiteboard extension: test/canvas-it-helpers.ts:1-9"
-import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
-import whiteboard from '../src/server.js'
+- `bootCoreKit({id, plugins, files, stateRoot})` (`/core-kit`): `kit.rpc.plugin.list()`,
+  `kit.callTool('deploy_run', input)` (code mode, name without `external_`),
+  `kit.writeProjectFile`, `kit.cleanup()`.
+- `openPluginWidget(browser, {id, plugins, widgetBundle, stateRoot})` (`/widget-suite`): the real
+  widget in a headless page; returns `{page, kit, close}`.
 
-export const testHost = fixtureHost(fileURLToPath(new URL('../dist/test-host', import.meta.url)))
-export function bootWhiteboard(): Promise<ExtensionTestApi> {
-  return getExtensionTestApi({server: whiteboard, host: testHost})
-}
-```
+See [rpc-and-testing](references/rpc-and-testing.md).
 
-`fixtureHost(distDir)` serves a directory your build already produced (build the extension's client
-bundle first — testing against source is testing stale code, the same rule as the widget's own
-prebuilt-bundle tests); `host` can also be a hand-written `async ({apiBase, session}) => {origin,
-close}` for a custom fixture app. `callToolApproved` is the variant that also answers the Approve/Deny prompt for
-tools with `approval: 'ask'`. Full API and the two-client (`secondClient`) pattern for realtime
-features: [rpc-and-testing](references/rpc-and-testing.md).
+## Publishing
 
-## Installing a published extension (someone else's, or your own)
+Export `.`/`./server`, `./rpc` and `./plugin-experimental` (the `.cjs`). Build with
+`tsdown && vite build && tsc -p tsconfig.build.json`. `@conciv/plugin` is a peer dependency (and a
+dev dependency); `effect` and `zod` are dependencies. Exclude `plugin-experimental` from attw.
 
-A published extension is one dependency plus one entry in the conciv options. Its default export is
-a factory: `conciv({extensions: [whiteboard()]})` on Vite, `withConciv(nextConfig, {extensions:
-[whiteboard()]})` on Next.js. The factory validates its options with zod and returns `{server, client,
-config}`: absolute paths to the package's own `./server` and `./client` entries, plus the parsed
-options. Publishing your own follows the same shape: a `src/index.ts` factory as the `.` export, and
-`./server` and `./client` subpaths (see `apps/site/content/docs/extending/install-first-party.mdx`
-for the exact `package.json` `exports` block and the Next.js-specific JSX constraint on local,
-non-installed extensions).
+## Red flags: stop and fix
 
-## Red flags — stop and fix
-
-- A tool with `.server(...)` called twice — a tool has exactly one binding; the second call throws
-  `"already has a server binding"` at module load.
-- `meta` passed without `meta.summary`, or `meta.summary` that just repeats the tool name — `defineTool`
-  throws at load time, so this fails immediately, not in some later review.
-- A `.render` card that assumes `result` is always defined — it is `undefined` while the tool call
-  streams; render a pending state.
-- `getExtensionApi(...)` hooks called from a component never mounted through
-  `MountedExtension`/`MountedSurface`/`MountedView` (a bare unit test, a stray `render()`) — every
-  hook throws "used outside a host that provides …"; mount through the testkit or those exports
-  instead of hand-assembling a `HostApiContext.Provider`.
-- A mutating tool (`meta.mutating: true`, or anything that changes real state) shipped without
-  `approval: 'ask'` and without a documented reason — the whiteboard's own destructive tools
-  (`comment_delete`, `comment_resolve`) both set it.
-- Extension-testkit `host` pointed at source instead of a built `dist/` — you are testing stale
-  code, same trap as the widget's own prebuilt-bundle integration tests.
-- A local (non-installed) extension in a Next.js app using Solid JSX — Next compiles
-  `conciv/extensions/*.tsx` as React JSX, so a local file there must be JSX-free
-  (`install-first-party.mdx`'s "Local extensions alongside installed ones" section); this constraint
-  does not apply to installed packages, whose browser half ships prebuilt.
+- A `.tsx` engine file, or an import of `./rpc` without its extension: Node cannot load it.
+- A tool name with `-`: the engine logs `Invalid tool name` and leaves the tool out.
+- `{output}` returned from a tool with no `output` schema: the call fails with "Tool result declared
+  output without an output schema". Declare `output`, or return `{content}`.
+- A mutating tool with no ask rule and no `ctx.permission.assert`: add both.
+- An RPC method that asks the user: make it a tool.
+- A browser part that bundles its own `solid-js` or `effect`: the build fails on purpose; import the
+  provided modules.
+- Waiting for `networkidle` in a test with the widget: the socket never idles.
+- A test pointed at source instead of the built `dist`: rebuild first.
 
 ## Sources
 
-- `packages/extension/src/index.ts`
-- `packages/extension/src/define-extension.ts`
-- `packages/extension/src/define-tool.ts`
-- `packages/extension/src/define-attachment.ts`
-- `packages/extension/src/types.ts`
-- `packages/extension/src/host-context.ts`
-- `packages/extension/src/hooks.tsx`
-- `packages/extension/src/extension-api.ts`
-- `packages/extension/src/mount-extension.tsx`
-- `packages/extension/src/ext-rpc.ts`
-- `packages/extension/src/server-stream.ts`
-- `packages/extension/src/collect-client.ts`
-- `packages/extension/package.json`
-- `packages/extension-testkit/src/get-extension-test-api.ts`
-- `packages/extension-testkit/src/fixture-host.ts`
-- `packages/protocol/src/tool-view-types.ts`
-- `packages/extensions/recorder/src/shared/attachment.ts`
-- `packages/extensions/recorder/src/server.ts`
-- `apps/site/content/docs/extending/index.mdx`
-- `apps/site/content/docs/extending/your-first-extension.mdx`
-- `apps/site/content/docs/extending/install-first-party.mdx`
+- `packages/plugin/package.json`
+- `packages/plugin/src/effect/rpc.ts`
+- `packages/plugin/src/effect/storage.ts`
+- `packages/plugin/src/experimental/registries.ts`
+- `packages/plugin/src/experimental/core.ts`
+- `packages/plugin-host/src/core/tool.ts`
+- `packages/plugin-testkit/src/core-kit.ts`
+- `packages/plugin-testkit/src/widget-suite.ts`
+- `packages/plugins/tanstack/package.json`
+- `packages/plugins/tanstack/src/index.ts`
+- `packages/plugins/tanstack/src/plugin-experimental.tsx`
+- `packages/plugins/test-runner/src/index.ts`
+- `packages/plugins/test-runner/src/plugin-experimental.tsx`
+- `packages/plugins/recorder/src/tools.ts`
+- `packages/plugins/ios/src/tools.ts`
+- `apps/site/content/docs/plugins/index.mdx`
+- `apps/site/content/docs/plugins/engine.mdx`
+- `apps/site/content/docs/plugins/browser.mdx`

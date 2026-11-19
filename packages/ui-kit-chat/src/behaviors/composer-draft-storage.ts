@@ -1,5 +1,7 @@
 import {z} from 'zod'
+import {uniqBy} from 'es-toolkit'
 import type {WebStorage} from '@conciv/storage-history'
+import {DraftItemSchema} from '@conciv/protocol/chat-types'
 import {
   fileToDataSource,
   type BaseAttachment,
@@ -21,6 +23,10 @@ const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
   quote: z.string().nullable().catch(null),
   attachments: z.array(PersistedAttachmentSchema).catch([]),
+  items: z
+    .array(z.unknown())
+    .catch([])
+    .transform((entries) => entries.flatMap((entry) => DraftItemSchema.safeParse(entry).data ?? [])),
 })
 
 export type PersistedComposerDraft = z.infer<typeof PersistedDraftSchema>
@@ -70,6 +76,7 @@ export function readComposerDraft(storage: WebStorage, key: string): ComposerDra
     draft: parsed.data.text,
     quote: parsed.data.quote,
     attachments: parsed.data.attachments.flatMap(toPendingAttachment),
+    items: uniqBy(parsed.data.items, (item) => item.key),
   }
 }
 
@@ -111,6 +118,7 @@ export async function writeComposerDraft(storage: WebStorage, key: string, draft
     text: draft.draft,
     quote: draft.quote,
     attachments: await encodeAttachments(draft.attachments),
+    items: draft.items,
   }
   try {
     storage.setItem(key, JSON.stringify(payload))

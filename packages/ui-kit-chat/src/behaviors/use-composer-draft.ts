@@ -19,7 +19,7 @@ export type ComposerDraftPersistenceOptions = {
 type DraftDebouncer = AsyncDebouncer<typeof writeComposerDraft>
 
 function isCleared(draft: ComposerDraft): boolean {
-  return draft.draft === '' && draft.attachments.length === 0 && draft.quote === null
+  return draft.draft === '' && draft.attachments.length === 0 && draft.quote === null && draft.items.length === 0
 }
 
 function wasTyped(previous: ComposerDraft | undefined): boolean {
