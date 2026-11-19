@@ -6,9 +6,6 @@ import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {cleanup} from '@solidjs/testing-library'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {defineTool} from '@conciv/extension/tool'
-import type {AnyToolBuilder} from '@conciv/extension'
-import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {
   GENERIC_TOOL_ICON,
@@ -28,12 +25,14 @@ import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/sear
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
 import {
   FIXTURE_TOOLS,
+  fixtureRegistry,
   fixtureToolMeta,
   fixtureToolName,
   fixtureToolRegistry,
   mountView,
   readFixtureVerb,
   registryCatalogView,
+  type FixtureTool,
 } from './helpers.js'
 import {parseClaudePatchBlocks, patchInfo} from '../src/primitives/tools/apply-patch.js'
 
@@ -177,26 +176,23 @@ describe('card body floor', () => {
 })
 
 describe('catalog cards', () => {
-  const shipTool = defineTool({
+  const shipTool: FixtureTool = {
     name: 'page_ship',
-    description: 'ship the page the user is looking at',
-    inputSchema: z.object({selector: z.string(), note: z.string().optional()}),
-    outputSchema: z.string(),
     meta: {
       summary: 'ship the page the user is looking at',
       category: 'act',
       icon: 'pointer',
       label: {running: 'Shipping the page', done: 'Shipped the page'},
       positional: 'selector',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({selector: z.string(), note: z.string().optional()}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.string(), {io: 'output'}),
+      errors: [],
     },
-  }).server(() => ({ok: true as const}))
+  }
 
-  const bannerTool = defineTool({
+  const bannerTool: FixtureTool = {
     name: 'page_banner',
-    description: 'paint a banner over the page',
-    inputSchema: z.object({value: z.string().optional()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    errors: {NO_CANVAS: {message: 'this page has nowhere to paint a banner'}},
     meta: {
       summary: 'paint a banner over the page',
       category: 'act',
@@ -204,31 +200,39 @@ describe('catalog cards', () => {
       label: {running: 'Painting the banner', done: 'Painted the banner'},
       mutating: true,
       hint: 'the banner disappears on the next navigation',
+      inputSchema: z.toJSONSchema(z.object({value: z.string().optional()}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+      errors: [{code: 'NO_CANVAS', message: 'this page has nowhere to paint a banner'}],
     },
-  }).server(() => ({ok: true as const}))
+  }
 
-  const plainTool = defineTool({
+  const plainTool: FixtureTool = {
     name: 'page_plain',
-    description: 'do something the widget has no cosmetics for',
-    inputSchema: z.object({}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'do something the widget has no cosmetics for', category: 'act'},
-  }).server(() => ({ok: true as const}))
+    meta: {
+      summary: 'do something the widget has no cosmetics for',
+      category: 'act',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+      errors: [],
+    },
+  }
 
-  const countTool = defineTool({
+  const countTool: FixtureTool = {
     name: 'page_count',
-    description: 'count the elements the page shows',
-    inputSchema: z.object({}),
-    outputSchema: z.number(),
-    meta: {summary: 'count the elements the page shows', category: 'read', icon: 'read'},
-  }).server(() => 0)
+    meta: {
+      summary: 'count the elements the page shows',
+      category: 'read',
+      icon: 'read',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.number(), {io: 'output'}),
+      errors: [],
+    },
+  }
 
   function declaredRegistry() {
-    const registry = createToolRegistry()
-    for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
-    for (const tool of [shipTool, bannerTool, plainTool, countTool])
-      registry.register(tool, {owner: 'a test registrant'})
-    return registry
+    return fixtureRegistry([...FIXTURE_TOOLS, shipTool, bannerTool, plainTool, countTool])
   }
 
   function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
@@ -353,25 +357,23 @@ describe('new tool projection', () => {
     }
   }
 
-  const shipTool = defineTool({
+  const shipTool: FixtureTool = {
     name: 'page_ship',
-    description: 'ship the page the user is looking at',
-    inputSchema: z.object({note: z.string().optional()}),
-    outputSchema: z.object({ok: z.literal(true)}),
     meta: {
       summary: 'ship the page the user is looking at',
       category: 'act',
       icon: 'pointer',
       label: {running: 'Shipping the page', done: 'Shipped the page'},
       hint: 'only once the user has approved the diff',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({note: z.string().optional()}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+      errors: [],
     },
-  }).server(() => ({ok: true as const}))
+  }
 
-  function registryWith(extra: AnyToolBuilder) {
-    const registry = createToolRegistry()
-    for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
-    registry.register(extra, {owner: 'a test registrant'})
-    return registry
+  function registryWith(extra: FixtureTool) {
+    return fixtureRegistry([...FIXTURE_TOOLS, extra])
   }
 
   const ctx: ToolViewCtx = {
@@ -417,13 +419,17 @@ describe('new tool projection', () => {
   })
 
   it('a declaration with no icon key falls back to the generic icon', () => {
-    const plainTool = defineTool({
+    const plainTool: FixtureTool = {
       name: 'page_plain',
-      description: 'do something the widget has no icon for',
-      inputSchema: z.object({}),
-      outputSchema: z.object({ok: z.literal(true)}),
-      meta: {summary: 'do something the widget has no icon for', category: 'act'},
-    }).server(() => ({ok: true as const}))
+      meta: {
+        summary: 'do something the widget has no icon for',
+        category: 'act',
+        mutating: false,
+        inputSchema: z.toJSONSchema(z.object({}), {io: 'input'}),
+        outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+        errors: [],
+      },
+    }
 
     expect(registryWith(plainTool).catalog.get('page_plain').summary).toBe('do something the widget has no icon for')
     expect(toolIconRender(plainTool.meta?.icon)).toBe(GENERIC_TOOL_ICON)

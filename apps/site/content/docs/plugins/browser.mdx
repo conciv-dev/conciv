@@ -27,9 +27,12 @@ Export the bundle as `./plugin-experimental` from the package. A plugin folder i
 During development, run the same build with `vite build --watch` from the plugin's dev script. Each build reloads only
 that plugin in the widget: the page does not reload, and the draft in the composer stays.
 
-The build keeps the modules the widget provides external. An import of another `effect`, `solid-js` or `@conciv`
-module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance. An
-`import()` becomes a chunk the widget loads the first time it runs.
+The build keeps the modules the widget provides external: `effect`, `zod`, `solid-js`, `solid-js/web`,
+`solid-js/store`, `@conciv/client`, `@conciv/plugin/experimental`, `@conciv/plugin/experimental/page`,
+`@conciv/plugin/experimental/grab` and `@conciv/plugin/rpc`. An import of another `effect`, `solid-js` or `@conciv`
+module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance.
+Import `useQuery`, `useMutation` and `useQueryClient` from `@conciv/client`, which the widget provides, so a view
+reads through the same query cache as the widget. No plugin imports a `@tanstack/*` Query package. An `import()` becomes a chunk the widget loads the first time it runs.
 
 ## Define it
 
@@ -40,19 +43,23 @@ stops.
 The whiteboard's browser part, whole:
 
 ```tsx title="packages/plugins/whiteboard/src/plugin-experimental.tsx"
-import {createResource, onCleanup} from 'solid-js'
+import {onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
+import {useQuery} from '@conciv/client'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
 
 export default Plugin.define({
   setup(ctx) {
     const [canvas, setCanvas] = createStore({open: false, engaged: false})
-    const [surface, {refetch}] = createResource(
-      () => canvas.engaged,
-      () => import('./client/canvas-surface.js'),
-    )
+    const surface = useQuery(() => ({
+      queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
+      queryFn: () => import('./client/canvas-surface.js').then((module) => module.default),
+      enabled: canvas.engaged,
+      retry: false,
+      refetchOnWindowFocus: false,
+    }))
     const close = (): void => setCanvas('open', false)
     const overlay: Slot = {
       at: 'page.overlay',
@@ -67,12 +74,12 @@ export default Plugin.define({
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
         run: () => {
-          if (surface.error === undefined) {
+          if (!surface.isError) {
             setCanvas({engaged: true, open: !canvas.open})
             return
           }
           setCanvas('open', true)
-          void refetch()
+          void surface.refetch()
         },
       }),
     }

@@ -1,4 +1,5 @@
-import {Match, Show, Switch, createMemo, createResource, onCleanup, type JSX} from 'solid-js'
+import {Match, Show, Switch, createMemo, onCleanup, type JSX} from 'solid-js'
+import {useQuery} from '@conciv/client'
 import {usePlugin, type NoteCardProps} from '@conciv/plugin/experimental'
 import {REPLAY_MIN_EVENTS, Recorder, type RrwebEvent} from './rpc.js'
 import {ExportVideoButton} from './export-video-button.js'
@@ -42,11 +43,12 @@ export function RecordingCard(props: NoteCardProps & {clientId: string; runtime:
 
 function RecordingReplay(props: {recording: RecordingNote; clientId: string; runtime: PluginRuntime}): JSX.Element {
   const ctx = usePlugin()
-  const [saved, {refetch}] = createResource(
-    () => props.recording.recordingId,
-    (recordingId) => ctx.client.rpc(Recorder)['recordings.get']({recordingId}, {signal: ctx.signal}),
-  )
-  const recording = createMemo(() => (saved.state === 'ready' ? saved() : undefined))
+  const saved = useQuery(() => ({
+    ...ctx.client.rpc(Recorder)['recordings.get'].queryOptions({input: {recordingId: props.recording.recordingId}}),
+    retry: false,
+    refetchOnWindowFocus: false,
+  }))
+  const recording = createMemo(() => (saved.isSuccess ? saved.data : undefined))
   const events = createMemo((): RrwebEvent[] | undefined => {
     const read = recording()
     return read?.kind === 'found' ? read.events : undefined
@@ -84,10 +86,10 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string; run
             </PlayerKitSwitch>
           }
         >
-          <Match when={saved.error}>
-            <RecorderErrorNotice retry={() => void refetch()} />
+          <Match when={saved.isError}>
+            <RecorderErrorNotice retry={() => void saved.refetch()} />
           </Match>
-          <Match when={saved.state === 'pending' || saved.state === 'refreshing'}>
+          <Match when={saved.isFetching}>
             <RecorderNotice text="Loading recording…" />
           </Match>
           <Match when={recording()?.kind === 'missing'}>

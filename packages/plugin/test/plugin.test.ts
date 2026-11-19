@@ -7,13 +7,17 @@ import * as SolidJs from 'solid-js'
 import * as SolidStore from 'solid-js/store'
 import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
+// oxlint-disable-next-line no-restricted-imports -- the SDK checks its option shapes against solid-query itself: depending on @conciv/client would close a package cycle through @conciv/core
+import {useMutation, useQuery} from '@tanstack/solid-query'
 import * as Zod from 'zod'
 import * as Effect from 'effect'
 import {z} from 'zod'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {SessionId} from '@conciv/protocol/chat-types'
+import {makeRpcClient} from '@conciv/contract'
 import {
   Agent,
+  Conciv,
   Plugin,
   Rpc,
   Tool,
@@ -29,6 +33,7 @@ import {
   type RpcDomain,
   type RpcEventPayload,
   type RpcHandlers,
+  type RpcQueryKey,
   type ToolContext,
   type Transform,
 } from '../src/promise/index.js'
@@ -216,6 +221,45 @@ describe('Rpc', () => {
     expectTypeOf<Rpc.EventInput<typeof Acme>>().toEqualTypeOf<[name: 'indexed', data: {count: number}]>()
     expectTypeOf<Plugin.Context['rpc']>().toEqualTypeOf<RpcDomain>()
     expectTypeOf<ServerRef['client']['rpc']>().toEqualTypeOf<RpcApi & {call: ServerRef['client']['plugin']['call']}>()
+  })
+
+  it('gives each method a key, queryOptions and mutationOptions that solid-query takes as they are', () => {
+    type Client = RpcClient<typeof Acme>
+    type SearchInput = {query: string; limit?: number | undefined}
+    expectTypeOf<Parameters<Client['search']['queryOptions']>>().toEqualTypeOf<
+      [options: {readonly input: SearchInput}]
+    >()
+    expectTypeOf<ReturnType<Client['search']['key']>>().toEqualTypeOf<RpcQueryKey<typeof Acme, 'search', SearchInput>>()
+    const Pinger = Rpc.define({
+      id: 'pinger',
+      methods: {ping: {input: z.object({}).optional(), output: z.number()}},
+      events: {},
+    })
+    expectTypeOf<RpcClient<typeof Pinger>['ping']['queryOptions']>().toBeCallableWith()
+    expectTypeOf<RpcClient<typeof Pinger>['ping']>().toBeCallableWith()
+    const views = (client: Client) => ({
+      found: useQuery(() => client.search.queryOptions({input: {query: 'a'}})),
+      saved: useMutation(() => client.search.mutationOptions()),
+    })
+    expectTypeOf<ReturnType<typeof views>['found']['data']>().toEqualTypeOf<{hits: string[]} | undefined>()
+    expectTypeOf<Parameters<ReturnType<typeof views>['saved']['mutate']>[0]>().toEqualTypeOf<SearchInput>()
+  })
+
+  it('keys every read by the server it reads from, so two servers never share a cached value', () => {
+    const project = 'http://127.0.0.1:9'
+    const global = 'http://127.0.0.1:10'
+    const fromProject = Conciv.make(makeRpcClient(project), {server: () => project}).rpc(Acme)
+    const fromGlobal = Conciv.make(makeRpcClient(global), {server: () => global}).rpc(Acme)
+    const input = {query: 'a'}
+    expect(fromProject.search.key({input})).toEqual(['plugin', {server: project}, 'acme', 'search', input])
+    expect(fromGlobal.search.key({input})).toEqual(['plugin', {server: global}, 'acme', 'search', input])
+    expect(fromProject.search.queryOptions({input}).queryKey).not.toEqual(
+      fromGlobal.search.queryOptions({input}).queryKey,
+    )
+    expect(fromProject.search.key()).toEqual(['plugin', {server: project}, 'acme', 'search'])
+    expect(fromProject.search.mutationOptions().mutationKey).not.toEqual(
+      fromGlobal.search.mutationOptions().mutationKey,
+    )
   })
 
   it("types a contract's methods, errors and events from any Standard Schema or a raw JSON Schema", () => {
@@ -969,6 +1013,7 @@ describe('experimental() build', () => {
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
+    '@conciv/client': inertModule('@conciv/client'),
     '@conciv/plugin/experimental/page': PageModule,
     '@conciv/plugin/experimental/grab': GrabModule,
   }

@@ -418,7 +418,10 @@ describe('Conciv.make event stream', () => {
       if (options.path.join('.') !== 'event.subscribe' || options.signal === undefined) return options.next()
       return connect(options.signal)
     }
-    return Conciv.make(makeRpcClient('http://127.0.0.1:9', {interceptors: [serve]}), options)
+    return Conciv.make(makeRpcClient('http://127.0.0.1:9', {interceptors: [serve]}), {
+      server: () => 'http://127.0.0.1:9',
+      ...options,
+    })
   }
 
   test('a direct reader sees server.connected again and the next event after the stream ends, fails or is refused, and the connection status follows each step', async () => {
