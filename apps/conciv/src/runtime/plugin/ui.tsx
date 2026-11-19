@@ -9,6 +9,7 @@ import type {
   UiMenuSubProps,
 } from '@conciv/plugin/experimental'
 import {Markdown} from '@conciv/ui-kit-chat'
+import {Chip} from '@conciv/ui-kit-chat/tools'
 import {
   Avatar,
   Button,
@@ -352,6 +353,9 @@ export const ui: Ui = {
       <Select.HiddenSelect />
     </Select.Root>
   ),
+  Chip: (props) => (
+    <Chip kind="pill" value={props.value} tone={props.tone} tooltip={props.tooltip} class={props.class} />
+  ),
   Keybind: (props) => (
     <Show when={props.keys.length > 0}>
       <Keys keys={props.keys} class={props.class} />
@@ -432,7 +436,7 @@ function MenuItem(props: UiMenuItem) {
 
   return (
     <Menu.Item value={value} disabled={props.disabled} onSelect={() => props.onSelect()}>
-      <Show when={props.icon}>{(icon) => <Icon name={icon()} class={MUTED_ICON} />}</Show>
+      <Show when={props.icon}>{(icon) => <Icon name={icon()} size="small" class={MUTED_ICON} />}</Show>
       <span class="min-w-0 truncate">{props.label}</span>
       <Show when={props.keys?.length}>
         <Keys keys={props.keys ?? []} class="ms-auto" />
@@ -487,9 +491,9 @@ function MenuItemCheck(): JSX.Element {
 function SubTriggerBody(props: Pick<UiMenuSubProps, 'icon' | 'label'>): JSX.Element {
   return (
     <>
-      <Show when={props.icon}>{(icon) => <Icon name={icon()} class={MUTED_ICON} />}</Show>
+      <Show when={props.icon}>{(icon) => <Icon name={icon()} size="small" class={MUTED_ICON} />}</Show>
       <span class="min-w-0 truncate">{props.label}</span>
-      <Icon name="chevron-right" class={`ms-auto ${MUTED_ICON}`} />
+      <Icon name="chevron-right" size="small" class={`ms-auto ${MUTED_ICON}`} />
     </>
   )
 }

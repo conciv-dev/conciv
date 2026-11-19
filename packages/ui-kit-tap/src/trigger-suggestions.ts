@@ -1,3 +1,4 @@
+import type {Component} from 'solid-js'
 import {Extension} from '@tiptap/core'
 import {PluginKey} from '@tiptap/pm/state'
 import type {EditorView} from '@tiptap/pm/view'
@@ -11,6 +12,8 @@ export type RichTextFieldTriggerItem = {
   description?: string
   group?: string
   categoryId?: string
+  icon?: {component: Component<{class?: string}>; name: string; tone?: 'chat-agent'}
+  insert?: string
   run?: () => void
 }
 
@@ -22,7 +25,9 @@ export type RichTextFieldTriggerSource = {
   items: (query: string) => RichTextFieldTriggerItem[] | Promise<RichTextFieldTriggerItem[]>
 }
 
-type SuggestionConfig = MentionOptions<RichTextFieldTriggerItem, MentionNodeAttrs>['suggestions'][number]
+type ChipAttrs = MentionNodeAttrs & {insert?: string | null}
+
+type SuggestionConfig = MentionOptions<RichTextFieldTriggerItem, ChipAttrs>['suggestions'][number]
 type SuggestionRenderer = ReturnType<NonNullable<SuggestionConfig['render']>>
 type SuggestionDispatch = Parameters<NonNullable<SuggestionRenderer['onStart']>>[0]
 type SuggestionCommand = Parameters<NonNullable<SuggestionConfig['command']>>[0]
@@ -79,8 +84,9 @@ export const ChipForwardDelete = Extension.create({
   },
 })
 
-function chipContent(char: string, id: string, label: string, spaceFollows: boolean) {
-  const chip = {type: 'mention', attrs: {id, label, mentionSuggestionChar: char}}
+function chipContent(char: string, id: string, item: ChipAttrs, spaceFollows: boolean) {
+  const insert = item.insert ?? null
+  const chip = {type: 'mention', attrs: {id, label: insert ?? item.label ?? id, mentionSuggestionChar: char, insert}}
   return spaceFollows ? [chip] : [chip, {type: 'text', text: ' '}]
 }
 
@@ -89,14 +95,16 @@ function insertChip(char: string) {
     if (item.id === null) return
     const nodeAfter = editor.view.state.selection.$to.nodeAfter
     const spaceFollows = nodeAfter?.text?.startsWith(' ') === true
-    const content = chipContent(char, item.id, item.label ?? item.id, spaceFollows)
+    const content = chipContent(char, item.id, item, spaceFollows)
     editor.chain().focus().insertContentAt(range, content).run()
   }
 }
 
 function anchorRect(dispatch: SuggestionDispatch): AnchoredListboxRect | null {
   const rect = dispatch.clientRect?.() ?? null
-  return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
+  if (!rect) return null
+  const editorTop = dispatch.editor.view.dom.getBoundingClientRect().top
+  return {x: rect.x, y: editorTop, width: rect.width, height: rect.bottom - editorTop}
 }
 
 function commitItem(dispatch: SuggestionDispatch, item: RichTextFieldTriggerItem): void {
