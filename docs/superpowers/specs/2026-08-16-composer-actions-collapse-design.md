@@ -131,7 +131,7 @@ into a reactive store on mount, unregisters on cleanup. Duplicate id: dev warnin
 
 **Full migration surface (all authoring/guidance call sites):**
 
-- `packages/extensions/whiteboard/src/client.tsx`, `packages/extensions/tanstack/src/client.tsx`.
+- the removed whiteboard extension's `src/client.tsx`, `packages/extensions/tanstack/src/client.tsx`.
 - `packages/extension/src/catalog.ts`: `composer-action` scaffold template, the `full` scaffold's
   raw composer button, slot descriptions ("add buttons or actions"), and scaffold assertions in
   `packages/extension/test/catalog.test.ts`.

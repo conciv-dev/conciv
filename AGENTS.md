@@ -210,14 +210,8 @@ README.md; this file is the non-obvious operational rules.
 
 ## Extension landmines
 
-- Whiteboard (TanStack DB over libSQL): never write to the db inside a collection subscription,
+- Whiteboard (TanStack DB collections): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.
-- The whiteboard integration tests (`packages/extensions/whiteboard/test/*.it.test.ts` and the
-  browser project) each boot a real Chromium + server; unit tests there are plain node. Its vitest
-  config self-caps `maxWorkers` at 3 off-CI (`localForkCap`), which makes local runs safe: build
-  first (`pnpm turbo run build --filter=@conciv/extension-whiteboard`), then `pnpm exec vitest run`
-  from the package. Never bypass or remove that cap; uncapped runs have saturated a workstation
-  before.
 - The widget bundle must externalize every `@conciv/extension/*` subpath and shared Ark/Solid deps;
   a second bundled copy splits the Solid/Ark context and extension popovers render at 0,0. Guarded
   by the mount-externals build test; don't weaken it.

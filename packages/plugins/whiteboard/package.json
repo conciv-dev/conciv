@@ -66,6 +66,7 @@
     "@conciv/plugin": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
+    "@conciv/ui-kit-tap": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@excalidraw/excalidraw": "catalog:",

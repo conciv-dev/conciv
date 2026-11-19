@@ -467,7 +467,7 @@ Grab keeps ACT/busyClass styling and is NOT disabled while picking (`busy` only)
 
 **Files:**
 
-- Modify: `packages/extensions/whiteboard/src/client.tsx`, `packages/extensions/tanstack/src/client.tsx` (both add `import {ComposerActions} from '@conciv/ui-kit-chat'` — check each package.json declares `@conciv/ui-kit-chat`; add the workspace dep if absent, it's an internal workspace ref, not a new third-party dep)
+- Modify: the removed whiteboard extension's `src/client.tsx`, `packages/extensions/tanstack/src/client.tsx` (both add `import {ComposerActions} from '@conciv/ui-kit-chat'` — check each package.json declares `@conciv/ui-kit-chat`; add the workspace dep if absent, it's an internal workspace ref, not a new third-party dep)
 - Modify (TEMPLATE STRINGS ONLY — no runtime code in this package): `packages/extension/src/catalog.ts` (`composer-action` + `full` templates now emit `import {ComposerActions} from '@conciv/ui-kit-chat'` examples; composer slot description names the primitives), `packages/extension/test/catalog.test.ts` (assertions match new verbatim strings)
 - Modify: `packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md`, `apps/site/content/docs/extending/widget-ui.mdx`
 

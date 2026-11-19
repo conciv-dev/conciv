@@ -47,7 +47,6 @@ const PRE_REWRITE_BRIDGE_PATHS = [
   'packages/harness-init/src/',
   'packages/harness/src/claude/',
   'packages/chat/src/tool-names.ts',
-  'packages/extensions/whiteboard/src/client/overlay.tsx',
 ]
 
 const HARNESS_CONNECT_ATTACH_PATHS = [
@@ -81,12 +80,7 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'presence',
-    paths: [
-      'packages/ui-kit-system/src/',
-      'packages/extensions/recorder/src/',
-      'packages/plugins/recorder/src/',
-      'packages/extensions/whiteboard/src/tool/comment/server.ts',
-    ],
+    paths: ['packages/ui-kit-system/src/', 'packages/extensions/recorder/src/', 'packages/plugins/recorder/src/'],
   },
   {
     term: 'manager',

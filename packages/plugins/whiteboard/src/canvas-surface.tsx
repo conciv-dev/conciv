@@ -1,12 +1,15 @@
-import {onMount, Show, type JSX} from 'solid-js'
+import {onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import {usePlugin, type Context} from '@conciv/plugin/experimental'
+import {Effect, Exit, Scope} from 'effect'
 import {Island} from './island.js'
+import {makeLiveCursors, type LiveCursors} from './live-cursors.js'
 import {WhiteboardDbProvider} from './db.js'
 import {CommentsProvider, useComments} from './comments.js'
 import {PinsLayer} from './pins.js'
+import {Inbox, InboxToggle} from './inbox.js'
 import type {ChatCover} from './comments-model.js'
 import {ThreadPopover} from './thread.js'
 
@@ -40,7 +43,9 @@ type SurfaceProps = {
   bindComments: (comments: ChatCover | undefined) => void
 }
 
-function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {canvas: HTMLElement}): JSX.Element {
+function CanvasView(
+  props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {canvas: HTMLElement; cursors: LiveCursors},
+): JSX.Element {
   const model = useComments()
   const ctx = usePlugin()
   return (
@@ -51,10 +56,14 @@ function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {c
         theme={ctx.appearance.mode()}
         visible={props.visible}
         onViewport={model.setViewport}
+        registerPan={model.registerPan}
+        cursors={props.cursors}
       />
       <Portal mount={props.layer}>
         <Show when={props.visible}>
+          <InboxToggle />
           <PinsLayer />
+          <Inbox />
         </Show>
         <ThreadPopover visible={props.visible} />
       </Portal>
@@ -65,6 +74,9 @@ function CanvasView(props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {c
 export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   const ctx = usePlugin()
   const canvas = ctx.overlay({styles: [CANVAS_STYLES]})
+  const scope = Effect.runSync(Scope.make())
+  onCleanup(() => void Effect.runFork(Scope.close(scope, Exit.void)))
+  const cursors = untrack(() => Effect.runSync(makeLiveCursors(props.client, props.room).pipe(Scope.provide(scope))))
   const overlayRoot = canvas.element.getRootNode()
   if (overlayRoot instanceof ShadowRoot) overlayRoot.host.setAttribute(EXCALIDRAW_INSIDE_MARKER, '')
   onMount(() =>
@@ -83,7 +95,13 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
   return (
     <WhiteboardDbProvider client={props.client} room={props.room} catchUpRetryMs={props.catchUpRetryMs}>
       <CommentsProvider room={() => props.room} bindComments={props.bindComments}>
-        <CanvasView room={props.room} visible={props.visible} layer={props.layer} canvas={canvas.element} />
+        <CanvasView
+          room={props.room}
+          visible={props.visible}
+          layer={props.layer}
+          canvas={canvas.element}
+          cursors={cursors}
+        />
       </CommentsProvider>
     </WhiteboardDbProvider>
   )
