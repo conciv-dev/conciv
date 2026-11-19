@@ -1,3 +1,4 @@
+import {difference} from 'es-toolkit'
 import {createSignal} from 'solid-js'
 import {
   GRAB_MIME,
@@ -38,7 +39,13 @@ const REMOVE_FAILED = 'Could not remove the grabbed element.'
 const ADD_FAILED = 'Could not add the grabbed element.'
 const LOAD_FAILED = 'Could not load a grabbed element.'
 
-type StagedEntry = {grab: Grab; id: string | null; grounded: Grab | null; placing: Promise<void> | null}
+type StagedEntry = {
+  grab: Grab
+  forChat: boolean
+  id: string | null
+  grounded: Grab | null
+  placing: Promise<void> | null
+}
 
 function toGrab(payload: GrabPayload): Grab {
   return {
@@ -84,6 +91,11 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
 
   const isLive = (entry: StagedEntry, composer: ComposerGrabPort): boolean =>
     port() === composer && pending().includes(entry)
+
+  const waiting = (): readonly StagedEntry[] => {
+    const connected = port() !== null
+    return pending().filter((entry) => entry.id === null && (connected || !entry.forChat))
+  }
 
   const putOnComposer = async (entry: StagedEntry, composer: ComposerGrabPort): Promise<void> => {
     try {
@@ -142,7 +154,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
   }
 
   const stage = (grab: Grab): void => {
-    const entry: StagedEntry = {grab, id: null, grounded: null, placing: null}
+    const entry: StagedEntry = {grab, forChat: port() !== null, id: null, grounded: null, placing: null}
     setPending((current) => [...current, entry])
     void placeThenGround(entry).catch(reportTo(ADD_FAILED))
   }
@@ -154,8 +166,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       const grab = known.get(attachment.id)
       return grab ? [grab] : []
     })
-    const waiting = pending().filter((entry) => entry.id === null)
-    return [...placed, ...waiting.map((entry) => entry.grounded ?? entry.grab)]
+    return [...placed, ...waiting().map((entry) => entry.grounded ?? entry.grab)]
   }
 
   const remove = (grab: Grab): void => {
@@ -164,16 +175,18 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       void port()?.removeAttachment(placed[0]).catch(reportTo(REMOVE_FAILED))
       return
     }
-    const entry = pending().find(
-      (candidate) => candidate.id === null && (candidate.grab === grab || candidate.grounded === grab),
-    )
+    const entry = waiting().find((candidate) => candidate.grab === grab || candidate.grounded === grab)
     if (entry) drop(entry)
   }
 
   const clear = (): void => {
-    setPending([])
     const composer = port()
-    if (!composer) return
+    if (!composer) {
+      const cleared = waiting()
+      setPending((current) => difference(current, cleared))
+      return
+    }
+    setPending([])
     for (const attachment of composer.attachments().filter(isGrabAttachment))
       void composer.removeAttachment(attachment.id).catch(reportTo(REMOVE_FAILED))
   }
