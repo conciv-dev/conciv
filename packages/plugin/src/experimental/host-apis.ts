@@ -885,6 +885,13 @@ export interface UiTextInputProps {
   readonly class?: string
 }
 
+export interface UiChipProps {
+  readonly value: string
+  readonly tone?: 'neutral' | 'accent' | 'success' | 'danger'
+  readonly tooltip?: string
+  readonly class?: string
+}
+
 export interface UiKeybindProps {
   readonly keys: readonly string[]
   readonly class?: string
@@ -1156,6 +1163,18 @@ export interface Ui {
    * ```
    */
   Select<T extends string>(props: UiSelectProps<T>): JSX.Element
+  /**
+   * A short label in a pill, the chip the tool cards show for a state, a path or a name. A value too long for its
+   * room is cut with an ellipsis and shows in full in a tooltip on hover.
+   *
+   * @param props - The label, its tone, and an optional tooltip that explains it, which makes the chip focusable.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.Chip value={run.status} tone={run.status === "error" ? "danger" : "neutral"} tooltip="Last run" />
+   * ```
+   */
+  Chip(props: UiChipProps): JSX.Element
   /**
    * Keys shown as chips, as menus and tooltips show shortcuts.
    *
