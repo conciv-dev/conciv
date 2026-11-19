@@ -26,7 +26,7 @@ import {
 } from '../packed/harness.js'
 
 const CLIENT_SENTINEL_ID = 'TanStack inspector active'
-const SERVER_ONLY_SYMBOLS = ['readRouteManifest', 'TanstackRouteManifest.read']
+const SERVER_ONLY_SYMBOLS = ['readRouteManifest', 'tanstack.routeManifest.read']
 const SETUP_TIMEOUT = 6 * 60_000
 const CELL_TIMEOUT = 12 * 60_000
 
