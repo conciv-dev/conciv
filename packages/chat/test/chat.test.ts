@@ -2,11 +2,12 @@ import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
-import {openDb, type ConcivDb} from '@conciv/db'
+import {eq} from 'drizzle-orm'
+import {chatMessages, markers, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
-import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
@@ -74,6 +75,25 @@ async function openDatabase() {
   return {root, db}
 }
 
+const fakeSessions: Parameters<typeof createChatPlane>[0]['sessions'] = {
+  row: async () => ({
+    model: null,
+    effort: null,
+    nativeId: null,
+    cwd: '/workspace',
+    harnessKind: 'fake',
+    deletedAt: null,
+  }),
+  ensure: async () => undefined,
+  recordNativeId: async () => undefined,
+  recordUsage: async () => undefined,
+  recordContextTokens: async () => undefined,
+  recordActivity: async () => undefined,
+  onRunStart: async () => undefined,
+  publish: () => undefined,
+  onRunEnd: async () => undefined,
+}
+
 function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typeof createChatPlane>[0]> = {}) {
   const driver = quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => undefined)
   onTestFinished(() => driver.dispose())
@@ -84,24 +104,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     cwd: root,
     harnessFor: async () => harness,
     systemPrompt: {},
-    sessions: {
-      row: async () => ({
-        model: null,
-        effort: null,
-        nativeId: null,
-        cwd: '/workspace',
-        harnessKind: 'fake',
-        deletedAt: null,
-      }),
-      ensure: async () => undefined,
-      recordNativeId: async () => undefined,
-      recordUsage: async () => undefined,
-      recordContextTokens: async () => undefined,
-      recordActivity: async () => undefined,
-      onRunStart: async () => undefined,
-      publish: () => undefined,
-      onRunEnd: async () => undefined,
-    },
+    sessions: fakeSessions,
     toolNames: new Set(),
     capabilities: async () => [],
     attachmentExpanders: {},
@@ -918,5 +921,75 @@ describe('stopping a run', () => {
     expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
     await chat.settled(sessionId)
     expect(chat.driving(sessionId)).toBe(false)
+  })
+})
+
+describe('a session deleted while its transcript is read', () => {
+  it('a compact and the transcript sync it hydrates write no marker and no thread once the session is deleted', async () => {
+    const {root, db} = await openDatabase()
+    const sessionId = SessionId.parse('conciv_deleted_mid_read')
+    const nativeId = HarnessSessionId.parse('native-deleted-mid-read')
+    await Effect.runPromise(
+      db.insert(sessions).values({
+        id: sessionId,
+        harnessSessionId: nativeId,
+        harnessKind: 'transcribed',
+        origin: 'chat',
+        cwd: '/workspace',
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    const reading = Promise.withResolvers<void>()
+    const transcript = Promise.withResolvers<ChatMessage[]>()
+    const unobserved = async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}) as const
+    const transcribed = defineHarness({
+      id: 'transcribed',
+      binName: 'true',
+      chatConfig: () => ({adapter: fakeText()}),
+      history: {
+        messages: async () => {
+          reading.resolve()
+          return transcript.promise
+        },
+        tail: async () => ({messages: [], earlier: null}),
+        observe: () => ({revision: unobserved, read: unobserved, close: () => undefined}),
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
+      },
+      resume: {command: () => ({bin: 'transcribed', args: []})},
+      capabilities: {...harness.capabilities, transcriptHistory: true},
+    })
+    const readRow = async () => {
+      const row = await Effect.runPromise(db.select().from(sessions).where(eq(sessions.id, sessionId)).get())
+      return row === undefined
+        ? null
+        : {
+            model: null,
+            effort: null,
+            nativeId,
+            cwd: row.cwd,
+            harnessKind: row.harnessKind,
+            deletedAt: row.deletedAt,
+          }
+    }
+    const chat = await chatPlane(db, root, {
+      harnessFor: async () => transcribed,
+      sessions: {...fakeSessions, row: readRow},
+    })
+
+    const compacting = chat.compact(sessionId)
+    await reading.promise
+    await Effect.runPromise(db.update(sessions).set({deletedAt: 2}).where(eq(sessions.id, sessionId)))
+    transcript.resolve([
+      {id: 'native-question', role: 'user', parts: [{type: 'text', content: 'read after the delete'}]},
+    ])
+
+    await Promise.allSettled([compacting])
+    expect(await Effect.runPromise(db.select().from(chatMessages).where(eq(chatMessages.threadId, sessionId)))).toEqual(
+      [],
+    )
+    expect(await Effect.runPromise(db.select().from(markers).where(eq(markers.sessionId, sessionId)))).toEqual([])
+    await expect(compacting).rejects.toThrow(`session "${sessionId}" does not exist`)
   })
 })
