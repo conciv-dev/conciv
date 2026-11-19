@@ -42,13 +42,11 @@
   "dependencies": {
     "@clack/prompts": "catalog:",
     "@conciv/core": "workspace:^",
-    "@conciv/extension-terminal": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "citty": "catalog:"
   },
   "devDependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

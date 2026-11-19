@@ -2,18 +2,16 @@ import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {trackReport} from '@conciv/page'
 import {RawFrameSchema} from '@conciv/contract'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import type {ToolProps} from '@conciv/plugin/experimental'
+import {JsonTree} from '@conciv/ui-kit-chat/tools'
 import {
   ChipRow,
   ELEMENT_TARGET_KEYS,
+  PageTool,
   QUIET_TEXT_CLASS,
-  cardErrorMessage,
-  cardPayload,
   countLabel,
-  elementChip,
-  hasPayloadOrError,
-  mutatingBadge,
+  elementTarget,
+  outputPayload,
 } from './shared.js'
 import {pageOperation} from './page-tool-names.js'
 
@@ -70,22 +68,16 @@ function readTrack(payload: unknown): TrackReportView | undefined {
   return {components: parsed.data.components, note: parsed.data.note}
 }
 
-export function ReactCard(props: ToolCardProps): JSX.Element {
-  const {meta, title} = cardHeader(props)
-  const payload = () => cardPayload(props.result)
+export function ReactCard(props: ToolProps): JSX.Element {
+  const payload = () => outputPayload(props.output)
   const descriptor = () => readSource(payload())
   const track = () => readTrack(payload())
-  const errorMessage = () => cardErrorMessage(props.result)
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      metaBadge={mutatingBadge(meta())}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      chipSkip={ELEMENT_TARGET_KEYS}
-      leadChip={elementChip(props.part)}
+    <PageTool
+      {...props}
+      subtitle={elementTarget(props.input)}
+      skip={ELEMENT_TARGET_KEYS}
+      hasContent={payload() !== undefined}
     >
       <div class="flex flex-col gap-1.5">
         <Show when={descriptor().component !== undefined || descriptor().location !== undefined}>
@@ -95,9 +87,6 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
           </p>
         </Show>
         <Switch>
-          <Match when={errorMessage()}>
-            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
-          </Match>
           <Match when={track()}>
             {(report) => (
               <>
@@ -116,11 +105,6 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
           </Match>
         </Switch>
       </div>
-    </CardShell>
+    </PageTool>
   )
-}
-
-export const reactCard: ToolCardView = {
-  render: ReactCard,
-  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

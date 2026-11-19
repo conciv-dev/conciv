@@ -69,7 +69,7 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
 export type ChatContext = {
   defaultHarness: HarnessAdapter
   harnesses: readonly HarnessAdapter[]
-  harnessFor: (sessionId: SessionId) => HarnessAdapter
+  harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   cwd: string
   basePath: string
   db: ConcivDb

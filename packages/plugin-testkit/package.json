@@ -39,10 +39,6 @@
       "types": "./dist/widget-suite.d.ts",
       "import": "./dist/widget-suite.js"
     },
-    "./page-plane": {
-      "types": "./dist/page-plane.d.ts",
-      "import": "./dist/page-plane.js"
-    },
     "./listen-local": {
       "types": "./dist/listen-local.d.ts",
       "import": "./dist/listen-local.js"
@@ -102,7 +98,6 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
-    "p-timeout": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

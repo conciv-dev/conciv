@@ -1,12 +1,11 @@
 import {Show, createMemo, type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Plus from 'lucide-solid/icons/plus'
 import {
   ComposerActions,
   ComposerActionsHost,
   ComposerPrimitive,
-  AttachmentUI,
+  ComposerAttachment,
   useChatContext,
   useComposer,
   useComposerContext,
@@ -23,6 +22,7 @@ import {
   type SelectionOffsets,
 } from './composer-input-adapter.js'
 import {lockedMessage} from '../shell/engine-lock-messages.js'
+import {useReportFailure} from '../shell/notice-context.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
@@ -37,7 +37,7 @@ export type PaneComposerProps = {
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
   attachmentAdapter?: AttachmentAdapter
-  AttachmentComponent?: Component<{removable?: boolean}>
+  AttachmentComponent?: Component<{onRemove?: (id: string) => void}>
   menuBoundary?: () => Element | undefined
 }
 
@@ -62,6 +62,7 @@ const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
 const STOPPING_LABEL = 'Stopping the run'
 const MAX_INLINE_AUTO_ACTIONS = 0
+const REMOVE_FAILED = 'Could not remove the attachment.'
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
@@ -121,6 +122,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
   }
   const composer = useComposer()
   const chat = useChatContext()
+  const reportFailure = useReportFailure()
   const reachability = useEngineReachability()
   const locked = createMemo(() => reachability.locked() !== null)
   const placeholder = createMemo(() =>
@@ -137,9 +139,10 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
       <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
         <ComposerPrimitive.Attachments
           component={() => (
-            <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
-              {(component) => <Dynamic component={component()} removable />}
-            </Show>
+            <ComposerAttachment
+              component={props.AttachmentComponent}
+              onRemoveFailed={(error) => reportFailure(REMOVE_FAILED, error)}
+            />
           )}
         />
       </div>

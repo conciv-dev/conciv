@@ -305,12 +305,7 @@
       }
     },
     {
-      "files": [
-        "packages/core/src/pty/**",
-        "packages/extensions/terminal/src/server/**",
-        "packages/extensions/terminal/test/**",
-        "packages/ui-kit-terminal/**"
-      ],
+      "files": ["packages/core/src/pty/**", "packages/ui-kit-terminal/**"],
       "rules": {
         "no-control-regex": "off"
       }
@@ -366,6 +361,12 @@
       "files": ["packages/core/src/**", "packages/chat/src/**"],
       "rules": {
         "conciv/core-purity": "error"
+      }
+    },
+    {
+      "files": ["packages/db/**", "packages/ai/**", "packages/chat/**", "packages/core/**", "packages/plugin-host/**"],
+      "rules": {
+        "conciv/no-await-effect-query": "error"
       }
     },
     {
@@ -562,12 +563,6 @@
       "rules": {
         "conciv/solid-test-render": "off"
       }
-    },
-    {
-      "files": ["packages/extensions/terminal/test/terminal.browser.test.tsx"],
-      "rules": {
-        "conciv/solid-test-render": "off"
-      }
     }
   ],
   "ignorePatterns": [
@@ -580,7 +575,6 @@
     "**/*.gen.tsx",
     "**/test-results",
     "packages/unplugin/test/fixtures/**",
-    "packages/extensions/tanstack/test/fixtures/**",
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",

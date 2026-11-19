@@ -343,7 +343,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
-    grabStaging: makeGrabStaging({ground: options.ground ?? (async () => null)}),
+    grabStaging: makeGrabStaging({
+      ground: options.ground ?? (async () => null),
+      fail: (message, error) => console.error(`[conciv] ${message}`, error),
+    }),
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => options.onNewSession?.(),
@@ -415,6 +418,7 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
+  grabProvider?: GrabProvider
   plugins?: readonly ComposedPlugin[]
 }
 
@@ -529,6 +533,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       plugins: options.plugins,
       servers: options.plugins !== undefined,
       login,
+      grabProvider: options.grabProvider,
       bindActiveSession: (read) => {
         activeSession.read = read
       },

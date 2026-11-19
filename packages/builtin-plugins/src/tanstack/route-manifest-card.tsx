@@ -1,10 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {RouteInfo} from '@conciv/plugin-tanstack/rpc'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
 import {countLabel} from '../page/cards/shared.js'
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
@@ -13,21 +12,21 @@ const RouteInfoSchema = RouteInfo.pick({path: true, kind: true, dynamic: true}).
 
 const RouteManifestSchema = z.array(RouteInfoSchema)
 
-function parseRoutes(result: ToolCardProps['result']): RouteRow[] | null {
-  const parsed = RouteManifestSchema.safeParse(parseResultPayload(result))
+function parseRoutes(result: string | undefined): RouteRow[] | null {
+  const parsed = RouteManifestSchema.safeParse(parseOutput(result))
   if (!parsed.success) return null
   return parsed.data.map((route) => ({path: route.path, kind: route.kind, dynamic: route.dynamic}))
 }
 
-function RouteManifestCard(props: ToolCardProps): JSX.Element {
-  const routes = () => parseRoutes(props.result)
+function RouteManifestCard(props: ToolProps): JSX.Element {
+  const routes = () => parseRoutes(props.output)
   const summary = () => {
     const list = routes()
     if (!list) return ''
     return countLabel(list.length, 'route', 'routes')
   }
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} hasContent={parseRoutes(props.output) !== null}>
       <Show when={routes()}>
         {(list) => (
           <CardRows>
@@ -49,7 +48,4 @@ function RouteManifestCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const routeManifestCard: ToolCardView = {
-  render: RouteManifestCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseRoutes(result) !== null),
-}
+export const routeManifestCard: ToolComponent = RouteManifestCard
