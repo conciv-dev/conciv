@@ -1,9 +1,10 @@
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {createServer, type Socket} from 'node:net'
+import {connect as connectSocket, createServer, type Server as TcpServer, type Socket} from 'node:net'
+import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import type {EngineStaleness} from '@conciv/contract'
+import {REVOKED_SOCKET_CLOSE_CODE, type EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
@@ -13,16 +14,19 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
-import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
-import type {HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCapabilities,
+  HarnessCommand,
+  HarnessConnectContext,
+  HarnessModel,
+} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness, EditorOpen} from '@conciv/plugin-testkit/core-kit'
-import type {PushWireWatch} from '@conciv/plugin-testkit/push-wire'
 import type {RpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 
 export type BootCoreInput = {
@@ -31,6 +35,7 @@ export type BootCoreInput = {
   resume?: boolean
   displayName?: string
   resumeBin?: string
+  imageInput?: HarnessCapabilities['imageInput']
   history?: FixtureSession[]
   holdTranscripts?: boolean
   commands?: HarnessCommand[]
@@ -78,7 +83,6 @@ export type FaultSpec =
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
   | {kind: 'handshake-hold'}
-  | {kind: 'push-handshake-hold'}
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
@@ -105,8 +109,8 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   hubCli: {current: HubCliState}
-  push: PushWireWatch | null
   rpcCalls: RpcCallCursor | null
+  forward: {server: TcpServer; sockets: Set<Socket>} | null
 }
 
 const FRESH: EngineStaleness = {
@@ -118,6 +122,8 @@ const FRESH: EngineStaleness = {
 }
 
 const AWAIT_RPC_TIMEOUT_MS = 15_000
+
+const CHAT_EVENTS_PATH: readonly string[] = ['chat', 'events']
 
 const files = new Map<string, FileState>()
 
@@ -136,8 +142,8 @@ function ensureState(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     hubCli: {current: null},
-    push: null,
     rpcCalls: null,
+    forward: null,
   }
   files.set(key, created)
   return created
@@ -147,12 +153,6 @@ function requireKit(ctx: BrowserCommandContext): CoreKit {
   const kit = ensureState(ctx).kit
   if (!kit) throw new Error('no core is booted for this test file; call bootCore first')
   return kit
-}
-
-function requirePush(ctx: BrowserCommandContext): PushWireWatch {
-  const push = ensureState(ctx).push
-  if (!push) throw new Error('no core is booted for this test file; call bootCore first')
-  return push
 }
 
 function requireFault(ctx: BrowserCommandContext, handle: string): Fault {
@@ -165,7 +165,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const state = ensureState(ctx)
   if (state.kit) throw new Error('a core is already booted for this test file; call closeCore first')
   const startedAt = Date.now()
-  const {bootCoreKit, watchPushWire, rpcSocketFor, rpcCallCursor} = await importTestkit(ctx)
+  const {bootCoreKit, rpcSocketFor, rpcCallCursor} = await importTestkit(ctx)
   await rpcSocketFor(ctx.page).installed
   state.rpcCalls = rpcCallCursor(ctx.page)
   const kit = await bootCoreKit({
@@ -180,13 +180,13 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     resumeBin: input.resumeBin,
+    imageInput: input.imageInput,
     plugins: input.plugins,
     files: input.files,
     tty: input.tty ? {command: fakeTerminal} : undefined,
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
-  state.push = watchPushWire(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
 }
 
@@ -194,13 +194,49 @@ function holdTranscriptsWhen(kit: CoreKit, held: boolean | undefined): void {
   if (held) kit.harness.transcripts.hold()
 }
 
+function listenOnConnectPort(server: TcpServer, port: number): Promise<number> {
+  if (port > CONNECT_LAST_PORT) return Promise.reject(new Error('every connect port is taken'))
+  return new Promise<boolean>((resolve) => {
+    server.once('error', () => resolve(false))
+    server.listen(port, '127.0.0.1', () => resolve(true))
+  }).then((bound) => (bound ? port : listenOnConnectPort(server, port + 1)))
+}
+
+function closeForward(state: FileState): Promise<void> {
+  const forward = state.forward
+  state.forward = null
+  if (!forward) return Promise.resolve()
+  forward.sockets.forEach((socket) => socket.destroy())
+  return new Promise((resolve) => forward.server.close(() => resolve()))
+}
+
+const forwardConnectPort: BrowserCommand<[]> = async (ctx): Promise<number> => {
+  const state = ensureState(ctx)
+  const kit = state.kit
+  if (!kit) throw new Error('no core is booted for this test file; call bootCore first')
+  await closeForward(state)
+  const target = Number(new URL(kit.base).port)
+  const sockets = new Set<Socket>()
+  const server = createServer((socket) => {
+    const upstream = connectSocket(target, '127.0.0.1')
+    sockets.add(socket).add(upstream)
+    socket.on('error', () => upstream.destroy())
+    upstream.on('error', () => socket.destroy())
+    socket.pipe(upstream).pipe(socket)
+  })
+  state.forward = {server, sockets}
+  return listenOnConnectPort(server, CONNECT_FIRST_PORT)
+}
+
+const closeConnectForward: BrowserCommand<[]> = (ctx): Promise<void> => closeForward(ensureState(ctx))
+
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   const state = ensureState(ctx)
+  await closeForward(state)
   for (const fault of state.faults.values()) await fault.dispose()
   state.faults.clear()
   state.staleness.value = FRESH
   restoreHubCli(state)
-  state.push = null
   state.rpcCalls = null
   const kit = state.kit
   state.kit = null
@@ -223,9 +259,10 @@ const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content):
 const projectFileExists: BrowserCommand<[string]> = (ctx, path): boolean =>
   existsSync(join(requireKit(ctx).stateRoot, path))
 
-const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).opened()
+const chatStreamsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).startedSince(CHAT_EVENTS_PATH)
 
-const pushSocketsLive: BrowserCommand<[]> = (ctx): number => requirePush(ctx).liveSockets()
+const rpcSocketsRevoked: BrowserCommand<[]> = async (ctx): Promise<number> =>
+  (await importTestkit(ctx)).rpcSocketFor(ctx.page).engineCloses(REVOKED_SOCKET_CLOSE_CODE)
 
 const rpcSocketsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).socketsSince()
 
@@ -377,18 +414,19 @@ function restoreHubCli(state: FileState): void {
 const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
   requireCalls(ctx).servedSince(path, input)
 
-const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
+const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][], unknown?]> = async (
   ctx,
   served,
   count,
   started,
+  input,
 ): Promise<number[]> => {
   const calls = requireCalls(ctx)
   const {rpcObserverFor} = await importTestkit(ctx)
   const observer = rpcObserverFor(ctx.page)
   const settle = async (): Promise<void> => {
-    if (calls.servedSince(served) >= count) return
-    await observer.completed({path: served, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
+    if (calls.servedSince(served, input) >= count) return
+    await observer.completed({path: served, input, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
     await settle()
   }
   await settle()
@@ -424,15 +462,16 @@ function requireCalls(ctx: BrowserCommandContext): RpcCallCursor {
   return calls
 }
 
-type Injector = {repair: () => void; dispose: () => Promise<void>}
+type Injector = {repair: () => void; dispose: () => Promise<void>; answered?: () => Promise<unknown>}
 
 function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injector): Fault {
   return {
     pending: () => 0,
     awaitCaptured: () =>
       Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which never captures pending requests`)),
-    answered: () =>
-      Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`)),
+    answered:
+      injector.answered ??
+      (() => Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`))),
     release: () => {
       injector.repair()
       return Promise.resolve()
@@ -476,42 +515,6 @@ async function holdEngineHandshakes(ctx: BrowserCommandContext): Promise<Fault> 
       rpcSocket.releaseHandshakes()
       return Promise.resolve()
     },
-  }
-}
-
-async function holdPushHandshakes(ctx: BrowserCommandContext): Promise<Fault> {
-  const host = new URL(requireKit(ctx).origin).host
-  const held: {open: boolean; handshakes: (() => void)[]; waiters: {count: number; deliver: () => void}[]} = {
-    open: false,
-    handshakes: [],
-    waiters: [],
-  }
-  await ctx.page.routeWebSocket(
-    (url) => url.host === host && url.pathname.endsWith(PUSH_WS_PATH),
-    async (socket) => {
-      if (!held.open) {
-        await new Promise<void>((resolve) => {
-          held.handshakes.push(resolve)
-          for (const waiter of held.waiters.filter((entry) => held.handshakes.length >= entry.count)) waiter.deliver()
-        })
-      }
-      socket.connectToServer()
-    },
-  )
-  const open = (): Promise<void> => {
-    held.open = true
-    for (const handshake of held.handshakes.splice(0)) handshake()
-    return Promise.resolve()
-  }
-  return {
-    pending: () => held.handshakes.length,
-    awaitCaptured: (count) =>
-      held.handshakes.length >= count
-        ? Promise.resolve()
-        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
-    answered: () => Promise.reject(new Error('a held push handshake fault has no single call to await')),
-    release: open,
-    dispose: open,
   }
 }
 
@@ -746,7 +749,6 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
-  if (spec.kind === 'push-handshake-hold') return holdPushHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
@@ -798,11 +800,18 @@ const awaitFaultPending: BrowserCommand<[string, number, number?]> = (
       `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
   )
 
-const awaitPushSocketLive: BrowserCommand<[]> = (ctx): Promise<void> =>
+const awaitRpcSocketLive: BrowserCommand<[]> = async (ctx): Promise<void> =>
   withinDeadline(
-    requirePush(ctx).awaitLive(),
+    (await importTestkit(ctx)).rpcSocketFor(ctx.page).awaitLive(),
     AWAIT_RPC_TIMEOUT_MS,
-    () => `no push socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+    () => `no rpc socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+  )
+
+const awaitRpcSocketsRevoked: BrowserCommand<[number]> = async (ctx, count): Promise<void> =>
+  withinDeadline(
+    (await importTestkit(ctx)).rpcSocketFor(ctx.page).awaitEngineCloses(REVOKED_SOCKET_CLOSE_CODE, count),
+    AWAIT_RPC_TIMEOUT_MS,
+    () => `the engine did not close ${count} rpc sockets as revoked within ${AWAIT_RPC_TIMEOUT_MS}ms`,
   )
 
 const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
@@ -867,8 +876,32 @@ const openedFrom: BrowserCommand<[name: string]> = async (ctx, name): Promise<st
   return url
 }
 
+const newerDraftTabs = new WeakMap<BrowserCommandContext['page'], BrowserCommandContext['page']>()
+
+const openNewerDraftTab: BrowserCommand<[version: number]> = async (ctx, version) => {
+  const tab = await ctx.page.context().newPage()
+  newerDraftTabs.set(ctx.page, tab)
+  await tab.goto(new URL('/conciv-newer-tab', ctx.page.url()).href, {waitUntil: 'domcontentloaded'})
+  await tab.evaluate(
+    (wanted) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open('conciv-drafts', wanted)
+        request.addEventListener('success', () => resolve())
+        request.addEventListener('error', () => reject(request.error))
+      }),
+    version,
+  )
+}
+
+const closeNewerDraftTab: BrowserCommand<[]> = async (ctx) => {
+  await newerDraftTabs.get(ctx.page)?.close()
+  newerDraftTabs.delete(ctx.page)
+}
+
 export const coreCommands = {
   chooseFiles,
+  openNewerDraftTab,
+  closeNewerDraftTab,
   editorOpened,
   openedFrom,
   downloadFrom,
@@ -876,12 +909,15 @@ export const coreCommands = {
   hoverButton,
   bootCore,
   closeCore,
+  forwardConnectPort,
+  closeConnectForward,
   pagePluginPaths,
   writeProjectFile,
   projectFileExists,
-  pushSocketsOpened,
-  pushSocketsLive,
-  awaitPushSocketLive,
+  chatStreamsOpened,
+  rpcSocketsRevoked,
+  awaitRpcSocketsRevoked,
+  awaitRpcSocketLive,
   rpcSocketsOpened,
   printedCode,
   requestCode,

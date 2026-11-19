@@ -22,6 +22,7 @@ import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types
 import {QueryClient, QueryClientProvider, type ChatTransportPreference} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
+import type {DraftWriteChain} from '../src/pane/draft-storage.js'
 import {createWarmSession} from '../src/app/warm-session.js'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
@@ -30,6 +31,7 @@ import {createClientSettings} from '@conciv/contract'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 import {createRoot, createSignal, type JSX} from 'solid-js'
+import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {createShadowRoot} from '../src/lib/shadow.js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
@@ -45,6 +47,7 @@ import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
 import {RouterProvider, createMemoryHistory, createRootRoute, createRouter} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {createBrowserDraftStore} from '../src/runtime/persistence/drafts.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
@@ -58,18 +61,23 @@ declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
     chooseFiles: (name: string, chosen: ChosenFile[]) => Promise<void>
+    openNewerDraftTab: (version: number) => Promise<void>
+    closeNewerDraftTab: () => Promise<void>
     downloadFrom: (name: string) => Promise<{name: string; text: string}>
     openedFrom: (name: string) => Promise<string>
     editorOpened: () => Promise<ReadonlyArray<{file: string; line?: number; column?: number}>>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
+    forwardConnectPort: () => Promise<number>
+    closeConnectForward: () => Promise<void>
     pagePluginPaths: () => Promise<{engine: string; rpc: string}>
     writeProjectFile: (path: string, content: string) => Promise<void>
     projectFileExists: (path: string) => Promise<boolean>
-    pushSocketsOpened: () => Promise<number>
-    pushSocketsLive: () => Promise<number>
-    awaitPushSocketLive: () => Promise<void>
+    chatStreamsOpened: () => Promise<number>
+    rpcSocketsRevoked: () => Promise<number>
+    awaitRpcSocketsRevoked: (count: number) => Promise<void>
+    awaitRpcSocketLive: () => Promise<void>
     rpcSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
@@ -90,7 +98,7 @@ declare module 'vitest/internal/browser' {
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>
-    rpcStartedOnceServed: (served: string[], count: number, started: string[][]) => Promise<number[]>
+    rpcStartedOnceServed: (served: string[], count: number, started: string[][], input?: unknown) => Promise<number[]>
     rpcMark: () => Promise<number>
     awaitRpcFailedCount: (path: string[], status: number, count: number, since: number) => Promise<void>
     installFault: (spec: FaultSpec) => Promise<string>
@@ -132,6 +140,7 @@ export async function seedDraft(rpc: RpcClient, sessionId: string, draft: Seeded
     selectionStart: text.length,
     selectionEnd: text.length,
     attachments: draft.attachments ?? [],
+    updatedAt: Date.now(),
   })
 }
 
@@ -209,13 +218,14 @@ type AppContextValueOptions = {
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
   transport?: ChatTransportPreference
+  engineOnlyDrafts?: boolean
 }
 
 function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpcClient): AppContextValue {
   const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient)
+  const data = makeAppData(rpc, queryClient, options.engineOnlyDrafts ? null : createBrowserDraftStore(), () => false)
   const connected = () => true
   const liveSessions = makeLiveSessions({
     active: () => null,
@@ -244,11 +254,11 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
       right: '1.25rem',
       top: 'calc(100% - 4.5rem)',
     }),
+    panelWidthCap: () => document.documentElement.clientWidth - 40,
     instances: options.instances ?? [],
     connected,
     arrivedFromConnect: () => false,
     connectBind: async () => '',
-    connectMode: false,
     connectionGeneration: () => 0,
     apiBase: () => options.base,
     notifyInteractive: () => {},
@@ -272,12 +282,14 @@ export type PaneMountOptions = {
   width?: number
   transport?: ChatTransportPreference
   onNewSession?: () => void
+  engineOnlyDrafts?: boolean
 }
 
 export type PaneMount = {
   dispose: () => void
   pane: PaneContextValue
   data: AppData
+  keepDraft: DraftWriteChain
   queryClient: QueryClient
   refetch: () => Promise<void>
   setWidth: (pixels: number) => void
@@ -306,6 +318,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         announce: (message) => setAnnounced((entries) => [...entries, message]),
         instances,
         transport: options.transport,
+        engineOnlyDrafts: options.engineOnlyDrafts,
       },
       client,
     )
@@ -349,7 +362,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
           <NoticeContextProvider>
             <DialogProvider>
-              <PluginRoot>
+              <PluginRoot composed={[]} servers={false}>
                 <PluginAttachment>
                   <PaneContext.Provider value={pane}>
                     <HostApiProvider
@@ -382,12 +395,14 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     dispose: () => {
       mounted.unmount()
       for (const instance of instances) instance.dispose()
+      chatRoot.app.data.dispose()
       chatRoot.dispose()
       reachabilityRoot.dispose()
       client.close()
     },
     pane,
     data,
+    keepDraft: app.liveSessions.keepDraft,
     queryClient,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
     setWidth,
@@ -400,7 +415,26 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
-  connect?: boolean
+  plugins?: readonly ComposedPlugin[]
+}
+
+function shellLogin(
+  options: ShellMountOptions['login'],
+  onDispose: (dispose: () => void) => void,
+): ReturnType<typeof createEngineLogin> | undefined {
+  if (!options) return undefined
+  const login = createRoot((dispose) => {
+    onDispose(dispose)
+    return createEngineLogin({apiBase: () => options.apiBase, tokenSource: options.tokenSource})
+  })
+  void startEngineLogin(login)
+  return login
+}
+
+function shellSettings(options: ShellMountOptions) {
+  return parseConcivSettings(
+    JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
+  )
 }
 
 function mountConcivRoot(inShadow: boolean): {
@@ -440,7 +474,7 @@ function connectShellRpc(session: () => string | null) {
 }
 
 function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
-  return options.connect ? connectShellRpc(session) : boundShellRpc(apiBase, session)
+  return options.plugins ? connectShellRpc(session) : boundShellRpc(apiBase, session)
 }
 
 type ShellHarness = {
@@ -472,14 +506,9 @@ export function createShellHarness(base: () => string): ShellHarness {
     options: ShellMountOptions = {},
   ): void => {
     const apiBase = options.login?.apiBase ?? base()
-    const loginOptions = options.login
-    const login =
-      loginOptions &&
-      createRoot((disposeLogin) => {
-        mounted.disposeLogin = disposeLogin
-        return createEngineLogin({apiBase: () => apiBase, tokenSource: loginOptions.tokenSource})
-      })
-    if (login) void startEngineLogin(login)
+    const login = shellLogin(options.login, (dispose) => {
+      mounted.disposeLogin = dispose
+    })
     const activeSession: {read: () => string | null} = {read: () => null}
     const session = () => activeSession.read()
     const shellRpc = shellRpcFor(options, apiBase, session)
@@ -491,15 +520,14 @@ export function createShellHarness(base: () => string): ShellHarness {
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: shell.root ?? document, document},
-      settings: parseConcivSettings(
-        JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
-      ),
+      settings: shellSettings(options),
       apiBase: options.apiBase ?? shellRpc.apiBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
-      connectMode: options.connect,
       bindApiBase: shellRpc.bindApiBase,
       connectionGeneration: () => 0,
       extensions,
+      plugins: options.plugins,
+      servers: options.plugins !== undefined,
       login,
       bindActiveSession: (read) => {
         activeSession.read = read

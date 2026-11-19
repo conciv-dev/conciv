@@ -16,7 +16,7 @@ The `conciv-publish` citty command tree. It runs release guards (workspace root,
   - `snapshot` (positional `tag`, default `beta`): `assertValidTag`, `assertPublicSet`, `assertPublicDepsPublic`, `changeset version --snapshot <tag>`, turbo, `changeset publish --tag <tag>`.
   - `sync` (`--dry-run`, `--json`): plans from `registryRecord` states and applies publish/trust/tag actions.
   - `swift-mirror` (`--dry-run`): constants `MIRROR_REPOSITORY` = `'conciv-dev/conciv-swift'`, `MIRROR_TREE` = `'native/swift'`, `BRIDGE_MANIFEST` = `'packages/extensions/ios/package.json'`.
-- `PUBLIC_PACKAGES` (`guards.ts`): the 41 public `@conciv/*` package names.
+- `PUBLIC_PACKAGES` (`guards.ts`): the 47 public `@conciv/*` package names.
 - Guards (`guards.ts`): `assertWorkspaceRoot`, `assertValidTag`, `assertValidPackageName`, `assertVersioned`, `assertBootstrappable`, `assertChangesetsResolve`, `assertPublishedChangesCovered`, `assertPublicSet`, `assertPublicDepsPublic`, `assertSharedDependenciesCatalogued`.
 - `qualifiesForCoverage(path, filesAllowlist)` (`coverage-files.ts`).
 - `assertTypecheckCoversTrackedFiles(cwd)` (`typecheck-coverage.ts`).

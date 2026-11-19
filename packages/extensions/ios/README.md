@@ -1,10 +1,10 @@
 # @conciv/extension-ios
 
-Internal built-in extension for driving a native iOS (simulator) app from the conciv
-agent. It ships the WKWebView page and native bridge protocol, the `ios_build`,
-`ios_run`, `ios_screenshot` and `ios_logs` server tools, and the transport plumbing that points
-the in-app WebView at the dev core. Installed automatically by `@conciv/it`; do not
-install directly.
+The WKWebView half of the conciv iOS integration: the page and native bridge protocol,
+the page-side bridge client, and the client extension that `@conciv/embed`'s native page
+mounts inside the in-app WebView. Installed through `@conciv/embed`; do not install
+directly. The `ios_build`, `ios_run`, `ios_screenshot` and `ios_logs` tools and the iOS
+system prompt live in [`@conciv/plugin-ios`](../../plugins/ios/README.md).
 
 Early alpha: the iOS SDK is on the `0.0.x` line. The bridge protocol and the public
 API change without notice while `0.0.x` lasts, and the iOS simulator is the only
@@ -64,7 +64,7 @@ on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop docu
 picks up). The value is the core's own apiBase with no `/native` suffix: the SDK appends
 the `/native` route itself, so passing a URL that already ends in `/native` would load
 `/native/native`. It carries the `/t/<token>` prefix when the core minted an access
-token. Set `concivUrl` in the ios extension config to override it, again as the API base
+token. Set `concivUrl` in the `@conciv/plugin-ios` options to override it, again as the API base
 without `/native`.
 
 ## Pairing file and discovery
@@ -136,17 +136,16 @@ shipped source).
 
 ## Interface
 
-- `exports["."]` (`package.json`): maps to `./dist/server.js` and `./dist/server.d.ts`
 - `exports["./client"]` (`package.json`): maps to `./dist/client.js` and `./dist/client.d.ts`
 - `exports["./bridge"]` (`package.json`): maps to `./dist/shared/bridge.js`
 - `exports["./bridge-client"]` (`package.json`): maps to `./dist/shared/bridge-client.js`
 - `scripts.gen:fixtures` (`package.json`): runs `node test/fixtures/bridge/gen.ts`
 - `scripts.build` (`package.json`): runs `tsdown && vite build && tsc -p tsconfig.build.json`
-- default export `defineConfig` (`tsdown.config.ts`): ESM entries `src/server.ts`, `src/shared/bridge.ts` and `src/shared/bridge-client.ts`, with `dts: false`
+- default export `defineConfig` (`tsdown.config.ts`): ESM entries `src/shared/bridge.ts` and `src/shared/bridge-client.ts`, with `dts: false`
 - default export `defineConfig` (`vite.config.ts`): ES lib build of `src/client.tsx` to `client.js`, with `emptyOutDir: false` and sourcemaps
 - default export `defineConfig` (`vitest.config.ts`): spreads `ciTest()` and includes `test/**/*.test.ts`
 - Subdirectories:
-  - [src](./src/README.md): Entry points of the iOS extension: `server.ts` registers four simulator tools, and `client.tsx` connects the WKWebView page to the native bridge.
+  - [src](./src/README.md): Entry point of the iOS extension: `client.tsx` connects the WKWebView page to the native bridge.
 
 ## Invariants
 

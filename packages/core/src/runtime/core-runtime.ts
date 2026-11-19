@@ -1,10 +1,11 @@
 import {eq, lt} from 'drizzle-orm'
+import {Effect} from 'effect'
 import type {SessionId, NavigationWrite} from '@conciv/protocol/chat-types'
 import type {EngineStaleness, RawFrame, SourceLoc, ToolCommandSignature} from '@conciv/contract'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
 import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
 import {pageQueryStream} from '../page/page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
@@ -17,7 +18,7 @@ export type CoreRuntimeDeps = {
   primitives: SessionPrimitives
   plane: ChatPlane
   db: ConcivDb
-  model: (sessionId: SessionId) => string | null
+  model: (sessionId: SessionId) => Promise<string | null>
   staleness: () => EngineStaleness
   interruptIdle: (sessionId: SessionId, stopped: boolean) => Promise<boolean>
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
@@ -54,17 +55,19 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
     symbolicate: deps.symbolicate,
     navigation: {
       get: async () => {
-        const rows = await db.select().from(navigation).where(eq(navigation.id, 'navigation'))
+        const rows = await Effect.runPromise(db.select().from(navigation).where(eq(navigation.id, 'navigation')))
         const row = rows[0]
         return row ? {entries: row.entries, index: row.index, updatedAt: row.updatedAt} : null
       },
       set: async (write: NavigationWrite) => {
         if (write.updatedAt > Date.now() + MAX_NAVIGATION_CLOCK_SKEW_MS) return {ok: true as const, applied: false}
         const row = {id: 'navigation', entries: write.entries, index: write.index, updatedAt: write.updatedAt}
-        const result = await db
-          .insert(navigation)
-          .values(row)
-          .onConflictDoUpdate({target: navigation.id, set: row, setWhere: lt(navigation.updatedAt, write.updatedAt)})
+        const result = await Effect.runPromise(
+          db
+            .insert(navigation)
+            .values(row)
+            .onConflictDoUpdate({target: navigation.id, set: row, setWhere: lt(navigation.updatedAt, write.updatedAt)}),
+        )
         return {ok: true as const, applied: Number(result.changes) > 0}
       },
     },
@@ -73,23 +76,21 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const {page, registry, stream} = deps.primitives
-  const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
-  const requestFor = (options: {toolCallId?: string; signal?: AbortSignal} = {}): ToolRequest => ({
+  const requestFor = async (options: {toolCallId?: string; signal?: AbortSignal} = {}): Promise<ToolRequest> => ({
     sessionId: id,
     agentId,
-    model,
+    model: await deps.model(id),
     ...(options.toolCallId === undefined ? {} : {toolCallId: options.toolCallId}),
     ...(options.signal === undefined ? {} : {signal: options.signal}),
   })
   return {
     id,
-    model,
     tools: {
-      call: (name, input, options) =>
+      call: async (name, input, options) =>
         registry.call(name, input, {
-          request: requestFor(options),
+          request: await requestFor(options),
           ...(options?.gate === undefined ? {} : {gate: options.gate}),
         }),
       has: (name) => registry.has(name),
@@ -98,6 +99,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
       queries: (signal, focus) => pageQueryStream(page.bus, id, signal, focus),
+      focus: (browserTab, report) => page.bus.focus(id, browserTab, report),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
       changes: () => page.journal.list(id),
@@ -138,14 +140,20 @@ async function* caughtUpThenLive(
   missed: () => Promise<ChatEvent[]>,
 ): AsyncGenerator<ChatEvent> {
   const first = live.next()
-  yield* await missed().catch((error: unknown) => {
+  const caught = await missed().catch((error: unknown): ChatEvent[] => {
     logError(`[core] reading what a new subscriber missed failed: ${String(error)}`)
     return []
   })
+  yield* caught
   const opened = await first
   if (opened.done === true) return
-  yield opened.value
+  if (!announcedAgain(opened.value, caught)) yield opened.value
   yield* live
+}
+
+function announcedAgain(event: ChatEvent, caught: ChatEvent[]): boolean {
+  const runId = sessionRunEvent.parse(event)?.runId
+  return runId !== undefined && caught.some((missed) => sessionRunEvent.parse(missed)?.runId === runId)
 }
 
 function established(raw: SessionScope): SessionScope {
@@ -159,6 +167,7 @@ function established(raw: SessionScope): SessionScope {
       ...raw.page,
       ask: inScope(raw.page.ask),
       queries: inScope(raw.page.queries),
+      focus: inScope(raw.page.focus),
       reply: inScope(raw.page.reply),
       changes: inScope(raw.page.changes),
       clearChanges: inScope(raw.page.clearChanges),

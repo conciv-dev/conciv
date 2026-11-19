@@ -14,7 +14,7 @@ import type {
 } from '@conciv/contract'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {RegistryCallGate, ToolRequest} from '@conciv/protocol/tool-call-types'
-import type {BrowserTabFocus, ChangeEntry} from '../page/page-bus.js'
+import type {BrowserTabFocusReport, ChangeEntry, PageQueryStreamItem} from '../page/page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type ToolCatalog = ToolRegistry['catalog']
@@ -33,7 +33,8 @@ export type SessionTools = {
 
 export type SessionPage = {
   ask: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
-  queries: (signal: AbortSignal, focus?: () => BrowserTabFocus) => AsyncGenerator<{requestId: string; query: unknown}>
+  queries: (signal: AbortSignal, focus: BrowserTabFocusReport) => AsyncGenerator<PageQueryStreamItem>
+  focus: (browserTab: string, report: BrowserTabFocusReport) => void
   reply: (requestId: string, outcome: PageOutcome) => boolean
   connected: () => boolean
   changes: () => Promise<ChangeEntry[]>
@@ -69,7 +70,6 @@ export type SessionRun = {
 
 export type SessionScope = {
   readonly id: SessionId
-  readonly model: string | null
   tools: SessionTools
   page: SessionPage
   stream: SessionStream

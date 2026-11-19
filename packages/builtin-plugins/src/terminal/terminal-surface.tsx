@@ -9,7 +9,7 @@ const ESCAPE_KEY = String.fromCharCode(27)
 
 type TerminalSize = {readonly cols: number; readonly rows: number}
 
-type PtyRequest = {readonly sessionId: string; readonly size: TerminalSize; readonly model: string | undefined}
+type PtyRequest = {readonly sessionId: string; readonly terminal: TerminalSize; readonly model: string | undefined}
 
 function resolvedColor(probe: HTMLElement, token: string): string | undefined {
   probe.style.color = `var(${token})`
@@ -23,7 +23,7 @@ function readTerminalTheme(element: Element, scheme: 'light' | 'dark'): Terminal
   element.append(probe)
   const text = resolvedColor(probe, '--chat-text-hi')
   const theme = {
-    background: resolvedColor(probe, '--chat-panel'),
+    background: resolvedColor(probe, '--chat-bg'),
     foreground: text,
     cursor: text,
     selectionBackground: resolvedColor(probe, '--chat-fill-strong'),
@@ -59,7 +59,7 @@ function keepFocusInsideTheWidget(element: HTMLElement): void {
 
 async function openPty(server: ServerRef, request: PtyRequest): Promise<{ptyId: string; url: string}> {
   const terminal = server.client.experimental.persistentPty
-  const size = {cols: request.size.cols, rows: request.size.rows}
+  const size = {cols: request.terminal.cols, rows: request.terminal.rows}
   const pty = await terminal.create({sessionId: request.sessionId, size, model: request.model})
   const {ticket} = await terminal.connectToken({ptyId: pty.id})
   const url = new URL(`${server.url}/api/experimental/persistent-pty/${pty.id}/connect`, window.location.href)
@@ -84,13 +84,13 @@ export default function TerminalSurface(props: {
   const model = createTerminalModel({
     url: () => connection.url,
     socket: engineWebSocket(server.url),
-    beforeConnect: async (size) => {
-      const request = {sessionId, size, model: untrack(() => props.terminal.spawnModel(sessionId))}
+    beforeConnect: async (terminal) => {
+      const request = {sessionId, terminal, model: untrack(() => props.terminal.spawnModel(sessionId))}
       const pty = await openPty(server, request).catch((cause: unknown) => {
         console.error('[terminal] opening the session terminal failed', cause)
         ctx.toast.show({title: OPEN_FAILED, variant: 'error'})
         props.terminal.fail(terminalKey, OPEN_FAILED)
-        throw new Error(OPEN_FAILED)
+        throw new Error(OPEN_FAILED, {cause})
       })
       connection.url = pty.url
       props.terminal.opened({key: terminalKey, ptyId: pty.ptyId, busy: model.busy})
@@ -101,17 +101,14 @@ export default function TerminalSurface(props: {
         untrack(() => ctx.appearance.mode()),
       ),
   })
+  model.terminal.options.fontFamily = readTerminalFont(
+    untrack(() => props.themeHost()),
+    ctx.appearance.font('mono'),
+  )
   createKeyed(
     () => ctx.appearance.mode(),
     (scheme) => {
       model.terminal.options.theme = readTerminalTheme(props.themeHost(), scheme)
-    },
-  )
-  createKeyed(
-    () => ctx.appearance.font('mono'),
-    (font) => {
-      model.terminal.options.fontFamily = readTerminalFont(props.themeHost(), font)
-      model.fit()
     },
   )
   onCleanup(() => props.terminal.closed(terminalKey))
@@ -119,12 +116,8 @@ export default function TerminalSurface(props: {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     return true
   })
-  const surface: {element: HTMLDivElement | undefined} = {element: undefined}
-  onMount(() => {
-    if (surface.element) keepFocusInsideTheWidget(surface.element)
-  })
   const interruptOnEscape = (element: HTMLDivElement) => {
-    surface.element = element
+    onMount(() => keepFocusInsideTheWidget(element))
     makeEventListener(
       element,
       'keydown',

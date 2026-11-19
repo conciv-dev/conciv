@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-ios",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The iOS built-in extension bridge protocol: zod schemas for the WKWebView page and native message contract, and the platform-neutral page-side bridge client state machine.",
+  "description": "Internal to @conciv/embed (do not install directly). The iOS WKWebView bridge: zod schemas for the page and native message contract, the platform-neutral page-side bridge client state machine, and the client extension the native page mounts.",
   "keywords": [
     "bridge",
     "conciv",
@@ -22,15 +22,6 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
-    },
     "./client": {
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
@@ -64,8 +55,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/core": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",

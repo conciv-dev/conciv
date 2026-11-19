@@ -2,11 +2,11 @@
 
 ## Overview
 
-Internal test package. `package.json` exports `src/browser-fixture.ts` directly (no build) and has no `@conciv/*` dependencies, so any package can use it without a workspace dependency cycle.
+Published test package. `package.json` exports the tsdown build of `src/browser-fixture.ts` in `dist` and has no `@conciv/*` dependencies, so any package can use it without a workspace dependency cycle.
 
 ## Subdirectories & Boundaries
 
-- [src](./src/README.md) - `test`, a vitest fixture that gives each test file one Playwright Chromium (`package.json:exports["."]` points at `./src/browser-fixture.ts`).
+- [src](./src/README.md) - `test`, a vitest fixture that gives each test file one Playwright Chromium (`package.json:exports["."]` points at `./dist/browser-fixture.js`).
 
 ## Verification
 

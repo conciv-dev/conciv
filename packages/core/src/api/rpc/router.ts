@@ -321,22 +321,25 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     drafts: {
       get: os.drafts.get.handler(async ({input}) => {
-        const rows = await db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
+        const rows = await Effect.runPromise(db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId)))
         return rows[0] ?? null
       }),
       set: os.drafts.set.handler(async ({input}) => {
-        const row = {...input, updatedAt: Date.now()}
-        await db.insert(drafts).values(row).onConflictDoUpdate({target: drafts.sessionId, set: row})
+        await Effect.runPromise(
+          db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input}),
+        )
         return {ok: true as const}
       }),
     },
     markers: {
       list: os.markers.list.handler(({input}) =>
-        db
-          .select()
-          .from(markers)
-          .where(eq(markers.sessionId, input.sessionId))
-          .orderBy(asc(sql`rowid`)),
+        Effect.runPromise(
+          db
+            .select()
+            .from(markers)
+            .where(eq(markers.sessionId, input.sessionId))
+            .orderBy(asc(sql`rowid`)),
+        ),
       ),
     },
     navigation: {
@@ -468,9 +471,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
         hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
       ),
-      queries: sessionOs.page.queries.handler(({context, signal}) =>
-        context.session.page.queries(signal ?? new AbortController().signal),
+      queries: sessionOs.page.queries.handler(({input, context, signal}) =>
+        context.session.page.queries(signal ?? new AbortController().signal, input.focus),
       ),
+      focus: sessionOs.page.focus.handler(({input, context}) => {
+        context.session.page.focus(input.browserTab, input)
+        return {ok: true as const}
+      }),
       reply: sessionOs.page.reply.handler(({input, context, errors}) => {
         if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
@@ -481,7 +488,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     meta: {
       models: os.meta.models.handler(async ({input}) => {
-        const harness = chat.harnessFor(input.sessionId)
+        const harness = await chat.harnessFor(input.sessionId)
         const models = await resolveHarnessModels(harness, {signal: chat.signal})
         return {
           models,
@@ -496,7 +503,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       commands: os.meta.commands.handler(({input, context}) =>
         listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),
-      tools: os.meta.tools.handler(() => ({tools: deps.tools})),
+      tools: os.meta.tools.handler(async ({input}) => ({tools: await deps.tools(input.sessionId)})),
       engine: os.meta.engine.handler(() => engine.staleness()),
       hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),

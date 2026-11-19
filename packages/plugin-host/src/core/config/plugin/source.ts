@@ -4,7 +4,7 @@ import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
-import {Context, Effect, FiberMap, Layer, Option, PubSub, Scope, Semaphore, Stream} from 'effect'
+import {Context, Effect, Exit, Fiber, FiberMap, Layer, Option, PubSub, Schedule, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
@@ -40,27 +40,39 @@ export const layer = Layer.effect(
     const fs = yield* FSUtil.Service
     const location = yield* Location.Service
     const configuredChanges = yield* PubSub.unbounded<void>()
-    const watched = new Set<string>()
     const concivDirectory = path.join(location.directory, 'conciv')
     const watchUpdates = yield* PubSub.unbounded<Watcher.Update>()
     const reloads = yield* PubSub.sliding<void>(1)
     const requestReload = PubSub.publish(reloads, undefined).pipe(Effect.asVoid)
     const reloadLock = Semaphore.makeUnsafe(1)
     const watches = yield* FiberMap.make<string>()
+    const configuredWatches = yield* FiberMap.make<string>()
+    const layerScope = yield* Effect.scope
+    const afterRootDeleted = (watch: Fiber.Fiber<Option.Option<Watcher.Update>>, announce: Effect.Effect<void>) =>
+      Fiber.await(watch).pipe(
+        Effect.flatMap((exit) => (Exit.isSuccess(exit) && Option.isSome(exit.value) ? announce : Effect.void)),
+        Effect.forkIn(layerScope),
+      )
+    const untilArmed = (watch: Effect.Effect<Option.Option<Watcher.Update>>) =>
+      watch.pipe(Effect.repeat({schedule: Schedule.exponential('100 millis'), times: 4, until: Option.isSome}))
     const reconcile = Effect.fn('ConfigPluginSource.reconcileWatches')(function* () {
       const plan = watchPlan(location.directory, concivDirectory, yield* fs.isDir(concivDirectory))
-      for (const key of Array.from(watches, ([key]) => key)) {
+      for (const key of Array.from(watches, ([existing]) => existing)) {
         if (!plan.has(key)) yield* FiberMap.remove(watches, key)
       }
       for (const [key, target] of plan) {
-        yield* watcher
-          .subscribe(target, requestReload)
-          .pipe(
-            Effect.flatMap(
-              Stream.runForEach((update) => PubSub.publish(watchUpdates, update).pipe(Effect.andThen(requestReload))),
+        if (yield* FiberMap.has(watches, key)) continue
+        const watch = yield* watcher.subscribe(target, requestReload).pipe(
+          Effect.flatMap((updates) =>
+            updates.pipe(
+              Stream.tap((update) => PubSub.publish(watchUpdates, update).pipe(Effect.andThen(requestReload))),
+              Stream.runLast,
             ),
-            FiberMap.run(watches, key, {onlyIfMissing: true, startImmediately: true}),
-          )
+          ),
+          untilArmed,
+          FiberMap.run(watches, key, {startImmediately: true}),
+        )
+        yield* afterRootDeleted(watch, requestReload)
       }
     })
     const reload = Effect.fn('ConfigPluginSource.reload')(
@@ -79,34 +91,59 @@ export const layer = Layer.effect(
       Effect.forkScoped({startImmediately: true}),
     )
 
-    const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(function* (
-      operations: readonly Operation[],
-    ) {
-      for (const operation of operations) {
-        if (operation.type !== 'add' || !path.isAbsolute(operation.target)) continue
-        if (watched.has(operation.target)) continue
-        if (isDirectorySource(concivDirectory, operation.target)) continue
-        watched.add(operation.target)
-        const updates = yield* watcher.subscribe({
-          path: operation.target,
-          type: (yield* fs.isDir(operation.target)) ? 'directory' : 'file',
-        })
-        yield* updates.pipe(
-          Stream.runForEach(() => PubSub.publish(configuredChanges, undefined)),
-          Effect.catchCause((cause) =>
-            Effect.logError('configured plugin watch failed', {target: operation.target, cause}),
-          ),
-          Effect.forkScoped({startImmediately: true}),
+    const configuredChanged = PubSub.publish(configuredChanges, undefined).pipe(Effect.asVoid)
+    const configuredTargets = Effect.sync(() =>
+      configuredOperations(location, plugins).flatMap((operation) =>
+        operation.type === 'add' &&
+        path.isAbsolute(operation.target) &&
+        !isDirectorySource(concivDirectory, operation.target)
+          ? [operation.target]
+          : [],
+      ),
+    )
+    const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(
+      function* () {
+        const targets = yield* configuredTargets
+        const inputs = yield* Effect.forEach(targets, (target) =>
+          fs
+            .isDir(target)
+            .pipe(
+              Effect.map((directory): Watcher.WatchInput => ({path: target, type: directory ? 'directory' : 'file'})),
+            ),
         )
-      }
-    })
+        const plan = new Map(inputs.map((input) => [JSON.stringify(input), input]))
+        for (const key of Array.from(configuredWatches, ([existing]) => existing)) {
+          if (!plan.has(key)) yield* FiberMap.remove(configuredWatches, key)
+        }
+        for (const [key, input] of plan) {
+          if (yield* FiberMap.has(configuredWatches, key)) continue
+          const watch = yield* watcher.subscribe(input).pipe(
+            Effect.flatMap((updates) =>
+              updates.pipe(
+                Stream.tap(() => configuredChanged),
+                Stream.runLast,
+              ),
+            ),
+            untilArmed,
+            Effect.catchCause((cause) =>
+              Effect.logError('configured plugin watch failed', {target: input.path, cause}).pipe(
+                Effect.as(Option.none<Watcher.Update>()),
+              ),
+            ),
+            FiberMap.run(configuredWatches, key, {startImmediately: true}),
+          )
+          yield* afterRootDeleted(watch, configuredChanged)
+        }
+      },
+      (effect) => reloadLock.withPermit(effect),
+    )
 
     yield* reloadLock.withPermit(reconcile())
 
     return Service.of({
       operations: Effect.fn('ConfigPluginSource.operations')(function* () {
         const operations = yield* scan(fs, location, concivDirectory, plugins)
-        yield* watchConfiguredSources(operations)
+        yield* watchConfiguredSources()
         return operations
       }),
       changes: () =>
@@ -155,6 +192,18 @@ function parse(input: ConfigPlugin.Plugin): Operation {
   return {type: 'remove', target: input.slice(1)}
 }
 
+function configuredOperations(location: Location.Interface, plugins: readonly ConfigPlugin.Plugin[]) {
+  return plugins.map(parse).map((operation): Operation => {
+    if (operation.type === 'remove') return operation
+    const target = operation.target.startsWith('file://')
+      ? fileURLToPath(operation.target)
+      : operation.target.startsWith('./') || operation.target.startsWith('../')
+        ? path.resolve(location.directory, operation.target)
+        : operation.target
+    return {...operation, target}
+  })
+}
+
 const scan = Effect.fn('ConfigPluginSource.scan')(function* (
   fs: FSUtil.Interface,
   location: Location.Interface,
@@ -164,15 +213,7 @@ const scan = Effect.fn('ConfigPluginSource.scan')(function* (
   const discovered = yield* PluginSourceDirectory.discover(fs, concivDirectory).pipe(
     Effect.map((targets) => targets.map((target): Operation => ({type: 'add', target, options: {}}))),
   )
-  const configured = plugins.map(parse).map((operation) => {
-    if (operation.type === 'remove') return operation
-    const target = operation.target.startsWith('file://')
-      ? fileURLToPath(operation.target)
-      : operation.target.startsWith('./') || operation.target.startsWith('../')
-        ? path.resolve(location.directory, operation.target)
-        : operation.target
-    return {...operation, target}
-  })
+  const configured = configuredOperations(location, plugins)
   const resolved = yield* Effect.forEach(configured, (operation) =>
     Effect.gen(function* () {
       if (operation.type === 'remove' || !path.isAbsolute(operation.target)) return Option.some(operation)

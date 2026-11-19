@@ -54,6 +54,7 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

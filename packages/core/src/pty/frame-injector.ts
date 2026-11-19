@@ -15,14 +15,18 @@ function sanitizeInjection(text: string): string {
 
 export function createFrameInjector(write: (chunk: string) => void): FrameInjector {
   const queue: string[] = []
-  const state = {carry: '', inFrame: false, queue}
+  const state = {carry: '', inFrame: false, queue, written: false}
 
   const flush = (): void => {
-    for (const text of state.queue.splice(0)) write(`\r\n${text}\r\n`)
+    for (const text of state.queue.splice(0)) {
+      write(`${state.written ? '\r\n' : ''}${text}\r\n`)
+      state.written = true
+    }
   }
 
   const feed = (chunk: string): void => {
     write(chunk)
+    state.written ||= chunk.length > 0
     const text = state.carry + chunk
     const cursor = {end: 0}
     for (const match of text.matchAll(MARKER)) {

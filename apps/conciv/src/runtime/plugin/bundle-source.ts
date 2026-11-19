@@ -10,9 +10,9 @@ import {
   type BridgePluginExperimental,
   type BridgePluginExperimentals,
   type EnableState,
+  type Entry,
   type Installed,
 } from '@conciv/plugin/experimental/host'
-import {builtins} from './builtins'
 import {
   createHostState,
   isCurrentHostWatch,
@@ -86,8 +86,9 @@ function endpointFor(url: string): HostEndpoint | undefined {
 export function createBundleSource(input: {
   readonly client: ConcivClient
   readonly apiBase: Accessor<string>
+  readonly builtins: readonly Entry[]
 }): BundleSource {
-  const local = builtins.map((definition) => definition.id)
+  const local = input.builtins.map((definition) => definition.id)
   const enableStore = createManager(input.client, local)
   const plugins = new Map<string, BridgePluginExperimental>()
   const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
@@ -102,7 +103,12 @@ export function createBundleSource(input: {
   const firstListing = Promise.withResolvers<void>()
   const followed = () => (machine.following.status === 'following' ? machine.following.endpoint : undefined)
 
-  firstListing.promise.catch(() => undefined)
+  firstListing.promise.then(
+    () => {
+      if (plugins.size === 0) publish()
+    },
+    () => undefined,
+  )
 
   const dispatch = (event: HostEvent<Listing>) => {
     const next = transitionHost(machine.following, event)
@@ -249,7 +255,7 @@ export function createBundleSource(input: {
 
     const shipped = listed.filter(shipsPluginExperimental)
     const reserved = ReservedSchema.parse(
-      shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, builtins) ? [] : [plugin.id])),
+      shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, input.builtins) ? [] : [plugin.id])),
     )
 
     const parts = {
@@ -308,6 +314,10 @@ export function createBundleSource(input: {
     inventory.server = next.parts.server
     inventory.unreadable = next.parts.unreadable
     changed()
+    publish()
+  }
+
+  const publish = () => {
     const message: PluginExperimentalsMessage = {type: 'pluginExperimentals', ...pluginExperimentals()}
     listeners.forEach((listener) => listener(message))
   }

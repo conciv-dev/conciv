@@ -1,4 +1,6 @@
 import type {ParsedLocation, RegisteredRouter} from '@tanstack/react-router'
+import type {PluginEntry} from '@conciv/embed'
+import type {Plugin} from '@conciv/plugin/experimental'
 import {PANEL_TOGGLED_EVENT, type WidgetPanelToggledDetail} from '@conciv/protocol/event-bus'
 import {panelCommands} from './panel-commands'
 import {rootSearchSchema} from './search-schemas'
@@ -48,13 +50,23 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; router: Regist
     shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam, dismissed, widgetPresent: false}) || tryParam
   ensureWidgetMeta(defaultOpen)
 
-  const [embed, terminal, tryItModule] = await Promise.all([
+  const [embed, tryIt, host] = await Promise.all([
     import('@conciv/embed'),
-    import('@conciv/extension-terminal/client'),
-    import('@conciv/extension-try-it/client'),
+    import('@conciv/plugin-try-it'),
+    import('@conciv/plugin/experimental/host'),
   ])
   if (document.querySelector('[data-conciv-root]')) return
-  await embed.mountConciv([terminal.default, tryItModule.tryIt({token})])
+  const plugins = host
+    .compose({
+      'try-it': {
+        windowEntry: async () => {
+          const setup: Plugin.Setup<typeof tryIt.default> = (ctx) => tryIt.default.setup?.(ctx)
+          return {default: setup}
+        },
+      },
+    })
+    .map((entry): PluginEntry => [entry, {token}])
+  await embed.mountConciv([], plugins)
 
   let hasBeenOpen = false
   window.addEventListener(PANEL_TOGGLED_EVENT, (event) => {
