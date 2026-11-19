@@ -16,15 +16,6 @@ export type Chat = UseChatReturn
 
 export type CreateChatOptions = Parameters<typeof useChat>[0]
 
-type SentContent = Parameters<Chat['sendMessage']>[0]
-
-function withSeparatedText(sent: SentContent): SentContent {
-  if (typeof sent === 'string' || typeof sent.content === 'string') return sent
-  const texts = sent.content.flatMap((part) => (part.type === 'text' ? [part.content] : []))
-  if (texts.length < 2 || texts.length < sent.content.length) return sent
-  return {...sent, content: texts.join('\n')}
-}
-
 export type ChatApprovalScope = 'once' | 'session'
 
 export type ChatSessionHydration = {
@@ -367,10 +358,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     if (runSource()?.lifecycle.runId === lastLocalRunId()) return undefined
     return refused
   }
-  const sendMessage: Chat['sendMessage'] = async (content, ...rest) => {
+  const sendMessage: Chat['sendMessage'] = async (...args) => {
     const before = run()
     const errorBefore = chat.error()
-    await chat.sendMessage(withSeparatedText(content), ...rest)
+    await chat.sendMessage(...args)
     const failure = neverLeft(before, errorBefore)
     if (failure === undefined) return
     chat.setMessages(beforeLastUser(chat.messages()))
