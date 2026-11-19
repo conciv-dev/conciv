@@ -327,7 +327,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
         if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
       }
       if (chat.plane.driving(input.sessionId)) throw errors.SESSION_RUNNING()
-      switchRowHarness(db, input.sessionId, target.id, model)
+      await switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
     compact: os.sessions.compact.handler(async ({input, errors}) => {
