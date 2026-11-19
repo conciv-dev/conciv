@@ -71,9 +71,10 @@ declare module 'vitest/internal/browser' {
     pagePluginPaths: () => Promise<{engine: string; rpc: string}>
     writeProjectFile: (path: string, content: string) => Promise<void>
     projectFileExists: (path: string) => Promise<boolean>
-    pushSocketsOpened: () => Promise<number>
-    pushSocketsLive: () => Promise<number>
-    awaitPushSocketLive: () => Promise<void>
+    chatStreamsOpened: () => Promise<number>
+    rpcSocketsRevoked: () => Promise<number>
+    awaitRpcSocketsRevoked: (count: number) => Promise<void>
+    awaitRpcSocketLive: () => Promise<void>
     rpcSocketsOpened: () => Promise<number>
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
@@ -251,6 +252,7 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
       right: '1.25rem',
       top: 'calc(100% - 4.5rem)',
     }),
+    panelWidthCap: () => document.documentElement.clientWidth - 40,
     instances: options.instances ?? [],
     connected,
     arrivedFromConnect: () => false,

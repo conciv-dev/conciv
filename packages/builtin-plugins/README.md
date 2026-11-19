@@ -25,10 +25,12 @@ watched until `server.connected` (`model.ts:382-409`, `machine.ts:386-395`), not
 engine ends while the stream stays up waits for the user to focus, click or type in the tab (`woken`), as the source's
 suspended pane waits for those edges (`machine.ts:739-748`, `model.ts:513-528`). An attach the engine refuses because the session
 does not exist (deleted, or a new session before its first send; the refusal type `missing`) waits on the event stream
-for `session.created` and nothing else, with no timer. Any other attach refused before it attached (the session belongs
-to another location, or its page permissions could not be granted in time) tries again on the source's
-registration-closed back-off, 1 s doubling to 30 s (`RETRY_BASE_MS`, `RETRY_MAX_MS` in `plugin-experimental.tsx`), and
-at once when the session is created.
+for `session.created` and nothing else, with no timer. An attach that fails for a passing reason (the refusal type
+`transient`: the session could not be read, or its page permissions could not be granted in time) tries again
+without end on `TRANSIENT_RETRY` in `attachment.ts`, 1 s doubling to at most 30 s, as the source's registration-closed
+back-off does. Any other refusal before it attached (the session belongs to
+another location, or the page plugin is shutting down; the type `unavailable`) stops attaching until the server
+reconnects or the panel routes another session.
 
 The terminal runs the page tools as `conciv tools page <verb>`, as main: core's `registry.call` runs the plugin's
 tool for the session `--tab` or `CONCIV_SESSION_ID` names; `eval` from there asks as the cli README's 'Who is asked'
@@ -110,6 +112,13 @@ Each TanStack tool's card claim gives the whole card, so it draws while the call
 body) and after it finishes. The cards are built from `@conciv/ui-kit-chat/tools` and `@conciv/ui-kit-system`, which the
 widget already bundles, so the embed keeps one copy of each. The old TanStack extension keeps its own copy until that
 extension is deleted.
+
+## recorder-card
+
+The recorder tools (`recording_start`, `recording_stop`, `recording_pull`) share one card claim that draws the whole
+card: the started capture's id, the pulled or stopped window's action list with its window, action and keyframe
+counts, and a failed call's error. It lives here, not in `@conciv/plugin-recorder`, because a whole-card claim is for
+built-in plugins only and a plugin's own bundle may not import the kit the widget bundles.
 
 ## terminal
 
