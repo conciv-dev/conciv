@@ -2,7 +2,21 @@ import {mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {readFile, watch} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {Deferred, Effect, Fiber, Layer, type FileSystem, type Path} from 'effect'
+import {
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  Queue,
+  Scope,
+  Stream,
+  SubscriptionRef,
+  type FileSystem,
+  type Path,
+} from 'effect'
+import {TestClock} from 'effect/testing'
 import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
 import {keyBy} from 'es-toolkit'
 import {describe, expect, it, onTestFinished} from 'vitest'
@@ -29,16 +43,28 @@ import {
   HostPanelToggledSchema,
   NativeToPageSchema,
   OpenSchema,
+  type NeutralGrab,
   type NeutralGrabAsGrab,
+  type PageToNativeMessage,
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
 } from '../src/bridge.js'
+import {makeNativeClient, type NativeTransport} from '../src/bridge-client.js'
+import {
+  createNativeState,
+  isAnnouncing,
+  readIncompatible,
+  transitionNative,
+  type NativeEffect,
+  type NativeEvent,
+  type NativeState,
+} from '../src/bridge-machine.js'
 import {makeBuild, parseXcodebuildAppPath} from '../src/build.js'
 import {IosConfigSchema, type IosConfig} from '../src/config.js'
 import {iosSystemPrompt} from '../src/prompt.js'
 import type {IosRuntime} from '../src/config.js'
 import * as Simctl from '../src/simctl.js'
-import {nativePageBase} from '../src/native/page-base.js'
+import {nativePageBase} from '../src/page-base.js'
 import {logs, run, screenshot, type RunFailure} from '../src/tools.js'
 import {bridgeFixtures, nativeEncodeFixtures} from './fixtures/bridge/bridge.fixtures.js'
 
@@ -975,5 +1001,315 @@ describe('page base', () => {
     it('falls back to the origin when the path is not the native route', () => {
       expect(nativePageBase({origin: 'http://host', pathname: '/'})).toBe('http://host')
     })
+  })
+})
+
+const CLIENT = {clientId: 'native-test', apiBase: 'http://127.0.0.1:4599'}
+
+const HELLO = {v: 1, type: 'handshake.hello', minV: 1, maxV: 1, clientId: 'native-test', bundleReady: true}
+
+const NEUTRAL = {
+  text: 'Pay',
+  preview: {kind: 'image', dataUrl: 'data:image/png;base64,AA==', width: 10, height: 10},
+  rect: {x: 1, y: 2, width: 10, height: 10},
+  source: {componentName: 'PayButton', filePath: '', lineNumber: null},
+  subtree: {
+    class: 'PayButton',
+    a11yId: 'pay',
+    text: 'Pay',
+    rect: {x: 1.4, y: 2, width: 10, height: 10},
+    children: [{class: 'UILabel', a11yId: null, text: null, rect: {x: 1, y: 2, width: 8, height: 4}, children: []}],
+  },
+} satisfies NeutralGrab
+
+function native(message: Record<string, unknown>): NativeEvent {
+  return {type: 'native-parsed', message: NativeToPageSchema.parse(message)}
+}
+
+function replay(events: readonly NativeEvent[], from: NativeState = createNativeState(CLIENT)) {
+  return events.reduce<{state: NativeState; effects: NativeEffect[]}>(
+    (folded, event) => {
+      const next = transitionNative(folded.state, event)
+      return {state: next.state, effects: [...folded.effects, ...next.effects]}
+    },
+    {state: from, effects: []},
+  )
+}
+
+function posted(effects: readonly NativeEffect[]): unknown[] {
+  return effects.flatMap((effect) => (effect.type === 'post' ? [effect.message] : []))
+}
+
+describe('bridge machine', () => {
+  it('announces, acks, handshakes and stops announcing once ready', () => {
+    const started = replay([{type: 'started'}, {type: 'tick'}])
+    expect(started.state.link).toEqual({status: 'announcing', acked: false, apiBase: CLIENT.apiBase})
+    expect(started.effects).toEqual([
+      {type: 'schedule-tick'},
+      {type: 'post', message: {v: 1, type: 'bridge.ready'}},
+      {type: 'post', message: HELLO},
+    ])
+    expect(isAnnouncing(started.state)).toBe(true)
+
+    const acked = replay([native({v: 1, seq: 1, type: 'open'}), {type: 'tick'}], started.state)
+    expect(acked.effects).toEqual([
+      {type: 'post', message: {v: 1, type: 'bridge.ack', seq: 1}},
+      {type: 'publish', signal: {type: 'open'}},
+      {type: 'post', message: HELLO},
+    ])
+
+    const ready = replay(
+      [native({v: 1, seq: 2, type: 'handshake', apiBase: `${CLIENT.apiBase}/`, token: null}), {type: 'tick'}],
+      acked.state,
+    )
+    expect(ready.state.link).toEqual({status: 'ready', version: 1, apiBase: CLIENT.apiBase})
+    expect(ready.effects).toEqual([{type: 'post', message: {v: 1, type: 'bridge.ack', seq: 2}}])
+    expect(isAnnouncing(ready.state)).toBe(false)
+  })
+
+  it('rebinds when a handshake names another api base, before and after ready', () => {
+    const first = replay([
+      {type: 'started'},
+      native({v: 1, seq: 1, type: 'handshake', apiBase: 'http://127.0.0.1:5000', token: null}),
+    ])
+    expect(first.effects.at(-1)).toEqual({type: 'publish', signal: {type: 'rebind', apiBase: 'http://127.0.0.1:5000'}})
+    const again = replay(
+      [
+        native({v: 1, seq: 2, type: 'handshake', apiBase: 'http://127.0.0.1:5000/', token: null}),
+        native({v: 1, seq: 3, type: 'handshake', apiBase: 'http://127.0.0.1:6000', token: 'tok'}),
+      ],
+      first.state,
+    )
+    expect(again.effects.filter((effect) => effect.type === 'publish')).toEqual([
+      {type: 'publish', signal: {type: 'rebind', apiBase: 'http://127.0.0.1:6000'}},
+    ])
+    expect(again.state.link).toEqual({status: 'ready', version: 1, apiBase: 'http://127.0.0.1:6000'})
+  })
+
+  it('turns incompatible on a version mismatch, keeps announcing, and keeps the alert after a later handshake', () => {
+    const mismatch = replay([
+      {type: 'started'},
+      native({v: 2, seq: 1, type: 'handshake', apiBase: CLIENT.apiBase, token: null}),
+      {type: 'tick'},
+    ])
+    expect(readIncompatible(mismatch.state)).toEqual({nativeMinV: 2, nativeMaxV: 2})
+    expect(isAnnouncing(mismatch.state)).toBe(true)
+    expect(mismatch.effects).toEqual([
+      {type: 'schedule-tick'},
+      {type: 'post', message: {v: 1, type: 'bridge.ack', seq: 1}},
+      {type: 'log', message: 'native handshake version 2 is outside 1..1'},
+      {type: 'post', message: HELLO},
+    ])
+    const reported = replay(
+      [
+        native({v: 1, seq: 2, type: 'bridge.incompatible', nativeMinV: 2, nativeMaxV: 3}),
+        native({v: 1, seq: 3, type: 'handshake', apiBase: CLIENT.apiBase, token: null}),
+      ],
+      mismatch.state,
+    )
+    expect(readIncompatible(reported.state)).toEqual({nativeMinV: 2, nativeMaxV: 3})
+    expect(isAnnouncing(reported.state)).toBe(false)
+  })
+
+  it('picks with an attempt id, drops a stale grabResult, settles the live one and folds the subtree', () => {
+    const ready = replay([
+      {type: 'started'},
+      native({v: 1, seq: 1, type: 'handshake', apiBase: CLIENT.apiBase, token: null}),
+    ])
+    const picking = replay([{type: 'pick-requested', mode: 'activate'}], ready.state)
+    expect(picking.state.pick).toEqual({status: 'picking', requestId: 'native-test-pick-1', attempt: 1})
+    expect(picking.effects).toEqual([
+      {type: 'schedule-timeout', attempt: 1},
+      {type: 'post', message: {v: 1, type: 'grab.pick', requestId: 'native-test-pick-1', mode: 'activate'}},
+    ])
+    const second = replay([{type: 'pick-requested', mode: 'comment'}], picking.state)
+    expect(second.effects[0]).toEqual({type: 'settle', attempt: 1, outcome: {type: 'cancelled'}})
+    const settled = replay(
+      [
+        native({v: 1, seq: 2, type: 'grabResult', requestId: 'native-test-pick-1', grab: NEUTRAL}),
+        {type: 'pick-timeout', attempt: 1},
+        native({v: 1, seq: 3, type: 'grabResult', requestId: 'native-test-pick-2', grab: NEUTRAL}),
+      ],
+      second.state,
+    )
+    expect(settled.effects).toEqual([
+      {type: 'post', message: {v: 1, type: 'bridge.ack', seq: 2}},
+      {type: 'log', message: 'dropping stale grabResult for native-test-pick-1'},
+      {type: 'post', message: {v: 1, type: 'bridge.ack', seq: 3}},
+      {
+        type: 'settle',
+        attempt: 2,
+        outcome: {
+          type: 'picked',
+          grab: {
+            text: 'Pay\n\n[view]\nPayButton #pay "Pay" (1,2 10x10)\n  UILabel (1,2 8x4)',
+            preview: NEUTRAL.preview,
+            rect: NEUTRAL.rect,
+            source: NEUTRAL.source,
+          },
+        },
+      },
+    ])
+    expect(settled.state.pick).toEqual({status: 'idle'})
+  })
+
+  it('ends a pick by timeout, cancel, native cancel, native failure, an unparseable result, and dispose', () => {
+    const ready = replay([{type: 'started'}, {type: 'pick-requested', mode: 'activate'}])
+    const requestId = 'native-test-pick-1'
+    expect(replay([{type: 'pick-timeout', attempt: 1}], ready.state).effects).toEqual([
+      {type: 'log', message: `grab pick ${requestId} timed out`},
+      {type: 'post', message: {v: 1, type: 'grab.cancel', requestId}},
+      {type: 'settle', attempt: 1, outcome: {type: 'failed', failure: 'timed-out', requestId}},
+    ])
+    expect(replay([{type: 'cancel-requested'}], ready.state).effects).toEqual([
+      {type: 'post', message: {v: 1, type: 'grab.cancel', requestId}},
+      {type: 'settle', attempt: 1, outcome: {type: 'cancelled'}},
+    ])
+    expect(
+      replay([native({v: 1, seq: 1, type: 'grabResult', requestId, grab: null, reason: 'cancelled'})], ready.state)
+        .effects[1],
+    ).toEqual({type: 'settle', attempt: 1, outcome: {type: 'cancelled'}})
+    expect(
+      replay([native({v: 1, seq: 1, type: 'grabResult', requestId, grab: null, reason: 'failed'})], ready.state)
+        .effects[1],
+    ).toEqual({type: 'settle', attempt: 1, outcome: {type: 'failed', failure: 'failed', requestId}})
+    expect(replay([{type: 'native-unparseable', grabRequestId: requestId}], ready.state).effects).toEqual([
+      {type: 'log', message: 'dropping unparseable native call'},
+      {type: 'settle', attempt: 1, outcome: {type: 'failed', failure: 'unparseable', requestId}},
+    ])
+    expect(replay([{type: 'native-unparseable', grabRequestId: 'other'}], ready.state).effects).toEqual([
+      {type: 'log', message: 'dropping unparseable native call'},
+    ])
+    const disposed = replay([{type: 'disposed'}], ready.state)
+    expect(disposed.effects).toEqual([{type: 'settle', attempt: 1, outcome: {type: 'cancelled'}}])
+    const late: NativeEvent[] = [
+      {type: 'started'},
+      {type: 'tick'},
+      native({v: 1, seq: 9, type: 'open'}),
+      {type: 'pick-requested', mode: 'activate'},
+      {type: 'cancel-requested'},
+      {type: 'pick-timeout', attempt: 1},
+      {type: 'panel-toggled', toggle: {open: true, connected: true, mascotRect: null}},
+      {type: 'disposed'},
+    ]
+    late.forEach((event) =>
+      expect(transitionNative(disposed.state, event)).toEqual({state: disposed.state, effects: []}),
+    )
+  })
+
+  it('tracks grab capability and posts panel toggles with and without the mascot rect', () => {
+    const started = replay([{type: 'started'}, native({v: 1, seq: 1, type: 'grabCapability', grabbable: true})])
+    expect(started.state.grabbable).toBe(true)
+    const toggled = replay(
+      [
+        {type: 'panel-toggled', toggle: {open: true, connected: false, mascotRect: null}},
+        {type: 'panel-toggled', toggle: {open: false, connected: true, mascotRect: {x: 1, y: 2, width: 3, height: 4}}},
+      ],
+      started.state,
+    )
+    expect(posted(toggled.effects)).toEqual([
+      {v: 1, type: 'host.panelToggled', open: true, connected: false},
+      {v: 1, type: 'host.panelToggled', open: false, connected: true, mascotRect: {x: 1, y: 2, width: 3, height: 4}},
+    ])
+  })
+})
+
+const makeFakeTransport = Effect.gen(function* () {
+  const calls = yield* Queue.unbounded<unknown>()
+  const posts = yield* SubscriptionRef.make<readonly PageToNativeMessage[]>([])
+  const transport: NativeTransport = {
+    calls: Stream.fromQueue(calls),
+    post: (message) => SubscriptionRef.update(posts, (current) => [...current, message]),
+  }
+  const call = (message: Record<string, unknown>) => Queue.offer(calls, message)
+  const postedCount = (count: number) =>
+    SubscriptionRef.changes(posts).pipe(
+      Stream.filter((current) => current.length >= count),
+      Stream.runHead,
+      Effect.map((current) => Option.getOrElse(current, () => [])),
+    )
+  return {transport, call, posts, postedCount}
+})
+
+const runClocked = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>) =>
+  Effect.runPromise(effect.pipe(Effect.scoped, Effect.provide(TestClock.layer())))
+
+describe('bridge driver', () => {
+  it('posts ready and hello every 300 ms until acked and handshaken, then stops', async () => {
+    await runClocked(
+      Effect.gen(function* () {
+        const fake = yield* makeFakeTransport
+        const signals = yield* Effect.forkScoped(
+          Stream.runCollect(Stream.take((yield* makeNativeClient({...CLIENT, transport: fake.transport})).signals, 2)),
+        )
+        expect(yield* fake.postedCount(2)).toEqual([{v: 1, type: 'bridge.ready'}, HELLO])
+        yield* TestClock.adjust('299 millis')
+        expect(yield* SubscriptionRef.get(fake.posts)).toHaveLength(2)
+        yield* TestClock.adjust('1 millis')
+        expect((yield* fake.postedCount(4)).slice(2)).toEqual([{v: 1, type: 'bridge.ready'}, HELLO])
+        yield* fake.call({v: 1, seq: 1, type: 'open'})
+        expect((yield* fake.postedCount(5)).slice(4)).toEqual([{v: 1, type: 'bridge.ack', seq: 1}])
+        yield* TestClock.adjust('300 millis')
+        expect((yield* fake.postedCount(6)).slice(5)).toEqual([HELLO])
+        yield* fake.call({v: 1, seq: 2, type: 'handshake', apiBase: 'http://127.0.0.1:5000', token: null})
+        expect((yield* fake.postedCount(7)).slice(6)).toEqual([{v: 1, type: 'bridge.ack', seq: 2}])
+        yield* TestClock.adjust('3 seconds')
+        expect(yield* SubscriptionRef.get(fake.posts)).toHaveLength(7)
+        expect([...(yield* Fiber.join(signals))]).toEqual([
+          {type: 'open'},
+          {type: 'rebind', apiBase: 'http://127.0.0.1:5000'},
+        ])
+      }),
+    )
+  })
+
+  it('times a pick out after 10 s with a typed error and settles a live pick with its grab', async () => {
+    await runClocked(
+      Effect.gen(function* () {
+        const fake = yield* makeFakeTransport
+        const client = yield* makeNativeClient({...CLIENT, transport: fake.transport})
+        yield* fake.postedCount(2)
+        const timedOut = yield* Effect.forkScoped(Effect.flip(client.pick('activate')))
+        const pick = {v: 1, type: 'grab.pick', requestId: 'native-test-pick-1', mode: 'activate'}
+        expect((yield* fake.postedCount(3)).slice(2)).toEqual([pick])
+        yield* TestClock.adjust('9999 millis')
+        expect((yield* SubscriptionRef.get(fake.posts)).filter((post) => post.type === 'grab.cancel')).toEqual([])
+        yield* TestClock.adjust('1 millis')
+        const error = yield* Fiber.join(timedOut)
+        expect(error._tag).toBe('Ios.PickTimedOut')
+        expect(error.requestId).toBe('native-test-pick-1')
+        expect((yield* SubscriptionRef.get(fake.posts)).filter((post) => post.type === 'grab.cancel')).toEqual([
+          {v: 1, type: 'grab.cancel', requestId: 'native-test-pick-1'},
+        ])
+
+        const live = yield* Effect.forkScoped(client.pick('comment'))
+        const count = (yield* SubscriptionRef.get(fake.posts)).length
+        yield* fake.postedCount(count + 1)
+        yield* fake.call({v: 1, seq: 1, type: 'grabResult', requestId: 'native-test-pick-2', grab: NEUTRAL})
+        const grab: Grab | null = yield* Fiber.join(live)
+        expect(grab?.source).toEqual(NEUTRAL.source)
+        yield* TestClock.adjust('20 seconds')
+        expect((yield* SubscriptionRef.get(fake.posts)).filter((post) => post.type === 'grab.cancel')).toHaveLength(1)
+
+        const failed = yield* Effect.forkScoped(Effect.flip(client.pick('activate')))
+        yield* fake.postedCount(count + 3)
+        yield* fake.call({v: 1, seq: 2, type: 'grabResult', requestId: 'native-test-pick-3', grab: 'broken'})
+        expect((yield* Fiber.join(failed))._tag).toBe('Ios.PickUnparseable')
+      }),
+    )
+  })
+
+  it('resolves an open pick with null when its scope closes', async () => {
+    await runClocked(
+      Effect.gen(function* () {
+        const fake = yield* makeFakeTransport
+        const scope = yield* Scope.make()
+        const client = yield* makeNativeClient({...CLIENT, transport: fake.transport}).pipe(Scope.provide(scope))
+        const open = yield* Effect.forkScoped(client.pick('activate'))
+        yield* fake.postedCount(3)
+        yield* Scope.close(scope, Exit.void)
+        expect(yield* Fiber.join(open)).toBeNull()
+      }),
+    )
   })
 })

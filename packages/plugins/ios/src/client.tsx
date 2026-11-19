@@ -1,13 +1,15 @@
 import {Show, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {createStore, reconcile} from 'solid-js/store'
+import {Effect, Queue, Scope, Stream, SubscriptionRef} from 'effect'
 import {Plugin, Slot} from '@conciv/plugin/experimental'
 import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import type {GrabMode} from './bridge.js'
-import {createBridgeClient, type BridgeClient, type BridgeTransport} from './native/bridge-client.js'
-import {nativePageBase} from './native/page-base.js'
+import {makeNativeClient, type NativeClient, type NativeTransport} from './bridge-client.js'
+import {readIncompatible, type NativeSignal} from './bridge-machine.js'
+import {nativePageBase} from './page-base.js'
 
-export {nativePageBase} from './native/page-base.js'
+export {nativePageBase} from './page-base.js'
 
 type NativeCall = (message: Record<string, unknown>) => void
 
@@ -34,12 +36,15 @@ declare global {
 
 type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
-const [bridgeState, setBridgeState] = createStore<{incompatible: Incompatible | null; grabbable: boolean}>({
+const [bridgeState, setBridgeState] = createStore<{
+  incompatible: Incompatible | null
+  grabbable: boolean
+}>({
   incompatible: null,
   grabbable: false,
 })
 
-let bridge: BridgeClient | null = null
+let bridge: NativeClient | null = null
 
 function dispatch(name: string, detail?: Record<string, unknown>): void {
   window.dispatchEvent(new CustomEvent(name, {detail}))
@@ -51,18 +56,13 @@ const panelCommands = createEventBusClient<PanelCommandEventMap>({
   maxRetries: 60,
 })
 
-function makeClientId(): string {
-  const random = globalThis.crypto?.randomUUID?.()
-  return `native-${random ?? Math.random().toString(36).slice(2)}`
-}
-
-function makeWebkitTransport(): BridgeTransport {
-  let handler: ((raw: unknown) => void) | null = null
+function makeWebkitTransport(): NativeTransport {
+  const calls = Effect.runSync(Queue.unbounded<unknown>())
   const forward =
     (type: string): NativeCall =>
     (message) =>
-      handler?.({...message, type})
-  const native: NativeApi = {
+      void Queue.offerUnsafe(calls, {...message, type})
+  window.__concivNative = {
     handshake: forward('handshake'),
     bridgeIncompatible: forward('bridge.incompatible'),
     open: forward('open'),
@@ -70,75 +70,86 @@ function makeWebkitTransport(): BridgeTransport {
     grabResult: forward('grabResult'),
     grabCapability: forward('grabCapability'),
   }
-  window.__concivNative = native
   return {
-    postToNative: (message) => window.webkit?.messageHandlers?.concivBridge?.postMessage(message),
-    onNativeCall: (next) => {
-      handler = next
-    },
+    calls: Stream.fromQueue(calls),
+    post: (message) => Effect.sync(() => window.webkit?.messageHandlers?.concivBridge?.postMessage(message)),
   }
+}
+
+function followSignal(signal: NativeSignal): void {
+  if (signal.type === 'open') return panelCommands.emit('open', undefined)
+  if (signal.type === 'close') return panelCommands.emit('close', undefined)
+  dispatch('conciv:rebind', {apiBase: signal.apiBase})
 }
 
 function onPanelToggled(event: WindowEventMap['conciv:panel-toggled']): void {
   if (!bridge) return
   const detail = event.detail
   if (!detail) return
-  bridge.panelToggled(detail.open === true, detail.connected === true, detail.mascotRect ?? null)
+  Effect.runFork(
+    bridge.panelToggled({
+      open: detail.open === true,
+      connected: detail.connected === true,
+      mascotRect: detail.mascotRect ?? null,
+    }),
+  )
 }
 
 function nativeHandlerPresent(): boolean {
   return typeof window !== 'undefined' && window.webkit?.messageHandlers?.concivBridge !== undefined
 }
 
-function ensureBridge(): BridgeClient | null {
+function ensureBridge(): NativeClient | null {
   if (bridge) return bridge
   if (!nativeHandlerPresent()) return null
-  bridge = createBridgeClient({
-    transport: makeWebkitTransport(),
-    scheduler: {
-      setInterval: (fn, ms) => window.setInterval(fn, ms),
-      clearInterval: (handle) => window.clearInterval(handle),
-      setTimeout: (fn, ms) => window.setTimeout(fn, ms),
-      clearTimeout: (handle) => window.clearTimeout(handle),
-    },
-    clientId: makeClientId(),
-    boundApiBase: nativePageBase(window.location),
-    ensureOpen: () => panelCommands.emit('open', undefined),
-    ensureClose: () => panelCommands.emit('close', undefined),
-    onRebind: (apiBase) => dispatch('conciv:rebind', {apiBase}),
-    onIncompatible: (info) => setBridgeState('incompatible', info),
-    onGrabbableChanged: (value) => setBridgeState('grabbable', value),
-    onLog: (level, message) => console[level]('conciv bridge:', message),
-  })
-  bridge.start()
-  setBridgeState('grabbable', bridge.grabbable())
+  const scope = Effect.runSync(Scope.make())
+  const client = Effect.runSync(
+    makeNativeClient({
+      transport: makeWebkitTransport(),
+      clientId: `native-${crypto.randomUUID()}`,
+      apiBase: nativePageBase(window.location),
+    }).pipe(Scope.provide(scope)),
+  )
+  bridge = client
+  Effect.runFork(
+    Stream.runForEach(SubscriptionRef.changes(client.state), (state) =>
+      Effect.sync(() =>
+        setBridgeState(
+          reconcile({
+            incompatible: readIncompatible(state),
+            grabbable: state.grabbable,
+          }),
+        ),
+      ),
+    ),
+  )
+  Effect.runFork(Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(signal))))
   window.addEventListener('conciv:panel-toggled', onPanelToggled)
-  return bridge
+  return client
+}
+
+function picking(engine: NativeClient): boolean {
+  return Effect.runSync(SubscriptionRef.get(engine.state)).pick.status === 'picking'
 }
 
 export function makeNativeGrabProvider(): GrabProvider {
   const engine = ensureBridge()
-  let requestSeq = 0
-  let activeRequest = 0
   const doPick = async (mode: GrabMode) => {
     if (!engine) return null
-    const token = ++requestSeq
-    activeRequest = token
     panelCommands.emit('close', undefined)
     try {
-      return await engine.pick(mode)
+      return await Effect.runPromise(engine.pick(mode))
     } finally {
-      if (activeRequest === token) {
-        activeRequest = 0
-        panelCommands.emit('open', undefined)
-      }
+      if (!picking(engine)) panelCommands.emit('open', undefined)
     }
   }
   const actions: GrabActions = {
     pick: () => doPick('activate'),
     comment: () => doPick('comment'),
-    cancel: () => engine?.cancelActive(),
-    isActive: () => activeRequest !== 0,
+    cancel: () => {
+      if (engine) Effect.runFork(engine.cancel)
+    },
+    isActive: () => engine !== null && picking(engine),
     grabbable: () => bridgeState.grabbable,
   }
   return () => actions
