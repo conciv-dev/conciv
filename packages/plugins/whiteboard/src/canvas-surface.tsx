@@ -12,6 +12,7 @@ import {PinsLayer} from './pins.js'
 import {Inbox, InboxToggle} from './inbox.js'
 import type {ChatCover} from './comments-model.js'
 import {ThreadPopover} from './thread.js'
+import type {CanvasBackground} from './stores.js'
 
 const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
 
@@ -37,6 +38,7 @@ type SurfaceProps = {
   client: Context['client']
   room: string
   catchUpRetryMs: number
+  background: CanvasBackground
   visible: boolean
   layer: HTMLElement
   close: () => void
@@ -44,7 +46,7 @@ type SurfaceProps = {
 }
 
 function CanvasView(
-  props: Pick<SurfaceProps, 'room' | 'visible' | 'layer'> & {canvas: HTMLElement; cursors: LiveCursors},
+  props: Pick<SurfaceProps, 'room' | 'background' | 'visible' | 'layer'> & {canvas: HTMLElement; cursors: LiveCursors},
 ): JSX.Element {
   const model = useComments()
   const ctx = usePlugin()
@@ -54,6 +56,7 @@ function CanvasView(
         mount={props.canvas}
         room={props.room}
         theme={ctx.appearance.mode()}
+        background={props.background}
         visible={props.visible}
         onViewport={model.setViewport}
         registerPan={model.registerPan}
@@ -97,6 +100,7 @@ export default function CanvasSurface(props: SurfaceProps): JSX.Element {
       <CommentsProvider room={() => props.room} bindComments={props.bindComments}>
         <CanvasView
           room={props.room}
+          background={props.background}
           visible={props.visible}
           layer={props.layer}
           canvas={canvas.element}

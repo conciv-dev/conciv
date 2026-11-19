@@ -5,6 +5,7 @@ import type {Context} from '@conciv/plugin/experimental'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import type {ChatCover} from './comments-model.js'
+import type {CanvasBackground} from './stores.js'
 
 type CanvasSurface = UseQueryResult<(typeof import('./canvas-surface.js'))['default']>
 
@@ -62,6 +63,7 @@ export function WhiteboardNotices(props: {ctx: Context; surface: CanvasSurface; 
 export function WhiteboardCanvas(props: {
   ctx: Context
   surface: CanvasSurface
+  background: CanvasBackground
   visible: boolean
   layer: HTMLElement
   close: () => void
@@ -78,6 +80,7 @@ export function WhiteboardCanvas(props: {
                 client={props.ctx.client}
                 room={current}
                 catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}
+                background={props.background}
                 visible={props.visible}
                 layer={props.layer}
                 close={props.close}

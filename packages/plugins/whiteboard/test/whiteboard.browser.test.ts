@@ -4,7 +4,7 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe} from 'vitest'
 import {expect} from '@playwright/test'
-import type {Locator, Page} from 'playwright'
+import type {Browser, Locator, Page} from 'playwright'
 import {z} from 'zod'
 import {test} from '@conciv/browser-fixture'
 import {makeRpcClient} from '@conciv/harness-testkit'
@@ -1193,4 +1193,53 @@ describe('the comments of the whiteboard plugin', () => {
       await widget.close()
     }
   }, 120_000)
+})
+
+const HOST_TEXT = 'Host page under the canvas'
+const HOST_BODY = `<h1 style="position:fixed;top:45%;left:40px;margin:0;font:700 40px sans-serif;color:#c2255c">${HOST_TEXT}</h1>`
+
+const CANVAS_BACKGROUND_SWITCH = 'Canvas background: see the page through the canvas'
+
+async function chooseSolidCanvas(page: Page): Promise<void> {
+  await page.getByRole('link', {name: 'Settings'}).click({timeout: 10_000})
+  const transparent = page.getByRole('switch', {name: CANVAS_BACKGROUND_SWITCH})
+  await expect(transparent).toBeChecked({timeout: 10_000})
+  await transparent.press('Space')
+  await expect(transparent).not.toBeChecked()
+  await page.getByRole('button', {name: 'Back to chat'}).click()
+  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
+}
+
+async function hostTextUnderCanvas(browser: Browser, solid: boolean): Promise<{closed: Buffer; open: Buffer}> {
+  const widget = await openPluginWidget(browser, {
+    id: 'fake',
+    plugins: [PACKAGE_DIR],
+    widgetBundle: WIDGET_BUNDLE,
+    stateRoot: realpathSync(tempDir('conciv-whiteboard-background-')),
+    body: HOST_BODY,
+  })
+  try {
+    const page = widget.page
+    await page.setViewportSize({width: 1280, height: 800})
+    await openChat(page)
+    if (solid) await chooseSolidCanvas(page)
+    const hostText = page.getByRole('heading', {name: HOST_TEXT})
+    const closed = await hostText.screenshot({animations: 'disabled'})
+    await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 10_000})
+    await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 10_000})
+    return {closed, open: await hostText.screenshot({animations: 'disabled'})}
+  } finally {
+    await widget.close()
+  }
+}
+
+describe('the whiteboard canvas background', () => {
+  test('lets the host page show through by default and covers it once the settings row turns it solid', async ({
+    browser,
+  }) => {
+    const transparent = await hostTextUnderCanvas(browser, false)
+    expect(transparent.open.equals(transparent.closed)).toBe(true)
+    const solid = await hostTextUnderCanvas(browser, true)
+    expect(solid.open.equals(solid.closed)).toBe(false)
+  })
 })

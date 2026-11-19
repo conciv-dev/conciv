@@ -35,5 +35,8 @@ plugins: ['@conciv/plugin-whiteboard']
 plugins: [['@conciv/plugin-whiteboard', {catchUpRetryMs: 500}]]
 ```
 
+The canvas is transparent so the page shows through it. The "Canvas background" row in the general settings turns
+that off for a solid canvas that follows the theme. PNG exports are always white.
+
 The board lives in the plugin storage of the engine's state root, so a second engine on that state root reads it back.
 A board kept by an older version in `.conciv/whiteboard/whiteboard.db` is not read.
