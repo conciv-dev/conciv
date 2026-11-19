@@ -32,34 +32,37 @@ import {DevTools} from '@vitejs/devtools'
 import {devtools} from '@tanstack/devtools-vite'
 import {createLogger, createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
-import {EXTENSIONS_RESOLVED_ID, type Builtins} from '@conciv/extension-compiler/extensions'
+import {EXTENSIONS_RESOLVED_ID} from '@conciv/extension-compiler/extensions'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {SessionCapturesSchema, type ToolCaptureRow} from '@conciv/protocol/element-capture-types'
-import type {ExtensionPackage} from '@conciv/protocol/config-types'
 import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {createConcivUnplugin} from '../src/index.js'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
-import {makeEngineBooter} from '../src/core/boot.js'
+import {makeEngineBooter, type Builtins} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
 import {watchExtensionsDir} from '../src/core/extensions-watch.js'
 import {CONCIV_DEFAULT_PORT, register, withConciv} from '../src/core/nextjs.js'
 import {makeViteBridge} from '../src/core/vite-bridge.js'
 import {makeViteHook} from '../src/core/vite.js'
-import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
+import {concivSolidConfig} from '../src/core/vite-plumbing.js'
+import {WIDGET_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {
   closeWhenTestFinishes,
   devServers,
   fixtureExtension,
+  fixturePlugin,
+  fixturePluginEntries,
   installConcivPackage,
-  installFixtureExtension,
+  installFixturePlugin,
   magicLinkUrl,
   pageApiBase,
   startTestDevServer,
   testTempDir,
+  type PluginEntries,
   type StartedDevServer,
 } from './helpers/dev-servers.js'
 
@@ -210,7 +213,7 @@ describe('webpack and rspack', () => {
     stateRoot: string
     enabled?: boolean
     widget?: false
-    extensions?: ExtensionPackage[]
+    plugins?: PluginEntries
   }
   type BuildStats = {hasErrors: () => boolean; compilation: {fileDependencies: Iterable<string>}}
   type BuildHandler = (error: Error | null, stats?: BuildStats) => void
@@ -642,7 +645,7 @@ describe('webpack and rspack', () => {
         const compiler = testCompiler(bundler, root, 'development', {
           port,
           stateRoot: root,
-          extensions: [fixtureExtension()],
+          plugins: fixturePlugin(join(concivStateDir(root), 'fixture-disposed')),
         })
         const watch = compiler.watch()
         await watch.next()
@@ -666,7 +669,7 @@ describe('webpack and rspack', () => {
         const compiler = testCompiler(bundler, root, 'development', {
           port,
           stateRoot: root,
-          extensions: [fixtureExtension()],
+          plugins: fixturePlugin(join(concivStateDir(root), 'fixture-disposed')),
         })
         const first = compiler.watch()
         await first.next()
@@ -843,7 +846,12 @@ describe('dev server close', () => {
   afterEach(() => servers.stopAll())
 
   it('settles only after the engine has stopped', async () => {
-    const started = await servers.start({widget: false, extensions: [fixtureExtension()]})
+    const root = servers.tempDir('conciv-vite-root-')
+    const started = await servers.start(
+      {widget: false, plugins: fixturePlugin(join(concivStateDir(root), 'fixture-disposed'))},
+      {},
+      root,
+    )
     const apiBase = await pageApiBase(started.server)
     expect((await fetch(`${apiBase}/health`)).ok).toBe(true)
 
@@ -1075,7 +1083,7 @@ describe('extensions module', () => {
     const resolveId = makeViteHook({enabled: true}).resolveId
     const handler = typeof resolveId === 'object' && resolveId !== null ? resolveId.handler : resolveId
     if (typeof handler !== 'function') throw new Error('conciv plugin has no resolveId')
-    const resolved = await Reflect.apply(handler, undefined, [`${EXTENSIONS_ROUTE}?v=1`, undefined, {}])
+    const resolved = await Reflect.apply(handler, undefined, [`${WIDGET_ROUTE}?v=1`, undefined, {}])
     expect(resolved).toBe(EXTENSIONS_RESOLVED_ID)
   })
 })
@@ -1198,7 +1206,7 @@ describe('native page vite boot', () => {
     }, 30_000)
   })
 
-  describe('widget boot in a host that installs conciv and an extension under node_modules, with no optimizeDeps.include', () => {
+  describe('widget boot in a host that installs conciv under node_modules and a plugin in conciv/plugins, with no optimizeDeps.include', () => {
     const servers = devServers()
     const state: {started?: StartedDevServer; browser?: Browser; page?: Page; errors: string[]} = {errors: []}
 
@@ -1209,11 +1217,9 @@ describe('native page vite boot', () => {
         '<!doctype html><html><head><meta charset="utf-8"></head><body><p id="probe">probe</p><button id="counter" onclick="this.textContent = String(Number(this.textContent) + 1)">0</button></body></html>',
       )
       const embedDir = installConcivPackage(root, '@conciv/embed')
+      installFixturePlugin(root)
       state.started = await servers.start(
-        {
-          devEndpointDir: servers.tempDir('conciv-vite-endpoint-'),
-          extensions: [installFixtureExtension(join(root, 'node_modules'))],
-        },
+        {devEndpointDir: servers.tempDir('conciv-vite-endpoint-')},
         {
           embedEntry: join(embedDir, 'dist', 'mount.js'),
           dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
@@ -1330,7 +1336,7 @@ describe('native page vite boot', () => {
       expect(state.errors.filter((error) => INTEROP_ERROR.test(error))).toEqual([])
     }, 60_000)
 
-    it('opens the panel with the composer, so the embed shares the host Solid and extension singletons', async () => {
+    it('opens the panel with the composer, so the embed shares the host Solid and plugin singletons', async () => {
       const page = state.page
       if (page === undefined) throw new Error('dev server did not start')
       await openChat(page)
@@ -1364,7 +1370,7 @@ describe('native page vite boot', () => {
       await composer.fill('still usable', {timeout: 45_000})
       await expectLocator(composer).toHaveText('still usable')
       await chat.getByRole('tab', {name: 'Fixture'}).click()
-      await expectLocator(chat.getByText('The fixture extension view')).toBeVisible()
+      await expectLocator(chat.getByText('The fixture plugin view')).toBeVisible()
       await expectLocator(blockerNotice).toBeHidden()
       const target = await tabWatch.attached()
       const stillBlocked = blockedPage.waitForEvent('requestfailed', (request) => /rrweb-snapshot/.test(request.url()))
@@ -1633,7 +1639,7 @@ describe('nextjs', () => {
 })
 
 describe('widget inject', () => {
-  const ENTRY = `<script type="module" src="${EXTENSIONS_ROUTE}"></script>`
+  const ENTRY = `<script type="module" src="${WIDGET_ROUTE}"></script>`
   const API_BASE = 'http://127.0.0.1:12345'
 
   function startServer(mw: Middleware, final: (res: ServerResponse) => void): Promise<{server: Server; base: string}> {
@@ -1668,7 +1674,7 @@ describe('widget inject', () => {
       const html = await (await fetch(base)).text()
       expect(html).toContain(ENTRY)
       expect(html).toContain(`<meta name="conciv-api-base" content="${API_BASE}">`)
-      expect(html.indexOf(EXTENSIONS_ROUTE)).toBeLessThan(html.indexOf('</head>'))
+      expect(html.indexOf(WIDGET_ROUTE)).toBeLessThan(html.indexOf('</head>'))
       expect(html).toContain('<h1>hi</h1>')
     })
 
@@ -1683,7 +1689,7 @@ describe('widget inject', () => {
       const html = await res.text()
       expect(res.status).toBe(200)
       expect(html).toContain(ENTRY)
-      expect(html.indexOf(EXTENSIONS_ROUTE)).toBeLessThan(html.indexOf('</head>'))
+      expect(html.indexOf(WIDGET_ROUTE)).toBeLessThan(html.indexOf('</head>'))
     })
 
     it('injects the conciv-widget config meta into the SSR html response (the path the site uses)', async () => {
@@ -1707,7 +1713,7 @@ describe('widget inject', () => {
       state.server = server
       const body = await (await fetch(base)).text()
       expect(body).toBe('{"ok":true}')
-      expect(body).not.toContain(EXTENSIONS_ROUTE)
+      expect(body).not.toContain(WIDGET_ROUTE)
     })
 
     it('does not double-inject when the html already references the client entry', async () => {
@@ -1718,7 +1724,7 @@ describe('widget inject', () => {
       })
       state.server = server
       const html = await (await fetch(base)).text()
-      const occurrences = html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1
+      const occurrences = html.split(`src="${WIDGET_ROUTE}"`).length - 1
       expect(occurrences).toBe(1)
     })
 
@@ -1728,7 +1734,7 @@ describe('widget inject', () => {
       {quoting: 'no quotes', settings: '<meta name=conciv-widget content={}>'},
     ])('keeps an injected fragment with no head or body as is ($quoting)', async ({settings}) => {
       const fragment = `${settings}<meta name = 'conciv-api-base' content='${API_BASE}'><div>x</div>`
-      const entry = `<script type=module src='${EXTENSIONS_ROUTE}'></script>`
+      const entry = `<script type=module src='${WIDGET_ROUTE}'></script>`
       const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
         res.setHeader('content-type', 'text/html')
         res.end(`${fragment}${entry}`)
@@ -1754,7 +1760,7 @@ describe('widget inject', () => {
       })
       state.server = server
       const html = await (await fetch(base)).text()
-      expect(html.split(`src="${EXTENSIONS_ROUTE}"`).length - 1).toBe(1)
+      expect(html.split(`src="${WIDGET_ROUTE}"`).length - 1).toBe(1)
       expect(html).toContain('<meta name="conciv-widget" content="{&quot;surface&quot;:&quot;dock&quot;}">')
     })
 
@@ -1812,9 +1818,9 @@ describe('vite devtools dock', () => {
     return {server, root, url}
   }
 
-  function concivHook(root: string, extensions: readonly ExtensionPackage[], widget?: false) {
+  function concivHook(root: string, plugins: PluginEntries, widget?: false) {
     return makeViteHook(
-      {enabled: true, stateRoot: root, extensions, ...(widget === false ? {widget} : {})},
+      {enabled: true, stateRoot: root, plugins, ...(widget === false ? {widget} : {})},
       {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
@@ -1824,17 +1830,13 @@ describe('vite devtools dock', () => {
 
   async function startDockServer(
     widget?: false,
-    extensions: readonly ExtensionPackage[] = [],
+    plugins: PluginEntries = [],
     root = testTempDir('conciv-dock-'),
     hostHead = '',
     clientAuth = false,
     hostPlugins: Plugin[] = [],
   ): Promise<StartedDevServer & {url: string}> {
-    return startHostServer(root, hostHead, [
-      concivHook(root, extensions, widget),
-      DevTools({clientAuth}),
-      ...hostPlugins,
-    ])
+    return startHostServer(root, hostHead, [concivHook(root, plugins, widget), DevTools({clientAuth}), ...hostPlugins])
   }
 
   async function dockServer(...options: Parameters<typeof startDockServer>): Promise<string> {
@@ -1930,9 +1932,9 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 60_000)
 
-  it('fills the dock panel with the chat and the tab of an installed extension', async () => {
+  it('fills the dock panel with the chat and the tab of a plugin', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await page.goto(await dockServer(undefined, [fixtureExtension()]), {waitUntil: 'domcontentloaded'})
+    await page.goto(await dockServer(undefined, fixturePluginEntries()), {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
     await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 45_000})
@@ -1942,7 +1944,7 @@ describe('vite devtools dock', () => {
 
   it('returns to the chat when the quick terminal opened by hotkey from a freshly opened dock chat closes', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    await page.goto(await dockServer(undefined, [fixtureExtension()]), {waitUntil: 'domcontentloaded'})
+    await page.goto(await dockServer(undefined, fixturePluginEntries()), {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
     const panelComposer = page
       .getByRole('dialog', {name: 'conciv chat agent'})
@@ -1962,7 +1964,7 @@ describe('vite devtools dock', () => {
     }
 
     async function openDockThenHide(page: Page, hide: (page: Page) => Promise<void>): Promise<void> {
-      await page.goto(await dockServer(undefined, [fixtureExtension()]), {waitUntil: 'domcontentloaded'})
+      await page.goto(await dockServer(undefined, fixturePluginEntries()), {waitUntil: 'domcontentloaded'})
       await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
       const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
       await composer.waitFor({timeout: 45_000})
@@ -2144,7 +2146,7 @@ describe('vite devtools dock', () => {
 
   it('shows the inline chat after a pop-out started from the quick terminal of a closed widget closes', async () => {
     const quickServer = await startTestDevServer(
-      {extensions: [fixtureExtension()]},
+      {plugins: fixturePluginEntries()},
       {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
@@ -2172,12 +2174,13 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 90_000)
 
-  type ColdInstall = {builtins: Builtins; extensions: ExtensionPackage[]}
+  type ColdInstall = {builtins: Builtins; plugins: PluginEntries}
 
   function installConcivInto(root: string, storeSegments: string[]): ColdInstall {
     const store = join(root, ...storeSegments)
     const installed = join(installConcivPackage(root, '@conciv/embed', store), '..')
     installConcivPackage(root, '@conciv/extension-compiler', store)
+    installFixturePlugin(root)
     const workspaceIt = join(
       dirname(dirname(dirname(realpathSync(fileURLToPath(import.meta.resolve('@conciv/embed')))))),
       'it',
@@ -2192,7 +2195,7 @@ describe('vite devtools dock', () => {
         embedEntry: join(installed, 'embed', 'dist', 'mount.js'),
         dedupeEntry: join(installed, 'extension-compiler', 'dist', 'dedupe-extensions.js'),
       },
-      extensions: [installFixtureExtension(store)],
+      plugins: [],
     }
   }
 
@@ -2203,7 +2206,7 @@ describe('vite devtools dock', () => {
         embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
         dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
       },
-      extensions: [fixtureExtension()],
+      plugins: fixturePluginEntries(),
     }
   }
 
@@ -2215,11 +2218,11 @@ describe('vite devtools dock', () => {
     },
     {layout: 'workspace-linked', prepare: linkWorkspaceConciv},
   ])(
-    'opens the chat and an installed extension on a cold cache of a $layout conciv install with one Solid and without Vite re-optimizing dependencies',
+    'opens the chat and a plugin tab on a cold cache of a $layout conciv install with one Solid and without Vite re-optimizing dependencies',
     async ({prepare}) => {
       const root = testTempDir('conciv-cold-')
       writeFileSync(join(root, 'index.html'), '<!doctype html><meta charset="utf-8"><title>host</title>')
-      const {builtins, extensions} = prepare(root)
+      const {builtins, plugins} = prepare(root)
       const logged: string[] = []
       const remember = (message: string): void => void logged.push(message)
       const server = closeWhenTestFinishes(
@@ -2233,7 +2236,7 @@ describe('vite devtools dock', () => {
             warnOnce: remember,
           },
           server: {host: '127.0.0.1', port: 0},
-          plugins: [makeViteHook({enabled: true, stateRoot: root, extensions}, builtins)],
+          plugins: [makeViteHook({enabled: true, stateRoot: root, plugins}, builtins)],
         }),
       )
       await server.listen()
@@ -2253,7 +2256,7 @@ describe('vite devtools dock', () => {
       const chat = page.getByRole('dialog', {name: 'conciv chat agent'})
       await chat.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({timeout: 15_000})
       await chat.getByRole('tab', {name: 'Fixture'}).click()
-      await expectLocator(chat.getByText('The fixture extension view')).toBeVisible()
+      await expectLocator(chat.getByText('The fixture plugin view')).toBeVisible()
       expect(
         logged.filter((line) =>
           /Failed to resolve dependency|optimized dependencies changed|new dependencies optimized/.test(line),
@@ -2274,7 +2277,7 @@ describe('vite devtools dock', () => {
     const {server} = await startTestDevServer()
     const address = server.httpServer?.address()
     const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
-    const source = await (await fetch(`${base}${EXTENSIONS_ROUTE}`)).text()
+    const source = await (await fetch(`${base}${WIDGET_ROUTE}`)).text()
     expect(source).toContain('mountConciv')
     expect(source).not.toContain('concivDockRenderer')
   })
@@ -2471,6 +2474,23 @@ describe('extension load isolation', () => {
     await shown
     await page.close()
   }, 60_000)
+})
+
+describe('optimize deps', () => {
+  describe('vite optimizeDeps for the plugin graph', () => {
+    it('excludes the Solid singletons and the plugin runtime, force-includes nothing', () => {
+      const {optimizeDeps} = concivSolidConfig()
+      expect(optimizeDeps.exclude).toEqual([
+        'solid-js',
+        'solid-js/web',
+        'solid-js/store',
+        '@tanstack/solid-router',
+        '@ark-ui/solid',
+        '@conciv/plugin',
+      ])
+      expect(optimizeDeps.include).toEqual([])
+    })
+  })
 })
 
 describe('vite bridge', () => {

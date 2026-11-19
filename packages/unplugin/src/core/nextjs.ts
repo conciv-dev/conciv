@@ -7,7 +7,7 @@ import type * as ExtensionsWatch from './extensions-watch.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
 
-export const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
+const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
 export const WIDGET_START_SPECIFIER = '@conciv/widget-start'
 const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
 const WIDGET_PORT_KEY = 'NEXT_PUBLIC_CONCIV_PORT'

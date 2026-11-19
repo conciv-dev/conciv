@@ -6,18 +6,12 @@ import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
-import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
+import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
-import type {AnyExtension} from '@conciv/extension'
 import {makeViteBridge} from './vite-bridge.js'
-import {type Builtins, loadExtensionPackages, loadServerExtensions} from '@conciv/extension-compiler/extensions'
-import {
-  loadExtensionsModule,
-  concivSolidConfig,
-  dropIncludedFromExcludes,
-  resolveExtensionsModule,
-  transformConcivModule,
-} from '@conciv/extension-compiler/vite-plumbing'
+import type {Builtins} from './boot.js'
+import {concivSolidConfig, dropIncludedFromExcludes, stampJsxSource} from './vite-plumbing.js'
+import {loadExtensionsModule, resolveExtensionsModule} from '@conciv/extension-compiler/vite-plumbing'
 
 function mountWidget(
   server: ViteDevServer,
@@ -46,8 +40,6 @@ async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
   agentPath: string,
-  extensions: AnyExtension[],
-  extensionConfig: Record<string, unknown>,
   nativePageDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
@@ -58,8 +50,6 @@ async function bootEngine(
     bridge: makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
-    extensions,
-    extensionConfig,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
@@ -172,7 +162,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
           title: 'conciv',
           icon: CONCIV_MARK_URI,
           type: 'custom-render',
-          renderer: {importFrom: EXTENSIONS_DOCK_ROUTE, importName: 'default'},
+          renderer: {importFrom: WIDGET_DOCK_ROUTE, importName: 'default'},
         })
         context.rpc.register({
           name: 'conciv:engine-token',
@@ -226,9 +216,9 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
     load(id) {
       return loadExtensionsModule(id, clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
     },
-    transform(code, id, opts) {
+    transform(code, id) {
       if (options.enabled === false) return null
-      return transformConcivModule(code, id, opts?.ssr ?? false)
+      return stampJsxSource(code, id)
     },
     transformIndexHtml: {
       order: 'pre',
@@ -238,20 +228,17 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = {}
         if (!cfg.enabled || !engine) return []
         return htmlTags(engine.port, {
           widget: widgetSettings(options.widget, docked),
-          entry: docked ? EXTENSIONS_DOCK_ROUTE : EXTENSIONS_ROUTE,
+          entry: docked ? WIDGET_DOCK_ROUTE : WIDGET_ROUTE,
         })
       },
     },
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      const installed = await loadExtensionPackages(options.extensions)
       const booted = await bootEngine(
         server,
         options,
         installConcivBinShim(concivStateDir(cfg.stateRoot)),
-        await loadServerExtensions(server.config.root, installed.extensions),
-        installed.config,
         builtins.nativePageDir,
       )
       engines.push(booted)
