@@ -10973,8 +10973,18 @@ module.exports = {default: {setup(ctx) {
     await expect.element(card('the other comment')).toBeVisible()
     await expect.element(editor()).toHaveTextContent('noted')
     await expect.element(editor()).not.toMatchTextContent(/The user made/)
-    await coreControl.releaseFault(refusedSave)
+    const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+    const savedDrafts = await coreControl.rpcCallCount(['drafts', 'set'])
+    await runClockPastDraftSaveRetries(unsaved)
     expect(await rpc.drafts.get({sessionId: returningId})).toBeNull()
+    await coreControl.releaseFault(refusedSave)
+    await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+    await expect.element(unsaved).not.toBeInTheDocument()
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], savedDrafts + 1, [])
+    expect(await rpc.drafts.get({sessionId: returningId})).toMatchObject({
+      text: 'noted',
+      items: [{value: {comment: 'the first comment'}}, {value: {comment: 'the other comment'}}],
+    })
   }, 90_000)
 
   describe('its ctx.ui.Popover', () => {
