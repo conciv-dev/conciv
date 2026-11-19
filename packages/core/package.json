@@ -83,6 +83,7 @@
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
     "@lydell/node-pty": "catalog:",
     "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
