@@ -3,7 +3,11 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'
-import {type Builtins, loadExtensionPackages, loadServerExtensions} from '@conciv/extension-compiler/extensions'
+
+export type Builtins = {
+  embedEntry?: string
+  nativePageDir?: string
+}
 
 export type PortPolicy = 'exact' | 'preferred'
 
@@ -21,21 +25,18 @@ export function makeEngineBooter(
   return () => {
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
-    booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then(async (agentPath) => {
-      const installed = await loadExtensionPackages(options.extensions)
-      return start({
+    booting = Promise.try(() => installConcivBinShim(concivStateDir(stateRoot))).then((agentPath) =>
+      start({
         options,
         root,
         port: options.port === undefined ? undefined : toPortRequest(portPolicy, options.port),
         launchEditor: makeOpenInEditor(root),
-        extensions: await loadServerExtensions(root, installed.extensions),
-        extensionConfig: installed.config,
         nativePageDir: builtins.nativePageDir,
         devEndpointDir: options.devEndpointDir,
         homeDir: options.homeDir,
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
-      })
-    })
+      }),
+    )
     return booting
   }
 }

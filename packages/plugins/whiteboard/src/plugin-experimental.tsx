@@ -1,7 +1,8 @@
-import {createResource, getOwner, onCleanup} from 'solid-js'
+import {getOwner, onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {Effect, Exit, Scope, SubscriptionRef} from 'effect'
+import {useQuery} from '@conciv/client'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
@@ -26,10 +27,13 @@ export default Plugin.define({
     }
     const visible = (): boolean => canvas.open && phase().status === 'idle'
     const grab = ctx.use(GrabApi)
-    const [surface, {refetch}] = createResource(
-      () => canvas.engaged,
-      () => import('./canvas-surface.js'),
-    )
+    const surface = useQuery(() => ({
+      queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
+      queryFn: () => import('./canvas-surface.js').then((module) => module.default),
+      enabled: canvas.engaged,
+      retry: false,
+      refetchOnWindowFocus: false,
+    }))
     const close = (): void => setCanvas('open', false)
     const layer = document.createElement('div')
     const overlay: Slot = {
@@ -49,12 +53,12 @@ export default Plugin.define({
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
         run: () => {
-          if (surface.error === undefined) {
+          if (!surface.isError) {
             setCanvas({engaged: true, open: !canvas.open})
             return
           }
           setCanvas('open', true)
-          void refetch()
+          void surface.refetch()
         },
       }),
     }

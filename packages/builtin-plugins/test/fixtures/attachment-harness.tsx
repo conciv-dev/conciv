@@ -1,4 +1,5 @@
 import type {JSX} from 'solid-js'
+import {QueryClient, QueryClientProvider} from '@conciv/client'
 import {AttachmentProvider, type PendingAttachment} from '@conciv/ui-kit-chat'
 
 export function mountAttachment(file: File, children: () => JSX.Element): JSX.Element {
@@ -10,5 +11,9 @@ export function mountAttachment(file: File, children: () => JSX.Element): JSX.El
     file,
     status: {type: 'requires-action', reason: 'composer-send'},
   }
-  return <AttachmentProvider value={attachment}>{children()}</AttachmentProvider>
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      <AttachmentProvider value={attachment}>{children()}</AttachmentProvider>
+    </QueryClientProvider>
+  )
 }

@@ -1,11 +1,12 @@
-import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX, type Resource} from 'solid-js'
+import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import type {UseQueryResult} from '@conciv/client'
 import type {Context} from '@conciv/plugin/experimental'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import type {ChatCover} from './comments-model.js'
 
-export type SurfaceModule = typeof import('./canvas-surface.js')
+type CanvasSurface = UseQueryResult<(typeof import('./canvas-surface.js'))['default']>
 
 function reportFailure(toast: Context['toast'], error: unknown): void {
   Effect.runFork(
@@ -39,15 +40,11 @@ function readRoom(ctx: Context): string | undefined {
   return session && !session.pending ? session.id : undefined
 }
 
-export function WhiteboardNotices(props: {
-  ctx: Context
-  surface: Resource<SurfaceModule>
-  layer: HTMLElement
-}): JSX.Element {
+export function WhiteboardNotices(props: {ctx: Context; surface: CanvasSurface; layer: HTMLElement}): JSX.Element {
   return (
     <div class="text-chat-text font-chat pointer-events-none inset-0 fixed -z-1">
       <Switch>
-        <Match when={props.surface.loading}>
+        <Match when={props.surface.isLoading}>
           <Notice toast={props.ctx.toast} title="Loading the whiteboard…" variant="loading" />
         </Match>
         <Match when={props.surface.error} keyed>
@@ -64,21 +61,20 @@ export function WhiteboardNotices(props: {
 
 export function WhiteboardCanvas(props: {
   ctx: Context
-  surface: Resource<SurfaceModule>
+  surface: CanvasSurface
   visible: boolean
   layer: HTMLElement
   close: () => void
   bindComments: (comments: ChatCover | undefined) => void
 }): JSX.Element {
-  const module = (): SurfaceModule | undefined => (props.surface.state === 'ready' ? props.surface() : undefined)
   return (
     <ErrorBoundary fallback={(error) => <CanvasFailed toast={props.ctx.toast} error={error} />}>
-      <Show when={module()}>
+      <Show when={props.surface.isSuccess && props.surface.data}>
         {(loaded) => (
           <Show when={readRoom(props.ctx)} keyed>
             {(current) => (
               <Dynamic
-                component={loaded().default}
+                component={loaded()}
                 client={props.ctx.client}
                 room={current}
                 catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}
