@@ -2,7 +2,7 @@ import {expect} from 'vitest'
 import {access, mkdir, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {NodeFileSystem} from '@effect/platform-node'
-import {Deferred, Effect, Exit, Fiber, Layer, Schedule, Scope, Stream} from 'effect'
+import {Deferred, Effect, Exit, Fiber, Layer, Logger, Ref, Schedule, Scope, Stream} from 'effect'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
 import {ManagedPolicy} from '../../../src/core/managed-policy.js'
 import {Plugin} from '../../../src/core/plugin.js'
@@ -256,5 +256,58 @@ export default { id: [\`typescript-\${Mode.Ready}-\${view.type}\`, plain, lib, t
       Effect.timeout('5 seconds'),
     )
     expect(yield* modules.load(operation)).toMatchObject({id: 'typescript-ready-strong-edited-lib-twin-kind-count'})
+  }),
+)
+
+it.live('two overlapping loads of one local plugin share one held watch, both wait for it, and it outlives them', () =>
+  Effect.gen(function* () {
+    const directory = yield* tmpdirScoped()
+    const pluginDirectory = path.join(directory.path, 'held')
+    const bundle = path.join(pluginDirectory, 'plugin-experimental.js')
+    yield* Effect.promise(() => write(bundle, 'module.exports = {default: {setup() {}}}'))
+    const native = yield* Watcher.Service
+    const entered = yield* Deferred.make<void>()
+    const gate = yield* Deferred.make<void>()
+    const secondLoading = yield* Deferred.make<void>()
+    const subscribed = yield* Ref.make<ReadonlyArray<string>>([])
+    const events = yield* Ref.make<ReadonlyArray<string>>([])
+    const record = (event: string) => Ref.update(events, (list) => [...list, event])
+    const modules = yield* PluginModule.make().pipe(
+      Effect.provideService(Watcher.Service, {
+        subscribe: (input, onReady = Effect.void) =>
+          Ref.update(subscribed, (paths) => [...paths, input.path]).pipe(
+            Effect.andThen(Deferred.succeed(entered, undefined)),
+            Effect.andThen(Deferred.await(gate)),
+            Effect.andThen(native.subscribe(input, record('ready').pipe(Effect.andThen(onReady)))),
+          ),
+      }),
+    )
+    const operation = {type: 'add' as const, target: pluginDirectory, options: {}}
+    const first = yield* modules.load(operation).pipe(
+      Effect.tap(() => record('loaded')),
+      Effect.forkScoped({startImmediately: true}),
+    )
+    yield* Deferred.await(entered)
+    const second = yield* modules.load(operation).pipe(
+      Effect.tap(() => record('loaded')),
+      Effect.provide(
+        Logger.layer([
+          Logger.make((entry) => {
+            if (JSON.stringify(entry.message).includes('loading plugin'))
+              Deferred.doneUnsafe(secondLoading, Effect.void)
+          }),
+        ]),
+      ),
+      Effect.forkScoped({startImmediately: true}),
+    )
+    yield* Deferred.await(secondLoading)
+    yield* Deferred.succeed(gate, undefined)
+    yield* Fiber.join(first)
+    yield* Fiber.join(second)
+    expect(yield* Ref.get(events)).toEqual(['ready', 'loaded', 'loaded'])
+    expect((yield* Ref.get(subscribed)).filter((watched) => watched === bundle)).toEqual([bundle])
+    const changed = yield* modules.changes().pipe(Stream.runHead, Effect.forkScoped({startImmediately: true}))
+    yield* Effect.promise(() => write(bundle, 'module.exports = {default: {setup() {}}, edited: true}'))
+    yield* Fiber.join(changed)
   }),
 )

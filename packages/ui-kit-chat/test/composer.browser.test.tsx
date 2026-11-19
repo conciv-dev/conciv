@@ -148,14 +148,16 @@ describe('action bar inactive unreachable', () => {
         <button type="button" onClick={() => void chat.sendMessage('two')}>
           ask-two
         </button>
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Messages />
-          </Thread.Viewport>
-          <Thread.Composer>
-            <span>composer region</span>
-          </Thread.Composer>
-        </Thread>
+        <div class="flex flex-col h-96">
+          <Thread>
+            <Thread.Viewport>
+              <Thread.Messages />
+            </Thread.Viewport>
+            <Thread.Composer>
+              <span>composer region</span>
+            </Thread.Composer>
+          </Thread>
+        </div>
       </ChatProvider>
     )
   }
@@ -360,7 +362,7 @@ describe('attachment image viewer', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('a refused image says why on its chip, by name and by a tooltip that opens on keyboard focus', async () => {
+  it('a refused image says why on its chip, by name and by a tooltip that opens on hover and keyboard focus and never blocks the input', async () => {
     const tooLarge = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'huge.png', {type: 'image/png'})
     const reason = `huge.png exceeds the ${MAX_ATTACHMENT_RAW_BYTES / (1024 * 1024)}MB image limit`
     mountComposer([])
@@ -369,7 +371,10 @@ describe('attachment image viewer', () => {
 
     const refused = page.getByRole('button', {name: reason})
     await expect.element(refused).toBeVisible()
+    await refused.hover()
+    await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
     await page.getByRole('textbox', {name: 'Message'}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(page.getByRole('button', {name: 'Remove huge.png'})).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')

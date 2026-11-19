@@ -91,31 +91,34 @@ ConcivWidget.attach(launcher: .native)
 
 ## Let the agent build and run the app
 
-Everything above is all you need to see the widget. Optionally, install the `ios` extension (`pnpm add -D @conciv/extension-ios`) so
+Everything above is all you need to see the widget. Optionally, install the `ios` plugin (`pnpm add -D @conciv/plugin-ios`) so
 it can build, launch, and screenshot the app for you (via the `ios_build` and `ios_run` tools) instead
-of you rebuilding by hand.
+of you rebuilding by hand. A configured plugin also adds the iOS rules to the agent's system prompt: the native
+overlay, the app it serves, and the build loop.
 
 <Accordions type="single">
-<Accordion title="Configure the ios extension">
+<Accordion title="Configure the ios plugin">
 
-Add it to the conciv options and point it at your native project:
+Add it to `plugins` and point it at your native project:
 
 ```ts title="vite.config.ts"
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
-import ios from '@conciv/extension-ios'
 
 export default defineConfig({
   plugins: [
     conciv({
       port: 4599,
-      extensions: [
-        ios({
-          projectRoot: fileURLToPath(new URL('./ios', import.meta.url)),
-          bundleId: 'dev.conciv.YourApp',
-          simulator: 'iPhone 17 Pro',
-        }),
+      plugins: [
+        [
+          '@conciv/plugin-ios',
+          {
+            projectRoot: fileURLToPath(new URL('./ios', import.meta.url)),
+            bundleId: 'dev.conciv.YourApp',
+            simulator: 'iPhone 17 Pro',
+          },
+        ],
       ],
     }),
   ],
@@ -125,7 +128,7 @@ export default defineConfig({
 `port` is optional. The app finds a core on any port through the pairing file below; pinning it only
 keeps the URL stable across restarts, which matters if you launch the app by hand with `CONCIV_URL`.
 From the agent panel you then run `ios_build` and `ios_run` to build and launch the app. Without this
-block the widget still works; only the `ios.*` build tools are unavailable.
+block the widget still works; only the `ios_*` build tools are unavailable.
 
 </Accordion>
 </Accordions>
@@ -194,5 +197,6 @@ need to be sure which core the app talks to.
 
 The agent works the native app the same way it works a web page: grab a view, ask about it, and let it
 find and edit the Swift. See [Usage](/docs/usage) for what the agent can do, and
-[`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios) for
-the transport tiers, pairing, and re-pair behavior behind the native path.
+[`@conciv/plugin-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/ios) for the build and run tools.
+[`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios) is the WKWebView bridge the
+widget's native page uses; its README covers the transport tiers, pairing, and re-pair behavior behind the native path.
