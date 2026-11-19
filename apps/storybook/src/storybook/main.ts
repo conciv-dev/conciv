@@ -11,7 +11,6 @@ const config: StorybookConfig = {
     '../../../../packages/ui-kit-chat/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/ui-kit-chat-tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/builtin-plugins/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
-    '../../../../packages/extensions/recorder/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/core/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../../packages/ui-kit-tap/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',

@@ -39,7 +39,6 @@ import {currentHref} from '@conciv/plugin-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
-import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {CHAT_WS_PATH, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
@@ -58,7 +57,6 @@ import {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
-import {makeExtRpcClient} from '@conciv/extension'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 
@@ -209,6 +207,12 @@ test.describe('composer rich input', () => {
         input: {type: 'object', properties: {}},
         execute: async () => ({content: 'probed'}),
       })
+      tools.add({
+        name: 'mention_second_probe',
+        description: 'Probes the mention list again',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed again'}),
+      })
     })
   },
 }
@@ -216,7 +220,6 @@ test.describe('composer rich input', () => {
 
   const suite = setupWidgetSuite({
     text: ASSISTANT_TEXT,
-    extensions: [recorderServer],
     files: {'conciv/plugins/mention-probe.ts': MENTION_PROBE_PLUGIN},
     commands: [
       {name: 'compact', description: 'Compact the conversation'},
@@ -265,11 +268,8 @@ test.describe('composer rich input', () => {
       await pickSuggestion(page, 'Commands', '/config')
 
       await input.pressSequentially('then ')
-      await input.pressSequentially('@report')
-      await pickSuggestion(page, 'Context', '@report')
-
-      await input.pressSequentially('@recording_start')
-      await pickSuggestion(page, 'Context', '@recording_start')
+      await input.pressSequentially('@mention_second_probe')
+      await pickSuggestion(page, 'Context', '@mention_second_probe')
 
       await input.pressSequentially('@mention_probe')
       await pickSuggestion(page, 'Context', '@mention_probe')
@@ -277,7 +277,7 @@ test.describe('composer rich input', () => {
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @report @recording_start @mention_probe \nsecond line'
+      const expected = 'please run /config then @mention_second_probe @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)
@@ -2439,132 +2439,6 @@ module.exports = {default: {setup(ctx) {
   })
 })
 
-test.describe('recording attachment', () => {
-  let kit: EmbedKit
-  let host: {base: string; close: () => Promise<void>}
-
-  test.beforeAll(async () => {
-    kit = await bootEmbedKit({text: 'Recording received', extensions: [recorderServer]})
-    host = await serveWidgetHost(() =>
-      hostPage({
-        apiBase: kit.base,
-        widget: '{"quickTerminal":false}',
-        body: '<button>Embed fixture</button>',
-      }),
-    )
-  })
-
-  test.afterAll(async () => {
-    await host.close()
-    await kit.cleanup()
-  })
-
-  const ClickEventSchema = z.object({
-    type: z.literal(3),
-    data: z.looseObject({source: z.literal(2), type: z.literal(2)}),
-  })
-
-  const AppendedEventsSchema = z.object({events: z.array(z.unknown())})
-
-  test.describe('recording attachment end to end in the real widget', () => {
-    test('composes the card chip, sends log text to the model, renders the durable transcript card', async ({page}) => {
-      test.setTimeout(480_000)
-      await openLoggedIn(page, kit, host.base)
-
-      await openPanel(page)
-      const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
-      const client: {id?: string} = {}
-      const clicksStreamedSince = async (cursor: number, wanted: number, signal: AbortSignal): Promise<number> => {
-        if (!client.id) throw new Error('no recorder client connected')
-        let clicks = 0
-        for await (const batch of await recorderRpc.events({cursor, clientId: client.id}, {signal})) {
-          const appended = AppendedEventsSchema.parse(batch)
-          clicks += appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
-          if (clicks >= wanted) return clicks
-        }
-        return clicks
-      }
-
-      await page.getByRole('tab', {name: 'Recorder'}).click()
-      await until(
-        async () => {
-          const {clients} = await recorderRpc.clients()
-          if (clients.length > 1) throw new Error(`expected one recorder client for this page, saw ${clients.length}`)
-          client.id = clients[0]?.id
-          return client.id !== undefined
-        },
-        {hangGuardMs: 30_000, intervalMs: 100},
-      )
-      if (!client.id) throw new Error('no recorder client connected')
-      const captureBaseline = (await recorderRpc.window({clientId: client.id})).cursor
-
-      await page.getByRole('button', {name: 'Embed fixture'}).click()
-      await page.getByRole('button', {name: 'Embed fixture'}).click()
-      expect(await clicksStreamedSince(captureBaseline, 2, AbortSignal.timeout(30_000))).toBe(2)
-
-      const send = page.getByRole('button', {name: 'Send to agent'})
-      await send.waitFor({state: 'visible', timeout: 15_000})
-      await send.click()
-
-      await page
-        .getByText(/Screen recording · \d+ action/)
-        .first()
-        .waitFor({state: 'visible', timeout: 15_000})
-      expect(await page.getByText('recording.txt').count()).toBe(0)
-
-      const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-      await input.fill('here is what I did')
-      await page.getByRole('button', {name: 'Send message'}).click()
-      await expect(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
-
-      const {sessions} = await kit.rpc.sessions.list()
-      const chatSession = sessions[0]?.id
-      if (!chatSession) throw new Error('widget session not found')
-      const persisted = {messages: ''}
-      await until(
-        async () => {
-          persisted.messages = JSON.stringify((await kit.rpc.chat.hydrate({sessionId: chatSession})).messages)
-          return persisted.messages.includes('[click]')
-        },
-        {hangGuardMs: 30_000, intervalMs: 200},
-      )
-      expect(persisted.messages).toContain('"modelOnly":true')
-
-      const transcript = page.getByRole('log')
-      await transcript
-        .getByText(/Screen recording · \d+ action/)
-        .first()
-        .waitFor({state: 'visible', timeout: 15_000})
-      await transcript.getByRole('button', {name: 'Play'}).first().waitFor({state: 'visible', timeout: 15_000})
-      expect(await transcript.getByText('[click]').count()).toBe(0)
-      expect(await page.getByRole('img').count()).toBe(0)
-
-      await page.reload({waitUntil: 'domcontentloaded'})
-      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-      await page
-        .getByRole('log')
-        .getByText(/Screen recording · \d+ action/)
-        .first()
-        .waitFor({state: 'visible', timeout: 20_000})
-      await page
-        .getByRole('log')
-        .getByRole('button', {name: 'Play'})
-        .first()
-        .waitFor({state: 'visible', timeout: 15_000})
-
-      await page.getByRole('log').getByRole('button', {name: 'Play'}).first().click()
-      const modal = page.getByRole('dialog', {name: 'Screen recording replay'})
-      await modal.waitFor({state: 'visible', timeout: 15_000})
-      await modal.getByRole('button', {name: 'Close'}).click()
-      await modal.waitFor({state: 'hidden', timeout: 15_000})
-      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-      const composerAfterModal = page.getByRole('textbox', {name: 'Message the conciv agent'})
-      await composerAfterModal.fill('still alive after replay')
-      await expect(composerAfterModal).toHaveText('still alive after replay')
-    })
-  })
-})
-
 test.describe('reload continuity', () => {
   const ASSISTANT_TEXT = 'Continuity reply'
 
@@ -2993,37 +2867,6 @@ test.describe('selection containment', () => {
       const ends = await selectionEnds(page)
       expect(ends.text).toContain('page article text')
       expect(ends.startInWidget).toBe(false)
-    })
-  })
-})
-
-test.describe('unknown view restore', () => {
-  const suite = setupWidgetSuite({text: 'Unknown view reply', extensions: [recorderServer]})
-
-  test.describe('restoring a persisted panel route whose extension view is no longer mounted', () => {
-    test('lands on the chat view instead of an empty pane', async ({page}) => {
-      test.setTimeout(240_000)
-      await openLoggedIn(page, suite.kit(), suite.host().base)
-      await openPanel(page)
-
-      await page.getByRole('tab', {name: 'Recorder'}).click()
-      await expect(page.getByRole('tab', {name: 'Recorder'})).toHaveAttribute('aria-selected', 'true')
-      await until(async () => (await currentHref(suite.kit())).includes('/recorder'), {
-        hangGuardMs: 30_000,
-        intervalMs: 100,
-      })
-
-      await page.goto(`${suite.host().base}/?extensions=`, {waitUntil: 'domcontentloaded'})
-
-      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-      await expect(page.getByRole('tab', {name: 'Recorder'})).toHaveCount(0)
-      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
-      const statusBar = page.getByRole('toolbar', {name: 'Session status'})
-      await expect(statusBar.getByRole('tab', {name: 'Chat', exact: true})).toHaveAttribute('aria-selected', 'true')
-      await until(async () => !(await currentHref(suite.kit())).includes('/recorder'), {
-        hangGuardMs: 30_000,
-        intervalMs: 100,
-      })
     })
   })
 })
