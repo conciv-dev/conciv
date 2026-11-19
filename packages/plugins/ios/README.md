@@ -26,13 +26,15 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 
 - `./bridge`: the zod schemas of the versioned page and native messages (`PageToNativeSchema`, `NativeToPageSchema`,
   `BridgeMessageSchema`) and their types, the single source the Swift `BridgeMessages.swift` mirrors.
-- `./client`: `setup`, the browser part `@conciv/embed`'s native page composes in as the `ios` plugin; it starts the
-  bridge and adds a `page.overlay` `Slot` that alerts when the app speaks bridge versions this widget does not
-  support. `makeNativeGrabProvider` hands the widget a grab provider that picks native views through the bridge, and
-  `nativePageBase` derives the engine api base from the native page's location.
-- Side effect: loading `./client` on a page whose `window.webkit.messageHandlers.concivBridge` exists sets
-  `window.__concivNative`, posts to the app through that handler, listens for `conciv:panel-toggled` and dispatches
-  `conciv:rebind` when the app hands over a new api base.
+- `./client`: `makeNativeService`, a scoped Effect that, on a page whose `window.webkit.messageHandlers.concivBridge`
+  exists, starts the bridge and returns the native service (`undefined` on any other page, which then gets nothing).
+  The service's `setup` is the browser part `@conciv/embed`'s native page composes in as the `ios` plugin: a
+  `page.overlay` `Slot` that alerts when the app speaks bridge versions this widget does not support. Its
+  `grabProvider` picks native views through the bridge. `nativePageBase` derives the engine api base from the native
+  page's location.
+- Side effect: the service's scope owns `window.__concivNative`, the `conciv:panel-toggled` listener, the panel
+  event-bus client and the fibers that follow the bridge; it posts to the app through the handler and dispatches
+  `conciv:rebind` when the app hands over a new api base. Closing the scope removes all of them.
 - `pnpm --filter @conciv/plugin-ios gen:fixtures` writes the bridge fixtures from `test/fixtures/bridge/bridge.fixtures.ts`
   to `test/fixtures/bridge/` and to the Swift test copy in `native/swift/ConcivWidget/Tests/ConcivWidgetTests/Fixtures/bridge`.
 

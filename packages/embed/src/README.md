@@ -11,7 +11,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount.ts:mountConciv` - appends a `[data-conciv-script-root]` div to `document.body` and mounts the widget with the given plugin entries.
 - `mount-impl.tsx:mountImpl` - creates the `[data-conciv-root]` element and shadow root, boots the app, returns `{ready, teardown, rebind}`.
 - `navigation-storage.ts:makeNavigationStorage` - a `WebStorage` backed by `rpc.navigation.get`/`set`, with `restored`, `flush` and `dispose`.
-- `native-entry.ts` - mounts the widget with the `@conciv/plugin-ios` browser half (`@conciv/plugin-ios/client`) composed in as a plugin on `[data-conciv-native-root]` (or `document.body`).
+- `native-entry.ts` - owns the scope of the `@conciv/plugin-ios` native service (`@conciv/plugin-ios/client` `makeNativeService`), composes its `setup` in as the `ios` plugin and hands its `grabProvider` to `createConciv`, mounts the widget on `[data-conciv-native-root]` (or `document.body`), and on a `pagehide` that is not kept in the back-forward cache unmounts the widget and closes the scope.
 
 ## Invariants
 

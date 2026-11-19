@@ -1,8 +1,13 @@
 import {Show, type JSX} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
-import {Effect, Queue, Scope, Stream, SubscriptionRef} from 'effect'
+import {Effect, FiberSet, Queue, Stream, SubscriptionRef} from 'effect'
 import {Plugin, Slot} from '@conciv/plugin/experimental'
-import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
+import {
+  createEventBusClient,
+  PANEL_PLUGIN_ID,
+  type EventBusClient,
+  type PanelCommandEventMap,
+} from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import type {GrabMode} from './bridge.js'
 import {makeNativeClient, type NativeClient, type NativeTransport} from './bridge-client.js'
@@ -24,9 +29,11 @@ type NativeApi = {
 
 type PanelToggledDetail = {open?: boolean; connected?: boolean; mascotRect?: ElementRect | null}
 
+type NativeHandler = {postMessage: (message: unknown) => void}
+
 declare global {
   interface Window {
-    webkit?: {messageHandlers?: {concivBridge?: {postMessage: (message: unknown) => void}}}
+    webkit?: {messageHandlers?: {concivBridge?: NativeHandler}}
     __concivNative?: NativeApi
   }
   interface WindowEventMap {
@@ -36,128 +43,65 @@ declare global {
 
 type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
-const [bridgeState, setBridgeState] = createStore<{
-  incompatible: Incompatible | null
-  grabbable: boolean
-}>({
-  incompatible: null,
-  grabbable: false,
-})
+type BridgeView = {incompatible: Incompatible | null; grabbable: boolean}
 
-let bridge: NativeClient | null = null
-
-function dispatch(name: string, detail?: Record<string, unknown>): void {
-  window.dispatchEvent(new CustomEvent(name, {detail}))
+export type NativeService = {
+  readonly grabProvider: GrabProvider
+  readonly setup: Plugin.Setup
 }
 
-const panelCommands = createEventBusClient<PanelCommandEventMap>({
-  pluginId: PANEL_PLUGIN_ID,
-  reconnectEveryMs: 500,
-  maxRetries: 60,
-})
+type PanelCommands = EventBusClient<PanelCommandEventMap>
 
-function makeWebkitTransport(): NativeTransport {
-  const calls = Effect.runSync(Queue.unbounded<unknown>())
-  const forward =
-    (type: string): NativeCall =>
-    (message) =>
-      void Queue.offerUnsafe(calls, {...message, type})
-  window.__concivNative = {
-    handshake: forward('handshake'),
-    bridgeIncompatible: forward('bridge.incompatible'),
-    open: forward('open'),
-    close: forward('close'),
-    grabResult: forward('grabResult'),
-    grabCapability: forward('grabCapability'),
-  }
-  return {
-    calls: Stream.fromQueue(calls),
-    post: (message) => Effect.sync(() => window.webkit?.messageHandlers?.concivBridge?.postMessage(message)),
-  }
-}
-
-function followSignal(signal: NativeSignal): void {
-  if (signal.type === 'open') return panelCommands.emit('open', undefined)
-  if (signal.type === 'close') return panelCommands.emit('close', undefined)
-  dispatch('conciv:rebind', {apiBase: signal.apiBase})
-}
-
-function onPanelToggled(event: WindowEventMap['conciv:panel-toggled']): void {
-  if (!bridge) return
-  const detail = event.detail
-  if (!detail) return
-  Effect.runFork(
-    bridge.panelToggled({
-      open: detail.open === true,
-      connected: detail.connected === true,
-      mascotRect: detail.mascotRect ?? null,
-    }),
-  )
-}
-
-function nativeHandlerPresent(): boolean {
-  return typeof window !== 'undefined' && window.webkit?.messageHandlers?.concivBridge !== undefined
-}
-
-function ensureBridge(): NativeClient | null {
-  if (bridge) return bridge
-  if (!nativeHandlerPresent()) return null
-  const scope = Effect.runSync(Scope.make())
-  const client = Effect.runSync(
-    makeNativeClient({
-      transport: makeWebkitTransport(),
-      clientId: `native-${crypto.randomUUID()}`,
-      apiBase: nativePageBase(window.location),
-    }).pipe(Scope.provide(scope)),
-  )
-  bridge = client
-  Effect.runFork(
-    Stream.runForEach(SubscriptionRef.changes(client.state), (state) =>
-      Effect.sync(() =>
-        setBridgeState(
-          reconcile({
-            incompatible: readIncompatible(state),
-            grabbable: state.grabbable,
-          }),
-        ),
-      ),
-    ),
-  )
-  Effect.runFork(Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(signal))))
-  window.addEventListener('conciv:panel-toggled', onPanelToggled)
-  return client
-}
-
-function picking(engine: NativeClient): boolean {
-  return Effect.runSync(SubscriptionRef.get(engine.state)).pick.status === 'picking'
-}
-
-export function makeNativeGrabProvider(): GrabProvider {
-  const engine = ensureBridge()
-  const doPick = async (mode: GrabMode) => {
-    if (!engine) return null
-    panelCommands.emit('close', undefined)
-    try {
-      return await Effect.runPromise(engine.pick(mode))
-    } finally {
-      if (!picking(engine)) panelCommands.emit('open', undefined)
+const installTransport = Effect.acquireRelease(
+  Effect.gen(function* () {
+    const calls = yield* Queue.unbounded<unknown>()
+    const forward =
+      (type: string): NativeCall =>
+      (message) =>
+        void Queue.offerUnsafe(calls, {...message, type})
+    window.__concivNative = {
+      handshake: forward('handshake'),
+      bridgeIncompatible: forward('bridge.incompatible'),
+      open: forward('open'),
+      close: forward('close'),
+      grabResult: forward('grabResult'),
+      grabCapability: forward('grabCapability'),
     }
-  }
-  const actions: GrabActions = {
-    pick: () => doPick('activate'),
-    comment: () => doPick('comment'),
-    cancel: () => {
-      if (engine) Effect.runFork(engine.cancel)
-    },
-    isActive: () => engine !== null && picking(engine),
-    grabbable: () => bridgeState.grabbable,
-  }
-  return () => actions
+    const transport: NativeTransport = {
+      calls: Stream.fromQueue(calls),
+      post: (message) => Effect.sync(() => window.webkit?.messageHandlers?.concivBridge?.postMessage(message)),
+    }
+    return transport
+  }),
+  () => Effect.sync(() => Reflect.deleteProperty(window, '__concivNative')),
+)
+
+const openPanelCommands = Effect.acquireRelease(
+  Effect.sync(() =>
+    createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID, reconnectEveryMs: 500, maxRetries: 60}),
+  ),
+  (commands) => Effect.sync(() => commands.dispose()),
+)
+
+const listenPanelToggled = (listener: (event: WindowEventMap['conciv:panel-toggled']) => void) =>
+  Effect.acquireRelease(
+    Effect.sync(() => window.addEventListener('conciv:panel-toggled', listener)),
+    () => Effect.sync(() => window.removeEventListener('conciv:panel-toggled', listener)),
+  )
+
+function followSignal(commands: PanelCommands, signal: NativeSignal): void {
+  if (signal.type === 'open') return commands.emit('open', undefined)
+  if (signal.type === 'close') return commands.emit('close', undefined)
+  window.dispatchEvent(new CustomEvent('conciv:rebind', {detail: {apiBase: signal.apiBase}}))
 }
 
-function IncompatibleBridgeAlert(): JSX.Element {
+function isPicking(client: NativeClient): boolean {
+  return Effect.runSync(SubscriptionRef.get(client.state)).pick.status === 'picking'
+}
+
+function IncompatibleBridgeAlert(props: {view: BridgeView}): JSX.Element {
   return (
-    <Show when={bridgeState.incompatible}>
+    <Show when={props.view.incompatible}>
       {(info) => (
         <div
           role="alert"
@@ -171,7 +115,61 @@ function IncompatibleBridgeAlert(): JSX.Element {
   )
 }
 
-export const setup: Plugin.Setup = (ctx) => {
-  ensureBridge()
-  ctx.add(Slot, {at: 'page.overlay', hides: false, render: () => <IncompatibleBridgeAlert />})
-}
+const startNativeService = Effect.fn('Ios.startNativeService')(function* () {
+  const commands = yield* openPanelCommands
+  const transport = yield* installTransport
+  const client = yield* makeNativeClient({
+    transport,
+    clientId: `native-${crypto.randomUUID()}`,
+    apiBase: nativePageBase(window.location),
+  })
+  const run = yield* FiberSet.makeRuntime<never, unknown, unknown>()
+  const runPromise = yield* FiberSet.makeRuntimePromise<never, unknown, unknown>()
+  const [view, setView] = createStore<BridgeView>({incompatible: null, grabbable: false})
+
+  yield* Stream.runForEach(SubscriptionRef.changes(client.state), (state) =>
+    Effect.sync(() => setView(reconcile({incompatible: readIncompatible(state), grabbable: state.grabbable}))),
+  ).pipe(Effect.forkScoped)
+  yield* Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(commands, signal))).pipe(
+    Effect.forkScoped,
+  )
+  yield* listenPanelToggled((event) => {
+    const detail = event.detail
+    if (!detail) return
+    run(
+      client.panelToggled({
+        open: detail.open === true,
+        connected: detail.connected === true,
+        mascotRect: detail.mascotRect ?? null,
+      }),
+    )
+  })
+
+  const pickWith = async (mode: GrabMode) => {
+    commands.emit('close', undefined)
+    try {
+      return await runPromise(client.pick(mode))
+    } finally {
+      if (!isPicking(client)) commands.emit('open', undefined)
+    }
+  }
+  const actions: GrabActions = {
+    pick: () => pickWith('activate'),
+    comment: () => pickWith('comment'),
+    cancel: () => void run(client.cancel),
+    isActive: () => isPicking(client),
+    grabbable: () => view.grabbable,
+  }
+  const service: NativeService = {
+    grabProvider: () => actions,
+    setup: (ctx) => {
+      ctx.add(Slot, {at: 'page.overlay', hides: false, render: () => <IncompatibleBridgeAlert view={view} />})
+    },
+  }
+  return service
+})
+
+export const makeNativeService = Effect.suspend(() => {
+  if (window.webkit?.messageHandlers?.concivBridge === undefined) return Effect.succeed(undefined)
+  return startNativeService()
+})

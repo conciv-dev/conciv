@@ -1,5 +1,6 @@
+import {Effect, Exit, Scope} from 'effect'
 import {compose} from '@conciv/plugin/experimental/host'
-import {makeNativeGrabProvider, nativePageBase, setup} from '@conciv/plugin-ios/client'
+import {makeNativeService, nativePageBase, type NativeService} from '@conciv/plugin-ios/client'
 import {engineAddress} from './agent-base.js'
 import {createConciv, type PluginEntry} from './mount.js'
 
@@ -9,11 +10,25 @@ function readLauncher(search: string): 'native' | 'mascot' {
   return new URLSearchParams(search).get('launcher') === 'mascot' ? 'mascot' : 'native'
 }
 
+function composeNative(native: NativeService | undefined): PluginEntry[] {
+  if (!native) return []
+  return compose({ios: {windowEntry: async () => ({default: native.setup})}}).map((entry): PluginEntry => [entry, {}])
+}
+
+const scope = Effect.runSync(Scope.make())
+const native = Effect.runSync(makeNativeService.pipe(Scope.provide(scope)))
+
 const handle = createConciv({
-  plugins: compose({ios: {windowEntry: async () => ({default: setup})}}).map((entry): PluginEntry => [entry, {}]),
+  plugins: composeNative(native),
   settings: {launcher: readLauncher(window.location.search)},
   ...engineAddress(nativePageBase(window.location)),
-  grabProvider: makeNativeGrabProvider(),
+  grabProvider: native?.grabProvider,
+})
+
+window.addEventListener('pagehide', (event) => {
+  if (event.persisted) return
+  handle.unmount()
+  void Effect.runPromise(Scope.close(scope, Exit.void))
 })
 
 void handle.mount(root)
