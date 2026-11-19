@@ -3951,6 +3951,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
+      '@conciv/plugin-internal':
+        specifier: workspace:*
+        version: link:../../plugin-internal
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../plugin-testkit

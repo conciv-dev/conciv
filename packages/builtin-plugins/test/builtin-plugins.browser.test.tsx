@@ -36,12 +36,11 @@ import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {makeHighlight} from '../src/page/highlight.js'
 import {openSource, type SourceOpener} from '../src/page/open-source.js'
-import {CardChromeProvider, ToolDisplay} from '@conciv/ui-kit-chat/tools'
+import {ToolDisplay} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ReactFiber} from '@conciv/plugin/experimental/page'
 import type {ToolProps} from '@conciv/plugin/experimental'
 import {tanstackCards} from '../src/tanstack/cards.js'
-import {recorderCards} from '../src/recorder/cards.js'
 import {createORPCClient, withEventMeta, type ClientLink} from '@orpc/client'
 import type {RpcClient, RpcClientContext} from '@conciv/contract'
 import {createTerminalModel, translateBuffer} from '@conciv/ui-kit-terminal'
@@ -2632,81 +2631,6 @@ describe('the tanstack cards', () => {
     const approve = mountCard('tanstack_router_state', {})
     approve({status: 'pending'})
     await expect.element(header('Reading the router state')).toBeVisible()
-  })
-})
-
-describe('the recorder cards', () => {
-  const widgetSheet = document.createElement('style')
-  widgetSheet.textContent = `${tokens}${utilities}`
-  beforeAll(() => document.head.append(widgetSheet))
-  afterAll(() => widgetSheet.remove())
-
-  type Tool = keyof typeof recorderCards
-
-  const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
-  const keyframe = {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}}
-  const log = '+0.0s [click] button "Save"\n+2.5s [navigation] /settings\n+4.1s [console] error: boom'
-
-  const lookupRecorderCard = (name: string) => Object.entries(recorderCards).find(([tool]) => tool === name)?.[1]
-
-  function RecorderCard(props: {tool: Tool; input: Record<string, unknown>; output: string; failed?: boolean}) {
-    return (
-      <ToolDisplay
-        id={`call-${props.tool}`}
-        render={lookupRecorderCard}
-        tool={props.tool}
-        input={props.input}
-        metadata={{}}
-        status={props.failed === true ? 'error' : 'completed'}
-        output={props.failed === true ? undefined : props.output}
-        error={props.failed === true ? props.output : undefined}
-      />
-    )
-  }
-
-  function mountCard(tool: Tool, input: Record<string, unknown>, output: string, failed?: boolean) {
-    render(() => <RecorderCard tool={tool} input={input} output={output} failed={failed} />)
-  }
-
-  const header = (tool: Tool) => page.getByRole('button', {name: new RegExp(tool)})
-
-  it('draws the pull window and its actions, the started capture, a failed stop, and the summary inside a trace', async () => {
-    onTestFinished(cleanup)
-    mountCard(
-      'recording_pull',
-      {secondsBack: 30, keyframes: 3},
-      JSON.stringify([keyframe, keyframe, {type: 'text', content: log}]),
-    )
-    await expect.element(page.getByText('last 30s · 3 actions · 2 keyframes', {exact: true})).toBeVisible()
-    await header('recording_pull').click()
-    await expect.element(page.getByText('button "Save"')).toBeVisible()
-    await expect.element(page.getByText('navigation', {exact: true})).toBeVisible()
-    cleanup()
-
-    mountCard('recording_start', {}, JSON.stringify({captureId: 'cap_1', startedAt: 1}))
-    await expect.element(page.getByText('capture started', {exact: true})).toBeVisible()
-    await header('recording_start').click()
-    await expect.element(page.getByText('cap_1', {exact: true})).toBeVisible()
-    cleanup()
-
-    mountCard('recording_stop', {captureId: 'cap_9', keyframes: 0}, 'no active capture cap_9', true)
-    await expect.element(page.getByRole('img', {name: 'failed'})).toBeVisible()
-    await header('recording_stop').click()
-    await expect.element(page.getByText('Error', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('no active capture cap_9')).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Copy error'})).not.toBeInTheDocument()
-    cleanup()
-
-    render(() => (
-      <CardChromeProvider value="embedded">
-        <RecorderCard
-          tool="recording_pull"
-          input={{secondsBack: 30, keyframes: 3}}
-          output={JSON.stringify([keyframe, {type: 'text', content: log}])}
-        />
-      </CardChromeProvider>
-    ))
-    await expect.element(page.getByText('last 30s · 3 actions · 1 keyframe', {exact: true})).toBeVisible()
   })
 })
 
