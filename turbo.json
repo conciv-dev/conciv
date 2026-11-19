@@ -1,6 +1,9 @@
 {
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
-  "globalDependencies": ["pnpm-workspace.yaml", ".oxlintrc.json"],
+  "futureFlags": {
+    "affectedUsingTaskInputs": true
+  },
+  "globalDependencies": ["pnpm-workspace.yaml"],
   "globalPassThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH", "NODE_DISABLE_COMPILE_CACHE"],
   "concurrency": "50%",
   "cacheMaxAge": "7d",
@@ -51,7 +54,8 @@
       "outputs": ["test-results.json", "coverage/coverage-summary.json"]
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
     },
     "publint": {
       "dependsOn": ["build"]

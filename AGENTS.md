@@ -42,7 +42,14 @@ README.md; this file is the non-obvious operational rules.
   root scripts `pnpm test` and `pnpm typecheck` (which expand to it), and a bare `vitest` or `vitest run`
   with no test file/glob and no `-t`/`--testNamePattern`; pass a `--filter` (or a file argument) instead.
 - Affected-only shortcuts for a branch: `pnpm test:affected` / `typecheck:affected` / `build:affected`
-  (`--filter=...[origin/main]`).
+  (`TURBO_SCM_BASE=origin/main turbo run <task> --affected`). `turbo.json` sets
+  `futureFlags.affectedUsingTaskInputs`, so `--affected` selects a TASK when a changed file is one of its
+  inputs or a task it depends on is selected: a test-only edit reruns that package's `test` and `typecheck`
+  and no dependent, a `src` edit reruns every dependent through `^build`, and a file another package's
+  build scans (the UnoCSS `$TURBO_ROOT$/...` build inputs in `packages/embed` and `apps/conciv`) reruns that
+  build. `--filter=...[ref]` ignores the flag and still selects whole packages plus manifest dependents.
+  A root file in `globalDependencies` (`pnpm-workspace.yaml`) selects every task; `.oxlintrc.json` is a
+  `lint` input only.
 - Gates run with the turbo cache on. `turbo run --force` is banned by `.claude/hooks/turbo-filter-gate.sh`
   (the cache hash already covers source and deps); if a dist looks stale, delete that package's dist
   (`rm -rf packages/<pkg>/dist`) and rerun without `--force`. `turbo.json` pins no `cacheDir`, so turbo
