@@ -68,7 +68,6 @@ import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
-import {persistentPtySocketRoutes} from './api/persistent-pty-socket.js'
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
@@ -272,7 +271,6 @@ function composeRoutes(
       return c.json({ok: true})
     })
     .route('/', deps.plane.routes(deps.upgrade))
-    .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {

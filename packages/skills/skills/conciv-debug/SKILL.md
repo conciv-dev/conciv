@@ -42,7 +42,7 @@ running engine, or the engine rejects the origin.
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
   there is no such fallback path for the client: the client learns the port before the engine boots
   (Next inlines it into `next.config`'s env; webpack/Rspack build it into the widget entry they add,
-  41700 unless you pass `port`), so a taken port there fails the boot instead of silently reconnecting —
+  24170 unless you pass `port`), so a taken port there fails the boot instead of silently reconnecting —
   fix the conflict (kill whatever else holds the port, or pin a different one) rather than expecting
   a fallback.
 - **CORS / wrong origin.** The engine only allows loopback origins (`localhost`, `127.0.0.1`, `[::1]`)
