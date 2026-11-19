@@ -2467,6 +2467,40 @@ describe('a stalled event stream gets a new socket', () => {
   }, 30_000)
 })
 
+describe('an untrusted page waits for trust before its event stream subscribes again', () => {
+  test('the refused event stream schedules no retry while the browser is untrusted and subscribes once trust is granted', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    const origin = `http://127.0.0.1:${served.port}`
+    const client = makeBrowserRpcClient(origin)
+    const connection = browserRpcConnection(origin)
+    const conciv = Conciv.make(client.rpc, {server: () => origin})
+    const statuses: string[] = []
+    const stopWatching = conciv.connection.on((status) => statuses.push(status))
+    try {
+      expect(await connection.trust.requestTrust({storedOnly: true})).toBe(false)
+      expect(connection.trust.status()).toBe('untrusted')
+      const reader = conciv.event.subscribe()[Symbol.asyncIterator]()
+      const opening = reader.next()
+      expect(await client.rpc.auth.trust({token: 'not-a-token'})).toEqual({trusted: false})
+      expect(statuses).toEqual([])
+      const token = made.trustBrowser({browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}, Date.now())
+      expect(await connection.trust.requestTrustWithToken(token)).toBe(true)
+      expect(await opening).toMatchObject({done: false, value: {type: 'server.connected'}})
+      expect(statuses).toEqual(['connected'])
+      await reader.return?.()
+    } finally {
+      stopWatching()
+      connection.release()
+      client.close()
+      await served.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 15_000)
+})
+
 describe('settings storage', () => {
   const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
   const fileText = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null)
