@@ -1,7 +1,7 @@
 import {expect} from 'vitest'
 import {writeFile} from 'node:fs/promises'
 import nodePath from 'node:path'
-import {Data, Deferred, Effect, Exit, FileSystem, Fiber, Option, Path, Schema, Stream} from 'effect'
+import {Deferred, Effect, Exit, FileSystem, Fiber, Option, Path, Schema, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import {Bus} from '../../src/core/bus.js'
 import {Plugin} from '../../src/core/plugin.js'
@@ -402,12 +402,12 @@ it.live('reports a plugin whose effect fails with a tagged error and keeps loadi
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service
     const rpc = yield* Rpc.Service
-    class ConfigInvalid extends Data.TaggedError('ConfigInvalid')<{readonly message: string}> {}
+    const ConfigInvalid = Schema.TaggedStruct('ConfigInvalid', {message: Schema.String})
     yield* plugins.activate([
       {
         id: 'misconfigured',
         revision: '1',
-        effect: () => Effect.fail(new ConfigInvalid({message: 'the api key is missing'})),
+        effect: () => Effect.fail(ConfigInvalid.make({message: 'the api key is missing'})),
       },
       {
         id: 'healthy',
