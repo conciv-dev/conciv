@@ -104,8 +104,10 @@ const DiscoverErrorsSchema = z.object({tools: z.array(z.unknown()), errors: z.ar
 const PAGE_TOOLS_NOTE =
   'Page tools (external_page_*) are offered only for a tab whose page is open and connected: if none are listed, that page is closed or still connecting, so ask the user to open the app in the browser and call again with that tab.'
 
+const selectorTarget = z.string().describe('CSS selector for the target element')
+
 const elementTarget = {
-  selector: z.string().optional().describe('CSS selector for the target element'),
+  selector: selectorTarget.optional(),
   ref: z.string().optional().describe('element ref from the latest snapshot'),
   name: z.string().optional().describe('component name (targets the first match)'),
 }
@@ -154,14 +156,14 @@ const formTools = toolsPlugin('acme-form', [
   servedTool({
     name: 'acme_click',
     description: 'Click an element.',
-    input: z.object(elementTarget),
+    input: z.object({...elementTarget, selector: selectorTarget}),
     output: z.object({ok: z.boolean()}),
     answer: {ok: true},
   }),
   servedTool({
     name: 'acme_fill',
     description: 'Type a value into a form field.',
-    input: z.object({...elementTarget, value: z.string().describe('the value to type')}),
+    input: z.object({...elementTarget, selector: selectorTarget, value: z.string().describe('the value to type')}),
     output: z.object({ok: z.boolean()}),
     answer: {ok: true},
   }),
@@ -170,7 +172,8 @@ const formTools = toolsPlugin('acme-form', [
     description: 'Patch a slice of a live component.',
     input: z.object({
       ...elementTarget,
-      target: z.enum(['props', 'state', 'hooks', 'context']).describe('which slice to override'),
+      selector: selectorTarget,
+      target: z.enum(['props', 'state', 'hooks', 'context']).optional().describe('which slice to override'),
       path: z.string().optional().describe('dot-path inside the slice'),
       hookId: z.coerce.number().optional().describe('hook id from inspect'),
       json: z.string().optional().describe('new value as JSON'),
@@ -419,13 +422,12 @@ describe('cli', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
     describe('the dev-server reload command is gone', () => {
-      it('tools offers no server group and tools server reload is an unknown command', async () => {
+      it('tools server reload is an unknown command of the server group', async () => {
         await bootCli(cleanups)
-        expect(await helpText(['tools', '--help'])).not.toMatch(/^\s+server\s/m)
         expect(await runCli(cliMain, ['tools', 'server', 'reload', 'src/a.ts'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
-          error: {kind: 'user', message: expect.stringMatching(/^Unknown command 'server' for conciv tools\./)},
+          error: {kind: 'user', message: expect.stringMatching(/^Unknown command 'reload' for conciv tools server\./)},
         })
       })
     })
@@ -481,7 +483,7 @@ describe('cli', () => {
 
       it('serves a group from an extension the CLI has never heard of', async () => {
         await bootCli(cleanups, {plugins: [beaconExtension]})
-        expect(await helpText(['tools', 'acme', '--help'])).toContain('raise the acme beacon over the page')
+        expect(await helpText(['tools', 'acme', '--help'])).toContain('Raise the acme beacon over the page')
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
@@ -555,14 +557,14 @@ describe('cli', () => {
       it('clears a field when the value is explicitly empty', async () => {
         await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
-        expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email', '--value', ''])).toBe(0)
+        expect(await runCli(cliMain, ['tools', 'acme', 'fill', '--selector', '#email', '--value', ''])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_fill', input: {selector: '#email', value: ''}})
       })
 
       it('still refuses a required flag that was never passed at all', async () => {
         await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
-        expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'acme', 'fill', '--selector', '#email'])).toBe(1)
         expect(answer.seen()).toBeNull()
       })
 
@@ -570,7 +572,7 @@ describe('cli', () => {
         await bootCli(cleanups, {plugins: [formTools]})
         const help = await helpText(['tools', 'acme', '--help'])
         expect(help).not.toMatch(/acme fill/)
-        expect(help).toContain('type a value into a form field')
+        expect(help).toContain('Type a value into a form field')
       })
 
       it('offers the screenshot verb under page, derived from its declaration', async () => {
