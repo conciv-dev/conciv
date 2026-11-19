@@ -7,7 +7,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 ## Interface
 
 - `makeQueryUtils` / `QueryUtils` (`query-utils.ts`): `createTanstackQueryUtils(client)` for an `RpcClient`
-- `chatConnection(rpc, sessionId, options)` (`chat-connection.ts`): `ChatConnection` with subscribe, send, joinRun, hydrate, refresh, close; `refresh` hydrates the newest `CHAT_HISTORY_PAGE_SIZE` messages
+- `chatConnection` (`chat-connection.ts`): one session's chat over the rpc socket of the api base it is given: subscribe, send, joinRun, hydrate, refresh, close; `refresh` hydrates the newest `CHAT_HISTORY_PAGE_SIZE` messages
 - `ChatConnectionOptions` (`chat-connection.ts`)
 - `useChatSession(options)` (`use-chat-session.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
 - `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` / `subscribeEngineOnline` (`reachability.ts`)
