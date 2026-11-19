@@ -1,16 +1,25 @@
-import {Data, Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope} from 'effect'
+import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import {z} from 'zod'
 import {makeMachineDriver} from './machine-driver.js'
 import {initialPanel, transitionPanel, type PanelEffect, type PanelState} from './panel-machine.js'
 
-export const PresenceFailed = Data.TaggedError('RecorderPresenceFailed')<{readonly cause: unknown}>
-export type PresenceFailed = InstanceType<typeof PresenceFailed>
+export const PresenceFailed = Schema.TaggedStruct('RecorderPresenceFailed', {cause: Schema.Defect()})
+export type PresenceFailed = typeof PresenceFailed.Type & globalThis.Error
 
-export const ExportFailed = Data.TaggedError('RecorderExportFailed')<{readonly cause: unknown}>
-export type ExportFailed = InstanceType<typeof ExportFailed>
+export const makePresenceFailed = (fields: Omit<typeof PresenceFailed.Type, '_tag'>): PresenceFailed =>
+  Object.assign(new globalThis.Error(), PresenceFailed.make(fields), {name: 'RecorderPresenceFailed'})
 
-export const ResetFailed = Data.TaggedError('RecorderResetFailed')<{readonly cause: unknown}>
-export type ResetFailed = InstanceType<typeof ResetFailed>
+export const ExportFailed = Schema.TaggedStruct('RecorderExportFailed', {cause: Schema.Defect()})
+export type ExportFailed = typeof ExportFailed.Type & globalThis.Error
+
+export const makeExportFailed = (fields: Omit<typeof ExportFailed.Type, '_tag'>): ExportFailed =>
+  Object.assign(new globalThis.Error(), ExportFailed.make(fields), {name: 'RecorderExportFailed'})
+
+export const ResetFailed = Schema.TaggedStruct('RecorderResetFailed', {cause: Schema.Defect()})
+export type ResetFailed = typeof ResetFailed.Type & globalThis.Error
+
+export const makeResetFailed = (fields: Omit<typeof ResetFailed.Type, '_tag'>): ResetFailed =>
+  Object.assign(new globalThis.Error(), ResetFailed.make(fields), {name: 'RecorderResetFailed'})
 
 const VIEWER_RENEW = '7 seconds'
 
@@ -117,7 +126,7 @@ export function exportRecording(options: {
   return options.save.pipe(
     Effect.flatMap((saved) => {
       const parsed = SavedRecording.safeParse(saved)
-      if (!parsed.success) return Effect.fail(new ExportFailed({cause: saved}))
+      if (!parsed.success) return Effect.fail(makeExportFailed({cause: saved}))
       return readVideo(parsed.data.recordingId, 0, [])
     }),
     Effect.flatMap(options.saveFile),

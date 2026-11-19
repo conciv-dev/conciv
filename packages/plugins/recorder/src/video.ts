@@ -1,16 +1,22 @@
-import {Data, Effect, FileSystem, Option} from 'effect'
+import {Effect, FileSystem, Option, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
 import {RendererCache} from './renderer-cache.js'
 
 export type VideoPiece = {data: string; eof: boolean}
 
-export const VideoUnrendered = Data.TaggedError('RecorderVideoUnrendered')<{readonly cause: unknown}>
-export type VideoUnrendered = InstanceType<typeof VideoUnrendered>
+export const VideoUnrendered = Schema.TaggedStruct('RecorderVideoUnrendered', {cause: Schema.Defect()})
+export type VideoUnrendered = typeof VideoUnrendered.Type & globalThis.Error
 
-export const VideoUnreadable = Data.TaggedError('RecorderVideoUnreadable')<{readonly cause: unknown}>
-export type VideoUnreadable = InstanceType<typeof VideoUnreadable>
+export const makeVideoUnrendered = (fields: Omit<typeof VideoUnrendered.Type, '_tag'>): VideoUnrendered =>
+  Object.assign(new globalThis.Error(), VideoUnrendered.make(fields), {name: 'RecorderVideoUnrendered'})
 
-const unrendered = (cause: unknown) => new VideoUnrendered({cause})
+export const VideoUnreadable = Schema.TaggedStruct('RecorderVideoUnreadable', {cause: Schema.Defect()})
+export type VideoUnreadable = typeof VideoUnreadable.Type & globalThis.Error
+
+export const makeVideoUnreadable = (fields: Omit<typeof VideoUnreadable.Type, '_tag'>): VideoUnreadable =>
+  Object.assign(new globalThis.Error(), VideoUnreadable.make(fields), {name: 'RecorderVideoUnreadable'})
+
+const unrendered = (cause: unknown) => makeVideoUnrendered({cause})
 
 export const renderVideoFile = Effect.fn('recorder.video.render')(function* (file: string, events: RrwebEvent[]) {
   const fs = yield* FileSystem.FileSystem
@@ -18,7 +24,7 @@ export const renderVideoFile = Effect.fn('recorder.video.render')(function* (fil
   if (Option.isSome(existing) && existing.value.type === 'File') return
   const renderers = yield* RendererCache
   const video = yield* renderers.use((renderer) => renderer.renderVideo(events)).pipe(Effect.mapError(unrendered))
-  if (Option.isNone(video) || Option.isNone(video.value)) return yield* unrendered('no video was recorded')
+  if (Option.isNone(video) || Option.isNone(video.value)) return yield* Effect.fail(unrendered('no video was recorded'))
   const temporary = `${file}.${crypto.randomUUID()}.tmp`
   yield* fs.writeFile(temporary, video.value.value).pipe(
     Effect.andThen(fs.rename(temporary, file)),
@@ -38,5 +44,5 @@ export const readVideoPiece = Effect.fn('recorder.video.read')(
     return {data: Buffer.from(bytes).toString('base64'), eof: offset + bytes.length >= Number(size)}
   },
   Effect.scoped,
-  Effect.mapError((cause) => new VideoUnreadable({cause})),
+  Effect.mapError((cause) => makeVideoUnreadable({cause})),
 )

@@ -1,13 +1,19 @@
-import {Data, Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope} from 'effect'
+import {Effect, FiberHandle, FiberSet, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {RecorderControl} from './rpc.js'
 import {initialBoot, transitionBoot, type BootEffect, type BootEvent, type BootState} from './boot-machine.js'
 import {makeMachineDriver} from './machine-driver.js'
 
-export const ConfigReadFailed = Data.TaggedError('RecorderConfigReadFailed')<{readonly cause: unknown}>
-export type ConfigReadFailed = InstanceType<typeof ConfigReadFailed>
+export const ConfigReadFailed = Schema.TaggedStruct('RecorderConfigReadFailed', {cause: Schema.Defect()})
+export type ConfigReadFailed = typeof ConfigReadFailed.Type & globalThis.Error
 
-export const StateReadFailed = Data.TaggedError('RecorderStateReadFailed')<{readonly cause: unknown}>
-export type StateReadFailed = InstanceType<typeof StateReadFailed>
+export const makeConfigReadFailed = (fields: Omit<typeof ConfigReadFailed.Type, '_tag'>): ConfigReadFailed =>
+  Object.assign(new globalThis.Error(), ConfigReadFailed.make(fields), {name: 'RecorderConfigReadFailed'})
+
+export const StateReadFailed = Schema.TaggedStruct('RecorderStateReadFailed', {cause: Schema.Defect()})
+export type StateReadFailed = typeof StateReadFailed.Type & globalThis.Error
+
+export const makeStateReadFailed = (fields: Omit<typeof StateReadFailed.Type, '_tag'>): StateReadFailed =>
+  Object.assign(new globalThis.Error(), StateReadFailed.make(fields), {name: 'RecorderStateReadFailed'})
 
 export function runBoot<Prepared, PrepareFailed>(options: {
   readonly connected: Stream.Stream<boolean>

@@ -1,4 +1,4 @@
-import {Clock, Context, Data, Effect, FileSystem, Layer, Path, Ref, Semaphore} from 'effect'
+import {Clock, Context, Effect, FileSystem, Layer, Path, Ref, Semaphore, Schema} from 'effect'
 import {z} from 'zod'
 import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './rpc.js'
 
@@ -11,8 +11,11 @@ const RECORDING_ID = /^[A-Za-z0-9-]+$/
 
 export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}
 
-export const RecordingNotFound = Data.TaggedError('RecorderRecordingNotFound')<{readonly id: string}>
-export type RecordingNotFound = InstanceType<typeof RecordingNotFound>
+export const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound', {id: Schema.String})
+export type RecordingNotFound = typeof RecordingNotFound.Type & globalThis.Error
+
+export const makeRecordingNotFound = (fields: Omit<typeof RecordingNotFound.Type, '_tag'>): RecordingNotFound =>
+  Object.assign(new globalThis.Error(), RecordingNotFound.make(fields), {name: 'RecorderRecordingNotFound'})
 
 export type RecordingStoreInterface = {
   readonly save: (events: RrwebEvent[]) => Effect.Effect<SaveResult>
@@ -127,21 +130,21 @@ export function recordingStoreLayer(directory: string) {
         },
         get: (id) =>
           Effect.gen(function* () {
-            if (!RECORDING_ID.test(id)) return yield* new RecordingNotFound({id})
+            if (!RECORDING_ID.test(id)) return yield* Effect.fail(makeRecordingNotFound({id}))
             const raw = yield* fs
               .readFileString(path.join(directory, `${id}.json`))
-              .pipe(Effect.mapError(() => new RecordingNotFound({id})))
+              .pipe(Effect.mapError(() => makeRecordingNotFound({id})))
             const events = yield* Effect.try({
               try: () => decodeRecording(raw),
-              catch: () => new RecordingNotFound({id}),
+              catch: () => makeRecordingNotFound({id}),
             })
-            if (!events) return yield* new RecordingNotFound({id})
+            if (!events) return yield* Effect.fail(makeRecordingNotFound({id}))
             return events
           }),
         videoFile: (id) =>
           RECORDING_ID.test(id)
             ? Effect.succeed(path.join(directory, `${id}.webm`))
-            : Effect.fail(new RecordingNotFound({id})),
+            : Effect.fail(makeRecordingNotFound({id})),
         sweep: changes.withPermits(1)(
           sweep.pipe(Effect.catch((error) => Effect.logError('sweeping old recordings failed', error))),
         ),

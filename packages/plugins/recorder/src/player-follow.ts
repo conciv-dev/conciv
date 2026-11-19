@@ -1,8 +1,11 @@
-import {Data, Effect, Ref, Schedule, Stream} from 'effect'
+import {Effect, Ref, Schedule, Stream, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
 
-export const FollowFailed = Data.TaggedError('RecorderFollowFailed')<{readonly cause: unknown}>
-export type FollowFailed = InstanceType<typeof FollowFailed>
+export const FollowFailed = Schema.TaggedStruct('RecorderFollowFailed', {cause: Schema.Defect()})
+export type FollowFailed = typeof FollowFailed.Type & globalThis.Error
+
+export const makeFollowFailed = (fields: Omit<typeof FollowFailed.Type, '_tag'>): FollowFailed =>
+  Object.assign(new globalThis.Error(), FollowFailed.make(fields), {name: 'RecorderFollowFailed'})
 
 export type ReplaySource = {readonly events: RrwebEvent[]; readonly cursor: number}
 

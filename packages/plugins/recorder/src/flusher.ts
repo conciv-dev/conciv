@@ -1,4 +1,4 @@
-import {Data, Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope} from 'effect'
+import {Duration, Effect, FiberHandle, FiberSet, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
 import {
   initialFlusher,
@@ -9,8 +9,11 @@ import {
 } from './flusher-machine.js'
 import {makeMachineDriver, type MachineDriver} from './machine-driver.js'
 
-export const FlushFailed = Data.TaggedError('RecorderFlushFailed')<{readonly cause: unknown}>
-export type FlushFailed = InstanceType<typeof FlushFailed>
+export const FlushFailed = Schema.TaggedStruct('RecorderFlushFailed', {cause: Schema.Defect()})
+export type FlushFailed = typeof FlushFailed.Type & globalThis.Error
+
+export const makeFlushFailed = (fields: Omit<typeof FlushFailed.Type, '_tag'>): FlushFailed =>
+  Object.assign(new globalThis.Error(), FlushFailed.make(fields), {name: 'RecorderFlushFailed'})
 
 export type Flusher = {
   readonly state: SubscriptionRef.SubscriptionRef<FlusherState>

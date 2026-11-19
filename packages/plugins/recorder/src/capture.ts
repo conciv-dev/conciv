@@ -1,4 +1,4 @@
-import {Data, Effect, type Scope} from 'effect'
+import {Effect, type Scope, Schema} from 'effect'
 import type {record} from 'rrweb'
 import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
@@ -17,12 +17,21 @@ function maskingOptions(masking: RecorderConfig['masking']): {
 
 export type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typeof getRecordConsolePlugin}
 
-export const CaptureLibraryLoadFailed = Data.TaggedError('RecorderCaptureLibraryLoadFailed')<{readonly cause: unknown}>
-export type CaptureLibraryLoadFailed = InstanceType<typeof CaptureLibraryLoadFailed>
+export const CaptureLibraryLoadFailed = Schema.TaggedStruct('RecorderCaptureLibraryLoadFailed', {
+  cause: Schema.Defect(),
+})
+export type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type & globalThis.Error
+
+export const makeCaptureLibraryLoadFailed = (
+  fields: Omit<typeof CaptureLibraryLoadFailed.Type, '_tag'>,
+): CaptureLibraryLoadFailed =>
+  Object.assign(new globalThis.Error(), CaptureLibraryLoadFailed.make(fields), {
+    name: 'RecorderCaptureLibraryLoadFailed',
+  })
 
 export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, CaptureLibraryLoadFailed> = Effect.tryPromise({
   try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),
-  catch: (cause) => new CaptureLibraryLoadFailed({cause}),
+  catch: (cause) => makeCaptureLibraryLoadFailed({cause}),
 }).pipe(
   Effect.map(([rrweb, consoleRecord]) => ({
     record: rrweb.record,

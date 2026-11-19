@@ -1,4 +1,4 @@
-import {Data, Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef} from 'effect'
+import {Effect, FiberHandle, FiberSet, Stream, type Scope, type SubscriptionRef, Schema} from 'effect'
 import type {RecorderConfig, RecorderControl} from './rpc.js'
 import {
   initialCaptureSession,
@@ -10,8 +10,11 @@ import type {Flusher} from './flusher.js'
 import {makeMachineDriver} from './machine-driver.js'
 import {runVisibilityPause} from './visibility-pause.js'
 
-export const ConfigReloadFailed = Data.TaggedError('RecorderConfigReloadFailed')<{readonly cause: unknown}>
-export type ConfigReloadFailed = InstanceType<typeof ConfigReloadFailed>
+export const ConfigReloadFailed = Schema.TaggedStruct('RecorderConfigReloadFailed', {cause: Schema.Defect()})
+export type ConfigReloadFailed = typeof ConfigReloadFailed.Type & globalThis.Error
+
+export const makeConfigReloadFailed = (fields: Omit<typeof ConfigReloadFailed.Type, '_tag'>): ConfigReloadFailed =>
+  Object.assign(new globalThis.Error(), ConfigReloadFailed.make(fields), {name: 'RecorderConfigReloadFailed'})
 
 export const openCaptureSession = Effect.fn('recorder.captureSession')(function* (options: {
   readonly config: RecorderConfig

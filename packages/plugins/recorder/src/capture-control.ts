@@ -1,4 +1,4 @@
-import {Clock, Context, Data, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef} from 'effect'
+import {Clock, Context, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef, Schema} from 'effect'
 import {
   initialCaptureControl,
   isCaptureLive,
@@ -12,8 +12,11 @@ import type {RecorderControl} from './rpc.js'
 
 const CAPTURE_TICK = '5 seconds'
 
-export const CaptureNotFound = Data.TaggedError('RecorderCaptureNotFound')<{readonly captureId: string}>
-export type CaptureNotFound = InstanceType<typeof CaptureNotFound>
+export const CaptureNotFound = Schema.TaggedStruct('RecorderCaptureNotFound', {captureId: Schema.String})
+export type CaptureNotFound = typeof CaptureNotFound.Type & globalThis.Error
+
+export const makeCaptureNotFound = (fields: Omit<typeof CaptureNotFound.Type, '_tag'>): CaptureNotFound =>
+  Object.assign(new globalThis.Error(), CaptureNotFound.make(fields), {name: 'RecorderCaptureNotFound'})
 
 export type StartedCapture = {readonly captureId: string; readonly startTs: number; readonly appendCursor: number}
 
@@ -89,7 +92,7 @@ export const captureControlLayer = Layer.effect(
         const cursor = yield* appendCursor
         const {effects} = yield* dispatch((now) => ({type: 'capture.stopped', captureId, now}))
         const range = readStop(effects)
-        if (!range) return yield* new CaptureNotFound({captureId})
+        if (!range) return yield* Effect.fail(makeCaptureNotFound({captureId}))
         return {...range, appendCursor: cursor}
       }),
       renewViewer: (viewerId) => Effect.asVoid(dispatch((now) => ({type: 'viewer.renewed', viewerId, now}))),
