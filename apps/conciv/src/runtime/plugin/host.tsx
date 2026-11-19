@@ -93,6 +93,7 @@ type HostApiFactory<T> = (
   context: Context,
   register: (fn: Cleanup) => Cleanup,
   builtin: boolean,
+  definition: Entry,
 ) => T
 
 export type HostApiFactories = {
@@ -629,7 +630,8 @@ function createHost(input: HostInput) {
           {
             enumerable: true,
             get() {
-              if (!created.has(name)) created.set(name, create(plugin, root, typed, register, !experimental))
+              if (!created.has(name))
+                created.set(name, create(plugin, root, typed, register, !experimental, definition))
 
               return created.get(name)
             },

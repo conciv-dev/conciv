@@ -35,10 +35,6 @@
       "types": "./dist/rpc.d.ts",
       "import": "./dist/rpc.js"
     },
-    "./view": {
-      "types": "./dist/view.d.ts",
-      "import": "./dist/view.js"
-    },
     "./plugin-experimental": "./dist/plugin-experimental.cjs",
     "./package.json": "./package.json"
   },
@@ -64,6 +60,7 @@
     "@conciv/embed": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-internal": "workspace:*",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",

@@ -4,7 +4,6 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/rpc.ts',
-    'src/view.ts',
     'src/vitest.ts',
     'src/vitest-child.ts',
     'src/playwright.ts',

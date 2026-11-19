@@ -255,4 +255,20 @@ export interface SetupContext<D> extends Context {
    * ```
    */
   readonly stores: {readonly [K in keyof DeclaredStores<D>]: Handle<DeclaredStores<D>[K]>}
+  /**
+   * The app's own components, as `Context.ui`, typed from the definition's setup: what that setup receives as
+   * `ctx.ui` is what `usePlugin<typeof definition>().ui` sees.
+   *
+   * @example
+   * ```tsx
+   * const ui = usePlugin<typeof definition>().ui
+   * ```
+   */
+  readonly ui: SetupUi<D>
 }
+
+type SetupUi<D> = D extends {readonly setup?: (ctx: infer C) => unknown}
+  ? C extends {readonly ui: infer U extends Ui}
+    ? U
+    : Ui
+  : Ui

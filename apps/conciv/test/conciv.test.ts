@@ -1,4 +1,6 @@
-import {expect, test as baseTest, describe, it, test} from 'vitest'
+import {expect, expectTypeOf, test as baseTest, describe, it, test} from 'vitest'
+import {Plugin, type SetupContext} from '@conciv/plugin/experimental'
+import {defineInternalPlugin, isInternalPlugin} from '@conciv/plugin-internal'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {
@@ -782,5 +784,29 @@ describe('draft reconcile', () => {
     {row: 'neither copy', local: null, engine: null, outcome: {kind: 'empty'}},
   ])('$row', ({local, engine, outcome}) => {
     expect(reconcileDraft(local, engine, sameText)).toEqual(outcome)
+  })
+})
+
+describe('internal plugin definitions', () => {
+  test('defineInternalPlugin stamps the tag and types its setup and usePlugin with the internal ui members, Plugin.define does not', () => {
+    const internal = defineInternalPlugin({
+      setup(ctx) {
+        expectTypeOf(ctx.ui.BasicTool).toBeFunction()
+        expectTypeOf(ctx.ui.MentionField).toBeFunction()
+        expectTypeOf(ctx.ui.Button).toBeFunction()
+      },
+    })
+    const plain = Plugin.define({
+      setup(ctx) {
+        // @ts-expect-error a definition defineInternalPlugin did not stamp sees only the public ui
+        expectTypeOf(ctx.ui.BasicTool).toBeFunction()
+      },
+    })
+
+    expectTypeOf<SetupContext<typeof internal>['ui']>().toHaveProperty('Json')
+    expectTypeOf<SetupContext<typeof plain>['ui']>().not.toHaveProperty('Json')
+    expect(internal).toMatchObject({$$type: '@conciv/InternalPlugin'})
+    expect(isInternalPlugin(internal)).toBe(true)
+    expect(isInternalPlugin(plain)).toBe(false)
   })
 })

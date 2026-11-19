@@ -3,9 +3,10 @@ import {createStore} from 'solid-js/store'
 import {Effect} from 'effect'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
-import {MentionField, type MentionFieldApi, type MentionItem} from '@conciv/ui-kit-tap'
+import type {InternalPlugin, MentionFieldApi, MentionItem} from '@conciv/plugin-internal'
 import type {CommentRow} from './rows.js'
 import {useComments} from './comments.js'
+import type {whiteboardStores} from './stores.js'
 
 const TextPart = z.object({type: z.literal('text'), text: z.string()})
 const MentionPart = z.object({type: z.literal('mention'), id: z.string(), label: z.string()})
@@ -152,7 +153,7 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
 }
 
 function ThreadReply(props: {onReady: (field: HTMLElement) => void}): JSX.Element {
-  const ui = usePlugin().ui
+  const ui = usePlugin<InternalPlugin<typeof whiteboardStores>>().ui
   const model = useComments()
   const [field, setField] = createStore<{empty: boolean; api: MentionFieldApi | undefined}>({
     empty: true,
@@ -164,7 +165,7 @@ function ThreadReply(props: {onReady: (field: HTMLElement) => void}): JSX.Elemen
     <div class="pt-2 border-t border-chat-line-soft flex gap-2 items-end">
       <ui.Avatar name="You" />
       <div class="flex-1 min-w-0">
-        <MentionField
+        <ui.MentionField
           ariaLabel="Reply"
           placeholder="Reply, @mention someone…"
           items={mentionable}

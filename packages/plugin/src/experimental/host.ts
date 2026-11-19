@@ -203,9 +203,11 @@ export function evaluatePluginBundle(code: string, host: PluginBundleHost): Plug
     )
   }
 
-  if (!plugin.setup) throw new Error("A plugin's ./plugin-experimental bundle must have a window `setup`")
+  const {setup, ...definition} = plugin
 
-  return {definition: {stores: plugin.stores}, setup: plugin.setup, exports}
+  if (!setup) throw new Error("A plugin's ./plugin-experimental bundle must have a window `setup`")
+
+  return {definition, setup, exports}
 }
 
 /**

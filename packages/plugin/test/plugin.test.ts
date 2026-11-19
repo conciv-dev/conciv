@@ -1004,7 +1004,7 @@ describe('experimental() build', () => {
 
   const bundle = (root: string) => build({root, configFile: false, logLevel: 'silent', plugins: experimental()})
 
-  const provided: Record<Exclude<PluginModule, '@conciv/ui-kit-tap'>, object> = {
+  const provided: Record<PluginModule, object> = {
     '@conciv/plugin/experimental': Experimental,
     '@conciv/plugin/rpc': RpcEntry,
     effect: Effect,
@@ -1019,13 +1019,13 @@ describe('experimental() build', () => {
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 
   it('the preset writes a CommonJS entry, a chunk for each import() and the manifest, requiring only what the app provides', async () => {
-    const hosted = [...pluginSharedModules, ...pluginWindowModules].filter((name) => name !== '@conciv/ui-kit-tap')
+    const hosted = [...pluginSharedModules, ...pluginWindowModules]
     const root = await project({
       'src/plugin-experimental.tsx': [
         ...hosted.map((name, index) => `import * as m${index} from "${name}"`),
         'import { readFileSync } from "node:fs"',
         'const Page = m0 && (() => import("./page"))',
-        `export default { id: "acme", modules: [${hosted.map((_, index) => `m${index}`).join(', ')}], readFileSync, Page, setup() {} }`,
+        `export default { id: "acme", $$type: "@conciv/InternalPlugin", version: "v1", modules: [${hosted.map((_, index) => `m${index}`).join(', ')}], readFileSync, Page, setup() {} }`,
       ].join('\n'),
       'src/page.tsx': 'export default () => <p>Notes</p>',
     })
@@ -1046,27 +1046,13 @@ describe('experimental() build', () => {
     expect(code).not.toContain('Notes')
     expect(await dist(chunk)).toContain('Notes')
     expect([...required].toSorted()).toEqual([...hosted, 'node:fs', `./${chunk}`].toSorted())
-    expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
-  }, 60_000)
-
-  it("the preset keeps @conciv/ui-kit-tap external, so a plugin uses the app's MentionField and its bundle carries no editor of its own", async () => {
-    const root = await project({
-      'src/plugin-experimental.tsx': [
-        'import { MentionField } from "@conciv/ui-kit-tap"',
-        'export default { id: "acme", MentionField, setup() {} }',
-      ].join('\n'),
-    })
-
-    await bundle(root)
-    const code = await readFile(path.join(root, 'dist', 'plugin-experimental.cjs'), 'utf8')
-    const required = Array.from(code.matchAll(/require\("([^"]+)"\)/g), (match) => match[1])
-
-    expect(required).toEqual(['@conciv/ui-kit-tap'])
-    expect(code).not.toMatch(/tiptap|prosemirror/i)
+    const evaluated = evaluatePluginBundle(code, {require: provider(real)})
+    expect(evaluated.setup).toBeTypeOf('function')
+    expect(evaluated.definition).toMatchObject({$$type: '@conciv/InternalPlugin', version: 'v1'})
   }, 60_000)
 
   it('the preset fails the build on an Effect, conciv or Solid module the app does not provide', async () => {
-    for (const source of ['@conciv/ui-kit-system', 'effect/Schema']) {
+    for (const source of ['@conciv/ui-kit-system', '@conciv/ui-kit-tap', 'effect/Schema']) {
       const root = await project({'src/plugin-experimental.tsx': `export * from "${source}"`})
       await expect(bundle(root)).rejects.toThrow(`${source} is not a module the conciv app provides`)
     }

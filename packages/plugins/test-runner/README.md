@@ -32,3 +32,6 @@ plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]
   stopped. The Vitest child drives the app's own `vitest/node` with a reporter that streams each event live.
 - In the browser, `follow-machine.ts` reads `status` and `current` on every connect and applies only the newest
   read; `run-state.ts` folds the events into the status-tagged `RunView` the panel and the thread card draw.
+- `plugin-experimental.tsx` is a first-party definition (`defineInternalPlugin`): it adds the Tests tab and the thread
+  card for `test_runner_run` and `test_runner_status`, drawn only through `ctx.ui`; the bundle inlines
+  `@conciv/plugin-internal` and imports no kit.

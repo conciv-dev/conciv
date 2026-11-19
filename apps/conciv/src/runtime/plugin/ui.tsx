@@ -1,4 +1,4 @@
-import {children, createUniqueId, For, onCleanup, Show, type JSX} from 'solid-js'
+import {children, createUniqueId, For, onCleanup, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {
   Ui,
@@ -8,8 +8,16 @@ import type {
   UiMenuRadioGroup,
   UiMenuSubProps,
 } from '@conciv/plugin/experimental'
+import {
+  isInternalPlugin,
+  readInternalPlugin,
+  type InternalStatusDotProps,
+  type InternalUi,
+} from '@conciv/plugin-internal'
 import {Markdown} from '@conciv/ui-kit-chat'
-import {Chip} from '@conciv/ui-kit-chat/tools'
+import {BasicTool, Chip, CodeBlock, ErrorBlock, JsonTree, ResultImage, StatusVisual} from '@conciv/ui-kit-chat/tools'
+import {MentionField} from '@conciv/ui-kit-tap'
+import {isPlainObject} from 'es-toolkit'
 import {
   Avatar,
   Button,
@@ -22,10 +30,13 @@ import {
   Popover,
   RelativeTime,
   Select,
+  StatusDot,
   Switch,
   TextField,
   Tooltip,
+  TruncatedText,
   type ButtonSize,
+  type StatusDotTone,
   type ButtonVariant,
   type LoaderSize,
 } from '@conciv/ui-kit-system'
@@ -70,6 +81,16 @@ const MENU_ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-chat-fill-strong dat
 const MUTED_ICON = 'shrink-0 text-chat-text-3'
 
 const MENU_CONTENT = 'w-max max-w-[calc(100vw-2rem)]'
+
+const subtitleTone = {default: '', muted: 'text-chat-text-3', warning: 'text-chat-warn', danger: 'text-chat-danger'}
+
+const stillDot: Record<InternalStatusDotProps['tone'], StatusDotTone | undefined> = {
+  neutral: 'idle',
+  success: 'success',
+  warning: 'warn',
+  danger: 'danger',
+  running: undefined,
+}
 
 export const ui: Ui = {
   Icon,
@@ -394,6 +415,71 @@ export const ui: Ui = {
       {props.children}
     </ActionRow>
   ),
+}
+
+const internalUi: InternalUi = {
+  ...ui,
+  BasicTool: (props) => {
+    const [local, tool] = splitProps(props, [
+      'title',
+      'subtitle',
+      'subtitleTone',
+      'failed',
+      'expandable',
+      'openWhileRunning',
+      'children',
+    ])
+
+    return (
+      <BasicTool
+        {...tool}
+        status={local.failed ? 'error' : tool.status}
+        trigger={{
+          title: local.title,
+          subtitle: local.subtitle,
+          subtitleClass: subtitleTone[local.subtitleTone ?? 'default'],
+        }}
+        hasContent={local.expandable ?? false}
+        allowOpenWhilePending={local.openWhileRunning}
+      >
+        {local.children}
+      </BasicTool>
+    )
+  },
+  ErrorMessage: (props) => <ErrorBlock message={props.message} label={props.label} />,
+  TruncatedText: (props) => <TruncatedText text={props.text} class={props.class} />,
+  StatusDot: (props) => (
+    <Show when={stillDot[props.tone]} fallback={<StatusVisual status="running" form="dot" />}>
+      {(tone) => <StatusDot tone={tone()} />}
+    </Show>
+  ),
+  Json: (props) => (
+    <Show
+      when={treeable(props.value)}
+      fallback={
+        <CodeBlock
+          size="xs"
+          file={{name: 'value.json', lang: 'json', contents: JSON.stringify(props.value, null, 2) ?? 'undefined'}}
+        />
+      }
+    >
+      {(value) => <JsonTree data={value()} />}
+    </Show>
+  ),
+  Image: (props) => <ResultImage src={props.src} alt={props.alt} />,
+  MentionField: (props) => <MentionField {...props} />,
+}
+
+export function pluginUi(definition: object): Ui {
+  if (!isInternalPlugin(definition)) return ui
+
+  readInternalPlugin(definition)
+
+  return internalUi
+}
+
+function treeable(value: unknown): object | undefined {
+  return Array.isArray(value) || isPlainObject(value) ? value : undefined
 }
 
 function Icon(props: UiIconProps): JSX.Element {

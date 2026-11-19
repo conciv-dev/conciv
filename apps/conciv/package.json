@@ -31,6 +31,7 @@
     "@conciv/mascot": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-internal": "workspace:*",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/tools": "workspace:^",

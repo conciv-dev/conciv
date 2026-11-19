@@ -278,12 +278,22 @@ export async function assertPublishedChangesCovered(cwd: string, base: string): 
   )
 }
 
+const ALWAYS_PRIVATE_PACKAGES = ['@conciv/plugin-internal']
+
 export async function assertPublicSet(cwd: string): Promise<void> {
   const packages = await readWorkspacePackages(cwd)
   const found = packages
     .filter((pkg) => !pkg.manifest.private)
     .map((pkg) => pkg.manifest.name)
     .filter((name): name is string => typeof name === 'string' && name.startsWith('@conciv/'))
+  const leaked = found.filter((name) => ALWAYS_PRIVATE_PACKAGES.includes(name))
+  if (leaked.length > 0) {
+    throw new Error(
+      leaked
+        .map((name) => `${name} must stay private: first-party plugins inline it, it is never published`)
+        .join('\n'),
+    )
+  }
   const unexpected = found.filter((name) => !PUBLIC_PACKAGES.includes(name))
   const missing = PUBLIC_PACKAGES.filter((name) => !found.includes(name))
   if (unexpected.length > 0 || missing.length > 0) {

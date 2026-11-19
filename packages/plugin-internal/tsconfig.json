@@ -1,0 +1,3 @@
+{
+  "extends": "@conciv/tsconfig/tsconfig.solid.json"
+}

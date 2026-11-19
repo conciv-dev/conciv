@@ -9,6 +9,7 @@ const INLINED_PREFIXES = [
   '@conciv/page',
   '@conciv/app',
   '@conciv/builtin-plugins',
+  '@conciv/plugin-internal',
   '@conciv/plugin-test-runner',
   '@conciv/plugin-tanstack',
   '@conciv/tools',

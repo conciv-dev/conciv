@@ -20,7 +20,6 @@ const modules = {
   '@conciv/client': () => import('@conciv/client'),
   '@conciv/plugin/experimental/page': () => import('@conciv/plugin/experimental/page'),
   '@conciv/plugin/experimental/grab': () => import('@conciv/plugin/experimental/grab'),
-  '@conciv/ui-kit-tap': () => import('@conciv/ui-kit-tap'),
 } satisfies Record<PluginModule, () => Promise<object>>
 
 const chunkFile = /^\.\/([\w.-]+\.cjs)$/

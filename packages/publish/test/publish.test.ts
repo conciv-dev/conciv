@@ -229,6 +229,13 @@ describe('cli', () => {
     await expect(assertPublicSet(root)).rejects.toThrow(/missing: \[@conciv\/cli\]/)
   })
 
+  test('assertPublicSet refuses @conciv/plugin-internal once its manifest is no longer private', async () => {
+    const root = await publicWorkspace([...PUBLIC_PACKAGES, '@conciv/plugin-internal'])
+    await expect(assertPublicSet(root)).rejects.toThrow(
+      '@conciv/plugin-internal must stay private: first-party plugins inline it, it is never published',
+    )
+  })
+
   test('assertPublicSet rejects a manifest whose "private" field is a string instead of a boolean, naming the manifest', async () => {
     const root = await scaffoldWorkspaceRoot('bad-manifest-')
     const dir = join(root, 'packages', 'core')
