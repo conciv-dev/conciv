@@ -6,7 +6,6 @@ export default defineConfig({
     'src/core-kit.ts',
     'src/host/grab.ts',
     'src/widget-suite.ts',
-    'src/page-plane.ts',
     'src/listen-local.ts',
     'src/navigation-state.ts',
     'src/rpc-counts.ts',

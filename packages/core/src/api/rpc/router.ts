@@ -2,7 +2,6 @@ import {z} from 'zod'
 import {ORPCError} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
-import {isPageVerbError} from '@conciv/extension'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
 import {resolveHarnessModels} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
@@ -59,7 +58,6 @@ type SessionContext = RpcContext & {session: SessionScope}
 type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: AbortSignal}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message, cause: error})
   if (isPageFailure(error)) {
     return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message, cause: error})
   }
@@ -436,9 +434,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
       ),
     },
-    captures: {
-      list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
-    },
     tabs: {
       list: os.tabs.list.handler(() => deps.tabs.list()),
       get: os.tabs.get.handler(({input}) => deps.tabs.get(input.sessionId)),
@@ -471,17 +466,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
         hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
       ),
-      queries: sessionOs.page.queries.handler(({input, context, signal}) =>
-        context.session.page.queries(signal ?? new AbortController().signal, input.focus),
-      ),
-      focus: sessionOs.page.focus.handler(({input, context}) => {
-        context.session.page.focus(input.browserTab, input)
-        return {ok: true as const}
-      }),
-      reply: sessionOs.page.reply.handler(({input, context, errors}) => {
-        if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
-        return {ok: true as const}
-      }),
     },
     editor: {
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),

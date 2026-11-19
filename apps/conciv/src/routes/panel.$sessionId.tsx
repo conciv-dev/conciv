@@ -41,10 +41,9 @@ import {
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {makeGrabStaging} from '../pane/grab-staging.js'
+import {useGrabStaging} from '../app/use-grab-staging.js'
 import {makePaneGrabApi} from '../pane/pane-grab.js'
 import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
-import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
@@ -283,7 +282,6 @@ function showPopOutLost(lost: () => boolean, popOut: () => void): void {
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
   const appData = useAppData()
-  const {rpc} = useChatDeps()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const instances = useInstances()
@@ -356,9 +354,7 @@ function PanelSession(): JSX.Element {
       })
       .catch(() => undefined)
 
-  const grabStaging = makeGrabStaging({
-    ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
-  })
+  const grabStaging = useGrabStaging()
 
   const paneGrab = makePaneGrabApi(grabStaging, grabProvider)
 

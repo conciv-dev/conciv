@@ -1,19 +1,23 @@
-import {join} from 'node:path'
 import {Plugin, type Rpc} from '@conciv/plugin/effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
-import {Effect, Queue, Stream} from 'effect'
-import {MAX_FILE_BYTES, Recorder} from './rpc.js'
-import {createCaptureControl} from './capture-control.js'
+import {Effect, FileSystem, Layer, Path, Queue, Stream, Schema} from 'effect'
+import {z} from 'zod'
+import {MAX_FILE_BYTES, Recorder, recorderConfig, type RecorderConfig} from './rpc.js'
+import * as CaptureControlModel from './capture-control.js'
+import {CaptureControl} from './capture-control.js'
 import {distill} from './distill.js'
-import {createRecordingStore} from './recordings.js'
-import {createChromiumRenderer} from './render.js'
-import {createRendererCache} from './renderer-cache.js'
-import {createClientRings} from './rings.js'
-import {readVideoPiece, renderedVideo} from './video.js'
-import type {RecorderRuntime} from './runtime.js'
-import {recorderConfig} from './protocol.js'
+import * as RecordingStoreModel from './recordings.js'
+import {RecordingStore} from './recordings.js'
+import {launchChromiumRenderer} from './render.js'
+import * as RendererCacheModel from './renderer-cache.js'
+import * as ClientRingsModel from './rings.js'
+import {ClientRings} from './rings.js'
+import {readVideoPiece, renderVideoFile} from './video.js'
 import {info} from './skill.js'
 import {register} from './tools.js'
+
+const ConfigInvalid = Schema.TaggedStruct('RecorderConfigInvalid', {message: Schema.String})
+type ConfigInvalid = typeof ConfigInvalid.Type
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
 
@@ -23,125 +27,114 @@ const EXPIRED: {expired: true} = {expired: true}
 
 const VIDEO: {name: 'recording.webm'; mime: 'video/webm'} = {name: 'recording.webm', mime: 'video/webm'}
 
-function recordingsDirectory(projectDirectory: string): string {
-  return join(projectDirectory, '.conciv', 'recorder', 'recordings')
+function recordingsDirectory(path: Path.Path, projectDirectory: string): string {
+  return path.join(projectDirectory, '.conciv', 'recorder', 'recordings')
 }
 
 type Announcement = Rpc.EventInput<typeof Recorder>
 
-type Announce = (event: Announcement) => void
-
 function reportUndelivered(error: unknown) {
-  return Effect.sync(() => {
-    console.error(`[recorder] a recorder event was not delivered: ${String(error)}`)
-  })
+  return Effect.logError('a recorder event was not delivered', error)
 }
 
-function registerRpc(rpc: Context['rpc'], runtime: RecorderRuntime, announce: Announce) {
-  return rpc.register(Recorder, {
-    config: () => Effect.sync(() => runtime.config),
-    clients: () => Effect.sync(() => ({clients: runtime.rings.clients()})),
+const registerRpc = Effect.fn('recorder.registerRpc')(function* (
+  rpc: Context['rpc'],
+  config: RecorderConfig,
+  announcements: Queue.Queue<Announcement>,
+) {
+  const rings = yield* ClientRings
+  const control = yield* CaptureControl
+  const recordings = yield* RecordingStore
+  const services = yield* Effect.context<
+    ClientRingsModel.ClientRingsInterface | RendererCacheModel.RendererCacheInterface | FileSystem.FileSystem
+  >()
+  return yield* rpc.register(Recorder, {
+    config: () => Effect.succeed(config),
+    clients: () => Effect.map(rings.clients, (clients) => ({clients})),
     flush: (input) =>
-      Effect.sync(() => {
-        runtime.rings.append(input.clientId, input.events)
-        announce(['appended', {clientId: input.clientId, cursor: runtime.rings.head(input.clientId)}])
+      Effect.gen(function* () {
+        const cursor = yield* rings.append(input.clientId, input.events)
+        yield* Queue.offer(announcements, ['appended', {clientId: input.clientId, cursor}])
         return OK
       }),
-    window: (input) =>
-      Effect.sync(() => ({
-        events: runtime.rings.window(input, input.clientId),
-        cursor: runtime.rings.head(input.clientId),
-      })),
+    window: (input) => Effect.all({events: rings.window(input, input.clientId), cursor: rings.head(input.clientId)}),
     since: (input) =>
-      Effect.sync(() => ({
-        events: runtime.rings.since(input.cursor, input.clientId),
-        cursor: runtime.rings.head(input.clientId),
-      })),
-    state: () => Effect.sync(() => ({live: runtime.control.isLive()})),
+      Effect.all({events: rings.since(input.cursor, input.clientId), cursor: rings.head(input.clientId)}),
+    state: () => Effect.map(control.isLive, (live) => ({live})),
     presence: (input) =>
-      Effect.sync(() => {
-        if (!input.live) runtime.control.dropViewer(input.viewerId)
-        const joined = input.live ? runtime.control.renewViewer(input.viewerId) : false
-        if (joined) runtime.control.emit({snapshot: true, flush: true})
-        return OK
-      }),
+      Effect.as(input.live ? control.renewViewer(input.viewerId) : control.dropViewer(input.viewerId), OK),
     reset: () =>
       Effect.gen(function* () {
-        runtime.rings.clear()
-        const appendCursor = runtime.control.emit({snapshot: true, flush: true})
-        yield* Effect.promise(() => runtime.control.awaitAppendAfter(appendCursor, RESET_SNAPSHOT_WAIT_MS))
+        yield* rings.clear
+        const appendCursor = yield* control.emit({snapshot: true, flush: true})
+        yield* control.awaitAppendAfter(appendCursor, RESET_SNAPSHOT_WAIT_MS)
         return OK
       }),
-    log: (input) => Effect.sync(() => ({entries: distill(runtime.rings.window(input, input.clientId))})),
+    log: (input) => Effect.map(rings.window(input, input.clientId), (events) => ({entries: distill(events)})),
     'recordings.save': (input) =>
-      Effect.promise(() => runtime.recordings.save(runtime.rings.window(input, input.clientId))).pipe(
+      Effect.flatMap(rings.window(input, input.clientId), recordings.save).pipe(
         Effect.map((saved) => (saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason})),
       ),
     'recordings.get': (input) =>
-      Effect.promise(() => runtime.recordings.get(input.recordingId)).pipe(
-        Effect.map((events) => (events ? {events} : EXPIRED)),
+      recordings.get(input.recordingId).pipe(
+        Effect.map((events) => ({events})),
+        Effect.catchTag('RecorderRecordingNotFound', () => Effect.succeed(EXPIRED)),
       ),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {
-        const file = runtime.recordings.videoFile(input.id)
-        const events = yield* Effect.promise(() => runtime.recordings.get(input.id))
-        if (!file || !events) return yield* Effect.fail(call.error('expired', `The recording ${input.id} has expired`))
-        const rendered = yield* Effect.promise(() => renderedVideo(file, events, runtime.useRenderer))
-        if (!rendered)
-          return yield* Effect.fail(
-            call.error('render-failed', `The recording ${input.id} could not be rendered to video`),
-          )
-        const piece = yield* Effect.promise(() => readVideoPiece(file, input.offset, MAX_FILE_BYTES))
+        const file = yield* recordings.videoFile(input.id)
+        const events = yield* recordings.get(input.id)
+        yield* renderVideoFile(file, events)
+        const piece = yield* readVideoPiece(file, input.offset, MAX_FILE_BYTES)
         return {...piece, ...VIDEO}
-      }),
+      }).pipe(
+        Effect.catchTags({
+          RecorderRecordingNotFound: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
+          RecorderVideoUnrendered: () =>
+            Effect.fail(call.error('render-failed', `The recording ${input.id} could not be rendered to video`)),
+          RecorderVideoUnreadable: () =>
+            Effect.fail(call.error('unreadable', `The video of the recording ${input.id} could not be read`)),
+        }),
+        Effect.provideContext(services),
+      ),
   })
+})
+
+function servicesLayer(config: RecorderConfig, directory: string) {
+  const rings = ClientRingsModel.clientRingsLayer({windowMs: config.windowMinutes * 60_000})
+  return Layer.mergeAll(
+    CaptureControlModel.captureControlLayer.pipe(Layer.provideMerge(rings)),
+    RecordingStoreModel.recordingStoreLayer(directory),
+    RendererCacheModel.rendererCacheLayer(launchChromiumRenderer),
+  )
 }
 
-export default Plugin.define({
+export default Plugin.define<Plugin.Services, ConfigInvalid>({
   id: 'recorder',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
-      const rings = createClientRings({windowMs: config.windowMinutes * 60_000})
-      const control = createCaptureControl(rings)
-      const rendererCache = createRendererCache(createChromiumRenderer)
-      const recordings = createRecordingStore(recordingsDirectory(ctx.location.directory))
-      yield* Effect.tryPromise({try: () => recordings.sweep(), catch: (error) => error}).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            console.error(`[recorder] sweeping old recordings failed: ${String(error)}`)
-          }),
-        ),
-        Effect.forkScoped({startImmediately: true}),
-      )
-      const runtime: RecorderRuntime = {
-        rings,
-        control,
-        config,
-        useRenderer: (work) => rendererCache.use(work),
-        recordings,
-      }
-      const announcements = yield* Queue.unbounded<Announcement>()
-      const announce: Announce = (event) => {
-        Queue.offerUnsafe(announcements, event)
-      }
-      yield* register(ctx, runtime)
-      yield* ctx.skill.transform((editor) => editor.add(info))
-      const registration = yield* registerRpc(ctx.rpc, runtime, announce).pipe(Effect.orDie)
-      yield* Stream.fromQueue(announcements).pipe(
-        Stream.runForEach((event) =>
-          registration.events
-            .emit(...event)
-            .pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
-        ),
-        Effect.forkScoped({startImmediately: true}),
-      )
-      const unsubscribe = control.subscribe((message) => announce(['control', message]))
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(() => {
-          unsubscribe()
-          control.dispose()
-        }).pipe(Effect.andThen(Effect.promise(() => rendererCache.dispose()))),
-      )
+      const parsed = recorderConfig.safeParse(ctx.options)
+      if (!parsed.success) return yield* Effect.fail(ConfigInvalid.make({message: z.prettifyError(parsed.error)}))
+      const config = parsed.data
+      const path = yield* Path.Path
+      const services = yield* Layer.build(servicesLayer(config, recordingsDirectory(path, ctx.location.directory)))
+      yield* Effect.gen(function* () {
+        const recordings = yield* RecordingStore
+        const control = yield* CaptureControl
+        yield* Effect.forkScoped(recordings.sweep, {startImmediately: true})
+        const announcements = yield* Queue.unbounded<Announcement>()
+        yield* register(ctx)
+        yield* ctx.skill.transform((editor) => editor.add(info))
+        const registration = yield* registerRpc(ctx.rpc, config, announcements).pipe(Effect.orDie)
+        yield* Stream.fromQueue(announcements).pipe(
+          Stream.merge(Stream.map(control.controls, (message): Announcement => ['control', message])),
+          Stream.runForEach((event) =>
+            registration.events
+              .emit(...event)
+              .pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
+          ),
+          Effect.forkScoped({startImmediately: true}),
+        )
+      }).pipe(Effect.provideContext(services))
     }),
 })

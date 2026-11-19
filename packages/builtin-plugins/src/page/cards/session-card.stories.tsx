@@ -3,10 +3,11 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Splitter} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ElementCapture, ToolCaptureView} from '@conciv/protocol/element-capture-types'
-import {PAGE_SESSION_GROUP_KEY, ToolProvider, type GroupNodeGroup} from '@conciv/ui-kit-chat'
+import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup} from '@conciv/ui-kit-chat'
 import {ELEMENT_CAPTURE_FIXTURE_CSS, ELEMENT_CAPTURE_FIXTURE_FULL} from '@conciv/ui-kit-chat/tools'
 import {SessionCard} from './session-card.js'
-import {storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {storyCaptures, storyPart, storyResult} from './story.fixtures.js'
+import {CaptureContext} from '../session-captures.js'
 
 function sessionNode(parts: readonly ToolCallPart[]): GroupNodeGroup {
   return {
@@ -107,14 +108,14 @@ function sessionFrame(
   streaming: boolean,
 ) {
   return (
-    <ToolProvider value={storyCtx({}, captures)}>
+    <CaptureContext.Provider value={storyCaptures(captures)}>
       <SessionCard
         node={sessionNode(parts)}
         parts={() => parts}
         resultFor={(id) => results[id]}
         streaming={streaming}
       />
-    </ToolProvider>
+    </CaptureContext.Provider>
   )
 }
 
@@ -308,8 +309,9 @@ export const HeaderSummary: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await userEvent.tab()
+    const page = within(canvasElement.ownerDocument.body)
     await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveFocus()
-    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
       timeout: 2000,
     })
   },

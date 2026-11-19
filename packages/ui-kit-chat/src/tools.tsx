@@ -53,10 +53,11 @@ export {TraceMark, TraceRing, TraceRunRow, TraceToolRow} from './styled/trace/tr
 export {TraceBodyFrame, TraceOutputBlock, type TraceOutputTone} from './styled/trace/output-block.js'
 export {
   CardChromeProvider,
-  ToolDurationProvider,
+  ToolPartProvider,
   useCardChrome,
   useEmbeddedCard,
   useToolCallDuration,
+  useToolCallId,
   type CardChrome,
 } from './tools/styled/card-chrome.js'
 export {TraceActionRow} from './styled/trace/action-row.js'
@@ -82,3 +83,6 @@ export {
   ELEMENT_CAPTURE_FIXTURE_MASKED,
   ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
 } from './tools/element-capture.fixtures.js'
+export {BasicTool, GenericTool, type BasicToolProps, type TriggerTitle} from './tools/styled/basic-tool.js'
+export {ToolErrorCard, type ToolErrorCardProps} from './tools/styled/tool-error-card.js'
+export {ToolDisplay, type ToolDisplayProps} from './tools/styled/tool-display.js'

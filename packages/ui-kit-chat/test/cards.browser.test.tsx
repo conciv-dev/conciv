@@ -25,7 +25,10 @@ import {PermissionCard} from '../src/tools/styled/permission-card.js'
 import {ToolCallCard, ToolTraceRow} from '../src/tools/styled/tool-call-card.js'
 import {createSignal, type JSX} from 'solid-js'
 import {ToolCard} from '../src/tools/styled/tool-card.js'
+import {ToolDisplay} from '../src/tools/styled/tool-display.js'
+import {ToolPartRow, type ToolDisclosure} from '../src/styled/tool-part-row.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
+import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 
 describe('card body nonempty', () => {
   const NO_SCHEMA_META: ToolViewMeta = {
@@ -126,7 +129,7 @@ describe('card body nonempty', () => {
   })
 })
 
-describe('a generic card given a body', () => {
+describe('a generic card', () => {
   const saveMeta: ToolViewMeta = {
     summary: 'save the form the user filled',
     label: {running: 'Saving the form', done: 'Saved the form'},
@@ -157,32 +160,14 @@ describe('a generic card given a body', () => {
   const catalogCtx = ctxWith(makeCatalog({page_save: saveMeta}))
   const region = (name: string) => page.getByRole('region', {name, exact: true})
 
-  it('draws the given body in place of its own under the same header, and its own body without one', async () => {
+  it('draws its own body under its header', async () => {
     mountView(() => (
       <>
         <section aria-label="catalog card">
           <MetaToolCard part={savePart} result={saveResult} ctx={catalogCtx} addResult={INERT_ADD_RESULT} />
         </section>
-        <section aria-label="catalog card with a body">
-          <MetaToolCard
-            part={savePart}
-            result={saveResult}
-            ctx={catalogCtx}
-            addResult={INERT_ADD_RESULT}
-            body={<p>Plugin drew the save</p>}
-          />
-        </section>
         <section aria-label="fallback card">
           <ToolFallback part={pingPart} result={pingResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />
-        </section>
-        <section aria-label="fallback card with a body">
-          <ToolFallback
-            part={pingPart}
-            result={pingResult}
-            ctx={INERT_TOOL_CTX}
-            addResult={INERT_ADD_RESULT}
-            body={<p>Plugin drew the ping</p>}
-          />
         </section>
       </>
     ))
@@ -193,23 +178,39 @@ describe('a generic card given a body', () => {
     await expect.element(catalog.getByText('saved to drafts')).toBeVisible()
     await expect.element(catalog.getByText('Ada', {exact: true})).toBeVisible()
 
-    const catalogBodied = region('catalog card with a body')
-    await expect.element(catalogBodied.getByText('Saved the form #signup', {exact: true})).toBeVisible()
-    await userEvent.click(catalogBodied.getByRole('button').first())
-    await expect.element(catalogBodied.getByText('Plugin drew the save')).toBeVisible()
-    await expect.element(catalogBodied.getByText('Ada', {exact: true})).toBeVisible()
-    await expect.element(catalogBodied.getByText('saved to drafts')).not.toBeInTheDocument()
-
     const fallback = region('fallback card')
     await expect.element(fallback.getByRole('button', {name: /Called ping/})).toBeVisible()
     await userEvent.click(fallback.getByRole('button', {name: /Called ping/}))
     await expect.element(fallback.getByText('pong from example.org')).toBeVisible()
+  })
 
-    const fallbackBodied = region('fallback card with a body')
-    await expect.element(fallbackBodied.getByRole('button', {name: /Called ping/})).toBeVisible()
-    await userEvent.click(fallbackBodied.getByRole('button', {name: /Called ping/}))
-    await expect.element(fallbackBodied.getByText('Plugin drew the ping')).toBeVisible()
-    await expect.element(fallbackBodied.getByText('pong from example.org')).not.toBeInTheDocument()
+  it('keeps the result of an unclaimed call folded until its row opens, and a call with no result has no body', async () => {
+    mountView(() => (
+      <>
+        <section aria-label="answered call">
+          <ToolDisplay
+            id="ping-1"
+            tool="ping"
+            input={{host: 'example.org'}}
+            metadata={{}}
+            status="completed"
+            output="pong from example.org"
+          />
+        </section>
+        <section aria-label="silent call">
+          <ToolDisplay id="ping-2" tool="ping" input={{host: 'example.net'}} metadata={{}} status="completed" />
+        </section>
+      </>
+    ))
+
+    const answered = region('answered call')
+    const answeredRow = answered.getByRole('button', {name: /Called ping/})
+    await expect.element(answeredRow).toBeVisible()
+    await userEvent.click(answeredRow)
+    await expect.element(answered.getByText('pong from example.org')).toBeVisible()
+
+    const silent = region('silent call')
+    await expect.element(silent.getByRole('button', {name: /Called ping/})).toBeDisabled()
   })
 })
 
@@ -636,7 +637,7 @@ describe('tool call card dispatch', () => {
     expect(document.body.textContent).toContain('Called mcp__weather__forecast')
   })
 
-  it('a tool that only reaches the meta-driven default still renders its inline approval prompt', async () => {
+  it('a call waiting on approval draws its card with no approval prompt, the ask lives in the dock', async () => {
     const approval: ToolCallPart = {
       ...part('page_ship', 'approval-requested'),
       approval: {id: 'ap1', needsApproval: true},
@@ -650,45 +651,10 @@ describe('tool call card dispatch', () => {
       />
     ))
 
-    await expect.element(page.getByText('Run this action?')).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Allow'})).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
-  })
-
-  it('an entry that declines a call hands it to the next match, then to the fallback, until it accepts', async () => {
-    const pluginEntry: ToolCardEntry = {
-      names: ['mcp__weather__forecast'],
-      render: cardSaying('the plugin card'),
-      hasEmbeddedBody: () => true,
-      accepts: (_call, result) => result !== undefined,
-    }
-    const catalogEntry: ToolCardEntry = {
-      names: ['mcp__weather__forecast'],
-      render: cardSaying('the second card'),
-      hasEmbeddedBody: () => true,
-    }
-    const fallbackRow = page.getByRole('button', {name: /Called mcp__weather__forecast/})
-    const [tools, setTools] = createSignal<ToolCardEntry[]>([pluginEntry, catalogEntry])
-    const [result, setResult] = createSignal<ToolResultPart | undefined>(undefined)
-    mountView(() => (
-      <ToolCallCard
-        part={{...part('mcp__weather__forecast'), id: 'e1'}}
-        result={result()}
-        ctx={ctxAsking(makeCatalog({}))}
-        tools={tools}
-      />
-    ))
-
-    await expect.element(page.getByText('the second card')).toBeVisible()
-    await expect.element(page.getByText('the plugin card')).not.toBeInTheDocument()
-
-    setTools([pluginEntry])
-    await expect.element(fallbackRow).toBeVisible()
-    await expect.element(page.getByText('the plugin card')).not.toBeInTheDocument()
-
-    setResult(cardResult('sunny', 'complete'))
-    await expect.element(page.getByText('the plugin card')).toBeVisible()
-    await expect.element(fallbackRow).not.toBeInTheDocument()
+    await expect.element(page.getByText('Shipping the page')).toBeVisible()
+    await expect.element(page.getByText('Run this action?')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Allow'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
   })
 })
 
@@ -1007,14 +973,21 @@ describe('tool trace row', () => {
     await expect.element(page.getByRole('button')).toBeDisabled()
   })
 
-  it('routes a call waiting on approval to the permission block', async () => {
+  it('a call waiting on approval keeps its row free of the ask, which the dock block answers', async () => {
     const decisions: Array<{id: string; approved: boolean}> = []
     const asking: ToolCallPart = {
       ...call('Bash', {command: 'rm -rf dist'}, 'approval-requested'),
       approval: {id: 'ap-1', needsApproval: true},
     }
-    mountView(() => <ToolTraceRow part={asking} result={undefined} ctx={ctxRecording(decisions)} tools={() => []} />)
+    const row = render(() => (
+      <ToolTraceRow part={asking} result={undefined} ctx={ctxRecording(decisions)} tools={() => []} />
+    ))
 
+    await expect.element(page.getByText('rm -rf dist').first()).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()
+    row.unmount()
+
+    mountView(() => <TracePermissionBlock part={asking} ctx={ctxRecording(decisions)} target="Bash" />)
     await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
 
     await page.getByRole('button', {name: 'Approve'}).click()
@@ -1211,5 +1184,93 @@ describe('trace row card header', () => {
     await expect.element(page.getByText('the command output')).toBeVisible()
     await expect.element(page.getByText('rm -rf tmp')).toBeVisible()
     await expect.element(page.getByText('page edit')).toBeVisible()
+  })
+})
+
+describe('a failed tool row', () => {
+  const closedRows: ToolDisclosure = {open: () => undefined, setOpen: () => {}}
+  const legacyBash: ToolCardEntry = {
+    names: ['Bash'],
+    render: () => <p>the legacy bash card</p>,
+    hasEmbeddedBody: () => true,
+  }
+
+  it('reads its title, subtitle and error summary, and opens to the error with its copy button', async () => {
+    mountView(() => (
+      <>
+        <section aria-label="failed bash">
+          <ToolPartRow
+            part={{...cardPart('Bash', {command: 'make'}), id: 'bash-1'}}
+            result={{type: 'tool-result', toolCallId: 'bash-1', content: 'make: no rule', state: 'error'}}
+            ctx={INERT_TOOL_CTX}
+            entries={[legacyBash]}
+            render={undefined}
+            renderPending={false}
+            disclosure={closedRows}
+            chain={false}
+          />
+        </section>
+        <section aria-label="failed lookup">
+          <ToolPartRow
+            part={{...cardPart('lookup', {}), id: 'lookup-1'}}
+            result={{
+              type: 'tool-result',
+              toolCallId: 'lookup-1',
+              content: '',
+              state: 'error',
+              error: 'the lookup timed out',
+            }}
+            ctx={INERT_TOOL_CTX}
+            entries={[]}
+            render={undefined}
+            renderPending={false}
+            disclosure={closedRows}
+            chain={false}
+          />
+        </section>
+        <section aria-label="failed shell">
+          <ToolDisplay
+            id="shell-1"
+            tool="shell"
+            input={{command: 'cargo build'}}
+            metadata={{}}
+            status="error"
+            error="Error: exit code 1: two crates failed"
+          />
+        </section>
+        <section aria-label="failed search">
+          <ToolDisplay
+            id="search-1"
+            tool="websearch"
+            input={{query: 'solid stores'}}
+            metadata={{provider: 'tinyfish'}}
+            status="error"
+            error="rate limited"
+          />
+        </section>
+      </>
+    ))
+
+    const shell = page.getByRole('region', {name: 'failed shell', exact: true})
+    const shellRow = shell.getByRole('button', {name: /Shell cargo build Exit code 1/})
+    await expect.element(shellRow).toBeVisible()
+    await expect.element(shell.getByRole('img', {name: 'error'})).toBeVisible()
+    await expect.element(shell.getByRole('button', {name: 'Copy error'})).not.toBeInTheDocument()
+    await userEvent.click(shellRow)
+    await expect.element(shell.getByText('exit code 1: two crates failed', {exact: true})).toBeVisible()
+    await expect.element(shell.getByText('Exit code 1', {exact: true})).not.toBeInTheDocument()
+    await expect.element(shell.getByRole('button', {name: 'Copy error'})).toBeVisible()
+
+    const search = page.getByRole('region', {name: 'failed search', exact: true})
+    await expect
+      .element(search.getByRole('button', {name: /TinyFish Web Search solid stores Rate limited/}))
+      .toBeVisible()
+
+    const bash = page.getByRole('region', {name: 'failed bash', exact: true})
+    await expect.element(bash.getByRole('img', {name: 'error'})).toBeVisible()
+    await expect.element(bash.getByText('the legacy bash card')).not.toBeInTheDocument()
+
+    const lookup = page.getByRole('region', {name: 'failed lookup', exact: true})
+    await expect.element(lookup.getByRole('button', {name: /lookup The lookup timed out/})).toBeVisible()
   })
 })

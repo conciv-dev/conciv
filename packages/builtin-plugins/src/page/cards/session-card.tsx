@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {createMemo, Index, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, Index, Match, Show, Switch, useContext, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {
@@ -7,7 +7,6 @@ import {
   pageSessionThinkingParts,
   MorphLabel,
   ReasoningText,
-  useToolCtx,
   type GroupRenderProps,
 } from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
@@ -30,6 +29,7 @@ import {
 } from '@conciv/ui-kit-chat/tools'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageToolMeta, pageVerbGerund} from './page-tool-names.js'
 import {cardErrorMessage, countLabel, mutatingBadge} from './shared.js'
+import {CaptureContext, SessionCaptures} from '../session-captures.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
 const SESSION_LABEL = {
@@ -258,9 +258,16 @@ function SessionHeader(props: {
   )
 }
 
+export function PageSessionCard(props: GroupRenderProps): JSX.Element {
+  return (
+    <SessionCaptures sessionID={props.sessionID}>
+      <SessionCard {...props} />
+    </SessionCaptures>
+  )
+}
+
 export function SessionCard(props: GroupRenderProps): JSX.Element {
-  const ctx = useToolCtx()
-  const captureFor = (toolCallId: string) => ctx.captureFor?.(toolCallId)
+  const captureFor = useContext(CaptureContext)
   const parts = createMemo(() => pageSessionCallParts(props.parts(), props.node.indices))
   const thinking = createMemo(() => pageSessionThinkingParts(props.parts(), props.node.indices))
   const steps = createMemo(() =>

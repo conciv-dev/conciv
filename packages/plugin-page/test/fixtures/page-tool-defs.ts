@@ -3,7 +3,6 @@ import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import {
   PAGE_QUEUE_ASYNC_TOOL,
   PAGE_QUEUE_MAX_ACTIONS,
-  PAGE_QUEUE_TOOL,
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
@@ -392,7 +391,7 @@ const QueueActionsInput = z.object({
 })
 
 const queueDef = pageTool({
-  verb: readPageVerb(PAGE_QUEUE_TOOL),
+  verb: readPageVerb('page_queue'),
   category: 'act',
   mutating: true,
   capture: 'none',

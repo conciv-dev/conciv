@@ -1,6 +1,5 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import {mkdtemp, rm} from 'node:fs/promises'
-import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterAll, beforeAll} from 'vitest'
@@ -44,12 +43,15 @@ async function stopProcessTree(site: ChildProcess): Promise<void> {
   }
 }
 
-function whenReady(site: ChildProcess): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+const READY_LINE = /Ready on (http:\/\/127\.0\.0\.1:\d+)/
+
+function whenReady(site: ChildProcess): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     const output: string[] = []
     const watch = (chunk: Buffer) => {
       output.push(String(chunk))
-      if (String(chunk).includes('Ready')) resolve()
+      const ready = READY_LINE.exec(output.join(''))
+      if (ready?.[1] !== undefined) resolve(ready[1])
     }
     site.stdout?.on('data', watch)
     site.stderr?.on('data', watch)
@@ -57,23 +59,7 @@ function whenReady(site: ChildProcess): Promise<void> {
   })
 }
 
-function findFreePort(): Promise<number> {
-  return new Promise<number>((resolve, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      server.close(() => {
-        if (address === null || typeof address === 'string') return reject(new Error('no TCP port was assigned'))
-        resolve(address.port)
-      })
-    })
-  })
-}
-
 async function startWranglerDev(): Promise<WranglerDev> {
-  const port = await findFreePort()
-  const inspectorPort = await findFreePort()
   const persistDirectory = await mkdtemp(join(tmpdir(), 'conciv-site-e2e-'))
   const site = spawn(
     'pnpm',
@@ -81,10 +67,12 @@ async function startWranglerDev(): Promise<WranglerDev> {
       'exec',
       'wrangler',
       'dev',
+      '--ip',
+      '127.0.0.1',
       '--port',
-      String(port),
+      '0',
       '--inspector-port',
-      String(inspectorPort),
+      '0',
       '--persist-to',
       persistDirectory,
     ],
@@ -95,12 +83,11 @@ async function startWranglerDev(): Promise<WranglerDev> {
     await rm(persistDirectory, {recursive: true, force: true})
   }
   try {
-    await whenReady(site)
+    return {origin: await whenReady(site), stop}
   } catch (error) {
     await stop()
     throw error
   }
-  return {origin: `http://127.0.0.1:${port}`, stop}
 }
 
 const BOOT_TIMEOUT = 120_000

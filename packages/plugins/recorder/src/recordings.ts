@@ -1,123 +1,151 @@
-import {randomUUID} from 'node:crypto'
-import {mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile} from 'node:fs/promises'
-import {join} from 'node:path'
-import PQueue from 'p-queue'
+import {Clock, Context, Effect, FileSystem, Layer, Path, Ref, Semaphore, Schema} from 'effect'
 import {z} from 'zod'
-import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './protocol.js'
+import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from './rpc.js'
 
 const StoredRecording = z.object({events: z.array(RrwebEventSchema)})
 const MAX_RECORDINGS = 50
 const MAX_RECORDING_BYTES = 16 * 1024 * 1024
 const MAX_TOTAL_RECORDING_BYTES = 200 * 1024 * 1024
 const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const RECORDING_ID = /^[A-Za-z0-9-]+$/
 
 export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}
 
-export type RecordingStore = {
-  save: (events: RrwebEvent[]) => Promise<SaveResult>
-  get: (id: string) => Promise<RrwebEvent[] | null>
-  videoFile: (id: string) => string | null
-  sweep: () => Promise<void>
+export const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound', {id: Schema.String})
+export type RecordingNotFound = typeof RecordingNotFound.Type
+
+export type RecordingStoreInterface = {
+  readonly save: (events: RrwebEvent[]) => Effect.Effect<SaveResult>
+  readonly get: (id: string) => Effect.Effect<RrwebEvent[], RecordingNotFound>
+  readonly videoFile: (id: string) => Effect.Effect<string, RecordingNotFound>
+  readonly sweep: Effect.Effect<void>
 }
 
-const RECORDING_ID = /^[A-Za-z0-9-]+$/
+export const RecordingStore = Context.Service<RecordingStoreInterface>('@conciv/plugin-recorder/RecordingStore')
 
-function removeRecording(dir: string, name: string): Promise<void> {
-  const video = join(dir, `${name.slice(0, -'.json'.length)}.webm`)
-  return Promise.all([rm(join(dir, name), {force: true}), rm(video, {force: true})]).then(() => undefined)
-}
-
-function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
+function trimToCap(events: RrwebEvent[]): RrwebEvent[] | undefined {
   const snapshotIndexes = events.flatMap((event, index) => (event.type === 2 ? [index] : []))
-  const starts = [...new Set([0, ...snapshotIndexes])]
-  for (const start of starts) {
-    const slice = events.slice(start)
-    if (jsonByteLength({events: slice}) <= MAX_RECORDING_BYTES) return slice
-  }
-  return null
+  return [0, ...snapshotIndexes.filter((index) => index > 0)]
+    .map((start) => events.slice(start))
+    .find((slice) => jsonByteLength({events: slice}) <= MAX_RECORDING_BYTES)
 }
 
 function parseTimestamp(name: string): number {
-  const prefix = name.split('-')[0]
-  const parsed = Number(prefix)
+  const parsed = Number(name.split('-')[0])
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-async function listByRecency(dir: string): Promise<string[]> {
-  const names = await readdir(dir).catch(() => [])
-  return names.filter((name) => name.endsWith('.json')).toSorted((a, b) => b.localeCompare(a))
+function decodeRecording(raw: string): RrwebEvent[] | undefined {
+  const parsed = StoredRecording.safeParse(JSON.parse(raw))
+  return parsed.success ? parsed.data.events : undefined
 }
 
-async function prune(dir: string): Promise<void> {
-  const names = await listByRecency(dir)
-  const sized = await Promise.all(
-    names.map(async (name) => ({name, bytes: (await stat(join(dir, name)).catch(() => null))?.size ?? 0})),
-  )
-  let total = 0
-  const doomed = sized.filter((entry, index) => {
-    total += entry.bytes
-    return index >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
-  })
-  await Promise.all(doomed.map((entry) => removeRecording(dir, entry.name)))
-}
+export function recordingStoreLayer(directory: string) {
+  return Layer.effect(
+    RecordingStore,
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const changes = yield* Semaphore.make(1)
+      const sequence = yield* Ref.make(0)
 
-async function clearStrayTmp(dir: string): Promise<void> {
-  const names = await readdir(dir).catch(() => [])
-  const strays = names.filter((name) => name.endsWith('.tmp'))
-  await Promise.all(strays.map((name) => unlink(join(dir, name)).catch(() => {})))
-}
+      const remove = (name: string) =>
+        Effect.all(
+          [
+            fs.remove(path.join(directory, name), {force: true}),
+            fs.remove(path.join(directory, `${name.slice(0, -'.json'.length)}.webm`), {force: true}),
+          ],
+          {discard: true},
+        )
 
-export function createRecordingStore(dir: string): RecordingStore {
-  let sequence = 0
-  const changes = new PQueue({concurrency: 1})
-  const publish = async (payload: string): Promise<SaveResult> => {
-    sequence += 1
-    const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
-    const target = join(dir, `${recordingId}.json`)
-    try {
-      await mkdir(dir, {recursive: true})
-      await writeFile(`${target}.tmp`, payload, 'utf8')
-      await rename(`${target}.tmp`, target)
-    } catch {
-      await unlink(`${target}.tmp`).catch(() => {})
-      return {ok: false, reason: 'io-error'}
-    }
-    await prune(dir).catch((error: unknown) => {
-      console.error(`[recorder] pruning old recordings failed: ${String(error)}`)
-    })
-    return {ok: true, recordingId}
-  }
-  return {
-    async save(events) {
-      if (events.length < 2) return {ok: false, reason: 'empty'}
-      const trimmed = trimToCap(events)
-      if (!trimmed || trimmed.length < 2) return {ok: false, reason: 'too-large'}
-      const payload = JSON.stringify({events: trimmed})
-      return changes.add(() => publish(payload))
-    },
-    async get(id) {
-      if (!RECORDING_ID.test(id)) return null
-      const raw = await readFile(join(dir, `${id}.json`), 'utf8').catch(() => null)
-      if (raw === null) return null
-      try {
-        const parsed = StoredRecording.safeParse(JSON.parse(raw))
-        return parsed.success ? parsed.data.events : null
-      } catch {
-        return null
-      }
-    },
-    videoFile(id) {
-      return RECORDING_ID.test(id) ? join(dir, `${id}.webm`) : null
-    },
-    sweep() {
-      return changes.add(async () => {
-        await clearStrayTmp(dir)
-        const names = await listByRecency(dir)
-        const cutoff = Date.now() - RECORDING_TTL_MS
-        const expired = names.filter((name) => parseTimestamp(name) < cutoff)
-        await Promise.all(expired.map((name) => removeRecording(dir, name)))
-        await prune(dir)
+      const listByRecency = fs.readDirectory(directory).pipe(
+        Effect.orElseSucceed((): readonly string[] => []),
+        Effect.map((names) => names.filter((name) => name.endsWith('.json')).toSorted((a, b) => b.localeCompare(a))),
+      )
+
+      const prune = Effect.gen(function* () {
+        const names = yield* listByRecency
+        const sized = yield* Effect.forEach(names, (name) =>
+          fs.stat(path.join(directory, name)).pipe(
+            Effect.map((info) => ({name, bytes: Number(info.size)})),
+            Effect.orElseSucceed(() => ({name, bytes: 0})),
+          ),
+        )
+        const doomed = sized.reduce<{total: number; names: string[]}>(
+          (kept, entry, index) => {
+            const total = kept.total + entry.bytes
+            const drop = index >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
+            return {total, names: drop ? [...kept.names, entry.name] : kept.names}
+          },
+          {total: 0, names: []},
+        )
+        yield* Effect.forEach(doomed.names, remove, {discard: true})
       })
-    },
-  }
+
+      const publish = Effect.fn('recorder.recordings.publish')(function* (payload: string) {
+        const now = yield* Clock.currentTimeMillis
+        const count = yield* Ref.updateAndGet(sequence, (value) => value + 1)
+        const recordingId = `${now}-${count.toString(36).padStart(6, '0')}-${crypto.randomUUID()}`
+        const target = path.join(directory, `${recordingId}.json`)
+        const written = yield* fs.makeDirectory(directory, {recursive: true}).pipe(
+          Effect.andThen(fs.writeFileString(`${target}.tmp`, payload)),
+          Effect.andThen(fs.rename(`${target}.tmp`, target)),
+          Effect.as(true),
+          Effect.catch(() => Effect.as(fs.remove(`${target}.tmp`, {force: true}).pipe(Effect.ignore), false)),
+        )
+        if (!written) return {ok: false, reason: 'io-error'} satisfies SaveResult
+        yield* prune.pipe(Effect.catch((error) => Effect.logError('pruning old recordings failed', error)))
+        return {ok: true, recordingId} satisfies SaveResult
+      })
+
+      const clearStrayTmp = Effect.gen(function* () {
+        const names = yield* fs.readDirectory(directory).pipe(Effect.orElseSucceed((): readonly string[] => []))
+        const strays = names.filter((name) => name.endsWith('.tmp'))
+        yield* Effect.forEach(strays, (name) => fs.remove(path.join(directory, name)).pipe(Effect.ignore), {
+          discard: true,
+        })
+      })
+
+      const sweep = Effect.gen(function* () {
+        yield* clearStrayTmp
+        const names = yield* listByRecency
+        const cutoff = (yield* Clock.currentTimeMillis) - RECORDING_TTL_MS
+        yield* Effect.forEach(
+          names.filter((name) => parseTimestamp(name) < cutoff),
+          remove,
+          {discard: true},
+        )
+        yield* prune
+      })
+
+      return RecordingStore.of({
+        save: (events) => {
+          if (events.length < 2) return Effect.succeed({ok: false, reason: 'empty'})
+          const trimmed = trimToCap(events)
+          if (!trimmed || trimmed.length < 2) return Effect.succeed({ok: false, reason: 'too-large'})
+          return changes.withPermits(1)(publish(JSON.stringify({events: trimmed})))
+        },
+        get: (id) =>
+          Effect.gen(function* () {
+            if (!RECORDING_ID.test(id)) return yield* Effect.fail(RecordingNotFound.make({id}))
+            const raw = yield* fs
+              .readFileString(path.join(directory, `${id}.json`))
+              .pipe(Effect.mapError(() => RecordingNotFound.make({id})))
+            const events = yield* Effect.try({
+              try: () => decodeRecording(raw),
+              catch: () => RecordingNotFound.make({id}),
+            })
+            if (!events) return yield* Effect.fail(RecordingNotFound.make({id}))
+            return events
+          }),
+        videoFile: (id) =>
+          RECORDING_ID.test(id)
+            ? Effect.succeed(path.join(directory, `${id}.webm`))
+            : Effect.fail(RecordingNotFound.make({id})),
+        sweep: changes.withPermits(1)(
+          sweep.pipe(Effect.catch((error) => Effect.logError('sweeping old recordings failed', error))),
+        ),
+      })
+    }),
+  )
 }

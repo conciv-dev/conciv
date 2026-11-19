@@ -13,16 +13,16 @@ export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
 export const TRACE_HOVER_INDENT = 'ps-[var(--chat-trace-gutter)] pe-2'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
-const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-chat-sm [background:transparent] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
+export const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-chat-sm [background:transparent] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
 const MARK = 'select-none flex-none w-chat-mark text-center text-chat-xs leading-none [font-family:var(--chat-mono)]'
 const LABEL = `${TRACE_MICROLABEL} min-w-10 text-chat-microlabel`
 const RUN_LABEL = `${TRACE_MICROLABEL} min-w-10 text-chat-accent`
 const TARGET = 'flex-1 min-w-0 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] text-chat-target'
 const RUN_TEXT = 'flex-1 min-w-0 truncate text-chat-md leading-none [font-family:var(--chat-font)] text-chat-text-2'
 const META = 'flex-none min-w-0 max-w-1/2 truncate text-chat-xs leading-none [font-family:var(--chat-mono)]'
-const BLOCK = `flex flex-col gap-1 min-w-0 py-1 ${TRACE_INDENT}`
-const ROW_ITEM = 'relative list-none min-w-0'
-const FOLD_SLOT = 'flex-none inline-flex w-3 justify-center'
+export const BLOCK = `flex flex-col gap-1 min-w-0 py-1 ${TRACE_INDENT}`
+export const ROW_ITEM = 'relative list-none min-w-0'
+export const FOLD_SLOT = 'flex-none inline-flex w-3 justify-center'
 const FOLD = `${FOLD_SLOT} text-chat-affordance opacity-0 group-hover/row:opacity-70 group-focus-visible/row:opacity-100 data-[state=closed]:opacity-70 data-[state=closed]:-rotate-90 trans-op-rotate motion-reduce:[transition:none]`
 
 const RING =
@@ -75,7 +75,7 @@ export function TraceRing(): JSX.Element {
   )
 }
 
-function FoldIndicator(): JSX.Element {
+export function FoldIndicator(): JSX.Element {
   return (
     <Collapsible.Indicator class={FOLD}>
       <ChevronDown class="size-3" aria-hidden="true" />

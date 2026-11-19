@@ -1,43 +1,27 @@
 import {Show, type JSX} from 'solid-js'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ElementPreview, ErrorBlock, cardHeader} from '@conciv/ui-kit-chat/tools'
-import {ELEMENT_TARGET_KEYS, cardErrorMessage, elementChip, mutatingBadge} from './shared.js'
+import type {ToolProps} from '@conciv/plugin/experimental'
+import {ElementPreview} from '@conciv/ui-kit-chat/tools'
+import {useToolCapture} from '../session-captures.js'
+import {ELEMENT_TARGET_KEYS, PageTool, elementTarget} from './shared.js'
 
-export function ActCard(props: ToolCardProps): JSX.Element {
-  const {meta, title} = cardHeader(props)
-  const capture = () => props.capture?.after
-  const element = () => (capture() === undefined ? elementChip(props.part) : undefined)
-  const errorMessage = () => cardErrorMessage(props.result)
+export function ActCard(props: ToolProps): JSX.Element {
+  const capture = useToolCapture()
+  const after = () => capture()?.after
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      metaBadge={mutatingBadge(meta())}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      chipSkip={ELEMENT_TARGET_KEYS}
-      leadChip={element()}
+    <PageTool
+      {...props}
+      subtitle={after() === undefined ? elementTarget(props.input) : undefined}
+      skip={ELEMENT_TARGET_KEYS}
+      hasContent={after() !== undefined}
     >
-      <div class="flex flex-col gap-1.5">
-        <Show when={capture()}>
-          {(value) => (
-            <ElementPreview.Root capture={value()} css={props.capture?.css}>
-              <ElementPreview.Frame />
-              <ElementPreview.Descriptor />
-            </ElementPreview.Root>
-          )}
-        </Show>
-        <Show when={errorMessage()}>
-          {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
-        </Show>
-      </div>
-    </CardShell>
+      <Show when={after()}>
+        {(value) => (
+          <ElementPreview.Root capture={value()} css={capture()?.css}>
+            <ElementPreview.Frame />
+            <ElementPreview.Descriptor />
+          </ElementPreview.Root>
+        )}
+      </Show>
+    </PageTool>
   )
-}
-
-export const actCard: ToolCardView = {
-  render: ActCard,
-  hasEmbeddedBody: (part, result, ctx) =>
-    ctx.captureFor?.(part.id)?.after !== undefined || cardErrorMessage(result) !== undefined,
 }
