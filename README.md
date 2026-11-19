@@ -185,7 +185,7 @@ Every package, app and source directory carries a `README.md` with its interface
 
 - Everything is ESM, Node >= 26, one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
 - Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `extension`, `grab`) or an extension's `shared/` directory; the browser never imports a server entry.
-- Extensions are declared once with `defineExtension` and split at build time by `extension-compiler` into a browser half and a Node half. The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
+- The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
 - The engine binds loopback only; cross-origin access is gated by the Host/Origin middleware in `packages/core/src/lib`.
 
 ### Global Side Effects

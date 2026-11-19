@@ -69,7 +69,7 @@ README.md; this file is the non-obvious operational rules.
 - Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,
   then `CLAUDECODE` etc.); combined with `@tanstack/devtools-vite`'s server-to-browser console pipe,
   a single page `console.error` round-trips forever as growing `[Server] ...` entries (12+ GB tabs
-  observed). `concivSolidConfig` (extension-compiler) now sets `server.forwardConsole: false`
+  observed). `concivSolidConfig` (unplugin) now sets `server.forwardConsole: false`
   unconditionally for every host wired through the conciv vite plugin, so scrubbing agent env vars
   before starting a dev server is no longer load-bearing.
 - On large commits the prek hook can abort with a `next-index-*.lock.lock` error (file-lock race).

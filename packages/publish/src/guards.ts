@@ -67,7 +67,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/page',
   '@conciv/tools',
   '@conciv/extension',
-  '@conciv/extension-compiler',
   '@conciv/plugin',
   '@conciv/plugin-host',
   '@conciv/plugin-ios',

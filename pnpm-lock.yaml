@@ -1761,7 +1761,7 @@ importers:
         version: 1.169.4(@rspack/core@2.3.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.15)(rollup@4.62.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)(webpack@5.112.2(esbuild@0.28.2))
       '@tanstack/redact':
         specifier: ^0.2.3
-        version: 0.2.3(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)
+        version: 0.2.3(next@16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)
       '@tanstack/router-plugin':
         specifier: 'catalog:'
         version: 1.168.48(@rspack/core@2.3.2(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.62.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)(webpack@5.112.2(esbuild@0.28.2))
@@ -3133,70 +3133,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-
-  packages/extension-compiler:
-    dependencies:
-      '@babel/core':
-        specifier: ^7.29.7
-        version: 7.29.7
-      '@babel/preset-typescript':
-        specifier: ^7.29.7
-        version: 7.29.7(@babel/core@7.29.7)
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../protocol
-      '@tanstack/devtools-bundler-core':
-        specifier: 'catalog:'
-        version: 0.1.3(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)
-      babel-dead-code-elimination:
-        specifier: ^2.0.0
-        version: 2.0.0
-      babel-preset-solid:
-        specifier: ^1.9.16
-        version: 1.9.16(@babel/core@7.29.7)(solid-js@1.9.17)
-      jiti:
-        specifier: ^2.7.0
-        version: 2.7.0
-    devDependencies:
-      '@conciv/tsconfig':
-        specifier: workspace:*
-        version: link:../tsconfig
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../ui-kit-chat
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
-      '@types/babel__core':
-        specifier: ^7.20.5
-        version: 7.20.5
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      '@vitest/coverage-v8':
-        specifier: 'catalog:'
-        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
 
   packages/extensions/design:
     dependencies:
@@ -13507,10 +13443,6 @@ packages:
 
   babel-dead-code-elimination@1.0.12:
     resolution: {integrity: sha512-GERT7L2TiYcYDtYk1IpD+ASAYXjKbLTDPhBtYj7X1NuRMDTMtAx9kyBenub1Ev41lo91OHCKdmP+egTDmfQ7Ig==}
-
-  babel-dead-code-elimination@2.0.0:
-    resolution: {integrity: sha512-TFbyivU8lYkdTbu0RBW+RUU77OizhOuYcvC+PioWCHz+D3DAmlpGrll515D+qzU0KnnTSrvJO+ESGHttp16/rg==}
-    engines: {node: '>=22.12.0'}
 
   babel-plugin-jsx-dom-expressions@0.40.11:
     resolution: {integrity: sha512-k7TkOv7uVYnrq/bYyVvG5cWOC9IObAGfmyW3aMkG8l2sq2qt/5THkUBja69PMLEGGi8G+fXB2Fh7eS4OwZRBoQ==}
@@ -25506,7 +25438,7 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
       use-sync-external-store: 1.6.0(react@19.3.1)
 
-  '@tanstack/redact@0.2.3(next@16.4.3(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)':
+  '@tanstack/redact@0.2.3(next@16.4.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.64.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(sass@1.51.0))(vite@8.3.5)':
     dependencies:
       magic-string: 0.30.21
     optionalDependencies:
@@ -27973,15 +27905,6 @@ snapshots:
   b4a@1.8.1: {}
 
   babel-dead-code-elimination@1.0.12:
-    dependencies:
-      '@babel/core': 7.29.7
-      '@babel/parser': 7.29.11
-      '@babel/traverse': 7.29.7
-      '@babel/types': 7.29.11
-    transitivePeerDependencies:
-      - supports-color
-
-  babel-dead-code-elimination@2.0.0:
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.11
