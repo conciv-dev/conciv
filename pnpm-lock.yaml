@@ -2471,9 +2471,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -2745,9 +2742,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -4067,9 +4061,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab

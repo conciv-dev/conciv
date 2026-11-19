@@ -7,7 +7,6 @@ import {afterAll, expect, onTestFinished} from 'vitest'
 import {inside} from '@conciv/harness/cwd'
 import {type ChatPlane} from '@conciv/chat'
 import {type ConcivDb} from '@conciv/db'
-import {type AnyExtension} from '@conciv/extension'
 import type {Plugin} from '@conciv/plugin'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
 import {
@@ -142,8 +141,6 @@ export async function runTurn(kit: Kit, input: string | ChatMessage, session: st
 
 export type BootOverrides = {
   cwd?: string
-  extensions?: AnyExtension[]
-  extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number, column?: number) => void
   bridge?: Bundler.BundlerBridge
   firstChunkTimeoutMs?: number
@@ -190,8 +187,6 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     cwd: overrides.cwd ?? env.cwd,
     openInEditor: overrides.openInEditor ?? (() => {}),
     harness: env.harness,
-    extensions: overrides.extensions,
-    extensionConfig: overrides.extensionConfig,
     bridge: overrides.bridge,
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
     pageReplyTimeoutMs: overrides.pageReplyTimeoutMs,
