@@ -52,7 +52,6 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-page-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
