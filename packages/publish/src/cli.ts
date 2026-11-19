@@ -17,7 +17,7 @@ import {
   assertWorkspaceRoot,
 } from './guards.ts'
 import {assertTypecheckCoversTrackedFiles} from './typecheck-coverage.ts'
-import {assertBuildDependsOnCoversImports} from './turbo-depends-on.ts'
+import {assertBuildDependsOnCoversImports, assertPluginsDrawThroughContextUi} from './workspace-imports.ts'
 import {buildSyncPlan, pushMissingTags, registryRecord, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
 import {
   assembleMirrorTree,
@@ -116,6 +116,18 @@ const checkTurboDependsOn = defineCommand({
   async run() {
     const {cwd} = await atRoot()
     await assertBuildDependsOnCoversImports(cwd)
+  },
+})
+
+const checkPluginUiKit = defineCommand({
+  meta: {
+    name: 'check-plugin-ui-kit',
+    description:
+      'Fail when a plugin under packages/plugins, other than the built-in page and terminal plugins, imports or depends on @conciv/ui-kit* instead of drawing through ctx.ui',
+  },
+  async run() {
+    const {cwd} = await atRoot()
+    await assertPluginsDrawThroughContextUi(cwd)
   },
 })
 
@@ -395,6 +407,7 @@ const main = defineCommand({
     'check-catalog': checkCatalog,
     'check-typecheck-coverage': checkTypecheckCoverage,
     'check-turbo-depends-on': checkTurboDependsOn,
+    'check-plugin-ui-kit': checkPluginUiKit,
     check,
     release,
     snapshot,

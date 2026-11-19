@@ -28,7 +28,7 @@ import {
 } from '../src/swift-mirror.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from '../src/workspace.ts'
 import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
-import {assertBuildDependsOnCoversImports} from '../src/turbo-depends-on.ts'
+import {assertBuildDependsOnCoversImports, assertPluginsDrawThroughContextUi} from '../src/workspace-imports.ts'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 async function scaffoldWorkspaceRoot(prefix: string, packageGlobs: string[] = ['packages/*']): Promise<string> {
@@ -45,6 +45,17 @@ async function scaffoldWorkspaceRoot(prefix: string, packageGlobs: string[] = ['
 async function writeManifest(dir: string, manifest: Record<string, unknown>): Promise<void> {
   await mkdir(dir, {recursive: true})
   await writeFile(join(dir, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+async function commitFiles(root: string, files: Record<string, string>): Promise<void> {
+  await Promise.all(
+    Object.entries(files).map(async ([path, content]) => {
+      await mkdir(dirname(join(root, path)), {recursive: true})
+      await writeFile(join(root, path), content)
+    }),
+  )
+  await execa('git', ['init', '-q'], {cwd: root})
+  await execa('git', ['add', '.'], {cwd: root})
 }
 
 describe('catalog', () => {
@@ -198,18 +209,12 @@ describe('turbo build dependsOn', () => {
       'packages/a/src/a.test.ts': "import '@conciv/e'\nimport '@conciv/plain'\n",
     }
     await Promise.all([
-      writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', scripts: {build: 'tsdown'}}),
-      ...['b', 'c', 'd', 'e'].map((name) =>
+      ...['a', 'b', 'c', 'd', 'e'].map((name) =>
         writeManifest(join(root, 'packages', name), {name: `@conciv/${name}`, scripts: {build: 'tsdown'}}),
       ),
       writeManifest(join(root, 'packages', 'plain'), {name: '@conciv/plain'}),
-      ...Object.entries(files).map(async ([path, content]) => {
-        await mkdir(dirname(join(root, path)), {recursive: true})
-        await writeFile(join(root, path), content)
-      }),
     ])
-    await execa('git', ['init', '-q'], {cwd: root})
-    await execa('git', ['add', '.'], {cwd: root})
+    await commitFiles(root, files)
     const failure = await assertBuildDependsOnCoversImports(root).catch((error: unknown) => String(error))
     expect(failure).toContain('packages/a/turbo.json: build imports @conciv/c but does not depend on @conciv/c#build')
     expect(failure).toContain('packages/a/turbo.json: build imports @conciv/d but does not depend on @conciv/d#build')
@@ -217,6 +222,37 @@ describe('turbo build dependsOn', () => {
     const dependsOn = ['@conciv/b#build', '@conciv/c#build', '@conciv/d#build']
     await writeFile(join(root, 'packages/a/turbo.json'), JSON.stringify({tasks: {build: {dependsOn}}}))
     await expect(assertBuildDependsOnCoversImports(root)).resolves.toBeUndefined()
+  }, 10_000)
+})
+
+describe('plugin ui kit', () => {
+  test('a plugin draws through ctx.ui: kit imports in build sources or manifests fail, built-ins and tests pass', async () => {
+    const root = await scaffoldWorkspaceRoot('plugin-ui-kit-', ['packages/*', 'packages/plugins/*'])
+    const manifest = (value: Record<string, unknown>) => JSON.stringify(value)
+    const drawn = "import {Button} from '@conciv/ui-kit-system'\nexport const view = Button\n"
+    await commitFiles(root, {
+      'packages/ui-kit-system/package.json': manifest({name: '@conciv/ui-kit-system'}),
+      'packages/plugins/drawn/package.json': manifest({name: '@conciv/plugin-drawn'}),
+      'packages/plugins/drawn/src/view.tsx': drawn,
+      'packages/plugins/drawn/test/view.test.tsx': "import '@conciv/ui-kit-chat'\n",
+      'packages/plugins/listed/package.json': manifest({
+        name: '@conciv/plugin-listed',
+        devDependencies: {'@conciv/ui-kit-chat': 'workspace:*'},
+      }),
+      'packages/plugins/terminal/package.json': manifest({
+        name: '@conciv/plugin-terminal',
+        dependencies: {'@conciv/ui-kit-system': 'workspace:*'},
+      }),
+      'packages/plugins/terminal/src/pane.tsx': drawn,
+    })
+    const failure = await assertPluginsDrawThroughContextUi(root).catch((error: unknown) => String(error))
+    expect(failure).toContain('packages/plugins/drawn/src/view.tsx: imports @conciv/ui-kit-system')
+    expect(failure).toContain('packages/plugins/listed/package.json: devDependencies names @conciv/ui-kit-chat')
+    expect(failure).not.toContain('view.test.tsx')
+    expect(failure).not.toContain('packages/plugins/terminal')
+    await writeFile(join(root, 'packages/plugins/drawn/src/view.tsx'), 'export const view = 1\n')
+    await writeManifest(join(root, 'packages/plugins/listed'), {name: '@conciv/plugin-listed'})
+    await expect(assertPluginsDrawThroughContextUi(root)).resolves.toBeUndefined()
   }, 10_000)
 })
 
@@ -689,26 +725,7 @@ describe('registry', () => {
     trustedPublisher: {id: 'github', oidcConfigId: 'oidc:5264430c-88ce-42e0-bb20-090669cc97d1'},
   }
 
-  test('latest published via trusted publisher reads as trusted', () => {
-    const document = {
-      'dist-tags': {latest: '0.0.14'},
-      versions: {
-        '0.0.9': {_npmUser: {name: 'omridevk', email: 'x@y.dev'}},
-        '0.0.14': {_npmUser: trustedUser},
-      },
-    }
-    expect(stateFromDocument(document)).toBe('trusted')
-  })
-
-  test('latest published by a human reads as untrusted', () => {
-    const document = {
-      'dist-tags': {latest: '0.0.14'},
-      versions: {'0.0.14': {_npmUser: {name: 'omridevk', email: 'x@y.dev'}}},
-    }
-    expect(stateFromDocument(document)).toBe('untrusted')
-  })
-
-  test('regression: old versions without trustedPublisher must not fail the parse', () => {
+  test('latest published via trusted publisher reads as trusted; old versions without trustedPublisher do not fail the parse', () => {
     const document = {
       'dist-tags': {latest: '0.0.14'},
       versions: {
@@ -721,7 +738,9 @@ describe('registry', () => {
     expect(stateFromDocument(document)).toBe('trusted')
   })
 
-  test('documents without dist-tags or versions read as untrusted, not a crash', () => {
+  test('latest published by a human, and documents without dist-tags or versions, read as untrusted, not a crash', () => {
+    const human = {_npmUser: {name: 'omridevk', email: 'x@y.dev'}}
+    expect(stateFromDocument({'dist-tags': {latest: '0.0.14'}, versions: {'0.0.14': human}})).toBe('untrusted')
     expect(stateFromDocument({})).toBe('untrusted')
     expect(stateFromDocument({'dist-tags': {}})).toBe('untrusted')
     expect(stateFromDocument({'dist-tags': {latest: '1.0.0'}})).toBe('untrusted')
@@ -732,18 +751,13 @@ describe('registry', () => {
     expect(() => stateFromDocument(null)).toThrow()
   })
 
-  describe('recordFromDocument versions', () => {
-    test('lists every published version from the document', () => {
-      const document = {
-        'dist-tags': {latest: '0.0.20'},
-        versions: {'0.0.19': {}, '0.0.20': {_npmUser: trustedUser}},
-      }
-      expect(recordFromDocument(document)).toEqual({state: 'trusted', versions: ['0.0.19', '0.0.20']})
-    })
-
-    test('a document without versions lists none', () => {
-      expect(recordFromDocument({'dist-tags': {latest: '1.0.0'}}).versions).toEqual([])
-    })
+  test('recordFromDocument lists every published version from the document, and none without versions', () => {
+    const document = {
+      'dist-tags': {latest: '0.0.20'},
+      versions: {'0.0.19': {}, '0.0.20': {_npmUser: trustedUser}},
+    }
+    expect(recordFromDocument(document)).toEqual({state: 'trusted', versions: ['0.0.19', '0.0.20']})
+    expect(recordFromDocument({'dist-tags': {latest: '1.0.0'}}).versions).toEqual([])
   })
 })
 
@@ -771,7 +785,7 @@ describe('swift mirror', () => {
     return {sourceDir, templateDir, destDir, bridgeManifestPath, root}
   }
 
-  test('assembleMirrorTree promotes the nested tree, copies templates, and returns the version', async () => {
+  test('assembleMirrorTree promotes the nested tree, copies templates, skips .build, returns the version, and reruns with no stale files', async () => {
     const {sourceDir, templateDir, destDir, bridgeManifestPath, root} = await scaffold('1.2.3')
     const tree = await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})
     expect(tree.version).toBe('1.2.3')
@@ -787,22 +801,9 @@ describe('swift mirror', () => {
     expect(await readFile(join(destDir, 'RELEASE_HYGIENE.md'), 'utf8')).toBe('# hygiene\n')
     expect(tree.files).toContain('LICENSE')
     expect(await readFile(join(destDir, 'LICENSE'), 'utf8')).toBe('MIT License\n')
-    await rm(root, {recursive: true, force: true})
-  })
-
-  test('assembleMirrorTree excludes the .build artifact directory', async () => {
-    const {sourceDir, templateDir, destDir, bridgeManifestPath, root} = await scaffold('1.0.0')
-    await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})
     await expect(readFile(join(destDir, '.build', 'build.db'), 'utf8')).rejects.toThrow()
-    await rm(root, {recursive: true, force: true})
-  })
-
-  test('assembleMirrorTree is idempotent: a second run leaves no stale files', async () => {
-    const {sourceDir, templateDir, destDir, bridgeManifestPath, root} = await scaffold('2.0.1')
-    await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})
     await writeFile(join(destDir, 'Sources', 'ConcivWidget', 'Stale.swift'), 'stale\n')
-    const tree = await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})
-    expect(tree.version).toBe('2.0.1')
+    expect((await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})).version).toBe('1.2.3')
     await expect(readFile(join(destDir, 'Sources', 'ConcivWidget', 'Stale.swift'), 'utf8')).rejects.toThrow()
     await rm(root, {recursive: true, force: true})
   })
@@ -850,15 +851,9 @@ describe('swift mirror', () => {
     await rm(root, {recursive: true, force: true})
   })
 
-  test('readBridgeVersion reads the manifest version and validates bare semver', async () => {
+  test('readBridgeVersion reads the manifest version and rejects one that is not bare semver', async () => {
     const {bridgeManifestPath, root} = await scaffold('3.4.5')
     expect(await readBridgeVersion(bridgeManifestPath)).toBe('3.4.5')
-    await rm(root, {recursive: true, force: true})
-  })
-
-  test('readBridgeVersion rejects a manifest whose version is not bare semver', async () => {
-    const root = tempDir('swift-mirror-')
-    const bridgeManifestPath = join(root, 'bridge-package.json')
     await writeFile(bridgeManifestPath, `${JSON.stringify({name: '@conciv/plugin-ios', version: '0.0.15-beta.1'})}\n`)
     await expect(readBridgeVersion(bridgeManifestPath)).rejects.toThrow(/invalid swift sdk version/)
     await rm(root, {recursive: true, force: true})
