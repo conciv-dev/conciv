@@ -1,10 +1,8 @@
 import {Show, splitProps, type ComponentProps, type JSX} from 'solid-js'
-import {Portal as SolidPortal} from 'solid-js/web'
 import {Dialog as Ark} from '@ark-ui/solid/dialog'
-import {useEnvironmentContext} from '@ark-ui/solid/environment'
 import X from 'lucide-solid/icons/x'
 import {Button} from './button.js'
-import {isShadowRoot} from './realm.js'
+import {LayerPortal} from './layer-portal.js'
 
 const TOP_LAYER = 'z-[2147483647]'
 const LAYER = `fixed ${TOP_LAYER}`
@@ -25,15 +23,6 @@ const CONTENT_SIZE = {
 
 function Root(props: ComponentProps<typeof Ark.Root>): JSX.Element {
   return <Ark.Root {...props} />
-}
-
-function LayerPortal(props: {children: JSX.Element}): JSX.Element {
-  const environment = useEnvironmentContext()
-  const mount = (): Node => {
-    const root = environment().getRootNode()
-    return isShadowRoot(root) ? root : environment().getDocument().body
-  }
-  return <SolidPortal mount={mount()}>{props.children}</SolidPortal>
 }
 
 function Layer(props: ComponentProps<'div'>): JSX.Element {

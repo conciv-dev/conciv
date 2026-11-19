@@ -814,7 +814,7 @@ describe('plugin instructions', () => {
       },
     ])
     expect(lastUserContent(0)).toEqual([
-      {type: 'text', content: 'a skill was added'},
+      {type: 'text', content: 'a skill was added\n\n'},
       {type: 'text', content: 'look around'},
     ])
     expect(JSON.stringify(sent[0]?.messages).split('a skill was added')).toHaveLength(2)
@@ -881,6 +881,41 @@ describe('the session prompt hook', () => {
     await say('run-hooked', 'hooked words')
     expect(triggered).toEqual(['hooked words'])
     expect(sent).toEqual(['plain words', [{type: 'text', content: 'hooked words rewritten'}]])
+  })
+})
+
+describe('text parts keep their own paragraph', () => {
+  it('the instructions update and the attached text file reach the model as separate paragraphs', async () => {
+    const {root, db} = await openDatabase()
+    const sessionId = SessionId.parse('conciv_text_parts')
+    const chat = await chatPlane(db, root, {
+      pluginInstructions: async () => ({initial: '', update: 'a skill was added', told: async () => undefined}),
+    })
+    const prompts: string[] = []
+    model.setResponses([
+      ({request}: {request: {messages: ModelMessage[]}}) => {
+        const content = request.messages.findLast((message) => message.role === 'user')?.content
+        prompts.push(
+          typeof content === 'string'
+            ? content
+            : (content ?? []).flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+        )
+        return {text: 'done'}
+      },
+    ])
+    const response = await chat.routes(defineWebSocketHelper(async () => undefined)).request(CHAT_SSE_PATH, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: sessionId,
+        runId: 'run-text-parts',
+        messages: [{id: 'run-text-parts-user', role: 'user', content: 'hello\n\nAttachment x.txt:\nthe file body'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    await response.text()
+    expect(prompts).toEqual(['a skill was added\n\nhello\n\nAttachment x.txt:\nthe file body'])
   })
 })
 

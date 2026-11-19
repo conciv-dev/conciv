@@ -224,7 +224,7 @@ function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
   if (update === '' || target === undefined) return messages
   return messages.with(lastUser, {
     ...target,
-    content: [{type: 'text', content: update}, ...contentParts(target.content)],
+    content: [{type: 'text', content: `${update}\n\n`}, ...contentParts(target.content)],
   })
 }
 
