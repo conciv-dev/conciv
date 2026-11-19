@@ -1,0 +1,232 @@
+---
+title: Your first plugin
+description: Build a deploy plugin in your project, with a tool, an RPC method and a pill in the widget.
+---
+
+This page builds a `deploy` plugin in your project's `conciv/plugins` folder. The agent gets a `deploy_run` tool,
+a terminal can ask for the last deploy, and the widget shows a pill that opens it.
+
+<Steps>
+<Step>
+
+### Install the SDK
+
+```bash
+pnpm add -D @conciv/plugin effect zod
+```
+
+</Step>
+<Step>
+
+### Add a tool
+
+Create `conciv/plugins/deploy/index.ts`:
+
+```ts title="conciv/plugins/deploy/index.ts"
+import {Plugin} from '@conciv/plugin/effect'
+import {Effect} from 'effect'
+import {z} from 'zod'
+
+export default Plugin.define({
+  id: 'deploy',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      yield* ctx.tool.transform((editor) => {
+        editor.namespace({name: 'deploy', description: 'Deploy a branch of this app to a preview URL.'})
+        editor.add({
+          name: 'run',
+          description: 'Deploy a branch to its preview URL and return the URL.',
+          input: z.object({branch: z.string().regex(/^[a-z0-9-]+$/)}),
+          output: z.object({url: z.string()}),
+          options: {namespace: 'deploy'},
+          execute: ({branch}) => Effect.succeed({output: {url: `https://${branch}.preview.example.com`}}),
+        })
+      })
+    }),
+})
+```
+
+The engine loads the folder on its own and reloads it when a file changes. Ask the agent to "deploy the branch
+fix-header": it calls `external_deploy_run({branch: 'fix-header'})` from code mode and answers with the URL.
+
+The file runs in Node as it is, with types stripped. Keep it `.ts`: a `.tsx` engine file fails to load.
+
+</Step>
+<Step>
+
+### Add an RPC contract
+
+The contract is shared by the engine part, the browser part and the terminal. Create `conciv/plugins/deploy/rpc.ts`:
+
+```ts title="conciv/plugins/deploy/rpc.ts"
+import {Rpc} from '@conciv/plugin/rpc'
+import {z} from 'zod'
+
+export const Deploy = Rpc.define({
+  id: 'deploy',
+  methods: {
+    last: {input: z.unknown(), output: z.object({url: z.string().nullable()})},
+  },
+  events: {
+    deployed: {schema: z.object({url: z.string()})},
+  },
+})
+```
+
+Then answer `last` from the engine part, and emit `deployed` after each deploy:
+
+```ts title="conciv/plugins/deploy/index.ts"
+import {Plugin} from '@conciv/plugin/effect'
+import {Effect, Ref} from 'effect'
+import {z} from 'zod'
+import {Deploy} from './rpc.ts'
+
+export default Plugin.define({
+  id: 'deploy',
+  effect: (ctx) =>
+    Effect.gen(function* () {
+      const last = yield* Ref.make<string | null>(null)
+      const registration = yield* ctx.rpc.register(Deploy, {
+        last: () => Effect.map(Ref.get(last), (url) => ({url})),
+      })
+      yield* ctx.tool.transform((editor) => {
+        editor.namespace({name: 'deploy', description: 'Deploy a branch of this app to a preview URL.'})
+        editor.add({
+          name: 'run',
+          description: 'Deploy a branch to its preview URL and return the URL.',
+          input: z.object({branch: z.string().regex(/^[a-z0-9-]+$/)}),
+          output: z.object({url: z.string()}),
+          options: {namespace: 'deploy'},
+          execute: ({branch}) =>
+            Effect.gen(function* () {
+              const url = `https://${branch}.preview.example.com`
+              yield* Ref.set(last, url)
+              yield* registration.events.emit('deployed', {url}).pipe(Effect.ignore)
+              return {output: {url}}
+            }),
+        })
+      })
+    }),
+})
+```
+
+Node needs the real file name in the import: `./rpc.ts`. Call the method from a terminal in the project:
+
+```bash
+conciv plugin call deploy last
+```
+
+```json
+{"ok": true, "data": {"url": "https://fix-header.preview.example.com"}}
+```
+
+</Step>
+<Step>
+
+### Add a browser part
+
+The browser part is built, not loaded as source. Install the build tools:
+
+```bash
+pnpm add -D vite vite-plugin-solid solid-js
+```
+
+Create `conciv/plugins/deploy/app.tsx`. It reads `last` when the engine connects, follows `deployed`, and shows a
+pill above the composer that opens the preview:
+
+```tsx title="conciv/plugins/deploy/app.tsx"
+import {createSignal, onCleanup} from 'solid-js'
+import {ComposerPill, createKeyed, Plugin} from '@conciv/plugin/experimental'
+import {Deploy} from './rpc.ts'
+
+export default Plugin.define({
+  setup(ctx) {
+    const [url, setUrl] = createSignal<string | null>(null)
+
+    createKeyed(
+      () => ctx.client,
+      (client) => {
+        const controller = new AbortController()
+        onCleanup(() => controller.abort())
+        const follow = async () => {
+          for await (const event of client.event.subscribe({
+            types: ['rpc.deploy.deployed'],
+            signal: controller.signal,
+          })) {
+            if (event.type === 'server.connected') {
+              const last = await client.rpc(Deploy).last(undefined, {signal: controller.signal})
+              setUrl(last.url)
+              continue
+            }
+            const deployed = Deploy.events.deployed.schema.safeParse(event.data)
+            if (deployed.success) setUrl(deployed.data.url)
+          }
+        }
+        follow().catch((error: unknown) => {
+          if (!controller.signal.aborted) console.error('[deploy] the deploy events stopped', error)
+        })
+      },
+    )
+
+    ctx.add(ComposerPill, {
+      id: 'deploy-preview',
+      show: () => {
+        const current = url()
+        if (current === null) return undefined
+        return {label: 'Preview', icon: 'external-link', title: current, run: () => window.open(current, '_blank')}
+      },
+    })
+  },
+})
+```
+
+Build it into `plugin-experimental.cjs`, the file conciv loads from a plugin folder. Create
+`conciv/plugins/deploy/vite.config.ts`:
+
+```ts title="conciv/plugins/deploy/vite.config.ts"
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/plugin/experimental/vite'
+
+export default defineConfig({
+  publicDir: false,
+  plugins: [experimental({entry: 'app.tsx', outFile: 'plugin-experimental.cjs'})],
+})
+```
+
+Then build from the plugin folder:
+
+```bash
+cd conciv/plugins/deploy
+pnpm exec vite build
+```
+
+The engine picks up the new bundle and the widget loads it. After the agent deploys, a **Preview** pill sits above the
+composer. Run `pnpm exec vite build --watch` while you work on `app.tsx`: each build reloads only this plugin.
+
+</Step>
+</Steps>
+
+The finished folder:
+
+<Files>
+  <Folder name="conciv" defaultOpen>
+    <Folder name="plugins" defaultOpen>
+      <Folder name="deploy" defaultOpen>
+        <File name="index.ts" />
+        <File name="rpc.ts" />
+        <File name="app.tsx" />
+        <File name="vite.config.ts" />
+        <File name="plugin-experimental.cjs" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+
+## Next
+
+<Cards>
+  <Card title="Testing a plugin" href="/docs/plugins/testing" description="Boot the engine and widget in a test." />
+  <Card title="Publishing" href="/docs/plugins/publishing" description="Ship the plugin as a package." />
+  <Card title="Engine SDK" href="/docs/plugins/engine" description="Errors, approvals, skills and prompt hooks." />
+  <Card title="Browser SDK" href="/docs/plugins/browser" description="Panels, slots, commands and stores." />
+</Cards>

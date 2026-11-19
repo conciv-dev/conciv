@@ -1,0 +1,94 @@
+---
+title: Publishing a plugin
+description: Ship a plugin as an npm package, with its engine part, RPC contract and browser part.
+---
+
+A published plugin is a package that exports its parts by name. The TanStack plugin is the model: see
+[Worked example](/docs/plugins#worked-example-the-tanstack-plugin).
+
+## Lay out the package
+
+<Files>
+  <Folder name="src" defaultOpen>
+    <File name="index.ts" />
+    <File name="rpc.ts" />
+    <File name="plugin-experimental.tsx" />
+  </Folder>
+  <File name="package.json" />
+  <File name="tsdown.config.ts" />
+  <File name="vite.config.ts" />
+</Files>
+
+## Export the parts
+
+```json title="packages/plugins/tanstack/package.json"
+"exports": {
+  ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
+  "./server": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
+  "./rpc": {"types": "./dist/rpc.d.ts", "import": "./dist/rpc.js"},
+  "./plugin-experimental": "./dist/plugin-experimental.cjs",
+  "./package.json": "./package.json"
+}
+```
+
+conciv loads `./server` (or the main export) as the engine part, `./rpc` as the contract and
+`./plugin-experimental` as the browser part. Leave out the exports of the parts you do not have.
+
+## Declare the dependencies
+
+`@conciv/plugin` is a peer dependency, so the plugin shares the engine's copy. `effect` and `zod` are plain
+dependencies:
+
+```json title="package.json"
+"peerDependencies": {"@conciv/plugin": "^0.0.22"},
+"devDependencies": {"@conciv/plugin": "^0.0.22"},
+"dependencies": {"effect": "4.1.0", "zod": "^4.6.7"}
+```
+
+Match the `effect` version of the `@conciv/plugin` you build against.
+
+The browser part needs no runtime dependencies of its own for what the widget provides. See
+[Build it](/docs/plugins/browser#build-it).
+
+## Build it
+
+Build the engine part and the contract with tsdown, the browser part with `vite build`, and the types with `tsc`:
+
+```json title="packages/plugins/tanstack/package.json"
+"scripts": {
+  "build": "tsdown && vite build && tsc -p tsconfig.build.json"
+}
+```
+
+```ts title="packages/plugins/tanstack/tsdown.config.ts"
+import {defineConfig} from 'tsdown'
+
+export default defineConfig({
+  entry: ['src/index.ts', 'src/rpc.ts'],
+  format: 'esm',
+  fixedExtension: false,
+  dts: false,
+})
+```
+
+```ts title="packages/plugins/tanstack/vite.config.ts"
+import {defineConfig} from 'vite'
+import {experimental} from '@conciv/plugin/experimental/vite'
+
+export default defineConfig({
+  publicDir: false,
+  plugins: [experimental()],
+})
+```
+
+The browser bundle is a `.cjs` file with no types. When you check the package with
+[attw](https://github.com/arethetypeswrong/arethetypeswrong.github.io), leave it out:
+
+```bash
+attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental
+```
+
+## Publish
+
+Publish with `npm publish`. Users then add the package name to their [`plugins` option](/docs/plugins/install),
+and the engine installs it on its first load.

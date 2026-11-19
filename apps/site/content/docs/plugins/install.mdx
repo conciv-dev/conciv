@@ -1,0 +1,146 @@
+---
+title: Install a plugin
+description: Add a first-party plugin to conciv, set its options, and turn one off.
+---
+
+Add the package name to the `plugins` option of `conciv()`. Pass options as `[name, options]`:
+
+```ts title="vite.config.ts"
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      plugins: ['@conciv/plugin-tanstack', ['@conciv/plugin-test-runner', {runner: 'playwright'}]],
+    }),
+  ],
+})
+```
+
+The engine installs each listed package with npm into its own cache the first time it loads it, so a plugin does not
+need to be in your project's dependencies. The widget shows the plugin's panels and pills as soon as it is active.
+
+Every option value is JSON. A plugin that gets an option it cannot use fails to start: it shows as failed, with its
+message, and its tools and RPC methods are not there.
+
+## First-party plugins
+
+### Test runner
+
+Runs your tests in a separate process, gives the agent `test_runner_run`, `test_runner_status` and
+`external_test_runner_list`, and adds the Tests tab. See [Live tests](/docs/usage/live-tests).
+
+```ts
+conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]})
+```
+
+<TypeTable
+  type={{
+    runner: {
+      type: "'vitest' | 'playwright' | 'jest' | 'node-test'",
+      default: "'vitest'",
+      description: 'The test runner. `jest` and `node-test` are stubs today.',
+    },
+  }}
+/>
+
+See [Test runners](/docs/test-runners) for each runner.
+
+### TanStack
+
+Reads a TanStack Router or Start app's build errors, route manifest and server-function calls, and drives its router
+and query cache in the page. It needs `@tanstack/react-router` 1.170 or later in the app.
+
+```ts
+conciv({plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]]})
+```
+
+<TypeTable
+  type={{
+    bundlerWaitMs: {
+      type: 'number',
+      default: '10000',
+      description:
+        'How long `build_errors` waits to learn whether a dev server is attached, before it fails with `BUNDLER_UNAVAILABLE`. A positive integer.',
+    },
+  }}
+/>
+
+### Recorder
+
+Records the page while a recording is live, and gives the agent the action log with keyframe screenshots. It adds a
+Recorder tab that replays the recording and exports it as a video.
+
+```ts
+conciv({plugins: [['@conciv/plugin-recorder', {masking: 'inputs', windowMinutes: 10, console: true}]]})
+```
+
+<TypeTable
+  type={{
+    masking: {
+      type: "'none' | 'inputs' | 'sensitive'",
+      default: "'none'",
+      description:
+        'What the recording hides. `none` hides passwords, `inputs` every input value, `sensitive` passwords, emails and phone numbers.',
+    },
+    windowMinutes: {type: 'number', default: '10', description: 'How many minutes the recording keeps. 1 to 60.'},
+    console: {type: 'boolean', default: 'true', description: "Record the page's console errors too."},
+  }}
+/>
+
+Saved recordings are kept in `.conciv/recorder/recordings` under the project folder.
+
+### iOS
+
+Builds, runs, screenshots and reads the logs of a native iOS app on the simulator. See [iOS](/docs/quick-start/ios).
+
+```ts
+conciv({
+  plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}]],
+})
+```
+
+<TypeTable
+  type={{
+    projectRoot: {type: 'string', description: 'The native project folder, absolute or from the project folder.'},
+    bundleId: {type: 'string', description: "The app's bundle id."},
+    scheme: {type: 'string', description: 'The Xcode scheme `xcodebuild` builds.'},
+    simulator: {type: 'string', default: "'iPhone 17 Pro'", description: 'The simulator to boot.'},
+    developerDir: {
+      type: 'string',
+      default: "'/Applications/Xcode.app/Contents/Developer'",
+      description: 'The Xcode to build with.',
+    },
+    buildMode: {type: "'xcodebuild' | 'swiftc'", default: "'xcodebuild'", description: 'How to build the app.'},
+    extraSourceDirs: {type: 'string[]', description: 'More source folders `swiftc` compiles, beside `Sources`.'},
+    concivUrl: {
+      type: 'string',
+      description: "The engine's API base the app connects to. Defaults to the engine's own server.",
+    },
+  }}
+/>
+
+Without options, every iOS tool answers that the plugin is not configured. `ios_build` and `ios_run` ask before each
+call.
+
+## Turn a plugin off
+
+`'-<id>'` turns off a plugin that runs before it in the list, a built-in one included:
+
+```ts
+conciv({plugins: ['-conciv.page']})
+```
+
+To remove a first-party plugin, delete its entry.
+
+## Next
+
+<Cards>
+  <Card
+    title="Your first plugin"
+    href="/docs/plugins/your-first-plugin"
+    description="Write a plugin in your project."
+  />
+  <Card title="Test runners" href="/docs/test-runners" description="Pick the runner the test runner uses." />
+</Cards>
