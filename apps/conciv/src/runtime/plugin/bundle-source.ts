@@ -1,6 +1,27 @@
 import {isEqual, uniqBy} from 'es-toolkit'
 import {observable, untrack, type Accessor} from 'solid-js'
 import {z} from 'zod'
+import {
+  Cause,
+  Context,
+  Deferred,
+  Duration,
+  Effect,
+  Fiber,
+  FiberSet,
+  FiberHandle,
+  Layer,
+  ManagedRuntime,
+  Match,
+  Option,
+  PubSub,
+  Queue,
+  Ref,
+  Schema,
+  Scope,
+  Semaphore,
+  Stream,
+} from 'effect'
 import {subscribeRpcReachability} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
 import {
@@ -41,6 +62,10 @@ const PluginExperimentalSchema = z.object({
 
 const ReservedSchema = z.array(id)
 
+const PluginSourceClosed = Schema.TaggedStruct('PluginSourceClosed', {message: Schema.String})
+
+type PluginSourceClosed = typeof PluginSourceClosed.Type
+
 type Parts = {
   readonly server: ReadonlySet<string>
   readonly unreadable: ReadonlyMap<string, string>
@@ -52,19 +77,50 @@ type Listing = {
   readonly parts: Parts
 }
 
-type Resources = {
-  unfollow?: () => void
-  reachability?: () => void
-  enableState?: () => void
-  watch?: AbortController
-  watchTimer?: ReturnType<typeof setTimeout>
-  list?: AbortController
-  listTimer?: ReturnType<typeof setTimeout>
-}
-
 type PluginExperimentalsMessage = Parameters<Parameters<PluginExperimentalSource['on']>[0]>[0]
 
 type InstalledMessage = Parameters<Parameters<InstalledSource['on']>[0]>[0]
+
+type BundleSignal =
+  | PluginExperimentalsMessage
+  | InstalledMessage
+  | {readonly type: 'plugin-list-changed'}
+  | {readonly type: 'sessions-changed'; readonly sessionId: string | undefined}
+
+type ListedPlugin = Parameters<typeof shipsPluginExperimental>[0]
+
+type BundleData = Awaited<ReturnType<ConcivClient['plugin']['experimental']>>['data']
+
+type EngineEvent = ReturnType<ConcivClient['event']['subscribe']> extends AsyncIterable<infer Event> ? Event : never
+
+export type EngineSignal =
+  | {readonly type: 'session.deleted'; readonly sessionId: string}
+  | {readonly type: 'server.connected'}
+  | {readonly type: 'plugin.updated'}
+
+export type PluginEngineShape = {
+  readonly reachability: (url: string) => Effect.Effect<Stream.Stream<boolean>, never, Scope.Scope>
+  readonly events: Stream.Stream<EngineSignal, unknown>
+  readonly list: Effect.Effect<readonly ListedPlugin[], unknown>
+  readonly bundle: (pluginId: string) => Effect.Effect<BundleData, unknown>
+  readonly enableState: Stream.Stream<readonly EnableState[], unknown>
+  readonly setEnabled: (pluginId: string, enabled: boolean) => Effect.Effect<void, unknown>
+}
+
+export const PluginEngine = Context.Service<PluginEngineShape>('@conciv/app/PluginEngine')
+
+type BundleDriverShape = {
+  readonly following: Effect.Effect<boolean>
+  readonly pluginExperimentals: Effect.Effect<BridgePluginExperimentals, PluginSourceClosed>
+  readonly enableLoaded: Effect.Effect<readonly EnableState[], unknown>
+  readonly installed: Effect.Effect<readonly Installed[]>
+  readonly listen: (handle: (signal: BundleSignal) => void) => Effect.Effect<Fiber.Fiber<void>>
+  readonly setEnabled: (pluginId: string, value: boolean) => Effect.Effect<void, unknown>
+  readonly reload: (pluginId: string) => Effect.Effect<void, unknown>
+  readonly stop: Effect.Effect<void>
+}
+
+const BundleDriver = Context.Service<BundleDriverShape>('@conciv/app/BundleDriver')
 
 export type PluginManager = InstalledSource & {
   readonly enable: (id: string) => Promise<void>
@@ -83,244 +139,283 @@ function endpointFor(url: string): HostEndpoint | undefined {
   return url === '' ? undefined : {url, authorization: undefined}
 }
 
-export function createBundleSource(input: {
-  readonly client: ConcivClient
-  readonly apiBase: Accessor<string>
+function readEngineSignal(event: EngineEvent): readonly EngineSignal[] {
+  if (event.type === 'session.deleted') return [{type: 'session.deleted', sessionId: event.data.sessionID}]
+  if (event.type === 'server.connected' || event.type === 'plugin.updated') return [{type: event.type}]
+
+  return []
+}
+
+function callbackStream<A>(subscribe: (emit: (value: A) => void, fail: (cause: unknown) => void) => () => void) {
+  return Stream.callback<A, unknown>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        subscribe(
+          (value) => Queue.offerUnsafe(queue, value),
+          (cause) => Queue.failCauseUnsafe(queue, Cause.fail(cause)),
+        ),
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    ),
+  )
+}
+
+function livePluginEngine(client: ConcivClient, builtins: readonly string[]) {
+  const enableStore = createManager(client, builtins)
+
+  return Layer.succeed(PluginEngine, {
+    reachability: (url) =>
+      Effect.gen(function* () {
+        const votes = yield* Queue.unbounded<boolean>()
+        yield* Effect.acquireRelease(
+          Effect.sync(() => subscribeRpcReachability(url, (reachable) => Queue.offerUnsafe(votes, reachable))),
+          (unsubscribe) => Effect.sync(unsubscribe),
+        )
+
+        return Stream.fromQueue(votes)
+      }),
+    events: Stream.suspend(() => Stream.fromAsyncIterable(client.event.subscribe(), (cause) => cause)).pipe(
+      Stream.map(readEngineSignal),
+      Stream.flattenIterable,
+    ),
+    list: Effect.tryPromise({
+      try: (signal) => client.plugin.list(undefined, {signal}).then((result) => result.data),
+      catch: (cause) => cause,
+    }),
+    bundle: (pluginId) =>
+      Effect.tryPromise({
+        try: (signal) => client.plugin.experimental({id: pluginId}, {signal}).then((result) => result.data),
+        catch: (cause) => cause,
+      }),
+    enableState: callbackStream<readonly EnableState[]>((emit, fail) => enableStore.on(emit, fail)),
+    setEnabled: (pluginId, enabled) =>
+      Effect.tryPromise({try: () => enableStore.setEnabled(pluginId, enabled), catch: (cause) => cause}),
+  })
+}
+
+export const makeBundleSource = Effect.fn('BundleSource.make')(function* (input: {
+  readonly address: string
+  readonly addresses: Stream.Stream<string>
   readonly builtins: readonly Entry[]
-}): BundleSource {
+}) {
+  const engine = yield* PluginEngine
   const local = input.builtins.map((definition) => definition.id)
-  const enableStore = createManager(input.client, local)
   const plugins = new Map<string, BridgePluginExperimental>()
   const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
     {reserved: [], server: new Set(), unreadable: new Map()}
   const enableState: {rows: readonly EnableState[] | undefined} = {rows: undefined}
-  const listeners = new Set<(message: PluginExperimentalsMessage) => void>()
-  const installedListeners = new Set<(message: InstalledMessage) => void>()
-  const pluginListListeners = new Set<() => void>()
-  const sessionsChangedListeners = new Set<(sessionId: string | undefined) => void>()
-  const resources: Resources = {}
-  const machine = {following: createHostState()}
-  const firstListing = Promise.withResolvers<void>()
-  const followed = () => (machine.following.status === 'following' ? machine.following.endpoint : undefined)
+  const machine = yield* Ref.make(createHostState())
+  const signals = yield* PubSub.unbounded<BundleSignal>()
+  const transitions = yield* Semaphore.make(1)
+  const credentials = yield* FiberHandle.make<void, never>()
+  const watch = yield* FiberHandle.make<void, never>()
+  const watchRetry = yield* FiberHandle.make<void, never>()
+  const enableFollow = yield* FiberHandle.make<void, never>()
+  const listFiber = yield* FiberHandle.make<void, never>()
+  const reports = yield* FiberSet.make<void, never>()
+  const listeners = yield* FiberSet.make<void, never>()
+  const firstListing = yield* Deferred.make<void, PluginSourceClosed>()
+  const loaded = yield* Deferred.make<readonly EnableState[], unknown>()
+  const followed = () => {
+    const state = Ref.getUnsafe(machine)
 
-  firstListing.promise.then(
-    () => {
-      if (plugins.size === 0) publish()
-    },
-    () => undefined,
-  )
+    return state.status === 'following' ? state.endpoint : undefined
+  }
 
-  const dispatch = (event: HostEvent<Listing>) => {
-    const next = transitionHost(machine.following, event)
-    machine.following = next.state
-    next.commands.forEach((command) =>
-      Promise.try(() => perform(command)).catch((cause: unknown) =>
-        console.error('[plugin] plugin host command failed', command.type, cause),
+  const start = (handle: FiberHandle.FiberHandle<void, never>, effect: Effect.Effect<void>) =>
+    FiberHandle.run(handle, effect).pipe(Effect.asVoid)
+
+  const dispatch = (event: HostEvent<Listing>): Effect.Effect<void> =>
+    transitions.withPermits(1)(
+      Effect.gen(function* () {
+        const next = transitionHost(yield* Ref.get(machine), event)
+        yield* Ref.set(machine, next.state)
+        yield* Effect.forEach(next.commands, perform, {discard: true})
+      }),
+    )
+
+  const perform = (command: HostCommand<Listing>): Effect.Effect<void> =>
+    Match.value(command).pipe(
+      Match.discriminatorsExhaustive('type')({
+        'subscribe-credentials': () => start(credentials, followEndpoint),
+        'unsubscribe-credentials': () => FiberHandle.clear(credentials),
+        'start-watch': (watching) =>
+          Effect.andThen(start(enableFollow, followEnableState), start(watch, watchPlugins(watching.attempt))),
+        'schedule-watch-retry': (retry) =>
+          start(
+            watchRetry,
+            Effect.andThen(
+              Effect.sleep(Duration.millis(retry.delayMs)),
+              dispatch({type: 'watch.retry-due', attempt: retry.attempt, quitting: false}),
+            ),
+          ),
+        'cancel-watch': () =>
+          Effect.all([FiberHandle.clear(enableFollow), FiberHandle.clear(watch), FiberHandle.clear(watchRetry)], {
+            discard: true,
+          }),
+        'start-list': (requested) => start(listFiber, listPlugins(requested.attempt, requested.timeoutMs)),
+        'cancel-list': () => FiberHandle.clear(listFiber),
+        'apply-listing': (applied) => Effect.andThen(applyPlugins(applied.listing), firstListed),
+        'log-list-error': (failed) =>
+          Effect.andThen(Effect.logError('[plugin] plugin listing failed', failed.cause), firstListed),
+      }),
+      Effect.catchCauseIf(
+        (cause) => !Cause.hasInterrupts(cause),
+        (cause) => Effect.logError('[plugin] plugin host command failed', command.type, cause),
       ),
     )
-  }
 
-  const perform = (command: HostCommand<Listing>) => {
-    switch (command.type) {
-      case 'subscribe-credentials':
-        resources.unfollow = followEndpoint()
+  const followEndpoint: Effect.Effect<void> = input.addresses.pipe(
+    Stream.switchMap((url) =>
+      url === ''
+        ? Stream.make({url, reachable: Option.none<boolean>()})
+        : Stream.unwrap(
+            Effect.map(engine.reachability(url), (votes) =>
+              Stream.concat(
+                Stream.make({url, reachable: Option.none<boolean>()}),
+                Stream.map(votes, (reachable) => ({url, reachable: Option.some(reachable)})),
+              ),
+            ),
+          ),
+    ),
+    Stream.runForEach(({url, reachable}) => {
+      if (Option.isSome(reachable))
+        return dispatch({
+          type: 'endpoint.changed',
+          endpoint: reachable.value ? endpointFor(url) : undefined,
+          quitting: false,
+        })
 
-        return
-      case 'unsubscribe-credentials':
-        resources.unfollow?.()
-        resources.unfollow = undefined
+      if (followed()?.url === endpointFor(url)?.url) return Effect.void
 
-        return
-      case 'start-watch':
-        followEnableState()
+      return dispatch({type: 'endpoint.changed', endpoint: endpointFor(url), quitting: false})
+    }),
+  )
 
-        return void watchPlugins(command.attempt)
-      case 'schedule-watch-retry':
-        clearTimeout(resources.watchTimer)
-        resources.watchTimer = setTimeout(
-          () => dispatch({type: 'watch.retry-due', attempt: command.attempt, quitting: false}),
-          command.delayMs,
+  const followEnableState: Effect.Effect<void> = engine.enableState.pipe(
+    Stream.runForEach((rows) => Effect.andThen(settle(rows), Deferred.succeed(loaded, rows))),
+    Effect.catch((cause) => Deferred.fail(loaded, cause)),
+    Effect.asVoid,
+  )
+
+  const onEngineSignal = (signal: EngineSignal, attempt: number): Effect.Effect<void> =>
+    Match.value(signal).pipe(
+      Match.discriminatorsExhaustive('type')({
+        'session.deleted': (deleted) =>
+          PubSub.publish(signals, {type: 'sessions-changed', sessionId: deleted.sessionId}).pipe(Effect.asVoid),
+        'server.connected': () =>
+          PubSub.publish(signals, {type: 'sessions-changed', sessionId: undefined}).pipe(
+            Effect.andThen(relist(attempt)),
+          ),
+        'plugin.updated': () => relist(attempt),
+      }),
+    )
+
+  const relist = (attempt: number) =>
+    PubSub.publish(signals, {type: 'plugin-list-changed'}).pipe(
+      Effect.andThen(dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})),
+    )
+
+  const watchPlugins = (attempt: number): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      if (isCurrentHostWatch(yield* Ref.get(machine), attempt))
+        yield* engine.events.pipe(
+          Stream.runForEach((signal) => onEngineSignal(signal, attempt)),
+          Effect.ignore,
+          Effect.catchDefect(() => Effect.void),
         )
 
-        return
-      case 'cancel-watch':
-        stopEnableState()
-        resources.watch?.abort()
-        resources.watch = undefined
-        clearTimeout(resources.watchTimer)
-        resources.watchTimer = undefined
-
-        return
-      case 'start-list':
-        return void listPlugins(command.attempt, command.timeoutMs)
-      case 'cancel-list':
-        resources.list?.abort()
-        resources.list = undefined
-        clearTimeout(resources.listTimer)
-        resources.listTimer = undefined
-
-        return
-      case 'apply-listing':
-        applyPlugins(command.listing)
-
-        return firstListing.resolve()
-      case 'log-list-error':
-        console.error('[plugin] plugin listing failed', command.cause)
-
-        return firstListing.resolve()
-    }
-  }
-
-  const followEndpoint = () => {
-    const subscription = observable(input.apiBase).subscribe((url) => {
-      resources.reachability?.()
-      resources.reachability =
-        url === ''
-          ? undefined
-          : subscribeRpcReachability(url, (reachable) =>
-              dispatch({type: 'endpoint.changed', endpoint: reachable ? endpointFor(url) : undefined, quitting: false}),
-            )
-
-      if (followed()?.url === endpointFor(url)?.url) return
-      dispatch({type: 'endpoint.changed', endpoint: endpointFor(url), quitting: false})
+      yield* dispatch({type: 'watch.ended', attempt, quitting: false})
     })
 
-    return () => {
-      subscription.unsubscribe()
-      resources.reachability?.()
-      resources.reachability = undefined
-    }
-  }
-
-  const stopEnableState = () => {
-    resources.enableState?.()
-    resources.enableState = undefined
-  }
-
-  const followEnableState = () => {
-    stopEnableState()
-    resources.enableState = enableStore.on(
-      (rows) => {
-        settle(rows)
-        loaded.resolve(rows)
-      },
-      (cause) => loaded.reject(cause),
-    )
-  }
-
-  const watchPlugins = async (attempt: number) => {
-    resources.watch?.abort()
-    const controller = new AbortController()
-    resources.watch = controller
-
-    if (!controller.signal.aborted && isCurrentHostWatch(machine.following, attempt))
-      await readEvents(input.client, attempt, controller.signal).catch(() => undefined)
-
-    if (!controller.signal.aborted) dispatch({type: 'watch.ended', attempt, quitting: false})
-  }
-
-  const readEvents = async (client: ConcivClient, attempt: number, signal: AbortSignal) => {
-    for await (const event of client.event.subscribe({signal})) {
-      if (event.type === 'session.deleted')
-        sessionsChangedListeners.forEach((listener) => listener(event.data.sessionID))
-      if (event.type === 'server.connected') sessionsChangedListeners.forEach((listener) => listener(undefined))
-      if (event.type === 'plugin.updated' || event.type === 'server.connected') {
-        pluginListListeners.forEach((listener) => listener())
-        dispatch({type: 'relist.requested', watchAttempt: attempt, quitting: false})
-      }
-    }
-  }
-
-  const listPlugins = async (attempt: number, timeoutMs: number) => {
-    resources.list?.abort()
-    clearTimeout(resources.listTimer)
-    const controller = new AbortController()
-    resources.list = controller
-    resources.listTimer = setTimeout(() => dispatch({type: 'list.timed-out', attempt, quitting: false}), timeoutMs)
-
-    const event = await readListing(controller.signal).then(
-      (listing): HostEvent<Listing> => ({type: 'list.succeeded', attempt, listing, quitting: false}),
-      (cause: unknown): HostEvent<Listing> => ({type: 'list.failed', attempt, cause, quitting: false}),
+  const listPlugins = (attempt: number, timeoutMs: number): Effect.Effect<void> =>
+    readListing.pipe(
+      Effect.match({
+        onSuccess: (listing): HostEvent<Listing> => ({type: 'list.succeeded', attempt, listing, quitting: false}),
+        onFailure: (cause): HostEvent<Listing> => ({type: 'list.failed', attempt, cause, quitting: false}),
+      }),
+      Effect.timeoutOption(Duration.millis(timeoutMs)),
+      Effect.map(Option.getOrElse((): HostEvent<Listing> => ({type: 'list.timed-out', attempt, quitting: false}))),
+      Effect.flatMap((event) => FiberSet.run(reports, dispatch(event))),
+      Effect.asVoid,
     )
 
-    if (controller.signal.aborted) return
-    clearTimeout(resources.listTimer)
-    resources.list = undefined
-    resources.listTimer = undefined
-    dispatch(event)
-  }
-
-  const readListing = async (signal: AbortSignal): Promise<Listing> => {
-    const listed = (await input.client.plugin.list(undefined, {signal})).data
-
-    const shipped = listed.filter(shipsPluginExperimental)
-    const reserved = ReservedSchema.parse(
-      shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, input.builtins) ? [] : [plugin.id])),
-    )
+  const readListing: Effect.Effect<Listing, unknown> = Effect.gen(function* () {
+    const shipped = (yield* engine.list).filter(shipsPluginExperimental)
+    const reserved = yield* Effect.try({
+      try: () =>
+        ReservedSchema.parse(
+          shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, input.builtins) ? [] : [plugin.id])),
+        ),
+      catch: (cause) => cause,
+    })
 
     const parts = {
       server: new Set(shipped.flatMap((plugin) => (plugin.features.server ? [plugin.id] : []))),
       unreadable: new Map<string, string>(),
     }
 
-    const read = await Promise.all(
-      shipped
-        .filter((plugin) => !reserved.includes(plugin.id))
-        .map((plugin) => readPlugin(plugin.id, parts.unreadable, signal)),
+    const read = yield* Effect.forEach(
+      shipped.filter((plugin) => !reserved.includes(plugin.id)),
+      (plugin) => readPlugin(plugin.id, parts.unreadable),
+      {concurrency: 'unbounded'},
     )
 
     return {plugins: new Map(read.flatMap((entry) => (entry ? [entry] : []))), reserved, parts}
-  }
+  })
 
-  const readPlugin = async (pluginId: string, unreadable: Map<string, string>, signal: AbortSignal) => {
+  const readPlugin = (pluginId: string, unreadable: Map<string, string>) => {
     const previous = plugins.get(pluginId)
 
-    const bundle = await input.client.plugin
-      .experimental({id: pluginId}, {signal})
-      .then((result) => PluginExperimentalSchema.parse({id: pluginId, ...result.data}))
-      .then(
-        (value) => value,
-        (cause: unknown) => {
-          if (signal.aborted) return
-          console.error('[plugin] plugin bundle read failed', pluginId, cause)
-
-          if (!previous) unreadable.set(pluginId, cause instanceof Error ? cause.message : String(cause))
-        },
-      )
-
-    if (!bundle) return previous && ([pluginId, previous] as const)
-
-    if (previous?.revision === bundle.revision) return [pluginId, previous] as const
-
-    return [pluginId, bundle] as const
-  }
-
-  const applyPlugins = (next: Listing) => {
-    const removed = [...plugins.keys()].filter((pluginId) => !next.plugins.has(pluginId))
-
-    const changes = [...next.plugins].filter(([pluginId, plugin]) => plugins.get(pluginId) !== plugin)
-
-    if (
-      removed.length === 0 &&
-      changes.length === 0 &&
-      next.reserved.join('\n') === inventory.reserved.join('\n') &&
-      [...next.parts.server].join('\n') === [...inventory.server].join('\n') &&
-      [...next.parts.unreadable].join('\n') === [...inventory.unreadable].join('\n')
+    return engine.bundle(pluginId).pipe(
+      Effect.flatMap((data) =>
+        Effect.try({try: () => PluginExperimentalSchema.parse({id: pluginId, ...data}), catch: (cause) => cause}),
+      ),
+      Effect.map((bundle) =>
+        previous?.revision === bundle.revision ? ([pluginId, previous] as const) : ([pluginId, bundle] as const),
+      ),
+      Effect.catch((cause) =>
+        Effect.logError('[plugin] plugin bundle read failed', pluginId, cause).pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              if (!previous) unreadable.set(pluginId, cause instanceof Error ? cause.message : String(cause))
+            }),
+          ),
+          Effect.as(previous && ([pluginId, previous] as const)),
+        ),
+      ),
     )
-      return
-    removed.forEach((pluginId) => plugins.delete(pluginId))
-    changes.forEach(([pluginId, plugin]) => plugins.set(pluginId, plugin))
-    inventory.reserved = next.reserved
-    inventory.server = next.parts.server
-    inventory.unreadable = next.parts.unreadable
-    changed()
-    publish()
   }
 
-  const publish = () => {
-    const message: PluginExperimentalsMessage = {type: 'pluginExperimentals', ...pluginExperimentals()}
-    listeners.forEach((listener) => listener(message))
-  }
+  const applyPlugins = (next: Listing): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      const removed = [...plugins.keys()].filter((pluginId) => !next.plugins.has(pluginId))
+      const changes = [...next.plugins].filter(([pluginId, plugin]) => plugins.get(pluginId) !== plugin)
+
+      if (
+        removed.length === 0 &&
+        changes.length === 0 &&
+        next.reserved.join('\n') === inventory.reserved.join('\n') &&
+        [...next.parts.server].join('\n') === [...inventory.server].join('\n') &&
+        [...next.parts.unreadable].join('\n') === [...inventory.unreadable].join('\n')
+      )
+        return Effect.void
+      removed.forEach((pluginId) => plugins.delete(pluginId))
+      changes.forEach(([pluginId, plugin]) => plugins.set(pluginId, plugin))
+      inventory.reserved = next.reserved
+      inventory.server = next.parts.server
+      inventory.unreadable = next.parts.unreadable
+
+      return Effect.andThen(changed, publish)
+    })
+
+  const firstListed = Deferred.succeed(firstListing, undefined).pipe(
+    Effect.flatMap((first) => (first && plugins.size === 0 ? publish : Effect.void)),
+  )
+
+  const publish = Effect.suspend(() =>
+    PubSub.publish(signals, {type: 'pluginExperimentals', ...pluginExperimentals()}),
+  ).pipe(Effect.asVoid)
 
   const pluginExperimentals = (): BridgePluginExperimentals => ({
     plugins: [...plugins.values()],
@@ -334,14 +429,12 @@ export function createBundleSource(input: {
 
   const installed = (): readonly Installed[] => [
     ...local.map((pluginId) => ({id: pluginId, builtin: true, enabled: enabled(pluginId)})),
-
     ...[...plugins.keys()].map((pluginId) => ({
       id: pluginId,
       builtin: false,
       enabled: enabled(pluginId),
       server: inventory.server.has(pluginId),
     })),
-
     ...[...inventory.unreadable].map(([pluginId, error]) => ({
       id: pluginId,
       builtin: false,
@@ -351,78 +444,156 @@ export function createBundleSource(input: {
     })),
   ]
 
-  const changed = () => {
-    if (enableState.rows === undefined) return
+  const changed = Effect.suspend(() =>
+    enableState.rows === undefined ? Effect.void : PubSub.publish(signals, {type: 'installed', list: installed()}),
+  ).pipe(Effect.asVoid)
 
-    const message: InstalledMessage = {type: 'installed', list: installed()}
-    installedListeners.forEach((listener) => listener(message))
-  }
+  const settle = (rows: readonly EnableState[]) =>
+    Effect.suspend(() => {
+      const before = enableState.rows === undefined ? [] : installed()
+      enableState.rows = rows
 
-  const settle = (rows: readonly EnableState[]) => {
-    const before = enableState.rows === undefined ? [] : installed()
-    enableState.rows = rows
-
-    if (!isEqual(before, installed())) changed()
-  }
-
-  const loaded = Promise.withResolvers<readonly EnableState[]>()
-
-  loaded.promise.catch(() => undefined)
-
-  const setEnabled = async (pluginId: string, value: boolean) => {
-    if (!known(pluginId)) throw pluginError('notFound')
-
-    await loaded.promise
-    const previous = enableState.rows
-    enableState.rows = uniqBy([{id: pluginId, enabled: value}, ...(previous ?? [])], (row) => row.id)
-    changed()
-
-    await enableStore.setEnabled(pluginId, value).catch((cause: unknown) => {
-      enableState.rows = previous
-      changed()
-      throw cause
+      return isEqual(before, installed()) ? Effect.void : changed
     })
+
+  const setEnabled = (pluginId: string, value: boolean) =>
+    Effect.gen(function* () {
+      if (!known(pluginId)) return yield* Effect.fail(pluginError('notFound'))
+
+      yield* Deferred.await(loaded)
+      const previous = enableState.rows
+      enableState.rows = uniqBy([{id: pluginId, enabled: value}, ...(previous ?? [])], (row) => row.id)
+      yield* changed
+
+      yield* engine.setEnabled(pluginId, value).pipe(
+        Effect.tapError(() =>
+          Effect.suspend(() => {
+            enableState.rows = previous
+
+            return changed
+          }),
+        ),
+      )
+    })
+
+  const signalStream = Stream.fromPubSub(signals)
+
+  const stop = Effect.all(
+    [
+      Deferred.fail(loaded, PluginSourceClosed.make({message: 'the plugin manager was disposed'})),
+      Deferred.fail(
+        firstListing,
+        PluginSourceClosed.make({message: 'the engine trust ended before the engine first listed its plugins'}),
+      ),
+      dispatch({type: 'stopped'}),
+    ],
+    {discard: true},
+  )
+
+  yield* dispatch({type: 'started', endpoint: endpointFor(input.address), quitting: false})
+
+  yield* Effect.addFinalizer(() => stop)
+
+  const driver: BundleDriverShape = {
+    following: Effect.sync(() => followed() !== undefined),
+    pluginExperimentals: Deferred.await(firstListing).pipe(Effect.map(pluginExperimentals)),
+    enableLoaded: Deferred.await(loaded),
+    installed: Effect.sync(installed),
+    listen: (handle) =>
+      FiberSet.run(
+        listeners,
+        signalStream.pipe(
+          Stream.runForEach((signal) =>
+            Effect.try({try: () => handle(signal), catch: (cause) => cause}).pipe(
+              Effect.catch((cause) => Effect.logError('[plugin] a plugin source listener failed', cause)),
+            ),
+          ),
+        ),
+      ),
+    setEnabled,
+    reload: (pluginId) => (known(pluginId) ? changed : Effect.fail(pluginError('notFound'))),
+    stop,
   }
 
-  dispatch({type: 'started', endpoint: endpointFor(untrack(input.apiBase)), quitting: false})
+  return driver
+})
+
+function followApiBase(apiBase: Accessor<string>): Stream.Stream<string> {
+  return callbackStream<string>((emit) => {
+    const subscription = observable(apiBase).subscribe(emit)
+
+    return () => subscription.unsubscribe()
+  }).pipe(Stream.orDie)
+}
+
+export function createBundleSource(input: {
+  readonly client: ConcivClient
+  readonly apiBase: Accessor<string>
+  readonly builtins: readonly Entry[]
+}): BundleSource {
+  const runtime = ManagedRuntime.make(
+    Layer.effect(
+      BundleDriver,
+      makeBundleSource({
+        address: untrack(input.apiBase),
+        addresses: followApiBase(input.apiBase),
+        builtins: input.builtins,
+      }),
+    ).pipe(
+      Layer.provide(
+        livePluginEngine(
+          input.client,
+          input.builtins.map((definition) => definition.id),
+        ),
+      ),
+    ),
+  )
+  const driver = runtime.runSync(
+    Effect.gen(function* () {
+      return yield* BundleDriver
+    }),
+  )
+  const enableLoaded = runtime.runPromise(driver.enableLoaded)
+  const following = runtime.runSync(driver.following)
+  enableLoaded.catch(() => undefined)
+  const listen = (handle: (signal: BundleSignal) => void) => {
+    const fiber = runtime.runSync(driver.listen(handle))
+
+    return () => {
+      runtime.runFork(Fiber.interrupt(fiber))
+    }
+  }
 
   return {
-    pluginExperimentals: () => firstListing.promise.then(pluginExperimentals),
-    on(listener) {
-      listeners.add(listener)
-
-      return () => listeners.delete(listener)
-    },
-    onPluginListChange(listener) {
-      pluginListListeners.add(listener)
-
-      return () => pluginListListeners.delete(listener)
-    },
-    onSessionsChanged(listener) {
-      sessionsChangedListeners.add(listener)
-
-      return () => sessionsChangedListeners.delete(listener)
-    },
+    pluginExperimentals: () => runtime.runPromise(driver.pluginExperimentals),
+    on: (listener) =>
+      listen((signal) => {
+        if (signal.type === 'pluginExperimentals') listener(signal)
+      }),
+    onPluginListChange: (listener) =>
+      listen((signal) => {
+        if (signal.type === 'plugin-list-changed') listener()
+      }),
+    onSessionsChanged: (listener) =>
+      listen((signal) => {
+        if (signal.type === 'sessions-changed') listener(signal.sessionId)
+      }),
     manager: {
-      initial: followed() ? loaded.promise : Promise.resolve(undefined),
-      list: () => (followed() ? loaded.promise.then(installed) : Promise.resolve(installed())),
-      on(listener) {
-        installedListeners.add(listener)
-
-        return () => installedListeners.delete(listener)
-      },
-      enable: (pluginId) => setEnabled(pluginId, true),
-      disable: (pluginId) => setEnabled(pluginId, false),
-      async reload(pluginId) {
-        if (!known(pluginId)) throw pluginError('notFound')
-
-        changed()
-      },
+      initial: following ? enableLoaded : Promise.resolve(undefined),
+      list: () =>
+        runtime.runSync(driver.following)
+          ? enableLoaded.then(() => runtime.runPromise(driver.installed))
+          : runtime.runPromise(driver.installed),
+      on: (listener) =>
+        listen((signal) => {
+          if (signal.type === 'installed') listener(signal)
+        }),
+      enable: (pluginId) => runtime.runPromise(driver.setEnabled(pluginId, true)),
+      disable: (pluginId) => runtime.runPromise(driver.setEnabled(pluginId, false)),
+      reload: (pluginId) => runtime.runPromise(driver.reload(pluginId)),
     },
     dispose: () => {
-      loaded.reject(new Error('the plugin manager was disposed'))
-      firstListing.reject(new Error('the engine trust ended before the engine first listed its plugins'))
-      dispatch({type: 'stopped'})
+      runtime.runPromise(driver.stop).finally(() => runtime.dispose())
     },
   }
 }

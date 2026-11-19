@@ -1,4 +1,7 @@
 import {describe, expect, test} from 'vitest'
+import {Effect, Exit, Layer, Queue, Ref, Scope, Stream} from 'effect'
+import {TestClock} from 'effect/testing'
+import {makeBundleSource, PluginEngine, type EngineSignal} from './bundle-source'
 import {
   createHostState,
   transitionHost,
@@ -133,4 +136,67 @@ describe('plugin host follow', () => {
       transitionHost(listing, {type: 'list.succeeded', attempt: 2, listing: 'plugins', quitting: true}).commands,
     ).toEqual([])
   })
+})
+
+describe('plugin bundle loading driver on the test clock', () => {
+  test('a listing times out after 30 s, a dropped watch resubscribes after 1 s, and teardown stops the list and the retry', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const counts = yield* Ref.make({subscriptions: 0, lists: 0, listsStopped: 0})
+        const drops = yield* Queue.unbounded<void>()
+        const connected: EngineSignal = {type: 'server.connected'}
+        const engine = Layer.succeed(PluginEngine, {
+          reachability: () => Effect.succeed(Stream.never),
+          events: Stream.unwrap(
+            Ref.update(counts, (count) => ({...count, subscriptions: count.subscriptions + 1})).pipe(
+              Effect.as(Stream.concat(Stream.make(connected), Stream.drain(Stream.fromEffect(Queue.take(drops))))),
+            ),
+          ),
+          list: Ref.update(counts, (count) => ({...count, lists: count.lists + 1})).pipe(
+            Effect.andThen(
+              Effect.never.pipe(
+                Effect.onInterrupt(() =>
+                  Ref.update(counts, (count) => ({...count, listsStopped: count.listsStopped + 1})),
+                ),
+              ),
+            ),
+          ),
+          bundle: () => Effect.never,
+          enableState: Stream.never,
+          setEnabled: () => Effect.void,
+        })
+        const scope = yield* Scope.make()
+        const source = yield* makeBundleSource({
+          address: first.url,
+          addresses: Stream.concat(Stream.make(first.url), Stream.never),
+          builtins: [],
+        }).pipe(Scope.provide(scope), Effect.provide(engine))
+
+        yield* TestClock.adjust(29_999)
+        expect(yield* Ref.get(counts)).toEqual({subscriptions: 1, lists: 1, listsStopped: 0})
+
+        yield* TestClock.adjust(1)
+        expect(yield* Ref.get(counts)).toEqual({subscriptions: 1, lists: 1, listsStopped: 1})
+        expect(yield* source.pluginExperimentals).toEqual({plugins: [], reserved: []})
+
+        yield* Queue.offer(drops, undefined)
+        yield* TestClock.adjust(999)
+        expect(yield* Ref.get(counts)).toEqual({subscriptions: 1, lists: 1, listsStopped: 1})
+
+        yield* TestClock.adjust(1)
+        expect(yield* Ref.get(counts)).toEqual({subscriptions: 2, lists: 2, listsStopped: 1})
+
+        yield* Queue.offer(drops, undefined)
+        yield* TestClock.adjust(0)
+        yield* Scope.close(scope, Exit.void)
+        expect(yield* Ref.get(counts)).toEqual({subscriptions: 2, lists: 2, listsStopped: 2})
+        expect(yield* Effect.flip(source.enableLoaded)).toEqual({
+          _tag: 'PluginSourceClosed',
+          message: 'the plugin manager was disposed',
+        })
+
+        yield* TestClock.adjust(60_000)
+        expect(yield* Ref.get(counts)).toEqual({subscriptions: 2, lists: 2, listsStopped: 2})
+      }).pipe(Effect.provide(TestClock.layer())),
+    ))
 })
