@@ -377,6 +377,9 @@ function restoreHubCli(state: FileState): void {
 const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
   requireCalls(ctx).servedSince(path, input)
 
+const rpcStartedCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).startedSince(path, input)
+
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][], unknown?]> = async (
   ctx,
   served,
@@ -928,6 +931,7 @@ export const coreCommands = {
   fakeHubCli,
   setHubConnection,
   rpcCallCount,
+  rpcStartedCount,
   rpcStartedOnceServed,
   rpcMark,
   awaitRpcFailedCount,

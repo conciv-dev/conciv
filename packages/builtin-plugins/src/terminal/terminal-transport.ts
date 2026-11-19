@@ -1,7 +1,11 @@
+import {getEventMeta} from '@orpc/client'
 import type {TerminalListener, TerminalTransport} from '@conciv/ui-kit-terminal'
 import type {ServerRef} from '@conciv/plugin/experimental'
+import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 
 type PtyClient = ServerRef['client']['experimental']['persistentPty']
+
+type PtyOutputItem = {type: 'output'; data: string} | {type: 'meta'; cursor: number} | TtyServerControl
 
 const ONCE = {context: {retry: 0}}
 
@@ -11,28 +15,34 @@ function reportFailure(cause: unknown): void {
   console.error('[terminal] a terminal call failed', cause)
 }
 
+function relayItem(item: PtyOutputItem, listener: TerminalListener): void {
+  if (item.type === 'output') {
+    listener.data(item.data)
+    return
+  }
+  if (item.type === 'meta') {
+    listener.open()
+    return
+  }
+  listener.control(item)
+}
+
+function readCursor(item: PtyOutputItem, fallback: number | undefined): number | undefined {
+  const cursor = Number(getEventMeta(item)?.id)
+  return Number.isSafeInteger(cursor) ? cursor : fallback
+}
+
 async function relayOutput(
   terminal: PtyClient,
   pty: HeldPty,
   listener: TerminalListener,
   signal: AbortSignal,
 ): Promise<void> {
-  const position = {following: false}
   try {
     const input = pty.cursor === undefined ? {ptyId: pty.ptyId} : {ptyId: pty.ptyId, cursor: pty.cursor}
-    for await (const item of await terminal.output(input, {signal})) {
-      if (item.type === 'output') {
-        if (position.following) pty.cursor = (pty.cursor ?? 0) + item.data.length
-        listener.data(item.data)
-        continue
-      }
-      if (item.type === 'meta') {
-        pty.cursor = item.cursor
-        position.following = true
-        listener.open()
-        continue
-      }
-      listener.control(item)
+    for await (const item of await terminal.output(input, {signal, ...ONCE})) {
+      relayItem(item, listener)
+      pty.cursor = readCursor(item, pty.cursor)
     }
   } catch (cause) {
     if (!signal.aborted) console.error('[terminal] the terminal output stream ended', cause)

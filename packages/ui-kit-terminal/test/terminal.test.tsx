@@ -241,6 +241,27 @@ describe('terminal primitives', () => {
     dispose()
   })
 
+  it('keeps the failure a session reports before it says it opened', async () => {
+    const reportsFailureFirst: TerminalTransport = (_terminal, listener) => {
+      listener.control({type: 'error', message: 'spawn failed early'})
+      listener.open()
+      return {write: () => {}, resize: () => {}, inject: () => {}, close: () => {}}
+    }
+    const model = createTerminalModel({transport: reportsFailureFirst})
+    const {dispose} = mount(() => (
+      <>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+          <TerminalPrimitive.Banner>{(state) => <p>failed: {state.message}</p>}</TerminalPrimitive.Banner>
+        </TerminalPrimitive.Root>
+        <ModelState model={model} label="early failure state" />
+      </>
+    ))
+    await expect.element(page.getByText('failed: spawn failed early')).toBeVisible()
+    await expect.element(region('early failure state')).toMatchTextContent('status=error')
+    dispose()
+  })
+
   it('tracks busy frames', async () => {
     const model = controlModel()
     const {dispose} = mount(() => <ModelState model={model} label="busy state" />)

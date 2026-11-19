@@ -104,6 +104,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     new Promise<boolean>((resolve, reject) => {
       const listener: TerminalListener = {
         open: () => {
+          if (settled()) return
           if (opts.theme) terminal.options.theme = opts.theme()
           setSession({status: 'open'})
           sendResize()
