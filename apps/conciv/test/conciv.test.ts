@@ -68,7 +68,13 @@ describe('draft storage', () => {
   })
 
   function draftApp(base: string): AppData {
-    return makeAppData(makeRpcClient(base), new QueryClient(), null, () => false)
+    return makeAppData(
+      makeRpcClient(base),
+      new QueryClient(),
+      null,
+      () => false,
+      () => base,
+    )
   }
 
   type ComposerItem = {key: string; value: unknown}
