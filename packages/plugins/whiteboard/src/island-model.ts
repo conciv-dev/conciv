@@ -3,7 +3,7 @@ import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transf
 import {Deferred, Effect, FiberMap, Queue, Ref, Schedule, Schema, Scope, SubscriptionRef} from 'effect'
 import {isPlainObject, keyBy, pickBy} from 'es-toolkit'
 import {z} from 'zod'
-import type {WhiteboardDb} from './db.js'
+import type {WhiteboardDb} from './whiteboard-db.js'
 import {json, type ElementRow, type JsonValue, type PendingRow} from './rows.js'
 import {validateSvg} from './svg-caps.js'
 import {replayDraft} from './replay.js'
