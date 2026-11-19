@@ -20,6 +20,7 @@
     "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox"
   },
   "dependencies": {
+    "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
@@ -52,6 +53,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
+    "@tanstack/react-router": "catalog:",
     "@tiptap/core": "catalog:",
     "@tiptap/extension-document": "catalog:",
     "@tiptap/extension-paragraph": "catalog:",

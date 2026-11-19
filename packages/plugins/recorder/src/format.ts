@@ -1,13 +1,18 @@
+import {uniq} from 'es-toolkit'
 import type {Tool} from '@conciv/plugin'
-import type {ActionLogEntry, Keyframe} from './protocol.js'
+import type {ActionLogEntry, ActionLogKind} from './distill.js'
 
-const SIGNIFICANT: ReadonlySet<string> = new Set(['click', 'navigation', 'console', 'reload'])
+export type Keyframe = {ts: number; pngBase64: string}
+
+const SIGNIFICANT: readonly ActionLogKind[] = ['click', 'navigation', 'console', 'reload']
 
 export function pickKeyframeTimestamps(log: ActionLogEntry[], lastTs: number, count: number): number[] {
   if (count < 1) return []
-  const significant = log.filter((entry) => SIGNIFICANT.has(entry.kind)).map((entry) => entry.ts)
+  const significant = log.filter((entry) => SIGNIFICANT.includes(entry.kind)).map((entry) => entry.ts)
   const picked = [...significant.slice(-Math.max(count - 1, 0)), lastTs]
-  return [...new Set(picked)].toSorted((a, b) => a - b).slice(-count)
+  return uniq(picked)
+    .toSorted((a, b) => a - b)
+    .slice(-count)
 }
 
 function formatLog(log: ActionLogEntry[], opts: {keyframesSkipped: boolean}): string {

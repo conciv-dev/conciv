@@ -1,8 +1,12 @@
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
+import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
+import {Model} from '@conciv/plugin/schema/model'
+import type {createChatPlane} from '@conciv/chat'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {
   Agent,
   Bus,
@@ -24,6 +28,7 @@ import {
   PluginUpdate,
   Rpc,
   SdkPlugins,
+  Session,
   SessionProjector,
   Skill,
   SkillInstructions,
@@ -53,14 +58,13 @@ import {provideServersSource} from './servers-source.js'
 
 export type PluginRuntimeInput = {
   db: ConcivDb
-  databaseFile: string
   cwd: string
   home: string
   fallbackRoots: string
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
-  post: readonly PluginDefinition.Plugin[]
+  post: readonly EffectPlugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   bundler: Bundler.BundlerBridge | undefined
@@ -96,7 +100,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     InstancePlugins.bound(
       input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
       {
-        post: input.post.map((plugin) => PluginPromise.fromPromise(plugin)),
+        post: input.post,
       },
     ),
     PluginUpdate.layer,
@@ -135,7 +139,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(FSUtil.layer),
     Layer.provideMerge(
       Layer.mergeAll(
-        Database.layer({path: input.databaseFile}),
+        Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
         machineRoots(input.home, input.fallbackRoots),
         NodeFileSystem.layer,
       ),
@@ -144,6 +148,16 @@ function pluginHostLayer(input: PluginRuntimeInput) {
 }
 
 type SessionPrompt = PluginHooks.Domains['session']['prompt']
+type RequestHook = Parameters<typeof createChatPlane>[0]['context']
+type SessionRequest = Parameters<RequestHook>[1]
+
+function modelRef(model: SessionRequest['model']): Model.Ref {
+  return {
+    id: Model.Id.make(model.id),
+    providerId: Model.Ref.fields.providerId.make(model.providerId),
+    ...(model.variant === undefined ? {} : {variant: Model.VariantId.make(model.variant)}),
+  }
+}
 
 export type PluginRuntime = {
   runtime: PluginHost
@@ -151,6 +165,7 @@ export type PluginRuntime = {
   awaitActivation: () => Promise<void>
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
   promptHooked: () => Promise<boolean>
+  context: RequestHook
   closeRpc: () => Promise<void>
   closePlugins: () => Promise<void>
   closePermissions: () => Promise<void>
@@ -173,6 +188,23 @@ export function makePluginRuntime(input: PluginRuntimeInput): PluginRuntime {
     promptHooked: () =>
       runtime.runPromise(
         Plugin.awaitActivation.pipe(Effect.andThen(PluginHooks.Service.use((hooks) => hooks.has('session', 'prompt')))),
+      ),
+    context: (name, request, signal) =>
+      runtime.runPromise(
+        Plugin.awaitActivation.pipe(
+          Effect.andThen(Session.Service.use((sessions) => sessions.get(request.sessionId))),
+          Effect.flatMap((session) =>
+            PluginHooks.Service.use((hooks) =>
+              hooks.trigger('session', name, {
+                ...request,
+                sessionId: session.id,
+                model: modelRef(request.model),
+                agent: Agent.Id.make(session.agent ?? Agent.defaultId),
+              }),
+            ),
+          ),
+        ),
+        {signal},
       ),
     closeRpc: () => runtime.runPromise(Rpc.Service.use((rpc) => rpc.close)),
     closePlugins: () => Effect.runPromise(Scope.close(supervised, Exit.void)),

@@ -45,7 +45,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `home-db.ts:openHomeDb` creates the home folder (`0700`, or `chmod 0700` when it exists), creates `home.db` and `home.lock` through sqlite and sets each to mode `0600` (never through a separate `fs` file descriptor, whose close would drop the process's sqlite locks on that file), opens `home.db` with a 5000 ms busy timeout and WAL.
 - `engine-check.ts:checkEngines` makes HTTP requests to each registered engine's `/health` and retires rows that fail the identity check.
 
-- `db.ts:openDb` creates `<stateRoot>/.conciv` with `mkdirSync`, opens `conciv.db` under `concivStateDir(stateRoot)` with `DatabaseSync` (5000 ms busy timeout), creates the sibling lock file `conciv.lock` through sqlite, and sets `PRAGMA journal_mode = WAL`. Neither file is chmodded.
+- `db.ts:openDb` is a scoped Effect: it creates `<stateRoot>/.conciv` with `mkdirSync`, builds one `@effect/sql-sqlite-node` `SqliteClient` on `conciv.db` under `concivStateDir(stateRoot)` (one serialized connection, WAL, 5000 ms busy timeout, foreign keys on as `node:sqlite` opens it), and migrates while holding `BEGIN EXCLUSIVE` on the sibling lock file `conciv.lock`. The plugin host's `Database.configuredClient` on that same client adds opencode's pragmas (`synchronous = NORMAL`, `cache_size = -64000`, `foreign_keys = ON`), so they apply to every engine write too. Neither file is chmodded.
 - `db.ts:openDb` applies schema migrations and writes legacy rows into `chatRuns`, `chatMessages` and `chatMetadata`, and sets `detachedSince` on `chatRuns` rows still `running`.
 - Query helpers in `capture-queries.ts`, `page-change-queries.ts` write and delete rows in `tool_captures`, `css_bundles` and `page_changes`.
 

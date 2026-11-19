@@ -39,10 +39,6 @@
       "types": "./dist/widget-suite.d.ts",
       "import": "./dist/widget-suite.js"
     },
-    "./page-plane": {
-      "types": "./dist/page-plane.d.ts",
-      "import": "./dist/page-plane.js"
-    },
     "./listen-local": {
       "types": "./dist/listen-local.d.ts",
       "import": "./dist/listen-local.js"
@@ -62,10 +58,6 @@
     "./chat-wire": {
       "types": "./dist/chat-wire.d.ts",
       "import": "./dist/chat-wire.js"
-    },
-    "./push-wire": {
-      "types": "./dist/push-wire.d.ts",
-      "import": "./dist/push-wire.js"
     },
     "./rpc-fault": {
       "types": "./dist/rpc-fault.d.ts",
@@ -106,7 +98,6 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
-    "p-timeout": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

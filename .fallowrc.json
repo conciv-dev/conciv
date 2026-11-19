@@ -9,7 +9,6 @@
     "packages/aidx/**",
     "packages/extensions/design/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
-    "packages/extensions/tanstack/test/fixtures/**",
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/cli/test/fixtures/**",
@@ -40,10 +39,6 @@
         "patterns": ["packages/core/src/runtime/**", "packages/core/src/runtime.ts"]
       },
       {
-        "name": "core-primitives",
-        "patterns": ["packages/core/src/page/page-bus.ts", "packages/core/src/tool-registry.ts"]
-      },
-      {
         "name": "core-shared-leaf",
         "patterns": ["packages/core/src/lib/debug.ts", "packages/core/src/command-policy.ts"]
       },
@@ -63,13 +58,7 @@
     "rules": [
       {
         "from": "core-callers",
-        "allow": ["session-facade", "extension-servers", "core-shared-leaf"],
-        "allowTypeOnly": ["core-primitives"]
-      },
-      {
-        "from": "core-primitives",
-        "allow": ["session-facade", "core-shared-leaf"],
-        "allowTypeOnly": ["core-callers"]
+        "allow": ["session-facade", "extension-servers", "core-shared-leaf"]
       }
     ],
     "calls": {
@@ -109,6 +98,20 @@
         "maxCrap": 35,
         "maxUnitSize": 73,
         "reason": "copied from opencode packages/app/src/runtime/persistence/persist-machine.ts: transitionPersistStore keeps the source's shape; Day ruling 113"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/drafts-machine.ts"],
+        "functions": ["transitionDraftRetention"],
+        "maxCognitive": 20,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/drafts-machine.ts: transitionDraftRetention keeps the source's shape; draft local-first plan, ported whole by ruling"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/drafts.ts"],
+        "functions": ["encode", "decode"],
+        "maxCyclomatic": 20,
+        "maxCognitive": 23,
+        "maxCrap": 107,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/drafts.ts: encode and decode keep the source's shape; draft local-first plan, ported whole by ruling"
       },
       {
         "files": ["apps/conciv/src/runtime/persistence/persist.browser.test.ts"],
@@ -480,7 +483,6 @@
     "@parcel/watcher-linux-x64-musl",
     "@parcel/watcher-win32-arm64",
     "@parcel/watcher-win32-x64",
-    "@conciv/extension-tanstack",
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
     "@tanstack/ai-mcp",
@@ -516,7 +518,6 @@
     "@conciv/client",
     "@conciv/embed",
     "@conciv/extension-compiler",
-    "@conciv/extension-try-it",
     "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/mascot",
@@ -861,10 +862,9 @@
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
+    "packages/ui-kit-chat/src/draft-storage.ts",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
-    "packages/extensions/tanstack/test/host/main.tsx",
-    "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",

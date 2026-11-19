@@ -1,18 +1,10 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import type {ToolProps} from '@conciv/plugin/experimental'
+import {JsonTree} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from './page-result-views.js'
 import {pageOperation} from './page-tool-names.js'
-import {
-  ELEMENT_TARGET_KEYS,
-  QUIET_TEXT_CLASS,
-  cardErrorMessage,
-  cardPayload,
-  countLabel,
-  elementChip,
-  hasPayloadOrError,
-} from './shared.js'
+import {ELEMENT_TARGET_KEYS, PageTool, QUIET_TEXT_CLASS, countLabel, elementTarget, outputPayload} from './shared.js'
 
 const HtmlPayload = pageOperation('dom').output
 
@@ -49,28 +41,20 @@ function readMatches(payload: unknown): {count: number; elements: readonly unkno
   return parsed.success ? parsed.data : undefined
 }
 
-export function ReadBulkCard(props: ToolCardProps): JSX.Element {
-  const {meta, title} = cardHeader(props)
-  const payload = () => cardPayload(props.result)
+export function ReadBulkCard(props: ToolProps): JSX.Element {
+  const payload = () => outputPayload(props.output)
   const markup = () => readHtml(payload())
   const nodes = () => readNodes(payload())
   const matches = () => readMatches(payload())
-  const errorMessage = () => cardErrorMessage(props.result)
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      chipSkip={ELEMENT_TARGET_KEYS}
-      leadChip={elementChip(props.part)}
+    <PageTool
+      {...props}
+      subtitle={elementTarget(props.input)}
+      skip={ELEMENT_TARGET_KEYS}
+      hasContent={payload() !== undefined}
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>
-            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
-          </Match>
           <Match when={markup() !== undefined}>
             <Show when={markup()} fallback={<p class={QUIET_TEXT_CLASS}>the element has no markup</p>}>
               {(value) => <PageHtmlBlock markup={value()} />}
@@ -103,11 +87,6 @@ export function ReadBulkCard(props: ToolCardProps): JSX.Element {
           </Match>
         </Switch>
       </div>
-    </CardShell>
+    </PageTool>
   )
-}
-
-export const readBulkCard: ToolCardView = {
-  render: ReadBulkCard,
-  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

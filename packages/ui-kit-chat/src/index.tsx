@@ -174,7 +174,11 @@ export {
 } from './primitives/selection-toolbar/selection-toolbar.js'
 
 export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from './behaviors/composer-draft-storage.js'
-export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
+export {
+  useComposerDraftPersistence,
+  type ComposerDraftPersistenceOptions,
+  type ComposerDraftWriter,
+} from './behaviors/use-composer-draft.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {
@@ -184,7 +188,7 @@ export {
   type ThreadRootProps,
   type TurnPrefixSource,
 } from './styled/thread.js'
-export {Composer, type ComposerProps} from './styled/composer.js'
+export {Composer, ComposerAttachment, type ComposerProps} from './styled/composer.js'
 export {
   Markdown,
   MarkdownHighlightProvider,

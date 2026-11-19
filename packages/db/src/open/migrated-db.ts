@@ -33,10 +33,20 @@ function openDatabase(file: string, mode: number | undefined): DatabaseSync {
   return client
 }
 
-function whileMigrationLockHeld(lockFile: string, mode: number | undefined, run: () => void): void {
+export function takeMigrationLock(lockFile: string, mode?: number): DatabaseSync {
   const lock = openDatabase(lockFile, mode)
   try {
     lock.exec('BEGIN EXCLUSIVE')
+  } catch (error) {
+    lock.close()
+    throw error
+  }
+  return lock
+}
+
+function whileMigrationLockHeld(lockFile: string, mode: number | undefined, run: () => void): void {
+  const lock = takeMigrationLock(lockFile, mode)
+  try {
     run()
   } finally {
     lock.close()

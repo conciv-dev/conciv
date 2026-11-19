@@ -49,8 +49,6 @@ import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
-import {createToolDurations} from './tool-durations.js'
-import {toolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
@@ -63,7 +61,7 @@ import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
-import {useSessionCaptures} from './session-captures.js'
+import {DraftUnsavedNotice} from './draft-unsaved-notice.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
@@ -83,10 +81,18 @@ import {
   SessionLinks,
   SessionStatusSlot,
 } from './plugin-session-parts.js'
-import {createPluginToolCards} from './plugin-tool-cards.js'
+import {createToolRender} from './tool-registry-render.js'
+import {Contribution} from '../runtime/plugin/render'
 
 const PAGE_SESSION: PageSessionConfig = {
-  entry: pageSessionEntry,
+  entry: {
+    key: pageSessionEntry.key,
+    render: (props) => (
+      <Contribution plugin="page" fallback={() => props.children}>
+        {() => pageSessionEntry.render(props)}
+      </Contribution>
+    ),
+  },
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }
@@ -141,11 +147,12 @@ function DraftRestore(props: {
   onMount(() => {
     const input = props.input
     const draftKey = props.draftKey
-    const restoring = props.storage.restore((restored, edited) => {
+    const restoring = props.storage.restore((restored, mode) => {
       const draft = readComposerDraft(restored.snapshot, draftKey)
       if (!draft) return
-      const untouched = !edited && context.snapshotDraft().draft === ''
-      context.restoreDraft(draft)
+      if (mode === 'replace') context.clearDraft()
+      const untouched = mode !== 'merge' && context.snapshotDraft().draft === ''
+      context.restoreDraft({...draft, attachments: [...restored.attachments, ...draft.attachments]})
       if (untouched) input()?.select(restored.selection)
     }, controller.signal)
     props.onRestore(restoring)
@@ -228,10 +235,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const rpc = useRpc()
   const appData = useAppData()
   const announce = useAnnounce()
-  const connected = useConnected()
   const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
   const pane = usePane()
+  const liveSessions = useLiveSessions()
   const sessionId = untrack(() => props.sessionId)
   const harness = useSessionHarness(() => sessionId)
   const chat = pane.chat()
@@ -255,13 +262,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   restored.promise.catch(() => undefined)
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
-  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
-  const catalog: ToolCatalogView = {
-    loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
-  }
-  const captures = useSessionCaptures(sessionId)
-  const draftStorage = makeDraftStorage(appData, sessionId)
+  const catalog = useToolCatalog()
+  const draftStorage = makeDraftStorage(appData, liveSessions.keepDraft, sessionId)
 
   const messaging = usePaneMessaging({
     rpc,
@@ -277,20 +279,15 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   const toolCtx = makeToolViewCtx({
-    harnessId: () => harness()?.id ?? '',
     catalog,
-    sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: messaging.onAnswer,
-    durationFor: createToolDurations(chat.messages, Date.now),
-    captureFor: captures.lookup,
   })
 
   const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
-  const pluginToolCards = createPluginToolCards(pluginSession.view)
+  const toolRender = createToolRender()
   const tools = (): ToolCardEntry[] => [
-    ...pluginToolCards(),
     ...extensionToolCards,
     ...concivToolCards,
     ...coreToolCards,
@@ -332,10 +329,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     paneAttachments(
       instances.map((instance) => instance.extension),
       imageInput(),
+      appData.drafts,
     ),
   )
-  const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
-    <AttachmentByMime cards={attachments().chips} removable={slotProps.removable} />
+  const PaneAttachment = (slotProps: {onRemove?: (id: string) => void}): JSX.Element => (
+    <AttachmentByMime cards={attachments().chips} onRemove={slotProps.onRemove} />
   )
   const stageGrab = (grab: Grab) => {
     pane.grabStaging.stage(grab)
@@ -349,16 +347,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const PaneBody = (): JSX.Element => {
     const thread = useThread()
     const lastTurn = () => thread.turns.at(-1)?.turn()
-    const outOfBandAsks = createMemo(
-      () =>
-        chat
-          .pendingApprovals()
-          .filter((ask) => !lastTurn()?.parts.some((part) => part.type === 'tool-call' && part.id === ask.toolCallId)),
-      [],
-      {equals: sameEntries},
-    )
+    const asks = createMemo(() => chat.pendingApprovals(), [], {equals: sameEntries})
     createEffect<number>((previous) => {
-      const waiting = outOfBandAsks().length
+      const waiting = asks().length
       if (waiting > previous) announce('conciv is asking for permission.')
       return waiting
     }, 0)
@@ -425,9 +416,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       </Thread.Welcome>
                     </Show>
                     <Thread.Messages
+                      sessionID={sessionId}
                       tools={tools()}
                       attachmentCards={attachments().cards}
-                      components={{ToolFallback: toolFallbackCard}}
+                      render={toolRender.render}
+                      renderPending={toolRender.pending()}
                       turnPrefix={renderTurnPrefix}
                       pageSession={PAGE_SESSION}
                       refreshDisabled={!messaging.resendAllowed()}
@@ -441,8 +434,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={compacting()}>
                       <Divider kind="compact" pending />
                     </Show>
-                    <Show when={outOfBandAsks().length > 0}>
-                      <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
+                    <Show when={asks().length > 0}>
+                      <PendingApprovals asks={asks()} ctx={toolCtx} />
                     </Show>
                     <Show when={narrating()}>
                       <NarrationRow />
@@ -477,9 +470,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <SessionComposerPills pane={pluginSession} />
                 </div>
                 <QueueStrip queue={chat.queue()} />
+                <DraftUnsavedNotice sessionId={sessionId} retry={draftStorage.retry} keptHere={draftStorage.keptHere} />
                 <Suspense>
                   <PaneComposer
                     draftStorage={draftStorage.storage}
+                    draftWriter={draftStorage.writer}
                     draftKey={sessionId}
                     placeholder={composerPlaceholder()}
                     inputLabel="Message the conciv agent"
@@ -562,6 +557,16 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
       <LoadFailedAlert busy sessionId={props.sessionId} />
     </Show>
   )
+}
+
+function useToolCatalog(): ToolCatalogView {
+  const appData = useAppData()
+  const connected = useConnected()
+  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
+  return {
+    loaded: () => registryCatalog.data !== undefined,
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
+  }
 }
 
 function DraftReturnReceiver(props: {sessionId: string; sinks: PaneDraftSinks}): JSX.Element {

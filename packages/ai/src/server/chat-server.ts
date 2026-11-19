@@ -31,6 +31,7 @@ import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
+  timedMessages,
   type ChatEvent,
   type RunLifecycle,
   type RunPhase,
@@ -38,7 +39,7 @@ import {
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
-import {childCards} from './child-cards.js'
+import {childCards, withoutChildCalls} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
@@ -46,13 +47,19 @@ import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type T
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
 import {toolHistory} from './tool-history.js'
+import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
+import {cloneDeepWith, isPlainObject} from 'es-toolkit'
+
+function requestOptions(options: Record<string, unknown> | undefined): Record<string, unknown> {
+  return cloneDeepWith(options ?? {}, (value) => (Array.isArray(value) || isPlainObject(value) ? undefined : value))
+}
 
 export type ChatStores = {
   messages: MessageStore & {loadMessage: (threadId: string, messageId: string) => Promise<ModelMessage | null>}
   runs: RunStore &
     Required<Pick<RunStore, 'listByThread' | 'listReclaimable'>> & {
       listRunning: () => Promise<RunRecord[]>
-      known: (runId: string) => boolean
+      known: (runId: string) => Promise<boolean>
     }
   metadata: MetadataStore
 }
@@ -70,6 +77,7 @@ export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
   systemPrompts: () => Promise<readonly string[]>
+  context: RequestHook
   tools: () => Promise<TurnTools>
   setup: () => Promise<Approvals>
   prompt: (message: ModelMessage, signal: AbortSignal) => Promise<ModelMessage>
@@ -80,7 +88,7 @@ export type TurnPlan = {
 
 export type TurnHooks = {
   admit: (turn: Turn) => Promise<void>
-  plan: (turn: Turn) => TurnPlan
+  plan: (turn: Turn) => Promise<TurnPlan>
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
   started: (turn: Turn) => void
@@ -165,6 +173,7 @@ function failedPlan(error: unknown): TurnPlan {
       yield {type: EventType.RUN_ERROR, message, timestamp: Date.now()}
     }),
     systemPrompts: async () => [],
+    context: async (request) => request,
     tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
     setup: async () => new Map(),
     prompt: async (user) => user,
@@ -174,9 +183,9 @@ function failedPlan(error: unknown): TurnPlan {
   }
 }
 
-function planned(hooks: TurnHooks, turn: Turn): TurnPlan {
+async function planned(hooks: TurnHooks, turn: Turn): Promise<TurnPlan> {
   try {
-    return hooks.plan(turn)
+    return await hooks.plan(turn)
   } catch (error) {
     return failedPlan(error)
   }
@@ -222,12 +231,6 @@ function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): Cha
 
 type OfferedTools = {tools: ChatTool[]; preface: string | null}
 
-function prefaced<Prompt>(prompts: Prompt[], shown: Prompt | null, next: Prompt | null): Prompt[] {
-  if (shown === next) return prompts
-  const kept = prompts.filter((prompt) => prompt !== shown)
-  return next === null ? kept : [...kept, next]
-}
-
 function buildDiscovery(tool: ChatTool | null): CodeDiscovery | null {
   const execute = tool?.execute
   if (tool === null || !execute) return null
@@ -269,6 +272,18 @@ type RunMessages = {full: ModelMessage[]}
 
 function isSubagentChunk(chunk: ChatEvent): boolean {
   return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
+}
+
+function timedProcessor(): StreamProcessor {
+  const processor: StreamProcessor = new StreamProcessor({
+    events: {
+      onCustomEvent: (name, value) => {
+        const timed = timedMessages(processor.getMessages(), name, value)
+        if (timed !== null) processor.setMessages(timed)
+      },
+    },
+  })
+  return processor
 }
 
 function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
@@ -456,9 +471,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     offered: () => Promise<OfferedTools>,
   ) {
     const failure: {message: string | null} = {message: null}
-    const codePreface: {shown: string | null} = {shown: null}
-    const prepared: {sent: number; provider: ModelMessage[]} = {sent: 0, provider: []}
-    const shown = new StreamProcessor({})
+    const prepared: {sent: number; provider: ModelMessage[]; system: readonly string[]} = {
+      sent: 0,
+      provider: [],
+      system: [],
+    }
+    const shown = timedProcessor()
     const settle = async (): Promise<void> => {
       try {
         const lifecycle = await recordLifecycle(turn.runId)
@@ -475,25 +493,35 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onConfig: async (ctx, current) => {
         if (ctx.phase === 'beforeModel') {
           const next = await offered()
-          const systemPrompts = prefaced(current.systemPrompts, codePreface.shown, next.preface)
-          codePreface.shown = next.preface
+          const request = await hookedRequest(
+            (draft, signal) => untilAborted(plan.context(draft, signal), signal),
+            {
+              system: [...prepared.system, ...(next.preface === null ? [] : [next.preface])],
+              messages: [...prepared.provider, ...withoutChildCalls(current.messages).slice(prepared.sent)],
+              options: requestOptions(plan.modelOptions),
+              tools: next.tools,
+            },
+            entry.controller.signal,
+          )
           return {
             messages: [...ctx.messages],
-            providerMessages: [...prepared.provider, ...current.messages.slice(prepared.sent)],
-            systemPrompts,
-            tools: next.tools,
+            providerMessages: request.messages,
+            systemPrompts: request.system,
+            tools: request.tools,
+            modelOptions: request.options,
+            metadata: answeredMetadata(current.metadata, request.result),
           }
         }
         if (ctx.phase !== 'init') return
         granted.approvals = await plan.setup()
         const next = await offered()
-        codePreface.shown = next.preface
+        prepared.system = await plan.systemPrompts()
         const systemPrompts = [
-          ...(await plan.systemPrompts()),
+          ...prepared.system,
           ...(next.preface === null ? [] : [next.preface]),
           ...current.systemPrompts,
         ]
-        const expanded = await plan.expand(current.messages)
+        const expanded = await plan.expand(withoutChildCalls(current.messages))
         prepared.sent = expanded.length
         prepared.provider = await plan.providerMessages(expanded)
         return {
@@ -574,7 +602,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       stopping: false,
     }
     live.set(turn.runId, entry)
-    return admitted(turn, messages, controller, entry, planned(hooks, turn))
+    return admitted(turn, messages, controller, entry)
   }
 
   async function* admitted(
@@ -582,8 +610,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     messages: Array<ChatMessage | ModelMessage>,
     controller: AbortController,
     entry: LiveRun,
-    plan: TurnPlan,
   ): AsyncGenerator<ChatEvent> {
+    const plan = await planned(hooks, turn)
     const prompted = await hooks
       .admit(turn)
       .then(() => promptedMessages(turn.threadId, messages, plan, controller.signal))
@@ -618,7 +646,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const failed = (message: string) => entry.ending.abort({type: EventType.RUN_ERROR, message, timestamp: Date.now()})
     const view: RunMessages = {full: []}
     const stream = chat({
-      adapter: guardedAdapter(plan.adapter, {
+      adapter: guardedAdapter(answeredAdapter(plan.adapter), {
         ended: entry.ending.signal,
         stopped: controller.signal,
         startMs: config.startTimeoutMs,
@@ -675,7 +703,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   return {
     ...createDelivery({
       run,
-      seenRun: (runId) => live.has(runId) || stores.runs.known(runId),
+      seenRun: async (runId) => live.has(runId) || (await stores.runs.known(runId)),
       debug,
       log: config.log,
     }),
@@ -715,7 +743,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
     },
     record: async (threadId, chunks) => {
-      const processor = new StreamProcessor({})
+      const processor = timedProcessor()
       for (const chunk of chunks) followRun(processor, chunk)
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))

@@ -1,0 +1,75 @@
+{
+  "name": "@conciv/plugin-try-it",
+  "version": "0.0.22",
+  "description": "The conciv try-it plugin: offers the widget a local conciv core that a visitor starts with npx, and covers the panel with the connect steps until that core answers.",
+  "keywords": [
+    "conciv",
+    "conciv-plugin",
+    "connect",
+    "plugin"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/plugins/try-it"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/plugin-experimental.d.ts",
+      "import": "./dist/plugin-experimental.js"
+    },
+    "./plugin-experimental": {
+      "types": "./dist/plugin-experimental.d.ts",
+      "import": "./dist/plugin-experimental.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@solid-primitives/autofocus": "catalog:",
+    "effect": "catalog:",
+    "lucide-solid": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/browser-fixture": "workspace:*",
+    "@conciv/embed": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "playwright": "catalog:",
+    "solid-js": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vite-plugin-solid": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@conciv/plugin": "workspace:^",
+    "solid-js": "^1.9.13"
+  }
+}
