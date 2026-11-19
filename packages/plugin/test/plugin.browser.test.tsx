@@ -28,7 +28,7 @@ const server: ServerRef = {
   id: 'sidecar',
   name: 'engine',
   url,
-  client: Conciv.make(makeRpcClient(url)),
+  client: Conciv.make(makeRpcClient(url), {server: () => url}),
   local: true,
   builtin: true,
   compatible: true,

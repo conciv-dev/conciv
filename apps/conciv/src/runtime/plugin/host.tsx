@@ -696,6 +696,7 @@ function createHost(input: HostInput) {
           })
         })
         release(dispose)
+        input.queryClient.removeQueries({queryKey: ['plugin', plugin]})
       },
     }
   }

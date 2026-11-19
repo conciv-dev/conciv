@@ -14,8 +14,10 @@ import * as Effect from 'effect'
 import {z} from 'zod'
 import type {StandardSchemaV1} from '@standard-schema/spec'
 import {SessionId} from '@conciv/protocol/chat-types'
+import {makeRpcClient} from '@conciv/contract'
 import {
   Agent,
+  Conciv,
   Plugin,
   Rpc,
   Tool,
@@ -243,6 +245,23 @@ describe('Rpc', () => {
     })
     expectTypeOf<ReturnType<typeof views>['found']['data']>().toEqualTypeOf<{hits: string[]} | undefined>()
     expectTypeOf<Parameters<ReturnType<typeof views>['saved']['mutate']>[0]>().toEqualTypeOf<SearchInput>()
+  })
+
+  it('keys every read by the server it reads from, so two servers never share a cached value', () => {
+    const project = 'http://127.0.0.1:9'
+    const global = 'http://127.0.0.1:10'
+    const fromProject = Conciv.make(makeRpcClient(project), {server: () => project}).rpc(Acme)
+    const fromGlobal = Conciv.make(makeRpcClient(global), {server: () => global}).rpc(Acme)
+    const input = {query: 'a'}
+    expect(fromProject.search.key({input})).toEqual(['plugin', {server: project}, 'acme', 'search', input])
+    expect(fromGlobal.search.key({input})).toEqual(['plugin', {server: global}, 'acme', 'search', input])
+    expect(fromProject.search.queryOptions({input}).queryKey).not.toEqual(
+      fromGlobal.search.queryOptions({input}).queryKey,
+    )
+    expect(fromProject.search.key()).toEqual(['plugin', {server: project}, 'acme', 'search'])
+    expect(fromProject.search.mutationOptions().mutationKey).not.toEqual(
+      fromGlobal.search.mutationOptions().mutationKey,
+    )
   })
 
   it("types a contract's methods, errors and events from any Standard Schema or a raw JSON Schema", () => {

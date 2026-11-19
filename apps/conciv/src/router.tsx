@@ -159,15 +159,16 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
   })
   const lockedOut = (): boolean => engine.locked()
+  const apiBase = config.apiBase ?? (() => '')
   const data = makeAppData(
     config.rpc,
     queryClient,
     openDraftStore(() => !lockedOut()),
     lockedOut,
+    apiBase,
   )
   const extensions = config.extensions ?? []
   const instances = createInstances(extensions)
-  const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
   const disposeInstances = makeGuardedDisposer(instances, () => {
     engine.dispose()

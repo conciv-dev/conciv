@@ -23,8 +23,8 @@ type MethodOutput<D extends Rpc.PortableDefinition, Name extends keyof D['method
 >
 
 export type RpcQueryKey<D extends Rpc.PortableDefinition, Name extends keyof D['methods'] & string, Input = unknown> =
-  | readonly ['plugin', D['id'], Name]
-  | readonly ['plugin', D['id'], Name, Input]
+  | readonly ['plugin', {readonly server: string}, D['id'], Name]
+  | readonly ['plugin', {readonly server: string}, D['id'], Name, Input]
 
 export type RpcQueryArguments<Input> = undefined extends Input
   ? unknown extends Input
@@ -35,8 +35,9 @@ export type RpcQueryArguments<Input> = undefined extends Input
 export type RpcMethod<D extends Rpc.PortableDefinition, Name extends keyof D['methods'] & string, Options> = {
   (...args: RpcArguments<MethodInput<D, Name>, Options>): Promise<MethodOutput<D, Name>>
   /**
-   * The method's query key: `['plugin', id, method]`, with the input appended when given. Invalidate without an input
-   * to refresh every read of the method.
+   * The method's query key: `['plugin', {server}, id, method]`, with the input appended when given. `server` names the
+   * engine the client reads from, so two engines never share a cached value. Invalidate without an input to refresh
+   * every read of the method on that engine.
    *
    * @example
    * ```ts
@@ -112,6 +113,7 @@ const RpcError = z.object({
 export function makeRpc(
   raw: ConcivRpcClient,
   events: {subscribe(options?: Pick<RequestOptions, 'signal'>): AsyncIterable<EventSubscribeOutput>},
+  server: () => string,
 ): RpcApi {
   return (definition) => {
     const subscribe = (
@@ -152,7 +154,7 @@ export function makeRpc(
       Object.fromEntries(
         Object.keys(definition.methods).map((name) => [
           name,
-          rpcMethod(definition.id, name, async (input, options) => {
+          rpcMethod(server, definition.id, name, async (input, options) => {
             try {
               return await raw.plugin.call({rpcId: definition.id, method: name, input}, {signal: options?.signal})
             } catch (error) {
@@ -196,12 +198,15 @@ export function makeRpc(
 }
 
 export function rpcMethod(
+  server: () => string,
   id: string,
   name: string,
   call: (input: unknown, options?: {readonly signal?: AbortSignal}) => Promise<unknown>,
 ): RpcMethod<Rpc.PortableDefinition, string, {readonly signal?: AbortSignal}> {
   const key = (options?: {readonly input?: unknown}): RpcQueryKey<Rpc.PortableDefinition, string> =>
-    options?.input === undefined ? ['plugin', id, name] : ['plugin', id, name, options.input]
+    options?.input === undefined
+      ? ['plugin', {server: server()}, id, name]
+      : ['plugin', {server: server()}, id, name, options.input]
 
   return Object.assign(call, {
     key,

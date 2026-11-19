@@ -221,7 +221,13 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
   const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient, options.engineOnlyDrafts ? null : createBrowserDraftStore(), () => false)
+  const data = makeAppData(
+    rpc,
+    queryClient,
+    options.engineOnlyDrafts ? null : createBrowserDraftStore(),
+    () => false,
+    () => options.base,
+  )
   const connected = () => true
   const liveSessions = makeLiveSessions({
     active: () => null,
