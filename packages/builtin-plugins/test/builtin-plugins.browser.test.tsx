@@ -2530,7 +2530,7 @@ describe('the tanstack cards', () => {
     output: unknown
     summary: string
     detail?: string
-    single?: string
+    more?: ReadonlyArray<string | RegExp>
   }
 
   const cardContext: ToolViewCtx = {
@@ -2570,6 +2570,7 @@ describe('the tanstack cards', () => {
       output: routerState,
       summary: '/about · 2 matches',
       detail: '/about?token=%5Bredacted%5D',
+      more: ['__root__'],
     },
     {
       tool: 'tanstack_route_tree',
@@ -2587,7 +2588,14 @@ describe('the tanstack cards', () => {
       output: {routeId: '/about', data: {greeting: 'hello', visits: 42}},
       summary: '2 keys · /about',
       detail: 'greeting',
-      single: '42',
+      more: ['42'],
+    },
+    {
+      tool: 'tanstack_loader_data',
+      title: 'Read the loader data',
+      output: {routeId: '/articles', data: {article: {title: 'Ship it', preview: 'short excerpt', author: 'Omri'}}},
+      summary: '1 key · /articles',
+      detail: 'author',
     },
     {
       tool: 'tanstack_query_cache',
@@ -2598,8 +2606,8 @@ describe('the tanstack cards', () => {
             key: '["todos"]',
             state: 'fresh',
             status: 'success',
-            value: ['card'],
-            updatedAt: Date.now(),
+            value: {fetched: true},
+            updatedAt: Date.now() - 5 * 60_000,
             error: null,
             observers: 1,
           },
@@ -2609,7 +2617,7 @@ describe('the tanstack cards', () => {
       },
       summary: '2 queries · 1 mutation',
       detail: 'Request failed with status 500',
-      single: 'queries',
+      more: ['queries', 'fetched', /5m ago/],
     },
     {
       tool: 'tanstack_query_invalidate',
@@ -2650,26 +2658,50 @@ describe('the tanstack cards', () => {
       ],
       summary: '1 error',
       detail: 'src/routes/about.tsx:4',
+      more: ['Cannot find module ./missing'],
+    },
+    {
+      tool: 'tanstack_build_errors',
+      title: 'Read the build errors',
+      output: [],
+      summary: 'no errors',
+      detail: 'No build errors',
     },
     {
       tool: 'tanstack_route_manifest',
       title: 'Read the route manifest',
       output: [
+        {path: '/', kind: 'layout', dynamic: false, file: 'src/routes/__root.tsx'},
         {path: '/', kind: 'page', dynamic: false, file: 'src/routes/index.tsx'},
         {path: '/posts/$id', kind: 'page', dynamic: true, file: 'src/routes/posts.$id.tsx'},
       ],
-      summary: '2 routes',
+      summary: '3 routes',
       detail: '/posts/$id',
+      more: ['layout', 'dynamic'],
     },
     {
       tool: 'tanstack_server_fn_trace',
       title: 'Read the server-function calls',
       output: {
-        traces: [{id: 'posts-fn', name: 'getPosts', durationMs: 12, status: 'ok', at: 1}],
-        functions: [{id: 'posts-fn', name: 'getPosts', route: '/posts', file: 'src/server/posts.ts'}],
+        traces: [
+          {id: 'posts-fn', name: 'getPosts', durationMs: 12, status: 'ok', at: 1},
+          {id: 'save-fn', name: 'savePost', durationMs: 120, status: 'error', at: 2},
+        ],
+        functions: [
+          {id: 'posts-fn', name: 'getPosts', route: '/posts', file: 'src/server/posts.ts'},
+          {id: 'save-fn', name: 'savePost', route: null, file: 'src/server/save.ts'},
+        ],
       },
-      summary: '1 call',
+      summary: '2 calls',
       detail: 'src/server/posts.ts',
+      more: ['getPosts', '12ms', 'error'],
+    },
+    {
+      tool: 'tanstack_server_fn_trace',
+      title: 'Read the server-function calls',
+      output: {traces: [], functions: []},
+      summary: 'no calls',
+      detail: 'No server-fn calls',
     },
   ]
 
@@ -2696,7 +2728,7 @@ describe('the tanstack cards', () => {
   }
 
   const header = (title: string) => page.getByRole('button', {name: new RegExp(title)})
-  const exactText = (text: string) => page.getByText(text, {exact: true})
+  const exactText = (text: string | RegExp) => page.getByText(text, {exact: true})
 
   it("draws each tool's card on success, the error state, and the running row before the card", async () => {
     onTestFinished(cleanup)
@@ -2708,7 +2740,7 @@ describe('the tanstack cards', () => {
         await header(call.title).click()
         await expect.element(exactText(call.detail)).toBeVisible()
       }
-      if (call.single !== undefined) await expect.element(exactText(call.single)).toBeVisible()
+      for (const text of call.more ?? []) await expect.element(exactText(text)).toBeVisible()
       cleanup()
     }
 
