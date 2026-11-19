@@ -811,7 +811,7 @@ describe('chat plane', () => {
       symbolicate: async () => null,
     })
     const id = sessionId('registering-as-a-run-starts')
-    const turn = startTurn(chat, id, 'racing-run', 'hi')
+    const finished = readUntil(await startTurn(chat, id, 'racing-run', 'hi'), 'end')
     await starting.entered.promise
     const abort = new AbortController()
     onTestFinished(() => abort.abort())
@@ -830,7 +830,7 @@ describe('chat plane', () => {
     await caughtUp.promise
     expect(announced).toEqual(['racing-run'])
     starting.held.resolve()
-    expect(await readUntil(await turn, 'end')).toContain(ChatEventType.RUN_FINISHED)
+    expect(await finished).toContain(ChatEventType.RUN_FINISHED)
     abort.abort()
     await collecting
     expect(announced).toEqual(['racing-run'])
