@@ -1,47 +1,40 @@
-import {webSocket} from '@conciv/ai/client'
+import {rpcStream} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_WS_PATH} from '@conciv/protocol/chat-types'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {makeRunStream, type RunStream} from './run-stream.js'
+import type {RpcClient} from './session.js'
 
 export type TurnMessage = {role: 'user'; parts: ChatMessage['parts']}
 
-export type ChatSockets = {
-  turn: (input: {
-    wsBase: string
-    sessionId: string
-    runId: string
-    messageId?: string
-    message: TurnMessage
-  }) => RunStream
-  join: (input: {wsBase: string; runId: string}) => RunStream
+export type ChatTurns = {
+  turn: (input: {sessionId: string; runId: string; messageId?: string; message: TurnMessage}) => RunStream
+  join: (runId: string) => RunStream
   closeAll: () => void
 }
 
-function connectionFor(wsBase: string): ReturnType<typeof webSocket> {
-  return webSocket(`${wsBase}${CHAT_WS_PATH}`)
+async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenerator<ChatEvent> {
+  yield* await opened
 }
 
-export function makeChatSockets(): ChatSockets {
+export function makeChatTurns(rpc: RpcClient): ChatTurns {
   const open: AbortController[] = []
-  const track = (abort: AbortController): void => {
+  const opened = (): AbortController => {
+    const abort = new AbortController()
     open.push(abort)
+    return abort
   }
+  const turns = rpcStream((_messages, _data, signal, input) =>
+    streamed(rpc.chat.send({sessionId: input.threadId, runId: input.runId, messages: input.messages}, {signal})),
+  )
   return {
-    turn: ({wsBase, sessionId, runId, messageId, message}) => {
-      const connection = connectionFor(wsBase)
-      const abort = new AbortController()
-      track(abort)
-      const chunks = connection.subscribe(abort.signal)
-      void connection
-        .send([{id: messageId ?? `${runId}-user`, ...message}], {}, abort.signal, {threadId: sessionId, runId})
-        .catch(() => {})
-      return makeRunStream(chunks)
-    },
-    join: ({wsBase, runId}) => {
-      const abort = new AbortController()
-      track(abort)
-      return makeRunStream(connectionFor(wsBase).joinRun(runId, abort.signal))
-    },
+    turn: ({sessionId, runId, messageId, message}) =>
+      makeRunStream(
+        turns.connect([{id: messageId ?? `${runId}-user`, ...message}], {}, opened().signal, {
+          threadId: sessionId,
+          runId,
+        }),
+      ),
+    join: (runId) => makeRunStream(streamed(rpc.chat.join({runId}, {signal: opened().signal}))),
     closeAll: () => {
       for (const abort of open.splice(0)) abort.abort()
     },

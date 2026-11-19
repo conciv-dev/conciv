@@ -19,7 +19,7 @@ const setup: Plugin.Setup<typeof tryIt> = (ctx) => tryIt.setup?.(ctx)
 const plugins = compose({'try-it': {windowEntry: async () => ({default: setup})}}).map(
   (entry) => [entry, {token}] as const,
 )
-mountConciv([], plugins)
+mountConciv(plugins)
 ```
 
 Options: `token` (a UUID, required), and `probeMs`, `holdMs`, `slowMs` (the sweep interval, the "Agent connected" hold

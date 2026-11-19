@@ -370,22 +370,13 @@ const watched = require('node:net').connect(data.socket, () => {
       {timeout: 10_000},
       async () => {
         const agent = await cliAgent({silentMs: 0, afterSilence: 'gate'})
-        const response = await agent.server.events(
-          new Request('http://conciv.local/chat', {
-            method: 'POST',
-            headers: {'content-type': 'application/json'},
-            body: JSON.stringify({
-              threadId: 'left',
-              runId: 'left',
-              messages: [{id: 'user-hi', role: 'user', content: 'hi'}],
-              tools: [],
-              context: [],
-            }),
-          }),
-        )
         const live = {text: ''}
-        for await (const text of response.body?.pipeThrough(new TextDecoderStream()) ?? []) {
-          live.text += text
+        for await (const chunk of agent.server.send({
+          threadId: 'left',
+          runId: 'left',
+          messages: [{id: 'user-hi', role: 'user', content: 'hi'}],
+        })) {
+          live.text += JSON.stringify(chunk)
           if (live.text.includes(SESSION)) break
         }
         agent.open()
@@ -571,10 +562,7 @@ const watched = require('node:net').connect(data.socket, () => {
   }
 
   async function replayed(server: ChatServer, runId: string) {
-    const replay = server.resume(new Request(`http://conciv.local/chat?runId=${runId}&offset=-1`))
-    return ((await replay?.text()) ?? '')
-      .split('\n')
-      .flatMap((line) => (line.startsWith('data: ') ? [ReplayedChunkSchema.parse(JSON.parse(line.slice(6)))] : []))
+    return (await collected(server.join({runId}))).map((chunk) => ReplayedChunkSchema.parse(chunk))
   }
 
   async function replayEnd(server: ChatServer, runId: string) {
@@ -617,66 +605,38 @@ const watched = require('node:net').connect(data.socket, () => {
     expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
   })
 
-  it(
-    'a run sent twice with the same runId, back to back, is driven once over events and over the socket',
-    {timeout: 15_000},
-    async () => {
-      const planned: string[] = []
-      const socketEnded = Promise.withResolvers<void>()
-      const hooks = turnHooks(
-        (turn) => {
-          planned.push(turn.runId)
-          return {
-            adapter: makeTextAdapter('answers-at-once', async function* () {
-              yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
-              yield* createTextChunks('answered')
-              yield {
-                type: ChatEventType.RUN_FINISHED,
-                runId: turn.runId,
-                threadId: turn.threadId,
-                finishReason: 'stop',
-                timestamp: Date.now(),
-              }
-            }),
+  it('a run sent twice with the same runId at once is driven once', {timeout: 15_000}, async () => {
+    const planned: string[] = []
+    const hooks = turnHooks((turn) => {
+      planned.push(turn.runId)
+      return {
+        adapter: makeTextAdapter('answers-at-once', async function* () {
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+          yield* createTextChunks('answered')
+          yield {
+            type: ChatEventType.RUN_FINISHED,
+            runId: turn.runId,
+            threadId: turn.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
           }
-        },
-        {
-          end: async (turn) => {
-            if (turn.runId === 'socket-run') socketEnded.resolve()
-          },
-        },
+        }),
+      }
+    })
+    const server = await chatServer(hooks, () => undefined)
+    const sent = () =>
+      collected(
+        server.send({
+          threadId: 'send-thread',
+          runId: 'send-run',
+          messages: [{id: 'user-send-run', role: 'user', content: 'hi'}],
+        }),
       )
-      const server = await chatServer(hooks, () => undefined)
-      const body = (threadId: string, runId: string) =>
-        JSON.stringify({
-          threadId,
-          runId,
-          messages: [{id: `user-${runId}`, role: 'user', content: 'hi'}],
-          tools: [],
-          context: [],
-        })
-      const posted = () =>
-        server.events(
-          new Request('http://conciv.local/chat', {
-            method: 'POST',
-            headers: {'content-type': 'application/json'},
-            body: body('events-thread', 'events-run'),
-          }),
-        )
 
-      await Promise.all((await Promise.all([posted(), posted()])).map((response) => response.text()))
-      expect.soft(planned.filter((runId) => runId === 'events-run')).toEqual(['events-run'])
-
-      const socket = server.socket(new Request('http://conciv.local/chat'))
-      onTestFinished(() => socket.close())
-      socket.open({send: () => undefined, close: () => undefined})
-      socket.message(body('socket-thread', 'socket-run'))
-      socket.message(body('socket-thread', 'socket-run'))
-      await socketEnded.promise
-      await server.settled('socket-thread')
-      expect.soft(planned.filter((runId) => runId === 'socket-run')).toEqual(['socket-run'])
-    },
-  )
+    await Promise.all([sent(), sent()])
+    await server.settled('send-thread')
+    expect(planned.filter((runId) => runId === 'send-run')).toEqual(['send-run'])
+  })
 
   it('an agent that never starts fails with the start limit', {timeout: 10_000}, async () => {
     const ended = Promise.withResolvers<RunLifecycle>()
@@ -1200,3 +1160,9 @@ describe('dist externals', () => {
     })
   })
 })
+
+async function collected<T>(source: AsyncIterable<T>): Promise<T[]> {
+  const seen: T[] = []
+  for await (const value of source) seen.push(value)
+  return seen
+}

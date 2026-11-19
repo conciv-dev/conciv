@@ -109,7 +109,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
   named by user-visible behaviour, short arrange/act/assert; helper functions hoisted at the bottom.
   Tests go through the package's public entries, never test-only exports.
 - Widget UI is tested in a REAL browser (Playwright/Chromium). Flag any jsdom/happy-dom introduction.
-- Testkits (`@conciv/extension-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
+- Testkits (`@conciv/plugin-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
   helpers) run the real product path and fake only expensive externals (the LLM harness, CLIs). A testkit
   client that stands in for the browser uses the same transport and client as the product (browser rpc
   over the partysocket `/rpc-ws` socket through `makeBrowserRpcClient`), never a parallel HTTP or
@@ -145,7 +145,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
   network busy forever. `domcontentloaded` or a UI signal instead.
 - No tests under `apps/examples/*` (example apps are demos), except the handful of demo tests in
   `apps/examples/tanstack-start`. Behaviour is verified by the owning package's tests,
-  `@conciv/extension-testkit`, or an `e2e/` consumer app.
+  `@conciv/plugin-testkit`, or an `e2e/` consumer app.
 - Every node test project in a Solid package's `vitest.config.ts` pins `test: {environment: 'node'}`, or
   `vite-plugin-solid` injects jsdom and the run exits 1 with all tests passing. Browser projects keep
   their browser config.

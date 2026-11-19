@@ -7,18 +7,16 @@ One entry file per bundler subpath of `@conciv/it/plugin/*`. Each re-exports the
 ## Interface
 
 - `vite.ts` / `webpack.ts` / `rspack.ts` / `rollup.ts` / `esbuild.ts` - default export `unplugin.<bundler>` from `../plugin-instance.js`; `vite.ts` also re-exports the `ConcivConfig` type.
-- `nextjs.ts` - re-exports `@conciv/unplugin/nextjs` and defines `register()`, which loads the built-in server extensions for `@conciv/it/plugin/nextjs`.
+- `nextjs.ts` - re-exports `@conciv/unplugin/nextjs` (`withConciv`, `register`, `CONCIV_DEFAULT_PORT`).
 - `nextjs-edge.ts` - re-exports `register` from `@conciv/unplugin/nextjs`.
 - `nextjs-widget.ts` - side-effect import of `@conciv/unplugin/nextjs/widget`.
 
 ## Invariants
 
-- `nextjs.ts:register` - returns early unless `process.env.NEXT_RUNTIME === 'nodejs'`.
-- `nextjs.ts:register` - a failure loading the built-in extensions is logged and falls back to empty `serverExtensions`.
+- None
 
 ## Side Effects
 
-- `nextjs.ts:register` - reads `process.cwd()` to load extension packages through `loadExtensionPackages`.
 - `nextjs-widget.ts` - importing it runs the widget loader from `@conciv/unplugin/nextjs/widget`.
 
 ## Verification

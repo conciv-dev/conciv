@@ -25,10 +25,8 @@ const execFileAsync = promisify(execFile)
 export const ENGINE_PORT = 41750
 const CONCIV_FALLBACK_PORT = 24170
 export const DEV_PORT = 41751
-export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/plugin-tanstack', '@conciv/extension-compiler']
+export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/plugin-tanstack']
 const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.yaml')
-
-export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
 const DEV_ENDPOINT_DIR = e2eDevEndpointDir(join(WORKSPACE_ROOT, 'e2e/nextjs'))
 
@@ -43,7 +41,6 @@ export function agentApiBase(appDir: string): string {
 
 function writeFixtureFiles(appDir: string, overrides: Record<string, string>): void {
   mkdirSync(join(appDir, 'app'), {recursive: true})
-  mkdirSync(join(appDir, 'conciv/extensions'), {recursive: true})
   const dep = (name: string): string => {
     const value = overrides[name]
     if (value === undefined) throw new Error(`fixture dependency ${name} missing from overrides`)
@@ -56,8 +53,6 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     scripts: {dev: 'next dev', build: 'next build'},
     dependencies: {
       '@conciv/it': dep('@conciv/it'),
-      '@conciv/extension': dep('@conciv/extension'),
-      '@conciv/extension-compiler': dep('@conciv/extension-compiler'),
       '@conciv/plugin': dep('@conciv/plugin'),
       '@conciv/plugin-tanstack': dep('@conciv/plugin-tanstack'),
       next: '16.2.10',
@@ -137,20 +132,34 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
   )
 }
 
-export function secondExtensionSource(): string {
-  return [
-    `import {defineExtension, getExtensionApi} from '@conciv/extension'`,
-    ``,
-    `const NAME = 'fixture-second'`,
-    ``,
-    `function Component() {`,
-    `  const slot = getExtensionApi(NAME).useSlot()`,
-    `  return slot === 'composer' ? '${SECOND_SENTINEL}' : null`,
-    `}`,
-    ``,
-    `export default defineExtension({name: NAME, Component}).client(() => ({value: {}}))`,
-    ``,
-  ].join('\n')
+export const SECOND_PLUGIN_LINE = 'fixture second plugin line'
+const SECOND_PLUGIN_DIR = 'conciv/plugins/fixture-second'
+
+export function writeSecondPlugin(appDir: string): void {
+  const dir = join(appDir, SECOND_PLUGIN_DIR)
+  mkdirSync(dir, {recursive: true})
+  writeFileSync(join(dir, 'index.ts'), `export default {id: 'fixture-second', async setup() {}}\n`)
+  writeFileSync(
+    join(dir, 'plugin-experimental.js'),
+    [
+      `const {Slot} = require('@conciv/plugin/experimental')`,
+      `module.exports = {`,
+      `  default: {`,
+      `    setup(ctx) {`,
+      `      ctx.add(Slot, {`,
+      `        at: 'window.bottom',`,
+      `        render: () => Object.assign(document.createElement('p'), {textContent: '${SECOND_PLUGIN_LINE}'}),`,
+      `      })`,
+      `    },`,
+      `  },`,
+      `}`,
+      ``,
+    ].join('\n'),
+  )
+}
+
+export function removeSecondPlugin(appDir: string): void {
+  rmSync(join(appDir, SECOND_PLUGIN_DIR), {recursive: true, force: true})
 }
 
 export type Fixture = {root: string; appDir: string; tgzDir: string; closure: string[]}
@@ -347,19 +356,6 @@ export async function stopNext(handle: NextHandle, enginePort: number): Promise<
   await killPort(handle.devPort)
   await killPort(enginePort)
   await new Promise((resolve) => setTimeout(resolve, 1500))
-}
-
-export function readGeneratedEntry(appDir: string): string {
-  const path = join(appDir, '.conciv/extensions-client.gen.tsx')
-  return existsSync(path) ? readFileSync(path, 'utf8') : ''
-}
-
-export function writeSecondExtension(appDir: string): void {
-  writeFileSync(join(appDir, 'conciv/extensions/second.tsx'), secondExtensionSource())
-}
-
-export function removeSecondExtension(appDir: string): void {
-  rmSync(join(appDir, 'conciv/extensions/second.tsx'), {force: true})
 }
 
 export async function buildProd(appDir: string): Promise<void> {

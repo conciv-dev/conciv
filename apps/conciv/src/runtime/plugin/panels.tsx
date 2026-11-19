@@ -199,6 +199,7 @@ export function RegionContent(props: {
   view: MountedSession
   screen: SessionScreen
   frame: Omit<PanelFrame, 'visible' | 'open'> & {shown: Accessor<boolean>}
+  crashed?: (plugin: string, retry: () => void) => JSX.Element
 }) {
   const groups = createMemo(() =>
     Array.from(new Set(props.pane.entries().flatMap((entry) => (entry.tab.group ? [groupKey(entry)] : [])))),
@@ -254,7 +255,7 @@ export function RegionContent(props: {
                       open: () => props.pane.openFor(plugin),
                     }}
                   >
-                    <Contribution plugin={plugin}>
+                    <Contribution plugin={plugin} crashed={(retry) => props.crashed?.(plugin, retry)}>
                       {() =>
                         member()!.provider.render(
                           panelInput(() => props.view, props.screen, {
@@ -295,7 +296,7 @@ export function RegionContent(props: {
                       open: () => props.pane.openFor(plugin),
                     }}
                   >
-                    <Contribution plugin={plugin}>
+                    <Contribution plugin={plugin} crashed={(retry) => props.crashed?.(plugin, retry)}>
                       {() =>
                         entry()!.provider.render(
                           panelInput(() => props.view, props.screen, {

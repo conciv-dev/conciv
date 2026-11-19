@@ -52,7 +52,6 @@
   "dependencies": {
     "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",

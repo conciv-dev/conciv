@@ -45,6 +45,12 @@ interface ChatEventStream extends Schema<
 const ChatEventStreamSchema: ChatEventStream = eventIterator(StreamChunkSchema)
 
 const SessionIdInput = z.object({sessionId: SessionId})
+const RunIdSchema = z.string().min(1)
+const ChatSendInput = SessionIdInput.extend({
+  runId: RunIdSchema,
+  messages: z.array(z.looseObject({id: z.string().min(1), role: z.string()})),
+})
+const ChatJoinInput = z.object({runId: RunIdSchema, lastEventId: z.string().min(1).optional()})
 const SessionListInput = z.object({
   includeHidden: z.boolean().optional(),
   cursor: HarnessListCursorSchema.nullish(),
@@ -489,6 +495,8 @@ export const contract = {
   },
   chat: {
     events: oc.errors(approvalDenied).input(SessionIdInput).output(ChatEventStreamSchema),
+    send: oc.errors(approvalDenied).input(ChatSendInput).output(ChatEventStreamSchema),
+    join: oc.errors(approvalDenied).input(ChatJoinInput).output(ChatEventStreamSchema),
     hydrate: oc
       .errors(approvalDenied)
       .input(SessionIdInput.extend(ChatHistoryWindowSchema.shape))

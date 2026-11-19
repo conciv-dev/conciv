@@ -23,9 +23,9 @@ Helpers talk to the engine the way the product caller they stand in for does: a 
 - `run-stream.ts:makeRunStream` - `RunStream` with `waitFor`, `waitForToolCall`, `done`; `run-events.ts:makeRunEvents`, `collectToolCalls`, `approvalIds`.
 - `session.ts:makeRpcClient` / `resolveSession` - `makeRpcClient` is the node oRPC client against `<apiBase>/rpc`; `resolveSession` resolves a session over `makeBrowserRpcClient`, the browser's socket.
 - `serve-app.ts:serveApp` - serves a fetch handler with `serveHono` and returns `base`, `wsBase`, `port`, `close`.
-- `rpc-mounts.ts:serveRpcRouter` / `serveExtensionRpc` - serve an oRPC router over fetch (`RPC_PREFIX`) and WebSocket (`RPC_WS_PATH`); `./rpc-mounts` subpath.
+- `rpc-mounts.ts:serveRpcRouter` - serve an oRPC router over fetch (`RPC_PREFIX`) and WebSocket (`RPC_WS_PATH`); `./rpc-mounts` subpath.
 - `until.ts:until` - polls a predicate; `./until` subpath.
-- `chat-turn.ts:makeChatSockets` - `turn` and `join` open `<wsBase>CHAT_WS_PATH` connections as `RunStream`s; `closeAll` aborts every one, and `cleanup` calls it.
+- `chat-turn.ts:makeChatTurns` - `turn` streams `rpc.chat.send` and `join` streams `rpc.chat.join` as `RunStream`s; `closeAll` aborts every one, and `cleanup` calls it.
 
 ## Invariants
 

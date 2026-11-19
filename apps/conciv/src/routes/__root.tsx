@@ -9,9 +9,8 @@ import {
   useSearch,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
-import {Dialog, EnvironmentProvider} from '@conciv/ui-kit-system'
-import {HostApiProvider, getHostApi} from '@conciv/extension/host'
-import {showToast} from '@conciv/page'
+import {EnvironmentProvider} from '@conciv/ui-kit-system'
+import {createClientSettings} from '@conciv/contract'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -47,7 +46,6 @@ import {EngineReachabilityContext, makeEngineReachability} from '../app/reachabi
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
-import {EffectsSurface} from '../shell/effects-surface.js'
 import {NoticeContextProvider, useNotices} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
@@ -81,13 +79,10 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
 })
 
 function RootComponent() {
-  const app = Route.useRouteContext()()
   return (
-    <HostApiProvider rpc={app.rpc}>
-      <NoticeContextProvider>
-        <AppRoot />
-      </NoticeContextProvider>
-    </HostApiProvider>
+    <NoticeContextProvider>
+      <AppRoot />
+    </NoticeContextProvider>
   )
 }
 
@@ -136,22 +131,22 @@ function AppRoot() {
     rpc: app.rpc,
     apiBase: app.apiBase,
     generation: app.connectionGeneration,
-    transport: () => app.settings.transport,
     appData: app.data,
     queryClient: app.queryClient,
     announce,
     notify: notices.notify,
   })
   const rootNode = app.environment.rootNode
+  const followingSettings = new AbortController()
+  onCleanup(() => followingSettings.abort())
   const preferences = createPreferences({
-    settings: getHostApi().useScope('conciv').settings,
+    settings: createClientSettings(app.rpc, 'conciv', followingSettings.signal),
     data: app.data,
     queryClient: app.queryClient,
     connected: app.connected,
     host: app.settings,
   })
   const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined, preferences.stored)
-  const colorScheme = () => theme().scheme
 
   const value: AppContextValue = {
     rpc: app.rpc,
@@ -166,7 +161,6 @@ function AppRoot() {
     suppressed,
     fabAnchor: fab.anchor,
     panelWidthCap: fab.panelWidthCap,
-    instances: app.instances,
     connected: app.connected,
     arrivedFromConnect,
     connectBind,
@@ -201,26 +195,13 @@ function AppRoot() {
               <PluginRoot composed={app.plugins} servers={app.servers}>
                 <PluginAttachment>
                   <PluginPanelKeys />
-                  <HostApiProvider
-                    rpc={app.rpc}
-                    apiBase={app.apiBase}
-                    toast={showToast}
-                    registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-                    dialog={layers.track(Dialog)}
-                    sessionId={activeSession}
-                    colorScheme={colorScheme}
-                  >
-                    <RootChrome
-                      fab={fab}
-                      activeSession={activeSession}
-                      politeMessage={politeMessage}
-                      assertiveMessage={assertiveMessage}
-                    />
-                    <Show when={app.login === undefined || engineConnected(app.login.status())}>
-                      <EffectsSurface instances={app.instances} />
-                    </Show>
-                    <PluginOverlay />
-                  </HostApiProvider>
+                  <RootChrome
+                    fab={fab}
+                    activeSession={activeSession}
+                    politeMessage={politeMessage}
+                    assertiveMessage={assertiveMessage}
+                  />
+                  <PluginOverlay />
                 </PluginAttachment>
               </PluginRoot>
             </DialogProvider>

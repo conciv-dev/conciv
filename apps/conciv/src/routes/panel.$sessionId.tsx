@@ -35,10 +35,8 @@ import {
   useAppQueryClient,
   useChatDeps,
   useGrabProvider,
-  useInstances,
   useLiveSessions,
   usePaneChat,
-  usePreferences,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
@@ -52,9 +50,6 @@ import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {PaneAlert} from '../pane/pane-alert.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
-import {guardedComponent} from '../extension/extension-boundary.js'
-import {collectViews} from '../extension/extension-views.js'
-import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
 import {useStartSession} from '../app/start-session.js'
 import {openPipTarget} from '../shell/pip.js'
@@ -285,7 +280,6 @@ function PanelSession(): JSX.Element {
   const appData = useAppData()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
-  const instances = useInstances()
   const grabProvider = useGrabProvider()
   const router = useRouter()
   const navigate = Route.useNavigate()
@@ -312,12 +306,7 @@ function PanelSession(): JSX.Element {
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? chat().runInProgress()
 
-  const preferences = usePreferences()
-  const views = createMemo(() => arrangeViews(collectViews(instances), preferences.stored()))
   const activeView = () => sessionMenu.view() ?? 'chat'
-  const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
-  const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
-  const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
 
   const tabIndex = (id: string) => statusBarViews().findIndex((view) => view.id === id)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
@@ -340,7 +329,6 @@ function PanelSession(): JSX.Element {
   const mounted = createMountedSession({id: () => params().sessionId})
   const pluginTabs = createPluginTabs({
     view: activeView,
-    extensionViews: views,
     chat: showChat,
     show: showView,
   })
@@ -397,19 +385,12 @@ function PanelSession(): JSX.Element {
   }
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat', icon: MessageSquare},
-    ...views().map((view) => ({
-      id: view.id,
-      label: view.label,
-      icon: view.icon && guardedComponent(view.instance.extension.name, 'silent', view.icon),
-    })),
     ...pluginTabs.views(),
   ])
 
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
     running,
-    viewLocked,
-    setLockedFor,
     slideClass,
     resetSlide: () => setSlideDir(null),
     grabStaging,
@@ -517,7 +498,6 @@ function PanelSession(): JSX.Element {
         views={statusBarViews()}
         activeView={activeView()}
         onSelectView={switchView}
-        disabled={viewLocked()}
       />
       <PluginWindowBottom />
     </PaneContext.Provider>

@@ -1,4 +1,4 @@
-import {Show, createMemo, untrack, type Component, type JSX} from 'solid-js'
+import {Show, untrack, type Component, type JSX} from 'solid-js'
 import {Key} from '@solid-primitives/keyed'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
@@ -20,7 +20,6 @@ export type StatusBarProps = {
   views: readonly StatusBarView[]
   activeView: string
   onSelectView: (id: string) => void
-  disabled: boolean
 }
 
 const BAR =
@@ -48,7 +47,7 @@ const DIFF_DELS = 'text-chat-danger'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none]'
 const VIEW_BTN =
-  'flex-none flex items-center px-2.5 text-chat-xs font-medium text-chat-text-2 bg-transparent border-none border-s border-s-solid border-s-chat-line-soft cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:bg-chat-fill disabled:opacity-40 disabled:cursor-default data-[selected]:text-chat-text-hi data-[selected]:bg-chat-fill'
+  'flex-none flex items-center px-2.5 text-chat-xs font-medium text-chat-text-2 bg-transparent border-none border-s border-s-solid border-s-chat-line-soft cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:bg-chat-fill data-[selected]:text-chat-text-hi data-[selected]:bg-chat-fill'
 const VIEW_LINE = 'flex items-baseline gap-1.5 min-w-0'
 const VIEW_ICON = 'flex-none self-center size-3'
 const VIEW_LABEL = 'hidden @sm:block font-chat truncate max-w-24'
@@ -98,12 +97,10 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           <Key each={props.views} by="id">
             {(view, index) => {
               const content = untrack(view).content
-              const locked = createMemo(() => props.disabled && view().id !== props.activeView)
               return (
                 <Tabs.Trigger
                   class={VIEW_BTN}
                   value={view().id}
-                  disabled={locked()}
                   aria-label={content ? (view().missing ? view().label : undefined) : view().label}
                 >
                   <span class={VIEW_LINE}>

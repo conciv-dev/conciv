@@ -9,6 +9,15 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof c
     events: os.chat.events.handler(({input, signal}) =>
       deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
     ),
+    send: os.chat.send.handler(({input, signal, lastEventId}) =>
+      deps.chat.plane.send(
+        {threadId: input.sessionId, runId: input.runId, messages: input.messages, lastEventId},
+        signal,
+      ),
+    ),
+    join: os.chat.join.handler(({input, signal, lastEventId}) =>
+      deps.chat.plane.join({runId: input.runId, lastEventId: lastEventId ?? input.lastEventId}, signal),
+    ),
     hydrate: os.chat.hydrate.handler(({input}) =>
       deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
     ),

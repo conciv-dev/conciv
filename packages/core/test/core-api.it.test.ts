@@ -104,15 +104,12 @@ import {
   sessionRunEvent,
   toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
-import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
-  CHAT_SSE_PATH,
   HarnessSessionId,
   SessionId,
   CONCIV_SESSION_HEADER,
-  CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
   CONCIV_CLIENT_HEADER,
   CONCIV_NAMED_TAB_HEADER,
@@ -231,53 +228,50 @@ async function executeOverMcp(base: string, headers: Record<string, string>, typ
   }
 }
 
-function sseTurn(
+type TurnText = {
+  reach: (marker: string) => Promise<string>
+  ended: () => Promise<string>
+  cancel: () => Promise<void>
+}
+
+async function sentTurn(
   base: string,
   sessionId: string,
   runId: string,
   text: string,
   signal?: AbortSignal,
-): Promise<Response> {
-  return fetch(`${base}${CHAT_SSE_PATH}`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({
-      threadId: sessionId,
-      runId,
-      messages: [{id: `${runId}-user`, role: 'user', content: text}],
-      tools: [],
-      context: [],
-    }),
-    signal,
-  })
+): Promise<TurnText> {
+  const browser = makeBrowserRpcClient(base)
+  onTestFinished(() => browser.close())
+  const stream = await browser.rpc.chat.send(
+    {sessionId, runId, messages: [{id: `${runId}-user`, role: 'user', content: text}]},
+    {signal},
+  )
+  return turnText(stream)
 }
 
-function sseStream(response: Response) {
-  const body = response.body
-  if (body === null) throw new Error('the SSE response has no body')
-  const reader = body.pipeThrough(new TextDecoderStream()).getReader()
+function turnText(stream: AsyncIterator<ChatEvent>): TurnText {
   const read = {text: ''}
-  const ended = async (): Promise<string> => {
-    const next = await reader.read()
-    if (next.done) return read.text
-    read.text += next.value
-    return ended()
+  const pulled = async (): Promise<boolean> => {
+    const next = await stream.next()
+    if (next.done === true) return false
+    read.text += JSON.stringify(next.value)
+    return true
   }
+  const ended = async (): Promise<string> => ((await pulled()) ? ended() : read.text)
   const reach = async (marker: string): Promise<string> => {
     if (read.text.includes(marker)) return marker
-    const next = await reader.read()
-    if (next.done) return read.text
-    read.text += next.value
-    return reach(marker)
+    return (await pulled()) ? reach(marker) : read.text
   }
-  const cancel = () => reader.cancel()
+  const cancel = async () => {
+    await stream.return?.()
+  }
   return {reach, ended, cancel}
 }
 
-async function readSse(response: Response, stopType: string): Promise<void> {
-  const stream = sseStream(response)
-  await stream.reach(`"type":"${stopType}"`)
-  await stream.cancel()
+async function readTurn(turn: TurnText, stopType: string): Promise<void> {
+  await turn.reach(`"type":"${stopType}"`)
+  await turn.cancel()
 }
 
 function registryCall(base: string, sessionId: string) {
@@ -3996,14 +3990,20 @@ return seen`
     })
 
     describe('transport and workspace', () => {
-      it('a turn over SSE stores the same thread as one over the socket, and nothing lands in the project', async () => {
-        const [overSocket, overSse] = [await newSession(), await newSession()]
+      it('a turn over the http rpc route stores the same thread as one over the rpc socket, and nothing lands in the project', async () => {
+        const [overSocket, overHttp] = [await newSession(), await newSession()]
         await finished(overSocket, 'same')
-        await readSse(
-          await sseTurn(chatKit().base, overSse, 'sse-run', 'same', new AbortController().signal),
+        await readTurn(
+          turnText(
+            await makeRpcClient(chatKit().base).chat.send({
+              sessionId: overHttp,
+              runId: 'http-run',
+              messages: [{id: 'http-run-user', role: 'user', content: 'same'}],
+            }),
+          ),
           ChatEventType.RUN_FINISHED,
         )
-        expect(roleTexts(await thread(overSse))).toEqual(roleTexts(await thread(overSocket)))
+        expect(roleTexts(await thread(overHttp))).toEqual(roleTexts(await thread(overSocket)))
         expect(readdirSync(chatKit().stateRoot).filter((name) => ['.mcp.json', '.claude'].includes(name))).toEqual([])
       })
     })
@@ -4059,7 +4059,6 @@ return seen`
   const huge = await external_fixture_huge({})
   return huge.blob.length
 `
-  const SseChunkSchema = z.object({type: z.string()}).loose()
   const ResultEnvelopeSchema = z.object({result: z.unknown(), logs: z.array(z.string()).default([])}).loose()
 
   type SeenRun = {
@@ -4501,44 +4500,31 @@ return seen`
 
   async function leaveAfterFirstText(sessionId: string, runId: string): Promise<void> {
     const viewer = new AbortController()
-    await readSse(
-      await sseTurn(chatKit().base, sessionId, runId, 'nobody watches', viewer.signal),
+    await readTurn(
+      await sentTurn(chatKit().base, sessionId, runId, 'nobody watches', viewer.signal),
       ChatEventType.TEXT_MESSAGE_CONTENT,
     )
     viewer.abort()
   }
 
-  const SocketFrameSchema = z.object({chunk: SseChunkSchema}).loose()
-
   async function dropSocketAfterFirstText(sessionId: string, runId: string): Promise<void> {
-    const socket = new WebSocket(`${chatKit().wsBase}${CHAT_WS_PATH}`)
-    const opened = Promise.withResolvers<void>()
-    const firstText = Promise.withResolvers<void>()
-    socket.addEventListener('open', () => opened.resolve(), {once: true})
-    socket.addEventListener('error', () => opened.reject(new Error('the chat socket did not open')), {once: true})
-    socket.addEventListener('message', (event) => {
-      const data: unknown = JSON.parse(String(event.data))
-      const frame = SocketFrameSchema.safeParse(data)
-      if (SseChunkSchema.safeParse(data).data?.type === ChatEventType.RUN_ERROR) {
-        firstText.reject(new Error(`the turn failed: ${String(event.data)}`))
-      }
-      if (frame.success && frame.data.chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT) firstText.resolve()
-    })
-    await opened.promise
-    socket.send(
-      JSON.stringify({
-        threadId: sessionId,
+    const websocket = new WebSocket(`${chatKit().origin.replace('http', 'ws')}${RPC_WS_PATH}`)
+    websocket.addEventListener('open', () =>
+      websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: chatKit().token})),
+    )
+    const oldPage: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
+    const turn = turnText(
+      await oldPage.chat.send({
+        sessionId,
         runId,
         messages: [{id: `${runId}-user`, role: 'user', content: 'reload while I work'}],
-        tools: [],
-        context: [],
       }),
     )
-    await firstText.promise
-    const closed = Promise.withResolvers<void>()
-    socket.addEventListener('close', () => closed.resolve(), {once: true})
-    socket.close()
-    await closed.promise
+    const reached = await turn.reach(`"type":"${ChatEventType.TEXT_MESSAGE_CONTENT}"`)
+    if (reached !== `"type":"${ChatEventType.TEXT_MESSAGE_CONTENT}"`) throw new Error(`the turn failed: ${reached}`)
+    const closed = once(websocket, 'close')
+    websocket.close()
+    await closed
   }
 
   function fakeNativeId(sessionId: string): string {
@@ -5920,8 +5906,7 @@ describe('page action queue delivery', () => {
     const followUpFinished = async (earlier: readonly string[] = []): Promise<void> => {
       await seenChunk(() => runIds().some((runId) => !earlier.includes(runId)))
       const runId = runIds().find((known) => !earlier.includes(known)) ?? ''
-      const joined = webSocket(`${base.replace('http', 'ws')}${CHAT_WS_PATH}`)
-      for await (const chunk of joined.joinRun(runId, pages.signal)) {
+      for await (const chunk of await makeRpcClient(base).chat.join({runId}, {signal: pages.signal})) {
         if (chunk.type === ChatEventType.RUN_ERROR) return
         if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') return
       }
@@ -5931,7 +5916,7 @@ describe('page action queue delivery', () => {
     const close = async () => onTab.end()
     const inChat = (runId: string, typescriptCode: string) => {
       harness.script.scriptToolCall('execute_typescript', {typescriptCode})
-      return sseTurn(base, sessionId, runId, 'fill the form', pages.signal)
+      return sentTurn(base, sessionId, runId, 'fill the form', pages.signal)
     }
     void watching
     const discover = async (toolNames: string[]): Promise<unknown> => {
@@ -6418,7 +6403,7 @@ describe('page action queue delivery', () => {
     const turn = page.inChat('queueing-run', queued())
     const onTab = await page.nextQueue()
     const queueId = onTab.id
-    await (await turn).text()
+    await (await turn).ended()
     await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
     await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
@@ -6445,7 +6430,7 @@ describe('page action queue delivery', () => {
       const turn = page.inChat(runId, queued())
       const onTab = await page.nextQueue()
       const queueId = onTab.id
-      await (await turn).text()
+      await (await turn).ended()
       for (const attempt of Array.from({length: failures}, (_, offset) => offset + 1))
         harness.script.scriptError(`launch failure ${attempt}`)
       await page.play(onTab, 0, pageSuccess({ok: true, value: 'Ada'}))
@@ -6483,7 +6468,7 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     harness.script.release()
-    await (await turn).text()
+    await (await turn).ended()
     await page.followUpFinished(['queueing-run'])
     expect(page.runIds().filter((runId) => runId !== 'queueing-run')).toHaveLength(1)
     expect((await page.tab.chat.hydrate({sessionId: page.sessionId})).activeRun).toBeNull()
@@ -6509,7 +6494,7 @@ describe('page action queue delivery', () => {
     const asking = asked()
     const releaseRejoin = page.onTab.holdRejoin()
     writeFileSync(helper, helperLooking('second look'))
-    const reloadTurn = sseStream(await page.inChat('eval-run', evalCode))
+    const reloadTurn = await page.inChat('eval-run', evalCode)
     const endedFirst = reloadTurn.ended().then((text) => ({endedWithoutAsking: text}))
     const first = await Promise.race([asking, endedFirst])
     expect(first).toEqual({endedWithoutAsking: expect.any(String)})
@@ -6534,7 +6519,7 @@ describe('page action queue delivery', () => {
     })
     await events.return(undefined)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['eval-again']})
-    await (await nextTurn).text()
+    await (await nextTurn).ended()
   })
 
   it('a chat-agent page_eval in the same session during a config-allowed CLI page_eval is still asked and does not run', async () => {
@@ -6567,7 +6552,7 @@ describe('page action queue delivery', () => {
     expect(await admitted).toEqual({result: 'Example'})
     await events.return(undefined)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['agent-eval']})
-    await (await agentTurn).text()
+    await (await agentTurn).ended()
     expect(evals).toEqual(['document.title'])
   })
 
@@ -6610,9 +6595,9 @@ describe('page action queue delivery', () => {
     ])
     expect(first).toBe('ran')
     await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
-    await (await allowed).text()
+    await (await allowed).ended()
     const denied = page.inChat('denied-eval', 'return await external_page_eval({code: "document.cookie"})')
-    const ended = await Promise.race([asking.then(() => 'asked'), denied.then((turn) => turn.text())])
+    const ended = await Promise.race([asking.then(() => 'asked'), denied.then((turn) => turn.ended())])
     expect(ended).toContain('denied')
     expect(evals).toEqual(['document.title'])
   })
@@ -6687,7 +6672,7 @@ describe('page action queue delivery', () => {
     expect(await asking).toMatchObject({sessionId: page.sessionId, action: 'page_eval', resources: ['document.domain']})
     expect(evals).toEqual([])
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['unruled-eval']})
-    await (await unruled).text()
+    await (await unruled).ended()
   })
 
   it('a user stop starts no follow-up turn: the owed result arrives with the agent next reply', async () => {
@@ -6696,7 +6681,7 @@ describe('page action queue delivery', () => {
     harness.script.hold()
     const viewer = new AbortController()
     onTestFinished(() => viewer.abort())
-    const send = (runId: string, content: string) => sseTurn(page.base, page.sessionId, runId, content, viewer.signal)
+    const send = (runId: string, content: string) => sentTurn(page.base, page.sessionId, runId, content, viewer.signal)
     const stopped = page.inChat('stopped-run', queued())
     const onTab = await page.nextQueue()
     const queueId = onTab.id
@@ -6704,7 +6689,7 @@ describe('page action queue delivery', () => {
     await page.play(onTab, 1, pageSuccess({ok: true, checked: true}))
     await page.finishedEvent(queueId)
     await page.tab.chat.stop({sessionId: page.sessionId, runIds: ['stopped-run']})
-    await (await stopped).text()
+    await (await stopped).ended()
     expect(await page.tab.chat.hydrate({sessionId: page.sessionId})).toMatchObject({
       activeRun: null,
       lastRun: {runId: 'stopped-run', phase: 'aborted'},
@@ -6715,7 +6700,7 @@ describe('page action queue delivery', () => {
       JSON.stringify(await executeOverMcp(page.base, {[CONCIV_SESSION_HEADER]: page.sessionId}, 'return 1')),
     ).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
     harness.script.release()
-    await (await next).text()
+    await (await next).ended()
     expect([...new Set(page.runIds())]).toEqual(['stopped-run', 'next-run'])
     expect(await page.tab.chat.hydrate({sessionId: page.sessionId})).toMatchObject({
       activeRun: null,
@@ -7314,8 +7299,12 @@ export default {
 
     const looking = (await widget.rpc.sessions.create(undefined)).sessionId
     const sessionClient = (session: string) => makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: session}})
-    const turn = (session: string, runId: string) => sseTurn(base, session, runId, 'look around')
-    await (await turn(looking, 'looked-run')).text()
+    const turn = (session: string, runId: string) => sentTurn(base, session, runId, 'look around')
+    await (await turn(looking, 'looked-run')).ended()
+    await expect(outside.chat.join({runId: 'looked-run'}).then((joined) => joined.next())).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't read the engine's event stream",
+    })
     expect((await sessionClient(looking).chat.hydrate({sessionId: looking})).lastRun).toMatchObject({
       runId: 'looked-run',
       phase: 'completed',
@@ -7335,13 +7324,13 @@ export default {
     for await (const chunk of heldEvents) if (sessionRunEvent.parse(chunk)?.runId === 'stopped-run') break
     await sessionClient(held).chat.stop({sessionId: held, runIds: ['stopped-run']})
     harness.script.release()
-    await (await stopping).text()
+    await (await stopping).ended()
     expect((await sessionClient(held).chat.hydrate({sessionId: held})).lastRun).toMatchObject({
       runId: 'stopped-run',
       phase: 'aborted',
     })
     expect(idled).toEqual([looking])
-    await (await turn(held, 'after-stop-run')).text()
+    await (await turn(held, 'after-stop-run')).ended()
     expect(idled).toEqual([looking, held])
 
     const reloads = await widget.rpc.event.subscribe()
@@ -7405,7 +7394,7 @@ export default {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const prompted = async (runId: string) => {
-      await sseTurn(base, sessionId, runId, 'say hello').then((response) => response.text())
+      await sentTurn(base, sessionId, runId, 'say hello').then((turn) => turn.ended())
       return prompts.at(-1)?.join('\n') ?? ''
     }
     const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
@@ -7739,13 +7728,13 @@ export default {
     const turn = (runId: string) => {
       runs.push(runId)
       harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return await external_asker_run({})'})
-      return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
+      return sentTurn(base, sessionId, runId, 'run the asker', new AbortController().signal)
     }
     const twoSteps = (runId: string, secondStep: string) => {
       runs.push(runId)
       harness.script.scriptToolCall('execute_typescript', {typescriptCode: "return ['the first', 'step'].join(' ')"})
       harness.script.scriptToolCall('execute_typescript', {typescriptCode: secondStep})
-      return sseTurn(base, sessionId, runId, 'run the asker', new AbortController().signal).then(sseStream)
+      return sentTurn(base, sessionId, runId, 'run the asker', new AbortController().signal)
     }
     onTestFinished(async () => {
       await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).chat.stop({sessionId, runIds: runs})
@@ -7842,7 +7831,7 @@ describe('a hub call while a turn is held in a plugin prompt hook', () => {
       gate.resolve()
       viewer.abort()
     })
-    const turn = sseTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal)
+    const turn = sentTurn(base, sessionId, 'held-run', 'hold me in the prompt hook', viewer.signal)
     await entered.promise
     const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
     const hub = makeRpcClient(base, {
@@ -7850,7 +7839,7 @@ describe('a hub call while a turn is held in a plugin prompt hook', () => {
     })
     expect(await hub.page.changes()).toEqual([])
     gate.resolve()
-    expect(await sseStream(await turn).ended()).toContain('RUN_FINISHED')
+    expect(await (await turn).ended()).toContain('RUN_FINISHED')
     const {messages} = await tab.chat.hydrate({sessionId})
     expect(
       messages.flatMap((message) =>
@@ -8209,13 +8198,13 @@ export default {
     }
     expect(await reloaded()).toEqual({look: 'second look'})
     await reloads.return(undefined)
-    const afterReload = await sseTurn(
+    const afterReload = await sentTurn(
       `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`,
       (await rpc.sessions.create(undefined)).sessionId,
       'after-reload',
       'read the domain',
     )
-    await afterReload.text()
+    await afterReload.ended()
     const refusedAfterReload = ask({type: 'eval', code: 'document.domain'})
     await decide('document.domain', 'reject')
     expect(await refusedAfterReload).toMatchObject({ok: false})
@@ -8225,7 +8214,7 @@ export default {
     })
     await expect(rpc.sessions.get({sessionId: neverSeen})).rejects.toMatchObject({code: 'NOT_FOUND'})
     expect((await rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(neverSeen)
-    await (await sseTurn(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, neverSeen, 'born', 'hello')).text()
+    await (await sentTurn(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, neverSeen, 'born', 'hello')).ended()
     expect(await tabs('open', {sessionId: neverSeen, connectionId: 'conn_x'})).toEqual({attached: true})
     expect(await tabs('close', {connectionId: 'conn_x'})).toEqual({closed: true})
     expect(await ask({type: 'route'})).toMatchObject({
@@ -8532,8 +8521,11 @@ export default {
     }
     const runId = await followUpRun()
     await following.return?.()
-    const joined = webSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_WS_PATH}`)
-    for await (const chunk of joined.joinRun(runId, AbortSignal.timeout(15_000))) {
+    const joined = makeRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`).chat.join(
+      {runId},
+      {signal: AbortSignal.timeout(15_000)},
+    )
+    for await (const chunk of await joined) {
       if (chunk.type === ChatEventType.RUN_ERROR) break
       if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') break
     }
@@ -8625,7 +8617,7 @@ export default {
     expect(ranIds).toHaveLength(2)
     expect(ranIds).toEqual(ranIds.map(() => expect.stringMatching(/^[0-9a-f-]{36}$/u)))
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-    await (await sseTurn(base, session, 'before-delete', 'remember the form')).text()
+    await (await sentTurn(base, session, 'before-delete', 'remember the form')).ended()
     expect((await rpc.chat.hydrate({sessionId: session})).messages).not.toEqual([])
     const deleting = operate({name: 'bump', input: {by: 1}, reading: false})
     const onDelete = await next('conn_e')
@@ -8684,17 +8676,19 @@ describe('prefixed serving', () => {
       await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
     })
 
-    it('streams a chat turn over the prefixed delivery route', {timeout: 15_000}, async () => {
+    it('streams a chat turn over the prefixed rpc route', {timeout: 15_000}, async () => {
       const {sessionId} = await rpc.sessions.create(undefined)
       const abort = new AbortController()
-      const connection = fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`)
       const types: string[] = []
-      for await (const chunk of connection.connect(
-        [{id: randomUUID(), role: 'user', parts: [{type: 'text', content: 'hello through the prefix'}]}],
-        {},
-        abort.signal,
-        {threadId: sessionId, runId: randomUUID()},
-      )) {
+      const sent = makeRpcClient(base).chat.send(
+        {
+          sessionId,
+          runId: randomUUID(),
+          messages: [{id: randomUUID(), role: 'user', content: 'hello through the prefix'}],
+        },
+        {signal: abort.signal},
+      )
+      for await (const chunk of await sent) {
         types.push(chunk.type)
         if (chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR) break
       }

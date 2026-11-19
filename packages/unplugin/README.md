@@ -16,7 +16,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime the Vite, webpack and rspack entries boot the engine process (`src/core/boot.ts`), the Vite hook injects the widget tags into served HTML and writes `.conciv/extensions-client.gen.tsx`, the webpack and rspack hooks write `.conciv/widget-client.<port>.gen.js` in a development build, and the Next.js widget entry mounts browser UI on `window`. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime the Vite, webpack and rspack entries boot the engine process (`src/core/boot.ts`), the Vite hook injects the widget tags into served HTML, the webpack and rspack hooks write `.conciv/widget-client.<port>.gen.js` in a development build, and the Next.js widget entry mounts browser UI on `window`. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

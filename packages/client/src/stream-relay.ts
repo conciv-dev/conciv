@@ -12,8 +12,10 @@ export async function* readingValues<T>(readable: ReadableStream<T>): AsyncGener
   }
 }
 
+export type RelaySink<T> = {emit: (value: T) => void; fail: (error: unknown) => void}
+
 export function relayedValues<T>(
-  subscribe: (emit: (value: T) => void) => () => void,
+  subscribe: (sink: RelaySink<T>) => () => void,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<T> {
   const held = {stop: () => {}}
@@ -23,7 +25,13 @@ export function relayedValues<T>(
         controller.close()
         return
       }
-      const unsubscribe = subscribe((value) => controller.enqueue(value))
+      const unsubscribe = subscribe({
+        emit: (value) => controller.enqueue(value),
+        fail: (error) => {
+          held.stop()
+          controller.error(error)
+        },
+      })
       const onAbort = () => {
         unsubscribe()
         controller.close()

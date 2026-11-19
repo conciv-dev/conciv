@@ -7,7 +7,6 @@
 '@conciv/db': patch
 '@conciv/embed': patch
 '@conciv/extension': patch
-'@conciv/extension-compiler': patch
 '@conciv/grab': patch
 '@conciv/harness': patch
 '@conciv/harness-init': patch

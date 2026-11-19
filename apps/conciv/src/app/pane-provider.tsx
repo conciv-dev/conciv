@@ -43,8 +43,6 @@ export function PaneProvider(props: {
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,
     running,
-    viewLocked: () => false,
-    setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
     grabStaging: useGrabStaging(),

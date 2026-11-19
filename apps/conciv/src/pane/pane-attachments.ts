@@ -1,7 +1,6 @@
 import type {QueuedMessage} from '@conciv/ai/client'
 import type {ContentPart, NoteComment} from '@conciv/protocol/chat-message-types'
 import type {DraftItem} from '@conciv/protocol/chat-types'
-import type {AnyExtension} from '@conciv/extension'
 import {
   composeAttachmentAdapters,
   createDocumentAttachmentAdapter,
@@ -12,7 +11,6 @@ import {
   type AttachmentCardSlot,
 } from '@conciv/ui-kit-chat'
 import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
-import {guardedAttachmentCards} from '../extension/extension-boundary.js'
 import {guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
 import {commentContextItem, formatNoteComment, readPromptPresentation} from '../composer/comment-note.js'
 import {noteItem} from '../composer/note-schema.js'
@@ -38,26 +36,22 @@ function keptInDraftStore(drafts: DraftStore | null): AttachmentAdapter {
   }
 }
 
-function attachmentCards(extensions: AnyExtension[], fallback: 'card' | 'chip'): AttachmentCardSlot[] {
-  const extensionCards = guardedAttachmentCards(extensions, fallback).filter(
-    (entry) => !pageAttachmentCards.some((card) => card.mime === entry.mime),
-  )
-  return [...pageAttachmentCards.map((card) => guardPluginAttachmentCard('page', fallback, card)), ...extensionCards]
+function attachmentCards(fallback: 'card' | 'chip'): AttachmentCardSlot[] {
+  return pageAttachmentCards.map((card) => guardPluginAttachmentCard('page', fallback, card))
 }
 
 export function paneAttachments(
-  extensions: AnyExtension[],
   imageInput: unknown,
   drafts: DraftStore | null,
 ): {cards: AttachmentCardSlot[]; chips: AttachmentCardSlot[]; adapter: AttachmentAdapter} {
-  const cards = attachmentCards(extensions, 'card')
+  const cards = attachmentCards('card')
   const image = imageInput === 'native' || imageInput === 'fileRef' ? keptInDraftStore(drafts) : undefined
   const adapter = composeAttachmentAdapters([
     ...(image ? [image] : []),
     TEXT_ATTACHMENT_ADAPTER,
     ...cards.map((entry) => createDocumentAttachmentAdapter(entry.mime)),
   ])
-  return {cards, chips: attachmentCards(extensions, 'chip'), adapter}
+  return {cards, chips: attachmentCards('chip'), adapter}
 }
 
 export type ReturnedDraft = {text: string; files: File[]; items: DraftItem[]}

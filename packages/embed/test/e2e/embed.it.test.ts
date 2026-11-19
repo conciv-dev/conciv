@@ -1,4 +1,4 @@
-import {expect, test, type Browser, type Locator, type Page, type WebSocketRoute} from '@playwright/test'
+import {expect, test, type Browser, type Locator, type Page} from '@playwright/test'
 import {
   bootEmbedKit,
   type EmbedKit,
@@ -40,8 +40,14 @@ import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
 import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
-import {CHAT_WS_PATH, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
-import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
+import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {
+  holdRpcCalls,
+  failRpcCalls,
+  gateRpcCalls,
+  garbleRpcReplies,
+  type RpcFaultInjector,
+} from '@conciv/plugin-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
@@ -738,7 +744,7 @@ test.describe('element capture', () => {
       expect(JSON.stringify(stored)).not.toContain(PASSWORD)
     })
 
-    test('hands the harness a result with no capture in it, through the page plugin alone', async ({page}) => {
+    test('hands the harness a result with no capture, via the page plugin on the rpc socket only', async ({page}) => {
       test.setTimeout(90_000)
       const socketPaths = new Set<string>()
       page.on('websocket', (socket) => socketPaths.add(new URL(socket.url()).pathname))
@@ -749,7 +755,7 @@ test.describe('element capture', () => {
       expect(result).toContain('"success":true')
       expect(calls.startedSince(['page', 'queries'])).toBe(0)
       expect(calls.startedSince(['page', 'reply'])).toBe(0)
-      expect([...socketPaths].toSorted()).toEqual([CHAT_WS_PATH, RPC_WS_PATH].toSorted())
+      expect([...socketPaths]).toEqual([RPC_WS_PATH])
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -877,9 +883,7 @@ test.describe('forced drop', () => {
   }
 
   test.describe('chat survives a forced websocket drop', () => {
-    test('reopens the chat socket and completes the next turn after the core drops every connection', async ({
-      page,
-    }) => {
+    test('reopens the rpc socket and completes the next turn after the core drops every connection', async ({page}) => {
       test.setTimeout(120_000)
       const pageErrors: string[] = []
       page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -892,7 +896,7 @@ test.describe('forced drop', () => {
 
       const first = wire.nextTurn()
       await sendTurn(page, FIRST_TEXT)
-      expect((await first).transport).toBe('websocket')
+      expect((await first).content).toBe(FIRST_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: MOUNT_TIMEOUT_MS})
 
       const mark = wire.socketMark()
@@ -900,7 +904,7 @@ test.describe('forced drop', () => {
       suite.core().dropConnections()
 
       await sendTurn(page, SECOND_TEXT)
-      expect((await second).transport).toBe('websocket')
+      expect((await second).content).toBe(SECOND_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: MOUNT_TIMEOUT_MS})
 
       expect(wire.socketsOpenedSince(mark)).toBeGreaterThan(0)
@@ -993,20 +997,7 @@ test.describe('forced drop', () => {
       const away = await kit.rpc.sessions.create()
       const awayTitle = `session away ${away.sessionId.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: away.sessionId, title: awayTitle})
-      const refusing = {value: false}
-      const chatSockets: WebSocketRoute[] = []
-      await page.routeWebSocket(
-        (url) => url.pathname.endsWith(CHAT_WS_PATH),
-        (socket) => {
-          if (refusing.value) return socket.close()
-          chatSockets.push(socket)
-          socket.connectToServer()
-        },
-      )
-      const cutChatStream = async (): Promise<void> => {
-        refusing.value = true
-        await Promise.all(chatSockets.splice(0).map((socket) => socket.close()))
-      }
+      const chatStreams = await refusableChatStreams(page)
       const sessionId = SessionId.parse(await openPanelOnNewSession(page, suite))
       const title = `session under test ${sessionId.slice(-12)}`
       const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
@@ -1028,12 +1019,12 @@ test.describe('forced drop', () => {
 
         await switchToSessionByTitle(page, awayTitle)
         await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(0)
-        await cutChatStream()
+        await chatStreams.cut()
         await until(async () => (await kit.rpc.drafts.get({sessionId}))?.text.includes(QUEUED_TEXT) === true, {
           hangGuardMs: 60_000,
           intervalMs: 100,
         })
-        refusing.value = false
+        await chatStreams.allow()
         kit.harness.script.release()
 
         await switchToSessionByTitle(page, title)
@@ -1053,14 +1044,14 @@ test.describe('forced drop', () => {
         await expect(stop).toBeVisible()
         await expect(chatLog(page).getByText(ANSWERED_TEXT)).toHaveCount(1)
         await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(3)
-        await cutChatStream()
+        await chatStreams.cut()
         const gaveUpNotice = page
           .getByRole('alert')
           .filter({hasText: gaveUp, has: page.getByRole('button', {name: 'Dismiss'})})
         await expect(gaveUpNotice).toBeVisible()
         await expect(composer).toHaveText('')
       } finally {
-        refusing.value = false
+        await chatStreams.allow()
         kit.harness.script.release()
       }
     })
@@ -1074,16 +1065,7 @@ test.describe('forced drop', () => {
       const awayTitle = `draft read held ${away.sessionId.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: away.sessionId, title: awayTitle})
       const draftRead = await gateRpcCalls(page, {path: ['drafts', 'get'], onRelease: 'cut'})
-      const refusing = {value: false}
-      const chatSockets: WebSocketRoute[] = []
-      await page.routeWebSocket(
-        (url) => url.pathname.endsWith(CHAT_WS_PATH),
-        (socket) => {
-          if (refusing.value) return socket.close()
-          chatSockets.push(socket)
-          socket.connectToServer()
-        },
-      )
+      const chatStreams = await refusableChatStreams(page)
       const sessionId = SessionId.parse(await openPanelOnNewSession(page, suite))
       const title = `session under test ${sessionId.slice(-12)}`
       const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
@@ -1108,13 +1090,12 @@ test.describe('forced drop', () => {
         await expect(chatLog(page).getByText(RUNNING_TEXT)).toHaveCount(0)
         failingReads.push(await failRpcCalls(page, {path: ['drafts', 'get']}))
         await draftRead.dispose()
-        refusing.value = true
-        await Promise.all(chatSockets.splice(0).map((socket) => socket.close()))
+        await chatStreams.cut()
         await until(async () => (await kit.rpc.drafts.get({sessionId}))?.text === QUEUED_TEXT, {
           hangGuardMs: 60_000,
           intervalMs: 100,
         })
-        refusing.value = false
+        await chatStreams.allow()
         kit.harness.script.release()
 
         await switchToSessionByTitle(page, title)
@@ -1122,7 +1103,7 @@ test.describe('forced drop', () => {
         await expect(queued).toBeHidden()
         await expect(chatLog(page).getByText(QUEUED_TEXT)).toHaveCount(0)
       } finally {
-        refusing.value = false
+        await chatStreams.allow()
         kit.harness.script.release()
         await draftRead.dispose()
         for (const fault of failingReads) await fault.dispose()
@@ -2079,9 +2060,7 @@ test.describe('panel focus', () => {
 
     test('paints the shell while the session list is still loading, then focuses the composer', async ({page}) => {
       test.setTimeout(90_000)
-      const host = await serveWidgetHost(() =>
-        hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
-      )
+      const host = await serveWidgetHost(() => hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false}'}))
       dedicatedHosts.push(host)
       const sessionListGate = await gateRpcCalls(page, {path: SESSIONS_LIST})
       await openLoggedIn(page, suite.kit(), host.base)
@@ -2708,6 +2687,66 @@ test.describe('reload continuity', () => {
       }
     })
   })
+
+  test.describe('restoring a persisted plugin panel route whose plugin is gone', () => {
+    let viewerKit: CoreKit
+    let viewerHost: {base: string; close: () => Promise<void>}
+
+    test.beforeEach(async () => {
+      viewerKit = await bootCoreKit({
+        id: 'fake-embed',
+        text: ASSISTANT_TEXT,
+        plugins: ['./viewer'],
+        files: {
+          'viewer/index.ts': `export default {id: 'viewer', async setup() {}}
+`,
+          'viewer/plugin-experimental.js': `const {Panel} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'viewer',
+    region: 'pane',
+    list: () => [{id: 'viewer', title: 'Viewer', pinned: true}],
+    render: () => document.createTextNode('Viewer body'),
+  })
+}}}
+`,
+        },
+      })
+      viewerHost = await serveWidgetHost(() => hostPage({apiBase: viewerKit.base, widget: '{"quickTerminal":false}'}))
+    })
+
+    test.afterEach(async () => {
+      await viewerHost.close()
+      await viewerKit.cleanup()
+    })
+
+    test('lands on the chat view instead of an empty pane', async ({page}) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, viewerKit, viewerHost.base)
+      await openPanel(page)
+
+      await page.getByRole('tab', {name: 'Viewer'}).click()
+      await expect(page.getByRole('tab', {name: 'Viewer'})).toHaveAttribute('aria-selected', 'true')
+      await expect(page.getByText('Viewer body', {exact: true})).toBeVisible({timeout: 30_000})
+      await until(async () => (await currentHref(viewerKit)).includes('/viewer%3Aviewer'), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+
+      await viewerKit.rpc.settings.set({scope: 'global', namespace: 'plugin-enable', key: 'viewer', value: false})
+      await page.goto(viewerHost.base, {waitUntil: 'domcontentloaded'})
+
+      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('tab', {name: 'Viewer'})).toHaveCount(0)
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+      const statusBar = page.getByRole('toolbar', {name: 'Session status'})
+      await expect(statusBar.getByRole('tab', {name: 'Chat', exact: true})).toHaveAttribute('aria-selected', 'true')
+      await until(async () => !(await currentHref(viewerKit)).includes('/viewer%3Aviewer'), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+    })
+  })
 })
 
 test.describe('remount', () => {
@@ -2940,3 +2979,22 @@ test.describe('virtualize threshold cliff', () => {
     })
   })
 })
+
+async function refusableChatStreams(page: Page): Promise<{cut: () => Promise<void>; allow: () => Promise<void>}> {
+  const socket = rpcSocketFor(page)
+  await socket.installed
+  const refusals: RpcFaultInjector[] = []
+  return {
+    cut: async () => {
+      refusals.push(
+        await garbleRpcReplies(page, {path: ['chat', 'send']}),
+        await garbleRpcReplies(page, {path: ['chat', 'join']}),
+      )
+      await socket.hold()
+      socket.release()
+    },
+    allow: async () => {
+      for (const refusal of refusals.splice(0)) await refusal.dispose()
+    },
+  }
+}

@@ -2,11 +2,11 @@
 
 ## Overview
 
-Builds the single conciv unplugin instance that the bundler entries share, with the built-in server extensions and their client entries.
+Builds the single conciv unplugin instance that the bundler entries share.
 
 ## Interface
 
-- `plugin-instance.ts:unplugin` - `createConcivUnplugin` with `serverExtensions` terminal, test-runner, whiteboard, recorder, ios and design; their `/client` entries; `embedEntry`; `nativePageDir`; `dedupeEntry`.
+- `plugin-instance.ts:unplugin` - `createConcivUnplugin` with `embedEntry` (the resolved `@conciv/embed`) and `nativePageDir` (its folder).
 - Subdirectories: [plugin](./plugin/README.md).
 
 ## Invariants

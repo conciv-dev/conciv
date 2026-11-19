@@ -7,20 +7,18 @@ import {
   DEV_PORT,
   agentApiBase,
   ENGINE_PORT,
-  SECOND_SENTINEL,
+  SECOND_PLUGIN_LINE,
   buildProd,
   killPort,
   packedServerModule,
   prodConcivChunkHits,
-  readGeneratedEntry,
-  removeSecondExtension,
+  removeSecondPlugin,
   setupFixture,
   startNext,
   stopNext,
   teardownFixture,
-  waitFor,
   waitReady,
-  writeSecondExtension,
+  writeSecondPlugin,
   type Fixture,
   type NextHandle,
 } from '../packed/harness.js'
@@ -30,7 +28,8 @@ const SERVER_ONLY_SYMBOLS = ['readRouteManifest', 'tanstack.routeManifest.read']
 const SETUP_TIMEOUT = 6 * 60_000
 const CELL_TIMEOUT = 12 * 60_000
 
-test.describe.serial('installed TanStack plugin and extensions on packed Next 16.2 (turbopack + webpack)', () => {
+test.describe
+  .serial('installed TanStack plugin and a second project plugin on packed Next 16.2 (turbopack + webpack)', () => {
   let fixture: Fixture
   let handle: NextHandle | undefined
 
@@ -43,7 +42,7 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     if (handle !== undefined) await stopNext(handle, ENGINE_PORT)
     handle = undefined
     await killPort(ENGINE_PORT)
-    removeSecondExtension(fixture.appDir)
+    removeSecondPlugin(fixture.appDir)
   })
 
   test.afterAll(() => {
@@ -61,14 +60,6 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     await loginWidget(page, `http://localhost:${DEV_PORT}/`, handle.appDir)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 60_000})
-  }
-
-  async function restartFresh(page: Page, webpack: boolean): Promise<void> {
-    await page.goto('about:blank')
-    if (handle !== undefined) await stopNext(handle, ENGINE_PORT)
-    await killPort(ENGINE_PORT)
-    handle = startNext(fixture.appDir, {webpack, devPort: DEV_PORT})
-    await waitReady(handle, ENGINE_PORT)
   }
 
   async function fetchClientScripts(page: Page): Promise<string> {
@@ -92,32 +83,18 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     }
   }
 
-  async function editExtensionsAndAwaitReload(page: Page, edit: () => void, applied: () => boolean): Promise<void> {
-    const reloaded = page.waitForEvent('load')
-    edit()
-    await waitFor(async () => applied(), 30_000)
-    await reloaded
-  }
-
-  async function assertLiveAddRemove(page: Page, webpack: boolean): Promise<void> {
-    expect(await page.getByText(SECOND_SENTINEL).count()).toBe(0)
-    await editExtensionsAndAwaitReload(
-      page,
-      () => writeSecondExtension(fixture.appDir),
-      () => readGeneratedEntry(fixture.appDir).includes('second'),
-    )
-    await restartFresh(page, webpack)
-    await gotoAndOpen(page)
-    await expect(page.getByText(SECOND_SENTINEL).first()).toBeVisible({timeout: 60_000})
-    await editExtensionsAndAwaitReload(
-      page,
-      () => removeSecondExtension(fixture.appDir),
-      () => !readGeneratedEntry(fixture.appDir).includes('second'),
-    )
-    await restartFresh(page, webpack)
-    await gotoAndOpen(page)
+  async function assertLiveAddRemove(page: Page): Promise<void> {
+    const loads: string[] = []
+    page.on('load', () => loads.push(page.url()))
+    const secondLine = page.getByText(SECOND_PLUGIN_LINE)
+    await expect(secondLine).toHaveCount(0)
+    writeSecondPlugin(fixture.appDir)
+    await expect(secondLine).toBeVisible({timeout: 60_000})
     await expect(chip(page)).toBeVisible()
-    expect(await page.getByText(SECOND_SENTINEL).count()).toBe(0)
+    removeSecondPlugin(fixture.appDir)
+    await expect(secondLine).toHaveCount(0, {timeout: 60_000})
+    await expect(chip(page)).toBeVisible()
+    expect(loads).toEqual([])
   }
 
   test('the packed install resolves one @tanstack/ai-sandbox, so SandboxCapability stays single (#107)', () => {
@@ -127,7 +104,7 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     expect(copies).toHaveLength(1)
   })
 
-  test('turbopack: renders the chip, degrades gracefully without a TanStack app, and lives through add/remove', async ({
+  test('turbopack: renders the chip, degrades gracefully without a TanStack app, and adds and removes a second plugin live', async ({
     page,
   }) => {
     test.setTimeout(CELL_TIMEOUT)
@@ -147,7 +124,8 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])
 
-    await assertLiveAddRemove(page, false)
+    await assertLiveAddRemove(page)
+    expect(pageErrors).toEqual([])
   })
 
   test('turbopack: the dev client graph excludes the plugin engine module', async ({page}) => {
@@ -157,7 +135,7 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     assertServerModuleAbsent(await fetchClientScripts(page))
   })
 
-  test('webpack: renders the chip, keeps the server module out of the client graph, and lives through add/remove', async ({
+  test('webpack: renders the chip, keeps the server module out of the client graph, and adds and removes a second plugin live', async ({
     page,
   }) => {
     test.setTimeout(CELL_TIMEOUT)
@@ -169,7 +147,8 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     assertServerModuleAbsent(await fetchClientScripts(page))
     expect(pageErrors).toEqual([])
 
-    await assertLiveAddRemove(page, true)
+    await assertLiveAddRemove(page)
+    expect(pageErrors).toEqual([])
   })
 
   test('webpack: the engine boots when the dev watcher reports instrumentation.ts after the server prepared', async () => {
@@ -184,9 +163,8 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     const markers = [
       'conciv picked',
       '@conciv/embed',
-      'dedupeExtensions',
       'mountConciv',
-      'extensions-client.gen',
+      '[conciv] widget failed to start',
       CLIENT_SENTINEL_ID,
       '__CONCIV_API_BASE__',
       'readRouteManifest',
