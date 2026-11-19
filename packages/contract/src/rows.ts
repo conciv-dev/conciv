@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {NativeSessionRefSchema, ReasoningEffortSchema, SessionId} from '@conciv/protocol/chat-types'
+import {DraftItemSchema, NativeSessionRefSchema, ReasoningEffortSchema, SessionId} from '@conciv/protocol/chat-types'
 import {UsageSnapshotSchema} from '@conciv/protocol/usage-types'
 
 export {UsageSnapshotSchema}
@@ -47,6 +47,11 @@ export const DraftRowSchema = z.object({
   selectionEnd: z.number().int().min(0),
   attachments: z
     .array(PersistedAttachmentSchema)
+    .nullable()
+    .default([])
+    .transform((value) => value ?? []),
+  items: z
+    .array(DraftItemSchema)
     .nullable()
     .default([])
     .transform((value) => value ?? []),

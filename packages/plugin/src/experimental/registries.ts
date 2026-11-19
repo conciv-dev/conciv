@@ -343,7 +343,12 @@ export interface CodeBlockAction {
 }
 
 export interface NoteCardProps {
-  readonly note: ComposerNote
+  /**
+   * The note, staged in the composer or sent in a message.
+   *
+   * @remarks A sent note has no `commentId`.
+   */
+  readonly note: Omit<ComposerNote, 'commentId'> & {readonly commentId?: string}
   readonly session?: MountedSession
 }
 

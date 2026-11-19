@@ -16,10 +16,15 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {Key} from '@solid-primitives/keyed'
-import {isEqual, takeRightWhile} from 'es-toolkit'
+import {isEqual, sumBy, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
-import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
+import {
+  PromptPresentationSchema,
+  type ChatMessage,
+  type ChatPart,
+  type ToolCallPart,
+} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
@@ -58,6 +63,8 @@ import {
   ANSWER_ROW_CLASS,
   ASSISTANT_ROOT_CLASS,
   PROMPT_GUTTER_CLASS,
+  PROMPT_BODY_CLASS,
+  PROMPT_NOTES_ROW_CLASS,
   PROMPT_ROOT_CLASS,
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
@@ -92,6 +99,7 @@ export type ThreadMessagesProps = {
   render?: ToolRender
   renderPending?: boolean
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
+  promptSuffix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
   grouping?: Grouping
@@ -138,6 +146,10 @@ function promptLabel(turn: Turn): string {
   const excerpt = promptExcerpt(turn)
   if (excerpt) return `You: ${excerpt}`
   const attachments = shownAttachmentParts(turn.parts)
+  const notes = sentNoteCount(turn)
+  if (attachments.length === 0 && notes > 0) {
+    return `You: ${notes} ${COUNT_PLURALS.select(notes) === 'one' ? 'note' : 'notes'}`
+  }
   if (attachments.length === 1 && attachments[0]?.type === 'image') return 'You: image'
   const noun = COUNT_PLURALS.select(attachments.length) === 'one' ? 'attachment' : 'attachments'
   return `You: ${attachments.length} ${noun}`
@@ -428,8 +440,17 @@ function AssistantTurn(props: {
   )
 }
 
-function collectPromptText(turn: Turn): string {
-  return turn.parts
+function sentNoteCount(turn: Turn): number {
+  return sumBy(
+    turn.messages,
+    (message) => PromptPresentationSchema.safeParse(message.metadata).data?.comments.length ?? 0,
+  )
+}
+
+function messagePromptText(message: ChatMessage): string[] {
+  const display = PromptPresentationSchema.safeParse(message.metadata)
+  if (display.success) return display.data.displayText.trim() ? [display.data.displayText] : []
+  const text = message.parts
     .filter(
       (part): part is Extract<ChatPart, {type: 'text'}> =>
         part.type === 'text' && part.content.trim().length > 0 && !partIsModelOnly(part),
@@ -437,6 +458,11 @@ function collectPromptText(turn: Turn): string {
     .map((part) => part.content)
     .join('')
     .trim()
+  return text ? [text] : []
+}
+
+function collectPromptText(turn: Turn): string {
+  return turn.messages.flatMap(messagePromptText).join('\n')
 }
 
 function UserTurn(): JSX.Element {
@@ -444,7 +470,10 @@ function UserTurn(): JSX.Element {
   const message = useMessage()
   const AttachmentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
   const promptText = createMemo(() => collectPromptText(message.message()))
-  const shown = createMemo(() => promptText().length > 0 || shownAttachmentParts(message.message().parts).length > 0)
+  const noteCount = createMemo(() => sentNoteCount(message.message()))
+  const shown = createMemo(
+    () => promptText().length > 0 || shownAttachmentParts(message.message().parts).length > 0 || noteCount() > 0,
+  )
   const label = createMemo(() => promptLabel(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
@@ -457,17 +486,30 @@ function UserTurn(): JSX.Element {
               <Message.Attachments components={{Image: AttachmentCard, Document: AttachmentCard}} />
             </div>
           </Message.If>
-          <Message.If hasText>
-            <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
-              <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
-                ❯
-              </span>
-              <span class={PROMPT_TEXT_CLASS}>
-                <HighlightedText text={promptText()} />
-              </span>
-              <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
-            </div>
-          </Message.If>
+          <Switch>
+            <Match when={promptText()}>
+              <div data-conciv-msg class={PROMPT_ROOT_CLASS}>
+                <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
+                  ❯
+                </span>
+                <div class={PROMPT_BODY_CLASS}>
+                  <span class={PROMPT_TEXT_CLASS}>
+                    <HighlightedText text={promptText()} />
+                  </span>
+                  <PromptSuffix />
+                </div>
+                <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+              </div>
+            </Match>
+            <Match when={noteCount() > 0}>
+              <div class={PROMPT_NOTES_ROW_CLASS}>
+                <div class={PROMPT_BODY_CLASS}>
+                  <PromptSuffix />
+                </div>
+                <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
+              </div>
+            </Match>
+          </Switch>
         </Message.Root>
       </Show>
     </TurnFrame>
@@ -481,6 +523,7 @@ type ThreadConfig = {
   renderPending: () => boolean
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
+  promptSuffix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -496,6 +539,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   renderPending: () => false,
   assistant: () => undefined,
   turnPrefix: () => undefined,
+  promptSuffix: () => undefined,
   attachmentCards: () => [],
   pageSession: () => undefined,
   grouping: () => undefined,
@@ -510,6 +554,16 @@ function TurnPrefix(): JSX.Element {
   return (
     <Show when={config.turnPrefix()}>
       {(prefix) => prefix()({key: message.key, role: message.role, turn: message.message})}
+    </Show>
+  )
+}
+
+function PromptSuffix(): JSX.Element {
+  const config = useContext(ThreadConfigContext)
+  const message = useMessage()
+  return (
+    <Show when={config.promptSuffix()}>
+      {(suffix) => suffix()({key: message.key, role: message.role, turn: message.message})}
     </Show>
   )
 }
@@ -601,7 +655,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   const estimator = internal
     ? createTurnEstimator(internal.element, {
         grouping: () => props.grouping ?? createGrouping(props.pageSession, props.tools ?? []),
-        exactAllowed: () => props.turnPrefix === undefined,
+        exactAllowed: () => props.turnPrefix === undefined && props.promptSuffix === undefined,
         disabled: () => props.components?.AssistantMessage !== undefined,
       })
     : undefined
@@ -614,6 +668,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         renderPending: () => props.renderPending ?? false,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
+        promptSuffix: () => props.promptSuffix,
         attachmentCards: () => props.attachmentCards ?? [],
         pageSession: () => props.pageSession,
         grouping: () => props.grouping,

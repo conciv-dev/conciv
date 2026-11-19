@@ -18,11 +18,16 @@ const FLUSH_CUES: readonly [Window | Document, string][] = [
   [document, 'visibilitychange'],
 ]
 
+export type PageCapture = {
+  readonly boot: SubscriptionRef.SubscriptionRef<BootState>
+  readonly flushNow: Effect.Effect<void>
+}
+
 export function bootCapture(
   ctx: Context,
   runtime: PluginRuntime,
   clientId: string,
-): Effect.Effect<SubscriptionRef.SubscriptionRef<BootState>, never, Scope.Scope> {
+): Effect.Effect<PageCapture, never, Scope.Scope> {
   const recorder = ctx.client.rpc(Recorder)
   const page = ctx.use(Page)
   const connected = accessorStream(() => ctx.servers.get('engine')?.connected === true).pipe(Stream.changes)
@@ -54,7 +59,7 @@ export function bootCapture(
           catch: (cause) => FlushFailed.make({cause}),
         }),
     })
-    return yield* runBoot({
+    const boot = yield* runBoot({
       connected,
       readLive: Effect.tryPromise({
         try: (signal) => recorder.state(undefined, {signal}),
@@ -82,6 +87,7 @@ export function bootCapture(
           }),
         ),
     })
+    return {boot, flushNow: flusher.flushNow}
   })
 }
 
