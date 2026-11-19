@@ -2,16 +2,15 @@ import type {Context} from '@conciv/plugin/effect/plugin'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Effect} from 'effect'
 import {z} from 'zod'
-import type {TestRunnerManager} from './runner/contract.js'
-import {TestRunResultSchema} from './shared/events.js'
+import type {RunnerUnavailable, TestRunnerManager} from './runner.js'
+import {TestRunResultSchema} from './events.js'
 import {ListResultSchema} from './rpc.js'
 
 const codeMode = {namespace: 'test_runner', codemode: true}
 const direct = {namespace: 'test_runner', codemode: false}
 
-function toolFailure(error: unknown): Tool.Error {
-  if (error instanceof globalThis.Error && Tool.isToolError(error)) return error
-  return Tool.makeError({message: error instanceof globalThis.Error ? error.message : String(error), error})
+function toolFailure(error: RunnerUnavailable) {
+  return Effect.fail(Tool.toolError({message: error.message, error}))
 }
 
 export const register = Effect.fn('TestRunnerTools.register')(function* (
@@ -30,7 +29,10 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       output: ListResultSchema,
       options: codeMode,
       execute: () =>
-        Effect.tryPromise({try: () => manager.list(), catch: toolFailure}).pipe(Effect.map((output) => ({output}))),
+        manager.list(false).pipe(
+          Effect.map((output) => ({output})),
+          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+        ),
     })
     editor.add({
       name: 'run',
@@ -39,10 +41,10 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       output: TestRunResultSchema,
       options: direct,
       execute: ({pattern}) =>
-        Effect.tryPromise({
-          try: () => manager.run({patterns: pattern ? [pattern] : undefined}),
-          catch: toolFailure,
-        }).pipe(Effect.map((output) => ({output}))),
+        manager.run({patterns: pattern ? [pattern] : undefined}).pipe(
+          Effect.map((output) => ({output})),
+          Effect.catchTag('TestRunner.RunnerUnavailable', toolFailure),
+        ),
     })
     editor.add({
       name: 'status',
@@ -50,7 +52,7 @@ export const register = Effect.fn('TestRunnerTools.register')(function* (
       input: z.object({}),
       output: TestRunResultSchema,
       options: direct,
-      execute: () => Effect.try({try: () => ({output: manager.status()}), catch: toolFailure}),
+      execute: () => manager.status.pipe(Effect.map((output) => ({output}))),
     })
   })
 })
