@@ -124,9 +124,9 @@ const deployRun = defineTool({
 export default defineExtension({name: 'deploy', tools: [deployRun]})
 ```
 
-Extensions are plain Solid JSX (compiled as a Solid zone even inside a React host app) and ship
-with a real test harness: [`@conciv/extension-testkit`](./packages/extension-testkit) mounts any
-extension in a real browser against a real spawned server.
+Extensions are plain Solid JSX (compiled as a Solid zone even inside a React host app). Plugins ship
+with a real test harness: [`@conciv/plugin-testkit`](./packages/plugin-testkit) boots the real
+engine with your plugin loaded and a fake model.
 
 Two built-ins show what the contracts can do, the whiteboard and test-runner plugins:
 
@@ -145,13 +145,13 @@ Two built-ins show what the contracts can do, the whiteboard and test-runner plu
 
 Install these. Everything else on npm under `@conciv/*` is internal and comes in automatically:
 
-| Package                                                        | What it is                                                                                                 |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [`@conciv/it`](./packages/it)                                  | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs). |
-| [`@conciv/extension`](./packages/extension)                    | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.     |
-| [`@conciv/extension-testkit`](./packages/extension-testkit)    | Mounts any extension in a real browser against a real spawned server, through its real contract.           |
-| [`@conciv/plugin-test-runner`](./packages/plugins/test-runner) | The test-runner plugin: `plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]`.                   |
-| [`@conciv/try`](./packages/try)                                | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.       |
+| Package                                                        | What it is                                                                                                  |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](./packages/it)                                  | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs).  |
+| [`@conciv/extension`](./packages/extension)                    | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.      |
+| [`@conciv/plugin-testkit`](./packages/plugin-testkit)          | Boots the real engine with your plugin loaded and a fake model, for plugin tests through the real contract. |
+| [`@conciv/plugin-test-runner`](./packages/plugins/test-runner) | The test-runner plugin: `plugins: [['@conciv/plugin-test-runner', {runner: 'vitest'}]]`.                    |
+| [`@conciv/try`](./packages/try)                                | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.        |
 
 Under the hood (installed automatically by `@conciv/it`):
 

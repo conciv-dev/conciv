@@ -375,11 +375,7 @@
       }
     },
     {
-      "files": [
-        "packages/extensions/**/test/**",
-        "packages/extension-testkit/**/test/**",
-        "packages/plugin-testkit/**/test/**"
-      ],
+      "files": ["packages/extensions/**/test/**", "packages/plugin-testkit/**/test/**"],
       "rules": {
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
@@ -389,7 +385,7 @@
       }
     },
     {
-      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**", "packages/plugin-testkit/src/**"],
+      "files": ["packages/embed/test/**", "packages/plugin-testkit/src/**"],
       "rules": {
         "playwright/prefer-web-first-assertions": "error"
       }
@@ -422,11 +418,7 @@
       }
     },
     {
-      "files": [
-        "packages/harness-testkit/src/**",
-        "packages/extension-testkit/src/**",
-        "packages/plugin-testkit/src/**"
-      ],
+      "files": ["packages/harness-testkit/src/**", "packages/plugin-testkit/src/**"],
       "rules": {
         "conciv/no-predicate-waits": "error"
       }
@@ -461,7 +453,7 @@
       }
     },
     {
-      "files": ["packages/harness-testkit/src/create-testkit.ts", "packages/extension-testkit/src/boot-server.ts"],
+      "files": ["packages/harness-testkit/src/create-testkit.ts"],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
       }
