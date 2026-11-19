@@ -19,7 +19,7 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
   }
   return (
     <div
-      class="px-1.5 border-b border-b-chat-line-soft border-b-solid flex shrink-0 gap-1 min-h-10 items-center"
+      class="px-1.5 py-1.5 border-b border-b-chat-line-soft border-b-solid flex shrink-0 gap-1 items-center"
       role="toolbar"
       aria-label="Terminal"
     >
