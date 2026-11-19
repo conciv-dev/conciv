@@ -2370,13 +2370,13 @@ test.describe('rebind', () => {
       pluginKit = await bootCoreKit({
         id: 'fake-embed',
         text: ASSISTANT_TEXT,
-        plugins: ['./panel-end'],
+        plugins: ['./status-slot'],
         files: {
-          'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
+          'status-slot/index.ts': `export default {id: 'status-slot', async setup() {}}
 `,
-          'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
+          'status-slot/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
 module.exports = {default: {setup(ctx) {
-  ctx.add(Slot, {at: 'session.panel.end', render: () => Object.assign(document.createElement('span'), {textContent: '${PLUGIN_TEXT}'})})
+  ctx.add(Slot, {at: 'session.status', render: () => Object.assign(document.createElement('span'), {textContent: '${PLUGIN_TEXT}'})})
 }}}
 `,
         },
@@ -2393,7 +2393,7 @@ module.exports = {default: {setup(ctx) {
       await mountHandle(page, pluginKit.base)
       await openChatPanel(page)
       const bar = page.getByRole('toolbar', {name: 'Session status'})
-      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(page.getByText(PLUGIN_TEXT, {exact: true})).toBeVisible({timeout: 30_000})
 
       await rebindHandle(page, kit.base)
       await logInFromPanelNotice(page, kit, LOGGED_OUT_SENTENCE)
@@ -2401,7 +2401,7 @@ module.exports = {default: {setup(ctx) {
       await sendChatMessage(page, USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(bar.getByRole('tab', {name: 'Chat'})).toBeVisible({timeout: 30_000})
-      await expect(bar.getByText(PLUGIN_TEXT, {exact: true})).toHaveCount(0, {timeout: 30_000})
+      await expect(page.getByText(PLUGIN_TEXT, {exact: true})).toHaveCount(0, {timeout: 30_000})
     })
   })
 })

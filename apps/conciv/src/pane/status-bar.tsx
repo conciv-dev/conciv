@@ -21,7 +21,6 @@ export type StatusBarProps = {
   activeView: string
   onSelectView: (id: string) => void
   disabled: boolean
-  end?: JSX.Element
 }
 
 const BAR =
@@ -57,7 +56,6 @@ const PLUGIN_LABEL =
   'flex items-baseline gap-1.5 min-w-0 max-w-24 overflow-hidden whitespace-nowrap font-chat [&_svg]:flex-none [&_svg]:self-center [&_svg]:size-3'
 const VIEW_HINT = 'font-chat text-chat-hint ps-1.5 border-s border-s-solid border-s-chat-frame-line'
 const VIEW_HINT_DIGIT = 'font-chat-mono text-chat-micro'
-const VIEW_END = 'flex-none flex items-center gap-1 px-1.5 border-s border-s-solid border-s-chat-line-soft empty:hidden'
 const VIEW_INDICATOR =
   'chat-view-indicator top-0 h-0.5 bg-chat-accent [width:var(--width)] [left:var(--left)] [--transition-duration:200ms] [--transition-timing-function:var(--chat-ease-expo)] motion-reduce:[--transition-duration:0ms]'
 
@@ -127,7 +125,6 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           </Key>
           <Tabs.Indicator class={VIEW_INDICATOR} />
         </Tabs.List>
-        <div class={VIEW_END}>{props.end}</div>
       </Tabs.Root>
     </div>
   )

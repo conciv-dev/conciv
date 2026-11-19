@@ -519,9 +519,8 @@ describe('experimental', () => {
     const statusHides: Experimental.Slot = {at: 'session.status', hides: true, render: () => null}
     expect([overlay, plainOverlay, statusHides].map((slot) => slot.at)).toHaveLength(3)
     expectTypeOf<keyof Experimental.SlotMap>().toEqualTypeOf<
-      'window.bottom' | 'session.header' | 'session.status' | 'page.overlay' | 'session.panel.end'
+      'window.bottom' | 'session.header' | 'session.status' | 'page.overlay'
     >()
-    expectTypeOf<Experimental.SlotMap['session.panel.end']['session']>().toEqualTypeOf<Experimental.MountedSession>()
     expectTypeOf<Experimental.PanelTab['fallback']>().toEqualTypeOf<boolean | undefined>()
     const ineligible: Experimental.PanelTab = {id: 'details', title: 'Details', fallback: false}
     expectTypeOf<Extract<Experimental.Live<never>, {status: 'inactive'}>['reason']>().toEqualTypeOf<

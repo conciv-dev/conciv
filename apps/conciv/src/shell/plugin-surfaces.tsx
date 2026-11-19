@@ -237,24 +237,6 @@ export function PluginWindowBottom() {
   )
 }
 
-export function PluginPanelEnd(props: {view: Accessor<MountedSession>; screen: SessionScreen}) {
-  const host = usePluginHost()
-
-  return (
-    <Show when={host.ready()}>
-      <PluginSlot
-        at="session.panel.end"
-        input={{
-          get session() {
-            return props.view()
-          },
-          screen: untrack(() => props.screen),
-        }}
-      />
-    </Show>
-  )
-}
-
 export function PluginSession(props: {sessionId: string}) {
   createMountedSession({id: () => props.sessionId})
 

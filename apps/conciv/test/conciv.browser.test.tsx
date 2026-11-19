@@ -8835,36 +8835,6 @@ module.exports = {default: {setup(ctx) {
   }, 45_000)
 })
 
-describe('the session panel end slot', () => {
-  const coreBase = bootedCore('plugin-panel-end', {
-    plugins: ['./panel-end'],
-    files: {
-      'panel-end/index.ts': `export default {id: 'panel-end', async setup() {}}
-`,
-      'panel-end/plugin-experimental.js': `const {Slot} = require('@conciv/plugin/experimental')
-module.exports = {default: {setup(ctx) {
-  ctx.add(Slot, {
-    at: 'session.panel.end',
-    render: (input) => Object.assign(document.createElement('span'), {textContent: 'Panel end of ' + input.session.id}),
-  })
-}}}
-`,
-    },
-  })
-  const harness = createShellHarness(coreBase)
-
-  afterEach(harness.dispose)
-
-  test('a plugin slot at session.panel.end draws in the status bar beside the view tabs, for the routed session', async () => {
-    const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}?open=true`)
-
-    const bar = page.getByRole('toolbar', {name: 'Session status'})
-    await expect.element(bar.getByRole('tab', {name: 'Chat'}), {timeout: 15_000}).toBeVisible()
-    await expect.element(bar.getByText(`Panel end of ${sessionId}`, {exact: true}), {timeout: 15_000}).toBeVisible()
-  }, 45_000)
-})
-
 describe('terminal panel', () => {
   const coreBase = bootedCore('terminal-panel', {
     tty: true,
@@ -8884,6 +8854,7 @@ describe('terminal panel', () => {
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
+  const terminalBar = () => terminalPanel().getByRole('toolbar', {name: 'Terminal'})
   const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
@@ -8928,7 +8899,7 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('a fresh session with no saved pick starts the CLI on the model the toolbar picker shows', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(terminalRoute(sessionId))
 
@@ -8938,8 +8909,8 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('the toolbar picks the CLI model and keeps it across a reload, starts a new terminal, locks while the CLI is busy, and shows only on the Terminal tab', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
     const pick = async (name: string) => {
       await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
       await picker().click()
@@ -9015,8 +8986,7 @@ describe('terminal panel', () => {
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
     const pageScheme = document.documentElement.classList
     onTestFinished(() => pageScheme.remove('dark'))
-    const panel = () => page.getByRole('tabpanel', {name: 'Terminal'})
-    const shot = () => panel().screenshot({save: false})
+    const shot = () => terminalPanel().getByRole('list').screenshot({save: false})
     const sessionId = await createSession(coreRpc(coreBase()))
     const mountSettled = async () => {
       harness.dispose()
@@ -9082,7 +9052,7 @@ describe('terminal panel', () => {
 
   test('the host page keeps its own keys: a click there leaves the terminal unfocused, Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {
     await page.viewport(1200, 900)
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
     const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
     const hostText = () => page.getByText('Host page text', {exact: true})
     const hostSawEscape = (count: number) => page.getByText(`Host page saw Escape ${count}`, {exact: true})
@@ -9151,8 +9121,8 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('Escape in the composer on the Chat view stops the chat turn and leaves a busy CLI in the terminal running', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
     const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
     const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
     const stoppedLine = () => page.getByRole('separator', {name: 'Stopped'})
@@ -9203,11 +9173,11 @@ describe('terminal panel', () => {
     const modelsRead = await faults.install({kind: 'gate', path: ['meta', 'models']})
     harness.mountShell(terminalRoute(sessionId))
 
-    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeEnabled()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeEnabled()
     await coreControl.awaitFaultPending(modelsRead, 1)
     await faults.releaseAll()
-    await expect.element(bar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
-    await expect.element(bar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
+    await expect.element(terminalBar().getByRole('button', {name: 'Select model'}), {timeout: 15_000}).toBeEnabled()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('a model list that failed to load offers Retry inside the model selector, which says Models… while Retry reads it, then lists the models', async () => {
@@ -9217,24 +9187,24 @@ describe('terminal panel', () => {
 
     const menu = () => page.getByRole('dialog', {name: 'Model'})
     const retry = () => menu().getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
-    await bar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
     await expect.element(retry(), {timeout: 15_000}).toBeVisible()
     await coreControl.releaseFault(broken)
     const retried = await faults.install({kind: 'gate', path: ['meta', 'models']})
     await retry().click()
-    await expect.element(bar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'}), {timeout: 15_000}).toBeVisible()
     await expect.element(menu().getByRole('status')).toHaveTextContent('Loading models…')
     await expect.element(retry()).not.toBeInTheDocument()
     await coreControl.awaitFaultPending(retried, 1)
     await faults.releaseAll()
     await expect.element(menu().getByRole('option', {name: 'First model'}), {timeout: 15_000}).toBeVisible()
     await expect.element(menu().getByRole('option', {name: 'Calm model'})).toBeVisible()
-    await expect.element(bar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
+    await expect.element(terminalBar().getByRole('button', {name: 'Models…'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('a CLI that started while the model list failed restarts with the saved pick once Retry lists the models', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(terminalRoute(sessionId))
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
@@ -9252,7 +9222,7 @@ describe('terminal panel', () => {
         .getByRole('dialog', {name: 'Model'})
         .getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
     await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
-    await bar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
     await expect.element(retry()).toBeVisible()
 
     await coreControl.releaseFault(broken)
@@ -9274,8 +9244,8 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('a CLI that was busy when Retry listed the models restarts with the saved pick once it is idle', async () => {
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(terminalRoute(sessionId))
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
@@ -9293,7 +9263,7 @@ describe('terminal panel', () => {
         .getByRole('dialog', {name: 'Model'})
         .getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
     await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
-    await bar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
     await coreControl.releaseFault(broken)
     const held = await faults.install({kind: 'gate', path: ['meta', 'models']})
     await retry().click()
@@ -9314,8 +9284,8 @@ describe('terminal panel', () => {
   }, 60_000)
 
   test('a model list that failed while the CLI is busy still offers Retry, which lists the models', async () => {
-    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
-    const failed = () => bar().getByRole('button', {name: 'Couldn’t load models', exact: true})
+    const newTerminal = () => terminalBar().getByRole('button', {name: 'New terminal'})
+    const failed = () => terminalBar().getByRole('button', {name: 'Couldn’t load models', exact: true})
     const menu = () => page.getByRole('dialog', {name: 'Model'})
     const sessionId = await createSession(coreRpc(coreBase()))
     const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
@@ -9361,7 +9331,7 @@ describe('terminal panel', () => {
     const prefsKey = 'conciv.global:plugin.terminal.prefs'
     const readPrefs = (): unknown => JSON.parse(localStorage.getItem(prefsKey) ?? '{}')
     const savedPicks = () => z.object({sessions: z.record(z.string(), z.string())}).parse(readPrefs()).sessions
-    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
     const pick = async (name: string) => {
       await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
       await picker().click()
@@ -9398,7 +9368,7 @@ describe('terminal panel for a plain shell with no models', () => {
 
   afterEach(harness.dispose)
 
-  const bar = () => page.getByRole('toolbar', {name: 'Session status'})
+  const terminalBar = () => page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('toolbar', {name: 'Terminal'})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const output = (text: string) =>
     page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('list').getByText(text, {exact: true})
@@ -9416,8 +9386,8 @@ describe('terminal panel for a plain shell with no models', () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(terminalRoute(sessionId))
 
-    await expect.element(bar().getByRole('button', {name: 'No models'}), {timeout: 15_000}).toBeDisabled()
-    await expect.element(bar().getByRole('button', {name: 'Select model'})).not.toBeInTheDocument()
+    await expect.element(terminalBar().getByRole('button', {name: 'No models'}), {timeout: 15_000}).toBeDisabled()
+    await expect.element(terminalBar().getByRole('button', {name: 'Select model'})).not.toBeInTheDocument()
   }, 60_000)
 
   test('a terminal opened in a chat too short to show it starts once the user makes the chat taller', async () => {
@@ -9560,7 +9530,8 @@ describe('plugins before a core is bound', () => {
   const PREFS_KEY = 'conciv.global:plugin.terminal.prefs'
   const bar = () => page.getByRole('toolbar', {name: 'Session status'})
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
-  const picker = () => bar().getByRole('button', {name: 'Select model'})
+  const terminalBar = () => page.getByRole('tabpanel', {name: 'Terminal'}).getByRole('toolbar', {name: 'Terminal'})
+  const picker = () => terminalBar().getByRole('button', {name: 'Select model'})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const notSaved = () => page.getByText('Some changes are not being saved', {exact: true})
   const enginePluginStoreReads = (scope: 'global' | 'project') =>
