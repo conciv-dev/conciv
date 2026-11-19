@@ -231,7 +231,6 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `packages/it/package.json`
 - `packages/protocol/src/config-types.ts`
 - `packages/react/src/index.ts`
-- `packages/extensions/tanstack/test/host/main.tsx`
 - `packages/cli/src/init/steps/framework/webpack-family.ts`
 - `apps/site/content/docs/quick-start/index.mdx`
 - `apps/site/content/docs/quick-start/vite.mdx`

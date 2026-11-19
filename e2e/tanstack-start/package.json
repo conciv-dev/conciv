@@ -13,8 +13,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@conciv/extension-tanstack": "workspace:*",
     "@conciv/it": "workspace:*",
+    "@conciv/plugin-tanstack": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-router": "catalog:",
