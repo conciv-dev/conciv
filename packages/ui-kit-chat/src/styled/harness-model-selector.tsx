@@ -41,7 +41,9 @@ import {
   type ModelSwitchTarget,
   type OlderModelGroup,
 } from '../primitives/model-selector/model-menu.js'
-import {MODEL_SELECTOR_TRIGGER} from './model-selector.js'
+
+const MODEL_SELECTOR_TRIGGER =
+  'text-chat-sm font-chat [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] py-1 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] motion-reduce:transition-none hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
 
 const MODELS_UNAVAILABLE = 'Couldn’t load models'
 const MODELS_LOADING = 'Loading models'
@@ -349,7 +351,6 @@ function SwitchConfirm(props: {
       onOpenChange={changeOpen}
       title="Switch harness?"
       role="alertdialog"
-      layer="inline"
       dismissable
       footer={
         <div class="flex gap-2 justify-end">

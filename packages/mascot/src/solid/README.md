@@ -8,7 +8,7 @@ The Solid compound component over the core service, with the same slots as the R
 
 - `index.ts:Mascot` - `MascotRoot` with `Head`, `Eyes`, `Antenna`, `Binary`, `Effect` attached.
 - `index.ts` - re-exports `useMascotContext`, the prop types, the core config types, `robotLayers` and `robotSkin`.
-- `mascot-root.tsx:MascotRoot` - root element; `use-mascot.ts:createMascotHost` creates the service and slot tracking (`MascotSlots`).
+- `mascot-root.tsx:MascotRoot` - root element; `use-mascot.ts:createMascotHost` creates the service and slot tracking.
 - `mascot-effect.tsx:MascotEffect` / `mascot-binary.tsx:MascotBinary` - effect slots.
 - `mascot-props.ts:MascotProps` / `MascotLayerProps` / `MascotFollowPartProps` / `MascotBinaryProps`, `composeRefs`, `mergeStyle`.
 

@@ -16,7 +16,6 @@ export default defineConfig({
       '../tools/src/**/*.{ts,tsx}',
       '../core/src/cards.tsx',
       '../core/src/cards/**/*.{ts,tsx}',
-      '../builtin-plugins/src/**/*.{ts,tsx}',
       '../plugins/recorder/src/**/*.{ts,tsx}',
       '../plugins/test-runner/src/**/*.{ts,tsx}',
       '../plugins/tanstack/src/**/*.{ts,tsx}',

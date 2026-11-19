@@ -1,8 +1,8 @@
 import {robotLayers} from '../layers.gen.js'
 
-export type SkinLayers = {head: string; eyes: string; antenna: string}
+type SkinLayers = {head: string; eyes: string; antenna: string}
 
-export type SkinFraction = {x: number; y: number}
+type SkinFraction = {x: number; y: number}
 
 export type MascotSkin = {
   layers: SkinLayers

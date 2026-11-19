@@ -1,9 +1,13 @@
 import gsap from 'gsap'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
+import {
+  antennaScaleFactor,
+  createTimelineEmitter,
+  createTipShell,
+  SPARK_COLOR,
+  WILL_CHANGE_STYLE,
+} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
-
-const SPARK_COLOR = '#ffd23f'
 
 const SPARK_SEGMENT_COUNT = 5
 

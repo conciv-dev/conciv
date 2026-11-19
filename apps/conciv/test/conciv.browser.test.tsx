@@ -103,8 +103,8 @@ import {
 } from '@conciv/ai/client'
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
-import {PendingApprovals} from '../src/pane/pending-approvals.js'
-import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
+import {PendingApprovals} from '../src/pane/chat-pane.js'
+import {makeToolViewCtx} from '../src/pane/chat-pane.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {NoticeContextProvider} from '../src/shell/notice-context.js'
 import type {EngineLock} from '../src/app/engine-login.js'
@@ -1931,7 +1931,7 @@ export default {
   const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
   const commandOption = (position: number) => page.getByRole('option').nth(position)
 
-  async function mountComposer(width?: number): Promise<PaneMount> {
+  async function mountComposer(width?: number): Promise<PaneMount & {sessionId: string}> {
     const sessionId = await createSession(coreRpc(core()))
     const [requests, setRequests] = createSignal<string[]>([])
     const mount = mountPane(
@@ -1957,7 +1957,7 @@ export default {
     )
     keep(mount)
     await expect.element(input()).toBeVisible()
-    return mount
+    return {...mount, sessionId}
   }
 
   test('a wide composer keeps no actions inline and runs everything from the overflow menu', async () => {
@@ -2050,7 +2050,7 @@ export default {
     await page.viewport(WIDE_PX + 60, 900)
     onTestFinished(() => page.viewport(1000, 900))
     const mount = await mountComposer(WIDE_PX)
-    await rpc.sessions.rename({sessionId: mount.pane.sessionId(), title: 'Payroll pane'})
+    await rpc.sessions.rename({sessionId: mount.sessionId, title: 'Payroll pane'})
     const context = () => page.getByRole('listbox', {name: 'Context'})
     const mention = (label: string) => context().getByRole('option', {name: label})
 
@@ -3505,7 +3505,7 @@ describe('harness switching', () => {
       mountPane({base: core(), sessionId: activeId}, () => (
         <RouterProvider
           router={pickerRouter('/', () => (
-            <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+            <SessionSelector activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
           ))}
         />
       )),
@@ -7340,7 +7340,7 @@ describe('session selector', () => {
   function mountPicker(activeId: string, entry: string): MountedPicker {
     const router = pickerRouter(entry, () => (
       <Suspense>
-        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <SessionSelector activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
       </Suspense>
     ))
     const pane = keep(mountPane({base: core(), sessionId: activeId}, () => <RouterProvider router={router} />))
@@ -7669,18 +7669,8 @@ describe('session selector', () => {
     remounted.pane.dispose()
     const twin = pickerRouter('/', () => (
       <Suspense>
-        <SessionSelector
-          variant="pill"
-          activeId={() => mounted.activeId}
-          onActivate={() => {}}
-          onNewSession={() => {}}
-        />
-        <SessionSelector
-          variant="pill"
-          activeId={() => mounted.activeId}
-          onActivate={() => {}}
-          onNewSession={() => {}}
-        />
+        <SessionSelector activeId={() => mounted.activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <SessionSelector activeId={() => mounted.activeId} onActivate={() => {}} onNewSession={() => {}} />
       </Suspense>
     ))
     keep(mountPane({base: core(), sessionId: mounted.activeId}, () => <RouterProvider router={twin} />))
@@ -7703,7 +7693,7 @@ describe('session selector', () => {
       mountPane({base: core(), sessionId}, () => (
         <RouterProvider
           router={pickerRouter('/', () => (
-            <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+            <SessionSelector activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
           ))}
         />
       )),
@@ -8432,39 +8422,27 @@ function pickerRouter(entry: string, view: () => JSX.Element) {
 describe('plugin enable state', () => {
   const coreBase = bootedCore('plugin-enable-state')
 
-  test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
+  test('a plugin disabled through one store reads back disabled in a following one', async () => {
     const store = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
-    const fresh = await store.read()
-    expect(fresh).toEqual([])
-    expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
-    expect(await store.enabled('y')).toBe(true)
-
     const follower = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     const followed: (readonly EnableState[])[] = []
     onTestFinished(follower.on((state) => followed.push(state)))
     await expect.poll(() => followed.at(-1)).toEqual([])
+    expect(pluginEnabled({id: 'x', builtin: false}, followed.at(-1) ?? [])).toBe(true)
 
     await store.setEnabled('x', false)
-    const disabled = await store.read()
-    expect(disabled).toEqual([{id: 'x', enabled: false}])
+    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
+    const disabled = followed.at(-1) ?? []
     expect(pluginEnabled({id: 'x', builtin: false}, disabled)).toBe(false)
     expect(pluginEnabled({id: 'y', builtin: false}, disabled)).toBe(true)
-    expect(await store.enabled('x')).toBe(false)
-    await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
 
     await store.setEnabled('x', true)
-    expect(await store.read()).toEqual([{id: 'x', enabled: true}])
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
 
     await store.setEnabled('x', false)
-    const reloaded = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
-    expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
-    expect(await reloaded.enabled('x')).toBe(false)
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
 
     await coreRpc(coreBase()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'bad', value: 'yes'})
-    expect(await store.read()).toEqual([{id: 'x', enabled: false}])
-    expect(await store.enabled('bad')).toBe(true)
     await store.setEnabled('y', false)
     await expect
       .poll(() => followed.at(-1))

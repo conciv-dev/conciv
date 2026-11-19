@@ -1,24 +1,77 @@
 import {createRoot, createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient} from '@conciv/contract'
-import {createWebStorageHistory} from '@conciv/storage-history'
+import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
+import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
 import type {GrabProvider} from '@conciv/grab'
-import {installReactBridge, reactBridge} from '@conciv/page'
+import {installReactBridge} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
 import {createEngineLogin, engineConnected, startEngineLogin} from '@conciv/app/engine-login'
-import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit, PluginEntry} from './mount.js'
+import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
+
+type NavigationRpc = Pick<RpcClient, 'navigation'>
+
+function parseNavigation(raw: string): NavigationState | null {
+  try {
+    const parsed = NavigationStateSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+type NavigationStorage = WebStorage & {restored: Promise<void>; dispose: () => void}
+
+type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean; cancelled: boolean}
+
+function makeNavigationStorage(
+  rpc: NavigationRpc,
+  trust: {ready: Promise<boolean>; isTrusted: () => boolean},
+  onRestore: (href: string) => void,
+): NavigationStorage {
+  const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false, cancelled: false}
+  const stamp = (): number => {
+    state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
+    return state.lastStamp
+  }
+  const send = (navigation: NavigationState, updatedAt: number): void => {
+    if (!trust.isTrusted()) return
+    rpc.navigation.set({...navigation, updatedAt}).catch((error: unknown) => {
+      console.warn('[conciv] could not save the navigation', error)
+    })
+  }
+  const restored = trust.ready
+    .then((isTrusted) => (isTrusted ? rpc.navigation.get(undefined) : null))
+    .catch(() => null)
+    .then((initial) => {
+      if (state.cancelled || state.wroteLocally || !initial) return
+      state.lastStamp = initial.updatedAt
+      state.cache = JSON.stringify({entries: initial.entries, index: initial.index})
+      const current = initial.entries[initial.index]
+      if (current) onRestore(current.href)
+    })
+  return {
+    getItem: () => state.cache,
+    setItem: (_key, value) => {
+      state.wroteLocally = true
+      state.cache = value
+      const parsed = parseNavigation(value)
+      if (parsed) send(parsed, stamp())
+    },
+    restored,
+    dispose: () => {
+      state.cancelled = true
+    },
+  }
+}
 
 type RebindDetail = {apiBase?: string}
 
 declare global {
-  interface Window {
-    __CONCIV_REACT_BRIDGE__?: typeof reactBridge
-  }
   interface WindowEventMap {
     'conciv:rebind': CustomEvent<RebindDetail>
   }
@@ -223,7 +276,6 @@ export function mountImpl(
   el: HTMLElement,
 ): {ready: Promise<void>; teardown: () => void; rebind: (apiBase: string) => Promise<void>} {
   installReactBridge()
-  window.__CONCIV_REACT_BRIDGE__ = reactBridge
   const hostRouter = window.__TSR_ROUTER__
   const inner = document.createElement('div')
   inner.setAttribute('data-conciv-root', '')
@@ -260,7 +312,6 @@ export function mountImpl(
     } finally {
       host.remove()
       window.__TSR_ROUTER__ = hostRouter
-      window.__CONCIV_REACT_BRIDGE__ = undefined
     }
   }
   return {ready, teardown, rebind}

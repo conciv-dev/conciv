@@ -18,9 +18,7 @@ const SUMMARY = 'text-chat-text-2 text-[length:var(--chat-text-sm)] m-0'
 const HINT = 'text-chat-text-3 text-[length:var(--chat-text-xs)] m-0'
 
 const CATEGORY_ACCENT: Record<string, string> = {
-  read: 'inline-flex text-chat-accent-link',
   act: 'inline-flex text-chat-accent',
-  'edit-live': 'inline-flex text-chat-success',
   react: 'inline-flex text-chat-text-hi',
 }
 const NEUTRAL_ACCENT = 'inline-flex text-chat-text-3'

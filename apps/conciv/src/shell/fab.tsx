@@ -10,7 +10,27 @@ import {
   type PanelFrame,
 } from '../lib/draggable-position.js'
 import type {TriggerCorner, TriggerEdge} from '../lib/draggable-physics.js'
-import {FabRobot} from './fab-robot.js'
+import {Mascot, type EmitterRect} from '@conciv/mascot/solid'
+
+function FabRobot(props: {
+  open: () => boolean
+  working: () => boolean
+  avoid: () => EmitterRect | undefined
+}): JSX.Element {
+  return (
+    <Mascot
+      class="conciv-fab-rig"
+      state={props.open() && !props.working() ? 'awake' : 'rest'}
+      working={props.working()}
+      follow={!props.open()}
+    >
+      <Mascot.Head />
+      <Mascot.Antenna />
+      <Mascot.Eyes class="conciv-rig-eyes" />
+      <Mascot.Binary avoid={props.avoid()} />
+    </Mascot>
+  )
+}
 
 const FAB_BASE =
   'group fixed w-max h-13 p-0.75 rounded-chat-pill border border-chat-line bg-chat-panel text-chat-accent text-[1.375rem] cursor-pointer select-none touch-none pointer-events-auto shadow-chat-lg inline-flex items-center font-chat trans-lift anim-fab focus-ring active:[transform:translateY(0)_scale(0.94)]'

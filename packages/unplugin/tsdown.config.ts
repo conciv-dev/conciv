@@ -18,5 +18,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: false,
-  external: [/^@conciv\/conciv-/, 'unplugin', 'vite', 'launch-editor'],
+  external: ['unplugin', 'vite', 'launch-editor'],
 })

@@ -3,9 +3,44 @@ import {z} from 'zod'
 import type {Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {makeEngineBooter, type Builtins} from './core/boot.js'
-import {widgetStarterPath, writeWidgetClient} from './core/bundler-widget.js'
 import {CONCIV_DEFAULT_PORT, WIDGET_START_SPECIFIER} from './core/nextjs.js'
 import {makeViteHook} from './core/vite.js'
+import {writeFileSync} from 'node:fs'
+import {findPackageJSON} from 'node:module'
+import {dirname, join} from 'node:path'
+import {concivStateDir, createConcivStateDir} from '@conciv/protocol/state-types'
+import {isEnginePort} from './core/widget-start.js'
+
+function widgetStarterPath(): string {
+  const manifest = findPackageJSON(import.meta.url)
+  if (manifest === undefined) throw new Error('conciv: the @conciv/unplugin package.json was not found')
+  return join(dirname(manifest), 'dist', 'core', 'widget-start.js')
+}
+
+function writeWidgetClient(root: string, port: number): string | undefined {
+  if (!isEnginePort(port)) {
+    console.error(
+      `conciv: the engine port must be an integer from 1 to 65535, got ${String(port)}, so the page gets no widget`,
+    )
+    return undefined
+  }
+  const stateDir = concivStateDir(root)
+  const path = join(stateDir, `widget-client.${String(port)}.gen.js`)
+  const source = [
+    `import {startConcivWidget} from '${WIDGET_START_SPECIFIER}'`,
+    `startConcivWidget(${String(port)})`,
+    '',
+  ].join('\n')
+  try {
+    createConcivStateDir(stateDir)
+    writeFileSync(path, source, 'utf8')
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error)
+    console.error(`conciv: could not write the widget client ${path}, so the page gets no widget: ${cause}`)
+    return undefined
+  }
+  return path
+}
 
 export type {Builtins} from './core/boot.js'
 
@@ -67,7 +102,7 @@ export function createConcivUnplugin(builtins: Builtins = {}): UnpluginInstance<
         await slot.stopped
         return startEngine()
       }
-      const engine = makeEngineBooter(bundlerOptions, process.cwd(), builtins, 'exact')().catch(
+      const engine = makeEngineBooter(bundlerOptions, process.cwd(), builtins)().catch(
         reportStartFailure(bundlerOptions.port),
       )
       state.slot = {stage: 'running', engine}

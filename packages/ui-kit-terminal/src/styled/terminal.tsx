@@ -1,4 +1,4 @@
-import {children, Show, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {TerminalPrimitive} from '../primitives/terminal.js'
 import type {TerminalModel} from '../model.js'
 
@@ -11,23 +11,14 @@ const BANNER =
 const BANNER_BUTTON =
   'py-1.5 px-2.5 rounded-chat-sm border-0 text-[0.6875rem] font-semibold cursor-pointer [background:var(--chat-accent)] [color:var(--chat-on-accent)]'
 
-export function Terminal(props: {
-  model: TerminalModel
-  onBackToChat?: () => void
-  class?: string
-  rail?: JSX.Element
-}): JSX.Element {
+export function Terminal(props: {model: TerminalModel; onBackToChat?: () => void; class?: string}): JSX.Element {
   const settled = () => props.model.status() === 'exited' || props.model.status() === 'error'
-  const rail = children(() => props.rail)
   return (
     <TerminalPrimitive.Root model={props.model} class={`${ROOT}  ${props.class ?? ''}`}>
       <div class="flex flex-1 flex-row min-h-0">
         <div class={SCREEN_WRAP} style={{opacity: settled() ? '0.45' : '1'}}>
           <TerminalPrimitive.Screen class={SCREEN} />
         </div>
-        <Show when={rail()}>
-          <TerminalPrimitive.Overlay anchor="rail">{rail()}</TerminalPrimitive.Overlay>
-        </Show>
       </div>
       <Show when={props.model.status() === 'connecting'}>
         <div class={CONNECTING} role="status">

@@ -11,7 +11,13 @@ export function ConcivWidget(props: ConcivWidgetProps): JSX.Element {
   const el = document.createElement('div')
   let handle: ConcivHandle | undefined
   createEffect(() => {
-    const init = {apiBase: props.apiBase, settings: props.settings}
+    const init: ConcivInit = {
+      apiBase: props.apiBase,
+      settings: props.settings,
+      plugins: props.plugins,
+      grabProvider: props.grabProvider,
+      engineToken: props.engineToken,
+    }
     handle?.unmount()
     handle = createConciv(init)
     void handle.mount(el).catch(() => undefined)

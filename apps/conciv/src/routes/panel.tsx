@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, useLocation} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
-import {Show, createEffect, createMemo, createSignal, type JSX} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, type JSX, type ParentProps} from 'solid-js'
 import {createActiveElement} from '@solid-primitives/active-element'
 import {panelPlacement} from '../lib/draggable-position.js'
 import {useEnvironment, useFabAnchor, useLayers, usePanelWidthCap, useSettings, useSuppressed} from '../app/context.js'
@@ -15,8 +15,58 @@ import {
   EngineStaleNotice,
   EngineUnreachableNotice,
 } from '../shell/engine-notice.js'
-import {defaultPanelHeight, panelHeightCap} from './panel-height.js'
-import {PluginServerCover} from '../runtime/plugin/server-shell.js'
+import {Contribution} from '../runtime/plugin/render.js'
+import {usePluginServers} from '../runtime/plugin/servers.js'
+
+function PluginServerCover(props: ParentProps) {
+  const servers = usePluginServers()
+
+  const covered = createMemo(() => {
+    const source = servers.routed()
+
+    if (!source?.entry.cover || source.entry.state === 'ready') return
+
+    return source.key
+  })
+
+  return (
+    <div class="flex flex-1 flex-col min-h-0 min-w-0 relative">
+      <div
+        class="flex flex-1 flex-col min-h-0 min-w-0"
+        classList={{invisible: !!covered()}}
+        inert={!!covered()}
+        aria-hidden={covered() ? true : undefined}
+      >
+        {props.children}
+      </div>
+      <Show when={covered()} keyed>
+        {(key) => {
+          const source = servers.entry(key)
+          const cover = source?.entry.cover
+
+          if (!source || !cover) return null
+
+          return (
+            <div class="inset-0 absolute">
+              <Contribution plugin={source.plugin}>{() => cover({tab: undefined})}</Contribution>
+            </div>
+          )
+        }}
+      </Show>
+    </div>
+  )
+}
+
+const PANEL_HEIGHT_INSET_REM = 7.5
+const PANEL_DEFAULT_HEIGHT_PX = 750
+
+function panelHeightCap(viewportHeightPx: number, fontSizePx: number): number {
+  return viewportHeightPx - PANEL_HEIGHT_INSET_REM * fontSizePx
+}
+
+function defaultPanelHeight(viewportHeightPx: number, fontSizePx: number): number {
+  return Math.min(PANEL_DEFAULT_HEIGHT_PX, viewportHeightPx * 0.9, panelHeightCap(viewportHeightPx, fontSizePx))
+}
 
 const PANEL_BASE =
   'fixed flex flex-col text-chat-text font-normal text-[0.875rem] leading-[1.45] font-chat overflow-hidden [container-type:size]'

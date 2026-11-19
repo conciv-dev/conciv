@@ -15,7 +15,7 @@ Package internal to @conciv/it that provides Solid terminal components on xterm.
 
 ## Invariants
 
-- `vite.config.ts`: @conciv/_, solid-js, zod and @xterm/_ are external, except the xterm CSS which is bundled
+- `vite.config.ts`: @conciv/_, solid-js and @xterm/_ are external, except the xterm CSS which is bundled
 - `peerDependencies` (`package.json`): solid-js
 
 ## Side Effects

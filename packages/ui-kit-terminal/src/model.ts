@@ -24,7 +24,6 @@ export type TerminalModelOpts = {
   transport: TerminalTransport
   beforeConnect?: (terminal: Xterm) => Promise<void> | void
   theme?: () => TerminalTheme
-  fontSize?: number
 }
 
 export type TerminalModel = {
@@ -37,7 +36,6 @@ export type TerminalModel = {
   disconnect(): void
   fit(): void
   focus(): void
-  inject(text: string): void
   paste(text: string): void
   sendInput(data: string): void
 }
@@ -70,7 +68,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
   const terminal = new Xterm({
     convertEol: false,
     scrollback: 5000,
-    fontSize: opts.fontSize ?? 13,
+    fontSize: 13,
     screenReaderMode: true,
     theme: opts.theme?.(),
   })
@@ -210,7 +208,6 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
       sendResize()
     },
     focus: () => terminal.focus(),
-    inject: (text) => openLink()?.inject(text),
     paste: (text) => terminal.paste(text),
     sendInput: (data) => openLink()?.write(data),
   }

@@ -1,4 +1,4 @@
-import {Show, type Component, type JSX} from 'solid-js'
+import {Show, type Component, type JSX, children, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import Paperclip from 'lucide-solid/icons/paperclip'
 import {Tooltip, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
@@ -9,8 +9,16 @@ import {useComposer} from '../store/chat-context.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
 import {AttachmentUI, type RemoveAttachment} from './attachment-ui.js'
 import {QueueItem} from '../primitives/queue-item/queue-item.js'
-import {Slot} from '../primitives/util/slot.js'
 import {FOCUS} from './classes.js'
+
+function Slot(props: ParentProps<{fallback?: JSX.Element}>): JSX.Element {
+  const resolved = children(() => props.children)
+  return (
+    <Show when={resolved()} fallback={props.fallback}>
+      {resolved()}
+    </Show>
+  )
+}
 
 export type ComposerProps = {
   placeholder?: string

@@ -118,7 +118,7 @@ const TOAST_TONE: Record<NonNullable<ToastOptions['variant']>, NoticeTone> = {
 
 const UNAVAILABLE = 'The server that runs this plugin is unavailable'
 
-const HostSettingsTab = z.enum(['general', 'views', 'shortcuts', 'plugins', 'advanced'])
+const HostSettingsTab = z.enum(['general', 'shortcuts', 'plugins', 'advanced'])
 
 function openInput(file: string, position: {line: number; column?: number} | undefined) {
   if (position === undefined) return {file}

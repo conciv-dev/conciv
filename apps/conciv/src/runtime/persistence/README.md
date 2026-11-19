@@ -55,8 +55,7 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   made in a test without a mock.
 - A draft database that does not open is logged once (`drafts.ts`, the catch on `db`). In the source that failure is
   an unhandled rejection whenever nothing reads the store first.
-- A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod and
-  has no `effect` dependency. A document that fails the check is logged and read as absent.
+- A stored draft document is checked with zod, not Effect Schema, because the app checks untrusted input with zod. A document that fails the check is logged and read as absent.
 - Every `media:` piece of the source's `drafts.ts` is left out (the media loaders, `setMediaBlobLoader`,
   `pinMediaBlob`, `createLegacyBlobReference` and the media branches of `resolveBlobUrl`, `encode` and `blobDataUrl`):
   they read the source's server media store, which conciv does not have.

@@ -44,7 +44,7 @@ import {makeEngineBooter, type Builtins} from '../src/core/boot.js'
 import {CONCIV_DEFAULT_PORT, register, withConciv} from '../src/core/nextjs.js'
 import {makeViteBridge} from '../src/core/vite-bridge.js'
 import {makeViteHook} from '../src/core/vite.js'
-import {concivSolidConfig} from '../src/core/vite-plumbing.js'
+import {concivSolidConfig} from '../src/core/vite.js'
 import {type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {WIDGET_ROUTE} from '../src/core/widget-module.js'
 import {
@@ -182,7 +182,7 @@ describe('engine port exact', () => {
       let engine: Engine | undefined
       try {
         const port = await getPort()
-        engine = await makeEngineBooter({port, stateRoot: root}, root, {}, 'exact')()
+        engine = await makeEngineBooter({port, stateRoot: root}, root, {})()
         expect(engine.port).toBe(port)
       } finally {
         await engine?.stop()
@@ -195,7 +195,7 @@ describe('engine port exact', () => {
       const taken = await getPort()
       const release = await holdPort(taken)
       try {
-        await expect(makeEngineBooter({port: taken, stateRoot: root}, root, {}, 'exact')()).rejects.toMatchObject({
+        await expect(makeEngineBooter({port: taken, stateRoot: root}, root, {})()).rejects.toMatchObject({
           code: 'EADDRINUSE',
         })
       } finally {

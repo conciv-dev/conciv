@@ -483,7 +483,9 @@
     "unified",
     "@shikijs/langs-precompiled",
     "@conciv/brand",
+    "@conciv/client",
     "@conciv/embed",
+    "@conciv/grab",
     "@conciv/mascot",
     "@conciv/skills",
     "@conciv/solid-diffs",
@@ -823,6 +825,7 @@
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",
     "packages/db/drizzle-home.config.ts",
     "apps/conciv/test/commands/core-control.ts",
+    "packages/ui-kit-terminal/test/control-server.global.ts",
     "apps/conciv/test/commands/core-testkit.ts"
   ],
   "framework": [

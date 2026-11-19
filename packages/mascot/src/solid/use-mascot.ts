@@ -7,7 +7,7 @@ import {partAlreadyProvided} from '../core/slot-contract.js'
 import type {FollowSource, MascotContextValue, MascotPartName} from './mascot-context.js'
 import type {MascotProps} from './mascot-props.js'
 
-export type MascotSlots = {head: boolean; eyes: boolean; antenna: boolean; effects: number}
+type MascotSlots = {head: boolean; eyes: boolean; antenna: boolean; effects: number}
 
 export type MascotHost = {context: MascotContextValue; slots: MascotSlots; rootProps: MascotPartProps}
 

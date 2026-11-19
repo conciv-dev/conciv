@@ -1,8 +1,18 @@
 import {Effect, Exit, Scope} from 'effect'
 import {compose} from '@conciv/plugin/experimental/host'
 import {makeNativeService, nativePageBase, type NativeService} from '@conciv/plugin-ios/client'
-import {engineAddress} from './agent-base.js'
 import {createConciv, type PluginEntry} from './mount.js'
+
+const AGENT_PATH = /^\/t\/([^/]+)\/?$/
+
+type EngineAddress = {apiBase: string; engineToken?: () => Promise<string>}
+
+function engineAddress(base: string): EngineAddress {
+  const url = new URL(base)
+  const agentToken = AGENT_PATH.exec(url.pathname)?.[1]
+  if (agentToken === undefined) return {apiBase: url.href.replace(/\/$/, '')}
+  return {apiBase: url.origin, engineToken: () => Promise.resolve(agentToken)}
+}
 
 const root = document.querySelector<HTMLElement>('[data-conciv-native-root]') ?? document.body
 

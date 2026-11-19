@@ -10,8 +10,6 @@ const CARD =
   'flex flex-col rounded-chat-surface-md [border:1px_solid_var(--chat-line)] bg-chat-fill-soft [&>*+*]:[border-block-start:1px_solid_var(--chat-line-soft)]'
 const LABEL = 'flex items-center gap-2 text-[0.8125rem] font-medium text-chat-text-hi'
 const HINT = 'text-[0.75rem] leading-[1.35] text-chat-text-2'
-export const TEXT_LINK =
-  'p-0 bg-transparent [border:none] font-chat text-[0.6875rem] text-chat-dim underline underline-offset-2 cursor-pointer focus-ring hover:text-chat-text-hi'
 const BUTTON =
   'inline-flex shrink-0 items-center gap-1.5 h-7 px-2.5 rounded-chat-sm bg-transparent [border:1px_solid_var(--chat-line-2)] font-chat text-[0.75rem] text-chat-text cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong disabled:opacity-50 disabled:cursor-not-allowed'
 export const BUTTON_WARN = `${BUTTON} [border-color:color-mix(in_oklch,var(--chat-warn)_42%,transparent)] !text-chat-warn hover:!bg-[color-mix(in_oklch,var(--chat-warn)_10%,transparent)]`
@@ -63,17 +61,13 @@ export function SettingsHeader(props: SettingsHeaderProps): JSX.Element {
 type GroupProps = {
   title?: JSX.Element
   description?: string
-  action?: JSX.Element
   danger?: boolean
-  keys?: readonly string[]
   children: JSX.Element
   footer?: JSX.Element
 }
 
 export function Group(props: GroupProps): JSX.Element {
   const titleId = createUniqueId()
-  const readNote = useContext(SettingNote)
-  const note = () => props.keys?.map((key) => readNote(key)).find((text) => text !== undefined)
   return (
     <section
       class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`}
@@ -86,17 +80,11 @@ export function Group(props: GroupProps): JSX.Element {
               <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
                 {props.title}
               </h3>
-              <Show when={note()}>
-                <span class={NOTE} title={note()}>
-                  {note()}
-                </span>
-              </Show>
             </span>
             <Show when={props.description}>
               <p class={SECTION_DESCRIPTION}>{props.description}</p>
             </Show>
           </div>
-          {props.action}
         </div>
       </Show>
       {props.children}

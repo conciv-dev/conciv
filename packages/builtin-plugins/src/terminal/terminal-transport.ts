@@ -60,7 +60,6 @@ export function rpcTerminalTransport(terminal: PtyClient, pty: HeldPty): Termina
     return {
       write: (data) => sent(terminal.write({ptyId: pty.ptyId, data}, ONCE)),
       resize: (size) => sent(terminal.resize({ptyId: pty.ptyId, cols: size.cols, rows: size.rows})),
-      inject: (text) => sent(terminal.inject({ptyId: pty.ptyId, text}, ONCE)),
       close: () => stop.abort(),
     }
   }

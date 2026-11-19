@@ -51,8 +51,6 @@
         "allow": [
           "__conciv",
           "__CONCIV_API_BASE__",
-          "__CONCIV_PAGE_DRIVER__",
-          "__CONCIV_REACT_BRIDGE__",
           "__CONCIV_RENDER_TEST_CARD__",
           "__REACT_GRAB_DISABLED__",
           "__sdkStats",

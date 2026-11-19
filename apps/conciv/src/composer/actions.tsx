@@ -1,13 +1,69 @@
-import {createSignal, type JSX} from 'solid-js'
+import {createSignal, type JSX, For, Show} from 'solid-js'
 import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import {showToast} from '@conciv/page'
 import type {Grab} from '@conciv/grab'
-import {ConnectAgentsMenu} from './connect-agents-menu.js'
 import {usePane} from '../app/pane-context.js'
 import {makePaneGrabApi} from '../pane/pane-grab.js'
+import {Menu, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import Plug from 'lucide-solid/icons/plug'
+import {useHubConnections} from './hub-connections.js'
+
+const MENU_LABEL = 'Connect agents'
+
+function ConnectAgentsMenu(props: {class: string}): JSX.Element {
+  const hub = useHubConnections()
+  return (
+    <Show when={hub.installs().length > 0}>
+      <Action.Action priority={10}>
+        <Action.Inline>
+          <Menu.Root>
+            <TooltipIconButtonSlot tooltip={MENU_LABEL} class={props.class}>
+              {(buttonProps) => (
+                <Menu.Trigger
+                  asChild={(triggerProps) => (
+                    <button {...buttonProps()} {...triggerProps()} aria-busy={hub.connecting().length > 0}>
+                      <Plug class="size-5 block" aria-hidden="true" />
+                    </button>
+                  )}
+                />
+              )}
+            </TooltipIconButtonSlot>
+            <Menu.Positioner>
+              <Menu.Content aria-label={MENU_LABEL}>
+                <For each={hub.installs()}>
+                  {(install) => (
+                    <Menu.Item
+                      value={install.harnessId}
+                      disabled={hub.busy(install.harnessId)}
+                      onSelect={() => hub.connect(install)}
+                    >
+                      <Plug class="size-4 block" aria-hidden="true" />
+                      Connect {install.name}
+                    </Menu.Item>
+                  )}
+                </For>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Menu.Root>
+        </Action.Inline>
+        <For each={hub.installs()}>
+          {(install) => (
+            <Action.ActionMenuItem
+              label={`Connect ${install.name}`}
+              disabled={hub.busy(install.harnessId)}
+              onSelect={() => hub.connect(install)}
+            >
+              <Plug class="size-4 block" aria-hidden="true" />
+            </Action.ActionMenuItem>
+          )}
+        </For>
+      </Action.Action>
+    </Show>
+  )
+}
 
 const ACT =
   'size-8 rounded-chat-pill [border:none] bg-transparent text-chat-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-chat-text-hi hover:bg-chat-fill-strong'
@@ -17,7 +73,6 @@ function busyClass(busy: boolean): string {
 }
 
 export function ComposerActions(props: {
-  sessionId: string
   compacting: boolean
   onCompact: () => void
   onNewSession: () => void

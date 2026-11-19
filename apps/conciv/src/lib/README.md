@@ -17,14 +17,14 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 - `toRawHotkey(binding)` (`hotkey.ts`): `parseHotkey` from `@tanstack/hotkeys`
 - `sessionPickerSearchSchema` (`session-search-schemas.ts`): the root route's search params, `open`, the session picker's `sessionSearch` term and its `allProjects` flag
 - `QuickSearchSchema`, `quickPaneIds`, `quickSearchFor` (`quick-search.ts`): `panes` (comma-separated session ids) and `focus` search params
-- `setShutter(router, open)` (`shutter.ts`): sets or clears the `open` search param with `replace: true`
+- `setShutter(router, open)` (`routes/__root.tsx`): sets or clears the `open` search param with `replace: true`
 
 ## Invariants
 
-- `widget-styles.ts:widgetSheet`: es-toolkit `once`, so the page's `document` gets one sheet, made on first call; every widget root in it (widget, effects surface, plugin overlays) adopts the same object; the picture-in-picture window makes and holds its own (`shell/pip.ts`) and no root carries the CSS text in a `<style>`; `@property` and `@font-face` stay in `document.head` (`registerWind4Properties`, `registerFonts`)
+- `widget-styles.ts:widgetSheet`: es-toolkit `once`, so the page's `document` gets one sheet, made on first call; every widget root in it (widget, plugin overlays) adopts the same object; the picture-in-picture window makes and holds its own (`shell/pip.ts`) and no root carries the CSS text in a `<style>`; `@property` and `@font-face` stay in `document.head` (`registerWind4Properties`, `registerFonts`)
 - `api-base.ts:queryCore`: `?core=` is accepted only for loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) or the page's own origin; others are ignored with a warning
 - `quick-search.ts:quickPaneIds`: only values passing `isSessionId` are kept; invalid `panes`/`focus` fall back to `''`/`0`
-- `shutter.ts:setShutter`: closed is represented by an absent `open` param, never `open=false`
+- `routes/__root.tsx:setShutter`: closed is represented by an absent `open` param, never `open=false`
 - `draggable-physics.ts:parsePlacement`: anything that is not a preset string or a valid placement reads as `undefined`, so the configured position wins; percents outside 0 to 100 are rejected
 
 ## Side Effects
@@ -34,7 +34,7 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 - `shadow.ts`: toggles a selection attribute on `document.documentElement`
 - `color-scheme.ts:createHostTheme`: `MutationObserver` on `document.body` and `documentElement` class changes
 - `api-base.ts:queryCore`: `console.warn` on a rejected `?core=`
-- `shutter.ts:setShutter`: router navigation that replaces the history entry
+- `routes/__root.tsx:setShutter`: router navigation that replaces the history entry
 
 ## Verification
 

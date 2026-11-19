@@ -18,7 +18,7 @@ import {
 } from '@conciv/ui-kit-chat/tools'
 import {SearchCard} from '../src/styled/tools/search-card.js'
 import {BashCard} from '../src/styled/tools/bash-card.js'
-import {ToolLookupCard} from '../src/styled/tools/tool-lookup-card.js'
+import {ToolLookupCard} from '../src/styled/tools/builtin-tool-cards.js'
 import {TodoCard} from '../src/styled/tools/todo-card.js'
 import {FileReadCard} from '../src/styled/tools/file-read-card.js'
 import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/search-matches.js'

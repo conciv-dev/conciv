@@ -32,10 +32,10 @@ import {
   useAnnounce,
   useAppData,
   useAppQueryClient,
-  useChatDeps,
   useGrabProvider,
   useLiveSessions,
   usePaneChat,
+  useRpc,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
@@ -118,7 +118,7 @@ function SessionTitle(props: {
   refreshing: boolean
 }): JSX.Element {
   const appData = useAppData()
-  const {rpc} = useChatDeps()
+  const rpc = useRpc()
   const announce = useAnnounce()
   const rename = useMutation(() => ({
     mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
@@ -277,7 +277,6 @@ function PanelSession(): JSX.Element {
   const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: params().sessionId}}))
   const row = () => (session.isPending ? undefined : session.data)
   const usage = () => row()?.usage ?? null
-  const running = () => row()?.running ?? chat().runInProgress()
 
   const activeView = () => sessionMenu.view() ?? 'chat'
 
@@ -362,8 +361,6 @@ function PanelSession(): JSX.Element {
   ])
 
   const paneValue: PaneContextValue = {
-    sessionId: () => params().sessionId,
-    running,
     slideClass,
     resetSlide: () => setSlideDir(null),
     grabStaging,
@@ -415,9 +412,8 @@ function PanelSession(): JSX.Element {
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
               <div>
                 <span class={RAIL_MENU_LABEL}>Session</span>
-                <Suspense fallback={<SessionPillPending variant="bar" />}>
+                <Suspense fallback={<SessionPillPending />}>
                   <SessionSelector
-                    variant="bar"
                     activeId={() => params().sessionId}
                     onActivate={activate}
                     onNewSession={() => void newSession()}

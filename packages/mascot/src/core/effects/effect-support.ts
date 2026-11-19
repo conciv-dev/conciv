@@ -1,9 +1,26 @@
 import gsap from 'gsap'
-import {ENTER_DURATION_S, ENTER_EASE} from '../config.js'
+import {ENTER_DURATION_S, ENTER_EASE, EXIT_DURATION_S, EXIT_EASE, TIP_SCALE} from '../config.js'
 import type {EmitterAnchor, EmitterPoint} from '../path.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {enterFromTip, exitIntoTip} from '../tip-transition.js'
 import type {EffectContext, EffectHandle} from './effect.js'
+
+function enterFromTip(element: HTMLElement): gsap.core.Tween {
+  return gsap.fromTo(
+    element,
+    {scale: TIP_SCALE, opacity: 0},
+    {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE},
+  )
+}
+
+function exitIntoTip(element: HTMLElement, onComplete: () => void): gsap.core.Tween {
+  return gsap.to(element, {
+    scale: TIP_SCALE,
+    opacity: 0,
+    duration: EXIT_DURATION_S,
+    ease: EXIT_EASE,
+    onComplete,
+  })
+}
 
 export const WILL_CHANGE_STYLE = 'will-change:transform,opacity'
 
@@ -43,7 +60,7 @@ export function sparkCanvasGeometry(factor: number): CanvasGeometry {
   }
 }
 
-export type SparkCanvas = {canvas: HTMLCanvasElement; context: CanvasRenderingContext2D | null}
+type SparkCanvas = {canvas: HTMLCanvasElement; context: CanvasRenderingContext2D | null}
 
 export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry): SparkCanvas {
   const canvas = document.createElement('canvas')
@@ -60,7 +77,7 @@ export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry):
   return {canvas, context}
 }
 
-const MILLISECONDS_PER_SECOND = 1000
+export const MILLISECONDS_PER_SECOND = 1000
 
 export function runFrameLoop(step: (now: number) => void): () => void {
   const tick = (time: number) => step(time * MILLISECONDS_PER_SECOND)
@@ -84,7 +101,7 @@ export function antennaScaleFactor(antenna: HTMLElement, referenceAntennaPx: num
 const returnToFull = (element: HTMLElement): gsap.core.Tween =>
   gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
 
-export type TipEmitter = {
+type TipEmitter = {
   host: HTMLElement
   element: HTMLElement
   origin: EmitterAnchor
@@ -186,7 +203,7 @@ export function createTimelineEmitter(
   })
 }
 
-export type NozzleEmitter = {
+type NozzleEmitter = {
   host: HTMLElement
   element: HTMLElement
   mouth: EmitterAnchor
@@ -222,7 +239,7 @@ export function createNozzleEmitter(emitter: NozzleEmitter): EffectHandle {
   return {...tip, anchor: aimNozzle}
 }
 
-export type ParticleNozzle = {
+type ParticleNozzle = {
   context: EffectContext
   shellStyle?: (factor: number) => string
   createParticles: (factor: number) => HTMLElement[]

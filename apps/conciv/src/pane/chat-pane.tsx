@@ -9,8 +9,9 @@ import {
   Suspense,
   untrack,
   type JSX,
+  splitProps,
 } from 'solid-js'
-import {useQuery, type ChatSession} from '@conciv/client'
+import {useQuery, type ChatSession, useMutationState, useIsFetching} from '@conciv/client'
 import {z} from 'zod'
 import {compact, uniq} from 'es-toolkit'
 import {
@@ -29,8 +30,10 @@ import {
   type PageSessionConfig,
   type TurnItem,
   type TurnPrefixSource,
+  useThreadViewport,
+  TURN_MEASURE_CLASS,
 } from '@conciv/ui-kit-chat'
-import type {DraftItem} from '@conciv/protocol/chat-types'
+import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {
   PAGE_ACT_TOOL_NAMES,
@@ -41,12 +44,12 @@ import {
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
-import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
-import type {MarkerRow} from '@conciv/contract'
-import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
+import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {type MarkerRow, DraftRowSchema} from '@conciv/contract'
+import {type ChatMessage, type SendContent, type ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {Grab} from '@conciv/grab'
 import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
-import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc, useArrivedFromConnect} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
@@ -54,20 +57,15 @@ import {usePane} from '../app/pane-context.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
-import {EmptyState} from '../shell/empty-state.js'
 import {ComposerActions} from '../composer/actions.js'
 import {promptWithNotes} from '../composer/comment-note.js'
 import {ComposerNotes, SentNotes} from '../composer/note-card.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt} from '../composer/session-model-prompt.js'
 import {useEngineNotices} from '../shell/notice-context.js'
-import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
-import {DraftUnsavedNotice} from './draft-unsaved-notice.js'
-import {makeToolViewCtx} from './tool-view-ctx.js'
-import {PendingApprovals} from './pending-approvals.js'
+import {makeDraftStorage, type PaneDraftStorage, sameContent, type DraftContent} from './draft-storage.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
-import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {RunErrorRow, sessionDeleted} from './run-error-row.js'
 import {DeletedSessionPanel} from './deleted-session-panel.js'
@@ -84,6 +82,172 @@ import {
 } from './plugin-session-parts.js'
 import {createToolRender} from './tool-registry-render.js'
 import {Contribution} from '../runtime/plugin/render'
+import {useEngineReachability} from '../app/reachability.js'
+import {StandingNotice} from '../shell/notices.js'
+import {Button} from '@conciv/ui-kit-system'
+import type {ApprovalAsk} from '@conciv/protocol/chat-event-types'
+import {TracePermissionBlock} from '@conciv/ui-kit-chat/tools'
+
+const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
+const CONNECT_HEADLINE = 'Agent connected. It’s driving this page from your machine.'
+const DEFAULT_HEADLINE = 'How can I help you today?'
+const STARTER = 'rounded-chat-pill anim-rise'
+
+function EmptyState(props: {onStarter: (text: string) => void}): JSX.Element {
+  const arrivedFromConnect = useArrivedFromConnect()
+  return (
+    <div class="m-auto text-center">
+      <p class="text-[1.125rem] tracking-[-0.015em] font-semibold mb-3.5 anim-rise-d">
+        {arrivedFromConnect() ? CONNECT_HEADLINE : DEFAULT_HEADLINE}
+      </p>
+      <div class="flex flex-col gap-2">
+        <For each={STARTERS}>
+          {(starter, index) => (
+            <Button
+              variant="outline"
+              class={STARTER}
+              style={{'animation-delay': `${100 + index() * 60}ms`}}
+              onClick={() => props.onStarter(starter)}
+            >
+              {starter}
+            </Button>
+          )}
+        </For>
+      </div>
+    </div>
+  )
+}
+
+type ToolViewCtxDeps = {
+  catalog: ToolCatalogView
+  decide: (approvalId: string, reply: PermissionReply) => Promise<void>
+  onError: (error: unknown) => void
+  addResult: ToolViewCtx['addResult']
+}
+
+export function makeToolViewCtx(deps: ToolViewCtxDeps): ToolViewCtx {
+  return {
+    catalog: deps.catalog,
+    addResult: deps.addResult,
+    respondApproval: (approvalId, reply) => {
+      void deps.decide(approvalId, reply).catch(deps.onError)
+    },
+  }
+}
+
+const LIST = `relative flex flex-col gap-1.5 min-w-0 p-0 m-0 list-none self-stretch ${TURN_MEASURE_CLASS}`
+
+function askPart(ask: ApprovalAsk): ToolCallPart {
+  const part: ToolCallPart = {
+    type: 'tool-call',
+    id: ask.toolCallId,
+    name: ask.toolName,
+    arguments: JSON.stringify(ask.input ?? {}),
+    state: 'approval-requested',
+    approval: {id: ask.approvalId, needsApproval: true},
+  }
+  return ask.permission === undefined ? part : {...part, metadata: {permission: ask.permission}}
+}
+
+export function PendingApprovals(props: {asks: ApprovalAsk[]; ctx: ToolViewCtx}): JSX.Element {
+  const [local] = splitProps(props, ['asks', 'ctx'])
+  return (
+    <ul class={LIST} aria-label="Permission requests">
+      <For each={local.asks}>
+        {(ask) => {
+          const part = askPart(ask)
+          return (
+            <TracePermissionBlock
+              part={part}
+              ctx={local.ctx}
+              target={ask.toolName}
+              explanation={local.ctx.catalog.meta(part.name)?.summary}
+            />
+          )
+        }}
+      </For>
+    </ul>
+  )
+}
+
+const OVERLAY = 'absolute inset-inline-0 top-0 z-1 flex flex-col gap-2 px-5 pt-3 pb-2 [background:var(--chat-bg)]'
+const DEFERRED = 'anim-msg animate-delay-[200ms] animate-fill-mode-backwards'
+const FAILED = 'flex items-center gap-2 text-chat-danger text-[0.75rem]'
+
+function OlderMessages(props: {sessionId: string; chat: ChatSession}): JSX.Element {
+  const viewport = useThreadViewport()
+  const thread = useThread()
+  const pagesKey = () => ['older-messages', props.sessionId]
+  const loading = useIsFetching(() => ({queryKey: pagesKey()}))
+  const wanted = () => viewport.isNearTop() && props.chat.hasOlderMessages() && loading() === 0
+  const oldestId = createMemo(() => thread.turns[0]?.key ?? null)
+  const older = useQuery(() => ({
+    queryKey: [...pagesKey(), oldestId()],
+    queryFn: () => props.chat.loadOlderMessages().then(() => true),
+    enabled: wanted() ? (query) => query.state.status !== 'error' : false,
+    refetchOnWindowFocus: false,
+    gcTime: 0,
+    retry: false,
+  }))
+  return (
+    <>
+      <Show when={loading() > 0}>
+        <div class={`${OVERLAY} ${DEFERRED}`}>
+          <ConversationSkeleton label="Loading earlier messages" />
+        </div>
+      </Show>
+      <Show when={older.isError}>
+        <div class={OVERLAY}>
+          <div class={FAILED} role="alert">
+            <span class="flex-1">Couldn’t load earlier messages.</span>
+            <Button variant="outline-danger" onClick={() => void older.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      </Show>
+    </>
+  )
+}
+
+const KEPT_HERE_MESSAGE =
+  'conciv could not save your draft. It is kept in this browser, but the engine copy failed, so it is not on your other devices or in other browsers.'
+const ENGINE_ONLY_MESSAGE = 'conciv could not save your draft. It is still in the composer, but a reload would lose it.'
+
+function DraftUnsavedNotice(props: {
+  sessionId: string
+  retry: () => void
+  keptHere: (draft: DraftContent) => boolean
+}): JSX.Element {
+  const appData = useAppData()
+  const reachability = useEngineReachability()
+  const saves = useMutationState(() => ({
+    filters: {
+      mutationKey: appData.utils.drafts.set.mutationKey(),
+      predicate: (mutation) => DraftRowSchema.safeParse(mutation.state.variables).data?.sessionId === props.sessionId,
+    },
+    select: (mutation) => ({
+      failed: mutation.state.status === 'error',
+      taken: mutation.state.status === 'success' && mutation.state.data !== null,
+      draft: DraftRowSchema.parse(mutation.state.variables),
+    }),
+  }))
+  const unsavedDraft = createMemo(() => {
+    const failed = saves().findLast((save) => save.failed)
+    if (!failed) return null
+    const held = saves().findLast((save) => save.taken)
+    return !held || !sameContent(failed.draft, held.draft) ? failed.draft : null
+  })
+  const message = createMemo(() => {
+    const draft = unsavedDraft()
+    return draft && props.keptHere(draft) ? KEPT_HERE_MESSAGE : ENGINE_ONLY_MESSAGE
+  })
+  return (
+    <Show when={unsavedDraft() !== null && reachability.locked() === null}>
+      <StandingNotice tone="warn" message={message()} action={{label: 'Retry', run: () => props.retry()}} />
+    </Show>
+  )
+}
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: {
@@ -506,7 +670,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     />
                     <Suspense fallback={<ComposerActionsPending />}>
                       <ComposerActions
-                        sessionId={sessionId}
                         compacting={compacting()}
                         onCompact={() => messaging.compact.mutate()}
                         onNewSession={() => pane.newSession()}

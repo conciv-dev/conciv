@@ -2,7 +2,7 @@ import gsap from 'gsap'
 import type {EmitterAnchor} from './path.js'
 import type {MascotSkin} from './skin.js'
 
-export type LayerTransform = {
+type LayerTransform = {
   translateX: number
   translateY: number
   rotationDeg: number
@@ -48,7 +48,7 @@ function layoutOffsetWithin(element: HTMLElement, host: HTMLElement): EmitterAnc
   return {x: target.x - origin.x, y: target.y - origin.y}
 }
 
-export function readLayerTransform(element: HTMLElement, width: number, height: number): LayerTransform {
+function readLayerTransform(element: HTMLElement, width: number, height: number): LayerTransform {
   return {
     translateX: gsapNumber(element, 'x') + (gsapNumber(element, 'xPercent') * width) / PERCENT,
     translateY: gsapNumber(element, 'y') + (gsapNumber(element, 'yPercent') * height) / PERCENT,
@@ -75,7 +75,7 @@ export function measureAntennaLayout(antenna: HTMLElement, skin: MascotSkin): An
   }
 }
 
-export function antennaTipFromLayout(layout: AntennaLayout, transform: LayerTransform): EmitterAnchor {
+function antennaTipFromLayout(layout: AntennaLayout, transform: LayerTransform): EmitterAnchor {
   const scaledX = layout.tipX * transform.scaleX
   const scaledY = layout.tipY * transform.scaleY
   const radians = transform.rotationDeg * DEGREES_TO_RADIANS
@@ -91,11 +91,11 @@ export function computeAntennaTip(antenna: HTMLElement, layout: AntennaLayout): 
   return antennaTipFromLayout(layout, readLayerTransform(antenna, layout.width, layout.height))
 }
 
-export function antennaTipInRoot(antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
+function antennaTipInRoot(antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
   return computeAntennaTip(antenna, measureAntennaLayout(antenna, skin))
 }
 
-export function tipWithinHost(tip: EmitterAnchor, host: HTMLElement): EmitterAnchor {
+function tipWithinHost(tip: EmitterAnchor, host: HTMLElement): EmitterAnchor {
   const origin = hostOriginInRoot(host)
   return {x: tip.x - origin.x, y: tip.y - origin.y}
 }

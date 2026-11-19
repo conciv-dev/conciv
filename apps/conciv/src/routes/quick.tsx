@@ -307,9 +307,8 @@ function QuickLayer(): JSX.Element {
                     }}
                   >
                     <div class="text-xs text-chat-text-3 leading-none font-chat-mono px-3 py-2 border-b border-b-chat-line-soft flex shrink-0 gap-2 items-center">
-                      <Suspense fallback={<SessionPillPending variant="bar" />}>
+                      <Suspense fallback={<SessionPillPending />}>
                         <SessionSelector
-                          variant="bar"
                           activeId={() => id}
                           onActivate={(next) => activatePane(index(), next)}
                           onNewSession={addFreshPane}

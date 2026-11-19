@@ -2,18 +2,15 @@
 
 ## Overview
 
-Headless model picker with search, grouping and an effort selector per model.
+The harness model menu's state and its row building, rendered by `styled/harness-model-selector.tsx`.
 
 ## Interface
 
-- `model-selector.tsx:ModelSelector` - `{Root, Trigger, Value, Content, Search, List, Empty, Group, Separator, Item, Effort}`; exported as `ModelSelectorPrimitive`.
 - `model-menu.ts`: the harness model menu's state (`useModelMenu`, type `ModelMenu`, `ModelSwitchTarget`) and its pure row building (harness sections, the 4-row cap, older-version groups, search, effort levels); rendered by `styled/harness-model-selector.tsx`.
-- `model-selector.tsx:useModelSelectorContext`, `useModelSelectorEfforts`, `resolveModelEffort`, `DEFAULT_EFFORT_OPTIONS` (`low`, `medium`, `high`); types `ModelOption`, `ModelSelectorEffortOption`, `ModelSelector*Props`.
 
 ## Invariants
 
-- Search matches the query case-insensitively against model `name`, `id` and `keywords` (`model-selector.tsx:matches`).
-- `useModelSelectorContext` throws outside `ModelSelector.Root`.
+- `model-menu.ts` holds no DOM; the popover machine comes from `@conciv/ui-kit-system` `usePopover`.
 
 ## Side Effects
 

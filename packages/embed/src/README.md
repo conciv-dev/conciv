@@ -2,7 +2,7 @@
 
 ## Overview
 
-Mounts the conciv widget into a shadow root on the host page and starts the page plane. `createConciv` is the handle API used by the React wrapper and the plugin loader; `native-entry.ts` is the iOS native-page entry.
+Mounts the conciv widget into a shadow root on the host page. `createConciv` is the handle API used by the React wrapper and the plugin loader; `native-entry.ts` is the iOS native-page entry.
 
 ## Interface
 
@@ -10,7 +10,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount.ts:ConcivInit` - `plugins`, `settings`, `apiBase`, `grabProvider`, `engineToken`.
 - `mount.ts:mountConciv` - appends a `[data-conciv-script-root]` div to `document.body` and mounts the widget with the given plugin entries.
 - `mount-impl.tsx:mountImpl` - creates the `[data-conciv-root]` element and shadow root, boots the app, returns `{ready, teardown, rebind}`.
-- `navigation-storage.ts:makeNavigationStorage` - a `WebStorage` backed by `rpc.navigation.get`/`set`, with `restored`, `flush` and `dispose`.
+- `mount-impl.tsx:makeNavigationStorage` - a `WebStorage` backed by `rpc.navigation.get`/`set`, with `restored` and `dispose`.
 - `native-entry.ts` - owns the scope of the `@conciv/plugin-ios` native service (`@conciv/plugin-ios/client` `makeNativeService`), composes its `setup` in as the `ios` plugin and hands its `grabProvider` to `createConciv`, mounts the widget on `[data-conciv-native-root]` (or `document.body`), and on a `pagehide` that is not kept in the back-forward cache unmounts the widget and closes the scope.
 
 ## Invariants
@@ -19,18 +19,17 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount.ts:createConciv.mount` - does nothing without a `document` or when the state is not `unmounted`; a failed mount resets to `unmounted` and rethrows.
 - `mount.ts:createConciv.rebind` - does nothing unless the state is `mounted`.
 - `mount.ts:mountConciv` - does nothing inside a `data-conciv-capture` frame or when a `[data-conciv-script-root]` already exists; removes its element if the mount fails.
-- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; the stored view is restored only on the first trust answer, so a page whose engine was unreachable at mount and is trusted later (when its socket opens) lands on the default view; every navigation is sent at once, not debounced, and stamped with a strictly increasing `updatedAt`, so the engine keeps the newest; nothing is held back while the page can unload, because Firefox closes the rpc socket between `beforeunload` and `pagehide`, before `visibilitychange` fires, so a write held for a flush on hide never leaves and a reload right after a navigation restored the one before it; a failed write is reported with `console.warn`.
+- `mount-impl.tsx:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; the stored view is restored only on the first trust answer, so a page whose engine was unreachable at mount and is trusted later (when its socket opens) lands on the default view; every navigation is sent at once, not debounced, and stamped with a strictly increasing `updatedAt`, so the engine keeps the newest; nothing is held back while the page can unload, because Firefox closes the rpc socket between `beforeunload` and `pagehide`, before `visibilitychange` fires, so a write held for a flush on hide never leaves and a reload right after a navigation restored the one before it; a failed write is reported with `console.warn`.
 - `native-entry.ts:readLauncher` - the launcher is `mascot` only when the `launcher` query parameter says so, otherwise `native`.
 
 ## Side Effects
 
-- `mount-impl.tsx:mountImpl` - sets `window.__CONCIV_REACT_BRIDGE__`, `window.__CONCIV_PAGE_DRIVER__` and `window.__TSR_ROUTER__`, and restores or clears them on teardown.
+- `mount-impl.tsx:mountImpl` - installs the `@conciv/page` React bridge (`installReactBridge`), sets `window.__TSR_ROUTER__` and restores the host's value on teardown.
 - `mount-impl.tsx:mountImpl` - listens for the `conciv:rebind` window event.
 - `mount-impl.tsx:bootNormal` - a rebind resets every cached query (`queryClient.resetQueries()`): cached data is dropped and every mounted query refetches through the re-pointed rpc client, so a component that stays mounted across the rebind reads the new engine.
-- `mount-impl.tsx:makeDisconnect` - `POST <apiBase>/api/shutdown`, then reloads the page after 150 ms.
 - `mount-impl.tsx:metaContent` - reads the `conciv-widget` meta tag when no `settings` are passed.
 - `mount.ts:panelCommands` - opens an event-bus client (`PANEL_PLUGIN_ID`, reconnect every 500 ms, 60 retries) for `open`/`close`/`toggle`.
-- `navigation-storage.ts:makeNavigationStorage` - calls `rpc.navigation.get` once and `rpc.navigation.set` on every navigation.
+- `mount-impl.tsx:makeNavigationStorage` - calls `rpc.navigation.get` once and `rpc.navigation.set` on every navigation.
 
 ## Verification
 

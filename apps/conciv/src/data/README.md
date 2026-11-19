@@ -20,7 +20,6 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 - `settings.ts:parsePosition`: position must be one of six `PositionSchema` values, default `bottom-right`
 - `settings.ts:parseLauncher`: `false` and `'native'` are kept, anything else becomes `'mascot'`
 - `settings.ts:parseHotkeys`: default hotkey list is `['Mod+`']`
-- `settings.ts:parseTransport`: `auto` | `websocket` | `fetch`, anything else becomes `auto`
 - `settings.ts:parseConcivSettings`: `surface` is `dock` only when exactly `'dock'`, otherwise `page`
 
 ## Side Effects

@@ -1,7 +1,7 @@
 # @conciv/grab
 
 The conciv element-grab contract: the grab data types
-(`Grab`/`StagedGrab`/`GrabPreview`/`DomPreview`/`ImagePreview`/`ElementSource`) and the `GrabApi` capability surface
+(`Grab`/`GrabPreview`/`DomPreview`/`ImagePreview`/`ElementSource`) and the `GrabApi` capability surface
 shared by the widget and the page plugin.
 
 Part of [conciv](https://github.com/conciv-dev/conciv). It ships as a dependency of the

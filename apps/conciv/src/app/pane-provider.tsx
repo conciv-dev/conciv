@@ -1,5 +1,4 @@
 import type {JSX} from 'solid-js'
-import {useQuery} from '@conciv/client'
 import {useRouter} from '@tanstack/solid-router'
 import {useAnnounce, useAppData, useAppQueryClient, useGrabProvider, useLiveSessions, usePaneChat} from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
@@ -19,8 +18,6 @@ export function PaneProvider(props: {
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const router = useRouter()
-  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
-  const running = () => session.data?.running ?? false
   const grabProvider = useGrabProvider()
 
   const startSession = useStartSession()
@@ -41,8 +38,6 @@ export function PaneProvider(props: {
   })
 
   const value: PaneContextValue = {
-    sessionId: () => props.sessionId,
-    running,
     slideClass: () => '',
     resetSlide: () => {},
     grabStaging: useGrabStaging(),

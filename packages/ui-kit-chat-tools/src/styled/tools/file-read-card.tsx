@@ -59,7 +59,7 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
 }
 
 export const fileReadTool: ToolCardEntry = {
-  names: ['Read', 'open'],
+  names: ['Read'],
   render: FileReadCard,
   hasEmbeddedBody: () => true,
 }

@@ -2,16 +2,15 @@
 
 ## Overview
 
-Headless Solid compound components for the terminal: a Root that provides the model through context, a Screen that opens xterm and connects once it has width, a Banner shown on exit or error, and an Overlay anchor.
+Headless Solid compound components for the terminal: a Root that provides the model through context, a Screen that opens xterm and connects once it has width, and a Banner shown on exit or error.
 
 ## Interface
 
-- `TerminalPrimitive` (`terminal.tsx`): {Root, Screen, Banner, Overlay}
+- `TerminalPrimitive` (`terminal.tsx`): {Root, Screen, Banner}
 - `useTerminal(): TerminalModel` (`terminal.tsx`)
 - `Root` (`terminal.tsx`): `div[data-terminal-root][data-status]`
 - `Screen` (`terminal.tsx`): `div[data-terminal-screen]`
 - `Banner` (`terminal.tsx`): render prop `children({code, message})` when status is 'exited' or 'error'
-- `Overlay` (`terminal.tsx`): `anchor: 'rail' | 'top-right'`
 
 ## Invariants
 

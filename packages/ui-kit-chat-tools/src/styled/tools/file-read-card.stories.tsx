@@ -63,22 +63,6 @@ export const WithRange: Story = {
   },
 }
 
-export const Opened: Story = {
-  render: () =>
-    frame(
-      <FileReadCard
-        part={part('open', {file: 'src/app.tsx', line: 12})}
-        result={undefined}
-        ctx={INERT_TOOL_CTX}
-        addResult={INERT_ADD_RESULT}
-      />,
-    ),
-  play: async ({canvasElement}) => {
-    const c = within(canvasElement)
-    await expect(c.getByText('Opened src/app.tsx')).toBeVisible()
-  },
-}
-
 export const Running: Story = {
   render: () =>
     frame(

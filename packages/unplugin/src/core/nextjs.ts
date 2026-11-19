@@ -93,7 +93,7 @@ export async function register(): Promise<void> {
   const options = readConcivOptions(process.env.CONCIV_OPTIONS ?? '{}')
   if (options.enabled === false) return
   const boot: typeof Boot = await importBesideEntry(BOOT_FILE)
-  await boot.makeEngineBooter(options, process.cwd(), {}, 'exact')()
+  await boot.makeEngineBooter(options, process.cwd(), {})()
 }
 
 function importBesideEntry(file: string) {

@@ -20,7 +20,7 @@ unit-tests pure parsers plus the router-restore path (vitest browser project).
 - `./settings` export (`package.json`): `src/data/settings.ts`
 - `./shadow` export (`package.json`): `src/lib/shadow.ts`
 - `./api-base` export (`package.json`): `src/lib/api-base.ts`
-- `./styles.css` export (`package.json`): `src/styles.css`
+- `./engine-login` export (`package.json`): `src/app/engine-login.tsx`
 - scripts (`package.json`): `dev` (vite, port 3000), `generate-routes` (`tsr generate`), `build`, `typecheck`, `lint` (oxlint), `test` (vitest), `test:perf`
 - `vite.config.ts`: `tanstackRouter({target: 'solid', autoCodeSplitting: false})`, `UnoCSS` (`unocss/vite`) and `solidPlugin`
 - `vitest.config.ts`: `unit` project (node, `test/**/*.test.ts`) and `browser` project (headless Chromium, `coreCommands` from `test/commands/core-control.js`)

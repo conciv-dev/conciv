@@ -1,20 +1,48 @@
-import {createRouter} from '@tanstack/solid-router'
+import {createRouter, useRouteContext, useRouter, type ErrorComponentProps} from '@tanstack/solid-router'
 import {once, uniq} from 'es-toolkit'
 import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability} from '@conciv/client'
-import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
-import {browserRpcConnection, type RpcClient} from '@conciv/contract'
+import {createEffect, createRoot, onCleanup, type JSX, createMemo, onMount} from 'solid-js'
+import {browserRpcConnection, type RpcClient, resetBrowserRpcConnection, type TrustListener} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import {routeTree} from './routeTree.gen'
 import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import {PendingPane} from './shell/pending.js'
-import {defaultErrorComponent} from './shell/default-error-component.js'
 import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
 import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
+import {ErrorScreen} from './shell/error-screen.js'
+import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './shell/rpc-error-message.js'
+
+const ENGINE_UNREACHABLE_MESSAGE = "conciv couldn't reach the engine. Check that the dev server is still running."
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Try again.'
+
+function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
+  const router = useRouter()
+  const apiBase = useRouteContext({strict: false, select: (context) => context.apiBase})
+  const login = useRouteContext({strict: false, select: (context) => context.login})
+  const classification = createMemo<RpcErrorClassification>(() =>
+    classifyRpcError(props.error, ENGINE_UNREACHABLE_MESSAGE, GENERIC_ERROR_MESSAGE),
+  )
+  const retry = async (): Promise<void> => {
+    await login()?.requestTrust()
+    if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
+    await router.invalidate()
+  }
+  const onTrustChange: TrustListener = (status, previous) => {
+    if (becameTrusted(status, previous)) void retry()
+  }
+  onMount(() => {
+    const {trust, release} = browserRpcConnection(apiBase()?.() ?? '')
+    if (trust.isTrusted() && rpcErrorCode(props.error) === 'UNAUTHORIZED') void retry()
+    onCleanup(trust.subscribe(onTrustChange))
+    onCleanup(release)
+  })
+  return <ErrorScreen message={classification().message} onRetry={() => void retry()} />
+}
 
 const PaneParamsSchema = z.object({sessionId: z.string()})
 

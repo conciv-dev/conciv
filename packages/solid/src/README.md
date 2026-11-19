@@ -2,7 +2,7 @@
 
 ## Overview
 
-Exports the `ConcivWidget` Solid component. It creates a detached div, creates and mounts a conciv embed handle into it, and remounts whenever apiBase or settings change. It re-exports the embed init types.
+Exports the `ConcivWidget` Solid component. It creates a detached div, creates and mounts a conciv embed handle into it, and remounts whenever any `ConcivInit` field (apiBase, settings, plugins, grabProvider, engineToken) changes. It re-exports the embed init types.
 
 ## Interface
 
@@ -13,7 +13,7 @@ Exports the `ConcivWidget` Solid component. It creates a detached div, creates a
 ## Invariants
 
 - `ConcivWidget` (`index.ts`): returns null when solid-js/web `isServer` is true
-- `ConcivWidget` (`index.ts`): the createEffect tracks only apiBase and settings; a change unmounts the previous handle before `createConciv` runs again
+- `ConcivWidget` (`index.ts`): the createEffect builds the init from every `ConcivInit` prop and tracks each; a change unmounts the previous handle before `createConciv` runs again
 - `ConcivWidget` (`index.ts`): mount() rejections are swallowed
 
 ## Side Effects

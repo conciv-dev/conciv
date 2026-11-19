@@ -1,7 +1,13 @@
 import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import {appendDraft, makeDraftStorage, makeDraftWriteChain, type RestoredDraft} from '../src/pane/draft-storage.js'
+import {
+  appendDraft,
+  makeDraftStorage,
+  makeDraftWriteChain,
+  reconcileDraft,
+  type RestoredDraft,
+} from '../src/pane/draft-storage.js'
 import {QueryClient} from '@conciv/client'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
@@ -11,7 +17,6 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {rankSessionTitle} from '../src/pane/session-title-rank.js'
-import {reconcileDraft} from '../src/pane/draft-reconcile.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
 import {formatNoteComment, noteComment, promptWithNotes, readPromptPresentation} from '../src/composer/comment-note.js'

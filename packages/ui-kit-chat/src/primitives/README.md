@@ -16,7 +16,7 @@ Headless, unstyled compound components modeled on the assistant-ui API. Each fol
 - error: [error](./error/README.md) - Headless `Error` compound that renders only while the chat context holds an error.
 - message: [message](./message/README.md) - Headless `Message` compound: root, parts rendering (flat or grouped), attachments, conditional rendering and error, with message and part contexts.
 - message-part: [message-part](./message-part/README.md) - Hooks and parts for reading the current message part by type, and the model-only visibility check.
-- model-selector: [model-selector](./model-selector/README.md) - Headless model picker with search, grouping and an effort selector per model.
+- model-selector: [model-selector](./model-selector/README.md) - The harness model menu's state and row building.
 - queue-item: [queue-item](./queue-item/README.md) - Headless parts for a queued user message: its text, a steer action that sends it now, and remove.
 - selection-toolbar: [selection-toolbar](./selection-toolbar/README.md) - Headless toolbar that appears for a non-empty text selection and can quote it into the composer.
 - suggestion: [suggestion](./suggestion/README.md) - Headless suggestion item: title, description and a trigger that sends the suggestion prompt.

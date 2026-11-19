@@ -29,8 +29,6 @@ export type GrabSourceLoc = {
   column: number
 }
 
-export type StagedGrab = Omit<Grab, 'text'>
-
 export function composeGrabText(snippet: string, source: GrabSourceLoc | null, fallback: string): string {
   if (!source || !snippet) return fallback
   return `${snippet} at ${source.file}:${source.line}:${source.column}`

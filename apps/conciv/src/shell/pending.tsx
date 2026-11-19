@@ -17,13 +17,10 @@ export function PendingPane(): JSX.Element {
   )
 }
 
-export function SessionPillPending(props: {variant: 'pill' | 'bar'}): JSX.Element {
+export function SessionPillPending(): JSX.Element {
   return (
     <div class="inline-flex min-w-0 items-center" role="status">
-      <div
-        class={`${SKEL} h-7 ${props.variant === 'pill' ? 'w-32 rounded-chat-pill' : 'w-24 rounded-chat-surface-sm'}`}
-        aria-hidden="true"
-      />
+      <div class={`${SKEL} h-7 w-24 rounded-chat-surface-sm`} aria-hidden="true" />
       <span class="sr-only">Loading sessions…</span>
     </div>
   )

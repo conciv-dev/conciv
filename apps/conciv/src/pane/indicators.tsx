@@ -9,7 +9,6 @@ const DIVIDER =
   "self-stretch flex items-center gap-2.5 px-0.5 anim-msg before:content-[''] before:flex-1 before:h-px before:bg-chat-line-soft after:content-[''] after:flex-1 after:h-px after:bg-chat-line-soft"
 const DIVIDER_LABEL =
   'inline-flex items-center gap-1.25 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase]'
-const DOT = 'w-1.5 h-1.5 rounded-chat-pill bg-chat-text-2'
 
 type DividerKind = 'new' | 'compact' | 'stopped'
 
@@ -68,19 +67,6 @@ export function ConversationSkeleton(props: {label?: string}): JSX.Element {
       <div class={`${SKELETON_BUBBLE} w-3/5 self-start`} />
       <div class={`${SKELETON_BUBBLE} w-2/5 self-end`} />
       <div class={`${SKELETON_BUBBLE} w-1/2 self-start`} />
-    </div>
-  )
-}
-
-export function ThinkingBubble(): JSX.Element {
-  return (
-    <div
-      class="p-2.75 rounded-chat-surface-md bg-chat-fill inline-flex gap-1 items-center self-start anim-msg"
-      aria-hidden="true"
-    >
-      <span class={`${DOT} anim-dot1`} />
-      <span class={`${DOT} anim-dot2`} />
-      <span class={`${DOT} anim-dot3`} />
     </div>
   )
 }

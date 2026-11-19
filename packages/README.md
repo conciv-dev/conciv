@@ -33,7 +33,7 @@ Contracts:
 
 Browser widget:
 
-- embed: [embed/README.md](./embed/README.md) - Mounts the widget into a shadow root and starts the page plane; ESM and IIFE entries.
+- embed: [embed/README.md](./embed/README.md) - Mounts the widget into a shadow root; ESM and IIFE entries.
 - page: [page/README.md](./page/README.md) - The DOM side of the page plane: page driver, element refs, console buffer, React bridge, `react-grab` picking.
 - client: [client/README.md](./client/README.md) - oRPC query utilities, chat connection, push and reachability helpers.
 - storage-history: [storage-history/README.md](./storage-history/README.md) - A TanStack `RouterHistory` persisted in Web Storage.

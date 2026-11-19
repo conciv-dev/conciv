@@ -6,7 +6,7 @@
 
 ## Interface
 
-- Types `ElementSource`, `ElementRect`, `DomPreview` (kind `'dom'`), `ImagePreview` (kind `'image'`), `GrabPreview`, `GrabSourceLoc`, `StagedGrab`, `Grab` (= `StagedGrab & {text}`) (`grab.ts`).
+- Types `ElementSource`, `ElementRect`, `DomPreview` (kind `'dom'`), `ImagePreview` (kind `'image'`), `GrabPreview`, `GrabSourceLoc`, `Grab` (`grab.ts`).
 - Type `GrabFrame`, re-exported from `@conciv/plugin/experimental/grab`, which owns it (`grab.ts`).
 - `GrabApi` `{pick, comment, cancel, isActive, grabbable?, stage, staged, clear}`; `GrabActions` = `Pick<GrabApi, 'pick' | 'comment' | 'cancel' | 'isActive' | 'grabbable'>`; `GrabProvider` = `() => GrabActions` (`grab.ts`).
 - `sourceLabel(source)` (`grab.ts`): `'<component> at <file>:<line>'`, shortened when parts are missing.

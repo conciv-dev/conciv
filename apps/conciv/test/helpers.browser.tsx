@@ -333,8 +333,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const {app} = chatRoot
   const {data, queryClient} = app
   const pane: PaneContextValue = {
-    sessionId: () => options.sessionId,
-    running: () => false,
     slideClass: () => '',
     resetSlide: () => {},
     grabStaging: makeGrabStaging({

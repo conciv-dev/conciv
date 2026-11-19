@@ -1,5 +1,5 @@
 import {dirname, join} from 'node:path'
-import {readdirSync} from 'node:fs'
+import {readdirSync, existsSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
@@ -11,7 +11,62 @@ import {WIDGET_DOCK_ROUTE, WIDGET_ROUTE, loadWidgetModule, resolveWidgetModule} 
 import {makeOpenInEditor} from './open-editor.js'
 import {makeViteBridge} from './vite-bridge.js'
 import type {Builtins} from './boot.js'
-import {concivSolidConfig, dropIncludedFromExcludes, stampJsxSource} from './vite-plumbing.js'
+import {addSourceToJsx} from '@tanstack/devtools-bundler-core'
+
+const UNSTAMPED_PATHS = ['?raw', '/dist/', '/build/', 'node_modules']
+
+const SOLID_SINGLETONS = [
+  'solid-js',
+  'solid-js/web',
+  'solid-js/store',
+  '@tanstack/solid-router',
+  '@ark-ui/solid',
+  '@conciv/plugin',
+]
+
+function readPackageName(id: string): string {
+  const segments = id.split('/')
+  return id.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? id)
+}
+
+function resolvableFrom(id: string, root: string): boolean {
+  let dir = root
+  while (true) {
+    if (existsSync(join(dir, 'node_modules', readPackageName(id), 'package.json'))) return true
+    const parent = dirname(dir)
+    if (parent === dir) return false
+    dir = parent
+  }
+}
+
+export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
+  const root = opts.root
+  const singletons =
+    root === undefined ? [...SOLID_SINGLETONS] : SOLID_SINGLETONS.filter((id) => resolvableFrom(id, root))
+  return {
+    resolve: {dedupe: singletons},
+    optimizeDeps: {
+      exclude: singletons,
+      include: [],
+    },
+    server: {forwardConsole: false, warmup: {clientFiles: [...(opts.warmupFiles ?? [])]}},
+  }
+}
+
+function dropIncludedFromExcludes(
+  optimizeDeps: {include?: string[]; exclude?: string[]} | undefined,
+  managedIds: readonly string[],
+): void {
+  if (!optimizeDeps?.exclude?.length) return
+  const included = new Set(optimizeDeps.include ?? [])
+  const managed = new Set(managedIds)
+  optimizeDeps.exclude = optimizeDeps.exclude.filter((id) => !(managed.has(id) && included.has(id)))
+}
+
+function stampJsxSource(code: string, id: string): ReturnType<typeof addSourceToJsx> | null {
+  if (UNSTAMPED_PATHS.some((part) => id.includes(part))) return null
+  return addSourceToJsx(code, id) ?? null
+}
 
 function mountWidget(
   server: ViteDevServer,

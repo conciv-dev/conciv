@@ -56,23 +56,6 @@ export const Asking: Story = {
   },
 }
 
-export const WithExpiry: Story = {
-  render: () =>
-    frame(
-      <TracePermissionBlock
-        part={askingPart()}
-        ctx={askingCtx()}
-        target={COMMAND}
-        explanation="Deletes the built widget bundle so the next build starts clean."
-        expiresAt={Date.now() + 120_000}
-      />,
-    ),
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('timer')).toHaveTextContent(/expires in 1:\d\d|expires in 2:00/)
-  },
-}
-
 export const Answered: Story = {
   render: () => frame(<TracePermissionBlock part={askingPart()} ctx={askingCtx()} target={COMMAND} />),
   play: async ({canvasElement}) => {

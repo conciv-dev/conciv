@@ -186,5 +186,19 @@ export function widgetComponentSuite(opts: {id: string; distDir: string}): void 
       expect(await page.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(1)
       await page.close()
     })
+
+    test('the grabProvider prop reaches the widget: Select an element stages what it picks', async ({
+      browser,
+      host,
+      kit,
+    }) => {
+      const page = await openPage(browser, host, kit)
+      await page.getByRole('button', {name: 'open by default'}).click()
+      await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+      await page.getByRole('button', {name: 'More composer actions'}).click()
+      await page.getByRole('menuitem', {name: 'Select an element from the page'}).click()
+      await expectLocator(page.getByText('FixtureHeading at src/fixture.tsx:3')).toBeVisible({timeout: 30_000})
+      await page.close()
+    })
   })
 }

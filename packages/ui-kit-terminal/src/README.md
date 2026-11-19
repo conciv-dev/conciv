@@ -8,10 +8,10 @@ Package entry and the headless terminal model. `createTerminalModel` wraps an xt
 
 - `index.tsx`: re-exports `createTerminalModel`, `translateBuffer`, `TerminalModel`, `TerminalModelOpts`, `TerminalStatus`, `TerminalTheme`, the transport types, `TerminalPrimitive`, `useTerminal`, `Terminal`
 - `createTerminalModel(opts)` (`model.ts`): xterm (scrollback 5000) plus FitAddon plus a session over `opts.transport`
-- `TerminalTransport` (`transport.ts`): `(terminal, listener) => link`; the listener hears open, data, control and closed, the link writes, resizes, injects and closes
-- `TerminalModel` (`model.ts`): terminal, status, busy, exitCode, errorMessage, connect, disconnect, fit, focus, inject, paste, sendInput
+- `TerminalTransport` (`transport.ts`): `(terminal, listener) => link`; the listener hears open, data, control and closed, the link writes, resizes and closes
+- `TerminalModel` (`model.ts`): terminal, status, busy, exitCode, errorMessage, connect, disconnect, fit, focus, paste, sendInput
 - `TerminalStatus` (`model.ts`): 'idle' | 'connecting' | 'open' | 'exited' | 'error' | 'closed'
-- `injectXtermCss(root)` (`xterm-css.ts`)
+- `injectXtermCss(root)` (`primitives/terminal.tsx`)
 - Subdirectories:
   - primitives: [./primitives/README.md](./primitives/README.md) - headless compound components
   - styled: [./styled/README.md](./styled/README.md) - styled `Terminal`
@@ -23,13 +23,13 @@ Package entry and the headless terminal model. `createTerminalModel` wraps an xt
 - `AsyncRetryer` (`model.ts`): at most 7 attempts, backoff 500ms to 8000ms, then 'Lost connection to the terminal.'
 - Send paths (`model.ts`): send only while the session is open
 - Size (`model.ts`): `fit` caps cols and rows at 500; every connect attempt, first or reconnect, waits until the terminal is at least 2x2; a resize is sent only for a size from 2 to 500 (the engine refuses others)
-- `injectXtermCss` (`xterm-css.ts`): idempotent per root
+- `injectXtermCss` (`primitives/terminal.tsx`): idempotent per root
 
 ## Side Effects
 
 - `createTerminalModel` (`model.ts`): opens a session through `opts.transport` and reconnects on timers
 - `disconnect` (`model.ts`): closes the link and disposes xterm
-- `injectXtermCss` (`xterm-css.ts`): appends a style element
+- `injectXtermCss` (`primitives/terminal.tsx`): appends a style element
 
 ## Verification
 

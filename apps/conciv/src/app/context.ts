@@ -120,10 +120,6 @@ export function useApiBase(): () => string {
   return useAppScope('useApiBase', (app) => app.apiBase)
 }
 
-export function useChatDeps(): {rpc: RpcClient; apiBase: () => string} {
-  return useAppScope('useChatDeps', (app) => ({rpc: app.rpc, apiBase: app.apiBase}))
-}
-
 export function useNotifyInteractive(): () => void {
   return useAppScope('useNotifyInteractive', (app) => app.notifyInteractive)
 }

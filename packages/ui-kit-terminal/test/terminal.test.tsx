@@ -29,7 +29,6 @@ function webSocketTransport(url: string): TerminalTransport {
     return {
       write: send,
       resize: (size) => send(JSON.stringify({type: 'resize', cols: size.cols, rows: size.rows})),
-      inject: (text) => send(JSON.stringify({type: 'inject', text})),
       close: () => socket.close(),
     }
   }
@@ -126,12 +125,6 @@ describe('terminal primitives', () => {
     dispose()
   })
 
-  it('inject is a safe no-op while disconnected', async () => {
-    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
-    expect(() => model.inject('note')).not.toThrow()
-    model.disconnect()
-  })
-
   it('paste routes through terminal input', async () => {
     const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const received: string[] = []
@@ -147,54 +140,6 @@ describe('terminal primitives', () => {
     await expect.element(region('paste state')).toMatchTextContent('status=connecting')
     model.paste('grab text')
     expect(received.join('')).toContain('grab text')
-    dispose()
-  })
-
-  it('rail overlay sits beside the screen, not over it', async () => {
-    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
-    const {host, dispose} = mount(() => (
-      <TerminalPrimitive.Root model={model}>
-        <div style={{display: 'flex', 'flex-direction': 'row', width: '640px', height: '320px'}}>
-          <div style={{flex: '1', 'min-width': '0'}}>
-            <TerminalPrimitive.Screen />
-          </div>
-          <TerminalPrimitive.Overlay anchor="rail">
-            <p style={{width: '160px'}}>rail content</p>
-          </TerminalPrimitive.Overlay>
-        </div>
-      </TerminalPrimitive.Root>
-    ))
-    await expect.element(page.getByText('rail content')).toBeVisible()
-    const screen = host.querySelector('[data-terminal-screen]')
-    const overlay = host.querySelector('[data-terminal-overlay="rail"]')
-    if (!screen || !overlay) throw new Error('missing screen or overlay')
-    const screenBox = screen.getBoundingClientRect()
-    const overlayBox = overlay.getBoundingClientRect()
-    expect(host.textContent ?? '').toContain('rail content')
-    expect(overlayBox.left).toBeGreaterThanOrEqual(screenBox.right - 1)
-    dispose()
-  })
-
-  it('top-right overlay pins to the root corner above the screen', async () => {
-    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
-    const {host, dispose} = mount(() => (
-      <div style={{position: 'relative', width: '640px', height: '320px', display: 'flex'}}>
-        <TerminalPrimitive.Root model={model}>
-          <TerminalPrimitive.Screen />
-          <TerminalPrimitive.Overlay anchor="top-right">
-            <button type="button">corner action</button>
-          </TerminalPrimitive.Overlay>
-        </TerminalPrimitive.Root>
-      </div>
-    ))
-    await expect.element(page.getByRole('button', {name: 'corner action'})).toBeVisible()
-    const overlay = host.querySelector('[data-terminal-overlay="top-right"]')
-    if (!overlay) throw new Error('missing overlay')
-    const hostBox = host.getBoundingClientRect()
-    const overlayBox = overlay.getBoundingClientRect()
-    expect(host.textContent ?? '').toContain('corner action')
-    expect(overlayBox.top - hostBox.top).toBeLessThan(40)
-    expect(hostBox.right - overlayBox.right).toBeLessThan(40)
     dispose()
   })
 
@@ -319,7 +264,7 @@ describe('terminal primitives', () => {
     const reportsFailureFirst: TerminalTransport = (_terminal, listener) => {
       listener.control({type: 'error', message: 'spawn failed early'})
       listener.open()
-      return {write: () => {}, resize: () => {}, inject: () => {}, close: () => {}}
+      return {write: () => {}, resize: () => {}, close: () => {}}
     }
     const model = createTerminalModel({transport: reportsFailureFirst})
     const {dispose} = mount(() => (
@@ -466,21 +411,6 @@ describe('terminal size the engine takes', () => {
     )
     await expect.element(region('wide log'), {timeout: 5000}).toMatchTextContent('wide-1')
     await expect.element(region('wide state')).toMatchTextContent('status=open')
-    dispose()
-  })
-})
-
-describe('terminal rail', () => {
-  it('builds the rail overlay exactly once', async () => {
-    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
-    const builds = {count: 0}
-    const Rail = (): JSX.Element => {
-      builds.count += 1
-      return <div>rail build {builds.count}</div>
-    }
-    const {dispose} = mount(() => <Terminal model={model} rail={<Rail />} />)
-    await expect.element(page.getByText('rail build 1')).toBeVisible()
-    expect(builds.count).toBe(1)
     dispose()
   })
 })

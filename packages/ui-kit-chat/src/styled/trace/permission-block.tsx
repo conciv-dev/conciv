@@ -1,5 +1,4 @@
-import {createSignal, Show, splitProps, type JSX} from 'solid-js'
-import {createTimer} from '@solid-primitives/timer'
+import {Show, splitProps, type JSX} from 'solid-js'
 import Ban from 'lucide-solid/icons/ban'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
@@ -15,8 +14,6 @@ const FRAME =
 const HEADER = 'flex items-center gap-1.5 min-w-0'
 const HEADER_LABEL = `${TRACE_MICROLABEL} text-chat-perm-label`
 const WARN_GLYPH = 'select-none flex-none text-chat-xs leading-none text-chat-perm-label'
-const CHIP =
-  'flex-none ms-auto px-1.5 py-0.5 rounded-[var(--chat-radius-chip)] text-chat-xs leading-snug [font-family:var(--chat-mono)] text-chat-perm-path [background:var(--chat-perm-chip-bg)] [border:1px_solid_var(--chat-perm-line)]'
 const TARGET = 'min-w-0 break-all text-chat-sm leading-normal [font-family:var(--chat-mono)] text-chat-target'
 const EXPLANATION = 'min-w-0 text-chat-md leading-snug [font-family:var(--chat-font)] text-chat-text-2'
 const ACTIONS = 'flex flex-wrap items-center gap-2'
@@ -28,30 +25,6 @@ const ALWAYS = `${BUTTON_BASE} [background:transparent] [border:1px_solid_var(--
 const HINT = 'select-none text-chat-micro leading-none [font-family:var(--chat-mono)] opacity-70'
 const REQUEST_ITEM = 'list-none min-w-0 relative'
 
-const SECOND = 1000
-
-function remainingLabel(expiresAt: number, now: number): string {
-  const seconds = Math.max(0, Math.round((expiresAt - now) / SECOND))
-  const minutes = Math.floor(seconds / 60)
-  const rest = `${seconds % 60}`.padStart(2, '0')
-  return `expires in ${minutes}:${rest}`
-}
-
-function ExpiryChip(props: {expiresAt: number}): JSX.Element {
-  const [now, setNow] = createSignal(Date.now())
-  const expired = () => now() >= props.expiresAt
-  createTimer(
-    () => setNow(Date.now()),
-    () => (expired() ? false : SECOND),
-    setInterval,
-  )
-  return (
-    <span role="timer" aria-live="off" class={CHIP}>
-      {remainingLabel(props.expiresAt, now())}
-    </span>
-  )
-}
-
 const DECISION_MESSAGE = {approved: 'Approved the request', denied: 'Denied the request'} as const
 
 const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent]`
@@ -61,8 +34,8 @@ const DECISION_CHIP = {
   denied: {label: 'Denied', class: `${DECIDED} ${OUTCOME_TONE.error.text}`},
 } as const
 
-function Block(props: {target: string; explanation?: string; expiresAt?: number}): JSX.Element {
-  const [local] = splitProps(props, ['target', 'explanation', 'expiresAt'])
+function Block(props: {target: string; explanation?: string}): JSX.Element {
+  const [local] = splitProps(props, ['target', 'explanation'])
   const permission = usePermission()
   const decision = () => permission.decision()
   const bindKeys = (element: HTMLDivElement) => {
@@ -94,9 +67,6 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
                 ⚠
               </span>
               <span class={HEADER_LABEL}>Permission</span>
-              <Show when={permission.pending() && local.expiresAt}>
-                {(expiresAt) => <ExpiryChip expiresAt={expiresAt()} />}
-              </Show>
             </div>
             <p class={TARGET}>{local.target}</p>
             <Show when={local.explanation}>{(explanation) => <p class={EXPLANATION}>{explanation()}</p>}</Show>
@@ -156,12 +126,11 @@ export function TracePermissionBlock(props: {
   ctx: ToolViewCtx
   target: string
   explanation?: string
-  expiresAt?: number
 }): JSX.Element {
-  const [local] = splitProps(props, ['part', 'ctx', 'target', 'explanation', 'expiresAt'])
+  const [local] = splitProps(props, ['part', 'ctx', 'target', 'explanation'])
   return (
     <Permission.Root part={local.part} ctx={local.ctx}>
-      <Block target={local.target} explanation={local.explanation} expiresAt={local.expiresAt} />
+      <Block target={local.target} explanation={local.explanation} />
     </Permission.Root>
   )
 }

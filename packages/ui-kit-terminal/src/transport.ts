@@ -13,7 +13,6 @@ export type TerminalListener = {
 export type TerminalLink = {
   write(data: string): void
   resize(size: TerminalSize): void
-  inject(text: string): void
   close(): void
 }
 

@@ -19,7 +19,7 @@ npm install -D @conciv/it
 
 - [src/README.md](./src/README.md): components, skins, tokens and helpers.
 - [src/scripts/README.md](./src/scripts/README.md): token CSS and contract-doc generation and drift check.
-- Exports (`package.json`): `.` -> `./dist/index.js` (from `src/index.tsx`), `./tokens` -> `./dist/tokens.js` (from `src/tokens.ts`), `./tokens.css` -> `./src/tokens.css` (generated). `files`: `dist`, `docs`, `src/tokens.css`. No bin.
+- Exports (`package.json`): `.` -> `./dist/index.js` (from `src/index.tsx`), `./tokens.css` -> `./src/tokens.css` (generated). `files`: `dist`, `docs`, `src/tokens.css`. No bin.
 - Generated docs: `docs/skin-anchors.md`, `docs/plugin-tokens.md`.
 - Peer `solid-js` ^1.9.13; runtime deps `@ark-ui/solid`, `@solid-primitives/{clipboard,event-listener,resize-observer,timer}`, `@tanstack/solid-virtual`, `@zag-js/json-tree-utils`, `class-variance-authority`, `lucide-solid`.
 - Scripts: `gen:tokens` (`node src/scripts/gen-tokens.ts`), `gen:check` (`node src/scripts/check-tokens.ts`), `build` (`pnpm gen:tokens && vite build && tsc -p tsconfig.build.json`), `typecheck` (`tsconfig.json`), `lint` (`oxlint`), `test` (`vitest run --passWithNoTests`), `publint`, `attw` (`--profile esm-only --exclude-entrypoints tokens.css`).
@@ -29,7 +29,7 @@ npm install -D @conciv/it
 ## Invariants
 
 - `build` runs `gen:tokens` before `vite build` (`package.json`).
-- The vite lib build emits ES only (`formats: ['es']`) with entries `index` and `tokens`, and keeps `solid-js`, `@ark-ui/*`, `lucide-solid` and `@conciv/*` external (`vite.config.ts`).
+- The vite lib build emits ES only (`formats: ['es']`) with the entry `index`, and keeps `solid-js`, `@ark-ui/*`, `lucide-solid` and `@conciv/*` external (`vite.config.ts`).
 - Stories and tests are excluded from emitted declarations (`tsconfig.build.json`).
 - Browser tests run serially (`fileParallelism: false`, `vitest.config.ts`).
 - Committed `src/tokens.css` and `docs/*.md` must match the generator output (`gen:check`, see [src/scripts/README.md](./src/scripts/README.md)).

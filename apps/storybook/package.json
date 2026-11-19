@@ -11,15 +11,12 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@conciv/brand": "workspace:*",
-    "@conciv/builtin-plugins": "workspace:*",
-    "@conciv/mascot": "workspace:*",
-    "@conciv/solid-diffs": "workspace:*",
-    "@conciv/solid-streamdown": "workspace:*",
-    "@conciv/ui-kit-chat": "workspace:*",
-    "@conciv/ui-kit-chat-tools": "workspace:*",
-    "@conciv/ui-kit-system": "workspace:*",
-    "@conciv/ui-kit-tap": "workspace:*"
+    "@conciv/client": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/mascot": "workspace:^",
+    "@conciv/solid-streamdown": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.6.0",

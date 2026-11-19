@@ -7,7 +7,7 @@ The antenna-tip effects. Each file exports one `EffectMount`; `effect.ts` define
 ## Interface
 
 - `effect.ts:EffectMount` - `(context: EffectContext) => EffectHandle`; `EffectContext` is `{host, stage, antenna, skin}`.
-- `effect.ts:EffectHandle` - `start()`, `stop(onRested)`, `rest()`, `remove()`, optional `anchor(tip)`.
+- `effect.ts:EffectHandle` - `start()`, `stop(onRested)`, `rest()`, `remove()`, optional `anchor(tip)`, optional `replan()`.
 - `effect-support.ts:createTipEmitter` / `createTimelineEmitter` / `createNozzleEmitter` / `createParticleNozzleEmitter` - build an `EffectHandle` around an element anchored at the antenna tip.
 - `effect-support.ts:createTipShell` / `createSparkCanvas` / `sparkCanvasGeometry` / `antennaScaleFactor` / `runFrameLoop` - DOM, canvas and ticker helpers.
 - `effect-support.ts:WILL_CHANGE_STYLE` / `SPARK_COLOR` / `SPARK_ACCENT_COLOR` / `TIP_ORIGIN` / `noEmitterWork` - shared constants.

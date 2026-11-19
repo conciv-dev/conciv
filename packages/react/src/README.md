@@ -6,12 +6,12 @@ The `ConcivWidget` React component, which mounts the conciv widget from `@conciv
 
 ## Interface
 
-- `index.ts:ConcivWidget` - renders a `<div>` and calls `createConciv({apiBase, settings}).mount(host)` on it.
+- `index.ts:ConcivWidget` - renders a `<div>` and calls `createConciv(init).mount(host)` on it with every `ConcivInit` prop.
 - `index.ts:ConcivWidgetProps` - alias of `ConcivInit`; also re-exports the `ConcivInit` and `ConcivSettingsInit` types from `@conciv/embed`.
 
 ## Invariants
 
-- `index.ts:ConcivWidget` - remounts when `apiBase`/`settings` change by value (`JSON.stringify` key).
+- `index.ts:ConcivWidget` - remounts when `apiBase`/`settings` change by value (`JSON.stringify` key) or `plugins`/`grabProvider`/`engineToken` change by reference.
 - `index.ts:ConcivWidget` - the effect cleanup calls `handle.unmount()`.
 
 ## Side Effects

@@ -30,7 +30,7 @@ factory in `@conciv/contract` is the only place that picks the transport:
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime mounting sets `window.__CONCIV_*` globals, creates a shadow root on the host page and starts the page plane. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime mounting sets `window.__CONCIV_*` globals, creates a shadow root on the host page and installs the page plugin's React bridge. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

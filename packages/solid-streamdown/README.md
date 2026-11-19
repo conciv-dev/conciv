@@ -7,7 +7,7 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 ## Interface
 
 - `package.json:exports` - `.` (`dist/index.js`) and `./styles.css` (`src/styles.css`).
-- `vite.config.ts` - library build of `src/index.tsx` to `index.js`, ES format; `solid-js`, `solid-js/web`, `solid-js/store` and `shiki` external.
+- `vite.config.ts` - library build of `src/index.tsx` to `index.js`, ES format; `solid-js`, `solid-js/web` and `solid-js/store` external.
 - Source: [src](./src/README.md).
 
 ## Invariants

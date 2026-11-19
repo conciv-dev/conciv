@@ -7,6 +7,7 @@ import {
   useParams,
   useRouter,
   useSearch,
+  type AnyRouter,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
@@ -50,11 +51,9 @@ import {NoticeContextProvider, useNotices} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
-import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {sessionPickerSearchSchema} from '../lib/session-search-schemas.js'
-import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
@@ -64,6 +63,21 @@ import {PluginAttachment, PluginRoot} from '../runtime/plugin/root.js'
 import {PluginOverlay, PluginPanelKeys} from '../shell/plugin-surfaces.js'
 import '../styles.css'
 import 'virtual:uno.css'
+
+function escapeInTerminal(scopeEl: HTMLElement | undefined): boolean {
+  const root = scopeEl?.getRootNode()
+  const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+  return active instanceof Element && active.closest('[data-terminal-screen]') !== null
+}
+
+function setShutter(router: AnyRouter, open: boolean): Promise<void> {
+  const value: true | undefined = open ? true : undefined
+  return router.navigate({
+    to: '.',
+    search: (prev: Record<string, unknown>) => ({...prev, open: value}),
+    replace: true,
+  })
+}
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope]:not([data-scope="tabs"])[data-part="content"][data-state="open"]'
 

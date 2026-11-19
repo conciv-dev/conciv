@@ -1,13 +1,21 @@
 import {Show, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
-import type {AnyFieldApi} from '@tanstack/solid-form'
+import {type AnyFieldApi, createFormHook} from '@tanstack/solid-form'
 import {getRouteApi} from '@tanstack/solid-router'
 import type {SettingsScope} from '@conciv/contract'
 import {useAnnounce, usePreferences} from '../app/context.js'
-import {useAppForm} from './app-form.js'
 import {SettingsLoad} from './settings-ui.js'
 import {SettingNote} from './setting-note.js'
 import {PreferenceKeySchema, type Preferences} from './preferences-schema.js'
+import {fieldContext, formContext} from './form-context.js'
+import {SegmentField, SelectField, SkinField, SwitchField} from './setting-fields.js'
+
+const {useAppForm} = createFormHook({
+  fieldContext,
+  formContext,
+  fieldComponents: {SegmentField, SelectField, SkinField, SwitchField},
+  formComponents: {},
+})
 
 const FORM = 'flex flex-col gap-3.5'
 

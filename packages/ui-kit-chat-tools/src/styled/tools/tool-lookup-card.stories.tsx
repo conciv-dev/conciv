@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
-import {ToolLookupCard} from './tool-lookup-card.js'
+import {ToolLookupCard} from './builtin-tool-cards.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ToolLookupCard'}
 export default meta

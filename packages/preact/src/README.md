@@ -6,14 +6,14 @@ Single entry `index.ts`: a Preact component that renders an anchor `<div>` and m
 
 ## Interface
 
-- `ConcivWidget(props: ConcivWidgetProps): JSX.Element` (`index.ts`): renders a `div` with `ref: setHost`, creates `createConciv({apiBase, settings})` and mounts it on the host.
+- `ConcivWidget(props: ConcivWidgetProps): JSX.Element` (`index.ts`): renders a `div` with `ref: setHost`, creates `createConciv(init)` from every `ConcivInit` prop and mounts it on the host.
 - `ConcivWidgetProps` = `ConcivInit` (`index.ts`).
 - Type re-exports `ConcivInit`, `ConcivSettingsInit` from `@conciv/embed` (`index.ts`).
 
 ## Invariants
 
 - Mounting waits until the ref host exists (`if (!host) return`).
-- `apiBase` and `settings` are compared by `JSON.stringify({apiBase, settings})` (`configKey`); the stored `config` changes only when that key changes.
+- `apiBase` and `settings` are compared by `JSON.stringify({apiBase, settings})` (`configKey`); `plugins`, `grabProvider` and `engineToken` are compared by reference; the stored `config` changes only when the key or one of those references changes.
 - The effect cleanup calls `handle.unmount()` before a remount and on unmount.
 
 ## Side Effects

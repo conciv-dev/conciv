@@ -1,19 +1,13 @@
 import type {SettingsScope} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
-import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
+import type {EnableState} from '@conciv/plugin/experimental/host'
 import {readEnableState} from './enable-state'
 import {pluginError} from './error'
 
 const WHERE: {readonly scope: SettingsScope; readonly namespace: string} = {scope: 'global', namespace: 'plugin-enable'}
 
 export function createManager(client: ConcivClient, builtins: readonly string[]) {
-  const read = async () => readEnableState(await client.settings.all(WHERE))
-
   return {
-    read,
-    async enabled(id: string) {
-      return pluginEnabled({id, builtin: builtins.includes(id)}, await read())
-    },
     async setEnabled(id: string, enabled: boolean) {
       if (builtins.includes(id)) throw pluginError('builtin')
       await client.settings.set({...WHERE, key: id, value: enabled})

@@ -1,6 +1,15 @@
 import {createContext, onCleanup, onMount, Show, untrack, useContext, type JSX} from 'solid-js'
-import {injectXtermCss} from '../xterm-css.js'
 import type {TerminalModel} from '../model.js'
+import xtermCss from '@xterm/xterm/css/xterm.css?inline'
+
+function injectXtermCss(root: Node): void {
+  const target = root instanceof ShadowRoot ? root : document.head
+  if (target.querySelector('style[data-conciv-xterm]')) return
+  const style = document.createElement('style')
+  style.setAttribute('data-conciv-xterm', '')
+  style.textContent = xtermCss
+  target.appendChild(style)
+}
 
 const TerminalContext = createContext<TerminalModel>()
 
@@ -87,17 +96,4 @@ function Banner(props: {children: (state: {code: number | null; message: string 
   )
 }
 
-const OVERLAY_ANCHOR_CLASS: Record<'rail' | 'top-right', string> = {
-  rail: 'flex flex-col min-h-0 min-w-0 shrink',
-  'top-right': 'absolute top-2 right-2 z-10',
-}
-
-function Overlay(props: {anchor: 'rail' | 'top-right'; class?: string; children: JSX.Element}): JSX.Element {
-  return (
-    <div class={`${OVERLAY_ANCHOR_CLASS[props.anchor]}  ${props.class ?? ''}`} data-terminal-overlay={props.anchor}>
-      {props.children}
-    </div>
-  )
-}
-
-export const TerminalPrimitive = {Root, Screen, Banner, Overlay}
+export const TerminalPrimitive = {Root, Screen, Banner}

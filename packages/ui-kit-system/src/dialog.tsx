@@ -100,7 +100,6 @@ function ReadyMadeDialog(
     restoreFocus?: boolean
     dismissable?: boolean
     size?: 'md' | 'lg' | 'xl'
-    layer?: 'page' | 'inline'
     children: JSX.Element
   },
 ): JSX.Element {
@@ -149,5 +148,3 @@ export const Dialog = Object.assign(ReadyMadeDialog, Ark, {
   Footer,
   CloseTrigger,
 })
-
-export type DialogApi = typeof ReadyMadeDialog

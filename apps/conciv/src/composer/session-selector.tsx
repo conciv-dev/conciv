@@ -126,7 +126,6 @@ function readElsewhere(session: PickerSession | undefined): Elsewhere | null {
 }
 
 export function SessionSelector(props: {
-  variant: 'pill' | 'bar'
   activeId: () => string | null
   onActivate: (id: string) => void
   onNewSession: () => void
@@ -278,10 +277,9 @@ export function SessionSelector(props: {
   }
   const previewTarget = createMemo(() => buildPreview(findSession(picker.previewed)), null, {equals: isEqual})
 
-  const isPill = () => props.variant === 'pill'
   return (
     <Combobox.Root
-      class={isPill() ? 'inline-flex min-w-0 max-w-full' : 'flex min-w-0 max-w-full'}
+      class="flex min-w-0 max-w-full"
       collection={collection()}
       loading={searching()}
       translations={{loading: SEARCHING_LABEL}}
@@ -303,11 +301,7 @@ export function SessionSelector(props: {
       <Combobox.Control class="inline-flex min-w-0 max-w-full">
         <Combobox.Trigger
           focusable
-          class={`group text-[0.75rem] text-chat-text-2 border border-transparent rounded-chat-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
-            isPill()
-              ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-chat-line hover:bg-chat-fill-soft data-[state=open]:border-chat-line data-[state=open]:bg-chat-fill-soft data-[state=open]:text-chat-text-hi'
-              : 'max-w-full p-0 font-chat-mono'
-          }`}
+          class="group text-[0.75rem] text-chat-text-2 border border-transparent rounded-chat-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed max-w-full p-0 font-chat-mono"
           data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
         >

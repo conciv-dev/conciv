@@ -1,8 +1,16 @@
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {bashTool} from './bash-card.js'
+import {applyPatchTool} from './apply-patch-diff.js'
+import {discoveredApisTool} from './discovered-apis-card.js'
+import {fileEditTool} from './file-edit-card.js'
+import {fileReadTool} from './file-read-card.js'
+import {searchTool} from './search-card.js'
+import {todoTool} from './todo-card.js'
 import {Show, type JSX} from 'solid-js'
 import Wrench from 'lucide-solid/icons/wrench'
 import {z} from 'zod'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Chip, QUIET_TEXT_CLASS, ToolCard, parseInput} from '@conciv/ui-kit-chat/tools'
+
 const LookupInput = z.object({query: z.string().optional()})
 
 function Icon(): JSX.Element {
@@ -20,8 +28,19 @@ export function ToolLookupCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const toolLookupTool: ToolCardEntry = {
+const toolLookupTool: ToolCardEntry = {
   names: ['ToolSearch'],
   render: ToolLookupCard,
   hasEmbeddedBody: () => true,
 }
+
+export const builtinToolCards: ToolCardEntry[] = [
+  bashTool,
+  applyPatchTool,
+  discoveredApisTool,
+  fileEditTool,
+  fileReadTool,
+  searchTool,
+  todoTool,
+  toolLookupTool,
+]

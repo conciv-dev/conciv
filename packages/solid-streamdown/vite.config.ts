@@ -11,7 +11,7 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: ['solid-js', 'solid-js/web', 'solid-js/store', 'shiki'],
+      external: ['solid-js', 'solid-js/web', 'solid-js/store'],
     },
     emptyOutDir: true,
     sourcemap: true,

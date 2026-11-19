@@ -9,8 +9,7 @@
     "./settings": "./src/data/settings.ts",
     "./shadow": "./src/lib/shadow.ts",
     "./api-base": "./src/lib/api-base.ts",
-    "./engine-login": "./src/app/engine-login.tsx",
-    "./styles.css": "./src/styles.css"
+    "./engine-login": "./src/app/engine-login.tsx"
   },
   "scripts": {
     "dev": "vite dev --port 3000",
@@ -33,7 +32,6 @@
     "@conciv/page": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

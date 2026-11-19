@@ -9,7 +9,7 @@ export type EmitterAnchor = EmitterPoint
 
 export type EmitterBounds = {top: number; left: number; right: number}
 
-export type EmitterRoom = {rise: number; bend: number}
+type EmitterRoom = {rise: number; bend: number}
 
 export type EmitterRect = {top: number; left: number; right: number; bottom: number}
 
@@ -17,9 +17,9 @@ export type EmitterFootprint = {reach: number; clearance: number}
 
 export type CurveStyle = 'straight' | 'arc' | 'hook' | 'fan' | 'auto'
 
-export type ResolvedCurveStyle = Exclude<CurveStyle, 'auto'>
+type ResolvedCurveStyle = Exclude<CurveStyle, 'auto'>
 
-export type BentCurveStyle = Exclude<ResolvedCurveStyle, 'straight'>
+type BentCurveStyle = Exclude<ResolvedCurveStyle, 'straight'>
 
 const MARGIN = 12
 const MIN_RISE = 8

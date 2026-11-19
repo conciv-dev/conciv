@@ -4,6 +4,7 @@ import {
   type CanvasGeometry,
   createSparkCanvas,
   createTipEmitter,
+  MILLISECONDS_PER_SECOND,
   runFrameLoop,
   SPARK_ACCENT_COLOR,
   SPARK_COLOR,
@@ -28,8 +29,6 @@ const FOUNTAIN_MIN_SPEED_PX_PER_S = 46
 const FOUNTAIN_SPEED_SPREAD_PX_PER_S = 30
 
 const FOUNTAIN_TRAIL_FRACTION = 0.6
-
-const MILLISECONDS_PER_SECOND = 1000
 
 type FountainGeometry = CanvasGeometry & {gravity: number; minSpeed: number; speedSpread: number}
 

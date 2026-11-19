@@ -8,7 +8,6 @@ export default defineConfig({
     lib: {
       entry: {
         index: fileURLToPath(new URL('src/index.tsx', import.meta.url)),
-        tokens: fileURLToPath(new URL('src/tokens.ts', import.meta.url)),
       },
       formats: ['es'],
     },

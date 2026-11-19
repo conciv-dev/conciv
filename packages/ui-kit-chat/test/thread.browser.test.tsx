@@ -1265,25 +1265,6 @@ describe('trace permission block', () => {
     await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
     expect(decisions).toEqual([{id: 'approval-1', reply: 'always'}])
   })
-
-  it('shows the expiry countdown only for a request that carries a deadline', async () => {
-    const decisions: Decision[] = []
-    mountView(() => (
-      <>
-        <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />
-        <TracePermissionBlock
-          part={askingPart()}
-          ctx={ctxRecording(decisions)}
-          target={TARGET}
-          expiresAt={Date.now() + 90_000}
-        />
-      </>
-    ))
-
-    await expect.element(page.getByRole('timer')).toBeVisible()
-    await expect.element(page.getByRole('timer')).toMatchTextContent(/expires in 1:\d\d/)
-    expect(document.querySelectorAll('[role="timer"]')).toHaveLength(1)
-  })
 })
 
 describe('trace', () => {

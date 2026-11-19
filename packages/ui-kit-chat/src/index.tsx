@@ -57,7 +57,6 @@ export {
 export {createRunClock, formatElapsed, runClock, type RunClockSource, type RunClockState} from './store/run-clock.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
-export {chatBusy} from '@conciv/protocol/chat-busy'
 
 export {Primitive, type Slottable} from './primitives/util/primitive.js'
 export {
@@ -118,7 +117,6 @@ export {
   type ActionHandlers,
 } from './primitives/action-bar/action-handlers.js'
 export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
-export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
 export {partIsModelOnly} from './primitives/message-part/part-visibility.js'
 export {
@@ -154,20 +152,7 @@ export {
 } from './primitives/thread-list/thread-list-context.js'
 export {AssistantModal} from './primitives/assistant-modal/assistant-modal.js'
 export {QueueItem, QueueItemProvider, type QueuedMessage} from './primitives/queue-item/queue-item.js'
-export {
-  ModelSelector as ModelSelectorPrimitive,
-  useModelSelectorContext,
-  useModelSelectorEfforts,
-  resolveModelEffort,
-  DEFAULT_EFFORT_OPTIONS,
-  type ModelOption,
-  type ModelSelectorEffortOption,
-  type ModelSelectorRootProps,
-  type ModelSelectorTriggerProps,
-  type ModelSelectorValueProps,
-} from './primitives/model-selector/model-selector.js'
 export {useModelMenu, type ModelMenu, type ModelSwitchTarget} from './primitives/model-selector/model-menu.js'
-export {createControllableSignal} from './primitives/util/create-controllable-signal.js'
 export {
   SelectionToolbar,
   useSelectionToolbarInfo,
@@ -209,7 +194,6 @@ export {AttachmentUI} from './styled/attachment-ui.js'
 export {CornerRemoveButton} from './styled/corner-remove-button.js'
 export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attachment-dispatch.js'
 export type {AttachmentCardProps, AttachmentCardSlot} from './styled/attachment-dispatch.js'
-export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 export {HarnessModelSelector, type HarnessModelSelectorProps} from './styled/harness-model-selector.js'
 export {NowLine} from './styled/now-line.js'
 export {TURN_MEASURE_CLASS} from './styled/turn-classes.js'

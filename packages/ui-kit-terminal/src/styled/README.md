@@ -2,11 +2,11 @@
 
 ## Overview
 
-Styled `Terminal` component combining the primitives with chat-theme CSS variables: a dimmed screen once the session has ended, a 'connecting…' overlay, an optional side rail, and an error or exit banner with an optional 'Back to chat' button.
+Styled `Terminal` component combining the primitives with chat-theme CSS variables: a dimmed screen once the session has ended, a 'connecting…' overlay, and an error or exit banner with an optional 'Back to chat' button.
 
 ## Interface
 
-- `Terminal(props)` (`terminal.tsx`): `model`, optional `onBackToChat`, `class`, `rail`
+- `Terminal(props)` (`terminal.tsx`): `model`, optional `onBackToChat`, `class`
 
 ## Invariants
 

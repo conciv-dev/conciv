@@ -15,8 +15,6 @@
 @import '@conciv/ui-kit-chat/theme/tokens.css';
 @import '@conciv/ui-kit-system/host.css';
 
-/* Visually hidden but available to screen readers (e.g. the agent's "thinking" status). */
-
 /* A single focus-visible treatment for every interactive control: a magenta ring
    floated off the panel so it reads on any surface. (Inputs that already shift
    their border opt out via :focus styles below.) */
@@ -27,10 +25,6 @@
     0 0 0 4px var(--chat-accent);
 }
 
-/* ── Vibe chat agent: bottom-right FAB → corner popover (assistant-modal). Matches the
-   react-grab palette so it reads native alongside the comment UI. The host is
-   pointer-events:none, so interactive bits opt back in. */
-/* .conciv-chat-fab kept as a marker only (pick-away compound below); its styling is utilities now. */
 /* ── FAB robot mascot (rigged) ─────────────────────────────────────────────────
    The robot itself is <Mascot> from @conciv/mascot/solid (apps/conciv/src/shell/fab-robot.tsx): the
    package owns the three layer images, their transform-origins, the stacking order and the GSAP
@@ -55,8 +49,7 @@
   }
 }
 /* While the element picker is active OR a plugin holds a foreground overlay, the open surface
-   (and FAB) become invisible AND click-through, so the page / overlay underneath is fully reachable.
-   Compound selectors keep specificity at parity with .conciv-chat-open and win by source order. */
+   (and FAB) become invisible AND click-through, so the page / overlay underneath is fully reachable. */
 [data-conciv-panel][data-conciv-suppressed],
 [data-conciv-fab][data-conciv-suppressed],
 [data-conciv-qt][data-conciv-suppressed] {
@@ -64,7 +57,6 @@
   pointer-events: none;
   transition: opacity 140ms var(--chat-ease);
 }
-/* The only widget chrome during a pick: a compact mode indicator. */
 
 /* Honor reduced-motion: flatten every animation + transition in the shadow tree. The widget's motion
    now rides UnoCSS animate utilities plus the mascot's CSS glow, so one blanket

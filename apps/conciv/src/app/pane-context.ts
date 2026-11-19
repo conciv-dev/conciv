@@ -9,8 +9,6 @@ export type PendingAttachmentQueue = {
 }
 
 export type PaneContextValue = {
-  sessionId: Accessor<string>
-  running: Accessor<boolean>
   slideClass: Accessor<string>
   resetSlide: () => void
   grabStaging: GrabStaging
