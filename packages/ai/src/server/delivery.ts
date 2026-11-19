@@ -9,7 +9,9 @@ import {
   toWebSocketStream,
   type DebugConfig,
   type WebSocketLike,
+  type WsRunContext,
 } from '@tanstack/ai'
+import {InMemoryLockStore} from '@tanstack/ai/locks'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {z} from 'zod'
@@ -35,7 +37,7 @@ type DeliveryDeps = {
     messages: Array<ChatMessage | ModelMessage>,
     controller: AbortController,
   ) => AsyncIterable<ChatEvent>
-  seenRun: (runId: string) => boolean
+  seenRun: (runId: string) => Promise<boolean>
   debug: DebugConfig
   log: (message: string) => void
 }
@@ -96,6 +98,16 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     await response.text()
   }
 
+  const starts = new InMemoryLockStore()
+
+  const startUnlessSeen = (ctx: WsRunContext): Promise<void> =>
+    starts.withLock(ctx.runId, async () => {
+      if (await seenRun(ctx.runId)) return
+      drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
+        log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
+      )
+    })
+
   const serveSocket = (socket: WebSocketLike, request: Request): void => {
     const resumed = memoryStream(request)
     if (resolveResumeRunId(request) !== null && resumed.resumeFrom() !== null) {
@@ -106,11 +118,8 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
       debug,
       durability: (ctx) => memoryStream({runId: ctx.runId, offset: FROM_START}),
       onRun: (ctx) => {
-        if (seenRun(ctx.runId)) return noStream()
         IdentifiedMessagesSchema.parse(ctx.messages)
-        drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
-          log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
-        )
+        startUnlessSeen(ctx).catch((error: unknown) => log(`[ai] run ${ctx.runId} could not start: ${String(error)}`))
         return noStream()
       },
     })
@@ -143,16 +152,18 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     events: async (request) => {
       const params = await parsedParams(request)
       if (params === null) return Response.json({message: 'the request is not a valid chat run'}, {status: 400})
-      if (seenRun(params.runId)) {
-        return resumeServerSentEventsResponse({adapter: memoryStream({runId: params.runId, offset: FROM_START})})
-      }
-      const durability = memoryStream({runId: params.runId})
-      const controller = new AbortController()
-      const stream = run({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages, controller)
-      return toServerSentEventsResponse(stream, {
-        abortController: controller,
-        durability: {adapter: durability, batch: LIVE_BATCH},
-        debug,
+      return starts.withLock(params.runId, async () => {
+        if (await seenRun(params.runId)) {
+          return resumeServerSentEventsResponse({adapter: memoryStream({runId: params.runId, offset: FROM_START})})
+        }
+        const durability = memoryStream({runId: params.runId})
+        const controller = new AbortController()
+        const stream = run({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages, controller)
+        return toServerSentEventsResponse(stream, {
+          abortController: controller,
+          durability: {adapter: durability, batch: LIVE_BATCH},
+          debug,
+        })
       })
     },
     resume: (request) => {

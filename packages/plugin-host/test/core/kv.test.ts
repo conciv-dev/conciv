@@ -5,6 +5,7 @@ import {describe, expect} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {Effect, Layer} from 'effect'
 import {openDb} from '@conciv/db'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Database} from '../../src/core/database/database.js'
 import {KV} from '../../src/core/kv.js'
 import {PluginHost} from '../../src/core/plugin/host.js'
@@ -14,10 +15,8 @@ import {testEffect} from './lib/effect'
 const database = Layer.unwrap(
   Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
-    const client = openDb(tmp.path).$client
-    const path = client.location() ?? undefined
-    client.close()
-    return Database.layer({path})
+    const db = yield* openDb(tmp.path)
+    return Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))
   }),
 )
 

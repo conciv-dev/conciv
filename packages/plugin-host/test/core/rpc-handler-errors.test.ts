@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {Cause, Context, Effect, Exit, Layer, Logger, Schema} from 'effect'
 import {openDb} from '@conciv/db'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import * as PluginHostEntry from '../../src/index.js'
 import {Bus} from '../../src/core/bus.js'
 import {Database} from '../../src/core/database/database.js'
@@ -14,10 +15,8 @@ import {testEffect} from './lib/effect'
 const database = Layer.unwrap(
   Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
-    const client = openDb(tmp.path).$client
-    const path = client.location() ?? undefined
-    client.close()
-    return Database.layer({path})
+    const db = yield* openDb(tmp.path)
+    return Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))
   }),
 )
 

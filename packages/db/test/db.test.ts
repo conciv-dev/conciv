@@ -7,11 +7,15 @@ import {Worker} from 'node:worker_threads'
 import {once} from 'node:events'
 import envPaths from 'env-paths'
 import {DatabaseSync} from 'node:sqlite'
-import {fileURLToPath} from 'node:url'
+import {fileURLToPath, pathToFileURL} from 'node:url'
+import {createRequire} from 'node:module'
 import {asc, eq, is} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {getTableConfig, SQLiteTable} from 'drizzle-orm/sqlite-core'
-import {describe, expect, it, expectTypeOf} from 'vitest'
+import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
+import {SqliteClient} from '@effect/sql-sqlite-node'
+import {Effect, Exit, Layer, Scope} from 'effect'
+import {describe, expect, it, expectTypeOf, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import * as schema from '../src/schema.js'
 import * as runSchema from '../src/run-schema.js'
@@ -44,8 +48,14 @@ import {migrations} from '../src/migrations.gen.js'
 import {checkEngines} from '../src/engine-check.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
+function opened(stateRoot: string): Promise<ConcivDb> {
+  const scope = Scope.makeUnsafe()
+  onTestFinished(() => Effect.runPromise(Scope.close(scope, Exit.void)))
+  return Effect.runPromise(openDb(stateRoot).pipe(Scope.provide(scope)))
+}
+
 function legacyHistoryRows(db: ConcivDb, sessionId: string) {
-  return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
+  return Effect.runSync(db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)))
 }
 
 describe('capture queries', () => {
@@ -75,7 +85,7 @@ describe('capture queries', () => {
   describe('tool captures outlive the run that produced them', () => {
     it('keeps both sides of one tool call and hands them back after the database is reopened', async () => {
       const root = freshRoot()
-      await writeToolCapture(openDb(root), {
+      await writeToolCapture(await opened(root), {
         sessionId: 's1',
         toolCallId: 'call-1',
         bundle: {
@@ -85,7 +95,7 @@ describe('capture queries', () => {
         },
       })
 
-      const reopened = await sessionCaptures(openDb(root), 's1')
+      const reopened = await sessionCaptures(await opened(root), 's1')
       expect(reopened.captures.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
       expect(new Set(reopened.captures.map((row) => row.toolCallId))).toEqual(new Set(['call-1']))
       expect(reopened.cssBundles['cssabc']).toBe('i{}')
@@ -93,7 +103,7 @@ describe('capture queries', () => {
 
     it('stores every css bundle a single call reports, one per side', async () => {
       const root = freshRoot()
-      await writeToolCapture(openDb(root), {
+      await writeToolCapture(await opened(root), {
         sessionId: 's1',
         toolCallId: 'call-1',
         bundle: {
@@ -106,14 +116,14 @@ describe('capture queries', () => {
         },
       })
 
-      const stored = await sessionCaptures(openDb(root), 's1')
+      const stored = await sessionCaptures(await opened(root), 's1')
       expect(stored.cssBundles['cssbefore']).toBe('.a{}')
       expect(stored.cssBundles['cssafter']).toBe('.a{}.b{}')
     })
 
     it('replaces a side rather than duplicating it when the same call reports twice', async () => {
       const root = freshRoot()
-      const db = openDb(root)
+      const db = await opened(root)
       await writeToolCapture(db, {sessionId: 's1', toolCallId: 'call-1', bundle: {after: side('after', 'first')}})
       await writeToolCapture(db, {sessionId: 's1', toolCallId: 'call-1', bundle: {after: side('after', 'second')}})
       const stored = await sessionCaptures(db, 's1')
@@ -123,7 +133,7 @@ describe('capture queries', () => {
 
     it('drops a session capture and only the css bundles nothing else references', async () => {
       const root = freshRoot()
-      const db = openDb(root)
+      const db = await opened(root)
       await writeToolCapture(db, {
         sessionId: 's1',
         toolCallId: 'call-1',
@@ -140,7 +150,7 @@ describe('capture queries', () => {
 
     it('leaves no orphan css bundle behind when a capture in the same call fails to write', async () => {
       const root = freshRoot()
-      const db = openDb(root)
+      const db = await opened(root)
       await expect(
         writeToolCapture(db, {
           sessionId: 's1',
@@ -162,7 +172,7 @@ describe('capture queries', () => {
 
 describe('db', () => {
   function seedRunMessages(db: ConcivDb, sessionId: string, messages: unknown[]): void {
-    db.insert(runMessages).values({sessionId, messages, updatedAt: 1}).run()
+    Effect.runSync(db.insert(runMessages).values({sessionId, messages, updatedAt: 1}))
   }
 
   const record = (id: string) => ({
@@ -266,26 +276,23 @@ describe('db', () => {
       client.close()
     })
 
-    it('boots a fresh db with the attach columns and rejects a duplicate token', () => {
-      const db = openDb(tempDir('conciv-db-cwd-'))
-      db.insert(sessions)
-        .values({
+    it('boots a fresh db with the attach columns and rejects a duplicate token', async () => {
+      const db = await opened(tempDir('conciv-db-cwd-'))
+      Effect.runSync(
+        db.insert(sessions).values({
           ...record('conciv_a'),
           harnessSessionId: 'tok',
           transcriptCwd: '/other',
           attachedPid: 42,
           attachedAt: 7,
-        })
-        .run()
-      const row = db.select().from(sessions).all()[0]
+        }),
+      )
+      const row = Effect.runSync(db.select().from(sessions))[0]
       expect(row?.transcriptCwd).toBe('/other')
       expect(row?.attachedPid).toBe(42)
       expect(row?.attachedAt).toBe(7)
       expect(() =>
-        db
-          .insert(sessions)
-          .values({...record('conciv_b'), harnessSessionId: 'tok'})
-          .run(),
+        Effect.runSync(db.insert(sessions).values({...record('conciv_b'), harnessSessionId: 'tok'})),
       ).toThrow()
     })
   })
@@ -303,8 +310,8 @@ describe('db', () => {
       .toSorted()
   }
 
-  function beforeMigration(migration: string): DatabaseSync {
-    const client = new DatabaseSync(':memory:')
+  function beforeMigration(migration: string, file = ':memory:'): DatabaseSync {
+    const client = new DatabaseSync(file)
     readdirSync(drizzleDir)
       .filter((name) => name < migration)
       .toSorted()
@@ -355,7 +362,8 @@ describe('db', () => {
 
   describe('legacy thread import', () => {
     it('imports a legacy thread longer than the sqlite variable limit allows in one insert', async () => {
-      const client = beforeMigration('99999999999999_after_every_migration')
+      const file = join(tempDir('conciv-db-import-'), 'conciv.db')
+      const client = beforeMigration('99999999999999_after_every_migration', file)
       const pending = Array.from({length: 7000}, (_, index) => ({
         id: `m${index}`,
         role: 'user',
@@ -364,14 +372,25 @@ describe('db', () => {
       client
         .prepare('INSERT INTO run_messages (session_id, messages, updated_at) VALUES (?, ?, ?)')
         .run('conciv_long', JSON.stringify(pending), 1)
-      const db = drizzle({client})
+      client.close()
 
-      importLegacyThreads(db, 1)
+      const rows = await Effect.runPromise(
+        Effect.gen(function* () {
+          const db = yield* makeWithDefaults().pipe(
+            Effect.provide(yield* Layer.build(SqliteClient.layer({filename: file}))),
+          )
+          yield* importLegacyThreads(db, 1)
+          return yield* db
+            .select()
+            .from(chatMessages)
+            .where(eq(chatMessages.threadId, 'conciv_long'))
+            .orderBy(asc(chatMessages.position))
+        }).pipe(Effect.scoped),
+      )
 
-      const stored = threadRows(db, 'conciv_long').map((row) => row.messageJson)
+      const stored = rows.map((row) => row.messageJson)
       expect(stored).toHaveLength(7000)
       expect(stored.at(-1)).toMatchObject({id: 'm6999', role: 'user', content: 'message 6999'})
-      client.close()
     })
   })
 
@@ -399,21 +418,19 @@ describe('db', () => {
       client.close()
     })
 
-    it('imports a legacy run under the harness of its session', () => {
+    it('imports a legacy run under the harness of its session', async () => {
       const stateRoot = tempDir('conciv-db-legacy-run-')
-      const first = openDb(stateRoot)
-      first
-        .insert(sessions)
-        .values({...record('conciv_pi'), harnessKind: 'pi'})
-        .run()
-      first
-        .insert(runs)
-        .values({runId: 'legacy-run', sessionId: 'conciv_pi', phase: 'completed', startedAt: 1, updatedAt: 1})
-        .run()
-      const second = openDb(stateRoot)
-      expect(second.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns).all()).toEqual([
-        {runId: 'legacy-run', harnessId: 'pi'},
-      ])
+      const first = await opened(stateRoot)
+      Effect.runSync(first.insert(sessions).values({...record('conciv_pi'), harnessKind: 'pi'}))
+      Effect.runSync(
+        first
+          .insert(runs)
+          .values({runId: 'legacy-run', sessionId: 'conciv_pi', phase: 'completed', startedAt: 1, updatedAt: 1}),
+      )
+      const second = await opened(stateRoot)
+      expect(
+        Effect.runSync(second.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns)),
+      ).toEqual([{runId: 'legacy-run', harnessId: 'pi'}])
     })
   })
 
@@ -521,18 +538,18 @@ describe('db', () => {
   })
 
   describe('openDb', () => {
-    it('sessions round-trip through the typed orm', () => {
-      const db = openDb(tempDir('conciv-db-'))
-      db.insert(sessions).values(record('conciv_a')).run()
-      const rows = db.select().from(sessions).where(eq(sessions.id, 'conciv_a')).all()
+    it('sessions round-trip through the typed orm', async () => {
+      const db = await opened(tempDir('conciv-db-'))
+      Effect.runSync(db.insert(sessions).values(record('conciv_a')))
+      const rows = Effect.runSync(db.select().from(sessions).where(eq(sessions.id, 'conciv_a')))
       expect(rows[0]?.cwd).toBe('/w')
-      db.update(sessions).set({title: 'named', updatedAt: 2}).where(eq(sessions.id, 'conciv_a')).run()
-      expect(db.select().from(sessions).all()[0]?.title).toBe('named')
+      Effect.runSync(db.update(sessions).set({title: 'named', updatedAt: 2}).where(eq(sessions.id, 'conciv_a')))
+      expect(Effect.runSync(db.select().from(sessions))[0]?.title).toBe('named')
     })
 
-    it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', () => {
+    it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', async () => {
       const stateRoot = tempDir('conciv-db-fold-')
-      const first = openDb(stateRoot)
+      const first = await opened(stateRoot)
       const imageTurn = [
         {
           id: 'u1',
@@ -543,34 +560,34 @@ describe('db', () => {
       const textTurn = [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}]
       seedRunMessages(first, 'conciv_img', imageTurn)
       seedRunMessages(first, 'conciv_txt', textTurn)
-      const second = openDb(stateRoot)
-      expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
-      expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
+      const second = await opened(stateRoot)
+      expect((await runMessagesFor(second, 'conciv_img'))?.messages).toEqual(imageTurn)
+      expect((await runMessagesFor(second, 'conciv_txt'))?.messages).toEqual(textTurn)
       expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
       expect(legacyHistoryRows(second, 'conciv_txt')).toEqual([])
     })
 
-    it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
+    it('two connections on one stateRoot interleave writes (WAL + busy timeout)', async () => {
       const stateRoot = tempDir('conciv-db-multi-')
-      const first = openDb(stateRoot)
-      const second = openDb(stateRoot)
-      first.insert(sessions).values(record('conciv_a')).run()
-      second.insert(sessions).values(record('conciv_b')).run()
-      first.update(sessions).set({title: 'from-first'}).where(eq(sessions.id, 'conciv_b')).run()
-      const ids = second
-        .select({id: sessions.id})
-        .from(sessions)
-        .all()
+      const first = await opened(stateRoot)
+      const second = await opened(stateRoot)
+      Effect.runSync(first.insert(sessions).values(record('conciv_a')))
+      Effect.runSync(second.insert(sessions).values(record('conciv_b')))
+      Effect.runSync(first.update(sessions).set({title: 'from-first'}).where(eq(sessions.id, 'conciv_b')))
+      const ids = Effect.runSync(second.select({id: sessions.id}).from(sessions))
         .map((row) => row.id)
         .toSorted()
       expect(ids).toEqual(['conciv_a', 'conciv_b'])
-      expect(second.select().from(sessions).where(eq(sessions.id, 'conciv_b')).all()[0]?.title).toBe('from-first')
+      expect(Effect.runSync(second.select().from(sessions).where(eq(sessions.id, 'conciv_b')))[0]?.title).toBe(
+        'from-first',
+      )
     })
 
     it('two connections opening a fresh project db at the same instant both succeed', async () => {
       const dbModule = new URL('../src/db.ts', import.meta.url).href
-      const opened = await openTwiceAtOnce((folder) => ({module: dbModule, open: 'openDb', folder}))
-      expect(opened).toEqual(Array.from({length: 16}, () => ({migrations: migrations.length})))
+      const effect = pathToFileURL(createRequire(dbModule).resolve('effect')).href
+      const counts = await openTwiceAtOnce((folder) => ({module: dbModule, open: 'openDb', folder, effect}))
+      expect(counts).toEqual(Array.from({length: 16}, () => ({migrations: migrations.length})))
     })
 
     it('drizzle row type matches SessionRecord (id brands applied by zod parse)', () => {
@@ -585,20 +602,20 @@ describe('db', () => {
 })
 
 describe('run queries', () => {
-  const fresh = () => openDb(tempDir('conciv-run-'))
+  const fresh = () => opened(tempDir('conciv-run-'))
 
   describe('run lifecycle queries', () => {
-    it('reads fall back safely for unknown sessions', () => {
-      const db = fresh()
-      expect(readModel(db, 'missing')).toBeNull()
-      expect(runMessagesFor(db, 'missing')).toBeNull()
+    it('reads fall back safely for unknown sessions', async () => {
+      const db = await fresh()
+      expect(await readModel(db, 'missing')).toBeNull()
+      expect(await runMessagesFor(db, 'missing')).toBeNull()
       expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
-    it('readModel reads the sessions row', () => {
-      const db = fresh()
-      db.insert(sessions)
-        .values({
+    it('readModel reads the sessions row', async () => {
+      const db = await fresh()
+      Effect.runSync(
+        db.insert(sessions).values({
           id: 'conciv_m',
           harnessSessionId: null,
           harnessKind: 'claude',
@@ -609,9 +626,9 @@ describe('run queries', () => {
           cwd: '/w',
           createdAt: 1,
           updatedAt: 1,
-        })
-        .run()
-      expect(readModel(db, 'conciv_m')).toBe('haiku')
+        }),
+      )
+      expect(await readModel(db, 'conciv_m')).toBe('haiku')
     })
   })
 })
@@ -856,7 +873,7 @@ describe('home db', () => {
 })
 
 async function openInWorker(
-  opener: {module: string; open: string; folder: string},
+  opener: {module: string; open: string; folder: string; effect?: string},
   barrier: SharedArrayBuffer,
 ): Promise<unknown> {
   const worker = new Worker(
@@ -873,11 +890,23 @@ async function openInWorker(
       },
     })
     const gate = new Int32Array(workerData.barrier)
-    import(workerData.module).then((module) => {
+    import(workerData.module).then(async (module) => {
       Atomics.add(gate, 0, 1)
       Atomics.notify(gate, 0)
       for (let seen = Atomics.load(gate, 0); seen < 2; seen = Atomics.load(gate, 0)) Atomics.wait(gate, 0, seen)
       try {
+        if (workerData.effect) {
+          const {Effect} = await import(workerData.effect)
+          const counted = await Effect.runPromise(
+            Effect.scoped(
+              Effect.flatMap(module[workerData.open](workerData.folder), (db) =>
+                db.$client.unsafe('SELECT count(*) AS count FROM __drizzle_migrations'),
+              ),
+            ),
+          )
+          parentPort.postMessage({migrations: counted[0].count})
+          return
+        }
         const db = module[workerData.open](workerData.folder)
         parentPort.postMessage({migrations: db.$client.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get().count})
         db.$client.close()
@@ -898,7 +927,7 @@ async function openInWorker(
 }
 
 async function openTwiceAtOnce(
-  opener: (folder: string) => {module: string; open: string; folder: string},
+  opener: (folder: string) => {module: string; open: string; folder: string; effect?: string},
 ): Promise<unknown[]> {
   const rounds = await Promise.all(
     Array.from({length: 8}, async () => {
