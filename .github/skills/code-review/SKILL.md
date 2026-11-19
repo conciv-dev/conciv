@@ -79,6 +79,8 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Observability: every service function is `Effect.fn('package.area.verb')` (a named span); request-scoped ids go on
   the span with `Effect.annotateCurrentSpan` (`sessionId`, `plugin`); Effect code logs with `Effect.log` /
   `logWarning` / `logError` (they land as span events), never `console.*`.
+- Files copied from opencode (plugin-host, plugin) keep opencode's names and shapes, including `Service.verb` span names
+  and its own Effect patterns; the laws above apply to conciv's own code and to conciv's edits inside a copy.
 - Effect code called from Solid goes through one bridge (`ManagedRuntime` in, `SubscriptionRef` out read with
   `fromRef`), not ad hoc `runPromise` calls in components.
 
@@ -140,7 +142,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Testkits (`@conciv/plugin-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
   helpers) run the real product path and fake only expensive externals (the LLM harness, CLIs). A testkit
   client that stands in for the browser uses the same transport and client as the product (browser rpc
-  over the partysocket `/rpc-ws` socket through `makeBrowserRpcClient`), never a parallel HTTP or
+  over the `/rpc-ws` socket through `makeBrowserRpcClient`), never a parallel HTTP or
   hand-rolled path. Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is
   fine; swapping the transport is not. Flag a PR that changes a product transport or client without
   moving the testkits onto it in the same PR, and any test that waits on or hooks a transport the
