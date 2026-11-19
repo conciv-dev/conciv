@@ -4,8 +4,7 @@ import {extname, join} from 'node:path'
 import {Data, Effect} from 'effect'
 import {z} from 'zod'
 import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
-import {Tool} from '@conciv/plugin'
-import {raise} from './connection.js'
+import {Tool} from '@conciv/plugin/schema/tool'
 import {MAX_FILE_BYTES, type File} from './rpc.js'
 
 const Coded = z.object({code: z.string()})
@@ -18,7 +17,7 @@ const WriteFailed = Data.TaggedError('PageFilesWriteFailed')<{readonly cause: un
 type SaveFailure = InstanceType<typeof TransferTooLarge> | InstanceType<typeof WriteFailed>
 
 export function save(files: readonly File[], root: string) {
-  return Effect.runPromise(saving(files, root).pipe(Effect.mapError((error) => raise(failure(error)))))
+  return saving(files, root).pipe(Effect.mapError(failure))
 }
 
 function saving(files: readonly File[], root: string) {

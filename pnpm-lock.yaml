@@ -2363,6 +2363,9 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tanstack/react-router':
+        specifier: 'catalog:'
+        version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tiptap/core':
         specifier: 'catalog:'
         version: 3.32.1(@tiptap/pm@3.32.1)
@@ -4501,6 +4504,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
         version: 4.1.0(effect@4.1.0)
@@ -4553,9 +4559,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@effect/platform-node':
-        specifier: 'catalog:'
-        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4780,6 +4783,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4877,9 +4883,9 @@ importers:
 
   packages/plugins/tanstack:
     dependencies:
-      '@conciv/protocol':
+      '@conciv/plugin-page':
         specifier: workspace:^
-        version: link:../../protocol
+        version: link:../../plugin-page
       effect:
         specifier: 'catalog:'
         version: 4.1.0
