@@ -1,5 +1,6 @@
 import {Effect, Fiber, FiberHandle, Ref, Schema, Semaphore, Stream, SubscriptionRef} from 'effect'
-import {from, onCleanup, type Accessor} from 'solid-js'
+import {onCleanup, type Accessor} from 'solid-js'
+import {createStore, reconcile} from 'solid-js/store'
 import type {Context} from '@conciv/plugin/experimental'
 import {TestRunner} from './rpc.js'
 import {TestEventSchema} from './events.js'
@@ -84,12 +85,14 @@ const followTestRun = Effect.fn('TestRunner.follow')(function* (
 })
 
 function fromRef(ref: SubscriptionRef.SubscriptionRef<RunView>): Accessor<RunView> {
-  return from<RunView>((set) => {
-    const fiber = Effect.runFork(
-      Stream.runForEach(SubscriptionRef.changes(ref), (value) => Effect.sync(() => set(value))),
-    )
-    return () => void Effect.runFork(Fiber.interrupt(fiber))
-  }, initialRunView)
+  const [store, setStore] = createStore<{view: RunView}>({view: initialRunView})
+  const fiber = Effect.runFork(
+    Stream.runForEach(SubscriptionRef.changes(ref), (value) =>
+      Effect.sync(() => setStore('view', reconcile(value, {key: 'id'}))),
+    ),
+  )
+  onCleanup(() => void Effect.runFork(Fiber.interrupt(fiber)))
+  return () => store.view
 }
 
 export function followRunView(client: Client): Accessor<RunView> {
