@@ -245,6 +245,14 @@ function AssistantTurn(props: {
         item.turn(),
       ),
     )
+  const actionRowIndex = createMemo(() =>
+    runActive() || joinsBelow() ? undefined : parts().findLastIndex((part) => asText(part) !== null),
+  )
+  const latestTextTurnIndex = createMemo(() =>
+    thread.turns.findLastIndex(
+      (item) => item.role === 'assistant' && item.turn().parts.some((part) => asText(part) !== null),
+    ),
+  )
   const folded = () => !message.isLast() && !outside()
   const label = createMemo(() => replyLabel(outside() ? undefined : thread.turns[message.index() - 1]?.turn()))
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
@@ -333,11 +341,23 @@ function AssistantTurn(props: {
       <Switch>
         <Match when={asText(leafPart())}>
           {(part) => (
-            <div class={ANSWER_ROW_CLASS}>
-              <div class={message.isLast() ? ANSWER_CONTENT_CLASS : ANSWER_CONTENT_SETTLED_CLASS}>
-                <Markdown content={part().content} streaming={liveAt(leafProps.node.index, part())} />
+            <>
+              <div class={ANSWER_ROW_CLASS}>
+                <div class={message.isLast() ? ANSWER_CONTENT_CLASS : ANSWER_CONTENT_SETTLED_CLASS}>
+                  <Markdown content={part().content} streaming={liveAt(leafProps.node.index, part())} />
+                </div>
               </div>
-            </div>
+              <Show when={leafProps.node.index === actionRowIndex()}>
+                <div class={ANSWER_ACTION_ROW_CLASS}>
+                  <AssistantActionBar
+                    readOnly={config.readOnly() || outside()}
+                    refreshDisabled={config.refreshDisabled()}
+                    copyText={outside() ? outsideRunText() : undefined}
+                    keepVisible={message.index() === latestTextTurnIndex()}
+                  />
+                </div>
+              </Show>
+            </>
           )}
         </Match>
         <Match when={leafCall()}>
@@ -396,15 +416,6 @@ function AssistantTurn(props: {
     <Message.Root data-conciv-msg role="article" aria-label={label()} class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
       <Message.Error />
-      <Show when={!runActive() && !joinsBelow()}>
-        <div class={ANSWER_ACTION_ROW_CLASS}>
-          <AssistantActionBar
-            readOnly={config.readOnly() || outside()}
-            refreshDisabled={config.refreshDisabled()}
-            copyText={outside() ? outsideRunText() : undefined}
-          />
-        </div>
-      </Show>
     </Message.Root>
   )
 }
