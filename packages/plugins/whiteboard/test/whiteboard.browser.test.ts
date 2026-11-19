@@ -1198,13 +1198,22 @@ describe('the comments of the whiteboard plugin', () => {
 const HOST_TEXT = 'Host page under the canvas'
 const HOST_BODY = `<h1 style="position:fixed;top:45%;left:40px;margin:0;font:700 40px sans-serif;color:#c2255c">${HOST_TEXT}</h1>`
 
-async function hostTextUnderCanvas(
-  browser: Browser,
-  options: Record<string, string>,
-): Promise<{closed: Buffer; open: Buffer}> {
+const CANVAS_BACKGROUND_SWITCH = 'Canvas background: see the page through the canvas'
+
+async function chooseSolidCanvas(page: Page): Promise<void> {
+  await page.getByRole('link', {name: 'Settings'}).click({timeout: 10_000})
+  const transparent = page.getByRole('switch', {name: CANVAS_BACKGROUND_SWITCH})
+  await expect(transparent).toBeChecked({timeout: 10_000})
+  await transparent.locator('xpath=..').click()
+  await expect(transparent).not.toBeChecked()
+  await page.getByRole('button', {name: 'Back to chat'}).click()
+  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
+}
+
+async function hostTextUnderCanvas(browser: Browser, solid: boolean): Promise<{closed: Buffer; open: Buffer}> {
   const widget = await openPluginWidget(browser, {
     id: 'fake',
-    plugins: [[PACKAGE_DIR, options]],
+    plugins: [PACKAGE_DIR],
     widgetBundle: WIDGET_BUNDLE,
     stateRoot: realpathSync(tempDir('conciv-whiteboard-background-')),
     body: HOST_BODY,
@@ -1213,6 +1222,7 @@ async function hostTextUnderCanvas(
     const page = widget.page
     await page.setViewportSize({width: 1280, height: 800})
     await openChat(page)
+    if (solid) await chooseSolidCanvas(page)
     const hostText = page.getByRole('heading', {name: HOST_TEXT})
     const closed = await hostText.screenshot({animations: 'disabled'})
     await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 10_000})
@@ -1224,10 +1234,12 @@ async function hostTextUnderCanvas(
 }
 
 describe('the whiteboard canvas background', () => {
-  test('lets the host page show through by default and covers it with the background option', async ({browser}) => {
-    const transparent = await hostTextUnderCanvas(browser, {})
+  test('lets the host page show through by default and covers it once the settings row turns it solid', async ({
+    browser,
+  }) => {
+    const transparent = await hostTextUnderCanvas(browser, false)
     expect(transparent.open.equals(transparent.closed)).toBe(true)
-    const solid = await hostTextUnderCanvas(browser, {background: '#ffffff'})
+    const solid = await hostTextUnderCanvas(browser, true)
     expect(solid.open.equals(solid.closed)).toBe(false)
   })
 })

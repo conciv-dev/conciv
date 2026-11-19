@@ -135,6 +135,7 @@ export function Island(props: {
   })
 
   const themes = observable(() => props.theme)
+  const backgrounds = observable(() => props.background)
   const subscribeTheme = (onChange: () => void): (() => void) => {
     const subscription = themes.subscribe(() => onChange())
     return () => subscription.unsubscribe()
@@ -176,6 +177,15 @@ export function Island(props: {
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
             Effect.runSync(Ref.set(attached, instance))
+            const background = backgrounds.subscribe((viewBackgroundColor) =>
+              instance.updateScene({appState: {viewBackgroundColor}, captureUpdate: CAPTURE_NEVER}),
+            )
+            Effect.runSync(
+              Scope.addFinalizer(
+                islandScope,
+                Effect.sync(() => background.unsubscribe()),
+              ),
+            )
             const pushViewport = (): void => {
               const state = instance.getAppState()
               props.onViewport({

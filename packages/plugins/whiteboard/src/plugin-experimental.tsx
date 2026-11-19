@@ -3,14 +3,17 @@ import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {Effect, Exit, Scope, SubscriptionRef} from 'effect'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
+import {ComposerPill, Plugin, SettingsPage, Slot} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
 import {ComposePopover} from './compose-popover.js'
 import {refAccessor} from './ref-accessor.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
 import {whiteboardStores} from './stores.js'
+import {CANVAS_BACKGROUND_ROW, CanvasBackgroundRow} from './canvas-background-row.js'
 import type {ChatCover} from './comments-model.js'
+
+const EXCALIDRAW_VIEW_BACKGROUND = '#ffffff'
 
 export default Plugin.define({
   stores: whiteboardStores,
@@ -35,6 +38,7 @@ export default Plugin.define({
       refetchOnWindowFocus: false,
     }))
     const close = (): void => setCanvas('open', false)
+    const background = (): string => (ctx.stores.canvas.value.transparent ? 'transparent' : EXCALIDRAW_VIEW_BACKGROUND)
     const layer = document.createElement('div')
     const overlay: Slot = {
       at: 'page.overlay',
@@ -95,6 +99,7 @@ export default Plugin.define({
           <WhiteboardCanvas
             ctx={ctx}
             surface={surface}
+            background={background()}
             visible={visible()}
             layer={layer}
             close={close}
@@ -107,6 +112,20 @@ export default Plugin.define({
       ),
     )
     ctx.add(ComposerPill, pill)
+    ctx.add(SettingsPage, {
+      id: 'canvas-background',
+      page: 'general',
+      section: 'general',
+      title: 'Whiteboard canvas background',
+      entries: [
+        {
+          id: CANVAS_BACKGROUND_ROW,
+          title: 'Canvas background',
+          keywords: 'whiteboard canvas background transparent solid',
+        },
+      ],
+      render: () => <CanvasBackgroundRow />,
+    })
     ctx.add(ComposerPill, commentPill)
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (visible() ? overlay : undefined))

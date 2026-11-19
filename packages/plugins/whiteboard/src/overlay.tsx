@@ -1,4 +1,4 @@
-import {createMemo, ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
+import {ErrorBoundary, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {UseQueryResult} from '@conciv/client'
 import type {Context} from '@conciv/plugin/experimental'
@@ -31,14 +31,8 @@ function Notice(props: {toast: Context['toast']; title: string; variant?: 'defau
 }
 
 const CATCH_UP_RETRY_MS = 1_000
-const TRANSPARENT = 'transparent'
 const CanvasOptions = z.object({
   catchUpRetryMs: z.number().positive().default(CATCH_UP_RETRY_MS).catch(CATCH_UP_RETRY_MS),
-  background: z
-    .string()
-    .refine((colour) => CSS.supports('color', colour))
-    .default(TRANSPARENT)
-    .catch(TRANSPARENT),
 })
 
 function readRoom(ctx: Context): string | undefined {
@@ -68,12 +62,12 @@ export function WhiteboardNotices(props: {ctx: Context; surface: CanvasSurface; 
 export function WhiteboardCanvas(props: {
   ctx: Context
   surface: CanvasSurface
+  background: string
   visible: boolean
   layer: HTMLElement
   close: () => void
   bindComments: (comments: ChatCover | undefined) => void
 }): JSX.Element {
-  const options = createMemo(() => CanvasOptions.parse(props.ctx.options))
   return (
     <ErrorBoundary fallback={(error) => <CanvasFailed toast={props.ctx.toast} error={error} />}>
       <Show when={props.surface.isSuccess && props.surface.data}>
@@ -84,8 +78,8 @@ export function WhiteboardCanvas(props: {
                 component={loaded()}
                 client={props.ctx.client}
                 room={current}
-                catchUpRetryMs={options().catchUpRetryMs}
-                background={options().background}
+                catchUpRetryMs={CanvasOptions.parse(props.ctx.options).catchUpRetryMs}
+                background={props.background}
                 visible={props.visible}
                 layer={props.layer}
                 close={props.close}
