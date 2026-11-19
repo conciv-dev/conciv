@@ -19,7 +19,7 @@ const CANVAS_STYLES = excalidrawCss.replaceAll(/:root(?=\s*\{)/g, ':host')
 const EXCALIDRAW_INSIDE_MARKER = 'data-prevent-outside-click'
 
 const OPEN_CHAT_LAYER =
-  '[data-scope]:not([data-scope="tabs"], [data-scope="dialog"])[data-part="content"][data-state="open"]'
+  '[data-scope]:not([data-scope="tabs"], [data-scope="dialog"], [data-scope="collapsible"])[data-part="content"][data-state="open"]'
 
 const layerOpenBeside = (node: unknown): boolean => {
   if (!(node instanceof Node)) return false

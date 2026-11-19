@@ -885,7 +885,7 @@ describe('the comments of the whiteboard plugin', () => {
       const commentPill = page.getByRole('button', {name: 'Comment on an element'})
       const newComment = page.getByRole('dialog', {name: 'New comment'})
       const commentField = newComment.getByRole('textbox', {name: 'Comment', exact: true})
-      const pickedElement = page.getByText('page-bus-ok')
+      const pickedElement = page.getByText('page-probe-ok')
       await expect(commentPill).toBeHidden()
       releasePicker()
       await commentPill.click()
