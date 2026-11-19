@@ -16,6 +16,12 @@ const SOCKET_OPEN = 1
 
 const REVOKED_MESSAGE = 'this browser is no longer trusted'
 
+const MAX_UNSENT_BYTES = 8 * 1024 * 1024
+
+const SLOW_CONSUMER_MESSAGE = 'the reader fell too far behind the stream'
+
+const UnsentBytesSchema = z.object({bufferedAmount: z.number()})
+
 export const RPC_PREFIX = '/rpc'
 
 const ClientVersionSchema = z
@@ -40,23 +46,31 @@ function rpcConnectionContext(requestUrl: string, callerOrigin: string | null, h
   return {origin: new URL(requestUrl).origin, callerOrigin, headers}
 }
 
-type SocketStreams = {revoked: AbortSignal; replies: Set<Promise<boolean>>}
+type SocketStreams = {revoked: AbortSignal; replies: Set<Promise<boolean>>; unsent: () => number}
 
 function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, unknown, void> {
   return typeof value === 'object' && value !== null && Symbol.asyncIterator in value
 }
 
-function failedOnRevoke(
+function slowConsumer(): ORPCError<'SLOW_CONSUMER', {capacity: number}> {
+  return new ORPCError('SLOW_CONSUMER', {message: SLOW_CONSUMER_MESSAGE, data: {capacity: MAX_UNSENT_BYTES}})
+}
+
+function guardedStream(
   stream: AsyncIteratorObject<unknown, unknown, void>,
-  revoked: AbortSignal,
+  streams: SocketStreams,
 ): AsyncIteratorClass<unknown, unknown> {
+  const {revoked} = streams
   const refused = Promise.withResolvers<never>()
   refused.promise.catch(() => undefined)
   const refuse = (): void => refused.reject(revoked.reason)
   revoked.addEventListener('abort', refuse, {once: true})
   if (revoked.aborted) refuse()
   return new AsyncIteratorClass(
-    () => Promise.race([stream.next(), refused.promise]),
+    () =>
+      streams.unsent() > MAX_UNSENT_BYTES
+        ? Promise.reject(slowConsumer())
+        : Promise.race([stream.next(), refused.promise]),
     async () => {
       revoked.removeEventListener('abort', refuse)
       void stream.return?.()?.catch(() => undefined)
@@ -94,7 +108,7 @@ function rpcHandlerOptions(streams?: SocketStreams): StandardRPCHandlerOptions<R
         const output = await options.next()
         if (streams === undefined || !isEventIterator(output)) return output
         heldUntilReplied(streams, options.context.replied)
-        return failedOnRevoke(output, streams.revoked)
+        return guardedStream(output, streams)
       },
     ],
   }
@@ -150,6 +164,11 @@ function upgradeHeaders(c: Context): RpcHeaders {
   return {'user-agent': c.req.header('user-agent')}
 }
 
+function unsentBytes(socket: WSContext<unknown> | null): number {
+  const raw = UnsentBytesSchema.safeParse(socket?.raw)
+  return raw.success ? raw.data.bufferedAmount : 0
+}
+
 function peerSocket(held: {socket: WSContext<unknown> | null}): MinimalWebsocket {
   return {
     addEventListener: () => {},
@@ -173,12 +192,16 @@ export function rpcWebsocketRoute(
 ): MiddlewareHandler {
   const route = options.upgrade((c) => {
     const revocation = new AbortController()
-    const streams: SocketStreams = {revoked: revocation.signal, replies: new Set()}
+    const held: {socket: WSContext<unknown> | null} = {socket: null}
+    const streams: SocketStreams = {
+      revoked: revocation.signal,
+      replies: new Set(),
+      unsent: () => unsentBytes(held.socket),
+    }
     const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(streams))
     const gate = options.gate?.(c)
     const connection = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null, upgradeHeaders(c))
     const context = gate === undefined ? connection : {...connection, socket: gate.trust}
-    const held: {socket: WSContext<unknown> | null} = {socket: null}
     const peer = peerSocket(held)
     return {
       onOpen: (_event, ws) => {

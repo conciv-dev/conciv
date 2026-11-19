@@ -9042,6 +9042,7 @@ describe('terminal panel', () => {
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
   const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
+  const connecting = () => terminalPanel().getByRole('status').filter({hasText: 'connecting'})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -9071,6 +9072,37 @@ describe('terminal panel', () => {
       .not.toBeInTheDocument()
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
+    expect(await coreControl.rpcCallCount(['experimental', 'persistentPty', 'write'])).toBeGreaterThan(0)
+
+    const write = ['experimental', 'persistentPty', 'write']
+    const outputPath = ['experimental', 'persistentPty', 'output']
+    const outputStreams = await coreControl.rpcCallCount(outputPath)
+    await faults.install({kind: 'deliver-then-cut', path: write, input: {data: 'Z'}})
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await userEvent.keyboard('echo Z')
+    await coreControl.rpcStartedOnceServed(outputPath, outputStreams + 1, [])
+    await expect.element(connecting(), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(output('P> echo Z'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('Z'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcStartedCount(write, {data: 'Z'})).toBe(1)
+    await expect.element(output('ZZ')).not.toBeInTheDocument()
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(connecting(), {timeout: 15_000}).toBeVisible()
+    const handshakes = await faults.install({kind: 'handshake-hold'})
+    await coreControl.releaseFault(offline)
+    await coreControl.awaitFaultPending(handshakes, 1)
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('Q')
+    await coreControl.releaseFault(handshakes)
+    await expect.element(connecting(), {timeout: 15_000}).not.toBeInTheDocument()
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcStartedCount(write, {data: 'Q'})).toBe(0)
 
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
