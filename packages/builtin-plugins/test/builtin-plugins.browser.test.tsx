@@ -3,17 +3,11 @@ import {afterAll, beforeAll, describe, expect, it, onTestFinished, test, vi} fro
 import {cdp, page, server, userEvent} from 'vitest/browser'
 import {cleanup, render} from '@solidjs/testing-library'
 import {createSignal, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
-import type {ToolCardProps, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
-import {ActCard} from '../src/page/cards/act-card.js'
-import {storyAddResult, storyCtx, storyPart, storyResult} from '../src/page/cards/story.fixtures.js'
-import {ReactCard} from '../src/page/cards/react-card.js'
-import {consoleCard} from '../src/page/cards/console-card.js'
-import {ReadBulkCard} from '../src/page/cards/read-bulk-card.js'
-import {ReadValueCard} from '../src/page/cards/read-value-card.js'
+import {StoryTool, storyCall, storyFailedCall} from '../src/page/cards/story.fixtures.js'
+import {pageToolCards} from '../src/page/cards/page-tool-cards.js'
 import {SessionCard} from '../src/page/cards/session-card.js'
 import {GrabCard} from '../src/page/cards/grab-card.js'
 import {GrabSnapshotFrame} from '../src/page/cards/grab-snapshot-frame.js'
@@ -42,12 +36,12 @@ import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {makeHighlight} from '../src/page/highlight.js'
 import {openSource, type SourceOpener} from '../src/page/open-source.js'
-import {CardChromeProvider, INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {CardChromeProvider, ToolDisplay} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ReactFiber} from '@conciv/plugin/experimental/page'
+import type {ToolProps} from '@conciv/plugin/experimental'
 import {tanstackCards} from '../src/tanstack/cards.js'
 import {recorderCards} from '../src/recorder/cards.js'
-import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -1865,250 +1859,115 @@ describe('the page contracts another plugin reads', () => {
 
 describe('the page cards in the chat', () => {
   it('draws a page call as its own card, and every page tool has one', async () => {
-    const {pageToolCalls} = await import('../src/page/cards/page-tool-cards.js')
-    const claimed = pageToolCalls.flatMap((call) => call.tools).toSorted()
+    const claimed = pageToolCards.flatMap((entry) => entry.tools).toSorted()
     const uncarded = ['queue_async', 'tabs.list', 'fill_form']
     const drawn = Operations.flatMap((operation) =>
       uncarded.includes(operation.name) ? [] : [`${PAGE_NAMESPACE}_${operation.name}`],
     )
     expect(claimed).toEqual(drawn.toSorted())
-    const part: ToolCallPart = {
-      type: 'tool-call',
-      id: 'r1',
-      name: 'page_route',
-      arguments: '{}',
-      input: {},
-      state: 'complete',
-    }
     const route = {pathname: '/checkout', href: 'http://shop.test/checkout', title: 'Checkout'}
-    const result: ToolResultPart = {
-      type: 'tool-result',
-      toolCallId: 'r1',
-      content: JSON.stringify(route),
-      state: 'complete',
-    }
-    const ctx = {...INERT_TOOL_CTX, catalog: {loaded: () => true, meta: () => undefined}}
-    const pageCards = pageToolCalls.map((call) => ({...call.card, names: call.tools}))
-    render(() => <ToolTraceRow part={part} result={result} ctx={ctx} tools={() => pageCards} />)
+    render(() => <StoryTool call={storyCall('page_route', {}, route, 'r1')} />)
+    await page.getByRole('button', {name: /Read the route/}).click()
     await expect.element(page.getByRole('treeitem', {name: 'pathname: "/checkout"'})).toBeVisible()
   })
 })
 
 describe('act card body nonempty', () => {
-  function errorResult(toolCallId: string, message: string): ToolResultPart {
-    return {type: 'tool-result', toolCallId, content: JSON.stringify({message}), state: 'error', error: message}
-  }
+  it('a zero-input act call shows its title with nothing to open', async () => {
+    render(() => <StoryTool call={storyCall('page_effect', {})} />)
 
-  const NO_SCHEMA_META: ToolViewMeta = {
-    summary: 'run a synthetic effect with no declared inputs',
-    category: 'act',
-    mutating: true,
-  }
-
-  const FILL_META: ToolViewMeta = {
-    summary: 'type a value into a form field',
-    category: 'act',
-    mutating: true,
-    inputSchema: {
-      type: 'object',
-      properties: {selector: {type: 'string'}, value: {type: 'string'}},
-      required: ['value'],
-    },
-  }
-
-  async function expandFirstCard(): Promise<void> {
-    await page.getByRole('button').first().click()
-  }
-
-  it('shows a quiet no-input row instead of an empty strip for a zero-input act call', async () => {
-    render(() => (
-      <ActCard
-        part={storyPart('page_effect', {})}
-        result={undefined}
-        ctx={storyCtx({page_effect: NO_SCHEMA_META})}
-        addResult={storyAddResult}
-      />
-    ))
-
-    await expandFirstCard()
-    await expect.element(page.getByText('no input')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /Driving an effect/})).toBeDisabled()
   })
 
-  it('shows its input chips while running with no result yet', async () => {
-    render(() => (
-      <ActCard
-        part={storyPart('page_fill', {selector: '#email', value: 'ada@example.com'}, 'input-complete')}
-        result={undefined}
-        ctx={storyCtx({page_fill: FILL_META})}
-        addResult={storyAddResult}
-      />
-    ))
+  it('shows its input while running with no result yet', async () => {
+    render(() => <StoryTool call={storyCall('page_fill', {selector: '#email', value: 'ada@example.com'})} />)
 
-    await expandFirstCard()
-    await expect.element(page.getByText('ada@example.com')).toBeVisible()
+    await expect.element(page.getByText('value=ada@example.com')).toBeVisible()
     await expect.element(page.getByText('#email')).toBeVisible()
+
+    render(() => (
+      <StoryTool call={{...storyCall('page_click', {selector: '#save'}, undefined, 's2'), status: 'pending'}} />
+    ))
+    await expect.element(page.getByRole('button', {name: /Clicking/})).toBeVisible()
   })
 
-  it('shows the error block alongside its input chips for an error-only result', async () => {
+  it('an error-only result opens on the error', async () => {
     render(() => (
-      <ActCard
-        part={storyPart('page_fill', {selector: '#email', value: 'ada@example.com'})}
-        result={errorResult('s1', 'element not found')}
-        ctx={storyCtx({page_fill: FILL_META})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyFailedCall('page_fill', {selector: '#email', value: 'ada@example.com'}, 'element not found')}
       />
     ))
 
-    await expandFirstCard()
-    await expect.element(page.getByText('ada@example.com')).toBeVisible()
+    await page.getByRole('button', {name: /page_fill/}).click()
     await expect.element(page.getByText('element not found')).toBeVisible()
   })
 })
 
 describe('console card', () => {
   it('marks the card as an error when the page threw, uncaught or unhandled', async () => {
-    const ConsoleCard = consoleCard.render
     render(() => (
-      <ConsoleCard
-        part={storyPart('page_console', {})}
-        result={storyResult({
-          entries: [
-            {level: 'log', ts: 1, text: 'booted'},
-            {level: 'uncaught', ts: 2, text: 'Error: boom\n    at app.js:3:7'},
-          ],
-        })}
-        ctx={storyCtx({})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_console',
+          {},
+          {
+            entries: [
+              {level: 'log', ts: 1, text: 'booted'},
+              {level: 'uncaught', ts: 2, text: 'Error: boom\n    at app.js:3:7'},
+            ],
+          },
+        )}
       />
     ))
-    await expect.element(page.getByRole('img', {name: 'error'})).toBeInTheDocument()
+    await expect.element(page.getByRole('img', {name: 'failed'})).toBeInTheDocument()
   })
 })
 
 describe('card input chips', () => {
-  const READ_VALUE_META: ToolViewMeta = {
-    summary: 'read the visible text of an element',
-    category: 'read',
-    mutating: false,
-    inputSchema: {
-      type: 'object',
-      properties: {selector: {type: 'string'}, trim: {type: 'boolean'}},
-      required: ['selector'],
-    },
-  }
-
-  const READ_BULK_META: ToolViewMeta = {
-    summary: 'read the markup of an element',
-    category: 'read',
-    mutating: false,
-    inputSchema: {
-      type: 'object',
-      properties: {selector: {type: 'string'}, maxChars: {type: 'number'}},
-      required: ['selector'],
-    },
-  }
-
-  const REACT_META: ToolViewMeta = {
-    summary: 'locate the react source of an element',
-    category: 'read',
-    mutating: false,
-    inputSchema: {
-      type: 'object',
-      properties: {selector: {type: 'string'}, action: {type: 'string'}},
-      required: ['selector'],
-    },
-  }
-
-  async function expandCard(): Promise<void> {
-    await page.getByRole('button').first().click()
-  }
-
-  function chipNames(): Array<string> {
-    return page
-      .getByRole('term')
-      .elements()
-      .map((element) => element.textContent ?? '')
-  }
-
-  it('read-value card leads its input row with the element chip and drops the raw selector key', async () => {
+  it('read-value card shows the element as its subtitle and drops the raw selector key', async () => {
     render(() => (
-      <ReadValueCard
-        part={storyPart('page_text', {selector: '#headline', trim: true})}
-        result={storyResult({text: 'Ship it on Friday'})}
-        ctx={storyCtx({page_text: READ_VALUE_META})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_text', {selector: '#headline', trim: true}, {text: 'Ship it on Friday'})} />
     ))
 
-    await expandCard()
     await expect.element(page.getByText('#headline')).toBeVisible()
-
-    expect(chipNames()[0]).toBe('element')
-    expect(chipNames()).toContain('trim')
-    expect(chipNames()).not.toContain('selector')
+    await expect.element(page.getByText('trim=true')).toBeVisible()
+    await expect.element(page.getByText(/selector=/)).not.toBeInTheDocument()
   })
 
   it('read-value card renders a root array result as a structured JSON tree, not a flat chip row', async () => {
     render(() => (
-      <ReadValueCard
-        part={storyPart('page_text', {selector: '.item'})}
-        result={storyResult(['first-item-marker', 'second-item-marker'])}
-        ctx={storyCtx({page_text: READ_VALUE_META})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_text', {selector: '.item'}, ['first-item-marker', 'second-item-marker'])} />
     ))
 
-    await expandCard()
+    await page.getByRole('button', {name: /Read the text/}).click()
     await expect.element(page.getByRole('treeitem', {name: /Array\(2\)/})).toBeVisible()
     await expect.element(page.getByText(/first-item-marker.*second-item-marker/).first()).toBeVisible()
   })
 
-  it('read-bulk card leads its input row with the element chip and keeps the declared detail chip', async () => {
+  it('read-bulk card shows the element as its subtitle and keeps the other input', async () => {
     render(() => (
-      <ReadBulkCard
-        part={storyPart('page_html', {selector: 'form', maxChars: 2000})}
-        result={storyResult({html: '<form></form>'})}
-        ctx={storyCtx({page_html: READ_BULK_META})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_dom', {selector: 'form', maxChars: 2000}, {html: '<form></form>'})} />
     ))
 
-    await expandCard()
-    await expect.element(page.getByText('form').first()).toBeVisible()
-
-    expect(chipNames()[0]).toBe('element')
-    expect(chipNames()).toContain('maxChars')
-    expect(chipNames()).not.toContain('selector')
+    await expect.element(page.getByText('form', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('maxChars=2000')).toBeVisible()
+    await expect.element(page.getByText(/selector=/)).not.toBeInTheDocument()
   })
 
-  it('react card leads its input row with the element chip and keeps the declared detail chip', async () => {
+  it('react card shows the element as its subtitle and keeps the other input', async () => {
     render(() => (
-      <ReactCard
-        part={storyPart('page_react', {selector: '#checkout', action: 'source'})}
-        result={storyResult({component: 'CheckoutForm'})}
-        ctx={storyCtx({page_react: REACT_META})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall('page_locate', {selector: '#checkout', action: 'source'}, {component: 'CheckoutForm'})}
       />
     ))
 
-    await expandCard()
     await expect.element(page.getByText('#checkout')).toBeVisible()
-
-    expect(chipNames()[0]).toBe('element')
-    expect(chipNames()).toContain('action')
-    expect(chipNames()).not.toContain('selector')
+    await expect.element(page.getByText('action=source')).toBeVisible()
+    await expect.element(page.getByText(/selector=/)).not.toBeInTheDocument()
   })
 })
 
 describe('read value card image', () => {
-  const SCREENSHOT_META: ToolViewMeta = {
-    summary: 'capture the visible viewport as a webp image',
-    category: 'read',
-    icon: 'read',
-    label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
-    mutating: false,
-  }
-
   function webpBase64(): string {
     const canvas = document.createElement('canvas')
     canvas.width = 8
@@ -2123,14 +1982,11 @@ describe('read value card image', () => {
   it('shows an image result as the picture, not as a tree of its base64 parts', async () => {
     const image = webpBase64()
     render(() => (
-      <ReadValueCard
-        part={storyPart('page_screenshot', {})}
-        result={storyResult([
+      <StoryTool
+        call={storyCall('page_screenshot', {}, [
           {type: 'image', source: {type: 'data', value: image, mimeType: 'image/webp'}},
           {type: 'text', content: JSON.stringify({width: 8, height: 6, path: 'tmp/screenshots/shot.webp'})},
         ])}
-        ctx={storyCtx({page_screenshot: SCREENSHOT_META})}
-        addResult={storyAddResult}
       />
     ))
 
@@ -2222,14 +2078,11 @@ describe('read value card image', () => {
 
     async function mountExpandedCard(source: {image: string} = {image: webpBase64()}): Promise<void> {
       render(() => (
-        <ReadValueCard
-          part={storyPart('page_screenshot', {})}
-          result={storyResult([
+        <StoryTool
+          call={storyCall('page_screenshot', {}, [
             {type: 'image', source: {type: 'data', value: source.image, mimeType: 'image/webp'}},
             {type: 'text', content: JSON.stringify({width: 8, height: 6, path: 'tmp/screenshots/shot.webp'})},
           ])}
-          ctx={storyCtx({page_screenshot: SCREENSHOT_META})}
-          addResult={storyAddResult}
         />
       ))
       await page.getByRole('button').first().click()
@@ -2528,17 +2381,10 @@ describe('the tanstack cards', () => {
     title: string
     input?: Record<string, unknown>
     output: unknown
-    summary: string
+    summary?: string
+    restated?: string
     detail?: string
     more?: ReadonlyArray<string | RegExp>
-  }
-
-  const cardContext: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'claude',
-    sendMessage: () => {},
-    addResult: () => Promise.resolve(),
-    catalog: {loaded: () => true, meta: builtinToolMeta},
   }
 
   const failure = 'tab_unavailable: no TanStack page is attached to this session'
@@ -2624,14 +2470,16 @@ describe('the tanstack cards', () => {
       title: 'Invalidated a query',
       input: {key: '["todos"]'},
       output: {ok: true},
-      summary: 'invalidated ["todos"]',
+      summary: '["todos"]',
+      restated: 'invalidated ["todos"]',
     },
     {
       tool: 'tanstack_query_refetch',
       title: 'Refetched a query',
       input: {key: '["todos"]'},
       output: {ok: true},
-      summary: 'refetched ["todos"]',
+      summary: '["todos"]',
+      restated: 'refetched ["todos"]',
     },
     {
       tool: 'tanstack_navigate',
@@ -2640,8 +2488,8 @@ describe('the tanstack cards', () => {
       output: {ok: true, to: '/about'},
       summary: '/about',
     },
-    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, summary: 'invalidated'},
-    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, summary: 'went back'},
+    {tool: 'tanstack_router_invalidate', title: 'Invalidated the router', output: {ok: true}, restated: 'invalidated'},
+    {tool: 'tanstack_back', title: 'Went back', output: {ok: true}, restated: 'went back'},
     {
       tool: 'tanstack_build_errors',
       title: 'Read the build errors',
@@ -2705,25 +2553,22 @@ describe('the tanstack cards', () => {
     },
   ]
 
-  function resultPart(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
-    return {type: 'tool-result', toolCallId: `call-${tool}`, content, state}
-  }
+  const lookupCard = (name: string) => ({render: Object.entries(tanstackCards).find(([tool]) => tool === name)?.[1]})
 
-  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart | undefined) {
-    const part: ToolCallPart = {
-      type: 'tool-call',
-      id: `call-${tool}`,
-      name: tool,
-      arguments: JSON.stringify(input),
-      state: 'input-complete',
-    }
-    const [props, setProps] = createStore<ToolCardProps>({
-      part,
-      result,
-      ctx: cardContext,
-      addResult: () => Promise.resolve(),
+  function mountCard(
+    tool: Tool,
+    input: Record<string, unknown>,
+    settled?: {output: string; status: 'completed' | 'error'},
+  ) {
+    const [props, setProps] = createStore<ToolProps>({
+      tool,
+      input,
+      metadata: {},
+      status: settled?.status ?? 'running',
+      output: settled?.status === 'completed' ? settled.output : undefined,
+      error: settled?.status === 'error' ? settled.output : undefined,
     })
-    render(() => <Dynamic component={tanstackCards[tool].render} {...props} />)
+    render(() => <ToolDisplay id={`call-${tool}`} render={lookupCard} {...props} />)
     return setProps
   }
 
@@ -2733,9 +2578,10 @@ describe('the tanstack cards', () => {
   it("draws each tool's card on success, the error state, and the running row before the card", async () => {
     onTestFinished(cleanup)
     for (const call of cases) {
-      mountCard(call.tool, call.input ?? {}, resultPart(call.tool, JSON.stringify(call.output), 'complete'))
-      await expect.element(exactText(call.summary)).toBeVisible()
+      mountCard(call.tool, call.input ?? {}, {output: JSON.stringify(call.output), status: 'completed'})
       await expect.element(header(call.title)).toBeVisible()
+      if (call.summary !== undefined) await expect.element(exactText(call.summary)).toBeVisible()
+      if (call.restated !== undefined) await expect.element(exactText(call.restated)).not.toBeInTheDocument()
       if (call.detail !== undefined) {
         await header(call.title).click()
         await expect.element(exactText(call.detail)).toBeVisible()
@@ -2751,7 +2597,7 @@ describe('the tanstack cards', () => {
     mountCard(
       'tanstack_loader_data',
       {},
-      resultPart('tanstack_loader_data', JSON.stringify({routeId: '/about', data: markers}), 'complete'),
+      {output: JSON.stringify({routeId: '/about', data: markers}), status: 'completed'},
     )
     await header('Read the loader data').click()
     await expect.element(exactText('Array(3)')).toBeVisible()
@@ -2759,41 +2605,30 @@ describe('the tanstack cards', () => {
     await expect.element(page.getByText(/__conciv/)).not.toBeInTheDocument()
     cleanup()
 
-    const backPart: ToolCallPart = {
-      type: 'tool-call',
-      id: 'call-tanstack_back',
-      name: 'tanstack_back',
-      arguments: '{}',
-      state: 'input-complete',
-    }
-    render(() => (
-      <ul>
-        <ToolTraceRow
-          part={backPart}
-          result={resultPart('tanstack_back', JSON.stringify({ok: true}), 'complete')}
-          ctx={cardContext}
-          tools={() => [{names: ['tanstack_back'], ...tanstackCards.tanstack_back}]}
-        />
-      </ul>
-    ))
-    await expect.element(page.getByRole('listitem').getByRole('button').first()).toBeDisabled()
+    mountCard('tanstack_back', {}, {output: JSON.stringify({ok: true}), status: 'completed'})
+    await expect.element(header('Went back')).toBeDisabled()
     cleanup()
 
-    mountCard('tanstack_router_state', {}, resultPart('tanstack_router_state', failure, 'error'))
+    mountCard('tanstack_router_state', {}, {output: failure, status: 'error'})
     await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
-    await header('Read the router state').click()
+    await header('tanstack_router_state').click()
     await expect.element(page.getByText(failure)).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
     cleanup()
 
-    const finish = mountCard('tanstack_router_state', {}, undefined)
+    const finish = mountCard('tanstack_router_state', {})
     await expect.element(header('Reading the router state')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).toBeVisible()
     await expect.element(exactText('/about · 2 matches')).not.toBeInTheDocument()
-    finish('result', resultPart('tanstack_router_state', JSON.stringify(routerState), 'complete'))
+    finish({status: 'completed', output: JSON.stringify(routerState)})
     await expect.element(exactText('/about · 2 matches')).toBeVisible()
-    await expect.element(page.getByRole('img', {name: 'complete'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'succeeded'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'running'})).not.toBeInTheDocument()
+    cleanup()
+
+    const approve = mountCard('tanstack_router_state', {})
+    approve({status: 'pending'})
+    await expect.element(header('Reading the router state')).toBeVisible()
   })
 })
 
@@ -2809,31 +2644,25 @@ describe('the recorder cards', () => {
   const keyframe = {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}}
   const log = '+0.0s [click] button "Save"\n+2.5s [navigation] /settings\n+4.1s [console] error: boom'
 
-  function call(tool: Tool, input: Record<string, unknown>): ToolCallPart {
-    return {
-      type: 'tool-call',
-      id: `call-${tool}`,
-      name: tool,
-      arguments: JSON.stringify(input),
-      state: 'input-complete',
-    }
+  const lookupRecorderCard = (name: string) => Object.entries(recorderCards).find(([tool]) => tool === name)?.[1]
+
+  function RecorderCard(props: {tool: Tool; input: Record<string, unknown>; output: string; failed?: boolean}) {
+    return (
+      <ToolDisplay
+        id={`call-${props.tool}`}
+        render={lookupRecorderCard}
+        tool={props.tool}
+        input={props.input}
+        metadata={{}}
+        status={props.failed === true ? 'error' : 'completed'}
+        output={props.failed === true ? undefined : props.output}
+        error={props.failed === true ? props.output : undefined}
+      />
+    )
   }
 
-  function settled(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
-    return {
-      type: 'tool-result',
-      toolCallId: `call-${tool}`,
-      content,
-      state,
-      ...(state === 'error' ? {error: content} : {}),
-    }
-  }
-
-  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart) {
-    const Card = recorderCards[tool].render
-    render(() => (
-      <Card part={call(tool, input)} result={result} ctx={INERT_TOOL_CTX} addResult={() => Promise.resolve()} />
-    ))
+  function mountCard(tool: Tool, input: Record<string, unknown>, output: string, failed?: boolean) {
+    render(() => <RecorderCard tool={tool} input={input} output={output} failed={failed} />)
   }
 
   const header = (tool: Tool) => page.getByRole('button', {name: new RegExp(tool)})
@@ -2843,7 +2672,7 @@ describe('the recorder cards', () => {
     mountCard(
       'recording_pull',
       {secondsBack: 30, keyframes: 3},
-      settled('recording_pull', JSON.stringify([keyframe, keyframe, {type: 'text', content: log}]), 'complete'),
+      JSON.stringify([keyframe, keyframe, {type: 'text', content: log}]),
     )
     await expect.element(page.getByText('last 30s · 3 actions · 2 keyframes', {exact: true})).toBeVisible()
     await header('recording_pull').click()
@@ -2851,34 +2680,26 @@ describe('the recorder cards', () => {
     await expect.element(page.getByText('navigation', {exact: true})).toBeVisible()
     cleanup()
 
-    mountCard(
-      'recording_start',
-      {},
-      settled('recording_start', JSON.stringify({captureId: 'cap_1', startedAt: 1}), 'complete'),
-    )
+    mountCard('recording_start', {}, JSON.stringify({captureId: 'cap_1', startedAt: 1}))
     await expect.element(page.getByText('capture started', {exact: true})).toBeVisible()
     await header('recording_start').click()
     await expect.element(page.getByText('cap_1', {exact: true})).toBeVisible()
     cleanup()
 
-    mountCard(
-      'recording_stop',
-      {captureId: 'cap_9', keyframes: 0},
-      settled('recording_stop', 'no active capture cap_9', 'error'),
-    )
-    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    mountCard('recording_stop', {captureId: 'cap_9', keyframes: 0}, 'no active capture cap_9', true)
+    await expect.element(page.getByRole('img', {name: 'failed'})).toBeVisible()
     await header('recording_stop').click()
+    await expect.element(page.getByText('Error', {exact: true})).toBeVisible()
     await expect.element(page.getByText('no active capture cap_9')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Copy error'})).not.toBeInTheDocument()
     cleanup()
 
-    const Pull = recorderCards.recording_pull.render
     render(() => (
       <CardChromeProvider value="embedded">
-        <Pull
-          part={call('recording_pull', {secondsBack: 30, keyframes: 3})}
-          result={settled('recording_pull', JSON.stringify([keyframe, {type: 'text', content: log}]), 'complete')}
-          ctx={INERT_TOOL_CTX}
-          addResult={() => Promise.resolve()}
+        <RecorderCard
+          tool="recording_pull"
+          input={{secondsBack: 30, keyframes: 3}}
+          output={JSON.stringify([keyframe, {type: 'text', content: log}])}
         />
       </CardChromeProvider>
     ))

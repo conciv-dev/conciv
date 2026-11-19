@@ -48,8 +48,9 @@ export const PillWithTooltip: Story = {
   render: () => frame(<Chip kind="pill" tone="accent" value="npm run build" tooltip="Runs the project build script" />),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     await userEvent.hover(canvas.getByRole('button', {name: 'npm run build'}))
-    await waitFor(() => expect(canvas.getByText('Runs the project build script')).toBeVisible())
+    await waitFor(() => expect(page.getByText('Runs the project build script')).toBeVisible())
   },
 }
 
@@ -58,8 +59,9 @@ export const FieldWithTooltip: Story = {
     frame(<Chip kind="field" name="selector" value="#submit" tooltip="The CSS selector that was matched" />),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     await userEvent.hover(canvas.getByRole('button', {name: 'selector #submit'}))
-    await waitFor(() => expect(canvas.getByText('The CSS selector that was matched')).toBeVisible())
+    await waitFor(() => expect(page.getByText('The CSS selector that was matched')).toBeVisible())
   },
 }
 
@@ -74,8 +76,9 @@ export const PillLongValue: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     await userEvent.hover(canvas.getByText(LONG_PILL))
-    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
   },
 }
 
@@ -90,7 +93,8 @@ export const FieldLongValue: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     await userEvent.hover(canvas.getByText(LONG_PILL))
-    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent(LONG_PILL), {timeout: 2000})
   },
 }

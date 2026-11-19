@@ -2588,7 +2588,10 @@ describe('cli', () => {
           seen.push(chunk)
           if (chunk.type === ChatEventType.RUN_FINISHED) break
         }
-        expect(JSON.stringify(seen.at(-2))).toMatch(/abort/i)
+        const result = seen.findLast(
+          (chunk) => z.object({type: z.literal(ChatEventType.TOOL_CALL_RESULT)}).safeParse(chunk).success,
+        )
+        expect(JSON.stringify(result)).toMatch(/abort/i)
         await silent.cancelled(requestId)
         await expect(silent.command(requestId)).rejects.toThrow('Page request is no longer available.')
       } finally {

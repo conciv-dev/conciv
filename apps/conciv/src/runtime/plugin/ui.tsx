@@ -1,6 +1,13 @@
 import {children, createUniqueId, For, onCleanup, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {Ui, UiIconProps, UiMenuItem, UiMenuSubProps} from '@conciv/plugin/experimental'
+import type {
+  Ui,
+  UiIconProps,
+  UiMenuCheckbox,
+  UiMenuItem,
+  UiMenuRadioGroup,
+  UiMenuSubProps,
+} from '@conciv/plugin/experimental'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {
   Avatar,
@@ -165,6 +172,10 @@ export const ui: Ui = {
                     <For each={entry.items}>{(item) => <MenuItem {...item} />}</For>
                   </Menu.ItemGroup>
                 )
+
+              if (entry.type === 'radio-group') return <MenuRadioGroup {...entry} />
+
+              if (entry.type === 'checkbox') return <MenuCheckbox {...entry} />
 
               return <MenuItem {...entry} />
             }}
@@ -427,6 +438,49 @@ function MenuItem(props: UiMenuItem) {
         <Keys keys={props.keys ?? []} class="ms-auto" />
       </Show>
     </Menu.Item>
+  )
+}
+
+function MenuRadioGroup(props: UiMenuRadioGroup): JSX.Element {
+  return (
+    <Menu.RadioItemGroup value={props.value} onValueChange={(details) => props.onValueChange(details.value)}>
+      <Show when={props.label}>{(label) => <Menu.ItemGroupLabel>{label()}</Menu.ItemGroupLabel>}</Show>
+      <For each={props.items}>
+        {(item) => (
+          <Menu.RadioItem value={item.value} disabled={item.disabled} class={MENU_ITEM}>
+            <MenuItemCheck />
+            <Menu.ItemText class="min-w-0 truncate">{item.label}</Menu.ItemText>
+          </Menu.RadioItem>
+        )}
+      </For>
+    </Menu.RadioItemGroup>
+  )
+}
+
+function MenuCheckbox(props: UiMenuCheckbox): JSX.Element {
+  const value = createUniqueId()
+
+  return (
+    <Menu.CheckboxItem
+      value={value}
+      checked={props.checked}
+      disabled={props.disabled}
+      onCheckedChange={(checked) => props.onCheckedChange(checked)}
+      class={MENU_ITEM}
+    >
+      <MenuItemCheck />
+      <Menu.ItemText class="min-w-0 truncate">{props.label}</Menu.ItemText>
+    </Menu.CheckboxItem>
+  )
+}
+
+function MenuItemCheck(): JSX.Element {
+  return (
+    <span class="flex size-4 shrink-0 items-center justify-center">
+      <Menu.ItemIndicator>
+        <Icon name="check" size="small" />
+      </Menu.ItemIndicator>
+    </span>
   )
 }
 

@@ -64,10 +64,6 @@
       "types": "./dist/experimental/vite.d.ts",
       "import": "./dist/experimental/vite.js"
     },
-    "./experimental/builtin": {
-      "types": "./dist/experimental/builtin.d.ts",
-      "import": "./dist/experimental/builtin.js"
-    },
     "./experimental/host": {
       "types": "./dist/experimental/host.d.ts",
       "import": "./dist/experimental/host.js"

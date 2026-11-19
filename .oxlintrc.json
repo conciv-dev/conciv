@@ -351,12 +351,7 @@
       }
     },
     {
-      "files": [
-        "packages/core/src/pty/**",
-        "packages/extensions/terminal/src/server/**",
-        "packages/extensions/terminal/test/**",
-        "packages/ui-kit-terminal/**"
-      ],
+      "files": ["packages/core/src/pty/**", "packages/ui-kit-terminal/**"],
       "rules": {
         "no-control-regex": "off"
       }
@@ -611,12 +606,6 @@
     },
     {
       "files": ["packages/ui-kit-system/test/dialog-harness.tsx"],
-      "rules": {
-        "conciv/solid-test-render": "off"
-      }
-    },
-    {
-      "files": ["packages/extensions/terminal/test/terminal.browser.test.tsx"],
       "rules": {
         "conciv/solid-test-render": "off"
       }
