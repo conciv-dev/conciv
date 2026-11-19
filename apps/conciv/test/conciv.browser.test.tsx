@@ -1904,6 +1904,14 @@ export default {
         execute: async () => ({content: 'probed'}),
       }),
     )
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'written_note_tool',
+        description: 'A tool whose name matches better than the skill description',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'noted'}),
+      }),
+    )
   },
 }
 `
@@ -2081,6 +2089,15 @@ export default {
     await coreControl.awaitFaultPending(reread, 1)
     await coreControl.releaseFault(reread)
     await expect.element(mention('@mention-guide')).toBeVisible()
+
+    await userEvent.keyboard('written')
+    await expect.element(mention('@reviewer')).not.toBeInTheDocument()
+    await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
+    await expect.element(mention('@written_note_tool')).toBeVisible()
+    await expect
+      .element(context().getByRole('group').first().getByRole('option', {name: '@mention-guide'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
   })
 })
 
