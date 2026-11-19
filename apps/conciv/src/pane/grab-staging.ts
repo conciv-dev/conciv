@@ -109,12 +109,7 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       }
       entry.id = id
       if (id) remember(id, grabToPayload(prepared))
-      if (entry.grounded === null) return
-      if (id && placed !== entry.grounded) {
-        await settle(entry)
-        return
-      }
-      drop(entry)
+      await finishPlacing(entry, placed)
     } finally {
       if (entry.id === null) entry.placing = null
     }
@@ -140,6 +135,12 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     }
     forget(entry.id)
     if (replaced) remember(replaced, grabToPayload(prepared))
+    drop(entry)
+  }
+
+  const finishPlacing = async (entry: StagedEntry, placed: Grab): Promise<void> => {
+    if (entry.grounded === null) return
+    if (entry.id !== null && placed !== entry.grounded) return settle(entry)
     drop(entry)
   }
 
