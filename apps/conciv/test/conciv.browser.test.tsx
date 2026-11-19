@@ -7555,7 +7555,7 @@ describe('terminal panel', () => {
       {id: 'calm-model', name: 'Calm model'},
       {id: 'busy-model', name: 'Busy model'},
     ],
-    alternates: [{id: 'plain', displayName: 'Plain'}],
+    alternates: [{id: 'plain', displayName: 'Plain', models: [{id: 'plain-model', name: 'Plain model'}]}],
   })
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
@@ -7901,6 +7901,17 @@ describe('terminal panel', () => {
     await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
     await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('model none')).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a session switched to a harness without a terminal drops its Terminal tab', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(terminalTab(), {timeout: 15_000}).toBeVisible()
+
+    await page.getByRole('button', {name: /^Model: First model/}).click()
+    await page.getByRole('option', {name: 'Plain model (Plain)'}).click()
+    await expect.element(page.getByRole('button', {name: /^Model: Plain model/}), {timeout: 15_000}).toBeVisible()
+    await expect.element(terminalTab(), {timeout: 15_000}).not.toBeInTheDocument()
   }, 60_000)
 
   test('a control the user opened before the terminal starts keeps focus and stays open once the terminal starts', async () => {

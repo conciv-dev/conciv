@@ -1,7 +1,7 @@
 import {createMemo, untrack} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
-import {useQuery} from '@conciv/client'
+import {createTanstackQueryUtils, useQuery} from '@conciv/client'
 import {createKeyed, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
 import type {terminalDeclarations} from './stores.js'
 
@@ -27,11 +27,11 @@ type TerminalRun = {
   failure: {key: string; message: string} | null
 }
 
-async function readMeta(ctx: TerminalContext, sessionId: string | undefined, signal: AbortSignal) {
+function readModels(ctx: TerminalContext, input: {sessionId: string}, options: {signal?: AbortSignal} = {}) {
   const session = untrack(() => ctx.sessions.current())
-  if (!session || session.id !== sessionId) throw new Error(`the terminal read ${sessionId} after it was left`)
-  const meta = await session.server.client.meta.models({sessionId}, {signal})
-  return {sessionId, meta}
+  if (!session || session.id !== input.sessionId)
+    throw new Error(`the terminal read ${input.sessionId} after it was left`)
+  return session.server.client.meta.models(input, options)
 }
 
 async function removeLive(session: MountedSession, live: LiveTerminal | null): Promise<void> {
@@ -48,20 +48,19 @@ function restartMessage(cause: unknown): string {
 
 export function createTerminalState(ctx: TerminalContext) {
   const readSessionId = createMemo((previous: string | undefined) => ctx.sessions.current()?.id ?? previous)
+  const metaUtils = createTanstackQueryUtils(
+    {models: (input: {sessionId: string}, options?: {signal?: AbortSignal}) => readModels(ctx, input, options)},
+    {path: ['meta']},
+  )
   const read = useQuery(() => ({
-    queryKey: ['terminal', 'models', readSessionId()],
-    queryFn: ({queryKey, signal}) => readMeta(ctx, queryKey[2], signal),
+    ...metaUtils.models.queryOptions({input: {sessionId: readSessionId() ?? ''}}),
     enabled: readSessionId() !== undefined,
     retry: false,
     refetchOnWindowFocus: false,
   }))
   const [run, setRun] = createStore<TerminalRun>({generation: 0, restarting: false, live: null, failure: null})
 
-  const loaded = () => (read.isPending ? undefined : read.data)
-  const meta = (sessionId: string) => {
-    const known = loaded()
-    return known?.sessionId === sessionId ? known.meta : undefined
-  }
+  const meta = (sessionId: string) => (readSessionId() === sessionId && !read.isPending ? read.data : undefined)
   const models = (sessionId: string) => meta(sessionId)?.models ?? []
   const key = (sessionId: string) => `${sessionId}:${run.generation}`
   const busy = (sessionId: string) => run.live?.key === key(sessionId) && run.live.busy()
