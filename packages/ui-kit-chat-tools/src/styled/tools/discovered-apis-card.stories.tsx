@@ -59,6 +59,10 @@ const detailResult = result({
   typeStub: 'declare function external_canvas_draw(input: {elements: Skeleton[]}): Promise<{ids: string[]}>',
 })
 
+function fenceText(group: HTMLElement): string {
+  return group.querySelector('diffs-container')?.shadowRoot?.textContent ?? ''
+}
+
 function frame(child: JSX.Element): JSX.Element {
   return <div class="p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
 }
@@ -83,7 +87,7 @@ export const Detail: Story = {
     await expect(c.getByText('Inspected canvas_draw')).toBeVisible()
     await userEvent.click(c.getByRole('button', {name: /Inspected/}))
     await waitFor(() => expect(c.getAllByText('Draw elements onto the agent draft.').length).toBeGreaterThan(0))
-    await expect(c.getAllByText(/Promise/).length).toBeGreaterThan(0)
+    await waitFor(() => expect(fenceText(c.getByRole('group', {name: 'ts'}))).toContain('Promise<{ids: string[]}>'))
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
   },
 }

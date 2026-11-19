@@ -69,6 +69,10 @@ const chartBlocks = {
   actions: () => [],
 }
 
+function fenceText(group: HTMLElement): string {
+  return group.querySelector('diffs-container')?.shadowRoot?.textContent ?? ''
+}
+
 function ProvidedDemo(): JSX.Element {
   const [opened, setOpened] = createSignal('Nothing opened')
   return frame(
@@ -99,8 +103,10 @@ export const WithProvider: Story = {
     await waitFor(() =>
       expect(contentOn.getByRole('figure', {name: 'Chart'})).toHaveTextContent('Chart of sales by month'),
     )
-    await waitFor(() => expect(contentOn.getByText('a chart the provider declines')).toBeVisible())
-    await waitFor(() => expect(contentOff.getByText('sales by month')).toBeVisible())
+    await waitFor(() =>
+      expect(fenceText(contentOn.getByRole('group', {name: 'chart'}))).toContain('a chart the provider declines'),
+    )
+    await waitFor(() => expect(fenceText(contentOff.getByRole('group', {name: 'chart'}))).toContain('sales by month'))
     await expect(contentOff.queryByRole('figure', {name: 'Chart'})).toBeNull()
     await userEvent.click(canvas.getByRole('link', {name: 'src/sales.ts'}))
     await expect(canvas.getByRole('status', {name: 'Opened file'})).toHaveTextContent('Opened src/sales.ts')

@@ -1,5 +1,6 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
+import type {BrowserCommand} from 'vitest/node'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {
@@ -25,6 +26,11 @@ const HIGHLIGHT_WORKER_DEPS = [
   '@shikijs/langs-precompiled/html',
   '@shikijs/langs-precompiled/markdown',
 ]
+
+const grantClipboard: BrowserCommand<[]> = ({context}) =>
+  context.grantPermissions(['clipboard-read', 'clipboard-write'])
+
+const revokeClipboard: BrowserCommand<[]> = ({context}) => context.clearPermissions()
 
 export default defineConfig({
   resolve: {conditions: ['browser', 'development']},
@@ -56,7 +62,8 @@ export default defineConfig({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({contextOptions: {permissions: ['clipboard-read', 'clipboard-write']}}),
+            provider: playwright({}),
+            commands: {grantClipboard, revokeClipboard},
             instances: [{browser: 'chromium'}],
           },
         },

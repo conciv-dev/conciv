@@ -897,35 +897,20 @@ describe('tool trace row', () => {
   const longOutputTool = outputTool(LONG_OUTPUT)
   const shortOutputTool = outputTool('one\ntwo')
 
-  function revealControl(container: HTMLElement): HTMLElement {
-    const match = [...container.querySelectorAll('button')].find((button) =>
-      (button.textContent ?? '').includes('more lines'),
-    )
-    if (!match) throw new Error('expected a clamp reveal control')
-    return match
-  }
-
-  it('clamps a long body and reveals the rest from the frame footer', async () => {
-    const container = mountView(() => (
-      <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [longOutputTool]} />
-    ))
+  it('clamps a long body and reveals the rest from the block header', async () => {
+    mountView(() => <ToolTraceRow part={bashCall()} result={undefined} ctx={noCtx} tools={() => [longOutputTool]} />)
+    const reveal = page.getByRole('button', {name: '24 more lines'})
+    const collapse = page.getByRole('button', {name: 'Show less'})
 
     await expect.element(page.getByText(LONG_OUTPUT), {timeout: 3000}).toBeVisible()
+    await expect.element(reveal).toHaveAttribute('aria-expanded', 'false')
 
-    const control = revealControl(container)
-    expect(control.getAttribute('aria-expanded')).toBe('false')
-    expect(control.textContent).toContain('24 more lines')
+    await reveal.click()
+    await expect.element(collapse).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(page.getByText(LONG_OUTPUT)).toBeVisible()
 
-    await userEvent.click(control)
-    await expect.element(page.getByText(LONG_OUTPUT), {timeout: 3000}).toBeVisible()
-
-    expect(control.getAttribute('aria-expanded')).toBe('true')
-    expect(control.textContent).toBe('show less')
-
-    await userEvent.click(control)
-    await expect.element(page.getByText(LONG_OUTPUT), {timeout: 3000}).toBeVisible()
-
-    expect(control.getAttribute('aria-expanded')).toBe('false')
+    await collapse.click()
+    await expect.element(reveal).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('leaves a body that already fits without any clamp footer', async () => {

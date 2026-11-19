@@ -690,9 +690,9 @@ describe('tool row projections', () => {
     ))
 
     await expect.element(page.getByText('write')).toBeVisible()
-    await expect.element(page.getByText('new-file.ts', {exact: false})).toBeVisible()
+    await expect.element(page.getByText('…/src/new-file.ts')).toBeVisible()
     await expect.element(page.getByText('+3 −0')).toBeVisible()
-    await expect.element(page.getByText('old.ts', {exact: false})).toBeVisible()
+    await expect.element(page.getByText('…/src/old.ts')).toBeVisible()
     await expect.element(page.getByText('+1 −1')).toBeVisible()
   })
 

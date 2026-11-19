@@ -3,12 +3,24 @@ import '@conciv/ui-kit-system/tokens.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {createSignal, For, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
-import {describe, expect, it} from 'vitest'
-import {page, userEvent} from 'vitest/browser'
+import {describe, expect, it, onTestFinished} from 'vitest'
+import {commands, page, userEvent} from 'vitest/browser'
 import {Markdown, MarkdownProvider} from '../src/styled/markdown.js'
 import {mountView} from './helpers.js'
 import {CodeBlock} from '../src/tools/styled/code-block.js'
 import {ResultImage} from '../src/tools/styled/result-image.js'
+
+declare module 'vitest/internal/browser' {
+  interface BrowserCommands {
+    grantClipboard: () => Promise<void>
+    revokeClipboard: () => Promise<void>
+  }
+}
+
+async function allowClipboard(): Promise<void> {
+  await commands.grantClipboard()
+  onTestFinished(() => commands.revokeClipboard())
+}
 
 describe('code block streaming growth', () => {
   const LINES = 24
@@ -38,6 +50,7 @@ describe('code block actions', () => {
   const LOG_LINES = Array.from({length: 24}, (_, index) => `[build] step ${index} finished`)
 
   it('copies a file block from its header, then expands a clipped log to show its hidden lines', async () => {
+    await allowClipboard()
     mountView(() => (
       <>
         <CodeBlock chrome="file" file={{name: 'pipeline.ts', lang: 'ts', contents: SOURCE}} />
@@ -63,6 +76,7 @@ describe('code block actions', () => {
   })
 
   it('heads a finished markdown fence with its language and copies the fence from that header', async () => {
+    await allowClipboard()
     mountView(() => <Markdown content={['```ts', SOURCE, '```'].join('\n')} />)
     const fence = page.getByRole('group', {name: 'ts', exact: true})
 
