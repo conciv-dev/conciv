@@ -173,6 +173,11 @@ describe('engine port exact', () => {
   }
 
   describe('makeEngineBooter with the exact port policy (Next.js and the generic webpack/rspack plugin)', () => {
+    it('defaults to a port no outgoing socket can hold, outside the Linux and IANA ephemeral ranges', () => {
+      expect(CONCIV_DEFAULT_PORT < 32768 || CONCIV_DEFAULT_PORT > 60999).toBe(true)
+      expect(CONCIV_DEFAULT_PORT).toBeLessThan(49152)
+    })
+
     it('boots on the requested fixed port', async () => {
       const root = tempRoot()
       let engine: Engine | undefined
