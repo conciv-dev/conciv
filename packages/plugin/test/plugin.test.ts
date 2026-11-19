@@ -7,7 +7,7 @@ import * as SolidJs from 'solid-js'
 import * as SolidStore from 'solid-js/store'
 import * as SolidWeb from 'solid-js/web'
 import {build} from 'vite'
-import * as SolidQuery from '@tanstack/solid-query'
+// oxlint-disable-next-line no-restricted-imports -- the SDK checks its option shapes against solid-query itself: depending on @conciv/client would close a package cycle through @conciv/core
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import * as Zod from 'zod'
 import * as Effect from 'effect'
@@ -1023,7 +1023,7 @@ describe('experimental() build', () => {
     'solid-js': SolidJs,
     'solid-js/web': SolidWeb,
     'solid-js/store': SolidStore,
-    '@tanstack/solid-query': SolidQuery,
+    '@conciv/client': inertModule('@conciv/client'),
     '@conciv/plugin/experimental/page': PageModule,
     '@conciv/plugin/experimental/grab': GrabModule,
   }

@@ -8700,12 +8700,13 @@ export default {
 }
 `
   const tallyBundle = `const {Panel} = require('@conciv/plugin/experimental')
-const {useMutation, useQuery} = require('@tanstack/solid-query')
+const {useMutation, useQuery, useQueryClient} = require('@conciv/client')
 const {createComponent, insert} = require('solid-js/web')
 const Tally = ${tallyDefinition}
 module.exports = {default: {setup(ctx) {
   const tally = () => ctx.client.rpc(Tally)
-  tally().events.on('bumped', () => ctx.queryClient.invalidateQueries({queryKey: tally().count.key()}), {signal: ctx.signal})
+  const queryClient = useQueryClient()
+  tally().events.on('bumped', () => queryClient.invalidateQueries({queryKey: tally().count.key()}), {signal: ctx.signal})
   function TallyView() {
     const count = useQuery(() => tally().count.queryOptions({input: {}}))
     const bump = useMutation(() => tally().bump.mutationOptions())
