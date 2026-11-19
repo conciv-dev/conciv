@@ -17,7 +17,7 @@ function readOptions(input: unknown) {
   const parsed = Options.safeParse(input)
   if (parsed.success) return Effect.succeed(parsed.data)
   const message = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
-  return Effect.fail(new InvalidOptions({message}))
+  return Effect.fail(InvalidOptions.make({message}))
 }
 
 export default define({
@@ -39,7 +39,7 @@ export default define({
               .pipe(Effect.mapError((failure) => call.error('MANIFEST_UNREADABLE', failure.message, {}))),
           serverFnTrace: ({count}) => tanstack.serverFnTrace(count),
         })
-        .pipe(Effect.mapError((cause) => new RpcRegisterFailed({message: failureMessage(cause)})))
+        .pipe(Effect.mapError((cause) => RpcRegisterFailed.make({message: failureMessage(cause)})))
       yield* register(ctx, tanstack)
     }),
 })
