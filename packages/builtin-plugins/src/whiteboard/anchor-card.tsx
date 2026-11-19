@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {BasicTool} from '@conciv/ui-kit-chat/tools'
-import {parseOutput, readInput} from '../tanstack/card-shared.js'
+import {parseOutput, readInput} from '../page/cards/shared.js'
 
 const InputSchema = z.object({cid: z.string()})
 const AnchorStatus = z.enum(['fresh', 'moved', 'drifted', 'orphaned', 'ambiguous'])

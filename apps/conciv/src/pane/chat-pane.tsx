@@ -35,12 +35,8 @@ import {
 } from '@conciv/ui-kit-chat'
 import type {DraftItem, PermissionReply} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
-import {
-  PAGE_ACT_TOOL_NAMES,
-  PAGE_TOOL_PREFIX,
-  builtinToolMeta,
-  pageSessionEntry,
-} from '@conciv/builtin-plugins/renderer'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageSessionEntry, pageToolMeta} from '@conciv/builtin-plugins/renderer'
+import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -447,7 +443,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     addResult: messaging.onAnswer,
   })
 
-  const toolRender = createToolRender()
+  const toolRender = createToolRender(catalog)
   const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
 
   const compacting = messaging.compacting
@@ -727,7 +723,10 @@ function useToolCatalog(): ToolCatalogView {
   const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
   return {
     loaded: () => registryCatalog.data !== undefined,
-    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name) ?? builtinToolMeta(name),
+    meta: (name) =>
+      registryCatalog.data?.find((signature) => signature.name === name) ??
+      pageToolMeta(name) ??
+      tanstackToolMeta(name),
   }
 }
 

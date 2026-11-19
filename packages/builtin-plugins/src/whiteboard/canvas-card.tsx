@@ -4,7 +4,7 @@ import {groupBy} from 'es-toolkit'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {BasicTool, CodeBlock, ErrorBlock, ResultImage} from '@conciv/ui-kit-chat/tools'
 import {countLabel} from '../page/cards/shared.js'
-import {readInput} from '../tanstack/card-shared.js'
+import {readInput} from '../page/cards/shared.js'
 import {failureMessage, FieldRows, MonoLine, readFailure, readMedia, type Field} from './card-shared.js'
 
 const DetailSchema = z

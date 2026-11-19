@@ -1,7 +1,6 @@
 import {mapKeys, mapValues} from 'es-toolkit'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {Operations, type Method} from '@conciv/plugin-tanstack/rpc'
-import type {tanstackCards} from './cards.js'
+import {Operations, type Method} from './rpc.js'
 
 const TANSTACK_TOOL_PREFIX = 'tanstack_'
 
@@ -90,9 +89,11 @@ const tanstackToolViews = {
     icon: 'read',
     label: {running: 'Reading the server-function calls', done: 'Read the server-function calls'},
   },
-} satisfies Record<keyof typeof tanstackCards, ToolViewMeta>
+} satisfies Record<string, ToolViewMeta>
 
-function isTanstackTool(name: string): name is keyof typeof tanstackToolViews {
+export type TanstackToolName = keyof typeof tanstackToolViews
+
+function isTanstackTool(name: string): name is TanstackToolName {
   return Object.hasOwn(tanstackToolViews, name)
 }
 

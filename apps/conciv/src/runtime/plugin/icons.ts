@@ -26,6 +26,7 @@ import Columns2Icon from 'lucide-solid/icons/columns-2'
 import CompassIcon from 'lucide-solid/icons/compass'
 import ComponentIcon from 'lucide-solid/icons/component'
 import CopyIcon from 'lucide-solid/icons/copy'
+import CornerDownRightIcon from 'lucide-solid/icons/corner-down-right'
 import CrosshairIcon from 'lucide-solid/icons/crosshair'
 import DownloadIcon from 'lucide-solid/icons/download'
 import EllipsisIcon from 'lucide-solid/icons/ellipsis'
@@ -121,6 +122,7 @@ export const icons: Record<IconName, Component<LucideProps>> = {
   compass: CompassIcon,
   component: ComponentIcon,
   copy: CopyIcon,
+  'corner-down-right': CornerDownRightIcon,
   crosshair: CrosshairIcon,
   download: DownloadIcon,
   ellipsis: EllipsisIcon,

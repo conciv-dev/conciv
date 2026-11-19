@@ -76,7 +76,8 @@ import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conc
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
-import {PAGE_TOOL_PREFIX, builtinToolMeta} from '@conciv/builtin-plugins/renderer'
+import {PAGE_TOOL_PREFIX, pageToolMeta} from '@conciv/builtin-plugins/renderer'
+import {tanstackToolMeta} from '@conciv/plugin-tanstack/client'
 import {createToolRender} from '../src/pane/tool-registry-render.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
@@ -126,7 +127,7 @@ import {
   stripSearchParams,
 } from '@tanstack/solid-router'
 import {StatusBar} from '../src/pane/status-bar.jsx'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolCardEntry, type ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
 import {Operations} from '@conciv/plugin-page/rpc'
@@ -4091,7 +4092,7 @@ describe('page session card', () => {
           metadata={{}}
           status="completed"
           sessionID={sessionId}
-          render={createToolRender().render}
+          render={createToolRender(INERT_TOOL_CATALOG).render}
         />
       )),
     )
@@ -4129,7 +4130,7 @@ describe('page session card', () => {
           status="completed"
           output={output}
           sessionID={sessionId}
-          render={createToolRender().render}
+          render={createToolRender(INERT_TOOL_CATALOG).render}
         />
       )),
     )
@@ -4170,7 +4171,7 @@ describe('page session card', () => {
     expect(listed.map((signature) => signature.name)).toContain(`${PAGE_TOOL_PREFIX}click`)
     expect(listed.filter((signature) => signature.label === undefined || signature.icon === undefined)).toEqual([])
     const unlabelled = pageNames.filter((name) => {
-      const meta = listed.find((signature) => signature.name === name) ?? builtinToolMeta(name)
+      const meta = listed.find((signature) => signature.name === name) ?? pageToolMeta(name) ?? tanstackToolMeta(name)
       return meta?.label === undefined || meta.icon === undefined
     })
     expect(unlabelled).toEqual([])
@@ -7809,7 +7810,7 @@ describe('wire name coverage', () => {
   it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const drawnByGenericCard = modelReachableNames.filter(
-      (name) => !cardNames.has(name) && builtinToolMeta(name) === undefined,
+      (name) => !cardNames.has(name) && pageToolMeta(name) === undefined && tanstackToolMeta(name) === undefined,
     )
     expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })

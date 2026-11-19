@@ -24,6 +24,7 @@ export type IconName =
   | 'compass'
   | 'component'
   | 'copy'
+  | 'corner-down-right'
   | 'crosshair'
   | 'download'
   | 'ellipsis'

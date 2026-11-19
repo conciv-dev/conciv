@@ -720,6 +720,9 @@ importers:
       '@conciv/plugin-internal':
         specifier: workspace:*
         version: link:../../packages/plugin-internal
+      '@conciv/plugin-tanstack':
+        specifier: workspace:^
+        version: link:../../packages/plugins/tanstack
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol
@@ -2293,9 +2296,6 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../plugin-page
-      '@conciv/plugin-tanstack':
-        specifier: workspace:^
-        version: link:../plugins/tanstack
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -4008,6 +4008,9 @@ importers:
       '@conciv/plugin-page':
         specifier: workspace:^
         version: link:../../plugin-page
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -4033,6 +4036,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../../plugin
+      '@conciv/plugin-internal':
+        specifier: workspace:*
+        version: link:../../plugin-internal
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../plugin-testkit

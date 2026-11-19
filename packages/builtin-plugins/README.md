@@ -98,12 +98,6 @@ A page failure is the plugin's own error, a `[page.<code>]` message; the old reg
   The app case "a queued fill released after a session switch does not type" covers the user-visible claim instead:
   it holds the fill's `command` call by its input until the switch shows on screen, then releases it.
 
-## tanstack-card
-
-Each TanStack tool's card claim gives the whole card, so it draws while the call runs (the title and a running dot, no
-body) and after it finishes. The cards are built from `@conciv/ui-kit-chat/tools` and `@conciv/ui-kit-system`, which the
-widget already bundles, so the embed keeps one copy of each.
-
 ## terminal
 
 The session's CLI in a terminal (built-in id `terminal`, a pinned Terminal tab in the session's pane): listed for a
