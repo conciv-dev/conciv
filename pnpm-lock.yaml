@@ -4977,9 +4977,6 @@ importers:
       '@solid-primitives/autofocus':
         specifier: 'catalog:'
         version: 0.1.5(solid-js@1.9.17)
-      '@solid-primitives/event-listener':
-        specifier: 'catalog:'
-        version: 2.4.6(solid-js@1.9.17)
       effect:
         specifier: 'catalog:'
         version: 4.1.0

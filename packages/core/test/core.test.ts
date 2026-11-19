@@ -1002,7 +1002,7 @@ describe('chat plane', () => {
       harnessFor: () => harness,
       systemPrompt: {},
       sessions: sessionPort(),
-      toolNames: new Set(),
+      toolNames: async () => new Set(),
       capabilities: async () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
