@@ -5,7 +5,6 @@ import {
   type PersistedAttachment,
   type RpcClient,
   makeBrowserRpcClient,
-  makeRpcClient,
   type EngineTokenSource,
 } from '@conciv/contract'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
@@ -165,7 +164,7 @@ async function* turnStream(
   text: string,
   signal: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
-  yield* await makeRpcClient(base).chat.send(
+  yield* await coreRpc(base).chat.send(
     {sessionId, runId: crypto.randomUUID(), messages: [{id: crypto.randomUUID(), role: 'user', content: text}]},
     {signal},
   )
