@@ -9,7 +9,7 @@ import {
   useApplyPatch,
   type ApplyPatchInfo,
 } from '../../primitives/tools/apply-patch.js'
-import {diffBlockClass, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {diffBlockClass, FILE_HEADER_CSS, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
 
 function diffOptions(disableFileHeader = false): FileDiffOptions<undefined, undefined> {
@@ -19,6 +19,7 @@ function diffOptions(disableFileHeader = false): FileDiffOptions<undefined, unde
     diffStyle: 'unified',
     overflow: 'wrap',
     disableFileHeader,
+    unsafeCSS: FILE_HEADER_CSS,
   }
 }
 

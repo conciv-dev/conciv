@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import Terminal from 'lucide-solid/icons/terminal'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
-import {cardPhase, CodeBlock, ErrorBlock, ToolCard, TraceOutputBlock} from '@conciv/ui-kit-chat/tools'
+import {cardPhase, CodeBlock, ErrorBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 const ANSI_INTRODUCER = '['
 
@@ -29,7 +29,9 @@ function StoppedBody(): JSX.Element {
   return (
     <div class="flex flex-col gap-2">
       <Show when={bash.command()}>
-        {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
+        {(command) => (
+          <CodeBlock size="xs" title="Command" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />
+        )}
       </Show>
       <ErrorBlock message={bash.stoppedReason()} outcome={bash.outcome()} />
     </div>
@@ -51,17 +53,23 @@ function Body(): JSX.Element {
       >
         <div class="flex flex-col gap-2">
           <Show when={bash.command()}>
-            {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
+            {(command) => (
+              <CodeBlock
+                size="xs"
+                title="Command"
+                file={{name: 'command.sh', lang: 'shellscript', contents: command()}}
+              />
+            )}
           </Show>
           <Show when={text()}>
             {(value) => (
-              <TraceOutputBlock tone={bash.isError() ? 'error' : 'normal'} text={value()}>
-                <CodeBlock
-                  size="xs"
-                  maxHeight="none"
-                  file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
-                />
-              </TraceOutputBlock>
+              <CodeBlock
+                size="xs"
+                title={bash.isError() ? 'Error' : 'Output'}
+                tone={bash.isError() ? 'error' : 'normal'}
+                label={bash.isError() ? 'Error output' : 'Output'}
+                file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
+              />
             )}
           </Show>
         </div>

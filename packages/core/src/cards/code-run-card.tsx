@@ -11,7 +11,6 @@ import {
   ShapedValue,
   ToolCard,
   toolStatus,
-  TraceOutputBlock,
   useEmbeddedCard,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
@@ -122,9 +121,13 @@ function EmbeddedOutput(props: {
         <>
           <Show when={text()}>
             {(value) => (
-              <TraceOutputBlock tone={props.failed ? 'error' : 'normal'} text={value()}>
-                <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'ansi', contents: value()}} />
-              </TraceOutputBlock>
+              <CodeBlock
+                size="xs"
+                title={props.failed ? 'Error' : 'Output'}
+                tone={props.failed ? 'error' : 'normal'}
+                label={props.failed ? 'Error output' : 'Output'}
+                file={{name: 'output.log', lang: 'ansi', contents: value()}}
+              />
             )}
           </Show>
           <RunResult output={props.output} />

@@ -1,4 +1,4 @@
-import {createContext, Show, splitProps, useContext, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import {ClipboardCopyButton, TooltipIconButton} from '@conciv/ui-kit-system'
 import Maximize2 from 'lucide-solid/icons/maximize-2'
 import {TraceClamp, type TraceClampSize} from './clamp.js'
@@ -20,12 +20,6 @@ const TONE_NAME: Record<TraceOutputTone, string> = {normal: 'Output', error: 'Er
 const BODY_CONTENT = 'min-w-0 flex flex-col gap-1.5 text-chat-sm'
 
 const BARE_FRAME = 'relative min-w-0'
-
-const SurfaceContext = createContext(false)
-
-export function useInsideSurface(): boolean {
-  return useContext(SurfaceContext)
-}
 
 export function TraceBodyFrame(props: {
   children: JSX.Element
@@ -106,9 +100,7 @@ export function TraceOutputBlock(props: {
         lines={local.lines ?? (local.text === undefined ? undefined : local.text.split('\n').length)}
         overflowLabel={local.overflowLabel}
       >
-        <div class={CONTENT}>
-          <SurfaceContext.Provider value={true}>{local.children}</SurfaceContext.Provider>
-        </div>
+        <div class={CONTENT}>{local.children}</div>
       </TraceClamp>
     </div>
   )

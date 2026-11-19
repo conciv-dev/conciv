@@ -5,7 +5,7 @@ import {Chip, CodeBlock, SUNKEN_SURFACE} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './shared.js'
 import {formatHtml} from './page-format.js'
 
-const HTML_CLASS = 'max-h-80 max-w-full block'
+const HTML_CLASS = 'max-w-full'
 const LIST = `m-0 p-0 list-none max-h-[13.75rem] w-full ${SUNKEN_SURFACE} overflow-auto`
 const LIST_ITEM = `text-[length:var(--chat-text-xs)] ${LIST_ROW_CLASS}`
 const ROLE =

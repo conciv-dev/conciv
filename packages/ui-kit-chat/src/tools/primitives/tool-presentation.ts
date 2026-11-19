@@ -28,6 +28,9 @@ export const OUTCOME_TONE: Record<
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] whitespace-pre-wrap [overflow-wrap:anywhere] [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 
+export const FILE_HEADER_CSS =
+  '[data-diffs-header]{background-color:var(--chat-fill);border-block-end:1px solid var(--chat-line-soft);color:var(--chat-text-2)}[data-diffs-header]~[data-file] [data-code],[data-diffs-header]~[data-diff] [data-code]{padding-top:var(--diffs-gap-block,var(--diffs-gap-fallback))}'
+
 export function codeBlockOptions(): FileOptions<undefined, undefined> {
   return {
     theme: codeTheme(),
@@ -47,6 +50,16 @@ export function codeBlockFileChromeOptions(): FileOptions<undefined, undefined> 
     ...codeBlockOptions(),
     disableFileHeader: false,
     disableLineNumbers: false,
+    unsafeCSS: FILE_HEADER_CSS,
+  }
+}
+
+export function codeBlockTitledOptions(): FileOptions<undefined, undefined> {
+  return {
+    ...codeBlockOptions(),
+    disableFileHeader: false,
+    unsafeCSS: FILE_HEADER_CSS,
+    renderCustomHeader: () => undefined,
   }
 }
 
