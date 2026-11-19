@@ -37,10 +37,6 @@ export function provideEditorSource(openInEditor: (file: string, line?: number, 
   return Layer.succeed(PluginHost.EditorSource, openInEditor)
 }
 
-export function provideExtensionSlugs(slugs: ReadonlyArray<string>) {
-  return Layer.succeed(PluginHost.ExtensionSlugs, slugs)
-}
-
 export function provideApp() {
   return Layer.succeed(App.Service, App.make({version: corePackage.version}))
 }

@@ -8,7 +8,7 @@ import {
 import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
 
-const meta: Meta = {title: 'Extensions/Page/tool/EditLiveCard'}
+const meta: Meta = {title: 'Plugins/Page/tool/EditLiveCard'}
 export default meta
 type Story = StoryObj
 

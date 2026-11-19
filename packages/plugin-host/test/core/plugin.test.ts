@@ -946,20 +946,9 @@ it.effect('host event subscriptions deliver requested rpc types and ignore unkno
 
     const definition = (id: string) =>
       Rpc.define({id, methods: {ping: {input: Schema.Undefined, output: Schema.String}}, events: {}})
-    const mounted = definition('page')
     const plugins = yield* Plugin.Service
-    const pluginHost = (pluginId: string) =>
-      PluginHost.make(plugins, pluginId).pipe(Effect.provideService(PluginHost.ExtensionSlugs, ['page']))
-    const first = yield* pluginHost('first')
-    const second = yield* pluginHost('second')
-    const refusal = (context: typeof first) =>
-      context.rpc.register(mounted, {ping: () => Effect.succeed('mounted')}).pipe(Effect.flip)
-    expect(yield* refusal(first)).toEqual(
-      new Error('Plugin first cannot register RPC page: the extension page is mounted'),
-    )
-    expect(yield* refusal(second)).toEqual(
-      new Error('Plugin second cannot register RPC page: the extension page is mounted'),
-    )
+    const first = yield* PluginHost.make(plugins, 'first')
+    const second = yield* PluginHost.make(plugins, 'second')
 
     yield* first.rpc.register(definition('first-echo'), {ping: () => Effect.succeed('from first')})
     yield* second.rpc.register(definition('second-echo'), {ping: () => Effect.succeed('from second')})

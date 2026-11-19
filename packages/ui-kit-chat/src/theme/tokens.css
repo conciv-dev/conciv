@@ -5,7 +5,7 @@
    pair, so a scheme is a single color-scheme flip on the widget's root wrap and the two halves can
    never drift apart. Tokens that are pure skin (radii, font stacks, type scale) carry one value.
 
-   Everything sits at :host,:root so an extension's accent override tag, appended later at the same
+   Everything sits at :host,:root so a plugin's accent override tag, appended later at the same
    specificity, still wins by source order. */
 
 :root,

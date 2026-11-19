@@ -54,7 +54,7 @@ capable as the tool you already trust.
 - 💬 &nbsp;**Chat in-app**: talk to an agent that sees your running page, streams its reasoning, and calls tools live.
 - 🕹️ &nbsp;**Page control**: it grabs elements, clicks, fills, inspects React props/state, and live-edits the DOM to preview changes.
 - 🧪 &nbsp;**Live tests**: run Vitest and watch pass/fail result cards render right inside the app.
-- 🧩 &nbsp;**Extensions**: drop a `.tsx` file in `conciv/extensions/` and get a new agent tool with its own card and composer UI.
+- 🧩 &nbsp;**Plugins**: add a plugin to `plugins` or `conciv/plugins/` and get new agent tools with their own cards and panels.
 - 🎨 &nbsp;**Shared whiteboard**: an Excalidraw canvas you and the AI draw on together, with source-anchored comments.
 - ✅ &nbsp;**Approvals**: risky or networked commands surface an Approve / Deny card before they run.
 - 🔌 &nbsp;**One plugin**: Vite, webpack, Rspack, Rollup, or esbuild. Dev-only, never in your production bundle.
@@ -102,29 +102,12 @@ dev server, and click the conciv button in the corner of your app.
 Override defaults via `conciv({harness, plugins, port, …})`. Other bundlers are one import
 away: `@conciv/it/plugin/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`.
 
-## Extensions
+## Plugins
 
-Teach the agent new tricks with a single file. Drop a `.tsx` into `conciv/extensions/` and it's
-discovered automatically. One `defineTool` gives the agent a callable tool (`.server` runs in
-node), a rendered result card, and optional widget UI (`.render` + `useSlot`), all typed
-end-to-end with zod:
-
-```tsx
-import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
-
-const deployRun = defineTool({
-  name: 'deploy_run',
-  description: 'Deploy the current branch',
-  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
-})
-  .server(({env}) => ({url: `https://${env}.example.com`}))
-  .render((props) => <DeployCard {...props} />)
-
-export default defineExtension({name: 'deploy', tools: [deployRun]})
-```
-
-Extensions are plain Solid JSX (compiled as a Solid zone even inside a React host app). Plugins ship
+Teach the agent new tricks with a plugin. List it in `plugins` (an npm package or a local
+directory, with options as `['name', {...}]`) or drop it in `conciv/plugins/`, and the engine loads
+it live. A plugin adds agent tools, a result card per tool and panels in the widget, and can be
+added or removed while the app runs. Plugins ship
 with a real test harness: [`@conciv/plugin-testkit`](./packages/plugin-testkit) boots the real
 engine with your plugin loaded and a fake model.
 
@@ -183,7 +166,7 @@ Every package, app and source directory carries a `README.md` with its interface
 ### Global Invariants
 
 - Everything is ESM, Node >= 26, one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
-- Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `extension`, `grab`) or an extension's `shared/` directory; the browser never imports a server entry.
+- Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `plugin`, `grab`); the browser never imports a server entry.
 - The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
 - The engine binds loopback only; cross-origin access is gated by the Host/Origin middleware in `packages/core/src/lib`.
 
@@ -191,7 +174,7 @@ Every package, app and source directory carries a `README.md` with its interface
 
 - The engine writes its SQLite database, port file and endpoint discovery file under the project's state directory and `~/.conciv`.
 - Harness adapters read the user's agent transcripts (`~/.claude`, `~/.codex`, `~/.pi`, opencode's database) and spawn the agent binaries.
-- The Vite plugin boots the engine process, injects the widget meta tags and script into served HTML and serves the generated extensions module from the dev server.
+- The Vite plugin boots the engine process, injects the widget meta tags and script into served HTML and serves the widget boot script from the dev server.
 - `conciv-publish` publishes to npm, pushes git tags and force-pushes the `conciv-swift` mirror.
 
 ### System Verification

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports progress with `@clack/prompts` on a TTY, or plain lines otherwise. `connect.ts` resolves a harness adapter and a workspace, seeds a temporary workspace with the landing-page source fetched from `<origin>/site-source.json`, and starts `@conciv/core` with the terminal extension on the first free port in the connect range.
+Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports progress with `@clack/prompts` on a TTY, or plain lines otherwise. `connect.ts` resolves a harness adapter and a workspace, seeds a temporary workspace with the landing-page source fetched from `<origin>/site-source.json`, and starts `@conciv/core` on the first free port in the connect range.
 
 ## Interface
 
@@ -21,7 +21,7 @@ Source of the `conciv-try` CLI. `cli.ts` parses arguments with citty and reports
 - An unknown harness throws `conciv: unknown harness "<x>". Known harnesses: <registered ids>.` before the workspace is seeded, the same text `@conciv/core` `start` refuses it with; `harnessAdapter` overrides `harness` (`resolveAdapter`).
 - Seeding runs only when `workspace` is undefined (`connect.ts`).
 - Ports are tried from `CONNECT_FIRST_PORT` to `CONNECT_LAST_PORT` (`@conciv/protocol/connect-ports`); only `EADDRINUSE` moves to the next port, other errors are rethrown, and exhaustion throws `no free port between ...` (`connect.ts`).
-- Core starts with `accessToken: opts.token`, `allowedOrigins: [origin ?? 'https://conciv.dev']`, `extensions: [terminal]`, `port: {exact}`, a no-op `launchEditor` and `systemPrompt: CONNECT_SYSTEM_PROMPT` (`connect.ts`).
+- Core starts with `accessToken: opts.token`, `allowedOrigins: [origin ?? 'https://conciv.dev']`, `port: {exact}`, a no-op `launchEditor` and `systemPrompt: CONNECT_SYSTEM_PROMPT` (`connect.ts`).
 - Manifest paths must be `package.json` or `src/...` with no backslashes and no empty, `.` or `..` segments; values must be strings (`allowedManifestPath`, `manifestEntries`, `seed-workspace.ts`).
 - The manifest is capped at `MAX_MANIFEST_BYTES` (8 MiB), checked on content-length and body length; a non-OK response or fetch/parse error returns false (`seed-workspace.ts`).
 

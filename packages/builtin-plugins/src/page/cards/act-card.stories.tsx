@@ -4,7 +4,7 @@ import {ELEMENT_CAPTURE_FIXTURE_CSS, ELEMENT_CAPTURE_FIXTURE_FULL} from '@conciv
 import {STORY_FRAME_CLASS, StoryTool, storyCall, storyFailedCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
 
-const meta: Meta = {title: 'Extensions/Page/tool/ActCard'}
+const meta: Meta = {title: 'Plugins/Page/tool/ActCard'}
 export default meta
 type Story = StoryObj
 

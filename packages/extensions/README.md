@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each subdirectory is a separate pnpm package with its own `package.json`, build (tsdown and/or vite) and test scripts. The packages are design (visual diff against a target image), recorder (rrweb recording and replay) and tanstack (TanStack Router and Query inspection). The package descriptions say they are installed through `@conciv/it` and not directly.
+Each subdirectory is a separate pnpm package with its own `package.json`, build (tsdown and/or vite) and test scripts. The one package left is design (visual diff against a target image), out of the release and not yet a plugin; every other extension is now a plugin under `packages/plugins` or `packages/builtin-plugins`.
 
 ## Subdirectories & Boundaries
 

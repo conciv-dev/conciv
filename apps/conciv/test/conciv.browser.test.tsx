@@ -505,9 +505,7 @@ describe('attachment widget', () => {
     await expect
       .element(composerChips.getByRole('button', {name: 'Failed to render crash-attachment'}))
       .not.toBeInTheDocument()
-    expect(crash.mock.calls.filter((call) => call[0] === '[conciv] extension "crash-attachment" crashed').length).toBe(
-      2,
-    )
+    expect(crash.mock.calls.filter((call) => call[0] === '[conciv] plugin "crash-attachment" crashed').length).toBe(2)
     crash.mockRestore()
   })
 })

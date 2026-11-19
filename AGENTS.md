@@ -208,7 +208,7 @@ README.md; this file is the non-obvious operational rules.
   "consolidate" it onto `data-highlighted`. `highlightedValue` is _not_ focus-gated, which is exactly
   why `aria-activedescendant` works.
 
-## Extension landmines
+## Plugin landmines
 
 - Whiteboard (TanStack DB collections): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.

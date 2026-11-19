@@ -9,7 +9,7 @@ import {GrabCard} from './grab-card.js'
 
 const STORY_FRAME_CLASS = 'p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 
-const meta: Meta = {title: 'Extensions/Page/tool/GrabCard'}
+const meta: Meta = {title: 'Plugins/Page/tool/GrabCard'}
 export default meta
 type Story = StoryObj
 

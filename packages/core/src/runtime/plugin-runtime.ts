@@ -57,7 +57,6 @@ import {
   provideConfiguredPermissions,
   provideConfiguredPolicies,
   provideEditorSource,
-  provideExtensionSlugs,
   provideGlobalRoots,
   publishBundlerDiagnostics,
 } from './plugin-sources.js'
@@ -154,7 +153,6 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideServersSource({home: input.home, engineId: input.engineId}),
         provideBundlerSource(input.bundler),
         provideEditorSource(input.openInEditor),
-        provideExtensionSlugs([]),
         provideConfiguredPolicies(input.config.policies),
         provideConfiguredPermissions(input.config.permissions),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),

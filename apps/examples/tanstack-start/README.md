@@ -204,7 +204,7 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 
 ## Invariants
 
-- `vite.config.ts`: no `ios` extension; the iOS overlay demo lives in [native/swift](../../../native/swift/README.md) so web sessions here never get the iOS system prompt
+- `vite.config.ts`: no iOS plugin; the iOS overlay demo lives in [native/swift](../../../native/swift/README.md) so web sessions here never get the iOS system prompt
 
 ## Side Effects
 

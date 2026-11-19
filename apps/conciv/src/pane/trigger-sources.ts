@@ -186,7 +186,7 @@ function sessionEntries(
 }
 
 function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
-  return {id: tool.name, label: `@${tool.name}`, group: tool.extension ?? 'Tools', description: tool.description}
+  return {id: tool.name, label: `@${tool.name}`, group: 'Tools', description: tool.description}
 }
 
 function settledEntries<Value>(

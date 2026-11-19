@@ -3,7 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
 
-const meta: Meta = {title: 'Extensions/Page/tool/ReactCard'}
+const meta: Meta = {title: 'Plugins/Page/tool/ReactCard'}
 export default meta
 type Story = StoryObj
 

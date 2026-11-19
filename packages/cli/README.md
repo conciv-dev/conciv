@@ -24,12 +24,11 @@ conciv tools --help
 ```
 
 `conciv tools` is self-describing, and it finds your running dev server itself: no MCP config, no
-addresses. Every tool group comes from the server's live tool catalog, so an extension's tools appear
-as soon as the server mounts it; the CLI itself ships no extension code.
+addresses. Every tool group comes from the server's live tool catalog, so a plugin's tools appear
+as soon as the server loads it; the CLI itself ships no plugin code.
 
 - `conciv tools page` - read and drive the live page; `--help` lists every capability
 - `conciv tools react` - inspect and edit live React components
-- `conciv tools design` - match the live page to a design image (when the design extension is mounted)
 - `conciv plugin call server <method>` - inspect the dev server (`config`, `urls`, `resolve`, `graph`, `transform`) or open a file in the user's editor (`open`); pass the input with `--data '<json>'`
 - `conciv tools tabs` - list every open conciv tab on this machine, from any folder
 

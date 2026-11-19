@@ -13,14 +13,14 @@ not the host lets a plugin edit the served HTML:
 | Setup                       | How the widget loads                                                         |
 | --------------------------- | ---------------------------------------------------------------------------- |
 | Vite (classic `index.html`) | `transformIndexHtml` injects the loader `<script>` + `conciv-api-base` meta. |
-| TanStack Start (± nitro)    | The extensions module is imported from the client entry (module graph).      |
+| TanStack Start (± nitro)    | The widget module is imported from the client entry (module graph).          |
 | Next.js                     | `plugin/nextjs/widget` client entry + fixed `port`.                          |
 | webpack, Rspack             | The plugin adds a generated client entry in dev builds + fixed `port`.       |
 
 For SSR hosts like TanStack Start (with or without the nitro server layer), the
 rendered document never passes through vite's HTML seam; no static `index.html`
 for `transformIndexHtml`, and the connect-stack response is discarded. So instead
-of editing HTML, conciv appends a dynamic `import` of its virtual extensions module
+of editing HTML, conciv appends a dynamic `import` of its virtual widget module (`/@conciv/widget.js`)
 to the framework's client entry and bakes the engine origin into that module
 (`window.__CONCIV_API_BASE__`, the same seam Next.js uses). No user config, no
 fixed port. See `apps/examples/tanstack-start`; its `widget-mount.e2e.test.ts`

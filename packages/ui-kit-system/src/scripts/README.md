@@ -8,9 +8,9 @@ Node scripts, run with `node` directly on `.ts` files, that generate the design-
 
 - `gen-tokens.ts` (`pnpm gen:tokens`): writes every `generatedOutputs()` entry.
 - `check-tokens.ts` (`pnpm gen:check`): compares each generated output with the committed file.
-- `generatedOutputs()`, `GeneratedOutput {path, label, content}` (`generated-outputs.ts`): `src/tokens.css`, `docs/skin-anchors.md`, `docs/extension-tokens.md`.
+- `generatedOutputs()`, `GeneratedOutput {path, label, content}` (`generated-outputs.ts`): `src/tokens.css`, `docs/skin-anchors.md`, `docs/plugin-tokens.md`.
 - `renderTokensCss()`, `renderBaseTokensCss()` (`render-tokens.ts`): `:host,:root` with `color-scheme: light dark`, base-skin anchors and `DERIVED_TOKENS`, `.light` / `.dark` rules, and one `renderSkinCss` block per overlay skin.
-- `renderSkinContractDoc()`, `renderExtensionContractDoc()` (`contract-docs.ts`): the "Skin author contract" and "Extension author contract" docs (the latter with utility tables from `chatColors`, `chatRadius`, `chatFont`, `chatEase` in `@conciv/uno-preset`).
+- `renderSkinContractDoc()`, `renderPluginContractDoc()` (`contract-docs.ts`): the "Skin author contract" and "Plugin author contract" docs (the latter with utility tables from `chatColors`, `chatRadius`, `chatFont`, `chatEase` in `@conciv/uno-preset`).
 - `BASE_SKIN` (`concivSkin`), `OVERLAY_SKINS` (`[terminalSkin]`), `ALL_SKINS` (`generated-skins.ts`).
 
 ## Invariants
@@ -21,7 +21,7 @@ Node scripts, run with `node` directly on `.ts` files, that generate the design-
 
 ## Side Effects
 
-- `gen-tokens.ts` creates parent dirs (`mkdirSync` recursive) and writes `src/tokens.css`, `docs/skin-anchors.md`, `docs/extension-tokens.md`.
+- `gen-tokens.ts` creates parent dirs (`mkdirSync` recursive) and writes `src/tokens.css`, `docs/skin-anchors.md`, `docs/plugin-tokens.md`.
 - `check-tokens.ts` reads those files, logs to the console and exits 1 on drift.
 
 ## Verification

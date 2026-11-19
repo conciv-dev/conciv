@@ -8,7 +8,7 @@ Client data layer used inside @conciv/it: typed oRPC query utilities, a chat con
 
 - `exports['.']` (`package.json`): ./dist/index.js; no bin; `files` dist and skills
 - `tsdown.config.ts`: entry src/index.ts, esm, bundles @tanstack/ai and @tanstack/ai-solid, and bundles @tanstack/solid-query, @tanstack/query-core and @orpc/tanstack-query into the JS while the d.ts keeps importing them
-- `src/index.ts` re-exports the TanStack Query surface the widget and extensions use (useQuery, useInfiniteQuery, useMutation, useMutationState, useQueryClient, useIsFetching, QueryClient, QueryClientProvider, keepPreviousData, QueryMutationObserver, CreateMutationResult, QueryKey) and `createTanstackQueryUtils`
+- `src/index.ts` re-exports the TanStack Query surface the widget and plugins use (useQuery, useInfiniteQuery, useMutation, useMutationState, useQueryClient, useIsFetching, QueryClient, QueryClientProvider, keepPreviousData, QueryMutationObserver, CreateMutationResult, QueryKey) and `createTanstackQueryUtils`
 - `vitest.config.ts`: node project `client` over test/**/*.test.ts
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - query utils, chat connection, page queries, reachability

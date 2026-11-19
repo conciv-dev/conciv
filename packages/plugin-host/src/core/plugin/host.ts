@@ -38,7 +38,6 @@ const isPublicEvent = (event: Event.Payload): event is EventManifest.ServerEvent
 
 export const ServersSource = Context.Service<Servers>('@conciv/ServersSource')
 export const BundlerSource = Context.Service<Bundler.BundlerBridge | undefined>('@conciv/BundlerSource')
-export const ExtensionSlugs = Context.Service<ReadonlyArray<string>>('@conciv/ExtensionSlugs')
 export const EditorSource =
   Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')
 
@@ -58,7 +57,6 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
   const instructionEntries = yield* InstructionEntry.Service
   const servers = yield* ServersSource
   const bundler = yield* BundlerSource
-  const extensionSlugs = yield* ExtensionSlugs
   const global = yield* Global.Service
   const locationInfo = (current: Location.Interface = location) =>
     Location.Info.make({
@@ -80,20 +78,11 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
         ),
       )
 
-  const register: Plugin.Context['rpc']['register'] = (definition, handlers) =>
-    extensionSlugs.includes(definition.id)
-      ? Effect.fail(
-          new Error(
-            `Plugin ${pluginId} cannot register RPC ${definition.id}: the extension ${definition.id} is mounted`,
-          ),
-        )
-      : rpc.register(definition, handlers)
-
   const context: Plugin.Context = {
     app,
     location: locationInfo(),
     options: {},
-    rpc: Object.assign(<D extends Rpc.Definition>(definition: D) => rpc.client(definition), {register}),
+    rpc: Object.assign(<D extends Rpc.Definition>(definition: D) => rpc.client(definition), {register: rpc.register}),
     agent: {
       transform: (callback) =>
         agents.transform((editor) => {

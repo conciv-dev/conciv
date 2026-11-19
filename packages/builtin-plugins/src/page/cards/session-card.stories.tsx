@@ -32,7 +32,7 @@ function readSplit(parameters: Record<string, unknown>): number[] {
 }
 
 const meta: Meta = {
-  title: 'Extensions/Page/tool/SessionCard',
+  title: 'Plugins/Page/tool/SessionCard',
   decorators: [
     (Story, context) => (
       <div class={STAGE}>

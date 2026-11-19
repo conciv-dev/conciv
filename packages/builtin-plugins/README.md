@@ -110,8 +110,7 @@ streams the live rows.
 
 Each TanStack tool's card claim gives the whole card, so it draws while the call runs (the title and a running dot, no
 body) and after it finishes. The cards are built from `@conciv/ui-kit-chat/tools` and `@conciv/ui-kit-system`, which the
-widget already bundles, so the embed keeps one copy of each. The old TanStack extension keeps its own copy until that
-extension is deleted.
+widget already bundles, so the embed keeps one copy of each.
 
 ## recorder-card
 

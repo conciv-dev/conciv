@@ -7,7 +7,7 @@ import {ErrorScreen} from '../../shell/error-screen.js'
 type PluginFallback = 'card' | 'chip'
 
 function reportCrash(name: string, error: unknown): void {
-  console.error(`[conciv] extension "${name}" crashed`, error)
+  console.error(`[conciv] plugin "${name}" crashed`, error)
 }
 
 function CardFallback(props: {name: string}): JSX.Element {

@@ -36,14 +36,14 @@ in, so you get a live page with the widget attached.
 
 ## Repo layout
 
-| Path             | What's there                                                                                                                           |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/conciv`    | `@conciv/app`, the widget host app used for local dev                                                                                  |
-| `apps/examples`  | Demo consumer apps (`tanstack-start`, `nextjs-app`, `ios`) that embed conciv                                                           |
-| `apps/site`      | conciv.dev, the marketing/docs site (React + TanStack Start)                                                                           |
-| `apps/storybook` | Component storybook for the Solid UI kits                                                                                              |
-| `native/swift`   | ConcivWidget iOS SDK, the ConcivDemo app, and the `ios-example` engine host (`pnpm exec turbo run dev --filter=ios-example`)           |
-| `packages/`      | ~40 published/internal packages: server/core logic, the browser client, extension system, and the Solid `ui-kit-*` component libraries |
+| Path             | What's there                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/conciv`    | `@conciv/app`, the widget host app used for local dev                                                                               |
+| `apps/examples`  | Demo consumer apps (`tanstack-start`, `nextjs-app`, `ios`) that embed conciv                                                        |
+| `apps/site`      | conciv.dev, the marketing/docs site (React + TanStack Start)                                                                        |
+| `apps/storybook` | Component storybook for the Solid UI kits                                                                                           |
+| `native/swift`   | ConcivWidget iOS SDK, the ConcivDemo app, and the `ios-example` engine host (`pnpm exec turbo run dev --filter=ios-example`)        |
+| `packages/`      | ~40 published/internal packages: server/core logic, the browser client, plugin system, and the Solid `ui-kit-*` component libraries |
 
 ## Everyday commands
 
@@ -118,7 +118,7 @@ including router idioms, Solid/Ark landmines, and testing rules.
    - `feat(ui-kit-chat): #431 transcript virtualization`
    - `fix(conciv): #478 grab card clears on send`
    - `docs: add CONTRIBUTING.md`
-   - `chore(storybook): nest extension stories under Extensions/<Name>/tool`
+   - `chore(storybook): nest plugin stories under Plugins/<Name>/tool`
 5. Write a PR description that covers: what changed and why, how you verified it (commands you
    ran, manual testing), and a link to the issue it addresses, if any.
 6. Keep the PR focused: one logical change per PR is much easier to review than a bundle of

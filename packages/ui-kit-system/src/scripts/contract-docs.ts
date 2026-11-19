@@ -86,13 +86,13 @@ function utilityTable(title: string, usage: string, entries: Record<string, stri
   return `### ${title}\n\nUsed as ${usage}.\n\n| name | resolves to |\n| --- | --- |\n${rows.join('\n')}\n`
 }
 
-export function renderExtensionContractDoc(): string {
-  const intro = `Extensions are components inside the widget's surface, not owners of its look. Style exclusively through the tokens and utilities below and your extension renders correctly under every skin and colour scheme with no per-skin work.
+export function renderPluginContractDoc(): string {
+  const intro = `Plugin panels and views are components inside the widget's surface, not owners of its look. Style exclusively through the tokens and utilities below and your plugin renders correctly under every skin and colour scheme with no per-skin work.
 
-There is no per-extension theme override. If you need a bespoke colour, derive it locally from a public token:
+There is no per-plugin theme override. If you need a bespoke colour, derive it locally from a public token:
 
 \`\`\`css
-.my-extension-card {
+.my-plugin-card {
   --my-card-tint: color-mix(in oklch, var(--chat-accent) 12%, transparent);
   background: var(--my-card-tint);
   border: 1px solid var(--chat-line);
@@ -123,5 +123,5 @@ ${utilityTable('easing', '`ease-*`', chatEase)}
 
 Spacing utilities (\`p-*\`, \`gap-*\`, \`m-*\`) are stable. Inside the thread and composer they scale with the active skin's \`--chat-space\`; elsewhere they use the widget default.
 `
-  return banner('Extension author contract', intro)
+  return banner('Plugin author contract', intro)
 }

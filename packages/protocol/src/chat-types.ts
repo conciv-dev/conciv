@@ -219,7 +219,6 @@ export type ChatCommands = z.infer<typeof ChatCommandsSchema>
 export const ChatToolSchema = z.object({
   name: z.string(),
   description: z.string(),
-  extension: z.string().optional(),
 })
 export const ChatToolsSchema = z.object({tools: z.array(ChatToolSchema)})
 export type ChatTool = z.infer<typeof ChatToolSchema>

@@ -490,7 +490,6 @@
     "@tanstack/store",
     "rrweb",
     "collections",
-    "@conciv/app-extensions",
     "conciv",
     "@oxlint/plugins",
     "@ark-ui/solid",

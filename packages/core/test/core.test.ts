@@ -188,7 +188,6 @@ import {
   provideApp,
   provideBundlerSource,
   provideConfiguredPolicies,
-  provideExtensionSlugs,
   provideGlobalRoots,
 } from '../src/runtime/plugin-sources.js'
 import {
@@ -4717,7 +4716,7 @@ describe('direct tools on the MCP surface', () => {
 })
 
 describe('plugin context keys provided by core', () => {
-  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, extension slugs, app and configured policies are provided, the model key answers from the harness models, each filled from the default model info where the harness reports nothing, and the cache and state roots sit under the conciv home', async () => {
+  it('instruction entries are kept per session, reach the plugin instructions and leave them on remove, an oversized value is refused, the harness source reads its MCP url lazily, and the bundler, app and configured policies are provided, the model key answers from the harness models, each filled from the default model info where the harness reports nothing, and the cache and state roots sit under the conciv home', async () => {
     const root = tempDir('conciv-core-unit-')
     const home = join(root, 'home')
     const OPUS = {id: 'opus', name: 'Opus 5.5', contextWindow: 1_000_000}
@@ -4770,7 +4769,6 @@ describe('plugin context keys provided by core', () => {
         SessionProjector.layer,
         provideInstructionEntries,
         provideBundlerSource(devServer),
-        provideExtensionSlugs(['page']),
         provideApp(),
         provideConfiguredPolicies([
           {action: 'plugin.use', resource: 'blocked-*', effect: 'deny'},
@@ -4829,7 +4827,6 @@ describe('plugin context keys provided by core', () => {
 
     const bundler = await host.runPromise(PluginHost.BundlerSource)
     expect(bundler?.config().root).toBe(root)
-    expect(await host.runPromise(PluginHost.ExtensionSlugs)).toEqual(['page'])
     expect(await host.runPromise(App.Service)).toMatchObject({name: 'conciv', version: coreManifest.version})
     const policies = await host.runPromise(ManagedPolicy.ConfiguredPolicies)
     expect(policies).toEqual([

@@ -1,6 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {renderTokensCss} from './render-tokens.ts'
-import {renderExtensionContractDoc, renderSkinContractDoc} from './contract-docs.ts'
+import {renderPluginContractDoc, renderSkinContractDoc} from './contract-docs.ts'
 
 export type GeneratedOutput = {path: string; label: string; content: string}
 
@@ -17,9 +17,9 @@ export function generatedOutputs(): GeneratedOutput[] {
       content: renderSkinContractDoc(),
     },
     {
-      path: fileURLToPath(new URL('../../docs/extension-tokens.md', import.meta.url)),
-      label: 'packages/ui-kit-system/docs/extension-tokens.md',
-      content: renderExtensionContractDoc(),
+      path: fileURLToPath(new URL('../../docs/plugin-tokens.md', import.meta.url)),
+      label: 'packages/ui-kit-system/docs/plugin-tokens.md',
+      content: renderPluginContractDoc(),
     },
   ]
 }

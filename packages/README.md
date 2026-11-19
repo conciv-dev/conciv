@@ -2,14 +2,14 @@
 
 ## Overview
 
-The npm packages that make up conciv. `@conciv/it` is the one users install; it pulls in the engine (`core`), the bundler plugin, the browser widget (`embed` and the `ui-kit-*` packages), the agent harness adapters and the built-in extensions. The rest are contracts shared between those halves (`protocol`, `contract`, `extension`, `grab`), published SDKs for host frameworks (`react`, `preact`, `solid`), and private tooling for this repo (`publish`, `vitest-config`, `oxlint-plugin`, `bundle-size`, `browser-fixture`, `uno-preset`).
+The npm packages that make up conciv. `@conciv/it` is the one users install; it pulls in the engine (`core`), the bundler plugin, the browser widget (`embed` and the `ui-kit-*` packages), the agent harness adapters and the built-in plugins. The rest are contracts shared between those halves (`protocol`, `contract`, `plugin`, `grab`), published SDKs for host frameworks (`react`, `preact`, `solid`), and private tooling for this repo (`publish`, `vitest-config`, `oxlint-plugin`, `bundle-size`, `browser-fixture`, `uno-preset`).
 
 ## Subdirectories & Boundaries
 
 Engine and plugin:
 
-- core: [core/README.md](./core/README.md) - `@conciv/core`, the Hono engine: sessions, chat plane, oRPC router, MCP endpoint, push WebSocket and extension mounting.
-- it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries and bundles the built-in extensions.
+- core: [core/README.md](./core/README.md) - `@conciv/core`, the Hono engine: sessions, chat plane, oRPC router, MCP endpoint, push WebSocket and the plugin host.
+- it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries and bundles the built-in plugins.
 - unplugin: [unplugin/README.md](./unplugin/README.md) - `@conciv/unplugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot and widget entry, Next.js wrapper).
 - cli: [cli/README.md](./cli/README.md) - The `conciv` binary: `init` and `tools`, each leaf command writing one JSON envelope.
 - try: [try/README.md](./try/README.md) - `npx @conciv/try --token`: a token-gated loopback core paired with conciv.dev.
@@ -28,7 +28,7 @@ Contracts:
 - protocol: [protocol/README.md](./protocol/README.md) - Zod schemas and types for the wire protocol; zero-runtime apart from small helpers.
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
 - grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
-- extensions: [extensions/README.md](./extensions/README.md) - The nine built-in `@conciv/extension-*` packages.
+- extensions: [extensions/README.md](./extensions/README.md) - `@conciv/extension-design`, the one package left from the old extension system, out of the release.
 - plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.
 
 Browser widget:

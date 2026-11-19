@@ -54,7 +54,7 @@
     filter: drop-shadow(0 0 5px var(--chat-accent));
   }
 }
-/* While the element picker is active OR an extension holds a foreground overlay, the open surface
+/* While the element picker is active OR a plugin holds a foreground overlay, the open surface
    (and FAB) become invisible AND click-through, so the page / overlay underneath is fully reachable.
    Compound selectors keep specificity at parity with .conciv-chat-open and win by source order. */
 [data-conciv-panel][data-conciv-suppressed],
