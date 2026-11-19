@@ -6,6 +6,7 @@ import type {
   HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import {makeRpcClient} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import fs from 'node:fs'
@@ -19,7 +20,6 @@ import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
-import {awaitPagePlaneSubscribed} from '@conciv/plugin-testkit/page-plane'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
 export type EmbedKit = CoreKit
@@ -124,7 +124,7 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string}
     <meta name="conciv-api-base" content="${browserBase(opts.apiBase)}">
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
   </head><body>
-    ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
+    ${opts.body ?? '<div id="probe">page-probe-ok</div>'}
     <script src="/conciv-widget.global.js"></script>
   </body></html>`
 }
@@ -134,7 +134,7 @@ export function handleHostPage(body?: string): string {
   return `<!doctype html><html><head>
     <meta charset="utf-8">
   </head><body>
-    ${body ?? '<div id="probe">page-bus-ok</div>'}
+    ${body ?? '<div id="probe">page-probe-ok</div>'}
     <script>${handleBundle}</script>
   </body></html>`
 }
@@ -411,14 +411,15 @@ export async function installNativeStub(page: Page): Promise<void> {
   })
 }
 
-const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const PAGE_ATTACH_TIMEOUT_MS = 30_000
 
-export async function openPagePlaneHost(page: Page, kit: EmbedKit, base: string): Promise<Page> {
-  await awaitPagePlaneSubscribed(page, async () => {
-    await openLoggedIn(page, kit, base)
-    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
-  })
-  return page
+export async function awaitTabAttached(kit: EmbedKit, sessionId: string): Promise<void> {
+  const rpc = makeRpcClient(kit.base)
+  await expect
+    .poll(() => rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}), {
+      timeout: PAGE_ATTACH_TIMEOUT_MS,
+    })
+    .toContain(sessionId)
 }
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

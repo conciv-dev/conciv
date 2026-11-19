@@ -1,5 +1,4 @@
 import {chromium, type BrowserContext, type Page} from 'playwright'
-import {pagePlaneWatchFor} from '@conciv/plugin-testkit/page-plane'
 import {rpcObserverFor} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
@@ -9,11 +8,7 @@ export async function openObservedPage(context: BrowserContext, url: string): Pr
   const page = await context.newPage()
   await rpcSocketFor(page).installed
   const observer = rpcObserverFor(page)
-  const plane = pagePlaneWatchFor(page)
-  page.once('close', () => {
-    observer.dispose()
-    plane.dispose()
-  })
+  page.once('close', () => observer.dispose())
   await page.goto(url, {waitUntil: 'domcontentloaded'})
   return page
 }

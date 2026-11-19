@@ -15,6 +15,7 @@ import {
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
+  PermissionRuleSchema,
   ReasoningEffortSchema,
   SessionId,
   TabOpenSchema,
@@ -27,11 +28,10 @@ import {
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
-  PageReplySchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
-import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
+import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 import {OpenSourceSchema, SourceLocSchema} from './source-location.js'
@@ -133,12 +133,6 @@ export const ChatHydrationSchema = z.object({
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
 
-const BrowserTabFocusSchema = z.object({focused: z.boolean(), visible: z.boolean()})
-
-const PageQueryStreamItemSchema = z.discriminatedUnion('kind', [
-  z.object({kind: z.literal('ready'), browserTab: z.string().min(1)}),
-  z.object({kind: z.literal('query'), requestId: z.string(), query: z.unknown()}),
-])
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
@@ -175,7 +169,7 @@ export const ToolCommandSignatureSchema = z.object({
   approval: z.literal('ask').optional(),
   inputSchema: z.unknown(),
   outputSchema: z.unknown(),
-  errors: z.array(z.object({code: z.string(), message: z.string(), transport: z.boolean()})).default([]),
+  errors: z.array(z.object({code: z.string(), message: z.string()})).default([]),
 })
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
@@ -328,6 +322,41 @@ const PluginInfoSchema = z.object({
   state: PluginStateSchema,
 })
 
+const SkillInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  autoinvoke: z.boolean().optional(),
+  path: z.string(),
+  content: z.string(),
+})
+
+const FileSystemEntrySchema = z.object({path: z.string(), type: z.enum(['file', 'directory'])})
+
+const FileSystemFindInputSchema = z.object({
+  query: z.string(),
+  type: z.enum(['file', 'directory']).optional(),
+  limit: z.number().int().positive().optional(),
+})
+
+const AgentInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  model: z.object({id: z.string(), providerId: z.string(), variant: z.string().optional()}).optional(),
+  request: z.object({
+    settings: z.record(z.string(), z.unknown()),
+    headers: z.record(z.string(), z.string()),
+    body: z.record(z.string(), z.unknown()),
+  }),
+  system: z.string().optional(),
+  description: z.string().optional(),
+  mode: z.enum(['subagent', 'primary', 'all']),
+  hidden: z.boolean(),
+  color: z.string().optional(),
+  steps: z.number().int().positive().optional(),
+  permissions: z.array(PermissionRuleSchema).readonly(),
+})
+
 const PluginChunkFileSchema = z
   .string()
   .max(256)
@@ -361,8 +390,21 @@ const PersistentPtyInfoSchema = z.object({
   busy: z.boolean(),
 })
 const PtyIdInput = z.object({ptyId: PtyIdSchema})
+const PtyCursorSchema = z.number().int().nonnegative()
+const PtyOutputItemSchema = z.union([
+  z.object({type: z.literal('output'), data: z.string()}),
+  z.object({type: z.literal('meta'), cursor: PtyCursorSchema}),
+  TtyServerControlSchema,
+])
+const PTY_WRITE_MAX = 1024 * 1024
 const ptyNotFound = {
   PTY_NOT_FOUND: {status: 404, message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
+}
+const slowConsumer = {
+  SLOW_CONSUMER: {
+    message: 'the reader fell too far behind the terminal output',
+    data: z.object({capacity: z.number()}),
+  },
 }
 const noTty = {NO_TTY: {message: "the session's harness has no terminal command"}}
 const ptyBusy = {BUSY: {message: 'the terminal CLI is busy'}}
@@ -476,9 +518,6 @@ export const contract = {
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
   },
-  captures: {
-    list: oc.errors(approvalDenied).input(SessionIdInput).output(SessionCapturesSchema),
-  },
   tabs: {
     list: oc.output(TabsSchema),
     get: oc.input(SessionIdInput).output(TabOpenSchema),
@@ -504,18 +543,6 @@ export const contract = {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.errors(approvalDenied).output(Ok),
-    queries: oc
-      .errors(approvalDenied)
-      .input(z.object({focus: BrowserTabFocusSchema}))
-      .output(eventIterator(PageQueryStreamItemSchema)),
-    focus: oc
-      .errors(approvalDenied)
-      .input(BrowserTabFocusSchema.extend({browserTab: z.string().min(1)}))
-      .output(Ok),
-    reply: oc
-      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})
-      .input(PageReplySchema)
-      .output(Ok),
   },
   editor: {
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
@@ -529,6 +556,18 @@ export const contract = {
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
     disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+  },
+  skill: {
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(SkillInfoSchema))),
+  },
+  agent: {
+    list: oc.errors(approvalDenied).output(locationResponse(z.array(AgentInfoSchema))),
+  },
+  fs: {
+    find: oc
+      .errors(approvalDenied)
+      .input(FileSystemFindInputSchema)
+      .output(locationResponse(z.array(FileSystemEntrySchema))),
   },
   plugin: {
     call: oc
@@ -555,10 +594,22 @@ export const contract = {
         .errors({...ptyNotFound, ...ptyBusy, ...approvalDenied})
         .input(PtyIdInput)
         .output(Ok),
-      connectToken: oc
+      output: oc
+        .errors({...ptyNotFound, ...slowConsumer, ...approvalDenied})
+        .input(PtyIdInput.extend({cursor: PtyCursorSchema.optional()}))
+        .output(eventIterator(PtyOutputItemSchema)),
+      write: oc
         .errors({...ptyNotFound, ...approvalDenied})
-        .input(PtyIdInput)
-        .output(z.object({ticket: z.string(), expiresIn: z.number().int().positive()})),
+        .input(PtyIdInput.extend({data: z.string().min(1).max(PTY_WRITE_MAX)}))
+        .output(Ok),
+      resize: oc
+        .errors({...ptyNotFound, ...approvalDenied})
+        .input(PtyIdInput.extend(PtySizeSchema.shape))
+        .output(Ok),
+      inject: oc
+        .errors({...ptyNotFound, ...approvalDenied})
+        .input(PtyIdInput.extend({text: z.string().min(1).max(4096)}))
+        .output(Ok),
     },
   },
   event: {

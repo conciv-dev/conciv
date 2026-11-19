@@ -36,9 +36,6 @@ export function createCommentsModel(
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
   const ctx: ToolViewCtx = {
-    apiBase,
-    harnessId: '',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: INERT_TOOL_CATALOG,
   }

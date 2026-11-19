@@ -33,8 +33,9 @@ export const Default: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     await userEvent.hover(c.getByText('Reload'))
-    await waitFor(() => expect(c.getByText('Regenerate this response')).toBeVisible())
+    await waitFor(() => expect(page.getByText('Regenerate this response')).toBeVisible())
     await expect(c.getByText('Content ref attached')).toBeVisible()
   },
 }

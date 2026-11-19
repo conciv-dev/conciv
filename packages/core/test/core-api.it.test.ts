@@ -1,6 +1,5 @@
 import {until} from '@conciv/harness-testkit/until'
-import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues} from '../src/page/page-queue.js'
+import {makePagePlugin} from '../src/page/page-plugin.js'
 import {
   rmSync,
   mkdirSync,
@@ -115,6 +114,7 @@ import {
   pageQueueEvent,
   runLifecycleEvent,
   sessionRunEvent,
+  toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -148,7 +148,7 @@ import {
   type HarnessListCursor,
   type HarnessModel,
 } from '@conciv/protocol/harness-types'
-import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PageQueueResultSchema} from '@conciv/protocol/page-types'
 import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -214,6 +214,13 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     return held.kit
   }
 }
+
+const FINISHED_CALL_TIME = {start: expect.any(Number), end: expect.any(Number)}
+
+const HubCardTimeSchema = z.object({
+  conciv: z.object({origin: z.literal('hub')}),
+  time: z.object({start: z.number(), end: z.number()}),
+})
 
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const ONE_PIXEL_WEBP =
@@ -1278,7 +1285,7 @@ describe('api harness switching', () => {
       runtime: app.runtime,
       search,
       pluginHost: app.pluginHost,
-      queues: makePageQueues({bus: makePageBus(), journal: makeJournal(app.chat.db)}),
+      queues: makePagePlugin(() => app.pluginHost),
     }))
     const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
@@ -2009,30 +2016,6 @@ describe('rpc wire', () => {
     describe('on one default app', () => {
       const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
 
-      it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
-        await expect(
-          kit().rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}}),
-        ).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
-      })
-
-      it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
-        const statuses: number[] = []
-        const sessionId = await kit().session()
-        for (const code of PAGE_TRANSPORT_ERROR_CODES) {
-          const response = await fetch(`${kit().base}/rpc/page/reply`, {
-            method: 'POST',
-            headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: sessionId},
-            body: JSON.stringify({
-              json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
-            }),
-          })
-          statuses.push(response.status)
-        }
-        expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
-      })
-
       it("drafts.set stores the client's updatedAt as sent, so a browser can match the row to the copy it sent", async () => {
         const sessionId = SessionId.parse(await kit().session())
         const updatedAt = 1_700_000_000_000
@@ -2541,9 +2524,14 @@ describe('rpc wire', () => {
         await sessionStream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, GUARD)
         const cards = toolCallParts(foldChatEvents(seen))
         const execute = cards.findLast((part) => part.name === 'execute_typescript')
-        expect(cardMetadata(cards.findLast((part) => part.name === 'fixture_echo'))).toMatchObject({
+        const child = cards.findLast((part) => part.name === 'fixture_echo')
+        expect(cardMetadata(child)).toMatchObject({
           parentToolCallId: execute?.id,
+          time: {start: expect.any(Number)},
         })
+        expect(seen.map((chunk) => toolTimeEvent.parse(chunk)?.toolCallId)).toContain(child?.id)
+        const stored = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId: app.mcpSession})).messages)
+        expect(cardMetadata(stored.findLast((part) => part.id === child?.id))).toMatchObject({time: FINISHED_CALL_TIME})
         expect(
           seen
             .filter(isTurnBoundary)
@@ -2560,16 +2548,28 @@ describe('rpc wire', () => {
         const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
         withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
         const call = executeOverMcp(chatKit().base, hub, 'return 1')
-        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
-          timeout: 3000,
-        })
+        const approval = {at: 0}
+        await vi.waitFor(
+          async () => {
+            approval.at = Date.now()
+            expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1)
+          },
+          {timeout: 3000},
+        )
         await call
         script().release()
         await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
         expect(cards.map(cardMetadata)).toContainEqual({
           conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: FINISHED_CALL_TIME,
         })
+        const hubStarts = cards.flatMap((part) => {
+          const timed = HubCardTimeSchema.safeParse(cardMetadata(part))
+          return timed.success ? [timed.data.time.start] : []
+        })
+        expect(hubStarts).toHaveLength(1)
+        expect(hubStarts[0]).toBeGreaterThanOrEqual(approval.at)
       })
 
       it('a hub registry call runs under the call id of its one hub card', async () => {
@@ -2584,7 +2584,9 @@ describe('rpc wire', () => {
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages).filter(
           (part) => part.name === 'fixture_quiet',
         )
-        expect(cards.map(cardMetadata)).toEqual([{conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}}])
+        expect(cards.map(cardMetadata)).toEqual([
+          {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}, time: FINISHED_CALL_TIME},
+        ])
         expect(quietCallIds.at(-1)).toBe(cards[0]?.id)
       })
 
@@ -3818,8 +3820,10 @@ return seen`
         expect(toolRuns.echo).toBe(ran + 2)
         const children = toolCallParts(await thread(sessionId)).filter((part) => part.name !== 'execute_typescript')
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
-          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
+          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent, time: FINISHED_CALL_TIME}]),
         )
+        const script = toolCallParts(await thread(sessionId)).find((part) => part.id === parent)
+        expect(cardMetadata(script)).toMatchObject({time: FINISHED_CALL_TIME})
         expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = collectResults(await thread(sessionId))
         expect(results).toContain('Input validation failed for tool fixture_echo')
@@ -5470,7 +5474,10 @@ export default {
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
-        metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
+        metadata: {
+          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: {start: expect.any(Number)},
+        },
       }),
     ])
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
@@ -6664,6 +6671,190 @@ describe('page action queue delivery', () => {
       lastRun: {runId: 'next-run', phase: 'completed'},
     })
   })
+
+  const CHECK = [{tool: 'page_check', selector: '#agree'}]
+  const SHORT_REPLY_WINDOW_MS = 1000
+
+  const servedWithShortReplyWindow: ServeEngine = async (home, harness, plugins, root) => {
+    const boot = bootCoreApp({
+      home,
+      cwd: root,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: SHORT_REPLY_WINDOW_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
+
+  async function engineWithTabs(serve: ServeEngine = servedByStart) {
+    const home = tempDir('conciv-queue-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const tabs = pageTabs()
+    const {origin, token} = await serve(home, createFakeHarness(), [tabs.plugin], tempDir('conciv-queue-'), {})
+    const base = `${origin}/t/${token}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const typed = makeRpcClient(base, {headers: HUB})
+    const open = async (focused: boolean) => {
+      const tab = await tabs.open(sessionId, () => undefined, {focused})
+      onTestFinished(() => tab.end())
+      const next = async () => {
+        const requestId = await tab.requested()
+        return {requestId, command: await tab.command(requestId)}
+      }
+      return {...tab, next}
+    }
+    return {
+      open,
+      call: registryCall(base, sessionId),
+      hub: (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code),
+      wait: (queueId: string, waitMs = 0) => typed.page.queue.wait({sessionId, queueId, waitMs}),
+    }
+  }
+
+  const routed = (href: string) => pageSuccess({pathname: href, search: '', href, title: 'Example', state: 'visible'})
+
+  it('queues and calls share each tab in turn: a queue started while another plays or while a changing call is in flight reaches the tab only after it, on the tab serving the session when its turn comes, even once the tab it waited on closes, and a lost tab resends a reading call to the next tab but never a changing one', async () => {
+    const engine = await engineWithTabs()
+    const first = await engine.open(true)
+    const probe = async (tab: Awaited<ReturnType<typeof engine.open>>, href: string) => {
+      const reading = engine.call('page_route', {})
+      const arrived = await tab.next()
+      expect(arrived.command.action).toEqual({type: 'route'})
+      await tab.reply(arrived.requestId, routed(href))
+      expect(await reading).toMatchObject({href})
+    }
+    const accept = async (tab: Awaited<ReturnType<typeof engine.open>>, queueId: string) => {
+      const acceptance = await tab.next()
+      expect(acceptance.command.queued).toEqual({id: queueId, index: -1, of: 1})
+      await tab.reply(acceptance.requestId, pageSuccess({queueId, actions: 1}))
+      const action = await tab.next()
+      expect(action.command.queued).toEqual({id: queueId, index: 0, of: 1})
+      return action.requestId
+    }
+
+    const earlier = parseHandle(await engine.hub(queued(CHECK)))
+    const earlierAction = await accept(first, earlier.queueId)
+    const later = parseHandle(await engine.hub(queued(CHECK)))
+    expect(later).toEqual({queueId: expect.stringMatching(/^q_/), actions: 1})
+    await probe(first, '/while-the-earlier-queue-plays')
+    expect(await engine.wait(later.queueId)).toEqual({queueId: later.queueId, status: 'playing', done: 0, of: 1})
+    await first.reply(earlierAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(earlier.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await first.reply(await accept(first, later.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(later.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const playing = parseHandle(await engine.hub(queued(CHECK)))
+    const playingAction = await accept(first, playing.queueId)
+    const synchronous = engine.hub(`return await external_page_queue({actions: ${JSON.stringify(CHECK)}})`)
+    await probe(first, '/while-the-sync-queue-waits')
+    await first.reply(playingAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(playing.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    const syncAcceptance = await first.next()
+    const syncId = syncAcceptance.command.queued?.id ?? ''
+    expect(syncId).not.toBe(playing.queueId)
+    await first.reply(syncAcceptance.requestId, pageSuccess({queueId: syncId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: false}))
+    expect(JSON.parse(String(await synchronous)).result).toMatchObject({
+      queueId: syncId,
+      status: 'finished',
+      played: 1,
+      failed: 0,
+    })
+
+    const clicking = engine.call('page_click', {selector: '#go'})
+    const click = await first.next()
+    expect(click.command.action).toEqual({type: 'click', selector: '#go'})
+    const behindClick = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(first, '/while-the-click-is-in-flight')
+    await first.reply(click.requestId, pageSuccess({ok: true}))
+    expect(await clicking).toEqual({ok: true})
+    await first.reply(await accept(first, behindClick.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(behindClick.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+
+    const second = await engine.open(false)
+    const beforeFocus = parseHandle(await engine.hub(queued(CHECK)))
+    const beforeFocusAction = await accept(first, beforeFocus.queueId)
+    await second.focus(true)
+    const seenOnFirst = first.seen().length
+    const afterFocus = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(second, '/the-newly-focused-tab')
+    await first.reply(beforeFocusAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(beforeFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await second.reply(await accept(second, afterFocus.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(afterFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    expect(first.seen().slice(seenOnFirst)).toEqual([])
+
+    const blocking = parseHandle(await engine.hub(queued(CHECK)))
+    await accept(second, blocking.queueId)
+    const waiting = parseHandle(await engine.hub(queued(CHECK)))
+    expect(await engine.wait(waiting.queueId)).toEqual({queueId: waiting.queueId, status: 'playing', done: 0, of: 1})
+    second.end()
+    expect(await engine.wait(blocking.queueId, 5000)).toMatchObject({status: 'lost'})
+    const nextOnFirst = first.next()
+    expect(
+      await Promise.race([
+        nextOnFirst.then(({command}) => command.queued),
+        engine.wait(waiting.queueId, WINDOW_LONGER_THAN_THE_CASE_MS),
+      ]),
+    ).toEqual({id: waiting.queueId, index: -1, of: 1})
+    await first.reply((await nextOnFirst).requestId, pageSuccess({queueId: waiting.queueId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(waiting.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const other = await engine.open(false)
+    await first.focus(true)
+    const changing = engine.call('page_click', {selector: '#once'})
+    const changingOnFirst = await first.next()
+    first.end()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    await expect(first.reply(changingOnFirst.requestId, pageSuccess({ok: true}))).rejects.toThrow()
+    await other.focus(true)
+    await probe(other, '/never-the-click-again')
+
+    const focusedLast = await engine.open(true)
+    const snapshotting = engine.call('page_snapshot', {})
+    const lost = await focusedLast.next()
+    focusedLast.end()
+    const resent = await other.next()
+    expect(resent.requestId).not.toBe(lost.requestId)
+    expect(resent.command.action).toEqual({type: 'snapshot'})
+    await other.reply(resent.requestId, pageSuccess({nodes: []}))
+    expect(await snapshotting).toEqual({nodes: []})
+
+    const reading = engine.call('page_route', {})
+    const onlyTab = await other.next()
+    other.end()
+    const returned = await engine.open(true)
+    const again = await returned.next()
+    expect(again.command.action).toEqual({type: 'route'})
+    await returned.reply(again.requestId, routed('/after-the-reload'))
+    expect(await reading).toMatchObject({href: '/after-the-reload'})
+    expect(onlyTab.requestId).not.toBe(again.requestId)
+    expect(returned.seen()).toEqual(['page_route'])
+  })
+
+  it('a call whose tab stays open and never replies times out once and is cancelled on the page, and a reading call whose tab never comes back fails once its own window runs out', async () => {
+    const engine = await engineWithTabs(servedWithShortReplyWindow)
+    const silent = await engine.open(true)
+    const reading = engine.call('page_route', {})
+    const unanswered = await silent.next()
+    await expect(reading).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.route')})
+    await silent.cancelled(unanswered.requestId)
+    const changing = engine.call('page_click', {selector: '#go'})
+    const unansweredClick = await silent.next()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.click')})
+    await silent.cancelled(unansweredClick.requestId)
+    expect(silent.seen()).toEqual(['page_route', 'page_click'])
+
+    const stranded = engine.call('page_route', {})
+    await silent.next()
+    silent.end()
+    await expect(stranded).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    expect(silent.seen()).toEqual(['page_route', 'page_click', 'page_route'])
+  })
 })
 
 describe('engine plugins', () => {
@@ -7039,6 +7230,26 @@ export default {
     expect(await call(base, 'embedded', 'counted')).toBe(1)
     await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
     expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.skill.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.agent.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.fs.find({query: 'seer'})).rejects.toMatchObject(pluginRefusal)
+    const found = await makeRpcClient(base).fs.find({query: 'seer', type: 'file'})
+    expect(found.location).toEqual({directory: root})
+    expect(found.data).toContainEqual({path: 'conciv/plugins/seer.ts', type: 'file'})
+    const skills = await makeRpcClient(base).skill.list()
+    expect(skills.location).toEqual({directory: root})
+    expect(skills.data.find((skill) => skill.id === 'seer-look')).toMatchObject({
+      name: 'seer-look',
+      description: 'How the seer looks',
+      content: 'Look twice.',
+    })
+    const agents = await makeRpcClient(base).agent.list()
+    expect(agents.location).toEqual({directory: root})
+    expect(agents.data.find((agent) => agent.id === 'build')).toMatchObject({
+      name: 'build',
+      mode: 'primary',
+      hidden: false,
+    })
     await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
     await expect(outside.plugin.experimentalChunk({id: 'configured', file: 'x.cjs'})).rejects.toMatchObject(
       pluginRefusal,
@@ -8472,45 +8683,50 @@ describe('session terminal', () => {
       return false
     }
   }
-  type TerminalSocket = {socket: WebSocket; text: () => string; controls: string[]}
+  type PtyClient = RpcClient['experimental']['persistentPty']
+  type PtyOutput = Awaited<ReturnType<PtyClient['output']>>
+  type PtyItem = PtyOutput extends AsyncIterable<infer Item> ? Item : never
+  type TerminalReader = {items: PtyItem[]; text: () => string; ended: Promise<unknown>; stop: () => void}
 
-  const openTerminalSocket = (url: string, origin?: string): Promise<TerminalSocket> => {
-    const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
-    const received: string[] = []
-    const controls: string[] = []
-    socket.on('message', (data, isBinary) => {
-      if (isBinary) received.push(new TextDecoder().decode(Array.isArray(data) ? Buffer.concat(data) : data))
-      else controls.push(String(data))
-    })
-    return new Promise((resolve, reject) => {
-      socket.once('open', () => resolve({socket, text: () => received.join(''), controls}))
-      socket.once('error', reject)
-    })
+  const REPLAY_PIECE = 64 * 1024
+
+  const drainOutput = async (stream: PtyOutput, items: PtyItem[]): Promise<unknown> => {
+    try {
+      for await (const item of stream) items.push(item)
+      return 'ended'
+    } catch (error) {
+      return error
+    }
   }
 
-  const refusedStatus = (url: string, origin?: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
-      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
-      socket.once('open', () => reject(new Error('the upgrade completed without a valid ticket')))
-    })
+  const readTerminal = async (terminal: PtyClient, ptyId: string, cursor?: number): Promise<TerminalReader> => {
+    const stop = new AbortController()
+    const items: PtyItem[] = []
+    const stream = await terminal.output(cursor === undefined ? {ptyId} : {ptyId, cursor}, {signal: stop.signal})
+    const text = () => items.flatMap((item) => (item.type === 'output' ? [item.data] : [])).join('')
+    return {items, text, ended: drainOutput(stream, items), stop: () => stop.abort()}
+  }
 
-  const closeCode = (url: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const socket = new WebSocket(url)
-      socket.once('close', (code) => resolve(code))
-      socket.once('error', reject)
-    })
-
-  const shows = async (terminal: TerminalSocket, text: string): Promise<void> => {
+  const shows = async (terminal: TerminalReader, text: string): Promise<void> => {
     await until(() => terminal.text().includes(text))
   }
 
-  const connectUrl = async (base: string, ptyId: string, query = '', origin?: string): Promise<string> => {
-    const client = makeRpcClient(base, origin === undefined ? {} : {headers: {origin}})
-    const {ticket, expiresIn} = await client.experimental.persistentPty.connectToken({ptyId})
-    expect(expiresIn).toBe(60)
-    return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
+  const metaCursor = (terminal: TerminalReader): number | undefined =>
+    terminal.items.flatMap((item) => (item.type === 'meta' ? [item.cursor] : [])).at(0)
+
+  type RpcSocketClient = {socket: WebSocket; closes: number[]; terminal: PtyClient}
+
+  const openRpcSocket = async (
+    url: string,
+    options: {origin?: string; trust?: string} = {},
+  ): Promise<RpcSocketClient> => {
+    const socket = new WebSocket(url, options.origin === undefined ? {} : {headers: {origin: options.origin}})
+    const closes: number[] = []
+    socket.on('close', (code) => closes.push(code))
+    await once(socket, 'open')
+    if (options.trust !== undefined) socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: options.trust}))
+    const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket: socket}))
+    return {socket, closes, terminal: rpc.experimental.persistentPty}
   }
 
   const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
@@ -8574,9 +8790,9 @@ describe('session terminal', () => {
       const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
       expect(resumed.id).not.toBe(created.id)
       expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
-      const banner = await openTerminalSocket(await connectUrl(base, resumed.id))
+      const banner = await readTerminal(terminal, resumed.id)
       await shows(banner, '\u2500 conciv: resumed session \u2500')
-      banner.socket.close()
+      banner.stop()
 
       await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
       await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
@@ -8624,152 +8840,210 @@ describe('session terminal', () => {
     },
   )
 
-  it(
-    'a ticketed socket carries the terminal both ways and replays to a late attacher, a socket with a missing, used, foreign, disallowed or other-origin ticket is refused, and outside agents cannot use the terminal',
-    {timeout: 20_000},
-    async () => {
-      const root = tempDir('conciv-terminal-socket-')
-      const fake = terminalHarness('fake-terminal-socket', join(root, 'pid'))
-      const engine = await start({
-        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-socket'},
-        root,
-        harness: fake.harness,
-        launchEditor: () => {},
-        homeDir: tempDir('conciv-home-'),
-      })
-      onTestFinished(() => engine.stop())
-      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-      const rpc = makeRpcClient(base)
-      const terminal = rpc.experimental.persistentPty
-      const {sessionId} = await rpc.sessions.create(undefined)
-      const pty = await terminal.create({sessionId})
-
-      const first = await openTerminalSocket(await connectUrl(base, pty.id, '&cols=100&rows=30'))
-      first.socket.send('echo ws-roundtrip-$((40+2))\r')
-      await shows(first, 'ws-roundtrip-42')
-      expect(first.controls).toContain(JSON.stringify({type: 'busy', busy: false}))
-      first.socket.send('stty size\r')
-      await shows(first, '30 100')
-      first.socket.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
-      first.socket.send('stty size\r')
-      await shows(first, '27 91')
-      first.socket.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
-      await shows(first, '\r\nconciv says hi\r\n')
-      first.socket.close()
-
-      const late = await openTerminalSocket(await connectUrl(base, pty.id))
-      await shows(late, 'ws-roundtrip-42')
-      await shows(late, '\r\nconciv says hi\r\n')
-      late.socket.close()
-
-      const connectPath = (ptyId: string) =>
-        `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect`
-      expect(await refusedStatus(connectPath(pty.id))).toBe(403)
-      expect(await refusedStatus(`${connectPath(pty.id)}?ticket=not-a-ticket`)).toBe(403)
-      const used = await connectUrl(base, pty.id)
-      const usedOnce = await openTerminalSocket(used)
-      usedOnce.socket.close()
-      expect(await refusedStatus(used)).toBe(403)
-      const foreign = new URL(await connectUrl(base, pty.id)).searchParams.get('ticket')
-      expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
-      expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
-      await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
-
-      const widget = 'http://localhost:5173'
-      const sameOrigin = await openTerminalSocket(await connectUrl(base, pty.id, '', widget), widget)
-      await shows(sameOrigin, 'ws-roundtrip-42')
-      sameOrigin.socket.close()
-      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget), 'http://127.0.0.1:5173')).toBe(403)
-      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget))).toBe(403)
-
-      const outside = makeRpcClient(base, {
-        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
-      }).experimental.persistentPty
-      await expect(outside.create({sessionId})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(outside.connectToken({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      expect((await terminal.create({sessionId})).id).toBe(pty.id)
-
-      const gone = await connectUrl(base, pty.id)
-      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
-      expect(await closeCode(gone)).toBe(4404)
-    },
-  )
-
-  const trustedBrowserTerminal = async (prefix: string) => {
+  const startTerminalEngine = async (prefix: string, id: string) => {
     const root = tempDir(prefix)
-    const fake = terminalHarness('fake-terminal-revoke', join(root, 'pid'))
+    const fake = terminalHarness(id, join(root, 'pid'))
     const engine = await start({
-      options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-revoke'},
+      options: {stateRoot: root, systemPrompt: false, harness: id},
       root,
       harness: fake.harness,
       launchEditor: () => {},
       homeDir: tempDir('conciv-home-'),
     })
     onTestFinished(() => engine.stop())
-    const origin = `http://127.0.0.1:${engine.port}`
-    const base = `${origin}/t/${engine.agentToken}`
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const rpc = makeRpcClient(base)
     const {sessionId} = await rpc.sessions.create(undefined)
+    return {root, engine, base, rpc, sessionId, terminal: rpc.experimental.persistentPty}
+  }
+
+  it(
+    'the terminal procedures carry the terminal both ways, replay to a late reader in bounded pieces before a meta frame with the cursor, resume from that cursor without repeating output, refuse an unknown pty or a never-admitted origin, and outside agents cannot use the terminal',
+    {timeout: 30_000},
+    async () => {
+      const {engine, base, rpc, sessionId, terminal} = await startTerminalEngine(
+        'conciv-terminal-socket-',
+        'fake-terminal-socket',
+      )
+      const pty = await terminal.create({sessionId, size: {cols: 100, rows: 30}})
+
+      const first = await readTerminal(terminal, pty.id)
+      await terminal.write({ptyId: pty.id, data: 'echo ws-roundtrip-$((40+2))\r'})
+      await shows(first, 'ws-roundtrip-42')
+      expect(first.items).toContainEqual({type: 'busy', busy: false})
+      await terminal.write({ptyId: pty.id, data: 'stty size\r'})
+      await shows(first, '30 100')
+      expect(await terminal.resize({ptyId: pty.id, cols: 91, rows: 27})).toEqual({ok: true})
+      await terminal.write({ptyId: pty.id, data: 'stty size\r'})
+      await shows(first, '27 91')
+      expect(await terminal.inject({ptyId: pty.id, text: 'conciv says hi'})).toEqual({ok: true})
+      await shows(first, '\r\nconciv says hi\r\n')
+      await terminal.write({
+        ptyId: pty.id,
+        data: "head -c 200000 /dev/zero | tr '\\0' x; echo; echo bulk-$((1+1))-done\r",
+      })
+      await shows(first, 'bulk-2-done')
+      first.stop()
+
+      const late = await readTerminal(terminal, pty.id)
+      await until(() => metaCursor(late) !== undefined)
+      const replay = late.items.slice(
+        0,
+        late.items.findIndex((item) => item.type === 'meta'),
+      )
+      const pieces = replay.flatMap((item) => (item.type === 'output' ? [item.data.length] : []))
+      expect(pieces.length).toBeGreaterThan(2)
+      expect(Math.max(...pieces)).toBeLessThanOrEqual(REPLAY_PIECE)
+      expect(late.text()).toContain('ws-roundtrip-42')
+      expect(late.text()).toContain('\r\nconciv says hi\r\n')
+      const cursor = metaCursor(late) ?? 0
+      expect(cursor).toBe(late.text().length)
+      late.stop()
+
+      await terminal.write({ptyId: pty.id, data: 'echo after-$((5+5))\r'})
+      const resumed = await readTerminal(terminal, pty.id, cursor)
+      await shows(resumed, 'after-10')
+      await until(() => metaCursor(resumed) !== undefined)
+      expect(resumed.text()).not.toContain('ws-roundtrip-42')
+      expect(resumed.text()).not.toContain('bulk-2-done')
+      expect(metaCursor(resumed)).toBeGreaterThan(cursor)
+      resumed.stop()
+
+      const unknown = `pty_${randomUUID()}`
+      await expect(terminal.output({ptyId: unknown})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+      await expect(terminal.write({ptyId: unknown, data: 'x'})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const widget = 'http://localhost:5173'
+      const other = await rpc.sessions.create(undefined)
+      const fromWidget = makeRpcClient(base, {headers: {origin: widget}}).experimental.persistentPty
+      const widgetPty = await fromWidget.create({sessionId: other.sessionId})
+      const sameOrigin = await readTerminal(fromWidget, widgetPty.id)
+      await fromWidget.write({ptyId: widgetPty.id, data: 'echo widget-$((2+2))\r'})
+      await shows(sameOrigin, 'widget-4')
+      sameOrigin.stop()
+      const elsewhere = await openRpcSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${RPC_WS_PATH}`, {
+        origin: 'http://127.0.0.1:5173',
+      })
+      onTestFinished(() => elsewhere.socket.close())
+      for (const stranger of [elsewhere.terminal, terminal]) {
+        const refused = {code: 'PTY_NOT_FOUND'}
+        await expect(stranger.output({ptyId: widgetPty.id})).rejects.toMatchObject(refused)
+        await expect(stranger.write({ptyId: widgetPty.id, data: 'x'})).rejects.toMatchObject(refused)
+        await expect(stranger.resize({ptyId: widgetPty.id, cols: 80, rows: 24})).rejects.toMatchObject(refused)
+        await expect(stranger.inject({ptyId: widgetPty.id, text: 'x'})).rejects.toMatchObject(refused)
+      }
+
+      const outside = makeRpcClient(base, {
+        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+      }).experimental.persistentPty
+      const denied = {code: 'APPROVAL_DENIED'}
+      await expect(outside.create({sessionId})).rejects.toMatchObject(denied)
+      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject(denied)
+      await expect(outside.output({ptyId: pty.id})).rejects.toMatchObject(denied)
+      await expect(outside.write({ptyId: pty.id, data: 'x'})).rejects.toMatchObject(denied)
+      await expect(outside.resize({ptyId: pty.id, cols: 80, rows: 24})).rejects.toMatchObject(denied)
+      await expect(outside.inject({ptyId: pty.id, text: 'x'})).rejects.toMatchObject(denied)
+      expect((await terminal.create({sessionId})).id).toBe(pty.id)
+
+      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
+      await expect(terminal.output({ptyId: pty.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+    },
+  )
+
+  it(
+    'a reader that stops reading its rpc socket gets SLOW_CONSUMER instead of the engine buffering the output for it',
+    {timeout: 60_000},
+    async () => {
+      const {root, engine, sessionId, terminal} = await startTerminalEngine(
+        'conciv-terminal-slow-',
+        'fake-terminal-slow',
+      )
+      const pty = await terminal.create({sessionId})
+      const slow = await openRpcSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${RPC_WS_PATH}`)
+      onTestFinished(() => slow.socket.close())
+      const reader = await readTerminal(slow.terminal, pty.id)
+      await until(() => metaCursor(reader) !== undefined)
+      slow.socket.pause()
+      const flood = "head -c 33554432 /dev/zero | tr '\\0' x; echo; echo flood-$((3+3))-over; touch flood-done\r"
+      await terminal.write({ptyId: pty.id, data: flood})
+      await until(() => existsSync(join(root, 'flood-done')), {hangGuardMs: 30_000})
+      slow.socket.resume()
+      const delivered = until(() =>
+        reader.items
+          .slice(-8)
+          .flatMap((item) => (item.type === 'output' ? [item.data] : []))
+          .join('')
+          .includes('flood-6-over'),
+      ).then(
+        () => 'all delivered',
+        () => 'never delivered',
+      )
+      expect(await Promise.race([reader.ended, delivered])).toMatchObject({code: 'SLOW_CONSUMER'})
+    },
+  )
+
+  const trustedBrowserTerminal = async (prefix: string) => {
+    const {root, engine, rpc, sessionId, terminal} = await startTerminalEngine(prefix, 'fake-terminal-revoke')
     const pty = await rpc.experimental.persistentPty.create({sessionId})
     const browserToken = engine.trustBrowser(
       {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'},
       Date.now(),
     )
-    const browserTicketUrl = async (): Promise<string> => {
-      const url = new URL(await connectUrl(`${origin}/t/${browserToken}`, pty.id))
-      url.pathname = url.pathname.replace(`/t/${browserToken}`, '')
-      return url.toString()
-    }
-    const openAsBrowser = async (url: string) => {
-      const terminal = await openTerminalSocket(url)
-      const closes: number[] = []
-      terminal.socket.on('close', (code) => closes.push(code))
-      terminal.socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: browserToken}))
-      return {...terminal, closes}
+    const openAsBrowser = async () => {
+      const opened = await openRpcSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`, {trust: browserToken})
+      onTestFinished(() => opened.socket.close())
+      return opened
     }
     const revoke = (): void => {
       revokeBrowsers(concivStateDir(root), 'all')
     }
     const shownToEngine = async (proof: string): Promise<string> => {
-      const witness = await openTerminalSocket(await connectUrl(base, pty.id))
-      witness.socket.send(`\recho ${proof}-$((3+4))\r`)
+      const witness = await readTerminal(terminal, pty.id)
+      await terminal.write({ptyId: pty.id, data: `\recho ${proof}-$((3+4))\r`})
       await shows(witness, `${proof}-7`)
-      witness.socket.close()
+      witness.stop()
       return witness.text()
     }
-    return {browserTicketUrl, openAsBrowser, revoke, shownToEngine}
+    const written = (client: PtyClient, data: string): Promise<string> =>
+      client.write({ptyId: pty.id, data}).then(
+        () => 'written',
+        () => 'refused',
+      )
+    return {ptyId: pty.id, openAsBrowser, revoke, shownToEngine, written}
   }
 
   it(
-    'revoking a browser closes its terminal socket with 1008, and nothing it writes afterwards reaches the terminal',
+    'revoking a browser fails its terminal output with UNAUTHORIZED, closes its rpc socket with 1008, and nothing it writes afterwards reaches the terminal',
     {timeout: 20_000},
     async () => {
       const browser = await trustedBrowserTerminal('conciv-terminal-revoke-live-')
-      const kept = await browser.openAsBrowser(await browser.browserTicketUrl())
-      kept.socket.send('\recho kept-$((40+2))\r')
-      await shows(kept, 'kept-42')
+      const kept = await browser.openAsBrowser()
+      const reader = await readTerminal(kept.terminal, browser.ptyId)
+      expect(await browser.written(kept.terminal, '\recho kept-$((40+2))\r')).toBe('written')
+      await shows(reader, 'kept-42')
 
       browser.revoke()
+      expect(await reader.ended).toMatchObject({code: 'UNAUTHORIZED'})
       await until(() => kept.closes.length > 0)
       expect(kept.closes).toEqual([1008])
-      kept.socket.send('\recho late-$((5+6))\r')
+      expect(await browser.written(kept.terminal, '\recho late-$((5+6))\r')).toBe('refused')
       expect(await browser.shownToEngine('after-late')).not.toContain('late-11')
     },
   )
 
   it(
-    'a terminal ticket a browser was given before its revoke opens no terminal after it: the socket closes 1008',
+    'a browser that opens its rpc socket after its revoke gets no terminal: its output and writes are refused UNAUTHORIZED and nothing reaches the terminal',
     {timeout: 20_000},
     async () => {
-      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-ticket-')
-      const minted = await browser.browserTicketUrl()
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-stale-')
       browser.revoke()
 
-      const stale = await browser.openAsBrowser(minted)
-      stale.socket.send('\recho stale-$((2+3))\r')
-      await until(() => stale.closes.length > 0)
-      expect(stale.closes).toEqual([1008])
+      const stale = await browser.openAsBrowser()
+      const unauthorized = {code: 'UNAUTHORIZED'}
+      await expect(stale.terminal.output({ptyId: browser.ptyId})).rejects.toMatchObject(unauthorized)
+      await expect(stale.terminal.write({ptyId: browser.ptyId, data: '\recho stale-$((2+3))\r'})).rejects.toMatchObject(
+        unauthorized,
+      )
       expect(await browser.shownToEngine('after-stale')).not.toContain('stale-5')
     },
   )

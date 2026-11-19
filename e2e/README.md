@@ -67,9 +67,10 @@ CI planner, or on a laptop. Each suite is a `test:packed` script:
 - `vite-react-packed`: the whole app (it has no `test:e2e`).
 - `nextjs`: specs named `test/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
   `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
-- `mascot`, `mascot-react`, `extension-tanstack`: describes tagged `packed`; their vitest configs define the
+- `mascot`, `mascot-react`, `plugin-tanstack`: describes tagged `packed`; their vitest configs define the
   `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
-  `vitest run --mode packed --project <node project> --tags-filter=packed`. Any other vitest run skips
+  `vitest run --mode packed --tags-filter=packed` (with `--project <node project>` where the config has
+  several projects). Any other vitest run skips
   them (hooks too).
 
 Every pack helper in `@conciv/vitest-config/pack` (`packTarball`, `buildAndPack`, the firewalled install)
@@ -86,7 +87,7 @@ tarball is packed: the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.ya
 `e2e/vite-react-packed`, `e2e/nextjs/packed`, the nextjs `test/packed-*.spec.ts` and
 `playwright.packed.config.ts`, and `packed.yml` itself; and the packed suites' own files:
 `e2e/nextjs/package.json` (its `test:packed` script), the `mascot`, `mascot-react` and
-`extension-tanstack` test files holding the `packed` describes and their `vitest.config.ts` (which define
+`plugin-tanstack` test files holding the `packed` describes and their `vitest.config.ts` (which define
 the `packed` tag). It also runs on demand
 (`gh workflow run packed.yml --ref <branch>`). On main it runs only from `release.yml`, on every push,
 and npm publish waits on it. A source-only change can still break a packed install; on a pull request

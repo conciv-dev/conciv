@@ -43,7 +43,9 @@ function FakeRecordingCard(props: AttachmentCardProps): JSX.Element {
 
 function Frame(): JSX.Element {
   const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
-  const remove = (id: string) => setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+  const remove = (id: string): void => {
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+  }
   return (
     <ComposerProvider
       value={{
@@ -52,9 +54,7 @@ function Frame(): JSX.Element {
         addAttachment: async () => null,
         hasAttachment: () => false,
         replaceAttachment: async () => null,
-        removeAttachment: async (id) => {
-          setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
-        },
+        removeAttachment: async (id) => remove(id),
         sendingAttachments: () => false,
         snapshotDraft: () => ({draft: '', attachments: [], quote: null, items: []}),
         restoreDraft: () => {},

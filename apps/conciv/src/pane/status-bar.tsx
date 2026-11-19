@@ -50,6 +50,7 @@ const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none]'
 const VIEW_BTN =
   'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:opacity-40 disabled:cursor-default data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
+const VIEW_TEXT = 'inline-flex items-baseline gap-1.5 min-w-0'
 const VIEW_END =
   'flex-none flex items-center gap-1 px-1.5 [border-inline-start:1px_solid_var(--chat-line-soft)] empty:hidden'
 const VIEW_INDICATOR =
@@ -112,13 +113,15 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
                   <Show when={view().icon}>
                     {(icon) => <Dynamic component={icon()} class="size-3" aria-hidden="true" />}
                   </Show>
-                  {content ? (
-                    <span class={PLUGIN_LABEL}>{content()}</span>
-                  ) : (
-                    <TruncatedText class={VIEW_LABEL} text={view().label} />
-                  )}
-                  <span class={VIEW_HINT} aria-hidden="true">
-                    {index() + 1}
+                  <span class={VIEW_TEXT}>
+                    {content ? (
+                      <span class={PLUGIN_LABEL}>{content()}</span>
+                    ) : (
+                      <TruncatedText class={VIEW_LABEL} text={view().label} />
+                    )}
+                    <span class={VIEW_HINT} aria-hidden="true">
+                      {index() + 1}
+                    </span>
                   </span>
                 </Tabs.Trigger>
               )

@@ -1,14 +1,15 @@
 import {z} from 'zod'
-import {ORPCError} from '@orpc/server'
+import {ORPCError, withEventMeta} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
-import {isPageVerbError} from '@conciv/extension'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
 import {resolveHarnessModels} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
-import {Event, Location, Plugin, Rpc, Tool} from '@conciv/plugin-host'
+import {OUTPUT_CAPACITY, ptyOutput, type PtyOutputEvent} from '../../pty/pty-output.js'
+import type {TtySession} from '../../pty/pty-sessions.js'
+import {Agent, Event, FileSystem, Location, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
@@ -59,7 +60,6 @@ type SessionContext = RpcContext & {session: SessionScope}
 type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: AbortSignal}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message, cause: error})
   if (isPageFailure(error)) {
     return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message, cause: error})
   }
@@ -219,6 +219,24 @@ async function eventStream(
   return relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal)
 }
 
+const PtyResumeCursor = z.coerce.number().int().nonnegative()
+
+const ESCAPE_KEY = String.fromCharCode(27)
+
+function writeToPty(pty: TtySession, data: string): void {
+  if (data === ESCAPE_KEY && pty.busy()) {
+    pty.interrupt()
+    return
+  }
+  pty.write(data)
+}
+
+async function* ptyEvents(events: AsyncIterable<PtyOutputEvent>) {
+  for await (const event of events) {
+    yield event.cursor === null ? event.item : withEventMeta(event.item, {id: String(event.cursor)})
+  }
+}
+
 async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
   const stop = () => void events.return?.()
   signal?.addEventListener('abort', stop, {once: true})
@@ -234,7 +252,7 @@ async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSi
   }
 }
 
-function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plugin.Interface>) {
+function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Failure, Services>) {
   return Effect.gen(function* () {
     const location = yield* Location.Service
     return {location: {directory: location.directory}, data: yield* data}
@@ -243,6 +261,18 @@ function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plug
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
   return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+}
+
+function skillList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Skill.Service.use((skill) => skill.list())), {signal})
+}
+
+function agentList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Agent.Service.use((agent) => agent.list())), {signal})
+}
+
+function fsFind(host: PluginHost, input: FileSystem.FindInput, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(FileSystem.Service.use((files) => files.find(input))), {signal})
 }
 
 function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
@@ -388,6 +418,15 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           })
       }),
     },
+    skill: {
+      list: os.skill.list.handler(({signal}) => skillList(deps.pluginHost, signal)),
+    },
+    agent: {
+      list: os.agent.list.handler(({signal}) => agentList(deps.pluginHost, signal)),
+    },
+    fs: {
+      find: os.fs.find.handler(({input, signal}) => fsFind(deps.pluginHost, input, signal)),
+    },
     plugin: {
       call: os.plugin.call.handler(async ({input, errors, signal}) => {
         const outcome = await pluginCall(deps.pluginHost, input, signal)
@@ -413,8 +452,8 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     experimental: {
       persistentPty: {
-        create: os.experimental.persistentPty.create.handler(async ({input, errors}) => {
-          const created = await deps.ptys.create(input)
+        create: os.experimental.persistentPty.create.handler(async ({input, context, errors}) => {
+          const created = await deps.ptys.create(input, context.callerOrigin)
           if (created === null) throw errors.NO_TTY()
           return created
         }),
@@ -425,9 +464,33 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           pty.kill()
           return {ok: true as const}
         }),
-        connectToken: os.experimental.persistentPty.connectToken.handler(({input, context, errors}) => {
-          if (deps.ptys.find(input.ptyId) === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
-          return deps.ptys.issueTicket({ptyId: input.ptyId, origin: context.callerOrigin})
+        output: os.experimental.persistentPty.output.handler(({input, context, errors, signal, lastEventId}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          const resumed = PtyResumeCursor.safeParse(lastEventId)
+          const stream = ptyOutput(pty, {
+            cursor: resumed.success ? resumed.data : input.cursor,
+            overflow: () => errors.SLOW_CONSUMER({data: {capacity: OUTPUT_CAPACITY}}),
+          })
+          return ptyEvents(relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal))
+        }),
+        write: os.experimental.persistentPty.write.handler(({input, context, errors}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          writeToPty(pty, input.data)
+          return {ok: true as const}
+        }),
+        resize: os.experimental.persistentPty.resize.handler(({input, context, errors}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          pty.resize(input.cols, input.rows)
+          return {ok: true as const}
+        }),
+        inject: os.experimental.persistentPty.inject.handler(({input, context, errors}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          pty.inject(input.text)
+          return {ok: true as const}
         }),
       },
     },
@@ -435,9 +498,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       subscribe: os.event.subscribe.handler(({input, signal}) =>
         eventStream(deps.pluginHost, deps.eventHeartbeatIntervalMs, input?.types, signal),
       ),
-    },
-    captures: {
-      list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
     },
     tabs: {
       list: os.tabs.list.handler(() => deps.tabs.list()),
@@ -471,17 +531,6 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
         hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
       ),
-      queries: sessionOs.page.queries.handler(({input, context, signal}) =>
-        context.session.page.queries(signal ?? new AbortController().signal, input.focus),
-      ),
-      focus: sessionOs.page.focus.handler(({input, context}) => {
-        context.session.page.focus(input.browserTab, input)
-        return {ok: true as const}
-      }),
-      reply: sessionOs.page.reply.handler(({input, context, errors}) => {
-        if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
-        return {ok: true as const}
-      }),
     },
     editor: {
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),

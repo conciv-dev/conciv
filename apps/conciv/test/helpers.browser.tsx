@@ -98,6 +98,7 @@ declare module 'vitest/internal/browser' {
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>
+    rpcStartedCount: (path: string[], input?: unknown) => Promise<number>
     rpcStartedOnceServed: (served: string[], count: number, started: string[][], input?: unknown) => Promise<number[]>
     rpcMark: () => Promise<number>
     awaitRpcFailedCount: (path: string[], status: number, count: number, since: number) => Promise<void>
@@ -344,7 +345,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
-    grabStaging: makeGrabStaging({ground: options.ground ?? (async () => null)}),
+    grabStaging: makeGrabStaging({
+      ground: options.ground ?? (async () => null),
+      fail: (message, error) => console.error(`[conciv] ${message}`, error),
+    }),
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => options.onNewSession?.(),
@@ -416,6 +420,7 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
+  grabProvider?: GrabProvider
   plugins?: readonly ComposedPlugin[]
 }
 
@@ -530,6 +535,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       plugins: options.plugins,
       servers: options.plugins !== undefined,
       login,
+      grabProvider: options.grabProvider,
       bindActiveSession: (read) => {
         activeSession.read = read
       },
