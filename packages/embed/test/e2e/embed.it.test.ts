@@ -198,10 +198,25 @@ test.describe('embed boot', () => {
 
 test.describe('composer rich input', () => {
   const ASSISTANT_TEXT = 'Rich input reply'
+  const MENTION_PROBE_PLUGIN = `export default {
+  id: 'mention-probe',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'mention_probe',
+        description: 'Probes the mention list',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      })
+    })
+  },
+}
+`
 
   const suite = setupWidgetSuite({
     text: ASSISTANT_TEXT,
     extensions: [recorderServer],
+    files: {'conciv/plugins/mention-probe.ts': MENTION_PROBE_PLUGIN},
     commands: [
       {name: 'compact', description: 'Compact the conversation'},
       {name: 'config', description: 'Open configuration'},
@@ -252,10 +267,13 @@ test.describe('composer rich input', () => {
       await input.pressSequentially('@recording_start')
       await pickSuggestion(page, 'Tools', '@recording_start')
 
+      await input.pressSequentially('@mention_probe')
+      await pickSuggestion(page, 'Tools', '@mention_probe')
+
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @recording_start \nsecond line'
+      const expected = 'please run /config then @recording_start @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)
@@ -1541,7 +1559,7 @@ test.describe('page dispatch parity', () => {
     })
   })
 
-  test.describe('bootConnect: the connect handle serves page tools through the dispatcher', () => {
+  test.describe('servers mode: the connect handle serves page tools through the dispatcher', () => {
     let kit: EmbedKit
     let host: {base: string; close: () => Promise<void>}
     let page: Page
@@ -2602,6 +2620,73 @@ test.describe('reload continuity', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
 
       await expect(chatBox(page)).toHaveText('typed then reloaded at once')
+    })
+
+    test('text typed and reloaded while another tab holds the draft database is back in the composer', async ({
+      page,
+    }) => {
+      await openPanelOnNewSession(page, suite)
+      const otherTab = await page.context().newPage()
+      try {
+        await otherTab.goto(`${suite.host().base}/conciv-widget.global.js`, {waitUntil: 'domcontentloaded'})
+        await otherTab.evaluate(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              const opening = indexedDB.open('conciv-drafts', 1)
+              opening.addEventListener('error', () => reject(opening.error))
+              opening.addEventListener('success', () => {
+                const documents = opening.result.transaction('documents', 'readwrite').objectStore('documents')
+                const hold = () => {
+                  if (Reflect.get(window, 'releaseDrafts') === true) return
+                  documents.count().addEventListener('success', hold)
+                }
+                hold()
+                resolve()
+              })
+            }),
+        )
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('typed while another tab writes')
+        await page.reload({waitUntil: 'domcontentloaded'})
+        await otherTab.evaluate(() => Reflect.set(window, 'releaseDrafts', true))
+
+        await expect(chatBox(page)).toHaveText('typed while another tab writes')
+      } finally {
+        await otherTab.close()
+      }
+    })
+
+    test('a draft kept only in this browser survives another tab loading before it is trusted', async ({page}) => {
+      const KEPT = 'kept here while another tab logs in'
+      const context = page.context()
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      const lastRefused = await failRpcCalls(page, {path: ['drafts', 'set'], input: {text: KEPT}})
+      const otherEngine = await proxyTo(suite.kit().base)
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially(KEPT)
+        await lastRefused.answered()
+        await page.close()
+
+        const untrusted = await context.newPage()
+        await untrusted.goto(`${suite.host().base}/?apiBase=${encodeURIComponent(otherEngine.base)}`, {
+          waitUntil: 'domcontentloaded',
+        })
+        await expect(untrusted.getByRole('button', {name: 'Unauthorized. Authorize conciv'})).toBeVisible()
+
+        const later = await context.newPage()
+        await openLoggedIn(later, suite.kit(), suite.host().base)
+        await openPanel(later)
+        await switchToSessionByTitle(later, `session under test ${sessionId.slice(-12)}`)
+        await expect(chatBox(later)).toHaveText(KEPT)
+      } finally {
+        await lastRefused.dispose()
+        await refused.dispose()
+        await otherEngine.close()
+      }
     })
 
     test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({

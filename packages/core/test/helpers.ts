@@ -155,6 +155,7 @@ export type BootOverrides = {
   home?: string
   plugins?: readonly Plugin.Plugin[]
   configPlugins?: ResolvedConcivConfig['plugins']
+  permissions?: ResolvedConcivConfig['permissions']
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -181,7 +182,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     hubAccess: overrides.hubAccess ?? 'session',
     plugins: overrides.configPlugins ?? [],
     policies: [],
-    permissions: [],
+    permissions: overrides.permissions ?? [],
   }
   const made = await makeApp({
     print: env.print,

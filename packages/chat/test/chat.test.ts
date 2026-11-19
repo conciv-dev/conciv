@@ -1,13 +1,15 @@
 import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
-import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
+import {drizzleChatStores, quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
-import {openDb, type ConcivDb} from '@conciv/db'
+import {eq} from 'drizzle-orm'
+import {chatMessages, markers, openDb, sessions as sessionRows, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
-import type {ModelMessage} from '@conciv/protocol/chat-message-types'
-import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
+import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
+import {SqliteClient} from '@effect/sql-sqlite-node'
+import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
 import {defineWebSocketHelper} from 'hono/ws'
 import {
@@ -62,14 +64,34 @@ function currentDomain(agent: Agent.Id, rules: Permission.Ruleset = []) {
   return Tool.Service.use((tools) => tools.snapshot(rules)).pipe(Effect.map((snapshot) => ({snapshot, agent})))
 }
 
-function openDatabase() {
+async function openDatabase() {
   const root = tempDir('conciv-chat-unit-')
-  const db = openDb(root)
-  onTestFinished(() => {
-    db.$client.close()
+  const scope = Scope.makeUnsafe()
+  const db = await Effect.runPromise(openDb(root).pipe(Scope.provide(scope)))
+  onTestFinished(async () => {
+    await Effect.runPromise(Scope.close(scope, Exit.void))
     rmSync(root, {recursive: true, force: true})
   })
   return {root, db}
+}
+
+const fakeSessions: Parameters<typeof createChatPlane>[0]['sessions'] = {
+  row: async () => ({
+    model: null,
+    effort: null,
+    nativeId: null,
+    cwd: '/workspace',
+    harnessKind: 'fake',
+    deletedAt: null,
+  }),
+  ensure: async () => undefined,
+  recordNativeId: async () => undefined,
+  recordUsage: async () => undefined,
+  recordContextTokens: async () => undefined,
+  recordActivity: async () => undefined,
+  onRunStart: async () => undefined,
+  publish: () => undefined,
+  onRunEnd: async () => undefined,
 }
 
 function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typeof createChatPlane>[0]> = {}) {
@@ -80,20 +102,10 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
     hubAccess: 'session',
     hubGeneration: () => 0,
     cwd: root,
-    harnessFor: () => harness,
+    harnessFor: async () => harness,
     systemPrompt: {},
-    sessions: {
-      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake', deletedAt: null}),
-      ensure: async () => undefined,
-      recordNativeId: async () => undefined,
-      recordUsage: async () => undefined,
-      recordContextTokens: async () => undefined,
-      recordActivity: () => {},
-      onRunStart: async () => undefined,
-      publish: () => undefined,
-      onRunEnd: async () => undefined,
-    },
-    toolNames: new Set(),
+    sessions: fakeSessions,
+    toolNames: async () => new Set(),
     capabilities: async () => [],
     attachmentExpanders: {},
     prompt: async (event) => event,
@@ -108,7 +120,7 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
 
 describe('permission cards', () => {
   it('a permission card is stored, replayed with its member, kept in order under overlapping writes, and removed without a grant', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_cards')
     const plane = await chatPlane(db, root)
     const editId = toolApprovalId('edit')
@@ -267,7 +279,7 @@ describe('plugin tools in code mode', () => {
       }).pipe(Scope.provide(scope)),
     )
 
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const published: ChatEvent[] = []
     const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), (chunk) => published.push(chunk))
@@ -416,7 +428,7 @@ describe('plugin tools in code mode', () => {
         (effect, signal) => host.runPromiseExit(effect, {signal}),
         () => undefined,
       )
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
     const runner = await chat.codeRunner(SessionId.parse('conciv_search'), () => undefined)
     await expect(runner?.code?.run('return search({query: "quasar brightness"})', 'parent')).resolves.toMatchObject({
@@ -437,7 +449,7 @@ describe('plugin tools in code mode', () => {
   })
 
   it('a nested call in a resent unfinished message stays shown but out of what the model reads next', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_nested_history')
     const chat = await chatPlane(db, root)
     const read: ModelMessage[][] = []
@@ -490,7 +502,7 @@ describe('refusal text', () => {
   const isAsked = Schema.is(Schema.Struct({id: Permission.Id, action: Schema.String}))
 
   it('a declined call says the user denied the tool, also when a promise tool rethrew the decline, and a blocked or corrected call says its own message', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessions = Layer.succeed(
       Permission.PermissionSessions,
       Permission.PermissionSessions.of({
@@ -521,7 +533,7 @@ describe('refusal text', () => {
             ),
           ),
         ),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     onTestFinished(() => host.dispose())
@@ -708,7 +720,7 @@ describe('direct tools', () => {
       {name: 'unit_direct', direct: true},
       {name: 'unit_direct_snap', direct: true},
     ])
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async (sessionId) => capabilities(sessionId)})
     const runner = await chat.codeRunner(shared, () => undefined)
     expect(names(runner?.code?.capabilities)).toEqual(['unit_builtin', 'unit_coded'])
@@ -751,7 +763,7 @@ describe('direct tools', () => {
 
 describe('plugin instructions', () => {
   it('the initial text is one more system prompt and an empty one adds none, the change text goes once in front of the user words, and the code-mode inventory reaches the instructions in place of the library listing', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_instructions')
     const settled = async () => undefined
     const told = [
@@ -821,7 +833,7 @@ describe('the session prompt hook', () => {
     onTestFinished(() => host.dispose())
     const scope = host.runSync(Scope.make())
     const triggered: string[] = []
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_prompt_hook')
     const chat = await chatPlane(db, root, {
       prompt: (event) => {
@@ -874,7 +886,7 @@ describe('the session prompt hook', () => {
 
 describe('stopping a run', () => {
   it('a stop says whether it stopped a live run, a repeat stop does not, and the session settles once the run has ended', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_stopping')
     const chat = await chatPlane(db, root)
     const reached = Promise.withResolvers<void>()
@@ -909,5 +921,130 @@ describe('stopping a run', () => {
     expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
     await chat.settled(sessionId)
     expect(chat.driving(sessionId)).toBe(false)
+  })
+})
+
+describe('a session deleted while its transcript is read', () => {
+  it('a compact and the transcript sync it hydrates write no marker and no thread once the session is deleted', async () => {
+    const {root, db} = await openDatabase()
+    const sessionId = SessionId.parse('conciv_deleted_mid_read')
+    const nativeId = HarnessSessionId.parse('native-deleted-mid-read')
+    await Effect.runPromise(
+      db.insert(sessionRows).values({
+        id: sessionId,
+        harnessSessionId: nativeId,
+        harnessKind: 'transcribed',
+        origin: 'chat',
+        cwd: '/workspace',
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+    const reading = Promise.withResolvers<void>()
+    const transcript = Promise.withResolvers<ChatMessage[]>()
+    const unobserved = async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}) as const
+    const transcribed = defineHarness({
+      id: 'transcribed',
+      binName: 'true',
+      chatConfig: () => ({adapter: fakeText()}),
+      history: {
+        messages: async () => {
+          reading.resolve()
+          return transcript.promise
+        },
+        tail: async () => ({messages: [], earlier: null}),
+        observe: () => ({revision: unobserved, read: unobserved, close: () => undefined}),
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
+      },
+      resume: {command: () => ({bin: 'transcribed', args: []})},
+      capabilities: {...harness.capabilities, transcriptHistory: true},
+    })
+    const readRow = async () => {
+      const row = await Effect.runPromise(db.select().from(sessionRows).where(eq(sessionRows.id, sessionId)).get())
+      return row === undefined
+        ? null
+        : {
+            model: null,
+            effort: null,
+            nativeId,
+            cwd: row.cwd,
+            harnessKind: row.harnessKind,
+            deletedAt: row.deletedAt,
+          }
+    }
+    const chat = await chatPlane(db, root, {
+      harnessFor: async () => transcribed,
+      sessions: {...fakeSessions, row: readRow},
+    })
+
+    const compacting = chat.compact(sessionId)
+    await reading.promise
+    await Effect.runPromise(db.update(sessionRows).set({deletedAt: 2}).where(eq(sessionRows.id, sessionId)))
+    transcript.resolve([
+      {id: 'native-question', role: 'user', parts: [{type: 'text', content: 'read after the delete'}]},
+    ])
+
+    await Promise.allSettled([compacting])
+    expect(await Effect.runPromise(db.select().from(chatMessages).where(eq(chatMessages.threadId, sessionId)))).toEqual(
+      [],
+    )
+    expect(await Effect.runPromise(db.select().from(markers).where(eq(markers.sessionId, sessionId)))).toEqual([])
+    await expect(compacting).rejects.toThrow(`session "${sessionId}" does not exist`)
+  })
+})
+
+describe('importing the native transcript', () => {
+  it('a message recorded while the import waits on the tool names survives the import', async () => {
+    const {root, db} = await openDatabase()
+    const sessionId = SessionId.parse('conciv_importing')
+    const transcript: ChatMessage[] = [
+      {id: 'native-1', role: 'assistant', parts: [{type: 'text', content: 'from the cli'}]},
+    ]
+    const missing = async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}) as const
+    const native = defineHarness({
+      id: 'native',
+      binName: 'true',
+      chatConfig: () => ({adapter: fakeText()}),
+      history: {
+        messages: async () => transcript,
+        tail: async () => ({messages: transcript, earlier: null}),
+        observe: () => ({revision: missing, read: missing, close: () => undefined}),
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
+      },
+      resume: {command: ({nativeId}) => ({bin: 'native', args: [nativeId]})},
+      capabilities: {...harness.capabilities, transcriptHistory: true},
+    })
+    const asked = Promise.withResolvers<void>()
+    const named = Promise.withResolvers<ReadonlySet<string>>()
+    const toolNames = [named.promise]
+    const chat = await chatPlane(db, root, {
+      harnessFor: async () => native,
+      sessions: {
+        ...fakeSessions,
+        row: async () => ({
+          model: null,
+          effort: null,
+          nativeId: HarnessSessionId.parse('native-session'),
+          cwd: '/workspace',
+          harnessKind: 'native',
+          deletedAt: null,
+        }),
+      },
+      toolNames: async () => {
+        asked.resolve()
+        return toolNames.shift() ?? new Set()
+      },
+    })
+
+    const hydrating = chat.hydrate(sessionId)
+    await asked.promise
+    const writer = drizzleChatStores(db, {readHarness: async () => 'native', saved: async () => undefined})
+    await writer.messages.saveThread(sessionId, [{id: 'recorded', role: 'user', content: 'recorded meanwhile'}])
+    named.resolve(new Set())
+
+    const {messages} = await hydrating
+    expect(messages.map((message) => message.id)).toEqual(['recorded', 'native-1'])
   })
 })

@@ -1,10 +1,12 @@
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin as PluginDefinition} from '@conciv/plugin'
+import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import {Model} from '@conciv/plugin/schema/model'
 import type {createChatPlane} from '@conciv/chat'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ConcivDb} from '@conciv/db'
 import {NodeFileSystem} from '@effect/platform-node'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {
   Agent,
   Bus,
@@ -56,14 +58,13 @@ import {provideServersSource} from './servers-source.js'
 
 export type PluginRuntimeInput = {
   db: ConcivDb
-  databaseFile: string
   cwd: string
   home: string
   fallbackRoots: string
   engineId: string
   config: Pick<ResolvedConcivConfig, 'plugins' | 'policies' | 'permissions'>
   plugins: readonly PluginDefinition.Plugin[]
-  post: readonly PluginDefinition.Plugin[]
+  post: readonly EffectPlugin[]
   harness: HarnessAdapter
   signal: AbortSignal
   bundler: Bundler.BundlerBridge | undefined
@@ -99,7 +100,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     InstancePlugins.bound(
       input.plugins.map((plugin) => PluginPromise.fromPromise(plugin)),
       {
-        post: input.post.map((plugin) => PluginPromise.fromPromise(plugin)),
+        post: input.post,
       },
     ),
     PluginUpdate.layer,
@@ -138,7 +139,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
     Layer.provideMerge(FSUtil.layer),
     Layer.provideMerge(
       Layer.mergeAll(
-        Database.layer({path: input.databaseFile}),
+        Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, input.db.$client)),
         machineRoots(input.home, input.fallbackRoots),
         NodeFileSystem.layer,
       ),

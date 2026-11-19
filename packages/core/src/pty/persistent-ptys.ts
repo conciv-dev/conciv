@@ -15,7 +15,7 @@ type TtyLauncher = NonNullable<ServerHarness['ttyCommand']>
 type CreateInput = {sessionId: SessionId; size?: PtySize; model?: string}
 
 type PersistentPtyDeps = {
-  harness: (sessionId: SessionId) => ServerHarness
+  harness: (sessionId: SessionId) => Promise<ServerHarness>
   sessions: Pick<ServerSessions, 'resumeToken' | 'recordToken' | 'model'>
   cwd: string
   stateDir: string
@@ -35,7 +35,7 @@ function describePty(session: TtySession, sessionId: SessionId): PersistentPtyIn
 export function createPersistentPtys(deps: PersistentPtyDeps) {
   const ttys = createTtySessions()
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
-    const owner = ownerKey(deps.harness(sessionId).id, await deps.sessions.resumeToken(sessionId))
+    const owner = ownerKey((await deps.harness(sessionId)).id, await deps.sessions.resumeToken(sessionId))
     const alive = ttys.get(sessionId)
     if (alive === undefined || alive.owner === owner) return alive
     ttys.close(sessionId)
@@ -87,7 +87,7 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   }
 
   const create = async (input: CreateInput, origin: string | null): Promise<PersistentPtyInfo | null> => {
-    const harness = deps.harness(input.sessionId)
+    const harness = await deps.harness(input.sessionId)
     const command = harness.ttyCommand
     if (command === undefined) return null
     const session = await opened(input, harness, command)

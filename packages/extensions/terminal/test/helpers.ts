@@ -137,7 +137,7 @@ export async function startTerminalServer(
     basePath: opts.basePath ?? '',
     stateDir,
     sessions,
-    harness: opts.readHarness ?? (() => harness),
+    harness: opts.readHarness ?? (async () => harness),
     symbolicate: async () => null,
     nativeUrl: () => undefined,
     upgradeWebSocket,

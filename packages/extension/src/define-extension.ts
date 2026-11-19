@@ -6,7 +6,6 @@ import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
   ClientFactoryResult,
   InferConfig,
-  ConnectGate,
   ExtensionCommand,
   ExtensionSettingsSchema,
   ExtensionView,
@@ -50,7 +49,6 @@ export type ExtensionMeta<
   Component?: Component
   Surface?: Component
   systemPrompt?: string | SystemPromptFactory<Exclude<InferConfig<Schema>, undefined>>
-  connectGate?: ConnectGate
 }
 
 export type ExtensionBuilder<
@@ -68,7 +66,6 @@ export type ExtensionBuilder<
   Component?: Component
   Surface?: Component
   systemPrompt?: SystemPromptResolver
-  connectGate?: ConnectGate
   tools?: Tools
   attachments?: Attachments
   commands?: readonly ExtensionCommand[]
@@ -185,7 +182,6 @@ export function defineExtension<
     Component: meta.Component,
     Surface: meta.Surface,
     systemPrompt: makeSystemPrompt(meta),
-    connectGate: meta.connectGate,
     tools: meta.tools,
     attachments: meta.attachments,
     commands: meta.commands,
