@@ -2,7 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
-import {uniq} from 'es-toolkit'
+import {range, uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
 import {installReactBridge} from '@conciv/page'
@@ -1872,7 +1872,63 @@ describe('composer overflow', () => {
     {name: 'context', description: 'Show what fills the window'},
   ]
 
-  const core = bootedCore('composer-overflow', {commands: PICKER_COMMANDS})
+  const MENTIONS_PLUGIN = `import {join} from 'node:path'
+
+export default {
+  id: 'mentions',
+  async setup(ctx) {
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'mention-guide',
+        name: 'mention-guide',
+        description: 'How mentions are written',
+        path: join(ctx.location.directory, 'mention-guide', 'SKILL.md'),
+        content: 'Write the mention.',
+      })
+      skills.add({
+        id: 'review-checklist',
+        name: 'review-checklist',
+        description: 'What a change needs before it lands',
+        path: join(ctx.location.directory, 'review-checklist', 'SKILL.md'),
+        content: 'Check the change.',
+      })
+    })
+    await ctx.agent.transform((agents) => {
+      agents.update('reviewer', (agent) => {
+        agent.mode = 'subagent'
+        agent.description = 'Reviews the change'
+      })
+      agents.update('lurker', (agent) => {
+        agent.mode = 'subagent'
+        agent.hidden = true
+      })
+      agents.update('planner', () => {})
+    })
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'mention_probe_tool',
+        description: 'A tool the @ list offers after the agents',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      }),
+    )
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'written_note_tool',
+        description: 'A tool whose name matches better than the skill description',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'noted'}),
+      }),
+    )
+  },
+}
+`
+
+  const core = bootedCore('composer-overflow', {
+    commands: PICKER_COMMANDS,
+    plugins: ['./mentions'],
+    files: {'mentions/index.ts': MENTIONS_PLUGIN},
+  })
   const keep = keptPane()
   const faults = trackedFaults()
 
@@ -1897,12 +1953,17 @@ describe('composer overflow', () => {
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
-        <>
+        <div class="flex flex-col flex-1 min-h-0 relative">
           <ul>
             <For each={requests()}>{(request) => <li>{`the pane requested ${request}`}</li>}</For>
           </ul>
           <ChatPane sessionId={sessionId} />
-        </>
+          <aside class="absolute start-full bottom-0 flex h-40 w-15">
+            <button type="button" class="flex-1" onClick={() => setRequests((current) => [...current, 'nothing'])}>
+              The neighbour pane
+            </button>
+          </aside>
+        </div>
       ),
     )
     keep(mount)
@@ -1988,6 +2049,148 @@ describe('composer overflow', () => {
     await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
     await expect.element(input().getByText('/context')).toBeVisible()
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
+  })
+
+  test('the @ list offers the skills, then the agents that are neither primary nor hidden, then the other sessions, then the files and folders a typed query finds, then the tools', async () => {
+    const rpc = coreRpc(core())
+    const ledgerId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Review ledger'})
+    const payrollId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: payrollId, title: 'Payroll audit'})
+    await page.viewport(WIDE_PX + 60, 900)
+    onTestFinished(() => page.viewport(1000, 900))
+    const mount = await mountComposer(WIDE_PX)
+    await rpc.sessions.rename({sessionId: mount.pane.sessionId(), title: 'Payroll pane'})
+    const context = () => page.getByRole('listbox', {name: 'Context'})
+    const mention = (label: string) => context().getByRole('option', {name: label})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('@')
+
+    await expect.element(context().getByRole('option').first()).toBeInViewport({ratio: 1})
+    await expect.element(mention('@mention-guide').getByText('How mentions are written')).toBeInViewport({ratio: 1})
+    await userEvent.click(page.getByRole('button', {name: 'The neighbour pane'}), {timeout: 3_000})
+    await expect.element(page.getByText('the pane requested nothing')).toBeVisible()
+    await userEvent.click(input())
+    await expect.element(mention('@mention-guide')).toHaveTextContent('@mention-guideHow mentions are written')
+    await expect.element(mention('@reviewer')).toBeVisible()
+    await expect.element(mention('@mention-guide').getByRole('img', {name: 'Skill'})).toBeVisible()
+    await expect.element(mention('@reviewer').getByRole('img', {name: 'Agent'})).toBeVisible()
+    await expect.element(mention('Payroll audit').getByRole('img', {name: 'Session'})).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
+    await expect.element(context().getByRole('group').first().getByRole('option', {name: '@reviewer'})).toBeVisible()
+    await expect
+      .element(context().getByRole('group').first().getByRole('option').last().getByRole('img', {name: 'Session'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
+    await expect.element(mention('@lurker')).not.toBeInTheDocument()
+    await expect.element(mention('@planner')).not.toBeInTheDocument()
+    await expect.element(mention('@build')).not.toBeInTheDocument()
+    await expect
+      .element(context().getByRole('group', {name: 'Tools'}).getByRole('option', {name: '@mention_probe_tool'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').nth(1)).toHaveAccessibleName('Tools')
+
+    await userEvent.keyboard('review')
+
+    await expect.element(context().getByRole('option').nth(0)).toHaveAccessibleName(/@review-checklist/)
+    await expect.element(context().getByRole('option').nth(1)).toHaveAccessibleName(/@reviewer/)
+    await expect.element(context().getByRole('option').last()).toHaveAccessibleName(/Review ledger/)
+
+    await userEvent.keyboard('er')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName('@reviewer')
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@reviewer')).toBeVisible()
+
+    await userEvent.keyboard('@payroll')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Payroll audit/)
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
+
+    await userEvent.keyboard('@mention')
+
+    await expect
+      .element(context().getByRole('group').first().getByRole('option', {name: 'mentions/index.ts'}))
+      .toBeVisible()
+    await expect
+      .element(context().getByRole('group').last().getByRole('option', {name: '@mention_probe_tool'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
+
+    await userEvent.keyboard('s')
+
+    await expect
+      .element(context().getByRole('option', {name: 'mentions/', exact: true}).getByRole('img', {name: 'Folder'}))
+      .toBeVisible()
+    await expect.element(mention('mentions/index.ts').getByRole('img', {name: 'File'})).toBeVisible()
+    await expect.element(input().getByText('@reviewer')).toBeVisible()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
+
+    const research = await faults.install({kind: 'gate', path: ['fs', 'find'], input: {query: 'mentions'}})
+    await userEvent.keyboard('{Backspace}s')
+    await coreControl.awaitFaultPending(research, 1)
+    await faults.releaseAll()
+
+    await expect.element(mention('mentions/index.ts')).toBeVisible()
+
+    await userEvent.click(mention('mentions/index.ts'))
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@mentions/index.ts')).toBeVisible()
+
+    await userEvent.keyboard('please read the whole change and tell me what breaks first, then ask ')
+    await userEvent.keyboard('@')
+    await expect.element(mention('@reviewer')).toBeVisible()
+    await userEvent.click(input().getByText('@reviewer'), {timeout: 3_000})
+    await expect.element(context()).not.toBeInTheDocument()
+
+    const reread = await faults.install({kind: 'gate', path: ['skill', 'list']})
+    await userEvent.keyboard('{End} @')
+    await coreControl.awaitFaultPending(reread, 1)
+    await coreControl.releaseFault(reread)
+    await expect.element(mention('@mention-guide')).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+
+    await userEvent.keyboard('written')
+    await expect.element(mention('@reviewer')).not.toBeInTheDocument()
+    await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
+    await expect.element(mention('@written_note_tool')).toBeVisible()
+    await expect
+      .element(context().getByRole('group').first().getByRole('option', {name: '@mention-guide'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(context()).not.toBeInTheDocument()
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Ledger'})
+    await userEvent.keyboard('{End} @')
+
+    await expect.element(context().getByRole('option', {name: /^Ledger/})).toBeVisible()
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(context()).not.toBeInTheDocument()
+    await Promise.all(
+      range(31).map(async (index) => {
+        const followUpId = await createSession(rpc)
+        await rpc.sessions.rename({sessionId: followUpId, title: `Ledger follow-up ${index + 1}`})
+      }),
+    )
+    await userEvent.keyboard('{End} @ledger')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Ledger(?! follow-up)/)
   })
 })
 
@@ -9139,6 +9342,7 @@ describe('terminal panel', () => {
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
   const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
+  const connecting = () => terminalPanel().getByRole('status').filter({hasText: 'connecting'})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -9168,6 +9372,37 @@ describe('terminal panel', () => {
       .not.toBeInTheDocument()
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
+    expect(await coreControl.rpcCallCount(['experimental', 'persistentPty', 'write'])).toBeGreaterThan(0)
+
+    const write = ['experimental', 'persistentPty', 'write']
+    const outputPath = ['experimental', 'persistentPty', 'output']
+    const outputStreams = await coreControl.rpcCallCount(outputPath)
+    await faults.install({kind: 'deliver-then-cut', path: write, input: {data: 'Z'}})
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await userEvent.keyboard('echo Z')
+    await coreControl.rpcStartedOnceServed(outputPath, outputStreams + 1, [])
+    await expect.element(connecting(), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(output('P> echo Z'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('Z'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcStartedCount(write, {data: 'Z'})).toBe(1)
+    await expect.element(output('ZZ')).not.toBeInTheDocument()
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(connecting(), {timeout: 15_000}).toBeVisible()
+    const handshakes = await faults.install({kind: 'handshake-hold'})
+    await coreControl.releaseFault(offline)
+    await coreControl.awaitFaultPending(handshakes, 1)
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('Q')
+    await coreControl.releaseFault(handshakes)
+    await expect.element(connecting(), {timeout: 15_000}).not.toBeInTheDocument()
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcStartedCount(write, {data: 'Q'})).toBe(0)
 
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
@@ -10749,6 +10984,12 @@ module.exports = {default: {stores: {
       return [
         createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
         createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
+        createComponent(ctx.ui.Chip, {value: 'Reviewed', tone: 'success', tooltip: 'Ada marked it reviewed'}),
+        createComponent(ctx.ui.Chip, {
+          value: 'Reviewed in full by Ada Lovelace and Alan Turing',
+          tooltip: 'Both reviewers signed off',
+          class: 'max-w-40',
+        }),
         createComponent(ctx.ui.Menu, {
           label: 'View options',
           get items() {
@@ -11032,8 +11273,8 @@ module.exports = {default: {setup(ctx) {
     })
   })
 
-  describe('its ctx.ui.RelativeTime and ctx.ui.Avatar', () => {
-    test('show how long ago a time was and a person by name with their initials when there is no image', async () => {
+  describe('its ctx.ui.RelativeTime, ctx.ui.Avatar and ctx.ui.Chip', () => {
+    test('show how long ago a time was, a person by name with their initials when there is no image, a chip whose tooltip opens on hover, and a clipped chip whose tooltip shows its full value with the tooltip text', async () => {
       const sessionId = await createSession(coreRpc(coreBase()))
       harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
       await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
@@ -11042,6 +11283,14 @@ module.exports = {default: {setup(ctx) {
       await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
       await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
       await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
+      await page.getByRole('button', {name: 'Reviewed', exact: true}).hover()
+      await expect.element(page.getByText('Ada marked it reviewed', {exact: true})).toBeVisible()
+      await page.getByRole('button', {name: 'Reviewed in full by Ada Lovelace and Alan Turing', exact: true}).hover()
+      const tooltip = page.getByRole('tooltip')
+      await expect
+        .element(tooltip.getByText('Reviewed in full by Ada Lovelace and Alan Turing', {exact: true}))
+        .toBeVisible()
+      await expect.element(tooltip.getByText('Both reviewers signed off', {exact: true})).toBeVisible()
     })
   })
 
