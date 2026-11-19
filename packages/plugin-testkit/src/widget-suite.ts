@@ -114,7 +114,11 @@ export async function openPluginWidget(
   },
 ): Promise<PluginWidget> {
   const kit = await bootCoreKit({id: opts.id, plugins: opts.plugins, files: opts.files, stateRoot: opts.stateRoot})
-  const page = hostPage(kit.origin, path.basename(opts.widgetBundle), opts.body ?? '<div id="probe">page-bus-ok</div>')
+  const page = hostPage(
+    kit.origin,
+    path.basename(opts.widgetBundle),
+    opts.body ?? '<div id="probe">page-probe-ok</div>',
+  )
   const host = await startedOrClosed(() => serveFiles(path.dirname(opts.widgetBundle), page), kit.cleanup)
   const closeServers = closeInOrder(host.close, kit.cleanup)
   const opened = await startedOrClosed(() => browser.newPage(), closeServers)

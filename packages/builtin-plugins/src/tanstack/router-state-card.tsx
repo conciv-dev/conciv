@@ -1,10 +1,10 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {RouteMatch, RouterCurrent} from '@conciv/plugin-tanstack/rpc'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {Chip} from '@conciv/ui-kit-chat/tools'
+import {CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
 import {countLabel} from '../page/cards/shared.js'
 
 const MatchSchema = RouteMatch.pick({routeId: true, status: true})
@@ -23,8 +23,8 @@ const RouterStateSchema = RouterCurrent.extend({location: LocationSchema, matche
 
 type RouterState = z.infer<typeof RouterStateSchema>
 
-function parseState(result: ToolCardProps['result']): RouterState | null {
-  const parsed = RouterStateSchema.safeParse(parseResultPayload(result))
+function parseState(result: string | undefined): RouterState | null {
+  const parsed = RouterStateSchema.safeParse(parseOutput(result))
   return parsed.success ? parsed.data : null
 }
 
@@ -37,14 +37,14 @@ function locationLine(location: RouterState['location']): string {
   return `${location.pathname}${location.search}${location.hash}`
 }
 
-function RouterStateCard(props: ToolCardProps): JSX.Element {
-  const state = () => parseState(props.result)
+function RouterStateCard(props: ToolProps): JSX.Element {
+  const state = () => parseState(props.output)
   const summary = () => {
     const value = state()
     return value ? summarize(value) : ''
   }
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} hasContent={parseState(props.output) !== null}>
       <Show when={state()}>
         {(value) => (
           <CardRows>
@@ -78,7 +78,4 @@ function RouterStateCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const routerStateCard: ToolCardView = {
-  render: RouterStateCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseState(result) !== null),
-}
+export const routerStateCard: ToolComponent = RouterStateCard

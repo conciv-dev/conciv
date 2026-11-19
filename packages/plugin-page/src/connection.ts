@@ -368,21 +368,18 @@ export const make = Effect.fn('PageConnection.make')(function* (
       readonly actions: readonly Action[]
     },
   ): Promise<Queue.RequestSettlement>[] => {
-    const chosen = selectTarget(
-      machine.state,
-      sessionId,
-      play.action.type === 'tabs.list' ? undefined : play.action.tabId,
-    )
+    const tabId = play.action.type === 'tabs.list' ? undefined : play.action.tabId
+    const chosen = selectTarget(machine.state, sessionId, tabId)
     if (!chosen.ok) throw raise(chosen.error)
-    const target = {sessionId, connectionId: chosen.connectionId, attempt: chosen.attempt}
     const of = play.actions.length
     const played = play.actions.map(() => Promise.withResolvers<Queue.RequestSettlement>())
-    const send = (action: Action, index: number, timeoutMs: number) =>
-      deliver(target, {action, agentId: play.agentId, timeoutMs, queued: {id: play.queueId, index, of}}).pipe(
-        Effect.exit,
-        Effect.map(settlement),
-      )
     const playing = Effect.gen(function* () {
+      const target = yield* selected(sessionId, tabId)
+      const send = (action: Action, index: number, timeoutMs: number) =>
+        deliver(target, {action, agentId: play.agentId, timeoutMs, queued: {id: play.queueId, index, of}}).pipe(
+          Effect.exit,
+          Effect.map(settlement),
+        )
       const acceptance = yield* send(play.action, -1, pageReplyTimeoutMs)
       yield* Effect.forEach(
         play.actions,
@@ -402,7 +399,12 @@ export const make = Effect.fn('PageConnection.make')(function* (
     })
     Effect.runSync(
       Effect.forkIn(
-        serialized(sessionId, playing).pipe(
+        serialized(
+          sessionId,
+          playing.pipe(
+            Effect.catch((error) => Effect.sync(() => played.forEach((each) => each.resolve(refused(error))))),
+          ),
+        ).pipe(
           Effect.onExit((exit) =>
             Exit.isSuccess(exit) ? Effect.void : Effect.sync(() => played.forEach((each) => each.resolve(stopped()))),
           ),

@@ -2,10 +2,7 @@ import {describe, expect, it, afterAll, beforeAll, vi} from 'vitest'
 import {attachCommand, plainLines} from '../src/cli.js'
 import {createServer, type Server} from 'node:http'
 import {realpathSync, existsSync, readFileSync} from 'node:fs'
-import {randomUUID} from 'node:crypto'
-import {createFakeHarness, harnessAvailable} from '@conciv/harness-testkit'
-import {makeExtRpcClient} from '@conciv/extension'
-import {type TerminalRouter} from '@conciv/extension-terminal/server'
+import {createFakeHarness, harnessAvailable, makeRpcClient} from '@conciv/harness-testkit'
 import {type HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {claude} from '@conciv/harness/claude'
@@ -118,16 +115,13 @@ describe('connect', () => {
       ).rejects.toThrow('workspace must be "." when provided')
     })
 
-    it('mounts the terminal extension and reports no-terminal-mode for a tty-less harness', async () => {
-      const rpc = makeExtRpcClient<TerminalRouter>(
-        `http://127.0.0.1:${shared.port}/t/11111111-1111-4111-8111-111111111111`,
-        'terminal',
-      )
-      const sessionId = `conciv_${randomUUID()}`
-      expect(await rpc.state({sessionId})).toEqual({alive: false, busy: false})
-      await expect(rpc.open({sessionId})).rejects.toMatchObject({
+    it('reports no terminal for a tty-less harness', async () => {
+      const rpc = makeRpcClient(`http://127.0.0.1:${shared.port}/t/11111111-1111-4111-8111-111111111111`)
+      const {sessionId} = await rpc.sessions.create(undefined)
+      expect((await rpc.meta.models({sessionId})).harness.persistentPty).toBe(false)
+      await expect(rpc.experimental.persistentPty.create({sessionId})).rejects.toMatchObject({
         code: 'NO_TTY',
-        message: 'harness has no terminal mode',
+        message: "the session's harness has no terminal command",
       })
     })
 
@@ -147,14 +141,14 @@ describe('connect', () => {
         origin: 'http://127.0.0.1:1',
       })
       engines.push(engine)
-      const rpc = makeExtRpcClient<TerminalRouter>(
-        `http://127.0.0.1:${engine.port}/t/33333333-3333-4333-8333-333333333333`,
-        'terminal',
-      )
-      const sessionId = `conciv_${randomUUID()}`
-      expect(await rpc.open({sessionId})).toEqual({alive: true})
+      const rpc = makeRpcClient(`http://127.0.0.1:${engine.port}/t/33333333-3333-4333-8333-333333333333`)
+      const {sessionId} = await rpc.sessions.create(undefined)
+      expect((await rpc.meta.models({sessionId})).harness.persistentPty).toBe(true)
+      const created = await rpc.experimental.persistentPty.create({sessionId})
+      expect(created).toMatchObject({id: expect.stringMatching(/^pty_/), sessionId, busy: false})
       expect(captured[0]?.cwd).toBe(engine.cfg.stateRoot)
-      expect((await rpc.state({sessionId})).alive).toBe(true)
+      expect((await rpc.experimental.persistentPty.create({sessionId})).id).toBe(created.id)
+      expect(captured).toHaveLength(1)
     })
 
     it.skipIf(process.env.CI || !harnessAvailable(claude))(
@@ -162,13 +156,11 @@ describe('connect', () => {
       async () => {
         const engine = await runConnect({token: '44444444-4444-4444-8444-444444444444', origin: 'http://127.0.0.1:1'})
         engines.push(engine)
-        const rpc = makeExtRpcClient<TerminalRouter>(
-          `http://127.0.0.1:${engine.port}/t/44444444-4444-4444-8444-444444444444`,
-          'terminal',
-        )
-        const sessionId = `conciv_${randomUUID()}`
-        expect(await rpc.open({sessionId})).toEqual({alive: true})
-        expect((await rpc.state({sessionId})).alive).toBe(true)
+        const rpc = makeRpcClient(`http://127.0.0.1:${engine.port}/t/44444444-4444-4444-8444-444444444444`)
+        const {sessionId} = await rpc.sessions.create(undefined)
+        const created = await rpc.experimental.persistentPty.create({sessionId})
+        expect(created).toMatchObject({id: expect.stringMatching(/^pty_/), sessionId})
+        expect((await rpc.experimental.persistentPty.create({sessionId})).id).toBe(created.id)
       },
       30_000,
     )

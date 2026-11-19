@@ -10,6 +10,8 @@ type CardChromeValue = {
   headerChannel: () => EmbeddedHeaderChannel | undefined
   rowLine: () => string
   duration: Accessor<number | undefined>
+  callId: Accessor<string | undefined>
+  tag: Accessor<string | undefined>
 }
 
 const defaultValue: CardChromeValue = {
@@ -17,6 +19,8 @@ const defaultValue: CardChromeValue = {
   headerChannel: () => undefined,
   rowLine: () => '',
   duration: () => undefined,
+  callId: () => undefined,
+  tag: () => undefined,
 }
 
 const CardChromeContext = createContext<CardChromeValue>(defaultValue)
@@ -33,12 +37,24 @@ export function CardChromeProvider(props: {
     headerChannel: () => props.headerChannel,
     rowLine: () => props.rowLine?.() ?? '',
     duration: () => props.duration?.(),
+    callId: () => undefined,
+    tag: () => undefined,
   }
   return <CardChromeContext.Provider value={value}>{props.children}</CardChromeContext.Provider>
 }
 
-export function ToolDurationProvider(props: {value: Accessor<number | undefined>; children: JSX.Element}): JSX.Element {
-  const value: CardChromeValue = {...useCardChromeValue(), duration: () => props.value()}
+export function ToolPartProvider(props: {
+  callId?: string
+  tag?: string
+  duration: Accessor<number | undefined>
+  children: JSX.Element
+}): JSX.Element {
+  const value: CardChromeValue = {
+    ...useCardChromeValue(),
+    duration: () => props.duration(),
+    callId: () => props.callId,
+    tag: () => props.tag,
+  }
   return <CardChromeContext.Provider value={value}>{props.children}</CardChromeContext.Provider>
 }
 
@@ -65,6 +81,14 @@ export function useEmbeddedRowLine(): () => string {
 
 export function useToolCallDuration(): Accessor<number | undefined> {
   return useCardChromeValue().duration
+}
+
+export function useToolCallId(): Accessor<string | undefined> {
+  return useCardChromeValue().callId
+}
+
+export function useToolCallTag(): Accessor<string | undefined> {
+  return useCardChromeValue().tag
 }
 
 export function publishCardHeader(read: () => EmbeddedCardHeader): void {
