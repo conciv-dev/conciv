@@ -955,7 +955,7 @@ describe('the comments of the whiteboard plugin', () => {
     }
   }, 120_000)
 
-  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
+  test('the thread beside a pin hides the chat while open, takes a reply with an @mention of a participant the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -994,12 +994,27 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(chat).toBeHidden()
 
       const replied = observer.mark()
-      await reply.pressSequentially('moving it left')
+      await reply.pressSequentially('moving it left @A')
+      const mentionOption = page.getByRole('option', {name: 'AI'})
+      await expect(mentionOption).toBeVisible()
+      await page.keyboard.press('Enter')
+      await expect(mentionOption).toBeHidden()
+      await expect(reply.getByText('@AI')).toBeVisible()
       await page.keyboard.press('Enter')
       await expect(thread.getByText('moving it left')).toBeVisible()
+      await expect(thread.getByText('@AI')).toBeVisible()
+      await expect(reply).toHaveText('')
       await observer.completed(whiteboardCall('comments.insert', replied))
       const read = ThreadRead.parse(await widget.kit.callTool('whiteboard_comment_read', {cid: 'older'}))
-      expect(read.replies).toMatchObject([{parts: [{type: 'text', text: 'moving it left'}]}])
+      expect(read.replies).toMatchObject([
+        {
+          parts: [
+            {type: 'text', text: 'moving it left '},
+            {type: 'mention', id: 'ai:AI', label: 'AI'},
+            {type: 'text', text: ' '},
+          ],
+        },
+      ])
 
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()

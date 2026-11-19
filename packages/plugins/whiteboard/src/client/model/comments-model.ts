@@ -1,7 +1,8 @@
 import {createMemo, type Accessor} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useLiveQuery} from '@tanstack/solid-db'
-import {maxBy, uniq} from 'es-toolkit'
+import {maxBy, uniq, uniqBy} from 'es-toolkit'
+import type {MentionItem, MentionSegment} from '@conciv/ui-kit-tap'
 import {screenToScene, type Viewport} from '../../canvas/coords.js'
 import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
 import {useWhiteboardDb} from '../db.js'
@@ -83,6 +84,16 @@ export function createCommentsModel(room: Accessor<string>) {
     comment.authorKind === 'ai' ? aiLabel(comment) : humanLabel(comment)
   const ownedBySelf = (comment: CommentRow): boolean =>
     comment.authorKind === 'human' && comment.authorId != null && comment.authorId === accountId()
+  const participant = (comment: CommentRow): MentionItem | null => {
+    if (comment.authorKind === 'ai') return {id: `ai:${aiLabel(comment)}`, label: aiLabel(comment)}
+    return comment.authorId ? {id: comment.authorId, label: humanLabel(comment)} : null
+  }
+  const participants = createMemo(() =>
+    uniqBy(
+      [{id: accountId(), label: 'You'}, ...comments().flatMap((comment) => participant(comment) ?? [])],
+      (item) => item.id,
+    ),
+  )
 
   const readAt = (threadId: string): number | undefined =>
     reads().find((row) => row.threadId === threadId && row.accountId === accountId())?.lastReadAt
@@ -133,9 +144,9 @@ export function createCommentsModel(room: Accessor<string>) {
   const openRoot = (): CommentRow | undefined => (state.openCid === null ? undefined : findRoot(state.openCid))
   const threadOpen = createMemo(() => openRoot() !== undefined)
 
-  const reply = (text: string): void => {
+  const reply = (segments: MentionSegment[]): void => {
     const parent = openRoot()
-    if (parent) insertReply(db, {room: room(), accountId: accountId(), parent, text})
+    if (parent && segments.length > 0) insertReply(db, {room: room(), accountId: accountId(), parent, parts: segments})
   }
   const resolve = (): void => {
     const parent = openRoot()
@@ -174,6 +185,7 @@ export function createCommentsModel(room: Accessor<string>) {
     openRoot,
     threadOpen,
     stepThread,
+    participants,
     reply,
     resolve,
     deleteThread,

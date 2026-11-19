@@ -2,6 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
+import {MentionField, type MentionFieldApi, type MentionItem} from '@conciv/ui-kit-tap'
 import type {CommentRow} from '../../shared/rows.js'
 import {useComments} from '../model/comments.js'
 
@@ -128,36 +129,39 @@ function ThreadHeader(props: {root: CommentRow}): JSX.Element {
   )
 }
 
-function ThreadReply(): JSX.Element {
+function ThreadReply(props: {onReady: (field: HTMLElement) => void}): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
-  const [draft, setDraft] = createStore({text: ''})
-  const send = (): void => {
-    const text = draft.text.trim()
-    if (!text) return
-    model.reply(text)
-    setDraft('text', '')
-  }
+  const [field, setField] = createStore<{empty: boolean; api: MentionFieldApi | undefined}>({
+    empty: true,
+    api: undefined,
+  })
+  const mentionable = (query: string): MentionItem[] =>
+    model.participants().filter((item) => item.label.toLowerCase().includes(query.toLowerCase()))
   return (
-    <div class="pt-2 border-t border-chat-line-soft flex gap-2 items-center">
+    <div class="pt-2 border-t border-chat-line-soft flex gap-2 items-end">
       <ui.Avatar name="You" />
-      <ui.TextInput
-        class="flex-1"
-        label="Reply"
-        placeholder="Reply"
-        autofocus
-        value={draft.text}
-        onInput={(value) => setDraft('text', value)}
-        onSubmit={send}
-      />
+      <div class="flex-1 min-w-0">
+        <MentionField
+          ariaLabel="Reply"
+          placeholder="Reply, @mention someone…"
+          items={mentionable}
+          onSubmit={model.reply}
+          onReady={(api) => {
+            setField('api', api)
+            props.onReady(api.element)
+          }}
+          onEmptyChange={(empty) => setField('empty', empty)}
+        />
+      </div>
       <ui.Tooltip value="Send reply">
-        <ui.IconButton icon="arrow-up" label="Send reply" disabled={!draft.text.trim()} onClick={send} />
+        <ui.IconButton icon="arrow-up" label="Send reply" disabled={field.empty} onClick={() => field.api?.submit()} />
       </ui.Tooltip>
     </div>
   )
 }
 
-function ThreadContent(): JSX.Element {
+function ThreadContent(props: {onReplyReady: (field: HTMLElement) => void}): JSX.Element {
   const model = useComments()
   return (
     <Show when={model.openRoot()}>
@@ -168,7 +172,7 @@ function ThreadContent(): JSX.Element {
             <For each={model.collectThread(root().cid)}>{(comment) => <CommentEntry comment={comment} />}</For>
           </div>
           <Show when={root().cid} keyed>
-            <ThreadReply />
+            <ThreadReply onReady={props.onReplyReady} />
           </Show>
         </div>
       )}
@@ -179,15 +183,17 @@ function ThreadContent(): JSX.Element {
 export function ThreadPopover(props: {visible: boolean}): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
+  const [reply, setReply] = createStore<{field: HTMLElement | undefined}>({field: undefined})
   return (
     <ui.Popover
       anchor={model.openPinButton}
+      initialFocus={() => reply.field}
       open={props.visible && model.openRoot() !== undefined}
       onOpenChange={(open) => open || model.closeThread()}
       label="Comment thread"
     >
       <div class="flex flex-col max-h-120 w-85 pointer-events-auto">
-        <ThreadContent />
+        <ThreadContent onReplyReady={(field) => setReply('field', field)} />
       </div>
     </ui.Popover>
   )

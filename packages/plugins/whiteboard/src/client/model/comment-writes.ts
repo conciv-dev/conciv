@@ -1,3 +1,4 @@
+import type {MentionSegment} from '@conciv/ui-kit-tap'
 import type {CommentRow, PinRow, ReadRow} from '../../shared/rows.js'
 import type {WhiteboardDb} from '../db.js'
 
@@ -18,9 +19,14 @@ export function markThreadRead(
   })
 }
 
+function storedPart(segment: MentionSegment): Record<string, string> {
+  if (segment.type === 'mention') return {type: 'mention', id: segment.id, label: segment.label}
+  return {type: 'text', text: segment.text}
+}
+
 export function insertReply(
   db: WhiteboardDb,
-  input: {room: string; accountId: string; parent: CommentRow; text: string},
+  input: {room: string; accountId: string; parent: CommentRow; parts: readonly MentionSegment[]},
 ): void {
   const now = Date.now()
   db.comments.insert({
@@ -29,7 +35,7 @@ export function insertReply(
     cid: crypto.randomUUID(),
     threadId: input.parent.threadId,
     parentId: input.parent.cid,
-    parts: [{type: 'text', text: input.text}],
+    parts: input.parts.map(storedPart),
     authorKind: 'human',
     authorModel: null,
     authorId: input.accountId,
