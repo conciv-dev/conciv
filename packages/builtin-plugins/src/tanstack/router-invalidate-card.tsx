@@ -1,13 +1,9 @@
 import {type JSX} from 'solid-js'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {InspectionCard, actionCardBody, resultOk} from './card-shared.js'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {InspectionCard} from './card-shared.js'
 
-function RouterInvalidateCard(props: ToolCardProps): JSX.Element {
-  const summary = () => (resultOk(props.result) ? 'invalidated' : '')
-  return <InspectionCard {...props} summary={summary()} />
+function RouterInvalidateCard(props: ToolProps): JSX.Element {
+  return <InspectionCard {...props} summary="" />
 }
 
-export const routerInvalidateCard: ToolCardView = {
-  render: RouterInvalidateCard,
-  hasEmbeddedBody: actionCardBody,
-}
+export const routerInvalidateCard: ToolComponent = RouterInvalidateCard

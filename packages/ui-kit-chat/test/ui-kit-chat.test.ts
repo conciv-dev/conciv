@@ -213,7 +213,7 @@ describe('attachment adapter', () => {
       })
       const complete = await adapter.send(pending)
       expect(complete.status).toEqual({type: 'complete'})
-      expect(complete.content).toEqual([{type: 'text', content: 'Attachment recording.txt:\nline one\nline two'}])
+      expect(complete.content).toEqual([{type: 'text', content: '\n\nAttachment recording.txt:\nline one\nline two'}])
     })
 
     it('composes adapters and routes add/send/remove to the adapter matching the file type', async () => {
@@ -224,7 +224,7 @@ describe('attachment adapter', () => {
       if (Symbol.asyncIterator in textPending) throw new Error('Expected a promise attachment')
       expect(textPending.type).toBe('document')
       const textComplete = await composed.send(textPending)
-      expect(textComplete.content).toEqual([{type: 'text', content: 'Attachment notes.txt:\nhi'}])
+      expect(textComplete.content).toEqual([{type: 'text', content: '\n\nAttachment notes.txt:\nhi'}])
 
       const imagePending = await composed.add({file: new File([new Uint8Array([1])], 'dot.png', {type: 'image/png'})})
       if (Symbol.asyncIterator in imagePending) throw new Error('Expected a promise attachment')

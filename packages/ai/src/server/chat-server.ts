@@ -31,6 +31,7 @@ import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
+  timedMessages,
   type ChatEvent,
   type RunLifecycle,
   type RunPhase,
@@ -273,6 +274,18 @@ function isSubagentChunk(chunk: ChatEvent): boolean {
   return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
 }
 
+function timedProcessor(): StreamProcessor {
+  const processor: StreamProcessor = new StreamProcessor({
+    events: {
+      onCustomEvent: (name, value) => {
+        const timed = timedMessages(processor.getMessages(), name, value)
+        if (timed !== null) processor.setMessages(timed)
+      },
+    },
+  })
+  return processor
+}
+
 function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
   if (isSubagentChunk(chunk) || chunk.type === EventType.MESSAGES_SNAPSHOT) return
   processor.processChunk(chunk)
@@ -463,7 +476,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       provider: [],
       system: [],
     }
-    const shown = new StreamProcessor({})
+    const shown = timedProcessor()
     const settle = async (): Promise<void> => {
       try {
         const lifecycle = await recordLifecycle(turn.runId)
@@ -730,7 +743,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
     },
     record: async (threadId, chunks) => {
-      const processor = new StreamProcessor({})
+      const processor = timedProcessor()
       for (const chunk of chunks) followRun(processor, chunk)
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))

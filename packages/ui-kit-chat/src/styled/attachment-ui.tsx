@@ -57,7 +57,7 @@ function refusalReason(attachment: AttachmentState): string | undefined {
   return attachment.status.message || `${attachment.name} could not be attached`
 }
 
-export function AttachmentUI(props: {removable?: boolean; failure?: string}): JSX.Element {
+export function AttachmentUI(props: {onRemove?: (id: string) => void; failure?: string}): JSX.Element {
   const draft = useAttachment()
   const localSrc = localImageSrc(draft)
   const previewSrc = imageSrc(draft) ?? localSrc
@@ -94,14 +94,16 @@ export function AttachmentUI(props: {removable?: boolean; failure?: string}): JS
             />
           )}
         </Show>
-        <Show when={props.removable}>
-          <TooltipIconButtonSlot tooltip={`Remove ${draft.name}`} wrapperClass={REMOVE_WRAPPER}>
-            {(buttonProps) => (
-              <Attachment.Remove {...buttonProps()} class={REMOVE}>
-                <X size={12} />
-              </Attachment.Remove>
-            )}
-          </TooltipIconButtonSlot>
+        <Show when={props.onRemove}>
+          {(onRemove) => (
+            <TooltipIconButtonSlot tooltip={`Remove ${draft.name}`} wrapperClass={REMOVE_WRAPPER}>
+              {(buttonProps) => (
+                <button type="button" {...buttonProps()} class={REMOVE} onClick={() => onRemove()(draft.id)}>
+                  <X size={12} />
+                </button>
+              )}
+            </TooltipIconButtonSlot>
+          )}
         </Show>
       </Attachment.Root>
       <Tooltip.Positioner>
