@@ -86,7 +86,7 @@ function typedParts(content: QueuedMessage['content']): ContentPart[] {
 
 function withoutAppendedSentences(parts: ContentPart[], sentences: string): ContentPart[] {
   const appended = parts.at(-1)
-  if (appended?.type !== 'text' || appended.content !== sentences) return parts
+  if (appended?.type !== 'text' || appended.content.trimStart() !== sentences) return parts
   return parts.slice(0, -1)
 }
 

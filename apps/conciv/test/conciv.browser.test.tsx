@@ -10702,6 +10702,16 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('{Enter}')
     await expect.element(fileShown('the lone file body')).toBeVisible()
     await expect.element(sentence()).not.toBeInTheDocument()
+    await expect
+      .poll(async () =>
+        (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user').at(-1),
+      )
+      .toMatchObject({
+        parts: [
+          {type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body\nThe user /)},
+        ],
+        metadata: {comments: {length: 6}},
+      })
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
@@ -11211,15 +11221,16 @@ module.exports = {default: {setup(ctx) {
     const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
     const STORE_READS = 2
     const STORE_READ = ['settings', 'all']
+    const PLUGIN_STORES = {scope: 'project', namespace: 'plugins'}
     const SERVER_ERROR = 500
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const note = (text: string) => page.getByText(`Stored note: ${text}`, {exact: true})
     const visits = (text: string) => page.getByText(`Visits: ${text}`, {exact: true})
 
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ, input: PLUGIN_STORES})
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
-    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
     await tab('Fixture tools').click()
     await coreControl.awaitFaultPending(reads, STORE_READS)
     await expect.element(note('loading')).toBeVisible()
