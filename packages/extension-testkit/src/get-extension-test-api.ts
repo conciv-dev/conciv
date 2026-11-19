@@ -37,7 +37,6 @@ export type ExtensionTestApi = {
   discoverTools: DiscoverTools
   session: string
   apiBase: string
-  serverContext: unknown
 
   secondClient: () => Promise<SecondClient>
   dispose: () => Promise<void>
@@ -48,7 +47,7 @@ export {fixtureHost} from './fixture-host.js'
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
   const engine = await bootExtensionServer(extension.server, {harness: extension.harness})
-  const {apiBase, extensionContexts, stop} = engine
+  const {apiBase, stop} = engine
   const teardown: TeardownStep[] = [{name: 'stop', run: () => stop()}]
   const dispose = () => settleTeardown(teardown)
   try {
@@ -66,7 +65,6 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       discoverTools: makeDiscoverTools(apiBase, session),
       session,
       apiBase,
-      serverContext: extensionContexts[extension.server.name],
       secondClient: async () => {
         const second = await openObservedPage(context, origin)
         return {page: second, close: () => second.close()}

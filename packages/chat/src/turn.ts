@@ -9,9 +9,13 @@ import {
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {PromptPresentationSchema, type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
+import {
+  PromptPresentationSchema,
+  type AttachmentDocumentPart,
+  type ContentPart,
+  type ModelMessage,
+} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
-import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isEqual, once} from 'es-toolkit'
 import {

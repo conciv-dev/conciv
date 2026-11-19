@@ -944,12 +944,12 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension-recorder':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/recorder
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-recorder':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/recorder
       '@conciv/plugin-tanstack':
         specifier: workspace:*
         version: link:../../../packages/plugins/tanstack
@@ -2471,9 +2471,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -2745,9 +2742,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -4182,9 +4176,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab

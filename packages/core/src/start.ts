@@ -6,7 +6,6 @@ import {z} from 'zod'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
-import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 
@@ -40,8 +39,6 @@ export type StartOpts = {
   onShutdown?: () => void
   print?: (text: string) => void
 
-  extensions?: AnyExtension[]
-  extensionConfig?: Record<string, unknown>
   harness?: HarnessAdapter
   plugins?: readonly Plugin.Plugin[]
   nativePageDir?: string
@@ -55,7 +52,6 @@ export type Engine = {
   trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
-  extensionContexts: Record<string, unknown>
 }
 
 type Served = Awaited<ReturnType<typeof serveHono>>
@@ -162,17 +158,6 @@ function registerForOutsideAgents(home: string, row: EngineRow): () => void {
   }
 }
 
-export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<string, unknown>}
-
-export function composeSystemPrompt(
-  base: string | undefined,
-  extensions: readonly AnyExtension[],
-  opts: ComposePromptOpts,
-): string {
-  const prompts = extensions.map((extension) => extension.systemPrompt?.(opts.extensions?.[extension.name], opts))
-  return [base, ...prompts].filter(Boolean).join('\n\n')
-}
-
 export async function start(opts: StartOpts): Promise<Engine> {
   assertAccessToken(opts.accessToken)
   const cfg = resolveConfig(opts.options, opts.root)
@@ -180,10 +165,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const paths = statePaths(cfg.stateRoot)
   createConcivStateDir(paths.dir)
 
-  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [], {
-    cwd: opts.root,
-    extensions: opts.extensionConfig,
-  })
+  const systemPrompt = cfg.systemPrompt
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
@@ -203,10 +185,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     if (portRef.port === 0) return undefined
     return `http://127.0.0.1:${portRef.port}${agentPath(agentToken)}`
   }
-  const nativeUrl = (): string | undefined => {
-    if (!opts.nativePageDir) return undefined
-    return tokenScopedBase()
-  }
 
   const home = concivHome({homeDir: opts.homeDir, env: process.env})
   const appOpts: MakeAppOpts = {
@@ -221,14 +199,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
-    extensions: opts.extensions,
-    extensionConfig: opts.extensionConfig,
     harness: opts.harness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
-    nativeUrl,
     tokenScopedBase,
     plugins: opts.plugins,
   }
@@ -248,7 +223,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     throw error
   })
   madeApp.resolve(made)
-  const {dispose, extensionContexts, trustBrowser, awaitActivation} = made
+  const {dispose, trustBrowser, awaitActivation} = made
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
@@ -292,7 +267,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     port,
     agentToken,
     cfg,
-    extensionContexts,
     trustBrowser,
     stop: async () => {
       clearEndpoint()

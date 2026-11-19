@@ -7,14 +7,7 @@ import fsDriver from 'unstorage/drivers/fs'
 import {debounce} from 'devframe/utils/debounce'
 import {createSharedState} from 'devframe/utils/shared-state'
 import {z} from 'zod'
-import {
-  SettingsNamespaceSchema,
-  createSettingsStore,
-  type SettingsScope,
-  type SettingsSnapshot,
-  type SettingsState,
-} from '@conciv/contract'
-import type {ExtensionScope, SettingsForNamespace} from '@conciv/extension'
+import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot, type SettingsState} from '@conciv/contract'
 
 const WRITE_DEBOUNCE_MS = 100
 
@@ -60,13 +53,6 @@ export function createSettingsStorage(storages: SettingsStorages) {
   }
   return {
     file,
-    scope: <Namespace extends string>(namespace: Namespace): ExtensionScope<Namespace> => ({
-      namespace,
-      settings: {
-        global: createSettingsStore<SettingsForNamespace<Namespace>>(() => file('global', namespace)),
-        project: createSettingsStore<SettingsForNamespace<Namespace>>(() => file('project', namespace)),
-      },
-    }),
     close: async (): Promise<void> => {
       await Promise.all([...files.values()].map(async (opened) => (await opened).flush()))
     },

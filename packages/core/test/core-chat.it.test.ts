@@ -1,8 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {realpathSync, rmSync} from 'node:fs'
 import {describe, it, afterEach, afterAll, beforeAll, expect} from 'vitest'
-import {defineExtension, defineTool} from '@conciv/extension'
-import {toolError} from '@conciv/protocol/tool-call-types'
+import {Plugin} from '@conciv/plugin'
 import {
   harnessAvailable,
   createTestHarness,
@@ -83,16 +82,26 @@ describe('opencode tanstack', () => {
   })
 })
 
-describe('extension tool call id', () => {
-  const echoCallId = defineTool({
-    name: 'acme_echo_call_id',
-    description: 'Echo the tool call id the request carries',
-    inputSchema: z.object({}),
-    outputSchema: z.object({toolCallId: z.string()}),
-    meta: {summary: 'echo the request tool call id', category: 'fixture', mutating: false},
-  }).server((_input, _ctx, request) => ({toolCallId: request.toolCallId ?? 'none'}))
+function acmePlugin(tools: readonly Parameters<Plugin.Context['tool']['transform']>[0][]) {
+  return Plugin.define({
+    id: 'acme',
+    async setup(ctx) {
+      for (const transform of tools) await ctx.tool.transform(transform)
+    },
+  })
+}
 
-  const acme = defineExtension({name: 'acme', tools: [echoCallId]})
+describe('plugin tool call id', () => {
+  const acme = acmePlugin([
+    (tools) =>
+      tools.add({
+        name: 'acme_echo_call_id',
+        description: 'Echo the tool call id the request carries',
+        input: z.object({}),
+        output: z.object({toolCallId: z.string()}),
+        execute: async (_input, context) => ({output: {toolCallId: context.id}}),
+      }),
+  ])
 
   const EchoResultSchema = z.object({toolCallId: z.string()})
 
@@ -101,10 +110,10 @@ describe('extension tool call id', () => {
     for (const cleanup of cleanups.splice(0)) await cleanup()
   })
 
-  describe('an extension tool run from a chat turn knows which tool call it is answering', () => {
+  describe('a plugin tool run from a chat turn knows which tool call it is answering', () => {
     it('hands the tool the same call id the turn put on the wire', async () => {
       const harness = createTestHarness(requireClaude())
-      const kit = await bootKit({extensions: [acme]}, harness)
+      const kit = await bootKit({plugins: [acme]}, harness)
       cleanups.push(() => kit.cleanup())
       const sessionId = await kit.session()
       harness.script.scriptToolCall('execute_typescript', {
@@ -130,28 +139,24 @@ describe('extension tool call id', () => {
   })
 })
 
-describe('registry extension tools', () => {
-  const lens = defineTool({
-    name: 'acme_lens',
-    description: 'Inspect the acme lens assembly.',
-    inputSchema: z.object({zoom: z.number().int().min(1)}),
-    outputSchema: z.object({zoom: z.number(), focused: z.boolean()}),
-    errors: {LENS_JAMMED: {message: 'the lens is jammed'}},
-    meta: {summary: 'inspect the lens assembly', category: 'acme', mutating: false},
-  }).server((input) => {
-    if (input.zoom > 3) throw toolError('LENS_JAMMED', {message: 'the lens is jammed'})
-    return {zoom: input.zoom, focused: true}
-  })
-
-  const acme = defineExtension({name: 'acme', tools: [lens]})
-
-  const halfDeclared = defineTool({
-    name: 'acme_dial',
-    description: 'Turn the acme dial without declaring meta or an output schema.',
-    inputSchema: z.object({turns: z.number().int()}),
-  }).server((input) => ({turns: input.turns}))
-
-  const legacy = defineExtension({name: 'legacy-acme', tools: [halfDeclared]})
+describe('registry plugin tools', () => {
+  const acme = acmePlugin([
+    (tools) =>
+      tools.add({
+        name: 'acme_lens',
+        description: 'Inspect the lens assembly.',
+        input: z.object({zoom: z.number().int().min(1)}),
+        output: z.object({zoom: z.number(), focused: z.boolean()}),
+        execute: async ({zoom}) => ({output: {zoom, focused: true}}),
+      }),
+    (tools) =>
+      tools.add({
+        name: 'acme dial',
+        description: 'A tool whose name the host refuses.',
+        input: z.object({turns: z.number().int()}),
+        execute: async ({turns}) => ({output: {turns}}),
+      }),
+  ])
 
   async function discover(kit: Kit, name: string): Promise<unknown> {
     const client = await connectMcpClient(`${kit.base}/api/mcp`, {[CONCIV_SESSION_HEADER]: await kit.session()})
@@ -169,11 +174,11 @@ describe('registry extension tools', () => {
     return makeRunTypescript(kit.base, session)(typescriptCode)
   }
 
-  describe('registry-declared extension tools ride the tool registry into the sandbox', () => {
+  describe('plugin tools ride the tool service into the sandbox', () => {
     const shared: {kit: Kit | undefined} = {kit: undefined}
 
     beforeAll(async () => {
-      shared.kit = await bootKit({extensions: [acme]})
+      shared.kit = await bootKit({plugins: [acme]})
     })
 
     afterAll(async () => {
@@ -187,7 +192,7 @@ describe('registry extension tools', () => {
 
     it('appears in discover_tools with its declared summary and input', async () => {
       const found = JSON.stringify(await discover(kit(), 'acme_lens'))
-      expect(found).toContain('inspect the lens assembly')
+      expect(found).toContain('Inspect the lens assembly.')
       expect(found).toContain('zoom')
     })
 
@@ -200,8 +205,10 @@ describe('registry extension tools', () => {
       expect(z.string().parse(failed).toLowerCase()).toMatch(/input|invalid|zoom/)
     })
 
-    it('refuses to boot a tool declared without meta and an output schema instead of forwarding it', async () => {
-      await expect(bootKit({extensions: [acme, legacy]})).rejects.toThrow(/acme_dial/)
+    it('leaves out a tool whose name the host refuses while the rest of the plugin stays offered', async () => {
+      const catalog = (await kit().rpc.registry.catalog(undefined)).map((signature) => signature.name)
+      expect(catalog).toContain('acme_lens')
+      expect(catalog).not.toContain('acme dial')
     })
   })
 })
@@ -306,15 +313,16 @@ describe('api mcp claude image', () => {
 })
 
 describe('api mcp claude session header', () => {
-  const echo = defineTool({
-    name: 'acme_echo_session',
-    description: 'Echo the request session back',
-    inputSchema: z.object({}),
-    outputSchema: z.object({sessionId: z.string().nullable()}),
-    meta: {summary: 'echo the request session back', category: 'fixture', mutating: false},
-  }).server((_input, _ctx, request) => ({sessionId: request.sessionId}))
-
-  const acme = defineExtension({name: 'acme', tools: [echo]})
+  const acme = acmePlugin([
+    (tools) =>
+      tools.add({
+        name: 'acme_echo_session',
+        description: 'Echo the request session back',
+        input: z.object({}),
+        output: z.object({sessionId: z.string()}),
+        execute: async (_input, context) => ({output: {sessionId: context.sessionId}}),
+      }),
+  ])
 
   async function echoedSession(base: string, headers: Record<string, string>): Promise<string> {
     const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
@@ -334,7 +342,7 @@ describe('api mcp claude session header', () => {
 
   describe('/api/mcp resolves the calling claude session', () => {
     it('keeps honouring the conciv session header the owned and tty paths send', async () => {
-      const kit = await bootKit({extensions: [acme]})
+      const kit = await bootKit({plugins: [acme]})
       try {
         expect(await echoedSession(kit.base, {[CONCIV_SESSION_HEADER]: 'conciv_x'})).toBe('conciv_x')
       } finally {
