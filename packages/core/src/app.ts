@@ -61,7 +61,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
+import {differenceBy, intersectionBy, isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
@@ -734,9 +734,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
     ])
 
-  const toolList: ChatTool[] = mounted.flatMap((entry) =>
+  const extensionTools: ChatTool[] = mounted.flatMap((entry) =>
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
   )
+  const offeredCapabilities = (sessionId: SessionId): CodeCapability[] => [
+    ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
+    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+  ]
+  const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {
+    const offered = offeredCapabilities(sessionId)
+    const given = await withPluginTools(sessionId, offered)
+    const added = differenceBy(given, offered, (capability) => capability.name)
+    return [
+      ...intersectionBy(extensionTools, given, (tool) => tool.name),
+      ...added.map(({name, description}) => ({name, description})),
+    ]
+  }
+  const sessionToolNames = async (sessionId: SessionId): Promise<ReadonlySet<string>> =>
+    new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
 
   const hub = createHubInstaller(opts.home)
   const driver = loadIsolateDriver(logError)
@@ -758,7 +773,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
-    toolNames: new Set([...toolList.map((tool) => tool.name), ...concivSandboxToolNames()]),
+    toolNames: sessionToolNames,
     capabilities: codeModeCapabilities,
     attachmentExpanders,
     prompt: plugins.prompt,
@@ -853,12 +868,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
     driving: (sessionId) => plane.driving(sessionId),
     outsideCapabilities: async (sessionId) =>
-      outsideRunCapabilities(
-        await withPluginTools(sessionId, [
-          ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
-          ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-        ]),
-      ),
+      outsideRunCapabilities(await withPluginTools(sessionId, offeredCapabilities(sessionId))),
     resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
     admitOutside,
     hubRefusal: hub.refusal,
@@ -891,7 +901,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     chat: chatDeps,
     search,
     settings,
-    tools: toolList,
+    tools: sessionTools,
     openFromFrames: (frames) => openSourceFromFrames(frames, pagePlugin.symbolicate, opts.openInEditor),
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),

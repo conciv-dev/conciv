@@ -198,10 +198,25 @@ test.describe('embed boot', () => {
 
 test.describe('composer rich input', () => {
   const ASSISTANT_TEXT = 'Rich input reply'
+  const MENTION_PROBE_PLUGIN = `export default {
+  id: 'mention-probe',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'mention_probe',
+        description: 'Probes the mention list',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      })
+    })
+  },
+}
+`
 
   const suite = setupWidgetSuite({
     text: ASSISTANT_TEXT,
     extensions: [recorderServer],
+    files: {'conciv/plugins/mention-probe.ts': MENTION_PROBE_PLUGIN},
     commands: [
       {name: 'compact', description: 'Compact the conversation'},
       {name: 'config', description: 'Open configuration'},
@@ -252,10 +267,13 @@ test.describe('composer rich input', () => {
       await input.pressSequentially('@recording_start')
       await pickSuggestion(page, 'Tools', '@recording_start')
 
+      await input.pressSequentially('@mention_probe')
+      await pickSuggestion(page, 'Tools', '@mention_probe')
+
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @recording_start \nsecond line'
+      const expected = 'please run /config then @recording_start @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)
@@ -1541,7 +1559,7 @@ test.describe('page dispatch parity', () => {
     })
   })
 
-  test.describe('bootConnect: the connect handle serves page tools through the dispatcher', () => {
+  test.describe('servers mode: the connect handle serves page tools through the dispatcher', () => {
     let kit: EmbedKit
     let host: {base: string; close: () => Promise<void>}
     let page: Page

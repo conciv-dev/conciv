@@ -78,7 +78,7 @@ export type ChatContext = {
 
 export type RpcDeps = {
   chat: ChatContext
-  tools: ChatTool[]
+  tools: (sessionId: SessionId) => Promise<ChatTool[]>
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>

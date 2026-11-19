@@ -135,6 +135,7 @@ type HostInput = {
   apis: HostApiFactories
   whenMounted: (run: () => void) => () => void
   plugin?: (id: string) => PluginInput | undefined
+  options?: (id: string) => PluginOptions | undefined
   unavailableClient: () => ConcivClient
 }
 
@@ -566,7 +567,7 @@ function createHost(input: HostInput) {
 
     const context = {
       id: plugin,
-      options: experimental?.options ?? {},
+      options: experimental?.options ?? input.options?.(plugin) ?? {},
       get client() {
         return experimental?.client() ?? input.unavailableClient()
       },

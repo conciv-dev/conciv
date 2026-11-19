@@ -94,7 +94,7 @@ const AnchorSchema = z.object({nativeId: z.string().nullable()}).nullable().catc
 export type TranscriptSource = {
   harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   stores: ChatStores
-  toolNames: ReadonlySet<string>
+  toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
   native: (sessionId: SessionId) => Promise<{nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null>
   log: (message: string) => void
 }
@@ -106,7 +106,6 @@ export type TranscriptImporter = {
 
 export function createTranscriptImporter(source: TranscriptSource): TranscriptImporter {
   const {stores} = source
-  const normalize = toolNameNormalizer(source.toolNames)
   const read = async (sessionId: SessionId): Promise<ChatMessage[] | null> => {
     const harness = await source.harnessFor(sessionId)
     const history = harness.history
@@ -135,6 +134,7 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       const anchor = await loadAnchor(sessionId)
       const anchored = anchor === null ? -1 : transcript.findIndex((message) => message.id === anchor.nativeId)
       const fresh = anchor !== null && anchored === -1 ? [] : transcript.slice(anchored + 1)
+      const normalize = toolNameNormalizer(await source.toolNames(sessionId))
       const stored = await stores.messages.loadThread(sessionId)
       const known = new Set(stored.flatMap((message) => ('id' in message && message.id ? [message.id] : [])))
       const harnessId = (await source.harnessFor(sessionId)).id

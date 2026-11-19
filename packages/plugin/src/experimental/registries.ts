@@ -219,7 +219,6 @@ export interface ServerEntry {
 
 export interface Server {
   readonly ready: boolean
-  /** @remarks Not implemented yet. Always undefined in this version. */
   readonly order?: number
   readonly entries: readonly ServerEntry[]
 }
