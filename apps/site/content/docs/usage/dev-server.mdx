@@ -17,10 +17,17 @@ The agent calls these as code-mode tools (`server_config`, `server_urls`, `serve
   type={{
     config: {type: 'no input', description: 'The resolved `root`, `base`, `mode`, `aliases` and `plugins`.'},
     urls: {type: 'no input', description: 'Where the dev server listens: `local` and `network` URLs.'},
-    resolve: {type: '{spec, importer?}', description: 'Where an import specifier resolves, as `{id}`. `id` is `null` when it does not resolve.'},
+    resolve: {
+      type: '{spec, importer?}',
+      description: 'Where an import specifier resolves, as `{id}`. `id` is `null` when it does not resolve.',
+    },
     graph: {type: '{file}', description: 'Each module of the file with its `url`, `importers` and `importedModules`.'},
     transform: {type: '{url}', description: 'The transformed code the dev server serves for a URL, as `{code}`.'},
-    open: {type: '{file, line?, column?}', description: 'Opens the file in your editor, at the line and column when given. `column` is used only with a `line`.'},
+    open: {
+      type: '{file, line?, column?}',
+      description:
+        'Opens the file in your editor, at the line and column when given. `column` is used only with a `line`.',
+    },
   }}
 />
 
@@ -40,9 +47,9 @@ agent calls it with `force: true` for a full restart.
 
 ## Errors
 
-| `type`                | Cause                                                                 |
-| --------------------- | --------------------------------------------------------------------- |
-| `BUNDLER_UNAVAILABLE` | No dev server is attached to conciv.                                  |
+| `type`                | Cause                                                                |
+| --------------------- | -------------------------------------------------------------------- |
+| `BUNDLER_UNAVAILABLE` | No dev server is attached to conciv.                                 |
 | `BUNDLER_FAILED`      | The dev server failed the request. `data.message` holds its message. |
 
 `config` and `urls` fail only with `BUNDLER_UNAVAILABLE`. `open` never fails this way: it needs no dev server.

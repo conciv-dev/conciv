@@ -49,11 +49,11 @@ The engine watches these folders and the configured plugin paths, and reloads a 
 
 ## Where conciv looks inside a plugin
 
-| Part         | In a package                                  | In a folder                                 |
-| ------------ | --------------------------------------------- | ------------------------------------------- |
-| Engine part  | the `./server` export, else the main export   | a `server` file, else an `index` file       |
-| RPC contract | the `./rpc` export                            | an `rpc` file                               |
-| Browser part | the `./plugin-experimental` export (a `.cjs`) | `plugin-experimental.cjs` or `.js`          |
+| Part         | In a package                                  | In a folder                           |
+| ------------ | --------------------------------------------- | ------------------------------------- |
+| Engine part  | the `./server` export, else the main export   | a `server` file, else an `index` file |
+| RPC contract | the `./rpc` export                            | an `rpc` file                         |
+| Browser part | the `./plugin-experimental` export (a `.cjs`) | `plugin-experimental.cjs` or `.js`    |
 
 A file in a folder can be `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.mjs`, `.cts` or `.cjs`. A folder whose
 `package.json` has a `name` and `exports` is read like a package.

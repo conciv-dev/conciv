@@ -12,7 +12,10 @@ conciv plugin call <rpcId> <method> [--data <json>]
 
 <TypeTable
   type={{
-    rpcId: {type: 'argument', description: 'The `id` of the plugin\'s RPC contract (`Rpc.define({id})`), for example `test-runner`.'},
+    rpcId: {
+      type: 'argument',
+      description: "The `id` of the plugin's RPC contract (`Rpc.define({id})`), for example `test-runner`.",
+    },
     method: {type: 'argument', description: 'The method name, for example `status`.'},
     '--data, -d': {type: 'JSON', description: "The method's input. Omit it to send no input."},
   }}
@@ -52,11 +55,11 @@ its `message` and its `data`:
 }
 ```
 
-| `type`                | Cause                                       |
-| --------------------- | ------------------------------------------- |
-| `rpc.unavailable`     | No plugin registered that `rpcId`.          |
-| `rpc.method_not_found`| The contract has no such method.            |
-| `rpc.invalid_input`   | `--data` does not match the method's input. |
+| `type`                 | Cause                                       |
+| ---------------------- | ------------------------------------------- |
+| `rpc.unavailable`      | No plugin registered that `rpcId`.          |
+| `rpc.method_not_found` | The contract has no such method.            |
+| `rpc.invalid_input`    | `--data` does not match the method's input. |
 
 `--data` that is not JSON is refused before anything is sent.
 
