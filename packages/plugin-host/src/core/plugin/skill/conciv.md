@@ -33,7 +33,7 @@ For installing conciv in an app, fetch the [Quick start](https://conciv.dev/docs
 `conciv init`, wires an app; the page also links the guide for each bundler:
 [Vite](https://conciv.dev/docs/quick-start/vite), [Next.js](https://conciv.dev/docs/quick-start/nextjs),
 [webpack](https://conciv.dev/docs/quick-start/webpack), [Rspack](https://conciv.dev/docs/quick-start/rspack),
-[Rollup and esbuild](https://conciv.dev/docs/quick-start/other-bundlers), and a native
+[Rollup](https://conciv.dev/docs/quick-start/rollup), [esbuild](https://conciv.dev/docs/quick-start/esbuild), and a native
 [iOS](https://conciv.dev/docs/quick-start/ios) app in the simulator. Fetch the page for the bundler in front of
 you; do not adapt one bundler's steps to another. Not every bundler is fully supported: the page says what works.
 
@@ -61,7 +61,7 @@ reads and drives the live page), [Dev server](https://conciv.dev/docs/usage/dev-
 server's config, module graph and served code), [Approvals](https://conciv.dev/docs/usage/approvals) and the
 [Quick terminal](https://conciv.dev/docs/usage/quick-terminal). Plugins you turn on:
 [Live tests](https://conciv.dev/docs/usage/live-tests) (the agent runs the project's tests),
-[Whiteboard](https://conciv.dev/docs/usage/whiteboard) and [TanStack](https://conciv.dev/docs/usage/tanstack).
+[Whiteboard](https://conciv.dev/docs/usage/whiteboard) and TanStack.
 
 ## [CLI](https://conciv.dev/docs/cli)
 
@@ -72,10 +72,8 @@ the [CLI guide](https://conciv.dev/docs/cli). For connecting a coding agent that
 ## [Plugins](https://conciv.dev/docs/plugins)
 
 A plugin adds tools, skills and RPC methods to the engine, and panels and buttons to the widget. conciv's own
-features are plugins too. Fetch [Plugins](https://conciv.dev/docs/plugins) for what a plugin is and where conciv
-finds them, [Your first plugin](https://conciv.dev/docs/plugins/your-first-plugin) to write one in the project,
-[Install a plugin](https://conciv.dev/docs/plugins/install) for the plugins list and the plugins conciv publishes,
-the [Engine SDK](https://conciv.dev/docs/plugins/engine) and the
+features are plugins too. Fetch [Plugins](https://conciv.dev/docs/plugins) for what a plugin is, where conciv
+finds them, how to add one from the config or write one in the project, the [Engine SDK](https://conciv.dev/docs/plugins/engine) and the
 [Browser SDK](https://conciv.dev/docs/plugins/browser) for what a plugin can do, and
 [Calling a plugin from the terminal](https://conciv.dev/docs/plugins/terminal) for `conciv plugin call`. Read the
 page before writing code: the documentation is the source of truth for the installed version.

@@ -59,7 +59,7 @@ ask onto every agent, so it runs after every project plugin that adds one. The s
 internal list; core cannot, because plugin-host would then import plugin-page, which imports the host's SDK.
 A tool call that arrives while its plugin restarts after a reload meets the restart window, as in opencode: work
 started after the reload waits for activation (opencode `core/src/session/prompt.ts:40`; conciv
-`core/src/runtime/plugin-runtime.ts:165`), a call already in flight does not.
+`core/src/runtime/plugin-runtime.ts` `Plugin.awaitActivation`), a call already in flight does not.
 
 The engine half's `sessions.attached` answers the session ids with at least one tab attached
 (`plugin-page/src/machine.ts` `selectAttachedSessions`, beside `selectTabs`); core's `tabs.list` walks it and reads each

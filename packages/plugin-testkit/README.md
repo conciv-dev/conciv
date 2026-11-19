@@ -8,13 +8,7 @@ Published test package that boots the real engine and widget with the fake model
 
 The testkit runs the real product path: the page under test uses the same transports and clients as the product (browser rpc over the partysocket `/rpc-ws` socket), and only the expensive externals, the LLM harness and the agent CLIs, are faked. Interception with `page.routeWebSocket` observes or faults calls on that socket but never swaps the transport. Details in [src/README.md](./src/README.md#product-path).
 
-## Interface
-
-- `exports` subpaths (`package.json`): ./connect-handshake, ./core-kit, ./host/grab, ./widget-suite, ./page-plane, ./listen-local, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./rpc-fault, ./rpc-socket, ./rpc-observer, ./chat-fault
-- `scripts` (`package.json`): build, typecheck, lint, test, publint, attw
-- `vitest.config.ts`: project 'plugin-testkit', node env, test/**/*.test.ts
-- Subdirectories:
-  - src: [./src/README.md](./src/README.md) - core kit, wire observers and fault injectors
+Source and helper behaviour: [src/README.md](./src/README.md).
 
 ## Invariants
 
