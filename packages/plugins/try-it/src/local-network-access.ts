@@ -1,4 +1,4 @@
-import {Data, Effect, Stream, SubscriptionRef} from 'effect'
+import {Effect, Schema, Stream, SubscriptionRef} from 'effect'
 
 declare global {
   interface Permissions {
@@ -8,7 +8,11 @@ declare global {
 
 export type LocalNetworkAccessState = 'unknown' | 'unsupported' | PermissionState
 
-const PermissionUnsupported = Data.TaggedError('TryItPermissionUnsupported')<{readonly cause: unknown}>
+const PermissionUnsupported = Schema.TaggedStruct('TryIt.PermissionUnsupported', {cause: Schema.Defect()})
+type PermissionUnsupported = typeof PermissionUnsupported.Type & globalThis.Error
+
+const makePermissionUnsupported = (fields: Omit<typeof PermissionUnsupported.Type, '_tag'>): PermissionUnsupported =>
+  Object.assign(new globalThis.Error(), PermissionUnsupported.make(fields), {name: 'TryIt.PermissionUnsupported'})
 
 const follow = (state: SubscriptionRef.SubscriptionRef<LocalNetworkAccessState>, status: PermissionStatus) =>
   SubscriptionRef.set(state, status.state).pipe(
@@ -23,10 +27,10 @@ export const localNetworkAccess = Effect.fn('try-it.localNetworkAccess')(functio
   const state = yield* SubscriptionRef.make<LocalNetworkAccessState>('unknown')
   yield* Effect.tryPromise({
     try: () => navigator.permissions.query({name: 'local-network-access'}),
-    catch: (cause) => new PermissionUnsupported({cause}),
+    catch: (cause) => makePermissionUnsupported({cause}),
   }).pipe(
     Effect.flatMap((status) => follow(state, status)),
-    Effect.catchTag('TryItPermissionUnsupported', () => SubscriptionRef.set(state, 'unsupported')),
+    Effect.catchTag('TryIt.PermissionUnsupported', () => SubscriptionRef.set(state, 'unsupported')),
     Effect.forkScoped,
   )
   return state

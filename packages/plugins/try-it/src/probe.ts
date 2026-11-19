@@ -1,9 +1,16 @@
-import {Context, Data, Effect} from 'effect'
+import {Context, Effect, Schema} from 'effect'
 
-const ProbeFailed = Data.TaggedError('TryItProbeFailed')<{readonly port: number; readonly cause: unknown}>
-export const ProbeSilent = Data.TaggedError('ProbeSilent')<Record<never, never>>
+const ProbeFailed = Schema.TaggedStruct('TryIt.ProbeFailed', {port: Schema.Int, cause: Schema.Defect()})
+type ProbeFailed = typeof ProbeFailed.Type & globalThis.Error
 
-export type ProbeSilent = InstanceType<typeof ProbeSilent>
+const makeProbeFailed = (fields: Omit<typeof ProbeFailed.Type, '_tag'>): ProbeFailed =>
+  Object.assign(new globalThis.Error(), ProbeFailed.make(fields), {name: 'TryIt.ProbeFailed'})
+
+const ProbeSilent = Schema.TaggedStruct('TryIt.ProbeSilent', {})
+type ProbeSilent = typeof ProbeSilent.Type & globalThis.Error
+
+export const makeProbeSilent = (): ProbeSilent =>
+  Object.assign(new globalThis.Error(), ProbeSilent.make({}), {name: 'TryIt.ProbeSilent'})
 
 export const TryItProbe = Context.Service<{readonly probe: Effect.Effect<string, ProbeSilent>}>(
   '@conciv/plugin-try-it/Probe',
@@ -13,11 +20,11 @@ function probePort(token: string, port: number) {
   const base = `http://127.0.0.1:${port}/t/${token}`
   return Effect.tryPromise({
     try: (signal) => fetch(`${base}/health`, {signal}),
-    catch: (cause) => new ProbeFailed({port, cause}),
+    catch: (cause) => makeProbeFailed({port, cause}),
   }).pipe(
     Effect.filterOrFail(
       (response) => response.ok,
-      (response) => new ProbeFailed({port, cause: response.status}),
+      (response) => makeProbeFailed({port, cause: response.status}),
     ),
     Effect.as(base),
   )
@@ -30,6 +37,6 @@ export const probeCore = Effect.fn('try-it.probeCore')(function* (
 ) {
   return yield* Effect.raceAll(ports.map((port) => probePort(token, port))).pipe(
     Effect.timeout(probeMs),
-    Effect.mapError(() => new ProbeSilent()),
+    Effect.mapError(() => makeProbeSilent()),
   )
 })

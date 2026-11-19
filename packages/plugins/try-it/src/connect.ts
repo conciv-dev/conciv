@@ -25,7 +25,7 @@ export const connect = Effect.fn('try-it.connect')(function* (input: ConnectInpu
 
   const sweep = Effect.fn('try-it.sweep')(function* (attempt: number, retry: boolean) {
     const spaced = probe.pipe(
-      Effect.retry({while: Predicate.isTagged('ProbeSilent'), schedule: Schedule.spaced(input.timings.probeMs)}),
+      Effect.retry({while: Predicate.isTagged('TryIt.ProbeSilent'), schedule: Schedule.spaced(input.timings.probeMs)}),
     )
     yield* (retry ? spaced : probe).pipe(
       Effect.matchEffect({

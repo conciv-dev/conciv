@@ -5,7 +5,7 @@ import {afterAll, describe, expect, it} from 'vitest'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import {connect} from '../src/connect.js'
 import {initialConnect, transitionConnect, type ConnectEvent, type ConnectState} from '../src/connect-machine.js'
-import {probeCore, ProbeSilent, TryItProbe} from '../src/probe.js'
+import {makeProbeSilent, probeCore, TryItProbe} from '../src/probe.js'
 
 const closers: Array<() => Promise<void>> = []
 
@@ -23,7 +23,7 @@ async function serveHealth(token: string): Promise<number> {
 
 function probeOnce(token: string, ports: readonly number[]): Promise<string | null> {
   return Effect.runPromise(
-    probeCore(token, ports, 2_000).pipe(Effect.catchTag('ProbeSilent', () => Effect.succeed(null))),
+    probeCore(token, ports, 2_000).pipe(Effect.catchTag('TryIt.ProbeSilent', () => Effect.succeed(null))),
   )
 }
 
@@ -164,7 +164,7 @@ const runClocked = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>) =>
 const scriptedProbe = (outcomes: Queue.Queue<Outcome>) =>
   Layer.succeed(TryItProbe, {
     probe: Queue.take(outcomes).pipe(
-      Effect.flatMap((outcome) => (outcome === null ? Effect.fail(new ProbeSilent()) : Effect.succeed(outcome))),
+      Effect.flatMap((outcome) => (outcome === null ? Effect.fail(makeProbeSilent()) : Effect.succeed(outcome))),
     ),
   })
 
