@@ -29,20 +29,6 @@ export const LIST_ROW_CLASS =
 const COUNT_FORMAT = new Intl.NumberFormat()
 const COUNT_PLURAL = new Intl.PluralRules('en')
 
-export function parseOutput(output: string | undefined): unknown {
-  if (!output) return undefined
-  try {
-    return JSON.parse(output)
-  } catch {
-    return undefined
-  }
-}
-
-export function readInput<Schema extends z.ZodType>(schema: Schema, input: unknown): z.infer<Schema> | undefined {
-  const parsed = schema.safeParse(input)
-  return parsed.success ? parsed.data : undefined
-}
-
 export function countLabel(count: number, one: string, other: string): string {
   return `${COUNT_FORMAT.format(count)} ${COUNT_PLURAL.select(count) === 'one' ? one : other}`
 }

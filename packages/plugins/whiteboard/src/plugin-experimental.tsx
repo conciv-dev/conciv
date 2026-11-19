@@ -3,9 +3,10 @@ import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
 import {Effect, Exit, Fiber, Scope, Stream, SubscriptionRef} from 'effect'
 import {useQuery} from '@conciv/client'
-import {ComposerPill, SettingsPage, Slot, usePlugin, type Plugin} from '@conciv/plugin/experimental'
+import {ComposerPill, SettingsPage, Slot, ToolRegistry, usePlugin, type Plugin} from '@conciv/plugin/experimental'
 import {defineInternalPlugin} from '@conciv/plugin-internal'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
+import {whiteboardToolCards} from './cards.js'
 import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
 import {ComposePopover} from './compose-popover.js'
 import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
@@ -160,6 +161,7 @@ const whiteboard: Plugin.Definition<typeof whiteboardStores> = defineInternalPlu
       render: () => <CanvasBackgroundRow />,
     })
     ctx.add(ComposerPill, commentPill)
+    whiteboardToolCards(ctx.ui).forEach((card) => ctx.add(ToolRegistry, card))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
     ctx.add(Slot, () => (visible() ? overlay : undefined))
     // oxlint-disable-next-line solid/reactivity -- ctx.add runs the item function in the host's tracked scope
