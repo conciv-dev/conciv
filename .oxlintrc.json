@@ -373,7 +373,7 @@
       }
     },
     {
-      "files": ["packages/plugin-testkit/**/test/**"],
+      "files": ["packages/plugins/*/test/**", "packages/plugin-testkit/**/test/**"],
       "rules": {
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",

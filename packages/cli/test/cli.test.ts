@@ -821,7 +821,7 @@ describe('cli', () => {
     const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
     const cliEntry = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
 
-    const WORKSPACE_DIRS = ['packages', 'packages/extensions', 'apps']
+    const WORKSPACE_DIRS = ['packages', 'packages/extensions', 'packages/plugins', 'apps']
 
     const BROWSER_ONLY = ['solid-js', 'lucide-solid', '@ark-ui/', '@conciv/ui-kit']
 

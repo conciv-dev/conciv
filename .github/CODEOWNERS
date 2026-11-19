@@ -1,6 +1,7 @@
 # Release-critical paths require review.
 /.changeset/             @omridevk
 /packages/*/package.json @omridevk
+/packages/plugins/*/package.json @omridevk
 /packages/publish/       @omridevk
 /.github/workflows/      @omridevk
 /.github/CODEOWNERS      @omridevk

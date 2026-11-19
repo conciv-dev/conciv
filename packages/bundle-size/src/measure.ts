@@ -6,7 +6,7 @@ import {gzipSync} from 'node:zlib'
 
 export type PackageSize = {name: string; raw: number; gzip: number; files: number}
 
-const PACKAGES_DIR = 'packages'
+const PACKAGE_DIRECTORIES = ['packages', 'packages/plugins']
 const BUNDLED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.css']
 const WIDGET_LOADER = 'packages/embed/dist/conciv-widget.global.js'
 const WIDGET_CHUNKS = 'packages/embed/dist/widget'
@@ -26,14 +26,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function publishedPackages(root: string): {name: string; dir: string}[] {
-  return readdirSync(join(root, PACKAGES_DIR), {withFileTypes: true})
-    .filter((entry) => entry.isDirectory() && existsSync(join(root, PACKAGES_DIR, entry.name, 'package.json')))
-    .flatMap((entry) => {
-      const dir = join(root, PACKAGES_DIR, entry.name)
-      const manifest: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
-      if (!isRecord(manifest) || manifest.private === true || typeof manifest.name !== 'string') return []
-      return [{name: manifest.name, dir}]
-    })
+  return PACKAGE_DIRECTORIES.flatMap((group) => {
+    const groupPath = join(root, group)
+    if (!existsSync(groupPath)) return []
+    return readdirSync(groupPath, {withFileTypes: true})
+      .filter((entry) => entry.isDirectory() && existsSync(join(groupPath, entry.name, 'package.json')))
+      .flatMap((entry) => {
+        const dir = join(groupPath, entry.name)
+        const manifest: unknown = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+        if (!isRecord(manifest) || manifest.private === true || typeof manifest.name !== 'string') return []
+        return [{name: manifest.name, dir}]
+      })
+  })
 }
 
 function distFiles(dir: string): string[] {

@@ -38,14 +38,16 @@ async function scaffold(entries: {dir: string; name: string; isPrivate?: boolean
   }
 }
 
-test('measureSizes reports published dists only, with gzip and raw bytes', async () => {
+test('measureSizes reports published dists only, plugin packages included, with gzip and raw bytes', async () => {
   await scaffold([
     {dir: 'packages/core', name: '@conciv/core', dist: {'index.js': 'export const answer = 42\n'.repeat(50)}},
     {dir: 'packages/secret', name: '@conciv/secret', isPrivate: true, dist: {'index.js': 'hidden'}},
     {dir: 'packages/empty', name: '@conciv/empty'},
+    {dir: 'packages/plugins/recorder', name: '@conciv/plugin-recorder', dist: {'index.js': 'export const tape = 1\n'}},
+    {dir: 'packages/plugins/board', name: '@conciv/plugin-board', isPrivate: true, dist: {'index.js': 'hidden'}},
   ])
   const sizes = measureSizes(root)
-  expect(sizes.map((size) => size.name)).toEqual(['@conciv/core'])
+  expect(sizes.map((size) => size.name)).toEqual(['@conciv/core', '@conciv/plugin-recorder'])
   const core = sizes[0]
   expect(core?.files).toBe(1)
   expect(core?.raw).toBe('export const answer = 42\n'.repeat(50).length)
