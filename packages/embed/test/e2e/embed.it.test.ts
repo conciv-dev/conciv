@@ -2693,6 +2693,66 @@ test.describe('reload continuity', () => {
       }
     })
   })
+
+  test.describe('restoring a persisted plugin panel route whose plugin is gone', () => {
+    let viewerKit: CoreKit
+    let viewerHost: {base: string; close: () => Promise<void>}
+
+    test.beforeEach(async () => {
+      viewerKit = await bootCoreKit({
+        id: 'fake-embed',
+        text: ASSISTANT_TEXT,
+        plugins: ['./viewer'],
+        files: {
+          'viewer/index.ts': `export default {id: 'viewer', async setup() {}}
+`,
+          'viewer/plugin-experimental.js': `const {Panel} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'viewer',
+    region: 'pane',
+    list: () => [{id: 'viewer', title: 'Viewer', pinned: true}],
+    render: () => document.createTextNode('Viewer body'),
+  })
+}}}
+`,
+        },
+      })
+      viewerHost = await serveWidgetHost(() => hostPage({apiBase: viewerKit.base, widget: '{"quickTerminal":false}'}))
+    })
+
+    test.afterEach(async () => {
+      await viewerHost.close()
+      await viewerKit.cleanup()
+    })
+
+    test('lands on the chat view instead of an empty pane', async ({page}) => {
+      test.setTimeout(240_000)
+      await openLoggedIn(page, viewerKit, viewerHost.base)
+      await openPanel(page)
+
+      await page.getByRole('tab', {name: 'Viewer'}).click()
+      await expect(page.getByRole('tab', {name: 'Viewer'})).toHaveAttribute('aria-selected', 'true')
+      await expect(page.getByText('Viewer body', {exact: true})).toBeVisible({timeout: 30_000})
+      await until(async () => (await currentHref(viewerKit)).includes('/viewer%3Aviewer'), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+
+      await viewerKit.rpc.settings.set({scope: 'global', namespace: 'plugin-enable', key: 'viewer', value: false})
+      await page.goto(viewerHost.base, {waitUntil: 'domcontentloaded'})
+
+      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('tab', {name: 'Viewer'})).toHaveCount(0)
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+      const statusBar = page.getByRole('toolbar', {name: 'Session status'})
+      await expect(statusBar.getByRole('tab', {name: 'Chat', exact: true})).toHaveAttribute('aria-selected', 'true')
+      await until(async () => !(await currentHref(viewerKit)).includes('/viewer%3Aviewer'), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+    })
+  })
 })
 
 test.describe('remount', () => {
