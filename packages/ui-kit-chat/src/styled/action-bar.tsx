@@ -75,11 +75,16 @@ export function AssistantActionBar(props: {
   readOnly?: boolean
   refreshDisabled?: boolean
   copyText?: string
+  keepVisible?: boolean
 }): JSX.Element {
+  const autohide = () => {
+    if (props.keepVisible === undefined) return 'not-last'
+    return props.keepVisible ? 'never' : 'always'
+  }
   return (
     <ActionBar.Root
       hideWhenRunning
-      autohide="not-last"
+      autohide={autohide()}
       autohideFloat="always"
       role="toolbar"
       aria-label="Message actions"
