@@ -7,6 +7,7 @@ const CLIENT_NAME = 'client'
 const EVENTS_PROPERTY = 'events'
 const RAW_OWNERS = ['plugin', RPC_PROPERTY]
 const RAW_CALL = 'call'
+const TANSTACK_QUERY_MODULES = ['@tanstack/solid-query', '@tanstack/query-core']
 
 function keyName(key, computed) {
   if (computed !== true && isIdentifier(key)) return key.name
@@ -129,6 +130,11 @@ function reportResourceImport(node, context) {
     .forEach((specifier) => context.report({node: specifier, messageId: 'createResource'}))
 }
 
+function reportTanstackQueryImport(node, context) {
+  if (node.type !== 'ImportDeclaration' || !TANSTACK_QUERY_MODULES.includes(node.source.value)) return
+  context.report({node, messageId: 'tanstackQueryImport', data: {module: node.source.value}})
+}
+
 function collectSolidNamespaces(program) {
   const namespaces = []
   walk(program, (node) => {
@@ -150,6 +156,7 @@ function checkProgram(program, context) {
   const bindings = collectBindings(program)
   const namespaces = collectSolidNamespaces(program)
   walk(program, (node) => {
+    reportTanstackQueryImport(node, context)
     reportResourceImport(node, context)
     reportNamespacedResource(node, namespaces, context)
     reportRawCall(node, context)
@@ -164,11 +171,13 @@ export default {
     type: 'problem',
     messages: {
       plainCall:
-        "A plugin view calls the rpc method '{{method}}' directly. Read it through `useQuery(() => client.method.queryOptions({input}))`, write through `useMutation(() => client.method.mutationOptions())`, and invalidate on events with `ctx.queryClient.invalidateQueries({queryKey: client.method.key()})`. Plain calls belong in engine code and browser `.ts` model files.",
+        "A plugin view calls the rpc method '{{method}}' directly. Read it through `useQuery(() => client.method.queryOptions({input}))`, write through `useMutation(() => client.method.mutationOptions())`, and invalidate on events with `useQueryClient().invalidateQueries({queryKey: client.method.key()})`. Plain calls belong in engine code and browser `.ts` model files.",
       rawCall:
         'A plugin view makes a raw plugin call. Read the method through `useQuery(() => ctx.client.rpc(Definition).method.queryOptions({input}))` and write through its `mutationOptions`; the raw wire belongs in engine code and browser `.ts` model files.',
       destructured:
         'A plugin view takes methods out of an rpc client. Keep the client whole and read each method through `queryOptions`, write through `mutationOptions`.',
+      tanstackQueryImport:
+        "A plugin imports '{{module}}'. Import useQuery, useMutation and useQueryClient from '@conciv/client', which the widget provides to every plugin bundle with its one patched Query copy and query cache; no plugin imports a @tanstack/* Query package.",
       createResource:
         'A plugin view never uses createResource. An rpc read is `useQuery(() => client.method.queryOptions({input}))`, a lazy import is a Solid `lazy()` component or a query.',
     },

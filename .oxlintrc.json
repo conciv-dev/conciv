@@ -266,12 +266,16 @@
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
               },
               {
+                "name": "@tanstack/solid-query",
+                "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @tanstack/solid-query. The widget provides @conciv/client to every plugin bundle with its one patched Query copy (TanStack/query#11230) and query cache; no plugin imports a @tanstack/* Query package."
+              },
+              {
                 "name": "@tanstack/query-core",
-                "message": "A plugin imports TanStack Query from @tanstack/solid-query, never @tanstack/query-core directly. The widget provides @tanstack/solid-query to every plugin bundle as its one patched copy (TanStack/query#11230), so a plugin view reads through the app's query cache; a direct query-core import bundles a second, unpatched copy with its own QueryClient and onlineManager."
+                "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @tanstack/query-core. The widget provides @conciv/client to every plugin bundle with its one patched Query copy (TanStack/query#11230) and query cache; no plugin imports a @tanstack/* Query package."
               },
               {
                 "name": "@orpc/tanstack-query",
-                "message": "A plugin imports TanStack Query from @tanstack/solid-query, never @orpc/tanstack-query. The widget provides @tanstack/solid-query to every plugin bundle as its one patched copy (TanStack/query#11230); read engine methods with useQuery(() => ctx.client.rpc(Definition).method.queryOptions({input}))."
+                "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @orpc/tanstack-query. Read engine methods with useQuery(() => ctx.client.rpc(Definition).method.queryOptions({input})); no plugin imports a @tanstack/* Query package."
               }
             ],
             "patterns": [

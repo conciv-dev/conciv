@@ -225,8 +225,15 @@ describe('plugin view reads through query', () => {
       ],
     },
     {
+      fixture: 'tanstack-imports.tsx',
+      reason: 'TanStack Query imported from @tanstack/solid-query or @tanstack/query-core, not from @conciv/client',
+      lines: [1, 2],
+      messages: [expect.stringContaining("from '@conciv/client'"), expect.stringContaining("from '@conciv/client'")],
+    },
+    {
       fixture: 'query-reads.tsx',
-      reason: 'nothing in reads through queryOptions, writes through mutationOptions, and event invalidation by key',
+      reason:
+        'nothing in Query imported from @conciv/client, reads through queryOptions, writes through mutationOptions, and event invalidation by key',
       lines: [],
       messages: [],
     },

@@ -1,13 +1,14 @@
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery, useQueryClient} from '@conciv/client'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {Acme} from './rpc.js'
 
 export function AcmeView() {
   const ctx = usePlugin()
+  const queryClient = useQueryClient()
   const acme = () => ctx.client.rpc(Acme)
   const found = useQuery(() => acme().search.queryOptions({input: {query: 'a'}}))
   const save = useMutation(() => acme().save.mutationOptions())
-  acme().events.on('saved', () => ctx.queryClient.invalidateQueries({queryKey: acme().search.key()}), {
+  acme().events.on('saved', () => queryClient.invalidateQueries({queryKey: acme().search.key()}), {
     signal: ctx.signal,
   })
   return <button onClick={() => save.mutate({id: 'a'})}>{String(found.data)}</button>
