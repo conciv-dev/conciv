@@ -678,7 +678,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
       try {
         const failureLogs: string[] = []
         failing.on('console', (message) => {
-          if (message.type() === 'error' && message.text().startsWith('[whiteboard] the canvas failed to open')) {
+          if (/ ERROR \(#\d+\):.*the canvas failed to open/.test(message.text())) {
             failureLogs.push(message.text())
           }
         })

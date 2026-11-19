@@ -4,12 +4,12 @@ import {render} from 'solid-js/web'
 import {Effect, Exit, Scope, SubscriptionRef} from 'effect'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
 import {GrabApi} from '@conciv/plugin/experimental/grab'
-import {makeCommentCompose, type ComposePhase} from './client/comment-compose.js'
-import {ComposePopover} from './client/compose-popover.js'
-import {refAccessor} from './client/ref-accessor.js'
-import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
-import {whiteboardStores} from './client/stores.js'
-import type {ChatCover} from './client/model/comments-model.js'
+import {makeCommentCompose, type ComposePhase} from './comment-compose.js'
+import {ComposePopover} from './compose-popover.js'
+import {refAccessor} from './ref-accessor.js'
+import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
+import {whiteboardStores} from './stores.js'
+import type {ChatCover} from './comments-model.js'
 
 export default Plugin.define({
   stores: whiteboardStores,
@@ -28,7 +28,7 @@ export default Plugin.define({
     const grab = ctx.use(GrabApi)
     const [surface, {refetch}] = createResource(
       () => canvas.engaged,
-      () => import('./client/canvas-surface.js'),
+      () => import('./canvas-surface.js'),
     )
     const close = (): void => setCanvas('open', false)
     const layer = document.createElement('div')
