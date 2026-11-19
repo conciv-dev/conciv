@@ -22,7 +22,7 @@ import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {webSocket} from '@conciv/ai/client'
-import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
+import {drizzleChatStores, makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
@@ -79,7 +79,7 @@ import {
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {CompactionMetadataSchema, type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {CompactionMetadataSchema, type ChatMessage, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
@@ -3314,6 +3314,44 @@ describe('plugin host bus', () => {
     } finally {
       await served.stop()
     }
+  })
+
+  test('an engine thread save while a plugin host transaction waits lands after that transaction commits, and both writes are kept', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    onTestFinished(() => served.stop())
+    const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const renaming = served.made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.publish(
+          SessionEvent.Renamed,
+          {sessionID: SessionSchema.Id.make(sessionId), title: 'renamed while the lock is held'},
+          {
+            commit: () =>
+              Effect.promise(() => {
+                entered.resolve()
+                return held.promise
+              }),
+          },
+        ),
+      ),
+    )
+    await entered.promise
+    const stores = drizzleChatStores(served.made.chat.db, {readHarness: () => 'fake-cli'})
+    const message: ModelMessage = {id: 'saved-while-held', role: 'user', content: 'saved while the plugin host waits'}
+    const saving = stores.messages.saveThread(sessionId, [message])
+    held.resolve()
+    const [saved, renamed] = await Promise.allSettled([saving, renaming])
+    expect(saved).toEqual({status: 'fulfilled', value: undefined})
+    expect(renamed).toMatchObject({status: 'fulfilled'})
+    expect(await stores.messages.loadThread(sessionId)).toEqual([message])
+    expect(
+      served.made.chat.db.all(
+        sql`SELECT type FROM event WHERE aggregate_id = ${sessionId} AND type LIKE 'session.renamed%'`,
+      ),
+    ).toHaveLength(1)
   })
 
   test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
