@@ -2,7 +2,6 @@ import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {z} from 'zod'
 import {differenceBy, partition} from 'es-toolkit'
-import {command, description, name, option, schema} from '@bomb.sh/router'
 import {ORPCError} from '@orpc/client'
 import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
@@ -29,10 +28,8 @@ import {
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
-import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
-import {handler} from './router/handler.js'
 import {
   askAgain,
   askTab,
@@ -154,7 +151,7 @@ type Candidate = {runner: Runner; unusable: null} | {runner: null; unusable: str
 
 type Picked = {runner: Runner | null; unusable: string[]}
 
-async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
+export async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
   const held: {runner: Promise<Runner> | null} = {runner: null}
   const tabs = new Map<SessionId, TabEntry>()
@@ -400,19 +397,6 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   await served.close()
   return {report: 'none', code: 0}
 }
-
-const ServeModelSchema = z.object({agent: HubAgentSchema})
-
-export const serveCommand = command(
-  name('serve'),
-  description('Serve conciv to an outside agent over MCP stdio, through the running conciv dev server.'),
-  option(
-    name('agent'),
-    description('the agent this server answers for (claude, codex, gemini-cli, opencode)'),
-    schema(HubAgentSchema),
-  ),
-  handler((model) => runHub(process.env, ServeModelSchema.parse(model).agent)),
-)
 
 async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
   const first = await runningEngines(home)

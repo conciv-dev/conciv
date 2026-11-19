@@ -118,7 +118,7 @@ starts.
 
 ## Invariants
 
-- `package.json:peerDependencies` - `solid-js` `>=1.8`, optional.
+- `package.json:peerDependencies` - `solid-js` `^1.8`, optional.
 
 ## Side Effects
 

@@ -194,7 +194,7 @@ function childCall(
           context === undefined ? undefined : {...context, toolCallId: callId, ...filesContext(files)},
         )
         const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
-        context?.emitCustomEvent(codeModeResultEvent.name, {callId, result})
+        context?.emitCustomEvent(codeModeResultEvent.name, {callId, result: cardResult(result, files)})
         return result
       } catch (error) {
         context?.emitCustomEvent(codeModeErrorEvent.name, {
@@ -205,6 +205,13 @@ function childCall(
       }
     },
   }
+}
+
+function cardResult(result: unknown, files: readonly ChatContentPart[]): unknown {
+  if (files.length === 0) return result
+  const text =
+    result === null ? [] : [{type: 'text', content: typeof result === 'string' ? result : JSON.stringify(result)}]
+  return [...text, ...files]
 }
 
 function validated(schema: SchemaInput | undefined, value: unknown, failure: string): unknown {

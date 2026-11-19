@@ -1,7 +1,13 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {ChatClient} from '@conciv/ai/testkit'
-import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  makeBrowserRpcClient,
+  makeRpcClient,
+  type RpcClient,
+  type SessionMeta,
+} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
 import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
@@ -12,9 +18,9 @@ import {
   ChatEventType,
   idleFailedEvent,
   runLifecycleEvent,
+  sessionRunEvent,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
-import {acquirePushChannel, livePushChannelCount} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeQueryUtils} from '../src/query-utils.js'
 import {ORPCError} from '@orpc/client'
@@ -362,17 +368,29 @@ describe('chat connection', () => {
       kit = clientKit
       const sessionId = await clientKit.session()
       const connection = chatConnection(makeRpcClient(clientKit.base), clientKit.base, sessionId, {transport: 'fetch'})
+      clientKit.gate.hold()
+      const warming = await clientKit.turn('fan-out-0', {session: sessionId, runId: 'fan-out-0'})
+      await warming.waitForRunStart()
       const [staying, leaving] = [watch(connection), watch(connection)]
-      await sendTurn(connection, sessionId, 'fan-out-1')
-      await Promise.all([staying.finished, leaving.finished])
-      expect(leaving.seen.map((chunk) => chunk.type)).toEqual(staying.seen.map((chunk) => chunk.type))
-      const before = leaving.seen.length
-      leaving.abort()
-      await leaving.ended
-      await sendTurn(connection, sessionId, 'fan-out-2')
-      expect(leaving.seen).toHaveLength(before)
-      expect(staying.seen.length).toBeGreaterThan(before)
-      staying.abort()
+      try {
+        expect(await Promise.all([staying.firstAnnounced, leaving.firstAnnounced])).toEqual(['fan-out-0', 'fan-out-0'])
+        clientKit.gate.release()
+        await warming.done()
+        await sendTurn(connection, sessionId, 'fan-out-1')
+        await Promise.all([staying.finished, leaving.finished])
+        expect(leaving.seen.map((chunk) => chunk.type)).toEqual(staying.seen.map((chunk) => chunk.type))
+        const before = leaving.seen.length
+        leaving.abort()
+        await leaving.ended
+        await sendTurn(connection, sessionId, 'fan-out-2')
+        expect(leaving.seen).toHaveLength(before)
+        expect(staying.seen.length).toBeGreaterThan(before)
+      } finally {
+        clientKit.gate.release()
+        staying.abort()
+        leaving.abort()
+        await Promise.all([staying.ended, leaving.ended])
+      }
     }, 30_000)
   })
 
@@ -416,13 +434,22 @@ describe('chat connection', () => {
     const abort = new AbortController()
     const seen: ChatEvent[] = []
     const finished = Promise.withResolvers<void>()
+    const firstAnnounced = Promise.withResolvers<string>()
     const ended = (async () => {
       for await (const chunk of connection.subscribe(abort.signal)) {
         seen.push(chunk)
         if (chunk.type === ChatEventType.RUN_FINISHED) finished.resolve()
+        const announced = sessionRunEvent.parse(chunk)
+        if (announced !== null) firstAnnounced.resolve(announced.runId)
       }
     })()
-    return {seen, finished: finished.promise, ended, abort: () => abort.abort()}
+    return {
+      seen,
+      finished: finished.promise,
+      firstAnnounced: firstAnnounced.promise,
+      ended,
+      abort: () => abort.abort(),
+    }
   }
 
   function sendTurn(connection: ChatConnection, sessionId: string, runId: string): Promise<void> {
@@ -560,10 +587,7 @@ describe('chat refresh', () => {
   })
 })
 
-describe('push channel', () => {
-  const SETTLE_MS = 150
-  const RECONNECT_MS = 1500
-
+describe('session streams on the rpc socket', () => {
   let kit: ClientKit | undefined
 
   afterEach(async () => {
@@ -571,26 +595,13 @@ describe('push channel', () => {
     kit = undefined
   })
 
-  async function bootWithChannel() {
-    const booted = await bootClientKit()
-    kit = booted
-    const sessionId = await booted.session()
-    const abort = new AbortController()
-    const channel = acquirePushChannel({apiBase: booted.base, sessionId})
-    return {booted, sessionId, channel, abort}
-  }
-
-  function settled(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
   function textReply(text: string): PageReply {
     return {type: 'success', result: {value: {text}, files: []}}
   }
 
   async function nextEvent(source: AsyncIterator<ChatEvent>): Promise<ChatEvent> {
     const next = await source.next()
-    if (next.done) throw new Error('the push channel closed before a session event arrived')
+    if (next.done) throw new Error('the chat stream closed before a session event arrived')
     return next.value
   }
 
@@ -606,7 +617,7 @@ describe('push channel', () => {
     )
   }
 
-  describe('the per-tab push socket', () => {
+  describe('the rpc socket of the api base', () => {
     it('carries a page query to the tab and the reply resolves the caller', async () => {
       const tabs = pageTabs()
       const booted = await bootClientKit({plugins: [tabs.plugin]})
@@ -620,46 +631,69 @@ describe('push channel', () => {
       tab.end()
     })
 
-    it('reopens itself after the engine restarts and serves the session events again', async () => {
-      const {booted, sessionId, channel, abort} = await bootWithChannel()
+    it('resubscribes the chat stream after the engine restarts and serves the session events again', async () => {
+      const booted = await bootClientKit()
+      kit = booted
+      const sessionId = await booted.session()
+      const browser = makeBrowserRpcClient(booted.base)
+      const abort = new AbortController()
       const connection = chatConnection(makeRpcClient(booted.base), booted.base, sessionId)
-      const warming = nextEvent(channel.events(abort.signal))
-      await settled(SETTLE_MS)
-      await sendTurn(connection, sessionId, 'push-before')
-      const before = await warming
-      if (before.type !== ChatEventType.CUSTOM)
-        throw new Error(`the push channel served ${before.type}, not a session event`)
-
-      await booted.restartServer()
       const seen: ChatEvent[] = []
-      const collecting = (async () => {
-        for await (const chunk of channel.events(abort.signal)) seen.push(chunk)
-      })()
-      await settled(RECONNECT_MS)
-      await sendTurn(connection, sessionId, 'push-after')
-      await expect.poll(() => seen.length, {timeout: 5_000}).toBe(1)
-      const frame = seen[0]
-      if (!frame) throw new Error('the reconnected channel served no session event')
+      const failures: unknown[] = []
+      const collecting: {done: Promise<void>} = {done: Promise.resolve()}
+      try {
+        const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
+        const warming = nextEvent(events)
+        booted.gate.hold()
+        const turningBefore = sendTurn(connection, sessionId, 'push-before')
+        const before = await warming
+        booted.gate.release()
+        await turningBefore
+        expect(sessionRunEvent.parse(before)).toEqual({runId: 'push-before'})
 
-      expect(frame).toMatchObject({type: ChatEventType.CUSTOM, name: before.name})
-      expect(seen).toHaveLength(1)
-      abort.abort()
-      await collecting
-      channel.dispose()
+        await booted.restartServer()
+        async function collect(): Promise<void> {
+          for await (const chunk of events) seen.push(chunk)
+        }
+        collecting.done = collect().catch((error: unknown) => {
+          if (!abort.signal.aborted || error !== abort.signal.reason) failures.push(error)
+        })
+        booted.gate.hold()
+        const turningAfter = sendTurn(connection, sessionId, 'push-after')
+        await expect.poll(() => ({seen: seen.length, failures}), {timeout: 5_000}).toEqual({seen: 1, failures: []})
+        booted.gate.release()
+        await turningAfter
+
+        expect(seen.map((chunk) => sessionRunEvent.parse(chunk))).toEqual([{runId: 'push-after'}])
+      } finally {
+        booted.gate.release()
+        abort.abort()
+        await collecting.done
+        browser.close()
+      }
+      expect(failures).toEqual([])
     })
 
-    it('hands the page plane and the chat stream the same socket for one session', async () => {
-      const {booted, sessionId, channel, abort} = await bootWithChannel()
-      const opened = livePushChannelCount()
-      const second = acquirePushChannel({apiBase: booted.base, sessionId})
+    it('hands the page plane and the chat stream the one rpc connection of the api base', async () => {
+      const booted = await bootClientKit()
+      kit = booted
+      const plane = browserRpcConnection(booted.base)
+      const chat = browserRpcConnection(booted.base)
 
-      expect(livePushChannelCount()).toBe(opened)
-      second.dispose()
-      expect(livePushChannelCount()).toBe(opened)
-
-      abort.abort()
-      channel.dispose()
-      expect(livePushChannelCount()).toBe(opened - 1)
+      expect(chat.link).toBe(plane.link)
+      chat.release()
+      const held = browserRpcConnection(booted.base)
+      expect(held.link).toBe(plane.link)
+      plane.release()
+      held.release()
+      const keptByKit = browserRpcConnection(booted.base)
+      expect(keptByKit.link).toBe(plane.link)
+      keptByKit.release()
+      kit = undefined
+      await booted.cleanup()
+      const reopened = browserRpcConnection(booted.base)
+      expect(reopened.link).not.toBe(plane.link)
+      reopened.release()
     })
   })
 
@@ -705,11 +739,11 @@ describe('push channel', () => {
       shownTab.end()
     }, 15_000)
 
-    it('stops serving page tools once its tab ends, while the chat stream keeps the socket', async () => {
+    it('stops serving page tools once its tab ends, while the chat stream on the rpc socket keeps serving', async () => {
       const {booted, tabs, sessionId} = await bootWithTabs()
       const abort = new AbortController()
-      const channel = acquirePushChannel({apiBase: booted.base, sessionId})
-      void channel.events(abort.signal)
+      const browser = makeBrowserRpcClient(booted.base)
+      const events = await browser.rpc.chat.events({sessionId}, {signal: abort.signal})
       const tab = await tabs.open(sessionId, () => textReply('once'))
 
       await expect.poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
@@ -718,8 +752,18 @@ describe('push channel', () => {
         .poll(() => captureOutcome(booted.rpc.registry.call(pageText)), POLL)
         .toMatchObject({rejected: 'NO_PAGE_CLIENT'})
 
+      const arriving = nextEvent(events)
+      booted.gate.hold()
+      const turning = sendTurn(
+        chatConnection(makeRpcClient(booted.base), booted.base, sessionId),
+        sessionId,
+        'after-tab',
+      )
+      expect(sessionRunEvent.parse(await arriving)).toEqual({runId: 'after-tab'})
+      booted.gate.release()
+      await turning
       abort.abort()
-      channel.dispose()
+      browser.close()
     }, 15_000)
   })
 })

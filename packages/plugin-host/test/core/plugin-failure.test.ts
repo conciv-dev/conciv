@@ -1,5 +1,8 @@
 import {expect} from 'vitest'
-import {Deferred, Effect, Exit, Fiber, Schema} from 'effect'
+import {writeFile} from 'node:fs/promises'
+import nodePath from 'node:path'
+import {Deferred, Effect, Exit, FileSystem, Fiber, Option, Path, Schema, Stream} from 'effect'
+import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 import {Bus} from '../../src/core/bus.js'
 import {Plugin} from '../../src/core/plugin.js'
 import {PluginHooks} from '../../src/core/plugin/hooks.js'
@@ -9,6 +12,7 @@ import {Agent} from '@conciv/plugin/schema/agent'
 import {Session} from '@conciv/plugin/schema/session'
 import {testEffect} from './lib/effect'
 import {PluginTestLayer} from './plugin/fixture'
+import {tmpdirScoped} from './fixture/tmpdir'
 
 const it = testEffect(PluginTestLayer)
 
@@ -301,5 +305,134 @@ it.live("settles readiness before shutdown joins a disabled plugin's finalizers"
     ])
     yield* release
     expect(restarted).toBe(false)
+  }),
+)
+
+it.live("gives a plugin's effect the host's FileSystem, Path and ChildProcessSpawner", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const rpc = yield* Rpc.Service
+    const temporary = yield* tmpdirScoped()
+    yield* Effect.promise(() => writeFile(nodePath.join(temporary.path, 'fixture.txt'), 'fixture content'))
+    yield* plugins.activate([
+      {
+        id: 'platform',
+        revision: '1',
+        effect: (ctx) =>
+          Effect.gen(function* () {
+            const fileSystem = yield* FileSystem.FileSystem
+            const path = yield* Path.Path
+            const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+            const content = yield* fileSystem.readFileString(path.join(temporary.path, 'fixture.txt'))
+            const spawned = yield* spawner.string(ChildProcess.make('node', ['-e', "process.stdout.write('spawned')"]))
+            yield* ctx.rpc.register(
+              Rpc.define({
+                id: 'platform',
+                methods: {read: {input: Schema.Struct({}), output: Schema.Array(Schema.String)}},
+                events: {},
+              }),
+              {read: () => Effect.succeed([content, spawned])},
+            )
+          }).pipe(Effect.orDie),
+      },
+    ])
+
+    expect((yield* plugins.list()).map((plugin) => plugin.state)).toEqual([{status: 'active'}])
+    expect(yield* rpc.call('platform', 'read', {})).toEqual(['fixture content', 'spawned'])
+  }),
+)
+
+it.live('stops a plugin child process when the plugin is removed while the host stays up', () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const rpc = yield* Rpc.Service
+    const ChildInfo = Schema.Struct({pid: Schema.Number, ready: Schema.String})
+    const healthy: Plugin.Generation = {
+      id: 'healthy',
+      revision: '1',
+      effect: (ctx) =>
+        ctx.rpc
+          .register(
+            Rpc.define({
+              id: 'healthy',
+              methods: {check: {input: Schema.Struct({}), output: Schema.String}},
+              events: {},
+            }),
+            {check: () => Effect.succeed('healthy')},
+          )
+          .pipe(Effect.orDie),
+    }
+    yield* plugins.activate([
+      healthy,
+      {
+        id: 'spawner',
+        revision: '1',
+        effect: (ctx) =>
+          Effect.gen(function* () {
+            const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+            const child = yield* spawner.spawn(
+              ChildProcess.make('node', ['-e', "process.stdout.write('ready'); setInterval(() => {}, 1000)"]),
+            )
+            const ready = yield* child.stdout.pipe(Stream.decodeText(), Stream.runHead)
+            yield* ctx.rpc.register(
+              Rpc.define({
+                id: 'spawner',
+                methods: {child: {input: Schema.Struct({}), output: ChildInfo}},
+                events: {},
+              }),
+              {child: () => Effect.succeed({pid: child.pid, ready: ready.pipe(Option.getOrElse(() => ''))})},
+            )
+          }).pipe(Effect.orDie),
+      },
+    ])
+    const child = yield* rpc.call('spawner', 'child', {}).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ChildInfo)))
+    expect(child.ready).toBe('ready')
+    expect(process.kill(child.pid, 0)).toBe(true)
+
+    yield* plugins.activate([healthy])
+
+    expect(() => process.kill(child.pid, 0)).toThrow(expect.objectContaining({code: 'ESRCH'}))
+    expect(yield* rpc.call('spawner', 'child', {}).pipe(Effect.flip)).toMatchObject({type: 'rpc.unavailable'})
+    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
+    expect(yield* plugins.list()).toMatchObject([{id: 'healthy', state: {status: 'active'}}])
+  }),
+)
+
+it.live('reports a plugin whose effect fails with a tagged error and keeps loading the others', () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const rpc = yield* Rpc.Service
+    const ConfigInvalid = Schema.TaggedStruct('ConfigInvalid', {message: Schema.String})
+    yield* plugins.activate([
+      {
+        id: 'misconfigured',
+        revision: '1',
+        effect: () => Effect.fail(ConfigInvalid.make({message: 'the api key is missing'})),
+      },
+      {
+        id: 'healthy',
+        revision: '1',
+        effect: (ctx) =>
+          ctx.rpc
+            .register(
+              Rpc.define({
+                id: 'healthy',
+                methods: {check: {input: Schema.Struct({}), output: Schema.String}},
+                events: {},
+              }),
+              {check: () => Effect.succeed('healthy')},
+            )
+            .pipe(Effect.orDie),
+      },
+    ])
+
+    expect(yield* plugins.list()).toMatchObject([
+      {
+        id: 'misconfigured',
+        state: {status: 'failed', error: 'failed to load plugin: ConfigInvalid: the api key is missing'},
+      },
+      {id: 'healthy', state: {status: 'active'}},
+    ])
+    expect(yield* rpc.call('healthy', 'check', {})).toBe('healthy')
   }),
 )

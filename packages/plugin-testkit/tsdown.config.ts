@@ -12,7 +12,6 @@ export default defineConfig({
     'src/rpc-counts.ts',
     'src/rpc-wire.ts',
     'src/chat-wire.ts',
-    'src/push-wire.ts',
     'src/rpc-fault.ts',
     'src/rpc-socket.ts',
     'src/rpc-observer.ts',
