@@ -37,6 +37,27 @@ conciv({
       default: '~/.conciv',
       description: 'Directory holding dev-endpoint.json, the pairing file the iOS SDK reads.',
     },
+    plugins: {
+      type: '(string | [string, object])[]',
+      default: '[]',
+      description: 'Plugins to load, with their options. See [Install a plugin](/docs/plugins/install).',
+    },
+    permission: {
+      type: "'allow' | 'ask' | 'deny' | object",
+      default: 'none',
+      description: 'The effect for every action, or an effect per action, or per action and resource.',
+    },
+    permissions: {
+      type: '{action, resource, effect}[]',
+      default: '[]',
+      description: 'Permission rules: `effect` is `allow`, `ask` or `deny`. See [Approvals](/docs/usage/approvals).',
+    },
+    policies: {
+      type: '{action, resource, effect}[]',
+      default: '[]',
+      description:
+        'Allow or deny statements for `tool.use`, `plugin.use`, `skill.use`, `mcp.use` and the other `*.use` actions. A `plugin.use` deny blocks a plugin.',
+    },
     widget: {
       type: 'object',
       default: 'both layouts on',
