@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {chmod, stat, writeFile} from 'node:fs/promises'
 import path from 'path'
-import {Effect, Layer} from 'effect'
+import {Context, Effect, Layer} from 'effect'
 import {Database} from '../../src/core/database/database.js'
 import {openDb} from '@conciv/db'
 import {SqliteClient} from '@effect/sql-sqlite-node'
@@ -10,7 +10,8 @@ import {tmpdir} from './fixture/tmpdir'
 const openModes = (filename: string) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      yield* Layer.build(Database.layer({path: filename}))
+      const built = yield* Layer.build(Database.layer({path: filename}))
+      yield* Context.get(built, Database.Service).db.run('CREATE TABLE IF NOT EXISTS written (id INTEGER)')
       return yield* Effect.promise(() =>
         Promise.all(['', '-wal', '-shm'].map(async (suffix) => (await stat(filename + suffix)).mode & 0o777)),
       )
