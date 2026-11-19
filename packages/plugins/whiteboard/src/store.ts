@@ -255,7 +255,10 @@ export function makeWhiteboardStore(storage: PluginContext['storage']) {
     return {
       changes: Stream.fromPubSub(events),
       follow: PubSub.subscribe(events).pipe(Effect.map(Stream.fromSubscription)),
-      cursor: (event: CursorEvent) => publish({table: 'cursor', room: event.room, cursor: event}),
+      cursor: (event: CursorEvent) =>
+        Clock.currentTimeMillis.pipe(
+          Effect.flatMap((lastSeen) => publish({table: 'cursor', room: event.room, cursor: {...event, lastSeen}})),
+        ),
       since,
       listElements,
       getElement,
