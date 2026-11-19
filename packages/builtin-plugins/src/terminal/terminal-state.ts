@@ -48,12 +48,12 @@ function restartMessage(cause: unknown): string {
 
 export function createTerminalState(ctx: TerminalContext) {
   const readSessionId = createMemo((previous: string | undefined) => ctx.sessions.current()?.id ?? previous)
-  const metaUtils = createTanstackQueryUtils(
-    {models: (input: {sessionId: string}, options?: {signal?: AbortSignal}) => readModels(ctx, input, options)},
-    {path: ['meta']},
+  const modelsUtils = createTanstackQueryUtils(
+    {terminal: (input: {sessionId: string}, options?: {signal?: AbortSignal}) => readModels(ctx, input, options)},
+    {path: ['meta', 'models']},
   )
   const read = useQuery(() => ({
-    ...metaUtils.models.queryOptions({input: {sessionId: readSessionId() ?? ''}}),
+    ...modelsUtils.terminal.queryOptions({input: {sessionId: readSessionId() ?? ''}}),
     enabled: readSessionId() !== undefined,
     retry: false,
     refetchOnWindowFocus: false,
