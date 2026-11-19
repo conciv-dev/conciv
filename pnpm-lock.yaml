@@ -4771,6 +4771,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.9.1))
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
