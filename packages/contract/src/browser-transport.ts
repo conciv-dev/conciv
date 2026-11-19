@@ -1,4 +1,4 @@
-import {createORPCClient, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
+import {createORPCClient, mapEventIterator, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
 import {StandardRPCLink, type StandardLinkClient} from '@orpc/client/standard'
 import {
   ClientRetryPlugin,
@@ -328,16 +328,28 @@ function socketLink(
     url: SOCKET_LINK_URL,
     headers: sessionHeaders,
     interceptors: [
-      (options) => {
+      async (options) => {
         const sent = state.token
-        return options.next().catch((error: unknown) => {
-          if (error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS) distrust(state, sent)
-          throw error
+        const refused = (error: unknown, credential: string | undefined): unknown => {
+          if (error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS) distrust(state, credential)
+          return error
+        }
+        const output = await options.next().catch((error: unknown) => {
+          throw refused(error, sent)
+        })
+        if (!isEventIterator(output)) return output
+        return mapEventIterator(output, {
+          value: async (value) => value,
+          error: async (error) => refused(error, state.token),
         })
       },
     ],
     plugins: [retryPlugin(socket, lifetime)],
   })
+}
+
+function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, unknown, void> {
+  return typeof value === 'object' && value !== null && Symbol.asyncIterator in value
 }
 
 function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcClientContext>): EngineTrust {

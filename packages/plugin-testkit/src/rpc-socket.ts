@@ -44,6 +44,10 @@ export type RpcSocket = {
   rule: (rule: RpcSocketRule) => () => void
   listen: (listener: RpcSocketListener) => () => void
   opened: () => number
+  liveSockets: () => number
+  awaitLive: () => Promise<void>
+  engineCloses: (code: number) => number
+  awaitEngineCloses: (code: number, count: number) => Promise<void>
   hold: () => Promise<void>
   release: () => void
   holdCloses: () => void
@@ -56,10 +60,16 @@ export type RpcSocket = {
 
 type HandshakeWaiter = {count: number; deliver: () => void}
 
+type CloseWaiter = {code: number; count: number; deliver: () => void}
+
 type SocketState = {
   rules: RpcSocketRule[]
   listeners: Set<RpcSocketListener>
   live: Set<WebSocketRoute>
+  speaking: Set<WebSocketRoute>
+  speakingWaiters: (() => void)[]
+  engineCloseCodes: number[]
+  closeWaiters: CloseWaiter[]
   opened: number
   held: boolean
   heldCloses: (() => void)[] | null
@@ -77,6 +87,10 @@ export function rpcSocketFor(page: Page): RpcSocket {
     rules: [],
     listeners: new Set(),
     live: new Set(),
+    speaking: new Set(),
+    speakingWaiters: [],
+    engineCloseCodes: [],
+    closeWaiters: [],
     opened: 0,
     held: false,
     heldCloses: null,
@@ -104,10 +118,19 @@ export function rpcSocketFor(page: Page): RpcSocket {
       }
     },
     opened: () => state.opened,
+    liveSockets: () => state.speaking.size,
+    awaitLive: () =>
+      state.speaking.size > 0 ? Promise.resolve() : new Promise((resolve) => state.speakingWaiters.push(resolve)),
+    engineCloses: (code) => engineCloseCount(state, code),
+    awaitEngineCloses: (code, count) =>
+      engineCloseCount(state, code) >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => state.closeWaiters.push({code, count, deliver: resolve})),
     hold: async () => {
       state.held = true
       const closing = [...state.live].map((route) => route.close({code: CUT_CLOSE_CODE}))
       state.live.clear()
+      state.speaking.clear()
       await Promise.all(closing)
     },
     release: () => {
@@ -167,16 +190,20 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
   }
   route.onClose((code, reason) => {
     state.live.delete(route)
+    state.speaking.delete(route)
     outbound.tail = outbound.tail
       .then(() => server.close(forwardableClose(code, reason)))
       .catch((error: unknown) => console.error('[extension-testkit] a page close could not reach the engine', error))
   })
   route.onMessage((message) => {
+    speaks(route, state)
     outbound.tail = outbound.tail
       .then(() => sendOutbound(message, socketId, {route, forward: () => server.send(message), state, emit}))
       .catch((error: unknown) => console.error('[extension-testkit] an rpc frame could not be routed', error))
   })
   server.onClose((code, reason) => {
+    state.speaking.delete(route)
+    engineClosed(state, code)
     const close = (): void => void route.close({code, reason})
     if (state.heldCloses === null) close()
     else state.heldCloses.push(close)
@@ -187,6 +214,24 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
       .catch((error: unknown) => console.error('[extension-testkit] an rpc reply could not be decoded', error))
       .then(() => route.send(message))
   })
+}
+
+function engineCloseCount(state: SocketState, code: number): number {
+  return state.engineCloseCodes.filter((closed) => closed === code).length
+}
+
+function engineClosed(state: SocketState, code: number | undefined): void {
+  if (code === undefined) return
+  state.engineCloseCodes.push(code)
+  const reached = state.closeWaiters.filter((waiter) => engineCloseCount(state, waiter.code) >= waiter.count)
+  state.closeWaiters = state.closeWaiters.filter((waiter) => !reached.includes(waiter))
+  for (const waiter of reached) waiter.deliver()
+}
+
+function speaks(route: WebSocketRoute, state: SocketState): void {
+  if (state.speaking.has(route)) return
+  state.speaking.add(route)
+  for (const deliver of state.speakingWaiters.splice(0)) deliver()
 }
 
 function forwardableClose(code: number | undefined, reason: string | undefined): {code?: number; reason?: string} {

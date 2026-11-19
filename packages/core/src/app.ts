@@ -65,7 +65,6 @@ import {isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
-import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
 import {concivHome, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
@@ -355,7 +354,6 @@ function composeRoutes(
     engineId: string
     staleness: () => EngineStaleness
     onShutdown?: () => void
-    push: PushDeps
     plane: ChatPlane
     upgrade: UpgradeWebSocket
     trust: ConnectionTrust
@@ -384,7 +382,6 @@ function composeRoutes(
       return c.json({ok: true})
     })
     .route('/', deps.plane.routes(deps.upgrade))
-    .route('/', pushRoutes(deps.push, deps.upgrade))
     .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
@@ -937,10 +934,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       upgrade: socketUpgrade,
       trust,
       ptys,
-      push: {
-        queries: (sessionId, signal, focus) => runtime.forSession(sessionId).page.queries(signal, focus),
-        events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
-      },
     },
   )
 

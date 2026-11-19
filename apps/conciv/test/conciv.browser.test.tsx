@@ -166,9 +166,9 @@ describe('approval replay', () => {
   const newSession = () => createSession(coreRpc(core()))
 
   async function attachedPane(sessionId: string): Promise<PaneMount> {
-    const attached = await coreControl.pushSocketsOpened()
+    const attached = await coreControl.chatStreamsOpened()
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
-    await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+    await until(async () => (await coreControl.chatStreamsOpened()) > attached, {hangGuardMs: 20_000})
     return mount
   }
 
@@ -1798,10 +1798,10 @@ describe('chat pane', () => {
     test('a run pushed to a chat whose load failed leaves the failed load in place, so Retry reopens instead of resending', async () => {
       const {rpc, sessionId} = await newSession()
       const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
-      const attached = await coreControl.pushSocketsOpened()
+      const attached = await coreControl.chatStreamsOpened()
       mountChatPane(sessionId)
       await expect.element(retry()).toBeEnabled()
-      await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+      await until(async () => (await coreControl.chatStreamsOpened()) > attached, {hangGuardMs: 20_000})
       await coreControl.releaseFault(broken)
 
       await coreControl.scriptTurn({toolCalls: [], text: 'the reply from the other client'})
@@ -6482,20 +6482,17 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, moves focus from the composer to Log in, and the code restores it in place', async () => {
-    const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    await coreControl.awaitFaultPending(pushHandshake, 1)
-    const pushLive = coreControl.awaitPushSocketLive()
-    await coreControl.releaseFault(pushHandshake)
-    await pushLive
+    await coreControl.awaitRpcSocketLive()
+    const revoked = await coreControl.rpcSocketsRevoked()
     await userEvent.click(editor())
     await expect.element(editor()).toHaveFocus()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(reloginNotice().getByRole('button', {name: 'Log in'})).toHaveFocus()
     await expect.element(editor()).toBeVisible()
-    await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await coreControl.awaitRpcSocketsRevoked(revoked + 1)
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
     await expect.element(page.getByText('Log in to continue', {exact: true})).toBeVisible()
     await userEvent.click(editor(), {force: true})
@@ -6542,7 +6539,7 @@ describe('engine login', () => {
   test('a revoke while the panel is open empties this browser draft store, refuses typing, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
     await unlockOnNewSession()
     await typeEngineAndLocalDrafts()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
 
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
@@ -6569,7 +6566,7 @@ describe('engine login', () => {
     await page.getByRole('button', {name: 'Send message'}).click()
     const earlierAnswer = () => page.getByRole('log').getByText('Answer before the revoke.')
     await expect.element(earlierAnswer()).toBeVisible()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(earlierAnswer()).toBeVisible()
@@ -6578,7 +6575,7 @@ describe('engine login', () => {
     await userEvent.type(firstDigit(), await coreControl.requestCode())
     await expect.element(reloginNotice()).not.toBeInTheDocument()
     await expect.element(earlierAnswer()).toBeVisible()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
     await coreControl.scriptTurn({toolCalls: [], text: 'Answer after the new code.'})
     await editor().fill('second question')
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -6721,7 +6718,7 @@ describe('engine login', () => {
       const lateClose = await faults.install({kind: 'late-close'})
       harness.mountShell('/', [], {login: {apiBase: origin()}})
       await unlock()
-      await coreControl.awaitPushSocketLive()
+      await coreControl.awaitRpcSocketLive()
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
       await coreControl.revokeBrowsers()
       await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
@@ -7972,6 +7969,15 @@ describe('settings page', () => {
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '500')
     await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuemin', '448')
+    await userEvent.keyboard('{ArrowRight}'.repeat(4))
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '448')
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuemax', '960')
+    await userEvent.keyboard('{ArrowLeft}'.repeat(25))
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '960')
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '936')
+    localStorage.removeItem('conciv-modal-width')
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
