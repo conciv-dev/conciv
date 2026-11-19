@@ -31,6 +31,7 @@ import {
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
+import {TtyServerControlSchema} from '@conciv/protocol/terminal-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 import {OpenSourceSchema, SourceLocSchema} from './source-location.js'
@@ -389,8 +390,21 @@ const PersistentPtyInfoSchema = z.object({
   busy: z.boolean(),
 })
 const PtyIdInput = z.object({ptyId: PtyIdSchema})
+const PtyCursorSchema = z.number().int().nonnegative()
+const PtyOutputItemSchema = z.union([
+  z.object({type: z.literal('output'), data: z.string()}),
+  z.object({type: z.literal('meta'), cursor: PtyCursorSchema}),
+  TtyServerControlSchema,
+])
+const PTY_WRITE_MAX = 1024 * 1024
 const ptyNotFound = {
   PTY_NOT_FOUND: {status: 404, message: 'no terminal with that id', data: z.object({ptyId: z.string()})},
+}
+const slowConsumer = {
+  SLOW_CONSUMER: {
+    message: 'the reader fell too far behind the terminal output',
+    data: z.object({capacity: z.number()}),
+  },
 }
 const noTty = {NO_TTY: {message: "the session's harness has no terminal command"}}
 const ptyBusy = {BUSY: {message: 'the terminal CLI is busy'}}
@@ -580,10 +594,22 @@ export const contract = {
         .errors({...ptyNotFound, ...ptyBusy, ...approvalDenied})
         .input(PtyIdInput)
         .output(Ok),
-      connectToken: oc
+      output: oc
+        .errors({...ptyNotFound, ...slowConsumer, ...approvalDenied})
+        .input(PtyIdInput.extend({cursor: PtyCursorSchema.optional()}))
+        .output(eventIterator(PtyOutputItemSchema)),
+      write: oc
         .errors({...ptyNotFound, ...approvalDenied})
-        .input(PtyIdInput)
-        .output(z.object({ticket: z.string(), expiresIn: z.number().int().positive()})),
+        .input(PtyIdInput.extend({data: z.string().min(1).max(PTY_WRITE_MAX)}))
+        .output(Ok),
+      resize: oc
+        .errors({...ptyNotFound, ...approvalDenied})
+        .input(PtyIdInput.extend(PtySizeSchema.shape))
+        .output(Ok),
+      inject: oc
+        .errors({...ptyNotFound, ...approvalDenied})
+        .input(PtyIdInput.extend({text: z.string().min(1).max(4096)}))
+        .output(Ok),
     },
   },
   event: {
