@@ -87,7 +87,7 @@ import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
 import {compose} from '@conciv/plugin/experimental/host'
-import {Server, type Plugin} from '@conciv/plugin/experimental'
+import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
 import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {
@@ -4291,29 +4291,22 @@ describe('a Stop pressed while a plugin prepares the prompt', () => {
   })
 })
 
-const FOUND_API_BASE = 'http://found.test'
-const CONNECT_PROBE_NAME = 'connect-probe'
-
-function ConnectProbe(): JSX.Element {
-  const connect = getExtensionApi(CONNECT_PROBE_NAME).useConnect()
-  return (
-    <button type="button" onClick={() => connect.found(FOUND_API_BASE)}>
-      Simulate found
-    </button>
-  )
-}
-
-const connectProbe = defineExtension({
-  name: CONNECT_PROBE_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(CONNECT_PROBE_NAME).useSlot() === 'connect'}>
-      <ConnectProbe />
-    </Show>
-  ),
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof connectProbe> {}
+function foundServerPlugins(id: string, pane: (found: (apiBase: string) => void) => JSX.Element): ComposedPlugin[] {
+  const setup: Plugin.Setup = (ctx) => {
+    const [found, setFound] = createStore<{apiBase?: string}>({})
+    const entry = (apiBase: string | undefined): ServerEntry => ({
+      id: 'found',
+      name: id,
+      state: apiBase ? 'ready' : 'starting',
+      ...(apiBase ? {http: {url: apiBase}} : {}),
+      cover: () => pane((next) => setFound('apiBase', next)),
+    })
+    ctx.add(
+      Server,
+      createMemo(() => ({ready: true, order: 0, entries: [entry(found.apiBase)]})),
+    )
+  }
+  return compose({[id]: {windowEntry: async () => ({default: setup})}}).map((entry): ComposedPlugin => [entry, {}])
 }
 
 describe('panel connect', () => {
@@ -4325,7 +4318,14 @@ describe('panel connect', () => {
 
   afterEach(harness.dispose)
 
-  const mountShell = (): void => harness.mountShell('/panel/connect?open=true', [connectProbe])
+  const mountShell = (): void =>
+    harness.mountShell('/panel/connect?open=true', [], {
+      plugins: foundServerPlugins('connect-probe', (found) => (
+        <button type="button" onClick={() => found(core())}>
+          Simulate found
+        </button>
+      )),
+    })
 
   const simulateFound = () => page.getByRole('button', {name: 'Simulate found'})
   const bindFailure = () => page.getByText(/conciv couldn.t connect to that workspace/)
@@ -9163,38 +9163,22 @@ describe('terminal panel', () => {
   }, 60_000)
 })
 
-const TYPED_CONNECT_PROBE_NAME = 'typed-connect-probe'
-
-function TypedConnectProbe(): JSX.Element {
-  const connect = getExtensionApi(TYPED_CONNECT_PROBE_NAME).useConnect()
-  const [address, setAddress] = createSignal('')
+function TypedConnectForm(props: {found: (apiBase: string) => void}): JSX.Element {
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        connect.found(address())
+        const address = new FormData(event.currentTarget).get('address')
+        props.found(typeof address === 'string' ? address : '')
       }}
     >
       <label>
         Workspace address
-        <input value={address()} onInput={(event) => setAddress(event.currentTarget.value)} />
+        <input name="address" />
       </label>
       <button type="submit">Connect</button>
     </form>
   )
-}
-
-const typedConnectProbe = defineExtension({
-  name: TYPED_CONNECT_PROBE_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(TYPED_CONNECT_PROBE_NAME).useSlot() === 'connect'}>
-      <TypedConnectProbe />
-    </Show>
-  ),
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof typedConnectProbe> {}
 }
 
 const projectNoteBundle = `const {Slot, Store} = require('@conciv/plugin/experimental')
@@ -9287,7 +9271,9 @@ describe('plugins before a core is bound', () => {
       localStorage.removeItem(PREFS_KEY)
     })
     localStorage.removeItem('conciv:settings-tab')
-    harness.mountShell('/panel/connect?open=true', [typedConnectProbe], {connect: true})
+    harness.mountShell('/panel/connect?open=true', [], {
+      plugins: foundServerPlugins('typed-connect-probe', (found) => <TypedConnectForm found={found} />),
+    })
 
     await userEvent.click(page.getByRole('textbox', {name: 'Workspace address'}))
     await userEvent.keyboard(coreBase())

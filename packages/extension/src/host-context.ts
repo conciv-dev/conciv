@@ -6,7 +6,6 @@ import type {ExtensionSlot} from './types.js'
 
 export type ColorScheme = 'light' | 'dark'
 export type Toast = (message: string, tone?: 'info' | 'success' | 'error') => void
-export type ConnectHostApi = {origin: string; found: (apiBase: string) => void}
 
 export type HostWiring = {
   rpc: RpcClient
@@ -21,7 +20,6 @@ export type HostWiring = {
   viewLock: (locked: boolean) => void
   viewLeave: () => void
   slot: ExtensionSlot
-  connect: ConnectHostApi
   colorScheme: () => ColorScheme
   value: object
 }
