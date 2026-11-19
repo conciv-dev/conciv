@@ -1,4 +1,4 @@
-import {For, Show, type JSX} from 'solid-js'
+import {For, Show, createMemo, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {usePlugin} from '@conciv/plugin/experimental'
@@ -15,34 +15,50 @@ const ToolPart = z.object({
   output: z.unknown().optional(),
 })
 
-function Part(props: {part: unknown}): JSX.Element {
+const InlinePart = z.discriminatedUnion('type', [TextPart, MentionPart])
+type InlineSegment = z.output<typeof InlinePart>
+type PartRun = {kind: 'inline'; segments: InlineSegment[]} | {kind: 'block'; part: unknown}
+
+function groupPartRuns(parts: unknown[]): PartRun[] {
+  return parts.reduce<PartRun[]>((runs, part) => {
+    const inline = InlinePart.safeParse(part)
+    if (!inline.success) return [...runs, {kind: 'block', part}]
+    const last = runs.at(-1)
+    if (last?.kind === 'inline')
+      return [...runs.slice(0, -1), {kind: 'inline', segments: [...last.segments, inline.data]}]
+    return [...runs, {kind: 'inline', segments: [inline.data]}]
+  }, [])
+}
+
+function Segment(props: {segment: InlineSegment}): JSX.Element {
+  const label = (): string | undefined => (props.segment.type === 'mention' ? props.segment.label : undefined)
+  const text = (): string => (props.segment.type === 'text' ? props.segment.text : '')
+  return (
+    <Show when={label()} fallback={text()}>
+      {(value) => <span class="text-chat-accent-hi px-1 rounded-chat-surface-sm bg-chat-accent-08">@{value()}</span>}
+    </Show>
+  )
+}
+
+function BlockPart(props: {part: unknown}): JSX.Element {
   const ui = usePlugin().ui
-  const text = (): string | undefined => {
-    const parsed = TextPart.safeParse(props.part)
-    return parsed.success ? parsed.data.text : undefined
-  }
-  const mention = (): string | undefined => {
-    const parsed = MentionPart.safeParse(props.part)
-    return parsed.success ? parsed.data.label : undefined
-  }
   const code = (): string => {
     const tool = ToolPart.safeParse(props.part)
     return JSON.stringify(tool.success ? tool.data : props.part, null, 2)
   }
+  return <ui.Code content={code()} language="json" />
+}
+
+function PartRunView(props: {run: PartRun}): JSX.Element {
+  const segments = (): InlineSegment[] | undefined => (props.run.kind === 'inline' ? props.run.segments : undefined)
+  const block = (): unknown => (props.run.kind === 'block' ? props.run.part : undefined)
   return (
-    <Show
-      when={text()}
-      fallback={
-        <Show when={mention()} fallback={<ui.Code content={code()} language="json" />}>
-          {(label) => (
-            <span class="text-chat-sm text-chat-accent-hi px-1 rounded-chat-surface-sm bg-chat-accent-08 inline-flex items-center">
-              @{label()}
-            </span>
-          )}
-        </Show>
-      }
-    >
-      {(value) => <p class="text-chat-sm text-chat-text leading-snug whitespace-pre-wrap">{value()}</p>}
+    <Show when={segments()} fallback={<BlockPart part={block()} />}>
+      {(inline) => (
+        <p class="text-chat-sm text-chat-text leading-snug whitespace-pre-wrap">
+          <For each={inline()}>{(segment) => <Segment segment={segment} />}</For>
+        </p>
+      )}
     </Show>
   )
 }
@@ -50,7 +66,9 @@ function Part(props: {part: unknown}): JSX.Element {
 function CommentEntry(props: {comment: CommentRow}): JSX.Element {
   const ui = usePlugin().ui
   const model = useComments()
-  const parts = (): unknown[] => (Array.isArray(props.comment.parts) ? props.comment.parts : [])
+  const partRuns = createMemo((): PartRun[] =>
+    groupPartRuns(Array.isArray(props.comment.parts) ? props.comment.parts : []),
+  )
   return (
     <article class="py-2 border-t border-chat-line-soft flex flex-col gap-1 first:border-t-0">
       <div class="flex gap-2 items-center">
@@ -70,7 +88,7 @@ function CommentEntry(props: {comment: CommentRow}): JSX.Element {
         </Show>
       </div>
       <div class="ps-8 flex flex-col gap-1">
-        <For each={parts()}>{(part) => <Part part={part} />}</For>
+        <For each={partRuns()}>{(run) => <PartRunView run={run} />}</For>
       </div>
     </article>
   )
