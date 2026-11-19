@@ -19,26 +19,35 @@ const ConnectQuerySchema = z.object({
   rows: z.coerce.number().int().min(2).max(500).optional().catch(undefined),
 })
 
-function parseControl(text: string): TtyClientControl | null {
-  if (!text.startsWith('{')) return null
+const ControlFrameSchema = z.object({type: z.enum(['resize', 'inject'])})
+
+type ClientFrame = {readonly framed: boolean; readonly control: TtyClientControl | null}
+
+const TYPED_TEXT: ClientFrame = {framed: false, control: null}
+
+function parseFrame(text: string): ClientFrame {
+  if (!text.startsWith('{')) return TYPED_TEXT
   try {
-    const parsed = TtyClientControlSchema.safeParse(JSON.parse(text))
-    return parsed.success ? parsed.data : null
+    const frame: unknown = JSON.parse(text)
+    const parsed = TtyClientControlSchema.safeParse(frame)
+    if (parsed.success) return {framed: true, control: parsed.data}
+    return {framed: ControlFrameSchema.safeParse(frame).success, control: null}
   } catch (error) {
-    if (error instanceof SyntaxError) return null
+    if (error instanceof SyntaxError) return TYPED_TEXT
     throw error
   }
 }
 
-function applyControl(session: TtySession, control: TtyClientControl | null, text: string): boolean {
-  if (control?.type === 'resize') {
-    session.resize(control.cols, control.rows)
+function applyFrame(session: TtySession, frame: ClientFrame, text: string): boolean {
+  if (frame.control?.type === 'resize') {
+    session.resize(frame.control.cols, frame.control.rows)
     return true
   }
-  if (control?.type === 'inject') {
-    session.inject(control.text)
+  if (frame.control?.type === 'inject') {
+    session.inject(frame.control.text)
     return true
   }
+  if (frame.framed) return true
   if (text === ESCAPE_KEY && session.busy()) {
     session.interrupt()
     return true
@@ -79,7 +88,7 @@ export function persistentPtySocketRoutes(ptys: PersistentPtys, upgrade: Upgrade
           const session = ptys.find(ptyId)
           if (session === undefined) return
           const text = typeof event.data === 'string' ? event.data : ''
-          if (text && !applyControl(session, parseControl(text), text)) session.write(text)
+          if (text && !applyFrame(session, parseFrame(text), text)) session.write(text)
         },
         onClose() {
           held.detach?.()
