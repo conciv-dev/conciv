@@ -1,6 +1,6 @@
 ---
 title: Browser SDK
-description: The browser part of a plugin, the registries it adds to, and how it calls its engine part.
+description: The browser part of a plugin, the registries it adds to, the contracts it shares, and how it calls its engine part.
 ---
 
 The browser part runs in the widget. Import it from `@conciv/plugin/experimental`. It is written with
@@ -21,15 +21,24 @@ export default defineConfig({
 })
 ```
 
-Export the bundle as `./plugin-experimental` from the package. A plugin folder in the project ships it as
-`plugin-experimental.cjs` or `plugin-experimental.js` beside its engine part.
+The build needs `vite`, `vite-plugin-solid` and `solid-js` beside `@conciv/plugin`:
 
-During development, run the same build with `vite build --watch` from the plugin's dev script. Each build reloads only
-that plugin in the widget: the page does not reload, and the draft in the composer stays.
+```bash
+pnpm add -D @conciv/plugin vite vite-plugin-solid solid-js
+```
 
-The build keeps the modules the widget provides external. An import of another `effect`, `solid-js` or `@conciv`
-module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance. An
-`import()` becomes a chunk the widget loads the first time it runs.
+`experimental({entry, outFile})` changes the source file and the bundle it writes. Export the bundle as
+`./plugin-experimental` from a package. A plugin folder in the project ships it as `plugin-experimental.cjs` or
+`plugin-experimental.js` beside its engine part, as in [Your first plugin](/docs/plugins/your-first-plugin).
+
+During development, run the same build with `vite build --watch`. Each build reloads only that plugin in the widget:
+the page does not reload, and the draft in the composer stays.
+
+The build keeps the modules the widget provides external: `effect`, `zod`, `solid-js`, `solid-js/web`,
+`solid-js/store`, `@conciv/plugin/experimental`, `@conciv/plugin/experimental/page`,
+`@conciv/plugin/experimental/grab` and `@conciv/plugin/rpc`. An import of another `effect`, `solid-js` or `@conciv`
+module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance. Draw
+with `ctx.ui`, not with a UI kit of your own. An `import()` becomes a chunk the widget loads the first time it runs.
 
 ## Define it
 
@@ -94,31 +103,32 @@ changes, and an `undefined` result adds nothing: the whiteboard's overlay slot i
 
 ## Call the engine part
 
-`ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the [RPC contract](/docs/plugins/engine#rpc):
+`ctx.client.rpc(Contract)` calls the plugin's own engine part, typed from the [RPC contract](/docs/plugins/engine#rpc).
+The engine part's events arrive on `client.event.subscribe`, as `rpc.<id>.<event>`. The stream starts with
+`server.connected`: read the current state when it arrives.
 
-```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
-const load = async (client: Client, signal: AbortSignal) => {
-  try {
-    const runner = client.rpc(TestRunner)
-    const result = await runner.status(undefined, {signal})
-    if (!signal.aborted) dispatch({type: 'status', result})
-    const current = await runner.current(undefined, {signal})
-    if (!signal.aborted) dispatch({type: 'current', ...current})
-  } catch (error) {
-    if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
+```ts title="packages/plugins/test-runner/src/panel/follow-run.ts"
+export async function followTestRun(
+  client: Client,
+  signal: AbortSignal,
+  dispatch: (action: RunAction) => void,
+): Promise<void> {
+  const read = async () => {
+    try {
+      const runner = client.rpc(TestRunner)
+      const result = await runner.status(undefined, {signal})
+      if (!signal.aborted) dispatch({type: 'status', result})
+      const current = await runner.current(undefined, {signal})
+      if (!signal.aborted) dispatch({type: 'current', ...current})
+    } catch (error) {
+      if (!signal.aborted) console.error('[test-runner] the test run could not be read', error)
+    }
   }
-}
-```
-
-The engine part's events arrive on `client.event.subscribe`, as `rpc.<id>.<event>`:
-
-```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
-const follow = async (client: Client, signal: AbortSignal) => {
   try {
     for await (const event of client.event.subscribe({types: ['rpc.test-runner.event'], signal})) {
       if (event.type === 'server.connected') {
         dispatch({type: 'connected'})
-        void load(client, signal)
+        void read()
         continue
       }
       const parsed = TestEventSchema.safeParse(event.data)
@@ -129,6 +139,19 @@ const follow = async (client: Client, signal: AbortSignal) => {
     if (!signal.aborted) console.error('[test-runner] the live test events stopped', error)
   }
 }
+```
+
+`createKeyed` runs the follow once per `ctx.client`, and its cleanup aborts the follow of the client before:
+
+```tsx title="packages/plugins/test-runner/src/plugin-experimental.tsx"
+createKeyed(
+  () => ctx.client,
+  (client) => {
+    const controller = new AbortController()
+    onCleanup(() => controller.abort())
+    void followTestRun(client, controller.signal, dispatch)
+  },
+)
 ```
 
 ## Registries
@@ -173,17 +196,52 @@ ctx.add(Panel, {
 
 ### Slot
 
-A slot puts content at a fixed place in the widget:
+A slot puts content at a fixed place in the widget. The TanStack plugin's browser part, whole, adds a chip above the
+composer:
 
-```tsx title="packages/builtin-plugins/src/terminal/plugin-experimental.tsx"
-ctx.add(Slot, {
-  at: 'session.panel.end',
-  render: (input) => (
-    <Show when={ctx.layout.state(PANEL_KEY, input.session) === 'visible'}>
-      <TerminalToolbar session={input.session} terminal={terminal} />
-    </Show>
-  ),
+```tsx title="packages/plugins/tanstack/src/plugin-experimental.tsx"
+import {onCleanup} from 'solid-js'
+import {Effect, Exit, Layer, Scope} from 'effect'
+import {Plugin, Slot} from '@conciv/plugin/experimental'
+import {PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
+import {errorRingLayer} from './error-ring.js'
+import {InspectorChip} from './inspector-chip.js'
+import {execute} from './operations.js'
+import {Operations} from './rpc.js'
+
+export default Plugin.define({
+  setup(ctx) {
+    const tree = ctx.use(ReactTree)
+    const scope = Effect.runSync(Scope.make())
+    const services = Effect.runSync(Layer.buildWithScope(errorRingLayer, scope))
+    onCleanup(() => Effect.runFork(Scope.close(scope, Exit.void)))
+
+    Operations.forEach((operation) =>
+      ctx.add(PageOperation, {
+        name: `tanstack.${operation.name}`,
+        run: (input, signal) =>
+          Effect.runPromise(execute(operation.name, input, tree()).pipe(Effect.provideContext(services)), {signal}),
+      }),
+    )
+
+    ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} />})
+  },
 })
+```
+
+The chip draws with `ctx.ui`:
+
+```tsx title="packages/plugins/tanstack/src/inspector-chip.tsx"
+export function InspectorChip(props: {readonly ui: Ui}): JSX.Element {
+  return (
+    <props.ui.Tooltip value={LABEL}>
+      <span role="status" aria-label={LABEL} class="inline-flex gap-1.25 whitespace-nowrap items-center">
+        <TanStackLogo class="shrink-0 size-3.5 block" aria-hidden="true" />
+        {LABEL}
+      </span>
+    </props.ui.Tooltip>
+  )
+}
 ```
 
 | `at`                | Where                             | `render` input                           |
@@ -202,6 +260,23 @@ A pill sits above a session's composer. `show` returns the pill, or `undefined` 
 pills. The whiteboard's pill in [Define it](#define-it) opens the canvas from `run`.
 
 A pill can instead open a list of `rows`, each with a `label` and its own `run`, or your own content through `menu`.
+
+### Command
+
+A command runs from its keybind `bind`, or as a slash command in the composer. With `slash.arguments`, the text after
+the slash command reaches `run`:
+
+```js title="apps/conciv/test/conciv.browser.test.tsx"
+ctx.add(Command, {
+  id: 'rename',
+  title: 'Rename',
+  description: 'Rename the tally',
+  slash: {name: 'rename', arguments: true},
+  run: (input) => ctx.toast.show({title: 'Renamed to ' + input}),
+})
+```
+
+`slash.after` places the command after another one in the slash list, and `enabled: false` turns it off.
 
 ### SettingsPage
 
@@ -228,3 +303,89 @@ ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: tex
 
 Frame a page of your own with `ctx.ui.SettingsLayout`, a section with `ctx.ui.SettingsSection`, and a row with
 `ctx.ui.SettingsRow`, so it renders as the widget's own settings do.
+
+### Chat content
+
+These registries draw content inside the chat:
+
+<TypeTable
+  type={{
+    CodeBlock: {
+      type: '{languages, render}',
+      description:
+        'Renders a fenced code block of one of `languages`. `render` returns `undefined` to keep the default.',
+    },
+    CodeBlockAction: {
+      type: '{id, languages, icon, title, run}',
+      description:
+        'A button beside the Copy button of code blocks of one of `languages`. `run` gets the code, the language and the session.',
+    },
+    NoteCard: {
+      type: '{origins, render}',
+      description: 'Renders the inside of a composer note from one of `origins`, such as `recorder`.',
+    },
+    LinkHandler: {
+      type: '{match, open, priority?}',
+      description: 'Opens the local links it matches, such as file paths in messages.',
+    },
+  }}
+/>
+
+```ts title="packages/plugin/test/plugin.test.ts"
+ctx.add(CodeBlock, {languages: ['csv'], render: (block) => (block.code ? block.language : undefined)})
+ctx.add(CodeBlockAction, {
+  id: 'run',
+  languages: ['sh'],
+  icon: 'terminal',
+  title: 'Run',
+  run: async (input) => void input.session?.directory,
+})
+```
+
+## Stores
+
+`Plugin.define({stores, setup})` declares stores the widget keeps for the plugin. `Store.global` keeps one value for
+every project, `Store.project` one for this project, and `Store.session` one per session. Each takes a schema and the
+initial value. Read a store as `ctx.stores.<name>.value`, and write it with `set` or `update`:
+
+```js title="apps/conciv/test/conciv.browser.test.tsx"
+const projectNoteBundle = `const {Slot, Store} = require('@conciv/plugin/experimental')
+const {createComponent} = require('solid-js/web')
+const {createRenderEffect} = require('solid-js')
+const {z} = require('zod')
+module.exports = {default: {stores: {
+  note: Store.project(z.object({text: z.string()}), {text: 'none'}),
+}, setup(ctx) {
+  const shown = document.createElement('p')
+  createRenderEffect(() => {
+    shown.textContent = 'Project note: ' + ctx.stores.note.value.text
+  })
+  ctx.add(Slot, {at: 'window.bottom', render: () => shown})
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => createComponent(ctx.ui.Button, {onClick: () => ctx.stores.note.set({text: 'saved note'}), children: 'Save the project note'}),
+  })
+}}}
+`
+```
+
+A session store is a function of the session: `ctx.stores.note(session).value`, `undefined` until the session's
+stores load. A stored value that fails its schema keeps every valid field, and each failing field takes the initial
+value.
+
+## Contracts
+
+A contract is an object one plugin's browser part provides and others use. `ctx.provide(Contract, value)` provides
+it, and `ctx.use(Contract)` returns an accessor of its state: `pending`, `active` with the `value`, or `inactive` with a
+`reason`.
+
+The page plugin provides two contracts from `@conciv/plugin/experimental/page`:
+
+- `Page`: `symbolicate`, `toast`, `capture` (a screenshot of the page) and `pick` (the user picks an element).
+- `ReactTree`: reads the page's React fiber tree.
+
+`@conciv/plugin/experimental/grab` has the `GrabApi` contract, which stages grabbed elements in the composer.
+
+The TanStack plugin in [Slot](#slot) reads `ReactTree` with `ctx.use` and passes `tree()` to each page operation. A
+`PageOperation` is how a tool runs in the page: the engine part calls the page plugin's RPC `operate` with the
+operation's name, and the page plugin runs the matching `PageOperation` the browser part added.
