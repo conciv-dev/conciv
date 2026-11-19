@@ -26,15 +26,6 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
       <Show when={props.session.id} keyed>
         <Show when={grab()}>{(contract) => <PickElementButton grab={contract()} />}</Show>
       </Show>
-      <HarnessModelSelector
-        menu={menu}
-        status={status()}
-        models={props.terminal.meta(props.session.id)}
-        value={props.terminal.shownModel(props.session.id) ?? null}
-        disabled={locked()}
-        onRetry={() => props.terminal.reloadModels()}
-        onModelChange={(model) => props.terminal.pick(props.session, model)}
-      />
       <ctx.ui.Tooltip value="New terminal">
         <ctx.ui.IconButton
           icon="plus"
@@ -45,6 +36,15 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
           onClick={() => void props.terminal.restart(props.session)}
         />
       </ctx.ui.Tooltip>
+      <HarnessModelSelector
+        menu={menu}
+        status={status()}
+        models={props.terminal.meta(props.session.id)}
+        value={props.terminal.shownModel(props.session.id) ?? null}
+        disabled={locked()}
+        onRetry={() => props.terminal.reloadModels()}
+        onModelChange={(model) => props.terminal.pick(props.session, model)}
+      />
     </div>
   )
 }
