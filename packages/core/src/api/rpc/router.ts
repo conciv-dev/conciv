@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {ORPCError} from '@orpc/server'
+import {ORPCError, withEventMeta} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
@@ -7,6 +7,8 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
+import {OUTPUT_CAPACITY, ptyOutput, type PtyOutputEvent} from '../../pty/pty-output.js'
+import type {TtySession} from '../../pty/pty-sessions.js'
 import {Event, Location, Plugin, Rpc, Tool} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
@@ -217,6 +219,24 @@ async function eventStream(
   return relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal)
 }
 
+const PtyResumeCursor = z.coerce.number().int().nonnegative()
+
+const ESCAPE_KEY = String.fromCharCode(27)
+
+function writeToPty(pty: TtySession, data: string): void {
+  if (data === ESCAPE_KEY && pty.busy()) {
+    pty.interrupt()
+    return
+  }
+  pty.write(data)
+}
+
+async function* ptyEvents(events: AsyncIterable<PtyOutputEvent>) {
+  for await (const event of events) {
+    yield event.cursor === null ? event.item : withEventMeta(event.item, {id: String(event.cursor)})
+  }
+}
+
 async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSignal | undefined) {
   const stop = () => void events.return?.()
   signal?.addEventListener('abort', stop, {once: true})
@@ -411,8 +431,8 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     experimental: {
       persistentPty: {
-        create: os.experimental.persistentPty.create.handler(async ({input, errors}) => {
-          const created = await deps.ptys.create(input)
+        create: os.experimental.persistentPty.create.handler(async ({input, context, errors}) => {
+          const created = await deps.ptys.create(input, context.callerOrigin)
           if (created === null) throw errors.NO_TTY()
           return created
         }),
@@ -423,9 +443,33 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
           pty.kill()
           return {ok: true as const}
         }),
-        connectToken: os.experimental.persistentPty.connectToken.handler(({input, context, errors}) => {
-          if (deps.ptys.find(input.ptyId) === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
-          return deps.ptys.issueTicket({ptyId: input.ptyId, origin: context.callerOrigin})
+        output: os.experimental.persistentPty.output.handler(({input, context, errors, signal, lastEventId}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          const resumed = PtyResumeCursor.safeParse(lastEventId)
+          const stream = ptyOutput(pty, {
+            cursor: resumed.success ? resumed.data : input.cursor,
+            overflow: () => errors.SLOW_CONSUMER({data: {capacity: OUTPUT_CAPACITY}}),
+          })
+          return ptyEvents(relayEvents(Stream.toAsyncIterable(stream)[Symbol.asyncIterator](), signal))
+        }),
+        write: os.experimental.persistentPty.write.handler(({input, context, errors}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          writeToPty(pty, input.data)
+          return {ok: true as const}
+        }),
+        resize: os.experimental.persistentPty.resize.handler(({input, context, errors}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          pty.resize(input.cols, input.rows)
+          return {ok: true as const}
+        }),
+        inject: os.experimental.persistentPty.inject.handler(({input, context, errors}) => {
+          const pty = deps.ptys.admitted(input.ptyId, context.callerOrigin)
+          if (pty === undefined) throw errors.PTY_NOT_FOUND({data: {ptyId: input.ptyId}})
+          pty.inject(input.text)
+          return {ok: true as const}
         }),
       },
     },
