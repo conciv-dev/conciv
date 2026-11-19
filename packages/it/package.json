@@ -69,7 +69,6 @@
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",
-    "@conciv/extension-compiler": "workspace:^",
     "@conciv/unplugin": "workspace:^"
   },
   "devDependencies": {

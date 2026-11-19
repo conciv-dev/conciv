@@ -41,6 +41,7 @@ import {
   type SetupContext,
   type Token,
 } from '@conciv/plugin/experimental'
+import type {QueryClient} from '@conciv/client'
 import type {ConcivClient} from '@conciv/plugin'
 import {
   createPluginDialogState,
@@ -137,6 +138,7 @@ type HostInput = {
   plugin?: (id: string) => PluginInput | undefined
   options?: (id: string) => PluginOptions | undefined
   unavailableClient: () => ConcivClient
+  queryClient: QueryClient
 }
 
 export function PluginHostProvider(props: ParentProps<HostInput>) {
@@ -694,6 +696,7 @@ function createHost(input: HostInput) {
           })
         })
         release(dispose)
+        input.queryClient.removeQueries({queryKey: ['plugin', plugin]})
       },
     }
   }
