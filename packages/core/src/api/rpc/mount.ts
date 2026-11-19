@@ -162,7 +162,7 @@ const HUB_PROCEDURES = new Set(['meta.connectHub', 'meta.disconnectHub'])
 
 const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the tab"
 
-const EVENT_PROCEDURES = new Set(['event.subscribe'])
+const EVENT_PROCEDURES = new Set(['event.subscribe', 'chat.join'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 

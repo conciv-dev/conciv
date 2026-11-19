@@ -7034,6 +7034,10 @@ export default {
     const sessionClient = (session: string) => makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: session}})
     const turn = (session: string, runId: string) => sentTurn(base, session, runId, 'look around')
     await (await turn(looking, 'looked-run')).ended()
+    await expect(outside.chat.join({runId: 'looked-run'}).then((joined) => joined.next())).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: "outside agents can't read the engine's event stream",
+    })
     expect((await sessionClient(looking).chat.hydrate({sessionId: looking})).lastRun).toMatchObject({
       runId: 'looked-run',
       phase: 'completed',
