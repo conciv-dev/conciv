@@ -1,15 +1,24 @@
 import {onCleanup} from 'solid-js'
 import {Layer, ManagedRuntime} from 'effect'
-import {NoteCard, Panel, Plugin} from '@conciv/plugin/experimental'
+import {NoteCard, Panel, Plugin, type PanelTab} from '@conciv/plugin/experimental'
 import {bootCapture} from './page-capture.js'
 import {RecorderPanel} from './panel-view.js'
 import {RecordingCard} from './recording-card.js'
 import {runInOwnerScope, subscriptionRefSignal} from './subscription-ref-signal.js'
 
-const RECORDER_TAB = {id: 'recorder', title: 'Recorder', pinned: true}
-
 export default Plugin.define({
   setup(ctx) {
+    const recorderTab: PanelTab = {
+      id: 'recorder',
+      title: 'Recorder',
+      pinned: true,
+      label: () => (
+        <>
+          <ctx.ui.Icon name="clapperboard" size="small" />
+          Recorder
+        </>
+      ),
+    }
     const runtime = ManagedRuntime.make(Layer.empty)
     onCleanup(() => void runtime.dispose())
     const clientId = crypto.randomUUID()
@@ -17,9 +26,9 @@ export default Plugin.define({
     const boot = subscriptionRefSignal(runtime, capture.boot)
     const captureFailed = () => boot().status === 'failed'
     ctx.add(Panel, {
-      id: RECORDER_TAB.id,
+      id: recorderTab.id,
       region: 'pane',
-      list: () => [RECORDER_TAB],
+      list: () => [recorderTab],
       render: (host) => (
         <RecorderPanel
           clientId={clientId}
