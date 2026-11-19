@@ -23,7 +23,7 @@ export type StatusBarProps = {
 }
 
 const BAR =
-  'flex items-stretch min-h-10 select-none bg-chat-statusbar-bg border-t border-t-solid border-t-chat-line-soft font-chat-mono'
+  'flex items-stretch select-none bg-chat-statusbar-bg border-t border-t-solid border-t-chat-line-soft font-chat-mono'
 type ChipKind = Exclude<SessionStatusKind, 'unstarted'>
 type ChipStatus = SessionStatus & {kind: ChipKind}
 
@@ -38,7 +38,7 @@ const CHIP: Record<ChipKind, string> = {
 const CHIP_BASE =
   'flex-none flex items-center gap-1.5 px-2.5 text-chat-micro font-bold uppercase tracking-[0.12em] text-chat-on-status'
 const CHIP_DOT = 'chat-statusbar-chip-dot flex-none size-1.5 rounded-chat-pill bg-chat-on-status anim-run-ring'
-const CELL_BOX = 'flex-none items-center gap-1.5 px-2.5 text-chat-xs text-chat-text-2'
+const CELL_BOX = 'flex-none items-center gap-1.5 px-2.5 py-3 text-chat-xs leading-3.75 text-chat-text-2'
 const CELL = `flex ${CELL_BOX}`
 const DIFF = `hidden @sm:flex ${CELL_BOX} border-s border-s-solid border-s-chat-line-soft`
 const DIFF_FILES = 'text-chat-text-3'
@@ -47,7 +47,7 @@ const DIFF_DELS = 'text-chat-danger'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none]'
 const VIEW_BTN =
-  'flex-none flex items-center px-2.5 text-chat-xs font-medium text-chat-text-2 bg-transparent border-none border-s border-s-solid border-s-chat-line-soft cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:bg-chat-fill data-[selected]:text-chat-text-hi data-[selected]:bg-chat-fill'
+  'flex-none flex items-center px-2.5 py-3 text-chat-xs leading-3.75 font-medium text-chat-text-2 bg-transparent border-none border-s border-s-solid border-s-chat-line-soft cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:bg-chat-fill data-[selected]:text-chat-text-hi data-[selected]:bg-chat-fill'
 const VIEW_LINE = 'flex items-baseline gap-1.5 min-w-0'
 const VIEW_ICON = 'flex-none self-center size-3'
 const VIEW_LABEL = 'hidden @sm:block font-chat truncate max-w-24'
