@@ -716,7 +716,7 @@ describe('swift mirror', () => {
     await mkdir(join(sourceDir, 'Tests', 'ConcivWidgetTests', 'Fixtures', 'bridge'), {recursive: true})
     await mkdir(join(sourceDir, '.build'), {recursive: true})
     await mkdir(templateDir, {recursive: true})
-    await writeFile(bridgeManifestPath, `${JSON.stringify({name: '@conciv/extension-ios', version}, null, 2)}\n`)
+    await writeFile(bridgeManifestPath, `${JSON.stringify({name: '@conciv/plugin-ios', version}, null, 2)}\n`)
     await writeFile(join(sourceDir, 'Package.swift'), 'let package = 1\n')
     await writeFile(join(sourceDir, 'Sources', 'ConcivWidget', 'ConcivWidget.swift'), 'public struct ConcivWidget {}\n')
     await writeFile(join(sourceDir, 'Tests', 'ConcivWidgetTests', 'Fixtures', 'bridge', 'n2p.open.json'), '{}\n')
@@ -815,15 +815,12 @@ describe('swift mirror', () => {
   test('readBridgeVersion rejects a manifest whose version is not bare semver', async () => {
     const root = tempDir('swift-mirror-')
     const bridgeManifestPath = join(root, 'bridge-package.json')
-    await writeFile(
-      bridgeManifestPath,
-      `${JSON.stringify({name: '@conciv/extension-ios', version: '0.0.15-beta.1'})}\n`,
-    )
+    await writeFile(bridgeManifestPath, `${JSON.stringify({name: '@conciv/plugin-ios', version: '0.0.15-beta.1'})}\n`)
     await expect(readBridgeVersion(bridgeManifestPath)).rejects.toThrow(/invalid swift sdk version/)
     await rm(root, {recursive: true, force: true})
   })
 
-  const MANIFEST_REL = 'packages/extensions/ios/package.json'
+  const MANIFEST_REL = 'packages/plugins/ios/package.json'
   const SOURCE_REL = 'native/swift/ConcivWidget'
 
   async function initRepo(): Promise<{repo: string; git: (...args: string[]) => Promise<unknown>}> {
@@ -845,7 +842,7 @@ describe('swift mirror', () => {
   ): Promise<void> {
     await mkdir(join(repo, 'packages', 'extensions', 'ios'), {recursive: true})
     await mkdir(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources'), {recursive: true})
-    await writeFile(join(repo, MANIFEST_REL), `${JSON.stringify({name: '@conciv/extension-ios', version}, null, 2)}\n`)
+    await writeFile(join(repo, MANIFEST_REL), `${JSON.stringify({name: '@conciv/plugin-ios', version}, null, 2)}\n`)
     await writeFile(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources', 'W.swift'), swiftBody)
     await git('add', '-A')
     await git('commit', '-qm', message)
@@ -882,7 +879,7 @@ describe('swift mirror', () => {
     for (const good of ['1.0.0', '0.0.15', '12.34.56']) {
       expect(() => assertBareSemver(good), good).not.toThrow()
     }
-    for (const bad of ['v1.0.0', '1.0', '1.0.0-beta', '@conciv/extension-ios@0.0.15', '', '1.0.0 ']) {
+    for (const bad of ['v1.0.0', '1.0', '1.0.0-beta', '@conciv/plugin-ios@0.0.15', '', '1.0.0 ']) {
       expect(() => assertBareSemver(bad), bad).toThrow(/invalid swift sdk version/)
     }
   })

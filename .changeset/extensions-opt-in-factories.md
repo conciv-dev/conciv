@@ -6,7 +6,6 @@
 '@conciv/extension': patch
 '@conciv/extension-compiler': patch
 '@conciv/extension-design': patch
-'@conciv/extension-ios': patch
 '@conciv/extension-recorder': patch
 '@conciv/extension-whiteboard': patch
 ---

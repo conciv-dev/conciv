@@ -1,13 +1,13 @@
-import {createSignal, Show, type JSX} from 'solid-js'
-import {defineExtension} from '@conciv/extension'
+import {Show, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
+import {Plugin, Slot} from '@conciv/plugin/experimental'
 import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
-import {createBridgeClient, type BridgeClient, type BridgeTransport} from './shared/bridge-client.js'
-import type {GrabMode} from './shared/bridge.js'
-import {IOS_NAME} from './shared/name.js'
-import {nativePageBase} from './shared/page-base.js'
+import type {GrabMode} from './bridge.js'
+import {createBridgeClient, type BridgeClient, type BridgeTransport} from './native/bridge-client.js'
+import {nativePageBase} from './native/page-base.js'
 
-export {nativePageBase} from './shared/page-base.js'
+export {nativePageBase} from './native/page-base.js'
 
 type NativeCall = (message: Record<string, unknown>) => void
 
@@ -34,8 +34,10 @@ declare global {
 
 type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
-const [incompatible, setIncompatible] = createSignal<Incompatible | null>(null)
-const [grabbable, setGrabbable] = createSignal(false)
+const [bridgeState, setBridgeState] = createStore<{incompatible: Incompatible | null; grabbable: boolean}>({
+  incompatible: null,
+  grabbable: false,
+})
 
 let bridge: BridgeClient | null = null
 
@@ -104,12 +106,12 @@ function ensureBridge(): BridgeClient | null {
     ensureOpen: () => panelCommands.emit('open', undefined),
     ensureClose: () => panelCommands.emit('close', undefined),
     onRebind: (apiBase) => dispatch('conciv:rebind', {apiBase}),
-    onIncompatible: (info) => setIncompatible(info),
-    onGrabbableChanged: (value) => setGrabbable(value),
+    onIncompatible: (info) => setBridgeState('incompatible', info),
+    onGrabbableChanged: (value) => setBridgeState('grabbable', value),
     onLog: (level, message) => console[level]('conciv bridge:', message),
   })
   bridge.start()
-  setGrabbable(bridge.grabbable())
+  setBridgeState('grabbable', bridge.grabbable())
   window.addEventListener('conciv:panel-toggled', onPanelToggled)
   return bridge
 }
@@ -137,30 +139,18 @@ export function makeNativeGrabProvider(): GrabProvider {
     comment: () => doPick('comment'),
     cancel: () => engine?.cancelActive(),
     isActive: () => activeRequest !== 0,
-    grabbable: () => grabbable(),
+    grabbable: () => bridgeState.grabbable,
   }
   return () => actions
 }
 
-function IosBridgeSurface(): JSX.Element {
+function IncompatibleBridgeAlert(): JSX.Element {
   return (
-    <Show when={incompatible()}>
+    <Show when={bridgeState.incompatible}>
       {(info) => (
         <div
           role="alert"
-          style={{
-            position: 'fixed',
-            top: '0',
-            left: '0',
-            right: '0',
-            'z-index': '2147483647',
-            padding: '12px 16px',
-            background: '#7f1d1d',
-            color: '#fff',
-            'font-family': 'system-ui, sans-serif',
-            'font-size': '14px',
-            'text-align': 'center',
-          }}
+          class="text-chat-sm text-chat-on-accent font-chat px-4 py-3 text-center bg-chat-danger pointer-events-auto inset-x-0 top-0 fixed z-50"
         >
           Update the conciv widget or the app SDK: the native app speaks bridge versions {info().nativeMinV} to{' '}
           {info().nativeMaxV}, which this widget does not support.
@@ -170,12 +160,7 @@ function IosBridgeSurface(): JSX.Element {
   )
 }
 
-export const ios = defineExtension({
-  name: IOS_NAME,
-  Surface: IosBridgeSurface,
-}).client(() => {
+export const setup: Plugin.Setup = (ctx) => {
   ensureBridge()
-  return {value: {}}
-})
-
-export default ios
+  ctx.add(Slot, {at: 'page.overlay', hides: false, render: () => <IncompatibleBridgeAlert />})
+}
