@@ -46,6 +46,7 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string; run
   const saved = useQuery(() => ({
     ...ctx.client.rpc(Recorder)['recordings.get'].queryOptions({input: {recordingId: props.recording.recordingId}}),
     retry: false,
+    staleTime: 0,
     refetchOnWindowFocus: false,
   }))
   const recording = createMemo(() => (saved.isSuccess ? saved.data : undefined))
