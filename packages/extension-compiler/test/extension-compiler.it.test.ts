@@ -1,5 +1,4 @@
-import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {describe, expect, it, test} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {
   EXTENSIONS_DOCK_RESOLVED_ID,
   WIDGET_DOCK_ROUTE,
@@ -7,19 +6,10 @@ import {
   WIDGET_ROUTE,
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
-  loadServerExtensions,
-  loadExtensionPackages,
-  listExtensionFiles,
 } from '../src/extensions.js'
 import {isClientEntry, transformConcivModule, resolveExtensionsModule} from '../src/vite-plumbing.js'
-import {fileURLToPath} from 'node:url'
-import {dedupeExtensions} from '../src/dedupe-extensions.js'
-import {isExtension} from '../src/extension-guard.js'
-import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
-import {readdirSync, symlinkSync, writeFileSync, mkdirSync} from 'node:fs'
-import {defineExtension} from '@conciv/extension'
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
@@ -59,74 +49,25 @@ describe('client entry inject', () => {
     })
 
     it('bakes the engine origin into the extensions module as the window global (Next-style seam)', () => {
-      const source = extensionsModuleSource(['/abs/a/client.js'], 'http://127.0.0.1:41700')
+      const source = extensionsModuleSource('http://127.0.0.1:41700')
       expect(source).toContain('window.__CONCIV_API_BASE__ = "http://127.0.0.1:41700"')
     })
 
     it('exports a dock renderer instead of mounting on the page when the surface is dock', () => {
-      const source = extensionsModuleSource(['/abs/a/client.js'], undefined, undefined, undefined, 'dock')
+      const source = extensionsModuleSource(undefined, undefined, 'dock')
       expect(source).toContain('export default function concivDockRenderer')
       expect(source).toContain('createConciv')
       expect(source).not.toContain('mountConciv')
     })
 
     it('omits the window global when no api base is known (classic path uses the meta tag)', () => {
-      const source = extensionsModuleSource(['/abs/a/client.js'])
+      const source = extensionsModuleSource()
       expect(source).not.toContain('__CONCIV_API_BASE__')
     })
   })
 })
 
-describe('dedupe extensions', () => {
-  test('isExtension requires an object with a non-empty string name', () => {
-    expect(isExtension({name: 'a'})).toBe(true)
-    expect(isExtension({name: ''})).toBe(false)
-    expect(isExtension({})).toBe(false)
-    expect(isExtension(null)).toBe(false)
-    expect(isExtension(() => {})).toBe(false)
-  })
-
-  test('built-ins win over folder on name collision; deterministic order; provenance in dropped', () => {
-    const r = dedupeExtensions([
-      {extension: {name: 'terminal'}, source: 'builtin:0'},
-      {extension: {name: 'tanstack'}, source: '/app/conciv/extensions/tanstack.tsx'},
-      {extension: {name: 'terminal'}, source: '/app/conciv/extensions/terminal.tsx'},
-      {extension: {name: ''}, source: '/app/conciv/extensions/broken.tsx'},
-      {extension: 42, source: '/app/conciv/extensions/notext.tsx'},
-    ])
-    expect(r.extensions.map((e) => e.name)).toEqual(['terminal', 'tanstack'])
-    expect(r.dropped).toEqual([
-      {source: '/app/conciv/extensions/terminal.tsx', reason: 'duplicate-name:terminal'},
-      {source: '/app/conciv/extensions/broken.tsx', reason: 'invalid-extension'},
-      {source: '/app/conciv/extensions/notext.tsx', reason: 'invalid-extension'},
-    ])
-  })
-
-  test('toSortedLoaders sorts glob keys and drops .d.ts (client ordering)', async () => {
-    const {loadExtensions, toSortedLoaders} = await import('../src/dedupe-extensions.js')
-    const loaders = toSortedLoaders({
-      '/conciv/extensions/z.tsx': async () => ({default: {name: 'z'}}),
-      '/conciv/extensions/a.tsx': async () => ({default: {name: 'a'}}),
-      '/conciv/extensions/types.d.ts': async () => ({default: {name: 'skip'}}),
-    })
-    expect(loaders.map((loader) => loader.source)).toEqual(['/conciv/extensions/a.tsx', '/conciv/extensions/z.tsx'])
-    const picked = await loadExtensions(loaders)
-    expect(picked.extensions.map((extension) => extension.name)).toEqual(['a', 'z'])
-  })
-
-  test('an extension module that fails to load is skipped and reported, the rest still load', async () => {
-    const {loadExtensions} = await import('../src/dedupe-extensions.js')
-    const picked = await loadExtensions([
-      {source: '/abs/extension-recorder/dist/client.js', load: () => Promise.reject(new TypeError('boom'))},
-      {source: '/conciv/extensions/notes.tsx', load: async () => ({default: {name: 'notes'}})},
-    ])
-    expect(picked.extensions.map((extension) => extension.name)).toEqual(['notes', 'conciv-load-failures'])
-  })
-})
-
 describe('extension isolation', () => {
-  const here = dirname(fileURLToPath(import.meta.url))
-
   const ID = '/proj/conciv/extensions/iso.tsx'
 
   async function compileClient(source: string): Promise<string> {
@@ -158,188 +99,6 @@ function Surface() {
       expect(client).not.toContain('readFileSync')
       expect(client).not.toContain('/etc/secret-token')
     }, 30_000)
-
-    it('the server load never executes the client (Component / .client) halves', async () => {
-      const builders = await loadServerExtensions(join(here, 'fixtures', 'iso-extensions'), [])
-      expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('iso_tool')
-    }, 30_000)
-
-    it('a capability declared in an imported module is split on the server too', async () => {
-      const builders = await loadServerExtensions(join(here, 'fixtures', 'nested-extensions'), [])
-      expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('nested_tool')
-    }, 30_000)
-  })
-})
-
-describe('extensions', () => {
-  const fixture = defineExtension({name: 'fixture-ext'})
-
-  describe('generic extension wiring', () => {
-    it('returns the injected built-in server extensions when a project has no user extensions', async () => {
-      const emptyProject = tempDir('conciv-noext-')
-      const builders = await loadServerExtensions(emptyProject, [fixture])
-      expect(builders.map((builder) => builder.name)).toEqual(['fixture-ext'])
-    })
-
-    it('loads each client entry independently and hands them all to mountConciv', () => {
-      const source = extensionsModuleSource(['/abs/a/client.js', '/abs/b/client.js'])
-      expect(source).toContain(
-        'const builtinLoaders = [{source: "/abs/a/client.js", load: () => import("/abs/a/client.js")}, {source: "/abs/b/client.js", load: () => import("/abs/b/client.js")}]',
-      )
-      expect(source).toContain('toSortedLoaders(import.meta.glob("/conciv/extensions/*.{ts,tsx,js,jsx}"))')
-      expect(source).toContain('const picked = await loadExtensions([...builtinLoaders, ...folderLoaders])')
-      expect(source).toContain('mountConciv(picked.extensions)')
-    })
-
-    it('imports dedupe from the bare specifier when no resolved entry is threaded', () => {
-      const source = extensionsModuleSource(['/abs/a/client.js'])
-      expect(source).toContain('import {loadExtensions, toSortedLoaders} from "@conciv/extension-compiler/dedupe"')
-    })
-
-    it('imports dedupe from the resolved absolute entry so consumer apps resolve it in dist mode', () => {
-      const source = extensionsModuleSource(
-        ['/abs/a/client.js'],
-        undefined,
-        '/abs/embed/mount.js',
-        '/abs/pkg/dist/dedupe-extensions.js',
-      )
-      expect(source).toContain('import {loadExtensions, toSortedLoaders} from "/abs/pkg/dist/dedupe-extensions.js"')
-      expect(source).not.toContain('@conciv/extension-compiler/dedupe')
-    })
-  })
-})
-
-describe('load extension packages', () => {
-  const here = dirname(fileURLToPath(import.meta.url))
-
-  function serverEntry(body: string): string {
-    const root = tempDir('conciv-pkg-')
-    writeFileSync(join(root, 'package.json'), JSON.stringify({type: 'module'}))
-    const file = join(root, 'server.js')
-    writeFileSync(file, body)
-    return file
-  }
-
-  test('loads each server entry by its absolute path and keys its options by the extension name', async () => {
-    const first = serverEntry("export default {name: 'first'}\n")
-    const second = serverEntry("export default {name: 'second'}\n")
-    const loaded = await loadExtensionPackages([
-      {server: first, client: '/unused/client.js', config: {flag: true}},
-      {server: second, client: '/unused/client.js', config: undefined},
-    ])
-    expect(loaded.extensions.map((extension) => extension.name)).toEqual(['first', 'second'])
-    expect(loaded.config).toEqual({first: {flag: true}, second: undefined})
-  })
-
-  test('no packages load nothing', async () => {
-    expect(await loadExtensionPackages()).toEqual({extensions: [], config: {}})
-  })
-
-  test('a server entry without an extension default export is fatal and names the entry', async () => {
-    const server = serverEntry('export const notDefault = 1\n')
-    await expect(loadExtensionPackages([{server, client: '/unused/client.js', config: undefined}])).rejects.toThrow(
-      server,
-    )
-  })
-  test('writes nothing inside the package test folder', () => {
-    expect(readdirSync(here).toSorted()).toEqual(['extension-compiler.it.test.ts', 'fixtures'])
-  })
-})
-
-describe('load server extensions', () => {
-  const here = dirname(fileURLToPath(import.meta.url))
-
-  function mkRoot(): string {
-    const root = tempDir('conciv-ext-')
-    symlinkSync(fileURLToPath(new URL('../node_modules', import.meta.url)), join(root, 'node_modules'), 'dir')
-    return root
-  }
-
-  const EXT = "import {defineExtension} from '@conciv/extension'\nexport default defineExtension"
-
-  function fixture(files: Record<string, string>, dirs: string[] = []): string {
-    const root = mkRoot()
-    const base = join(root, 'conciv/extensions')
-    mkdirSync(base, {recursive: true})
-    for (const d of dirs) mkdirSync(join(base, d), {recursive: true})
-    for (const [name, body] of Object.entries(files)) writeFileSync(join(base, name), body)
-    return root
-  }
-
-  test('listExtensionFiles: sorted basenames, files only, .d.ts and non-matching excluded, [] on missing dir', () => {
-    const root = fixture({'b.tsx': '', 'a.ts': '', 'types.d.ts': '', 'notes.md': '', 'bad.ts.bak': ''}, ['nested.ts'])
-    expect(listExtensionFiles(root)).toEqual(['a.ts', 'b.tsx'])
-    expect(listExtensionFiles(join(root, 'nowhere'))).toEqual([])
-  })
-
-  test('listExtensionFiles: a non-ENOENT fs failure is fatal, not "no extensions"', () => {
-    const root = mkRoot()
-    mkdirSync(join(root, 'conciv'), {recursive: true})
-    writeFileSync(join(root, 'conciv/extensions'), 'not a directory')
-    expect(() => listExtensionFiles(root)).toThrow()
-  })
-
-  test('ignores a directory whose name matches the extension pattern', async () => {
-    const root = fixture({'a.tsx': `${EXT}({name:'a'})`}, ['nested.ts'])
-    const out = await loadServerExtensions(root, [])
-    expect(out.map((e) => e.name)).toEqual(['a'])
-  })
-
-  test('ignores .d.ts declaration files', async () => {
-    const root = fixture({'a.tsx': `${EXT}({name:'a'})`, 'types.d.ts': 'export type X = 1'})
-    const out = await loadServerExtensions(root, [])
-    expect(out.map((e) => e.name)).toEqual(['a'])
-  })
-
-  test('a discovered module with no default export is fatal and names the file', async () => {
-    const root = fixture({'x.tsx': 'export const notDefault = 1'})
-    await expect(loadServerExtensions(root, [])).rejects.toThrow(/x\.tsx/)
-  })
-
-  const CLIENT_HEAVY = `import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
-import {ComposerActions} from '@conciv/ui-kit-chat'
-
-const ping = defineTool({
-  name: 'ping',
-  description: 'ping',
-  inputSchema: z.object({message: z.string()}),
-}).server((input) => ({echo: input.message}))
-
-const extension = defineExtension({name: 'client-heavy', Component, tools: [ping]})
-
-export default extension
-
-function Component() {
-  return (
-    <ComposerActions.ActionButton priority={10} tooltip="Do" onClick={() => {}} />
-  )
-}`
-
-  test('an extension whose Component imports a client-only package still loads on the server', async () => {
-    const root = fixture({'client-heavy.tsx': CLIENT_HEAVY})
-    const out = await loadServerExtensions(root, [])
-    expect(out.map((extension) => extension.name)).toEqual(['client-heavy'])
-    expect(out[0]?.tools?.map((tool) => tool.name)).toEqual(['ping'])
-  })
-
-  test('built-in wins over a folder file of the same name', async () => {
-    const builtin = defineExtension({name: 'terminal'})
-    const root = fixture({'terminal.tsx': `${EXT}({name:'terminal'})`, 'a.tsx': `${EXT}({name:'a'})`})
-    const out = await loadServerExtensions(root, [builtin])
-    expect(out.filter((e) => e.name === 'terminal').length).toBe(1)
-    expect(out[0]).toBe(builtin)
-  })
-
-  test('the same-name winner is the built-in regardless of folder enumeration order', async () => {
-    const builtin = defineExtension({name: 'z'})
-    const root = fixture({'z.tsx': `${EXT}({name:'z'})`, 'a.tsx': `${EXT}({name:'a'})`})
-    const out = await loadServerExtensions(root, [builtin])
-    expect(out[0]).toBe(builtin)
-    expect(out.map((e) => e.name)).toEqual(['z', 'a'])
-  })
-  test('writes nothing inside the package test folder', () => {
-    expect(readdirSync(here).toSorted()).toEqual(['extension-compiler.it.test.ts', 'fixtures'])
   })
 })
 

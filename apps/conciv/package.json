@@ -28,7 +28,6 @@
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/page": "workspace:^",
@@ -66,6 +65,7 @@
   },
   "devDependencies": {
     "@conciv/db": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",

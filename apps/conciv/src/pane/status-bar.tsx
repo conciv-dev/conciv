@@ -1,4 +1,4 @@
-import {Show, createMemo, untrack, type Component, type JSX} from 'solid-js'
+import {Show, untrack, type Component, type JSX} from 'solid-js'
 import {Key} from '@solid-primitives/keyed'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TruncatedText} from '@conciv/ui-kit-system'
@@ -20,7 +20,6 @@ export type StatusBarProps = {
   views: readonly StatusBarView[]
   activeView: string
   onSelectView: (id: string) => void
-  disabled: boolean
   end?: JSX.Element
 }
 
@@ -49,7 +48,7 @@ const DIFF_DELS = '[color:var(--chat-danger)]'
 const VIEW_GROUP = 'flex-1 flex items-stretch justify-end min-w-0'
 const VIEW_LIST = 'relative flex items-stretch min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none]'
 const VIEW_BTN =
-  'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:opacity-40 disabled:cursor-default data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
+  'flex-none inline-flex items-center gap-1.5 px-2.5 text-[length:var(--chat-text-xs)] font-medium [color:var(--chat-text-2)] bg-transparent [border-block:none] [border-inline-end:none] [border-inline-start:1px_solid_var(--chat-line-soft)] cursor-pointer [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] data-[selected]:[color:var(--chat-text-hi)] data-[selected]:[background:var(--chat-fill)]'
 const VIEW_TEXT = 'inline-flex items-baseline gap-1.5 min-w-0'
 const VIEW_END =
   'flex-none flex items-center gap-1 px-1.5 [border-inline-start:1px_solid_var(--chat-line-soft)] empty:hidden'
@@ -102,12 +101,10 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
           <Key each={props.views} by="id">
             {(view, index) => {
               const content = untrack(view).content
-              const locked = createMemo(() => props.disabled && view().id !== props.activeView)
               return (
                 <Tabs.Trigger
                   class={VIEW_BTN}
                   value={view().id}
-                  disabled={locked()}
                   aria-label={content ? (view().missing ? view().label : undefined) : view().label}
                 >
                   <Show when={view().icon}>

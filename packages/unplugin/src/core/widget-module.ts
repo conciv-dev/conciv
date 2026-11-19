@@ -21,7 +21,7 @@ const HOST_WIDGET_SETTINGS = [
 
 const PAGE_MOUNT = [
   `if (typeof document !== 'undefined' && !document.querySelector(${JSON.stringify(DOCK_SCRIPT_SELECTOR)}))`,
-  `  mountConciv([]).catch((error) => console.error('[conciv] widget failed to start', error))`,
+  `  mountConciv().catch((error) => console.error('[conciv] widget failed to start', error))`,
 ]
 
 const DOCK_RENDERER = [

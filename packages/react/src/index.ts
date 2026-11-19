@@ -10,14 +10,13 @@ export function ConcivWidget(props: ConcivWidgetProps): ReactElement {
   const configKey = JSON.stringify({apiBase: props.apiBase, settings: props.settings})
   const [config, setConfig] = useState({key: configKey, apiBase: props.apiBase, settings: props.settings})
   if (config.key !== configKey) setConfig({key: configKey, apiBase: props.apiBase, settings: props.settings})
-  const plugins = props.plugins
   useEffect(() => {
     if (!host) return
-    const handle = createConciv({apiBase: config.apiBase, settings: config.settings, plugins})
+    const handle = createConciv({apiBase: config.apiBase, settings: config.settings})
     handle.mount(host).catch((error: unknown) => console.error('conciv widget failed to mount', error))
     return () => {
       handle.unmount()
     }
-  }, [host, config, plugins])
+  }, [host, config])
   return createElement('div', {ref: setHost})
 }

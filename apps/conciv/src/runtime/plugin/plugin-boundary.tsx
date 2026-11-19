@@ -4,9 +4,9 @@ import {AttachmentUI, CornerRemoveButton, useAttachment, type AttachmentCardSlot
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
 import {ErrorScreen} from '../../shell/error-screen.js'
 
-export type PluginFallback = 'silent' | 'tab' | 'card' | 'chip'
+type PluginFallback = 'card' | 'chip'
 
-export function reportCrash(name: string, error: unknown): void {
+function reportCrash(name: string, error: unknown): void {
   console.error(`[conciv] extension "${name}" crashed`, error)
 }
 
@@ -35,36 +35,37 @@ function ChipFallback(props: {name: string; onRemove?: (id: string) => void}): J
   )
 }
 
-export function PluginBoundary(props: {
+export function createTabCrash(focusAfterRetry: () => HTMLElement | undefined) {
+  const shown: {retry?: HTMLButtonElement} = {}
+  const retry = (reset: () => void): void => {
+    shown.retry = undefined
+    reset()
+    const target = shown.retry ?? focusAfterRetry()
+    target?.focus()
+  }
+
+  return (message: string, reset: () => void): JSX.Element => (
+    <ErrorScreen
+      message={message}
+      detail="Details are in the browser console."
+      onRetry={() => retry(reset)}
+      retryRef={(element) => {
+        shown.retry = element
+      }}
+    />
+  )
+}
+
+function PluginBoundary(props: {
   name: string
   fallback: PluginFallback
   onRemove?: (id: string) => void
-  focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
-  let retryButton: HTMLButtonElement | undefined
-  const retry = (reset: () => void): void => {
-    retryButton = undefined
-    reset()
-    const target = retryButton ?? props.focusAfterRetry?.()
-    target?.focus()
-  }
-  const fallback = (error: unknown, reset: () => void): JSX.Element => {
+  const fallback = (error: unknown): JSX.Element => {
     reportCrash(props.name, error)
-    if (props.fallback === 'tab')
-      return (
-        <ErrorScreen
-          message={`The ${props.name} extension crashed`}
-          detail="Details are in the browser console."
-          onRetry={() => retry(reset)}
-          retryRef={(element) => {
-            retryButton = element
-          }}
-        />
-      )
     if (props.fallback === 'card') return <CardFallback name={props.name} />
-    if (props.fallback === 'chip') return <ChipFallback name={props.name} onRemove={props.onRemove} />
-    return null
+    return <ChipFallback name={props.name} onRemove={props.onRemove} />
   }
   return (
     <ErrorBoundary fallback={fallback}>

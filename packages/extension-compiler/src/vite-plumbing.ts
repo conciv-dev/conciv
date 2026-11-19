@@ -62,16 +62,9 @@ export function resolveExtensionsModule(id: string): string | null {
   return bareId === EXTENSIONS_VIRTUAL_ID || bareId === WIDGET_ROUTE ? EXTENSIONS_RESOLVED_ID : null
 }
 
-export function loadExtensionsModule(
-  id: string,
-  clientEntries: readonly string[],
-  apiBase?: string,
-  embedEntry?: string,
-  dedupeEntry?: string,
-): string | null {
-  if (id === EXTENSIONS_DOCK_RESOLVED_ID)
-    return extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry, 'dock')
-  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry) : null
+export function loadExtensionsModule(id: string, apiBase?: string, embedEntry?: string): string | null {
+  if (id === EXTENSIONS_DOCK_RESOLVED_ID) return extensionsModuleSource(apiBase, embedEntry, 'dock')
+  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(apiBase, embedEntry) : null
 }
 
 export function isClientEntry(id: string): boolean {
