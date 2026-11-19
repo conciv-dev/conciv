@@ -43,6 +43,10 @@
       "types": "./dist/listen-local.d.ts",
       "import": "./dist/listen-local.js"
     },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
     "./navigation-state": {
       "types": "./dist/navigation-state.d.ts",
       "import": "./dist/navigation-state.js"

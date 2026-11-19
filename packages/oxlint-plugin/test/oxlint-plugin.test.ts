@@ -521,7 +521,7 @@ describe('test file budget', () => {
     test('reports an over-budget package once, on its first test file', async () => {
       const findings = await lintPackage('over')
       expect(findings).toHaveLength(1)
-      expect(findings[0]?.filename).toContain('over/src/stray.test.ts')
+      expect(findings[0]?.filename).toContain('over/test/over.browser.test.tsx')
       expect(findings[0]?.message).toContain('test/fixtures/test-file-budget/over')
       expect(findings[0]?.message).toContain('3 test files')
       expect(findings[0]?.message).toContain('budget of 2')
@@ -534,6 +534,18 @@ describe('test file budget', () => {
 
     test('honours a raised max from config', async () => {
       expect(await lintPackage('raised')).toEqual([])
+    })
+
+    test('leaves colocated test files under src out of the budget', async () => {
+      expect(await lintPackage('colocated')).toEqual([])
+    })
+
+    test('reports a package with more colocated test files than source files, on its first one', async () => {
+      const findings = await lintPackage('colocated-over')
+      expect(findings).toHaveLength(1)
+      expect(findings[0]?.filename).toContain('colocated-over/src/engine.dom.test.ts')
+      expect(findings[0]?.message).toContain('2 test files')
+      expect(findings[0]?.message).toContain('1 source file')
     })
   })
 })

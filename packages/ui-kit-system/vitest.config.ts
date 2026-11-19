@@ -3,6 +3,7 @@ import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {browserOptimizeDeps, ciTest, ciTestSolidBrowser, HOOK_TIMEOUT_MS, TEST_TIMEOUT_MS} from '@conciv/vitest-config'
+import {ciTestDom} from '@conciv/vitest-config/dom'
 
 export default defineConfig({
   test: {
@@ -31,6 +32,13 @@ export default defineConfig({
           include: ['test/**/*.it.test.ts', 'test/**/*.node.test.ts'],
           testTimeout: TEST_TIMEOUT_MS,
           hookTimeout: HOOK_TIMEOUT_MS,
+        },
+      },
+      {
+        plugins: [solidPlugin()],
+        test: {
+          ...ciTestDom(),
+          name: 'dom',
         },
       },
     ],

@@ -1,9 +1,10 @@
 import {expect, afterEach, describe, it, onTestFinished} from 'vitest'
-import {rmSync} from 'node:fs'
+import {existsSync, rmSync} from 'node:fs'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {type EngineStaleness} from '@conciv/contract'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '../src/core-kit.js'
+import {test as nodeTest} from '../src/node.js'
 import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {observeRpc} from '../src/rpc-observer.js'
@@ -520,4 +521,27 @@ describe('rpc socket liveness', () => {
     },
     15_000,
   )
+})
+
+const NODE_FIXTURE_REPLY = 'Scripted reply from the in-process engine'
+
+nodeTest.override({engineOptions: {id: 'node-fixture', text: NODE_FIXTURE_REPLY}})
+
+describe('node fixtures', () => {
+  const first = {tmp: '', stateRoot: ''}
+
+  nodeTest('a session on the in-process engine answers a scripted turn', async ({engine, tmp}) => {
+    expect(new URL(engine.origin).hostname).toBe('127.0.0.1')
+    const events = await (await engine.turn('hello')).done()
+    expect(events.text()).toContain(NODE_FIXTURE_REPLY)
+    expect(existsSync(tmp)).toBe(true)
+    first.tmp = tmp
+    first.stateRoot = engine.stateRoot
+  })
+
+  nodeTest('the engine lives for the file and each test gets a fresh temp dir', async ({engine, tmp}) => {
+    expect(engine.stateRoot).toBe(first.stateRoot)
+    expect(tmp).not.toBe(first.tmp)
+    expect(existsSync(first.tmp)).toBe(false)
+  })
 })

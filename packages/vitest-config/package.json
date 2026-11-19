@@ -17,6 +17,7 @@
   "type": "module",
   "exports": {
     ".": "./src/reporters.ts",
+    "./dom": "./src/dom.ts",
     "./pack": "./src/pack.ts",
     "./solid-cleanup": "./src/solid-cleanup-setup.ts",
     "./temp-dir": "./src/temp-dir.ts",

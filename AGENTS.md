@@ -125,8 +125,13 @@ README.md; this file is the non-obvious operational rules.
 
 ## Testing
 
-- Test file budget: one node test file plus one browser/e2e test file per package
-  (`conciv/test-file-budget`). Never add a test file; add a `describe` to the existing one.
+- Test file budget (`conciv/test-file-budget`): node, unit and happy-dom tests live next to the source they test
+  under `src/` (`src/x.tsx` beside `src/x.dom.test.tsx`, `src/x.ts` beside `src/x.test.ts`). They are not counted
+  against the budget; the only cap is that a package never has more of them than source files.
+- Browser tests stay one file per package under `test/`. Never add a second one; add a `describe` to the existing
+  file.
+- Happy-dom tests use the `@conciv/vitest-config/dom` preset (`ciTestDom()`) in a `dom` project with
+  `vite-plugin-solid`.
 - No mocks or stubs (`vi.fn`, `vi.mock`, `vi.stubGlobal`, fake modules), and no CSS/DOM implementation
   assertions (`toHaveCSS`, `getComputedStyle`, DOM reads via `page.evaluate`, class/id locators, test-ids).
 - Widget and plugin behaviour is tested with Testing Library in vitest node + happy-dom (no browser), on `@conciv/plugin-testkit` `mount`; a REAL browser (Playwright/Chromium) only for what that cannot prove: layout, scrolling, canvas, real focus, the built bundle in a host page. Never jsdom.
