@@ -69,7 +69,7 @@ function RecordingReplay(props: {recording: RecordingNote; clientId: string; run
           clientId={props.clientId}
           recordingId={props.recording.recordingId}
           runtime={props.runtime}
-          disabled={!events()}
+          disabled={saved.isFetching || !events()}
         />
       }
     >
