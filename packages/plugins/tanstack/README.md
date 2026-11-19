@@ -7,6 +7,10 @@ The conciv TanStack plugin, engine part. It reads the dev server's build errors,
 plugins: ['@conciv/plugin-tanstack']
 ```
 
+Option: `bundlerWaitMs` (default `10000`), how long `build_errors` waits for the engine to say whether a dev server is
+attached before it fails with `BUNDLER_UNAVAILABLE`: `plugins: [['@conciv/plugin-tanstack', {bundlerWaitMs: 5000}]]`. A
+value that is not a positive integer fails the plugin's activation with `Tanstack.InvalidOptions`.
+
 - Tools: `external_tanstack_build_errors()`, `external_tanstack_route_manifest()`,
   `external_tanstack_server_fn_trace({count?})`. Failures carry `metadata.code`: `BUNDLER_UNAVAILABLE` when the engine
   has no bundler bridge, `MANIFEST_UNREADABLE` when the generated route tree cannot be read.

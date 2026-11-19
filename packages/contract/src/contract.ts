@@ -9,6 +9,7 @@ import {
   ChatHistorySchema,
   ChatModelsSchema,
   HubAgentsSchema,
+  ChatToolsSchema,
   HarnessListCursorSchema,
   HarnessSessionId,
   NativeSessionRefSchema,
@@ -132,6 +133,13 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
+
+const BrowserTabFocusSchema = z.object({focused: z.boolean(), visible: z.boolean()})
+
+const PageQueryStreamItemSchema = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('ready'), browserTab: z.string().min(1)}),
+  z.object({kind: z.literal('query'), requestId: z.string(), query: z.unknown()}),
+])
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
@@ -532,7 +540,14 @@ export const contract = {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.errors(approvalDenied).output(Ok),
-    queries: oc.errors(approvalDenied).output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
+    queries: oc
+      .errors(approvalDenied)
+      .input(z.object({focus: BrowserTabFocusSchema}))
+      .output(eventIterator(PageQueryStreamItemSchema)),
+    focus: oc
+      .errors(approvalDenied)
+      .input(BrowserTabFocusSchema.extend({browserTab: z.string().min(1)}))
+      .output(Ok),
     reply: oc
       .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)
@@ -545,6 +560,7 @@ export const contract = {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
+    tools: oc.input(SessionIdInput).output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),

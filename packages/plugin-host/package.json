@@ -47,6 +47,7 @@
   "dependencies": {
     "@conciv/db": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-node": "catalog:",
     "@ff-labs/fff-node": "catalog:",
     "@npmcli/arborist": "catalog:",
@@ -69,7 +70,6 @@
     "@conciv/protocol": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@effect/platform-node": "catalog:",
     "@types/node": "catalog:",
     "@types/npm-package-arg": "catalog:",
     "@types/npmcli__arborist": "catalog:",

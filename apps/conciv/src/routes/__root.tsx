@@ -106,7 +106,7 @@ function AppRoot() {
 
   const [arrivedFromConnect, setArrivedFromConnect] = createSignal(false)
   const connectBind = async (apiBase: string): Promise<string> => {
-    app.bindApiBase?.(apiBase)
+    if (app.apiBase() !== apiBase) app.bindApiBase?.(apiBase)
     const {sessionId} = await app.rpc.sessions.resolve({})
     setArrivedFromConnect(true)
     return sessionId
@@ -161,12 +161,11 @@ function AppRoot() {
     layers,
     suppressed,
     fabAnchor: fab.anchor,
+    panelWidthCap: fab.panelWidthCap,
     instances: app.instances,
     connected: app.connected,
     arrivedFromConnect,
     connectBind,
-    connectMode: app.connectMode,
-    disconnect: app.disconnect,
     grabProvider: app.grabProvider,
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
@@ -196,7 +195,7 @@ function AppRoot() {
           <EngineReachabilityContext.Provider value={reachability}>
             <NoticeContextProvider>
               <DialogProvider>
-                <PluginRoot>
+                <PluginRoot composed={app.plugins} servers={app.servers}>
                   <PluginAttachment>
                     <PluginPanelKeys />
                     <HostApiProvider

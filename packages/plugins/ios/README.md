@@ -12,6 +12,9 @@ plugins: [['@conciv/plugin-ios', {projectRoot: 'ios/PayApp', bundleId: 'dev.conc
 - Options: `projectRoot`, `bundleId`, `scheme?`, `simulator?` (default `iPhone 17 Pro`), `developerDir?`,
   `buildMode?` (`xcodebuild` or `swiftc`), `extraSourceDirs?`, `concivUrl?`.
 - Invariant: without options every tool answers `{ok: false, error: 'ios plugin not configured'}`.
+- Invariant: with options, a session `context` hook adds the iOS rules (the native overlay, the served app, the
+  build loop, no filesystem-wide searches) to the system prompt of every model request; without options it adds
+  nothing.
 - Invariant: `concivUrl` is the engine api base with no page path (an optional `/t/<token>` prefix is allowed); a
   trailing `/native` is stripped because the Swift SDK appends `/native` itself. Without it the app gets the url of
   the engine's own server.
