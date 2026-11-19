@@ -110,7 +110,13 @@ export function createCommentsModel(room: Accessor<string>) {
     return since === undefined || foreign > since
   }
   const markRead = (threadId: string): void =>
-    markThreadRead(db, {room: room(), accountId: accountId(), threadId, reads: reads()})
+    markThreadRead(db, {
+      room: room(),
+      accountId: accountId(),
+      threadId,
+      seenAt: newestForeign(threadId) ?? Date.now(),
+      reads: reads(),
+    })
   const markAllRead = (): void => inboxThreads().forEach((thread) => markRead(thread.cid))
   const replyCount = (cid: string): number => Math.max(0, collectThread(cid).length - 1)
   const lastActivityAt = (cid: string): number | undefined =>
