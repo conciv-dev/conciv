@@ -1,7 +1,5 @@
 import * as Plugin from '@conciv/plugin/effect/plugin'
-import {Agent} from '../../../src/core/agent.js'
 import {Location} from '../../../src/core/location.js'
-import {Model} from '../../../src/core/model.js'
 import {Project} from '../../../src/schema/project.js'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import {Effect, Stream} from 'effect'
@@ -105,63 +103,6 @@ export function host(overrides: Overrides = {}): Plugin.Context {
         throw new Error('unused servers.get')
       },
     },
-  }
-}
-
-export function agentHost(agent: Agent.Interface): Plugin.Context['agent'] {
-  return {
-    transform: (callback) =>
-      agent.transform((editor) =>
-        callback({
-          list: () => editor.list().map(agentInfo),
-          get: (id) => {
-            const value = editor.get(Agent.Id.make(id))
-            return value && agentInfo(value)
-          },
-          default: (id) => editor.default(id === undefined ? undefined : Agent.Id.make(id)),
-          update: (id, update) =>
-            editor.update(Agent.Id.make(id), (value) => {
-              const current = agentInfo(value)
-              update(current)
-              Object.assign(value, current, {id: Agent.Id.make(current.id)})
-            }),
-          remove: (id) => editor.remove(Agent.Id.make(id)),
-        }),
-      ),
-  }
-}
-
-export function modelHost(models: Model.Interface): Plugin.Context['model'] {
-  return {
-    list: () => models.available().pipe(Effect.map(located)),
-    default: () => models.default().pipe(Effect.map(located)),
-  }
-}
-
-function agentInfo(value: Agent.Info) {
-  return {
-    ...value,
-    model: value.model && {...value.model},
-    request: {
-      settings: {...value.request.settings},
-      headers: {...value.request.headers},
-      body: {...value.request.body},
-    },
-    permissions: value.permissions.map((permission) => ({...permission})),
-  }
-}
-
-function located<A>(data: A) {
-  return {
-    location: Location.Info.make({
-      directory: AbsolutePath.make('/'),
-      project: {
-        id: Project.Id.make('test'),
-        directory: AbsolutePath.make('/'),
-        canonical: AbsolutePath.make('/'),
-      },
-    }),
-    data,
   }
 }
 

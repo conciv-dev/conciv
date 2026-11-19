@@ -4,8 +4,6 @@ import os from 'os'
 import path from 'path'
 import {Effect} from 'effect'
 
-type TempDir = {readonly path: string}
-
 export const tmpdir = async (prefix = 'conciv-core-test-') => {
   const dir = await make(prefix)
   return {
@@ -21,13 +19,6 @@ export const tmpdirScoped = (prefix = 'conciv-core-test-') =>
     Effect.tryPromise(() => make(prefix)),
     (dir) => Effect.tryPromise(() => remove(dir)).pipe(Effect.orDie),
   ).pipe(Effect.map((path) => ({path})))
-
-export const withTempDir = <A, E, R>(body: (tmp: TempDir) => Effect.Effect<A, E, R>) =>
-  Effect.acquireUseRelease(
-    Effect.tryPromise(() => make('conciv-core-test-')),
-    (path) => body({path}),
-    (dir) => Effect.tryPromise(() => remove(dir)).pipe(Effect.orDie),
-  )
 
 const make = async (prefix: string) => fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)))
 

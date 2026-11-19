@@ -9,7 +9,7 @@ const body = <A, E, R>(value: Body<A, E, R>) => Effect.suspend(() => (typeof val
 
 const loopback = new Set(['127.0.0.1', 'localhost', '[::1]'])
 
-export const refuseNetwork = (violations: string[]): typeof fetch =>
+const refuseNetwork = (violations: string[]): typeof fetch =>
   Object.assign((input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     if (loopback.has(new URL(url).hostname)) return fetch(input, init)

@@ -2,7 +2,6 @@ import {statSync} from 'node:fs'
 import {registerHooks, type ResolveFnOutput, type ResolveHookContext} from 'node:module'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import {localSource} from './source.js'
 import {missingPackageTarget} from './source.package.js'
 import * as Host from '@conciv/plugin/host'
 
@@ -77,4 +76,11 @@ function bunCandidates(file: string) {
   const appended = bunExtensions.map((candidate) => file + candidate)
   const indexes = bunExtensions.map((candidate) => path.join(file, `index${candidate}`))
   return [...twins, ...appended, ...indexes]
+}
+
+function localSource(spec: string, directory: string) {
+  if (spec.startsWith('file://')) return new URL(spec)
+  if (spec.startsWith('./') || spec.startsWith('../') || path.isAbsolute(spec))
+    return pathToFileURL(path.resolve(directory, spec))
+  return undefined
 }

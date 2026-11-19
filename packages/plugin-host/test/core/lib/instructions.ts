@@ -5,7 +5,7 @@ export interface State {
   readonly values: Readonly<Record<string, Schema.Json>>
 }
 
-export const state = (values: Readonly<Record<string, Schema.Json>>): State => ({values})
+const state = (values: Readonly<Record<string, Schema.Json>>): State => ({values})
 
 const hashes = (values: Readonly<Record<string, Schema.Json>>): Instructions.Values =>
   Object.fromEntries(Object.entries(values).map(([key, value]) => [key, Instructions.hash(value)]))

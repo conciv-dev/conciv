@@ -1,6 +1,5 @@
 import {readFileSync, readdirSync} from 'node:fs'
-import {fileURLToPath, pathToFileURL} from 'node:url'
-import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {Hash} from '../util/hash.js'
 
 export function createPluginSources(watch: (file: string) => Promise<void>) {
@@ -51,11 +50,4 @@ function digest(file: string, directory: boolean) {
   } catch {
     return 'missing'
   }
-}
-
-export function localSource(spec: string, directory: string) {
-  if (spec.startsWith('file://')) return new URL(spec)
-  if (spec.startsWith('./') || spec.startsWith('../') || path.isAbsolute(spec))
-    return pathToFileURL(path.resolve(directory, spec))
-  return undefined
 }
