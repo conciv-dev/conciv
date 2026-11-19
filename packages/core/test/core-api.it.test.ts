@@ -4474,7 +4474,9 @@ return seen`
     )
     const reached = await turn.reach(`"type":"${ChatEventType.TEXT_MESSAGE_CONTENT}"`)
     if (reached !== `"type":"${ChatEventType.TEXT_MESSAGE_CONTENT}"`) throw new Error(`the turn failed: ${reached}`)
+    const closed = once(websocket, 'close')
     websocket.close()
+    await closed
   }
 
   function fakeNativeId(sessionId: string): string {
