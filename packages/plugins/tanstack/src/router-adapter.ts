@@ -1,7 +1,7 @@
 import type {AnyRoute, AnyRouteMatch, AnyRouter} from '@tanstack/react-router'
 import type {ReactFiber, ReactTree} from '@conciv/plugin/experimental/page'
-import {Predicate} from 'effect'
-import {mapValues} from 'es-toolkit'
+import {Effect, Predicate, Schema} from 'effect'
+import {isUndefined, mapValues, omitBy} from 'es-toolkit'
 import type {
   CacheEntry,
   CacheEntryState,
@@ -11,7 +11,13 @@ import type {
   RouteNodeKind,
   RouterCurrent,
   RouterLocation,
-} from '../rpc.js'
+} from './rpc.js'
+
+const RouterNotFound = Schema.TaggedStruct('Tanstack.RouterNotFound', {})
+export type RouterNotFound = typeof RouterNotFound.Type
+
+const HandlerFailed = Schema.TaggedStruct('Tanstack.HandlerFailed', {message: Schema.String})
+export type HandlerFailed = typeof HandlerFailed.Type
 
 const MAX_FIBER_NODES = 50_000
 const MAX_TREE_DEPTH = 20
@@ -60,10 +66,9 @@ function findRouter(tree: ReactTree): AnyRouter | null {
   return findInFibers(tree, routerFromFiber)
 }
 
-function requireRouter(tree: ReactTree): AnyRouter {
+function requireRouter(tree: ReactTree): Effect.Effect<AnyRouter, RouterNotFound> {
   const router = findRouter(tree)
-  if (!router) throw new Error('TanStack router not found on page')
-  return router
+  return router ? Effect.succeed(router) : Effect.fail(RouterNotFound.make({}))
 }
 
 function stringValue(value: unknown): string {
@@ -77,6 +82,14 @@ function stringRecord(value: unknown): Record<string, string> {
 
 function unknownRecord(value: unknown): Record<string, unknown> {
   return Predicate.isObject(value) ? value : {}
+}
+
+export function failureMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+export function callFailed(cause: unknown): HandlerFailed {
+  return HandlerFailed.make({message: failureMessage(cause)})
 }
 
 export function errorMessage(value: unknown): string | null {
@@ -142,18 +155,20 @@ function readLocation(tree: ReactTree, router: AnyRouter): RouterLocation {
   }
 }
 
-export function readRouterState(tree: ReactTree): RouterCurrent {
-  const router = requireRouter(tree)
-  return {
+export const readRouterState = Effect.fn('tanstack.router.state')(function* (tree: ReactTree) {
+  const router = yield* requireRouter(tree)
+  const current: RouterCurrent = {
     location: readLocation(tree, router),
     matches: router.state.matches.map((match) => mapMatch(tree, router, match)),
   }
-}
+  return current
+})
 
-export function readDetect(tree: ReactTree): FrameworkInfo {
-  requireRouter(tree)
-  return {name: 'tanstack-start', version: null, router: 'file-based', dev: true}
-}
+export const readDetect = Effect.fn('tanstack.router.detect')(function* (tree: ReactTree) {
+  yield* requireRouter(tree)
+  const detected: FrameworkInfo = {name: 'tanstack-start', version: null, router: 'file-based', dev: true}
+  return detected
+})
 
 function matchCacheState(match: AnyRouteMatch): CacheEntryState {
   if (match.isFetching) return 'fetching'
@@ -173,10 +188,10 @@ function matchToCacheEntry(tree: ReactTree, match: AnyRouteMatch): CacheEntry {
   }
 }
 
-export function readDataEntries(tree: ReactTree): {entries: CacheEntry[]} {
-  const router = requireRouter(tree)
+export const readDataEntries = Effect.fn('tanstack.router.dataEntries')(function* (tree: ReactTree) {
+  const router = yield* requireRouter(tree)
   return {entries: router.state.matches.map((match) => matchToCacheEntry(tree, match))}
-}
+})
 
 function listChildren(children: AnyRoute['children']): AnyRoute[] {
   if (Array.isArray(children)) return children
@@ -221,61 +236,72 @@ function findRootRoute(router: AnyRouter): AnyRoute | null {
   return router.routeTree ?? router.routesById?.['__root__'] ?? null
 }
 
-export function readRouteTree(tree: ReactTree): RouteNode {
-  const router = requireRouter(tree)
+export const readRouteTree = Effect.fn('tanstack.router.routeTree')(function* (tree: ReactTree) {
+  const router = yield* requireRouter(tree)
   const root = findRootRoute(router)
-  if (!root) throw new Error('TanStack router not found on page')
+  if (!root) return yield* Effect.fail(RouterNotFound.make({}))
   return mapRoute(root, 0)
-}
+})
 
 function pickMatch(matches: AnyRouteMatch[], routeId?: string): AnyRouteMatch | null {
   if (routeId !== undefined) return matches.find((match) => match.routeId === routeId) ?? null
   return matches.at(-1) ?? null
 }
 
-export function readLoaderData(tree: ReactTree, routeId?: string): {routeId: string; data: unknown} {
-  const router = requireRouter(tree)
+export const readLoaderData = Effect.fn('tanstack.router.loaderData')(function* (tree: ReactTree, routeId?: string) {
+  const router = yield* requireRouter(tree)
   const match = pickMatch(router.state.matches, routeId)
   if (!match) return {routeId: routeId ?? '', data: null}
   return {routeId: match.routeId, data: tree.dehydrate(match.loaderData)}
+})
+
+type NavigateInput = {
+  readonly to: string
+  readonly params?: Record<string, string> | undefined
+  readonly search?: Record<string, unknown> | undefined
+  readonly replace?: boolean | undefined
 }
 
-export async function navigateTo(
+export const navigateTo = Effect.fn('tanstack.router.navigate')(function* (tree: ReactTree, input: NavigateInput) {
+  const router = yield* requireRouter(tree)
+  const options: Record<string, unknown> = omitBy(
+    {to: input.to, params: input.params, search: input.search, replace: input.replace},
+    isUndefined,
+  )
+  yield* Effect.tryPromise({try: () => router.navigate(options), catch: callFailed})
+  return {ok: true as const, to: input.to}
+})
+
+function requireInvalidate(router: AnyRouter): Effect.Effect<AnyRouter['invalidate'], HandlerFailed> {
+  if (Predicate.isFunction(router.invalidate)) return Effect.succeed(router.invalidate.bind(router))
+  return Effect.fail(HandlerFailed.make({message: 'TanStack router invalidate is not available'}))
+}
+
+export const invalidateRouter = Effect.fn('tanstack.router.invalidate')(function* (tree: ReactTree) {
+  const router = yield* requireRouter(tree)
+  const invalidate = yield* requireInvalidate(router)
+  yield* Effect.tryPromise({try: () => invalidate(), catch: callFailed})
+  return {ok: true as const}
+})
+
+export const invalidateRouterMatch = Effect.fn('tanstack.router.invalidateMatch')(function* (
   tree: ReactTree,
-  input: {
-    to: string
-    params?: Record<string, string>
-    search?: Record<string, unknown>
-    replace?: boolean
-  },
-): Promise<{ok: true; to: string}> {
-  const router = requireRouter(tree)
-  const options: Record<string, unknown> = {to: input.to}
-  if (input.params !== undefined) options.params = input.params
-  if (input.search !== undefined) options.search = input.search
-  if (input.replace !== undefined) options.replace = input.replace
-  await router.navigate(options)
-  return {ok: true, to: input.to}
-}
+  routeId: string,
+) {
+  const router = yield* requireRouter(tree)
+  const invalidate = yield* requireInvalidate(router)
+  yield* Effect.tryPromise({
+    try: () => invalidate({filter: (match) => match.routeId === routeId}),
+    catch: callFailed,
+  })
+  return {ok: true as const}
+})
 
-export async function invalidateRouter(tree: ReactTree): Promise<{ok: true}> {
-  const router = requireRouter(tree)
-  if (!Predicate.isFunction(router.invalidate)) throw new Error('TanStack router invalidate is not available')
-  await router.invalidate()
-  return {ok: true}
-}
-
-export async function invalidateRouterMatch(tree: ReactTree, routeId: string): Promise<{ok: true}> {
-  const router = requireRouter(tree)
-  if (!Predicate.isFunction(router.invalidate)) throw new Error('TanStack router invalidate is not available')
-  await router.invalidate({filter: (match) => match.routeId === routeId})
-  return {ok: true}
-}
-
-export function goBack(tree: ReactTree): {ok: true} {
-  const router = requireRouter(tree)
+export const goBack = Effect.fn('tanstack.router.back')(function* (tree: ReactTree) {
+  const router = yield* requireRouter(tree)
   const history = router.history
-  if (!Predicate.isFunction(history?.back)) throw new Error('TanStack router history.back is not available')
-  history.back()
-  return {ok: true}
-}
+  if (!Predicate.isFunction(history?.back))
+    return yield* Effect.fail(HandlerFailed.make({message: 'TanStack router history.back is not available'}))
+  yield* Effect.try({try: () => history.back(), catch: callFailed})
+  return {ok: true as const}
+})

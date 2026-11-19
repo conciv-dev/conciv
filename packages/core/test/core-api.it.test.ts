@@ -2770,13 +2770,22 @@ describe('rpc wire', () => {
 
     describe('tools and models list', () => {
       it('the widget gets every tool with its full description and the harness model list', async () => {
-        const {tools} = await chatKit().rpc.meta.tools(undefined)
+        const {tools} = await chatKit().rpc.meta.tools({sessionId: await newSession()})
         expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
         expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
         const models = await chatKit().rpc.meta.models({sessionId: await newSession()})
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
         expect(models.defaultModel).toBe('opus')
+      })
+
+      it('a session whose agent has code mode off is offered no extension tool, since its turn gets none', async () => {
+        const {kit} = await bootWire({
+          extensions: [fixtureExtension()],
+          permissions: [{action: 'execute', resource: '*', effect: 'deny'}],
+        })
+        const {tools} = await kit.rpc.meta.tools({sessionId: await kit.session()})
+        expect(tools.map((tool) => tool.name).filter((name) => FIXTURE_TOOLS.includes(name))).toEqual([])
       })
     })
 

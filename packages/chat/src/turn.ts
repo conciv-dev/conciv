@@ -13,7 +13,7 @@ import {PromptPresentationSchema, type ContentPart, type ModelMessage} from '@co
 import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
-import {isEqual} from 'es-toolkit'
+import {isEqual, once} from 'es-toolkit'
 import {
   ChatContentPartSchema,
   isHarnessSessionId,
@@ -73,7 +73,7 @@ export type TurnDeps = {
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
   systemPrompt: SystemPromptSources
   sessions: SessionPort
-  toolNames: ReadonlySet<string>
+  toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
   capabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
@@ -292,7 +292,6 @@ export function turnHooks(
   deps: TurnDeps,
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
-  const normalize = toolNameNormalizer(deps.toolNames)
   return {
     admit: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
@@ -308,6 +307,7 @@ export function turnHooks(
       const resumeSessionId = resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
+      const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
       const toolSet = async () =>
         chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
       const config = harness.chatConfig({
@@ -351,6 +351,7 @@ export function turnHooks(
           await context.transcripts.sync(sessionId)
           const approvals = await context.approvals.forRun(sessionId)
           const {inventory} = await toolSet()
+          await normalizer()
           instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
           return approvals
         },
@@ -376,7 +377,8 @@ export function turnHooks(
           return config.prepareMessages?.(told) ?? told
         },
         chunk: async (chunk) => {
-          const shaped = normalizedChunk(chunk, normalize)
+          const shaped =
+            chunk.type === ChatEventType.TOOL_CALL_START ? normalizedChunk(chunk, await normalizer()) : chunk
           if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
           if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
             await recordContext(deps, sessionId)
