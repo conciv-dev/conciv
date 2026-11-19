@@ -92,10 +92,10 @@ export function normalizedMessages(messages: ChatMessage[], normalize: (name: st
 const AnchorSchema = z.object({nativeId: z.string().nullable()}).nullable().catch(null)
 
 export type TranscriptSource = {
-  harnessFor: (sessionId: SessionId) => HarnessAdapter
+  harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   stores: ChatStores
   toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
-  native: (sessionId: SessionId) => {nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null
+  native: (sessionId: SessionId) => Promise<{nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null>
   log: (message: string) => void
 }
 
@@ -107,9 +107,9 @@ export type TranscriptImporter = {
 export function createTranscriptImporter(source: TranscriptSource): TranscriptImporter {
   const {stores} = source
   const read = async (sessionId: SessionId): Promise<ChatMessage[] | null> => {
-    const harness = source.harnessFor(sessionId)
+    const harness = await source.harnessFor(sessionId)
     const history = harness.history
-    const native = source.native(sessionId)
+    const native = await source.native(sessionId)
     if (!harness.capabilities.transcriptHistory || history === undefined || native?.harnessKind !== harness.id) {
       return null
     }
@@ -137,7 +137,7 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       const normalize = toolNameNormalizer(await source.toolNames(sessionId))
       const stored = await stores.messages.loadThread(sessionId)
       const known = new Set(stored.flatMap((message) => ('id' in message && message.id ? [message.id] : [])))
-      const harnessId = source.harnessFor(sessionId).id
+      const harnessId = (await source.harnessFor(sessionId)).id
       const novel = normalizedMessages(fresh, normalize)
         .filter((message) => !known.has(message.id))
         .map((message) => stampedImport(message, harnessId))

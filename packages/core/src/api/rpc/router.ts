@@ -321,21 +321,25 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     drafts: {
       get: os.drafts.get.handler(async ({input}) => {
-        const rows = await db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
+        const rows = await Effect.runPromise(db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId)))
         return rows[0] ?? null
       }),
       set: os.drafts.set.handler(async ({input}) => {
-        await db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input})
+        await Effect.runPromise(
+          db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input}),
+        )
         return {ok: true as const}
       }),
     },
     markers: {
       list: os.markers.list.handler(({input}) =>
-        db
-          .select()
-          .from(markers)
-          .where(eq(markers.sessionId, input.sessionId))
-          .orderBy(asc(sql`rowid`)),
+        Effect.runPromise(
+          db
+            .select()
+            .from(markers)
+            .where(eq(markers.sessionId, input.sessionId))
+            .orderBy(asc(sql`rowid`)),
+        ),
       ),
     },
     navigation: {
@@ -484,7 +488,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     meta: {
       models: os.meta.models.handler(async ({input}) => {
-        const harness = chat.harnessFor(input.sessionId)
+        const harness = await chat.harnessFor(input.sessionId)
         const models = await resolveHarnessModels(harness, {signal: chat.signal})
         return {
           models,

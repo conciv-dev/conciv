@@ -1,7 +1,7 @@
 import {createConciv, type PluginEntry} from '@conciv/embed'
 import {compose} from '@conciv/plugin/experimental/host'
 import type {Plugin} from '@conciv/plugin/experimental'
-import tryIt from '../../src/index.js'
+import tryIt from '../../src/plugin-experimental.js'
 
 const search = new URLSearchParams(window.location.search)
 const token = search.get('token') ?? ''

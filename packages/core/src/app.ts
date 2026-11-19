@@ -78,7 +78,7 @@ import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
-import {makePagePlugin} from './page/page-plugin.js'
+import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
@@ -90,7 +90,7 @@ import {
   pluginInstructions,
   currentToolDomain,
 } from './runtime/permission-cards.js'
-import {makePluginRuntime} from './runtime/plugin-runtime.js'
+import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
 import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -274,7 +274,7 @@ function requiresApproval(subject: {approval?: 'ask'}): boolean {
 }
 
 async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: UsageSnapshot): Promise<void> {
-  await db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId))
+  await Effect.runPromise(db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)))
 }
 
 function sessionPort(
@@ -283,8 +283,8 @@ function sessionPort(
   hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
 ): SessionPort {
   return {
-    row: (sessionId) => {
-      const row = currentRow(db, sessionId)
+    row: async (sessionId) => {
+      const row = await currentRow(db, sessionId)
       return row === null
         ? null
         : {
@@ -300,7 +300,7 @@ function sessionPort(
     recordNativeId: (sessionId, harnessId, nativeId) => recordNativeId(db, sessionId, harnessId, nativeId),
     recordUsage: (sessionId, usage) => recordSessionUsage(db, sessionId, usage),
     recordContextTokens: async (sessionId, contextTokens) => {
-      const usage = currentRow(db, sessionId)?.usage
+      const usage = (await currentRow(db, sessionId))?.usage
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
     recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
@@ -472,7 +472,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     await Promise.all(listings.map(endListing))
   }
   const staleness = opts.staleness ?? engineStaleness
-  const db = openDb(opts.cfg.stateRoot)
+  const dbScope = Effect.runSync(Scope.make())
+  const closeDb = () => Effect.runPromise(Scope.close(dbScope, Exit.void))
+  const failedStart =
+    (steps: ShutdownStep[]) =>
+    async (error: unknown): Promise<never> => {
+      await runInOrder(
+        [endListings, ...steps, () => browsers.close(), closeDb],
+        'conciv: disposing after a failed start failed',
+      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
+      throw error
+    }
+  const db = await Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))).catch(failedStart([]))
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
@@ -496,8 +507,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     cwd: opts.cwd,
     publishCreated: (born) => pluginHost.runPromise(publishCreated(born)),
   }
-  const harnessFor = (sessionId: SessionId): HarnessAdapter => {
-    const kind = currentRow(db, sessionId)?.harnessKind
+  const harnessFor = async (sessionId: SessionId): Promise<HarnessAdapter> => {
+    const kind = (await currentRow(db, sessionId))?.harnessKind
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
   }
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
@@ -509,13 +520,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
       await ensureRow(rows, sessionId)
-      await recordNativeId(db, sessionId, harnessFor(sessionId).id, token)
+      await recordNativeId(db, sessionId, (await harnessFor(sessionId)).id, token)
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => readModel(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
-  const serverHarness = (sessionId: SessionId): ServerHarness => makeServerHarness(harnessFor(sessionId), opts.cwd)
+  const serverHarness = async (sessionId: SessionId): Promise<ServerHarness> =>
+    makeServerHarness(await harnessFor(sessionId), opts.cwd)
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -615,76 +627,66 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       logError(`[core] the page queue results owed to ${sessionId} could not be read: ${String(error)}`)
       return false
     })
-  const sessionModel = (sessionId: SessionId): string | null => readModel(db, sessionId)
+  const sessionModel = (sessionId: SessionId): Promise<string | null> => readModel(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
   })
 
-  assertUniqueCapabilityNames([
-    ['a conciv assist tool', concivSandboxToolNames()],
-    ...mounted.map((entry): [string, string[]] => [
-      `extension "${entry.extensionName}"`,
-      entry.tools.map((tool) => tool.name),
-    ]),
-  ])
-
-  registerExtensionTools(registry, mounted)
-
   const engineId = opts.engineId ?? randomUUID()
-  const plugins = makePluginRuntime({
-    db,
-    databaseFile: projectDatabaseFile(db),
-    cwd: opts.cwd,
-    home: concivHome({homeDir: opts.home, env: process.env}),
-    fallbackRoots: join(stateDir, 'plugin-host'),
-    engineId,
-    config: opts.cfg,
-    plugins: opts.plugins ?? [],
-    post: [
-      {
-        ...concivPage,
-        effect: (context) =>
-          concivPage.effect({
-            ...context,
-            options: pickBy(
-              {
-                pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-                queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-                permissionSyncTimeoutMs: opts.permissionSyncTimeoutMs,
-              },
-              isNotNil,
-            ),
-          }),
-      },
-    ],
-    harness,
-    signal: engineLife.signal,
-    bundler: opts.bridge,
-    openInEditor: opts.openInEditor,
-    extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
-    sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
-  })
+  const startPlugins = (): PluginRuntime => {
+    assertUniqueCapabilityNames([
+      ['a conciv assist tool', concivSandboxToolNames()],
+      ...mounted.map((entry): [string, string[]] => [
+        `extension "${entry.extensionName}"`,
+        entry.tools.map((tool) => tool.name),
+      ]),
+    ])
+    registerExtensionTools(registry, mounted)
+    return makePluginRuntime({
+      db,
+      cwd: opts.cwd,
+      home: concivHome({homeDir: opts.home, env: process.env}),
+      fallbackRoots: join(stateDir, 'plugin-host'),
+      engineId,
+      config: opts.cfg,
+      plugins: opts.plugins ?? [],
+      post: [
+        {
+          ...concivPage,
+          effect: (context) =>
+            concivPage.effect({
+              ...context,
+              options: pickBy(
+                {
+                  pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
+                  queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
+                  permissionSyncTimeoutMs: opts.permissionSyncTimeoutMs,
+                },
+                isNotNil,
+              ),
+            }),
+        },
+      ],
+      harness,
+      signal: engineLife.signal,
+      bundler: opts.bridge,
+      openInEditor: opts.openInEditor,
+      extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
+      sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
+    })
+  }
+  const plugins = await Promise.try(startPlugins).catch(failedStart([...disposers, settings.close]))
   const pluginHost: PluginHost = plugins.runtime
-  const startFailed =
-    (steps: ShutdownStep[]) =>
-    async (error: unknown): Promise<never> => {
-      await runInOrder(
-        [
-          endListings,
-          plugins.closeRpc,
-          plugins.closePlugins,
-          plugins.closePermissions,
-          ...steps,
-          ...disposers,
-          settings.close,
-          () => browsers.close(),
-          () => pluginHost.dispose(),
-          () => db.$client.close(),
-        ],
-        'conciv: disposing after a failed start failed',
-      ).catch((failure: unknown) => logError(`[core] ${String(failure)}`))
-      throw error
-    }
+  const startFailed = (steps: ShutdownStep[]) =>
+    failedStart([
+      plugins.closeRpc,
+      plugins.closePlugins,
+      plugins.closePermissions,
+      ...steps,
+      () => pluginHost.dispose(),
+      ...disposers,
+      settings.close,
+    ])
   await pluginHost.context().catch(startFailed([]))
   const idleScope = Effect.runSync(Scope.make())
   const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
@@ -819,9 +821,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     )
   }
 
-  await pagePlugin.followFinished((finished) => {
+  const publishFinished = async (finished: QueueFinished): Promise<void> => {
     const {result, sessionId} = finished
-    if (isDeletedRow(db, sessionId)) return
+    if (await isDeletedRow(db, sessionId)) return
     const scope = runtime.forSession(sessionId)
     const chunks = pageQueueChunks({result, record: finished, live: plane.driving(sessionId)})
     chunks.forEach((chunk) => scope.stream.publish(chunk))
@@ -829,6 +831,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .record(chunks)
       .catch((error: unknown) => logError(`[core] recording queue ${result.queueId} failed: ${String(error)}`))
     if (!pagePlugin.fromHub(sessionId, finished.toolCallId)) followUpOwedQueues(sessionId)
+  }
+  await pagePlugin.followFinished((finished) => {
+    publishFinished(finished).catch((error: unknown) =>
+      logError(`[core] publishing the finished queue ${finished.result.queueId} failed: ${String(error)}`),
+    )
   })
 
   const admitOutside = async (
@@ -836,7 +843,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     client: string | null,
     signal: AbortSignal,
   ): Promise<string | null> => {
-    const deleted = (currentRow(db, scope.id)?.deletedAt ?? null) !== null
+    const deleted = ((await currentRow(db, scope.id))?.deletedAt ?? null) !== null
     if (opts.cfg.hubAccess === 'open' && !deleted) return null
     const refusal = await plane.admitCall(scope.id, {
       toolName: OUTSIDE_SESSION_TARGET,
@@ -968,7 +975,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         settings.close,
         () => browsers.close(),
         () => pluginHost.dispose(),
-        () => db.$client.close(),
+        closeDb,
       ],
       'conciv: disposing the engine failed',
     )
@@ -1025,10 +1032,4 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
 
 function outsideTitle(client: string | null): string {
   return `Allow ${client ?? 'an outside agent'} to use this tab`
-}
-
-function projectDatabaseFile(db: ConcivDb): string {
-  const file = db.$client.location()
-  if (file === null) throw new Error('conciv: the plugin host needs the project database on a file')
-  return file
 }

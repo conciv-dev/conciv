@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [solid()],
   build: {
     lib: {
-      entry: fileURLToPath(new URL('src/index.tsx', import.meta.url)),
+      entry: fileURLToPath(new URL('src/plugin-experimental.tsx', import.meta.url)),
       formats: ['es'],
-      fileName: () => 'index.js',
+      fileName: () => 'plugin-experimental.js',
     },
     rollupOptions: {
       external: [/^solid-js/, /^zod/, /^effect/, /^@conciv\//, /^@solid-primitives\//, /^lucide-solid/],
