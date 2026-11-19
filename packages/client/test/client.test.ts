@@ -751,9 +751,12 @@ describe('session streams on the rpc socket', () => {
       const connection = chatConnection(browser.rpc, booted.base, sessionId)
       const abort = new AbortController()
       const seen: ChatEvent[] = []
-      void (async () => {
+      const subscribed = (async () => {
         for await (const chunk of connection.subscribe(abort.signal)) seen.push(chunk)
-      })().catch(() => undefined)
+      })().then(
+        () => undefined,
+        (error: unknown) => error,
+      )
       const outcome: {error: unknown} = {error: undefined}
       const sending = connection
         .send([{id: `${runId}-user`, role: 'user', parts: [{type: 'text', content: runId}]}], undefined, abort.signal, {
@@ -763,10 +766,11 @@ describe('session streams on the rpc socket', () => {
         .catch((error: unknown) => {
           outcome.error = error
         })
-      const end = async (): Promise<void> => {
+      const end = async (): Promise<unknown> => {
         abort.abort()
         await sending
         browser.close()
+        return subscribed
       }
       return {seen, outcome, sending, end}
     }
@@ -786,7 +790,7 @@ describe('session streams on the rpc socket', () => {
 
       await expect.poll(() => textDeltas(turn.seen), POLL).toBeGreaterThan(afterDrops)
       expect(turn.outcome.error).toBeUndefined()
-      await turn.end()
+      expect(await turn.end()).toBeUndefined()
     }, 60_000)
 
     it('gives up with the reconnect ceiling once the engine stays gone with no event between attempts', async () => {
@@ -799,7 +803,7 @@ describe('session streams on the rpc socket', () => {
         .poll(() => turn.outcome.error, {timeout: 40_000, interval: 100})
         .toBeInstanceOf(StreamReconnectLimitError)
       expect(turn.seen.filter((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)).toEqual([])
-      await turn.end()
+      expect(await turn.end()).toBeInstanceOf(StreamReconnectLimitError)
     }, 60_000)
   })
 
