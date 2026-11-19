@@ -572,6 +572,14 @@ describe('no await effect query', () => {
     {line: 12, flagged: false, source: 'await client.select().from(table)'},
     {line: 13, flagged: false, source: "await db.$client.execute('select 1')"},
     {line: 17, flagged: false, source: 'yield* db.select().from(table)'},
+    {line: 21, flagged: false, source: 'await db.select().from(table).pipe(Effect.runPromise)'},
+    {line: 22, flagged: false, source: 'await db.delete(table).pipe(Effect.runPromiseExit)'},
+    {
+      line: 23,
+      flagged: false,
+      source: 'await db.insert(table).values(...).pipe(Effect.orDie, Effect.runPromiseWith(context))',
+    },
+    {line: 24, flagged: true, source: 'await db.select().from(table).pipe(Effect.orDie)'},
   ]
 
   test.each(cases)('line $line, $source, flagged: $flagged', async ({line, flagged}) => {
@@ -593,7 +601,7 @@ describe('no await effect query', () => {
     const messages = diagnostics
       .filter((diagnostic) => diagnostic.code === 'conciv(no-await-effect-query)')
       .map((diagnostic) => String(diagnostic.message))
-    expect(messages).toHaveLength(4)
+    expect(messages).toHaveLength(5)
     expect(messages[0]).toContain('Effect.runPromise')
     expect(messages[0]).toContain('yield*')
   })

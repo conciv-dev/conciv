@@ -16,3 +16,10 @@ export async function awaited(renaming, db, client, title, sessionId) {
 export function* yielded(db) {
   return yield* db.select().from(table)
 }
+
+export async function piped(db, context) {
+  await db.select().from(table).pipe(Effect.runPromise)
+  await db.delete(table).pipe(Effect.runPromiseExit)
+  await db.insert(table).values({id: 1}).pipe(Effect.orDie, Effect.runPromiseWith(context))
+  await db.select().from(table).pipe(Effect.orDie)
+}
