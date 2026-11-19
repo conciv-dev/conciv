@@ -29,6 +29,7 @@ import {
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const PENDING_REMOVE_RETRY_MS = 100
+const EXPORT_BACKGROUND = '#ffffff'
 
 const CANVAS = 'fixed inset-0 pointer-events-auto'
 
@@ -69,6 +70,7 @@ export function Island(props: {
   mount: HTMLElement
   room: string
   theme: Theme
+  background: string
   visible: boolean
   onViewport: (viewport: Viewport) => void
   registerPan: (pan: (sceneX: number, sceneY: number) => void) => void
@@ -93,7 +95,7 @@ export function Island(props: {
   const initialScene = () => {
     const rows = [...db.canvasElements.state.values()]
     Effect.runSync(scene.seed(rows))
-    return {elements: rowsToScene(rows)}
+    return {elements: rowsToScene(rows), appState: {viewBackgroundColor: props.background}}
   }
 
   const skipOnPointer = (skipped: Deferred.Deferred<void>) => {
@@ -108,7 +110,11 @@ export function Island(props: {
     toElements: (skeletons) => convertToExcalidrawElements(skeletons, {regenerateIds: false}),
     liveElements: () => Ref.getUnsafe(attached)?.getSceneElements(),
     render: (elements) =>
-      exportToBlob({elements, files: Ref.getUnsafe(attached)?.getFiles() ?? {}, appState: {exportBackground: true}}),
+      exportToBlob({
+        elements,
+        files: Ref.getUnsafe(attached)?.getFiles() ?? {},
+        appState: {exportBackground: true, viewBackgroundColor: EXPORT_BACKGROUND},
+      }),
     skipOnPointer,
     drawAt: (point) => void Effect.runFork(props.cursors.drawAt(point)),
   }
