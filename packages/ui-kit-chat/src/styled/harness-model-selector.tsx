@@ -86,7 +86,7 @@ const BAR =
 const BAR_STEP_MS = 45
 const BAR_ON = `${BAR} bg-chat-text-3`
 const BAR_OFF = `${BAR} bg-chat-line-2`
-const CONTENT = 'w-80 max-w-[var(--available-width)] p-1'
+const CONTENT = 'w-80 max-w-[var(--available-width)] p-1 font-chat'
 const SEARCH_ROW = 'flex items-center gap-2 px-2.5 pb-1 mb-1 border-b border-b-chat-line-soft text-chat-text-3'
 const SEARCH_INPUT =
   'flex-1 min-w-0 h-8 bg-transparent [border:none] text-[0.8125rem] text-chat-text placeholder:text-chat-text-3 focus:outline-none'
@@ -95,7 +95,9 @@ const GROUP_TRIGGER =
   'group flex w-full items-center gap-3 py-2 px-2.5 rounded-chat-surface-sm [border:none] bg-transparent text-start cursor-pointer select-none focus-ring trans-bg hover:bg-chat-fill'
 const GROUP_CHEVRON =
   'size-4 block text-chat-text-3 [transition:rotate_200ms_var(--chat-ease-expo)] group-data-[state=open]:rotate-90 motion-reduce:[transition:none]'
-const RETRY = 'flex w-full items-center gap-2 py-2 px-2.5 text-[0.8125rem] text-chat-text-2'
+const RETRY =
+  'flex w-full items-center gap-3 py-2 px-2.5 rounded-chat-surface-sm text-chat-body text-chat-text-hi focus-ring trans-bg hover:bg-chat-fill'
+const RETRY_TEXT = 'flex-1 min-w-0 truncate text-start'
 const MESSAGE = 'm-0 py-2 px-2.5 text-[0.75rem] text-chat-text-2'
 const ROW_BODY = 'flex flex-col flex-1 min-w-0'
 const ROW_NAME = 'block truncate text-[0.875rem] text-chat-text-hi'
@@ -144,6 +146,24 @@ function promptAriaLabel(name: string, effort: ReasoningEffort | null): string {
 function FailedMark(props: {announce: Announce | undefined}): JSX.Element {
   onMount(() => props.announce?.(MODELS_UNAVAILABLE))
   return <RotateCw class="text-chat-text-3 shrink-0 size-3.5 block" aria-hidden="true" />
+}
+
+function RetryRow(props: {reason: string; onRetry: () => void}): JSX.Element {
+  return (
+    <>
+      <p class={MESSAGE}>{props.reason}</p>
+      <Button
+        variant="plain"
+        size="none"
+        class={RETRY}
+        aria-label={`${props.reason}: ${RETRY_LABEL}`}
+        onClick={props.onRetry}
+      >
+        <RotateCw class="text-chat-text-3 shrink-0 size-4 block" aria-hidden="true" />
+        <span class={RETRY_TEXT}>{RETRY_LABEL}</span>
+      </Button>
+    </>
+  )
 }
 
 function EffortBars(props: {levels: readonly ReasoningEffort[]; value: ReasoningEffort}): JSX.Element {
@@ -435,6 +455,7 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
     return noModels() ? PILL_EMPTY : PILL_LABEL
   }
   const pillName = () => {
+    if (failed()) return PILL_FAILED
     if (loading()) return PILL_LOADING
     return noModels() ? PILL_EMPTY : promptName(harness(), current()?.name ?? value() ?? '', named())
   }
@@ -454,15 +475,15 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
               aria-label={pill() ? pillLabel() : failed() ? MODELS_UNAVAILABLE : promptAriaLabel(shownName(), effort())}
             >
               <Switch>
-                <Match when={failed()}>
-                  <FailedMark announce={props.announce} />
-                  <Show when={pill()}>
-                    <span class={PILL_NAME}>{PILL_FAILED}</span>
-                  </Show>
-                </Match>
                 <Match when={pill()}>
+                  <Show when={failed()}>
+                    <FailedMark announce={props.announce} />
+                  </Show>
                   <span class={PILL_NAME}>{pillName()}</span>
                   <ChevronsUpDown size={13} class="opacity-70 shrink-0" aria-hidden="true" />
+                </Match>
+                <Match when={failed()}>
+                  <FailedMark announce={props.announce} />
                 </Match>
                 <Match when={!pill()}>
                   <Show when={shownName().toLowerCase()} keyed>
@@ -486,10 +507,7 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
           >
             <Switch>
               <Match when={failed()}>
-                <Button variant="plain" size="none" class={RETRY} onClick={retry}>
-                  <RotateCw class="size-4 block" aria-hidden="true" />
-                  {`${MODELS_UNAVAILABLE}: ${RETRY_LABEL}`}
-                </Button>
+                <RetryRow reason={MODELS_UNAVAILABLE} onRetry={retry} />
               </Match>
               <Match when={!failed()}>
                 <Listbox.Root
@@ -527,17 +545,11 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
                 </Show>
                 <For each={unavailable()}>
                   {(entry) => (
-                    <Button variant="plain" size="none" class={RETRY} onClick={() => props.others?.retry()}>
-                      <RotateCw class="size-4 block" aria-hidden="true" />
-                      {`Couldn’t load ${entry.name} models: ${RETRY_LABEL}`}
-                    </Button>
+                    <RetryRow reason={`Couldn’t load ${entry.name} models`} onRetry={() => props.others?.retry()} />
                   )}
                 </For>
                 <Show when={props.others?.failed}>
-                  <Button variant="plain" size="none" class={RETRY} onClick={() => props.others?.retry()}>
-                    <RotateCw class="size-4 block" aria-hidden="true" />
-                    {`Couldn’t load the other harnesses: ${RETRY_LABEL}`}
-                  </Button>
+                  <RetryRow reason="Couldn’t load the other harnesses" onRetry={() => props.others?.retry()} />
                 </Show>
                 <Show when={props.onEffortChange && current()?.efforts}>
                   {(efforts) => (
