@@ -529,7 +529,7 @@ describe('the follow machine of the Tests panel', () => {
 type FakeChild = {readonly lines: readonly string[]; readonly exit: number | 'SIGKILL' | 'hang'}
 
 function fakeSpawner(children: Ref.Ref<readonly FakeChild[]>, launched: Ref.Ref<readonly string[][]>) {
-  const handle = (child: FakeChild) =>
+  const handle = (child: FakeChild, commandLine: string) =>
     ChildProcessSpawner.makeHandle({
       pid: ChildProcessSpawner.ProcessId(1),
       exitCode:
@@ -541,7 +541,8 @@ function fakeSpawner(children: Ref.Ref<readonly FakeChild[]>, launched: Ref.Ref<
                   _tag: 'Unknown',
                   module: 'ChildProcess',
                   method: 'exitCode',
-                  description: "Process interrupted due to receipt of signal: 'SIGKILL'",
+                  pathOrDescriptor: commandLine,
+                  cause: new Error("Process interrupted due to receipt of signal: 'SIGKILL'"),
                 }),
               )
             : Effect.succeed(ChildProcessSpawner.ExitCode(child.exit)),
@@ -569,7 +570,7 @@ function fakeSpawner(children: Ref.Ref<readonly FakeChild[]>, launched: Ref.Ref<
         yield* Ref.update(launched, (all) => [...all, command.args.map(String)])
         const next = yield* Ref.modify(children, ([first, ...rest]) => [first, rest])
         if (next === undefined) return yield* Effect.die('no fake child left')
-        return handle(next)
+        return handle(next, [command.command, ...command.args.map(String)].join(' '))
       }),
     ),
   )

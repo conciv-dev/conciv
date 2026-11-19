@@ -13,7 +13,9 @@ export function readChildExit(
   return handle.exitCode.pipe(
     Effect.map((code): ChildExitStatus => ({code, signal: null})),
     Effect.catch((error) => {
-      const signal = SIGNALS.find((name) => error.message.includes(`'${name}'`))
+      const cause = error.reason.cause
+      const reported = cause instanceof Error ? cause.message : error.message
+      const signal = SIGNALS.find((name) => reported.includes(`'${name}'`))
       if (signal === undefined) return Effect.fail(error)
       return Effect.succeed({code: null, signal})
     }),
