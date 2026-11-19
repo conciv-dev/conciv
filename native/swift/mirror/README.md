@@ -94,7 +94,7 @@ SwiftPM's `from:` resolves forward, `from: "0.0.1"` picks up those later tags au
 
 While the SDK is on the `0.0.x` line there is no stability guarantee: any release may change
 `BRIDGE_MAX_VERSION`, the wire schema, or the public `attach` API and break compatibility without notice.
-A given Swift release speaks one bridge protocol version and interoperates with any `@conciv/extension-ios`
+A given Swift release speaks one bridge protocol version and interoperates with any `@conciv/plugin-ios`
 whose advertised bridge range includes it.
 
 | ConcivWidget (Swift) | Bridge protocol | Matching `@conciv/*` npm |

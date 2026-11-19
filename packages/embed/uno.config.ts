@@ -23,6 +23,7 @@ export default defineConfig({
       '../plugins/tanstack/src/**/*.{ts,tsx}',
       '../plugins/whiteboard/src/**/*.{ts,tsx}',
       '../plugins/try-it/src/**/*.{ts,tsx}',
+      '../plugins/ios/src/client.tsx',
     ],
   },
 

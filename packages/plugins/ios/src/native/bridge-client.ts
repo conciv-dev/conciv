@@ -10,7 +10,7 @@ import {
   SUBTREE_MAX_DEPTH,
   SUBTREE_MAX_NODES,
   type ViewNode,
-} from './bridge.js'
+} from '../bridge.js'
 
 export type BridgeTransport = {
   postToNative: (message: PageToNativeMessage) => void
