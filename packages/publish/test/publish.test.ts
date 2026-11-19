@@ -840,7 +840,7 @@ describe('swift mirror', () => {
     swiftBody: string,
     message: string,
   ): Promise<void> {
-    await mkdir(join(repo, 'packages', 'extensions', 'ios'), {recursive: true})
+    await mkdir(join(repo, 'packages', 'plugins', 'ios'), {recursive: true})
     await mkdir(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources'), {recursive: true})
     await writeFile(join(repo, MANIFEST_REL), `${JSON.stringify({name: '@conciv/plugin-ios', version}, null, 2)}\n`)
     await writeFile(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources', 'W.swift'), swiftBody)

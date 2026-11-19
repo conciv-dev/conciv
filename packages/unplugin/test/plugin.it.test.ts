@@ -1262,10 +1262,12 @@ describe('nextjs config', () => {
       expect(node?.resolve?.alias?.['@conciv/unplugin/nextjs']).toBeUndefined()
     })
 
-    it('register refuses options whose extensions are not installed extension packages', async () => {
+    it('register refuses options whose plugin entries are not a name or a [name, options] pair', async () => {
       process.env.NEXT_RUNTIME = 'nodejs'
-      process.env.CONCIV_OPTIONS = JSON.stringify({extensions: [{client: 'client.mjs'}]})
-      await expect(register()).rejects.toThrow(/CONCIV_OPTIONS is not a valid conciv config[\s\S]*server/)
+      process.env.CONCIV_OPTIONS = JSON.stringify({plugins: [['@conciv/plugin-page', 'client.mjs']]})
+      await expect(register()).rejects.toThrow(
+        /CONCIV_OPTIONS is not a valid conciv config[\s\S]*plugin \\"@conciv\/plugin-page\\": the entry must be \[name, options\]/,
+      )
       process.env.CONCIV_OPTIONS = '{not json'
       await expect(register()).rejects.toThrow('conciv: CONCIV_OPTIONS is not JSON')
     })
