@@ -309,7 +309,7 @@ describe('chat plane', () => {
     expect(capability).toMatchObject({path: 'unit.tool', description: 'Do the unit thing. Prefer small inputs.'})
   })
 
-  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog while an asking tool still needs approval', async () => {
+  it('a turn falls back to systemPromptText and logs an unreadable systemPromptFile, a credential-shaped capability fails only its own run, plugin skills and the code-mode catalog reach the system prompt when the starting point resets and the user words in between, search finds a tool by its parameter, and with no isolate driver every tool reaches the model and the MCP listing directly with no catalog', async () => {
     const root = tempDir('conciv-core-unit-')
     const cli = fakeCli()
     const log: string[] = []
@@ -528,7 +528,6 @@ describe('chat plane', () => {
     expect(told.asked.at(-1)).toBe('sixth')
 
     const PingSchema = z.object({text: z.string()})
-    const RiskySchema = z.object({target: z.string()})
     const pinged: CodeCapability[] = [
       {
         name: 'unit_ping',
@@ -537,15 +536,6 @@ describe('chat plane', () => {
         errors: [],
         inputSchema: PingSchema,
         execute: async (input) => ({value: {pinged: PingSchema.parse(input).text}, files: []}),
-      },
-      {
-        name: 'unit_risky',
-        path: 'unit.risky',
-        description: 'Do a risky thing.',
-        approval: 'ask',
-        errors: [],
-        inputSchema: RiskySchema,
-        execute: async (input) => ({value: {done: RiskySchema.parse(input).target}, files: []}),
       },
     ]
     const withoutDriver = await plane(cliHarness(told), root, {
@@ -595,7 +585,6 @@ describe('chat plane', () => {
           finishedQueues: async () => [],
           startedQueues: async () => [],
           outsideCapabilities: async () => [],
-          admitCall: (id, call) => withoutDriver.admitCall(id, call),
           driving: (id) => withoutDriver.driving(id),
           resolveSession: async () => runtime.forSession(codeless),
           admitOutside: async () => null,
@@ -631,13 +620,6 @@ describe('chat plane', () => {
       '"measure {\\"declination\\":\\"north\\"}"',
     ])
     expect(await calledText('unit_ping', {text: 'pong'})).toEqual([expect.stringContaining('"pinged":"pong"')])
-    expect(mcpListed).toContain('unit_risky')
-    const refused = z
-      .object({result: z.object({content: z.array(z.object({text: z.string()})), isError: z.boolean().optional()})})
-      .parse(await rpc('tools/call', {name: 'unit_risky', arguments: {target: 'x'}})).result
-    expect(refused.isError).toBe(true)
-    expect(refused.content.map((part) => part.text).join('')).toMatch(/needs the user/)
-    expect((await withoutDriver.hydrate(codeless)).pendingApprovals.map((ask) => ask.toolName)).toEqual(['unit_risky'])
   })
 
   it('after a restart the finished and interrupted turns all show, and the interrupted run is aborted with a finish time', async () => {

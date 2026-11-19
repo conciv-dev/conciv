@@ -137,6 +137,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
         Effect.catchTag('Permission.BlockedError', (blocked) =>
           Effect.fail(call.errors.APPROVAL_DENIED({message: blocked.message})),
         ),
+        Effect.catchTag('Session.NotFoundError', () => Effect.succeed(false)),
       ),
       {signal: call.signal},
     ))
@@ -193,7 +194,6 @@ async function resolveCodeSession(
   const code = await openCodeSession(deps.code, scope, {
     trace,
     outside: trace.hub !== null && sessionId === undefined,
-    askBeforeCalls: trace.hub === null,
     signal: call.signal ?? new AbortController().signal,
   })
   if (code === null || code.sandbox === null) throw call.errors.NO_CODE_MODE()

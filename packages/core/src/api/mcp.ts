@@ -206,7 +206,6 @@ type McpDeps = {
   finishedQueues: (sessionId: SessionId, hub: boolean) => Promise<PageQueueResult[]>
   startedQueues: (sessionId: SessionId, toolCallIds: ReadonlySet<string>) => Promise<PageQueueHandle[]>
   outsideCapabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
-  admitCall: ChatPlane['admitCall']
   driving: ChatPlane['driving']
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
@@ -224,23 +223,7 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
   }
 }
 
-type CodeCaller = {trace: CallTrace; outside: boolean; askBeforeCalls: boolean; signal: AbortSignal}
-
-function approvedFirst(
-  deps: McpDeps,
-  sessionId: SessionId,
-  tool: CodeTool,
-  publish: (chunk: ChatEvent) => void,
-): CodeTool {
-  return {
-    ...tool,
-    run: async (input, parentToolCallId, signal) => {
-      const refusal = await deps.admitCall(sessionId, {toolName: tool.name, input, publish})
-      if (refusal !== null) throw new Error(refusal.message)
-      return tool.run(input, parentToolCallId, signal)
-    },
-  }
-}
+type CodeCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
 
 function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult[]): CodeReply {
   if (finished.length === 0) return reply
@@ -260,7 +243,6 @@ export type CodeSandboxSession = {
 export type CodeSession = {
   runner: CodeRunner
   sandbox: CodeSandboxSession | null
-  asked: (tool: CodeTool, input: unknown) => Promise<CodeReply>
   direct: (tool: CodeTool, input: unknown) => Promise<CodeReply>
 }
 
@@ -341,11 +323,6 @@ export async function openCodeSession(
   return {
     runner,
     sandbox: runner.code === null ? null : sandbox(runner.code),
-    asked: (tool, input) =>
-      hubRequest(async () => {
-        const asking = caller.askBeforeCalls ? approvedFirst(deps, scope.id, tool, publish) : tool
-        return withFinishedQueues(await runDirect(asking, input, calls), await finished())
-      }),
     direct: (tool, input) =>
       hubRequest(async () => withFinishedQueues(await runDirect(tool, input, calls), await finished())),
   }
@@ -392,11 +369,6 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
             inputSchema: DiscoverInputSchema,
           }).server(gated(admit, async (args) => codeDiscoverReply(await sandbox.discover(args.toolNames)))),
         ]
-  const askingTools = code.runner.asking.map((tool) =>
-    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
-      gated(admit, (args) => code.asked(tool, args)),
-    ),
-  )
   const directTools = code.runner.direct.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
       gated(admit, (args) => code.direct(tool, args)),
@@ -421,7 +393,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCall
             }),
           ),
         ]
-  return [...discoverTools, ...askingTools, ...directTools, ...executeTools]
+  return [...discoverTools, ...directTools, ...executeTools]
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
@@ -433,7 +405,6 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const caller = {
     trace,
     outside: trace.hub !== null && header === null && nativeId === null,
-    askBeforeCalls: trace.hub === null && (header !== null || nativeId === null),
     signal: c.req.raw.signal,
   }
   const server = createMCPServer({

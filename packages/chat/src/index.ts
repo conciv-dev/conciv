@@ -72,7 +72,6 @@ export type CodeSandbox = {
 
 export type CodeRunner = {
   code: CodeSandbox | null
-  asking: CodeTool[]
   direct: CodeTool[]
 }
 
@@ -320,7 +319,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       const capabilities = given ?? (await deps.capabilities(sessionId))
       const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)
-      if (runner === null && toolSet.direct.length === 0 && toolSet.asking.length === 0) return null
+      if (runner === null && toolSet.direct.length === 0) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
         for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
@@ -331,9 +330,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         }
       }
       const direct = codeTools(toolSet.direct, toolSet.directed, emitter)
-      const asking = codeTools(toolSet.asking, toolSet.asked, emitter)
       const inventory = toolSet.inventory
-      if (runner === null || inventory === undefined) return {code: null, asking, direct}
+      if (runner === null || inventory === undefined) return {code: null, direct}
       return {
         code: {
           capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
@@ -342,7 +340,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
           discover: runner.discover,
           declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),
         },
-        asking,
         direct,
       }
     },

@@ -97,6 +97,7 @@ import {pi as piHarness} from '@conciv/harness/pi'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   readApprovalAsk,
+  type ApprovalAsk,
   type ChatEvent,
   ChatEventType,
   pageQueueEvent,
@@ -2685,56 +2686,64 @@ describe('rpc wire', () => {
     })
 
     describe('approvals', () => {
-      it('only tools declared to ask ever ask: mutating and read tools run straight through the sandbox', async () => {
+      it('tools that never ask run straight through the sandbox: a read and a write raise no ask', async () => {
         const sessionId = await newSession()
         codeTurn(TOOLS_WITHOUT_ASK_SCRIPT)
         const events = await finished(sessionId, 'run tools')
         expect(events.custom('approval-requested')).toEqual([])
-        expect(collectResults(await thread(sessionId))).toContain('[{"echoed":"hi"},{"value":7},"undefined"]')
-        expect(findLastRun(sessionId).tools).toContain('fixture_ask')
+        expect(collectResults(await thread(sessionId))).toContain('[{"echoed":"hi"},{"value":7}]')
       })
 
-      it('a risky tool is refused until approved, a denial re-runs the turn refused once, and a one-time approval runs once', async () => {
+      it('a page_eval in a turn waits for the user: a denial refuses it without running, and a one-time approval runs it once', async () => {
         const sessionId = await newSession()
-        const ran = toolRuns.ask
-        const asked = await askTurn(sessionId, 'ask-run')
-        expect(JSON.stringify(asked.all)).toContain('needs the user')
-        expect(asked.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
-        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([pendingAsk('ask-run')])
-        expect((await chatKit().join('ask-run').done()).custom('approval-requested')).toHaveLength(1)
-        await expect(decide(sessionId, ASK_ID, false)).resolves.toEqual({ok: true, startsTurn: true})
+        const tab = await chatTabs.open(sessionId, () => pageSuccess(EVALUATED))
+        onTestFinished(() => tab.end())
+        const evalTurn = async (approved: boolean) => {
+          const listening = new AbortController()
+          const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
+          codeTurn('return await external_page_eval({code: "1"})')
+          const turn = send(sessionId, 'evaluate')
+          const ask = await firstAsk(events)
+          listening.abort()
+          expect(ask).toMatchObject({toolName: 'page_eval 1', permission: {always: expect.any(Boolean)}})
+          await expect(decide(sessionId, ask.approvalId, approved)).resolves.toEqual({ok: true, startsTurn: false})
+          return (await turn).done()
+        }
+        await evalTurn(false)
+        expect(tab.seen()).toEqual([])
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
-        const refused = await askTurn(sessionId)
-        expect(findLastRun(sessionId).denials).toEqual([ASK_ID])
-        expect(refused.custom('approval-requested')).toEqual([])
-        expect(JSON.stringify(refused.all)).toContain('denied')
-        expect(toolRuns.ask).toBe(ran)
-        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
-        expect((await askTurn(sessionId)).custom('approval-requested')).toHaveLength(1)
-        expect(findLastRun(sessionId).denials).toEqual([])
-        await decide(sessionId, ASK_ID, true)
-        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
-        await askTurn(sessionId)
-        expect(toolRuns.ask).toBe(ran + 1)
-        expect((await askTurn(sessionId)).custom('approval-requested')).toHaveLength(1)
-        await expect(decide(sessionId, 'conciv:tool:nothing', true)).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+        await evalTurn(true)
+        expect(tab.seen()).toEqual(['page_eval'])
+        await evalTurn(false)
+        expect(tab.seen()).toEqual(['page_eval'])
       })
 
-      it('an unanswered ask never times out and a stop leaves it waiting', async () => {
+      it('a harness command ask never times out and outlives a stop, a denial reaches the next run once, and a one-time approval reaches the next run once', async () => {
         const sessionId = await newSession()
-        expect(JSON.stringify((await askTurn(sessionId)).all)).not.toMatch(/timed out/)
+        expect(JSON.stringify((await commandAsks(sessionId, [PLAIN_COMMAND])).all)).not.toMatch(/timed out/)
         await chatKit().rpc.chat.stop({sessionId, runIds: []})
-        expect((await chatKit().hydrate(sessionId)).pendingApprovals.map((ask) => ask.approvalId)).toEqual([ASK_ID])
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals.map((ask) => ask.approvalId)).toEqual([
+          PLAIN_COMMAND,
+        ])
+        await expect(decide(sessionId, PLAIN_COMMAND, false)).resolves.toEqual({ok: true, startsTurn: true})
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+        await finished(sessionId, 'retry denied')
+        expect(findLastRun(sessionId).denials).toEqual([PLAIN_COMMAND])
+        await finished(sessionId, 'after the denial')
+        expect(findLastRun(sessionId).denials).toEqual([])
+        await commandAsks(sessionId, [PLAIN_COMMAND])
+        await decide(sessionId, PLAIN_COMMAND, true)
+        await finished(sessionId, 'retry approved')
+        expect(findLastRun(sessionId).approvals).toEqual([PLAIN_COMMAND])
+        await finished(sessionId, 'after the approval')
+        expect(findLastRun(sessionId).approvals).toEqual([])
+        await expect(decide(sessionId, 'claude-code:command:nothing', true)).rejects.toMatchObject({
+          code: 'UNKNOWN_REQUEST',
+        })
       })
 
-      it('approving for the session lets repeats through, except a command that could hide another', async () => {
+      it('approving a harness command for the session lets repeats through, except a command that could hide another', async () => {
         const sessionId = await newSession()
-        const ran = toolRuns.ask
-        await askTurn(sessionId)
-        await decide(sessionId, ASK_ID, true, 'session')
-        await askTurn(sessionId)
-        expect((await askTurn(sessionId)).custom('approval-requested')).toEqual([])
-        expect(toolRuns.ask).toBe(ran + 2)
         await commandAsks(sessionId, [PLAIN_COMMAND, HIDDEN_COMMAND])
         await decide(sessionId, PLAIN_COMMAND, true, 'session')
         await decide(sessionId, HIDDEN_COMMAND, true, 'session')
@@ -2745,18 +2754,18 @@ describe('rpc wire', () => {
         expect(findLastRun(sessionId).approvals).not.toContain(HIDDEN_COMMAND)
       })
 
-      it('the widget calling a tool is the approval, while agents and malformed callers are refused', async () => {
-        const ran = toolRuns.ask
-        const browserRpc = widgetRpc(app.mcpSession)
-        await expect(browserRpc.registry.call({name: 'fixture_ask', input: {target: 'w'}})).resolves.toEqual({
-          done: 'w',
-        })
+      it('the widget calling page_eval is the approval, while malformed callers are refused', async () => {
+        const sessionId = await newSession()
+        const tab = await chatTabs.open(sessionId, () => pageSuccess(EVALUATED))
+        onTestFinished(() => tab.end())
+        const browserRpc = widgetRpc(sessionId)
+        await expect(browserRpc.registry.call(EVALUATE)).resolves.toEqual(EVALUATED)
+        expect(tab.seen()).toEqual(['page_eval'])
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
         await expect(browserRpc.plugin.call({rpcId: 'server', method: 'config'})).rejects.toMatchObject({
           code: 'PLUGIN_RPC',
           data: {type: 'BUNDLER_UNAVAILABLE'},
         })
-        await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
-        expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
           code: 'BAD_REQUEST',
         })
@@ -2769,9 +2778,10 @@ describe('rpc wire', () => {
         expect((await mcpPost({[CONCIV_SESSION_HEADER]: 'nope'})).status).toBe(400)
       })
 
-      it('a call refused for a disconnected client, at the outside admission or at the ask reaches the extension middleware', async () => {
+      it('a page_eval from outside the widget: a disconnected agent and a denied outside admission are refused, and a plain caller is refused with the ask shown until one approval runs one retry', async () => {
         const sessionId = await newSession()
-        const [ran, seen] = [toolRuns.ask, refusedCalls.length]
+        const tab = await chatTabs.open(sessionId, () => pageSuccess(EVALUATED))
+        onTestFinished(() => tab.end())
         const hubAs = (client: string) =>
           makeRpcClient(chatKit().base, {
             headers: {
@@ -2780,85 +2790,44 @@ describe('rpc wire', () => {
               [CONCIV_CLIENT_HEADER]: client,
             },
           })
-        await expect(
-          hubAs('gemini-cli').registry.call({name: 'fixture_ask', input: {target: 'disconnected'}}),
-        ).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: expect.stringMatching(/disconnected from conciv/)})
-        await expect(hubAs('gemini-cli').registry.call({name: 'fixture_nope', input: {}})).rejects.toMatchObject({
+        await expect(hubAs('gemini-cli').registry.call(EVALUATE)).rejects.toMatchObject({
+          code: 'APPROVAL_DENIED',
+          message: expect.stringMatching(/disconnected from conciv/),
+        })
+        await expect(hubAs('gemini-cli').registry.call({name: 'no_such_tool', input: {}})).rejects.toMatchObject({
           code: 'UNKNOWN_TOOL',
         })
-        const listening = new AbortController()
-        const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
-        const admitted = hubAs('terminal').registry.call({name: 'fixture_ask', input: {target: 'outside'}})
+        const outsideListening = new AbortController()
+        const outsideEvents = await chatKit().rpc.chat.events({sessionId}, {signal: outsideListening.signal})
+        const admitted = hubAs('terminal').registry.call(EVALUATE)
         const refusal = expect(admitted).rejects.toMatchObject({
           code: 'APPROVAL_DENIED',
           message: expect.stringMatching(/denied terminal/),
         })
-        const asks = async () => {
-          for await (const chunk of events) {
-            const ask = readApprovalAsk(chunk)
-            if (ask !== null) return ask
-          }
-          throw new Error('the event stream ended before the outside ask was raised')
-        }
-        const outsideAsk = await asks()
-        listening.abort()
+        const outsideAsk = await firstAsk(outsideEvents)
+        outsideListening.abort()
         expect(outsideAsk).toMatchObject({input: {client: 'terminal'}})
         await decide(sessionId, outsideAsk.approvalId, false)
         await refusal
-        const asked = callerWith(sessionId).registry.call({name: 'fixture_ask', input: {target: 'asked'}})
-        await expect(asked).rejects.toMatchObject({
-          code: 'APPROVAL_DENIED',
-          message: expect.stringMatching(/needs the user/),
-        })
-        expect(refusedCalls.slice(seen)).toEqual([
-          {
-            code: 'APPROVAL_DENIED',
-            message: expect.stringMatching(/disconnected from conciv/),
-            sessionId,
-            tool: 'fixture_ask',
-            input: {target: 'disconnected'},
-          },
-          {
-            code: 'APPROVAL_DENIED',
-            message: expect.stringMatching(/denied terminal/),
-            sessionId,
-            tool: 'fixture_ask',
-            input: {target: 'outside'},
-          },
-          {
-            code: 'APPROVAL_DENIED',
-            message: expect.stringMatching(/needs the user/),
-            sessionId,
-            tool: 'fixture_ask',
-            input: {target: 'asked'},
-          },
-        ])
-        expect(toolRuns.ask).toBe(ran)
-      })
-
-      it('a caller outside the widget is refused, shows the ask, and one approval runs one retry', async () => {
-        const sessionId = await newSession()
-        const ran = toolRuns.ask
-        const call = () => callerWith(sessionId).registry.call({name: 'fixture_ask', input: {target: 'x'}})
-        const abort = new AbortController()
-        const events = await chatKit().rpc.chat.events({sessionId}, {signal: abort.signal})
-        const firstEvent = events.next()
+        const call = () => callerWith(sessionId).registry.call(EVALUATE)
+        const listening = new AbortController()
+        const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
         await expect(call()).rejects.toMatchObject({
           code: 'APPROVAL_DENIED',
           message: expect.stringMatching(/needs the user/),
         })
-        expect((await firstEvent).value).toMatchObject({name: 'approval-requested', value: {approvalId: ASK_ID}})
-        abort.abort()
+        expect(await firstAsk(events)).toMatchObject({approvalId: EVAL_ID})
+        listening.abort()
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([
-          {approvalId: ASK_ID, toolCallId: ASK_ID, toolName: 'fixture_ask', input: {target: 'x'}, runId: null},
+          {approvalId: EVAL_ID, toolCallId: EVAL_ID, toolName: 'page_eval', input: EVALUATE.input, runId: null},
         ])
-        expect(toolRuns.ask).toBe(ran)
-        await expect(decide(sessionId, ASK_ID, true)).resolves.toEqual({ok: true, startsTurn: false})
-        await finished(sessionId, 'an unrelated turn')
-        await expect(call()).resolves.toEqual({done: 'x'})
-        expect(toolRuns.ask).toBe(ran + 1)
+        expect(tab.seen()).toEqual([])
+        await expect(decide(sessionId, EVAL_ID, true)).resolves.toEqual({ok: true, startsTurn: false})
+        await expect(call()).resolves.toEqual(EVALUATED)
+        expect(tab.seen()).toEqual(['page_eval'])
         await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-        const unknown = callerWith('conciv_unknown_probe').registry.call({name: 'fixture_ask', input: {}})
+        expect(tab.seen()).toEqual(['page_eval'])
+        const unknown = callerWith('conciv_unknown_probe').registry.call(EVALUATE)
         await expect(unknown).rejects.toThrow('session "conciv_unknown_probe" does not exist')
       })
     })
@@ -3722,12 +3691,12 @@ describe('rpc wire', () => {
     })
 
     describe('code mode', () => {
-      it('a turn and agents over MCP get the same tools: run code, discover tools, and the asking tools', async () => {
+      it('a turn and agents over MCP get the same tools: run code and discover tools', async () => {
         const sessionId = await newSession()
         await finished(sessionId, 'tools')
         const offered = await app.mcpTools()
         for (const names of [findLastRun(sessionId).tools, offered.map((tool) => tool.name)]) {
-          expect(names).toEqual(expect.arrayContaining(['execute_typescript', 'discover_tools', 'fixture_ask']))
+          expect(names).toEqual(expect.arrayContaining(['execute_typescript', 'discover_tools']))
           expect(names).not.toContain('fixture_echo')
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
@@ -4029,14 +3998,16 @@ return seen`
   const GUARD = {hangGuardMs: 5_000}
   const FIXTURE_MIME = 'application/x-conciv-fixture'
   const BROKEN_MIME = 'application/x-conciv-broken'
-  const ASK_ID = 'conciv:tool:fixture_ask'
+  const EVAL_ID = 'conciv:tool:page_eval'
+  const EVALUATE = {name: 'page_eval', input: {code: '1'}}
+  const EVALUATED = {result: 'evaluated'}
   const PLAIN_COMMAND = 'claude-code:command:git status'
   const HIDDEN_COMMAND = 'claude-code:command:grep "$(cat x)"'
   const TERMINAL_ID = 'sess-terminal-born'
   const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
-  const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
+  const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read']
   const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
@@ -4055,8 +4026,7 @@ return seen`
     ['fixture.echo', 'fixture.echo'],
     ['fixture_ech', 'fixture_ech'],
   ]
-  const TOOLS_WITHOUT_ASK_SCRIPT =
-    'return [await external_fixture_echo({text: "hi"}), await external_fixture_read({}), typeof external_fixture_ask]'
+  const TOOLS_WITHOUT_ASK_SCRIPT = 'return [await external_fixture_echo({text: "hi"}), await external_fixture_read({})]'
   const CHILD_CARD_SCRIPT = `
   await external_fixture_echo({text: "a"})
   await external_fixture_echo({text: "b"})
@@ -4111,9 +4081,8 @@ return seen`
   }
   const seenRuns: SeenRun[] = []
   const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
-  const toolRuns = {ask: 0, echo: 0}
+  const toolRuns = {echo: 0}
   const quietCallIds: (string | undefined)[] = []
-  const refusedCalls: {code: string; message: string; sessionId: string; tool: string; input: unknown}[] = []
   const holdEntered = Promise.withResolvers<void>()
   const turnEnds: string[] = []
   const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
@@ -4156,16 +4125,6 @@ return seen`
             execute: () => {
               holdEntered.resolve()
               return new Promise<never>(() => {})
-            },
-          })
-          tools.add({
-            name: 'fixture_ask',
-            description: 'A risky fixture action.',
-            input: z.object({target: z.string()}),
-            output: z.object({done: z.string()}),
-            execute: async ({target}) => {
-              toolRuns.ask += 1
-              return {output: {done: target}}
             },
           })
           tools.add({
@@ -4332,18 +4291,17 @@ return seen`
     return {turn, seen}
   }
 
-  function askTurn(sessionId: string, runId?: string): Promise<RunEvents> {
-    script().scriptToolCall('fixture_ask', {target: 'x'})
-    return finished(sessionId, 'do the risky thing', runId === undefined ? {} : {runId})
-  }
-
-  function pendingAsk(runId: string) {
-    return {approvalId: ASK_ID, toolCallId: expect.any(String), toolName: 'fixture_ask', input: {target: 'x'}, runId}
-  }
-
-  async function commandAsks(sessionId: string, approvalIds: string[]): Promise<void> {
+  function commandAsks(sessionId: string, approvalIds: string[]): Promise<RunEvents> {
     for (const approvalId of approvalIds) script().scriptCustomEvent('approval-requested', {approvalId, title: 'Bash'})
-    await finished(sessionId, 'commands')
+    return finished(sessionId, 'commands')
+  }
+
+  async function firstAsk(events: AsyncIterable<ChatEvent>): Promise<ApprovalAsk> {
+    for await (const chunk of events) {
+      const ask = readApprovalAsk(chunk)
+      if (ask !== null) return ask
+    }
+    throw new Error('the event stream ended before an ask was raised')
   }
 
   function decide(sessionId: string, approvalId: string, approved: boolean, scope: 'once' | 'session' = 'once') {

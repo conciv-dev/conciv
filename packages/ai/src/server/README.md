@@ -32,7 +32,6 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 
 ## Invariants
 
-- `chat-server.ts:gatedTools` - a tool runs only when its approval is `true`; `false` throws the denied error, and a missing approval emits `APPROVAL_REQUESTED_EVENT` then throws `approvalNeeded`.
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
 - `chat-server.ts:admitted` - `hooks.admit(turn)` is awaited before the last user message is looked up or handed to `TurnPlan.prompt`, before `chat()` runs: a rejection removes the live entry and ends the run stream with that error as its one RUN_ERROR, with no run row, no stored message, no `hooks.started` and no `hooks.end`.

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {Cause, Effect, Exit, Option, Result, Schema} from 'effect'
+import {partition} from 'es-toolkit'
 import {approvalDenied, CodeFilesCapability, describeSchemas} from '@conciv/ai/server'
 import {cappedValue, safeStringify} from '@conciv/contract'
 import {
@@ -28,7 +29,6 @@ export type CodeCapability = {
   namespaces?: readonly CodeNamespace[]
   pinned?: true
   description: string
-  approval?: 'ask'
   direct?: true
   errors: {code: string; message: string}[]
   inputSchema: SchemaInput
@@ -366,8 +366,6 @@ export type ChatToolSet = {
   inventory: CodeModeCatalog.Inventory | undefined
   search: SandboxSearch | null
   codeMode: ChatTool[]
-  asking: ChatTool[]
-  asked: CodeCapability[]
   direct: ChatTool[]
   directed: CodeCapability[]
 }
@@ -407,15 +405,10 @@ export function chatToolSet(
   request: ToolRequest,
   codeMode: boolean,
 ): ChatToolSet {
-  const asked = capabilities.filter((capability) => capability.approval === 'ask')
-  const coded = (capability: CodeCapability) => codeMode && capability.direct !== true
-  const directed = capabilities.filter((capability) => capability.approval !== 'ask' && !coded(capability))
-  const sandboxed = capabilities.filter((capability) => capability.approval !== 'ask' && coded(capability))
+  const [sandboxed, directed] = partition(capabilities, (capability) => codeMode && capability.direct !== true)
   return {
     ...(codeMode ? sandboxDiscovery(sandboxed) : {inventory: undefined, search: null}),
     codeMode: sandboxed.map((capability) => chatTool(capability, request, true)),
-    asking: asked.map((capability) => chatTool(capability, request, false)),
-    asked,
     direct: directed.map((capability) => chatTool(capability, request, false)),
     directed,
   }

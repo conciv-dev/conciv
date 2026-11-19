@@ -19,7 +19,6 @@ import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
 import {getPendingTurn} from '@tanstack/ai/adapter-internals'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
-  APPROVAL_REQUESTED_EVENT,
   approvalId,
   defineSandbox,
   defineSandboxPolicy,
@@ -69,7 +68,6 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnTools = {
   codeMode: readonly ChatTool[]
   search: ((input: unknown) => Promise<unknown>) | null
-  asking: readonly ChatTool[]
   direct: readonly ChatTool[]
 }
 
@@ -174,7 +172,7 @@ function failedPlan(error: unknown): TurnPlan {
     }),
     systemPrompts: async () => [],
     context: async (request) => request,
-    tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
+    tools: async () => ({codeMode: [], search: null, direct: []}),
     setup: async () => new Map(),
     prompt: async (user) => user,
     expand: async (messages) => messages,
@@ -209,24 +207,6 @@ export function approvalNeeded(name: string): Error {
 
 export function approvalDenied(name: string): Error {
   return new Error(`The user denied running tool "${name}". Do not retry it; continue without it.`)
-}
-
-function gatedTools(tools: readonly ChatTool[], approvals: () => Approvals): ChatTool[] {
-  return tools.map((tool) => {
-    const execute = tool.execute
-    if (!execute) return tool
-    const id = toolApprovalId(tool.name)
-    return {
-      ...tool,
-      execute: async (args: unknown, context?: {emitCustomEvent?: CustomEventSink}) => {
-        const granted = approvals().get(id)
-        if (granted === true) return execute(args, context)
-        if (granted === false) throw approvalDenied(tool.name)
-        context?.emitCustomEvent?.(APPROVAL_REQUESTED_EVENT, {approvalId: id, title: tool.name, input: args})
-        throw approvalNeeded(tool.name)
-      },
-    }
-  })
 }
 
 type OfferedTools = {tools: ChatTool[]; preface: string | null}
@@ -631,14 +611,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     plan: TurnPlan,
   ) {
     const granted: {approvals: Approvals} = {approvals: new Map()}
-    const approvals = (): Approvals => granted.approvals
     const coding = driver === null ? null : stoppedWith(driver, controller.signal, config.log)
     const offered = async (): Promise<OfferedTools> => {
       const tools = await plan.tools()
       const coded =
         coding === null ? null : codeModeTools(coding, tools.codeMode, tools.search, config.codeModeResult, debug)
       return {
-        tools: [...(coded?.tools ?? []), ...gatedTools(tools.asking, approvals), ...tools.direct],
+        tools: [...(coded?.tools ?? []), ...tools.direct],
         preface: coded?.preface ?? null,
       }
     }

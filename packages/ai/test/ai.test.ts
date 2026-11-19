@@ -10,7 +10,6 @@ import {
   loadIsolateDriver,
   makeTextAdapter,
   quickJSThreadDriver,
-  toolApprovalId,
   type CodeDriver,
   type Turn,
   type TurnHooks,
@@ -457,8 +456,7 @@ const watched = require('node:net').connect(data.socket, () => {
     })
     const hooks = turnHooks(() => ({
       adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
-      tools: async () => ({codeMode: [], search: null, asking: [blocking], direct: []}),
-      setup: async () => new Map([[toolApprovalId('blocking'), true]]),
+      tools: async () => ({codeMode: [], search: null, direct: [blocking]}),
     }))
     const server = await chatServer(hooks, () => undefined, db)
     const driven = say(server, 'thread', 'run')
@@ -684,7 +682,7 @@ const watched = require('node:net').connect(data.socket, () => {
       plan: async (turn) => ({
         systemPrompts: async () => [],
         context: async (request) => request,
-        tools: async () => ({codeMode: [], search: null, asking: [], direct: []}),
+        tools: async () => ({codeMode: [], search: null, direct: []}),
         setup: async () => new Map(),
         prompt: async (message) => message,
         expand: async (messages) => messages,
