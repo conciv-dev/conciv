@@ -140,6 +140,9 @@ import {
   type PluginExperimental,
   type PluginExperimentalSource,
 } from '../src/runtime/plugin/plugins.js'
+import {pluginDefinition} from '../src/runtime/plugin/module.js'
+import * as Effect from 'effect'
+import {Command, type Registry} from '@conciv/plugin/experimental'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -10404,10 +10407,43 @@ module.exports = {default: {stores: {
     id: 'people',
     region: 'pane',
     list: (input) => (input.open.includes('people') ? [{id: 'people', title: 'Fixture people'}] : []),
-    render: () => [
-      createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
-      createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
-    ],
+    render: () => {
+      const [density, setDensity] = createSignal('comfortable')
+      const [resolved, setResolved] = createSignal(false)
+      const [sent, setSent] = createSignal('nothing')
+      const {MentionField} = require('@conciv/ui-kit-tap')
+      const people = [{id: 'ada', label: 'Ada Lovelace'}, {id: 'alan', label: 'Alan Turing'}]
+      return [
+        createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
+        createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
+        createComponent(ctx.ui.Menu, {
+          label: 'View options',
+          get items() {
+            return [
+              {
+                type: 'radio-group',
+                label: 'Density',
+                value: density(),
+                onValueChange: setDensity,
+                items: [{value: 'comfortable', label: 'Comfortable'}, {value: 'compact', label: 'Compact'}],
+              },
+              {type: 'separator'},
+              {type: 'checkbox', label: 'Show resolved', checked: resolved(), onCheckedChange: setResolved},
+            ]
+          },
+        }),
+        line(() => 'Density: ' + density()),
+        line(() => 'Show resolved: ' + resolved()),
+        createComponent(MentionField, {
+          ariaLabel: 'Reply with a mention',
+          placeholder: 'Reply, @mention someone',
+          items: (query) => people.filter((person) => person.label.toLowerCase().includes(query.toLowerCase())),
+          onSubmit: (segments) =>
+            setSent(segments.map((segment) => (segment.type === 'mention' ? '@' + segment.id : segment.text)).join('')),
+        }),
+        line(() => 'Sent: ' + sent()),
+      ]
+    },
   })
   ctx.add(Panel, {
     id: 'opened',
@@ -10673,6 +10709,49 @@ module.exports = {default: {setup(ctx) {
       await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
       await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
       await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
+    })
+  })
+
+  describe('its ctx.ui.Menu radio and checkbox entries', () => {
+    test("a radio entry and a checkbox entry stay checked, and the app's MentionField from @conciv/ui-kit-tap sends a mention", async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      const menuButton = () => control('View options')
+      const radio = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
+      const checkbox = () => page.getByRole('menuitemcheckbox', {name: 'Show resolved', exact: true})
+      const field = () => page.getByRole('textbox', {name: 'Reply with a mention', exact: true})
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
+      await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture people').click()
+
+      await menuButton().click()
+      await expect.element(page.getByRole('group', {name: 'Density', exact: true})).toBeVisible()
+      await expect.element(radio('Comfortable')).toHaveAttribute('aria-checked', 'true')
+      await expect.element(radio('Compact')).toHaveAttribute('aria-checked', 'false')
+      await radio('Compact').click()
+      await expect.element(page.getByText('Density: compact', {exact: true})).toBeVisible()
+      await menuButton().click()
+      await expect.element(radio('Compact')).toHaveAttribute('aria-checked', 'true')
+      await expect.element(radio('Comfortable')).toHaveAttribute('aria-checked', 'false')
+      await expect.element(checkbox()).toHaveAttribute('aria-checked', 'false')
+      await checkbox().click()
+      await expect.element(page.getByText('Show resolved: true', {exact: true})).toBeVisible()
+      await menuButton().click()
+      await expect.element(checkbox()).toHaveAttribute('aria-checked', 'true')
+      await userEvent.keyboard('{Escape}')
+      await expect.element(checkbox()).not.toBeInTheDocument()
+
+      await field().click()
+      await expect.element(field()).toHaveFocus()
+      await userEvent.keyboard('hi @')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).toBeVisible()
+      await userEvent.keyboard('Ad')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).not.toBeInTheDocument()
+      await page.getByRole('option', {name: 'Ada Lovelace'}).click()
+      await expect.element(page.getByRole('option', {name: 'Ada Lovelace'})).not.toBeInTheDocument()
+      await expect.element(field()).toHaveTextContent('hi @Ada Lovelace')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('Sent: hi @ada', {exact: true})).toBeVisible()
+      await expect.element(field()).toHaveTextContent('')
     })
   })
 
@@ -11854,3 +11933,81 @@ function blobToDataUrl(blob: Blob) {
     reader.readAsDataURL(blob)
   })
 }
+
+describe('plugin bundles in the page', () => {
+  const bundle = `
+  const sdk = require("@conciv/plugin/experimental")
+  const solid = require("solid-js")
+  const effect = require("effect")
+  const fs = require("node:fs")
+  const modified = new fs.Stats().mtime.getTime()
+  exports.default = sdk.Plugin.define({
+    setup(ctx) {
+      const [count] = solid.createSignal(1)
+      ctx.add(sdk.Command, { id: "open", title: "Notes" + count(), run: () => effect })
+      return () => ctx.add(sdk.Command, { id: "closed", title: "", run() {} })
+    },
+  })
+  `
+
+  const refuse = (file: string) => Promise.reject(new Error(`no chunk ${file} in this test`))
+
+  test("declare their definition before they start, with the app's module instances and Node built-ins inert", async () => {
+    const definition = await pluginDefinition(
+      'acme',
+      {code: bundle, chunks: [], file: 'plugin-experimental.cjs'},
+      refuse,
+    )
+    const added: {readonly registry: Registry<Command>; readonly item: Command}[] = []
+
+    expect(definition.id).toBe('acme')
+
+    const entry = await definition.windowEntry?.()
+
+    const ctx = {
+      add: (registry: Registry<Command>, item: Command) => void added.push({registry, item}),
+    }
+
+    const cleanup = entry?.default(ctx as never)
+
+    expect(added[0]?.registry).toBe(Command)
+    expect(added[0]?.item).toMatchObject({id: 'open', title: 'Notes1'})
+    expect(added[0]?.item.run()).toBe(Effect)
+    expect(cleanup).toBeTypeOf('function')
+  })
+
+  test('fail only their own entry when they require a module the app does not share', async () => {
+    const definition = await pluginDefinition(
+      'acme',
+      {
+        code: 'require("left-pad"); exports.default = { setup() {} }',
+        chunks: [],
+        file: 'plugin-experimental.cjs',
+      },
+      refuse,
+    )
+    const subpath = await pluginDefinition(
+      'acme',
+      {code: 'require("effect/Schema"); exports.default = { setup() {} }', chunks: [], file: 'plugin-experimental.cjs'},
+      refuse,
+    )
+    const early = await pluginDefinition(
+      'acme',
+      {
+        code: 'exports.default = { setup() {} }',
+        chunks: [{file: 'start-A.cjs', code: 'require("./plugin-experimental.cjs")'}],
+        file: 'plugin-experimental.cjs',
+      },
+      refuse,
+    )
+
+    expect(definition.id).toBe('acme')
+    await expect(definition.windowEntry?.()).rejects.toThrow('left-pad')
+    await expect(subpath.windowEntry?.()).rejects.toThrow(
+      "A plugin's ./plugin-experimental bundle requires a module the app does not share: effect/Schema",
+    )
+    await expect(early.windowEntry?.()).rejects.toThrow(
+      "A plugin's ./plugin-experimental chunk start-A.cjs requires the entry plugin-experimental.cjs before it finished evaluating",
+    )
+  })
+})
