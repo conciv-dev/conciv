@@ -180,21 +180,60 @@ describe('plugin view reads through query', () => {
       .map((diagnostic) => ({message: String(diagnostic.message), line: firstLine(diagnostic)}))
   }
 
-  test('flags createResource, a destructured client, and every plain method call on a client held, made or returned', async () => {
-    const findings = await lintFixture('plain-calls.tsx')
-    expect(findings.map((finding) => finding.line)).toEqual([1, 9, 10, 11, 12, 13])
-    expect(findings.map((finding) => finding.message)).toEqual([
-      expect.stringContaining('never uses createResource'),
-      expect.stringContaining("'search'"),
-      expect.stringContaining('takes methods out of an rpc client'),
-      expect.stringContaining("'save'"),
-      expect.stringContaining("'items.list'"),
-      expect.stringContaining("'reset'"),
-    ])
-  })
-
-  test('accepts reads through queryOptions, writes through mutationOptions, and event invalidation by key', async () => {
-    expect(await lintFixture('query-reads.tsx')).toEqual([])
+  test.each([
+    {
+      fixture: 'plain-calls.tsx',
+      reason: 'createResource, a destructured client, and every plain method call on a client held, made or returned',
+      lines: [1, 9, 10, 11, 12, 13],
+      messages: [
+        expect.stringContaining('never uses createResource'),
+        expect.stringContaining("'search'"),
+        expect.stringContaining('takes methods out of an rpc client'),
+        expect.stringContaining("'save'"),
+        expect.stringContaining("'items.list'"),
+        expect.stringContaining("'reset'"),
+      ],
+    },
+    {
+      fixture: 'raw-calls.tsx',
+      reason: 'the raw plugin.call wire, on the client held or read, and through rpc.call',
+      lines: [6, 7, 8],
+      messages: [
+        expect.stringContaining('raw plugin call'),
+        expect.stringContaining('raw plugin call'),
+        expect.stringContaining('raw plugin call'),
+      ],
+    },
+    {
+      fixture: 'aliased-methods.tsx',
+      reason: 'a method read into a name or destructured, then called',
+      lines: [8, 9, 10, 11],
+      messages: [
+        expect.stringContaining('takes methods out of an rpc client'),
+        expect.stringContaining("'search'"),
+        expect.stringContaining("'save'"),
+        expect.stringContaining("'reset'"),
+      ],
+    },
+    {
+      fixture: 'namespace-solid.tsx',
+      reason: 'createResource through a solid-js namespace import or a renamed import',
+      lines: [2, 5],
+      messages: [
+        expect.stringContaining('never uses createResource'),
+        expect.stringContaining('never uses createResource'),
+      ],
+    },
+    {
+      fixture: 'query-reads.tsx',
+      reason: 'nothing in reads through queryOptions, writes through mutationOptions, and event invalidation by key',
+      lines: [],
+      messages: [],
+    },
+  ])('flags $reason ($fixture)', async ({fixture, lines, messages}) => {
+    const findings = await lintFixture(fixture)
+    expect(findings.map((finding) => finding.line)).toEqual(lines)
+    expect(findings.map((finding) => finding.message)).toEqual(messages)
   })
 })
 
