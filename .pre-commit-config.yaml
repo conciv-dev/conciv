@@ -13,6 +13,7 @@ repos:
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s)$'
         exclude: '^(.*/)?(dist|build|\.turbo)/'
+        require_serial: true
       - id: oxfmt
         name: oxfmt (format staged files)
         entry: bash -c 'pnpm exec oxfmt --no-error-on-unmatched-pattern --write "$@" && git add -- "$@"' --
@@ -20,3 +21,4 @@ repos:
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s|jsonc?|md)$'
         exclude: '^(.*/)?(dist|build|\.turbo)/|^packages/unplugin/test/fixtures/'
+        require_serial: true
