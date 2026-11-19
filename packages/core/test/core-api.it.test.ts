@@ -4460,18 +4460,21 @@ return seen`
   }
 
   async function dropSocketAfterFirstText(sessionId: string, runId: string): Promise<void> {
-    const browser = makeBrowserRpcClient(chatKit().base)
-    const viewer = new AbortController()
+    const websocket = new WebSocket(`${chatKit().origin.replace('http', 'ws')}${RPC_WS_PATH}`)
+    websocket.addEventListener('open', () =>
+      websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: chatKit().token})),
+    )
+    const oldPage: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
     const turn = turnText(
-      await browser.rpc.chat.send(
-        {sessionId, runId, messages: [{id: `${runId}-user`, role: 'user', content: 'reload while I work'}]},
-        {signal: viewer.signal},
-      ),
+      await oldPage.chat.send({
+        sessionId,
+        runId,
+        messages: [{id: `${runId}-user`, role: 'user', content: 'reload while I work'}],
+      }),
     )
     const reached = await turn.reach(`"type":"${ChatEventType.TEXT_MESSAGE_CONTENT}"`)
     if (reached !== `"type":"${ChatEventType.TEXT_MESSAGE_CONTENT}"`) throw new Error(`the turn failed: ${reached}`)
-    viewer.abort()
-    await browser.close()
+    websocket.close()
   }
 
   function fakeNativeId(sessionId: string): string {
