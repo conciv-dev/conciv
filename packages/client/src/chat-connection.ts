@@ -339,7 +339,7 @@ export function chatConnection(
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(turns, events, options, abortSignal, sessionId),
+    subscribe: (abortSignal) => watching(turns, events, options, within(lifetime.signal, abortSignal), sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       const {adapter} = turns
       if (messages.every((message) => 'parts' in message)) {
