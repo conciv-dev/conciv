@@ -128,10 +128,9 @@ defineExtension({
   attachments, // AnyAttachmentBuilder[] — see below
   commands, // ExtensionCommand[] — {name, description, run({sessionId})}; runs in the widget from the / menu (or typed alone and sent), never sent to the agent, replaces a harness command of the same name
   views, // ExtensionView[] — {id, label, icon?, Component, actions?}, one per full panel
-  Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface/connect)
+  Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface)
   Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot
   systemPrompt, // string, or (config, {cwd}) => string, appended to the agent's system prompt
-  connectGate, // {preflight: () => Promise<string | null>} — gate the widget's connect flow
 })
 ```
 
@@ -198,8 +197,8 @@ const tool = defineTool({
   already `inputSchema.parse`d; `ctx` is whatever your extension's `.server(...)` factory returned
   as `context` (unknown unless you annotate the handler's `ctx` parameter — the generic
   `server<HandlerCtx>` signature lets you write `ctx: YourCtxType`, as
-  `packages/extensions/tanstack/src/tool/server.ts:8` does with a `type ToolCtx =
-  {makeAdapter: (tools: ServerToolRegistryAccess) => FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
+  `packages/extensions/recorder/src/tool/server.ts:5` does with a `type Ctx =
+  {recorder: RecorderRuntime}` annotation); `request` is `{sessionId: string; model: string | null}`
   for the calling chat turn.
 - `.client(execute?)` binds the tool to run in the browser instead (a DOM inspection tool, for
   example) — its handler receives `ClientToolCtx` (`document`, `target`, `resolve`, `addRef`,
@@ -217,13 +216,13 @@ const tool = defineTool({
 Throw a `toolError(code, {message?, data?})` from inside `.server`/`.client` for a structured
 failure the card can branch on; `isToolError(value)` narrows it back on the render side.
 
-```ts title="packages/extensions/tanstack/src/tool/server.ts (excerpted)"
-import {defineTool, toolError} from '@conciv/extension'
+```ts title="packages/extensions/design/src/client/capture.ts (excerpted)"
+import {toolError} from '@conciv/extension'
 // …
-throw toolError('MANIFEST_UNREADABLE', {message: error instanceof Error ? error.message : String(error)})
+if (doc === null) throw toolError('frame-blocked', {message: DESIGN_ERRORS['frame-blocked'].message})
 ```
 
-(`packages/extensions/tanstack/src/tool/server.ts:1` for the import, `:19` for the throw.) Declare
+(`packages/extensions/design/src/client/capture.ts:78` for the throw.) Declare
 the codes you can throw in the definition's `errors` field so the contract is visible from the type
 alone — `packages/extensions/whiteboard/src/tool/comment/def.ts:18` declares
 `const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}`
@@ -271,7 +270,7 @@ export const terminal = defineExtension({
 
 `getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
 uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `useSessionId`, `useGrab`,
-`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useConnect`, `useViewLock`,
+`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useViewLock`,
 `useLeaveView`, `useScope`, `useColorScheme`, plus the `Suppress`/`YieldFocus`
 layer-gate components — and adds `useContext`, scoped to the extension you named. Each hook throws
 with a clear "used outside a host that provides…" message if called where the host never wired that
@@ -341,16 +340,15 @@ export function bootWhiteboard(): Promise<ExtensionTestApi> {
 `fixtureHost(distDir)` serves a directory your build already produced (build the extension's client
 bundle first — testing against source is testing stale code, the same rule as the widget's own
 prebuilt-bundle tests); `host` can also be a hand-written `async ({apiBase, session}) => {origin,
-close}` for a custom fixture app, as `packages/extensions/tanstack/test/helpers.ts`
-does with `serveDir`. `callToolApproved` is the variant that also answers the Approve/Deny prompt for
+close}` for a custom fixture app. `callToolApproved` is the variant that also answers the Approve/Deny prompt for
 tools with `approval: 'ask'`. Full API and the two-client (`secondClient`) pattern for realtime
 features: [rpc-and-testing](references/rpc-and-testing.md).
 
 ## Installing a published extension (someone else's, or your own)
 
 A published extension is one dependency plus one entry in the conciv options. Its default export is
-a factory: `conciv({extensions: [tanstack()]})` on Vite, `withConciv(nextConfig, {extensions:
-[tanstack()]})` on Next.js. The factory validates its options with zod and returns `{server, client,
+a factory: `conciv({extensions: [whiteboard()]})` on Vite, `withConciv(nextConfig, {extensions:
+[whiteboard()]})` on Next.js. The factory validates its options with zod and returns `{server, client,
 config}`: absolute paths to the package's own `./server` and `./client` entries, plus the parsed
 options. Publishing your own follows the same shape: a `src/index.ts` factory as the `.` export, and
 `./server` and `./client` subpaths (see `apps/site/content/docs/extending/install-first-party.mdx`
@@ -401,9 +399,6 @@ non-installed extensions).
 - `packages/extensions/whiteboard/src/tool/comment/def.ts`
 - `packages/extensions/terminal/src/client.tsx`
 - `packages/extensions/terminal/src/client/terminal-context.ts`
-- `packages/extensions/tanstack/src/tool/server.ts`
-- `packages/extensions/tanstack/src/tool/client.ts`
-- `packages/extensions/tanstack/test/helpers.ts`
 - `packages/extensions/recorder/src/shared/attachment.ts`
 - `packages/extensions/recorder/src/server.ts`
 - `packages/extensions/whiteboard/test/canvas-it-helpers.ts`

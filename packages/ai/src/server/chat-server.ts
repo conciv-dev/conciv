@@ -59,7 +59,7 @@ export type ChatStores = {
   runs: RunStore &
     Required<Pick<RunStore, 'listByThread' | 'listReclaimable'>> & {
       listRunning: () => Promise<RunRecord[]>
-      known: (runId: string) => boolean
+      known: (runId: string) => Promise<boolean>
     }
   metadata: MetadataStore
 }
@@ -88,7 +88,7 @@ export type TurnPlan = {
 
 export type TurnHooks = {
   admit: (turn: Turn) => Promise<void>
-  plan: (turn: Turn) => TurnPlan
+  plan: (turn: Turn) => Promise<TurnPlan>
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
   started: (turn: Turn) => void
@@ -183,9 +183,9 @@ function failedPlan(error: unknown): TurnPlan {
   }
 }
 
-function planned(hooks: TurnHooks, turn: Turn): TurnPlan {
+async function planned(hooks: TurnHooks, turn: Turn): Promise<TurnPlan> {
   try {
-    return hooks.plan(turn)
+    return await hooks.plan(turn)
   } catch (error) {
     return failedPlan(error)
   }
@@ -602,7 +602,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       stopping: false,
     }
     live.set(turn.runId, entry)
-    return admitted(turn, messages, controller, entry, planned(hooks, turn))
+    return admitted(turn, messages, controller, entry)
   }
 
   async function* admitted(
@@ -610,8 +610,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     messages: Array<ChatMessage | ModelMessage>,
     controller: AbortController,
     entry: LiveRun,
-    plan: TurnPlan,
   ): AsyncGenerator<ChatEvent> {
+    const plan = await planned(hooks, turn)
     const prompted = await hooks
       .admit(turn)
       .then(() => promptedMessages(turn.threadId, messages, plan, controller.signal))
@@ -703,7 +703,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   return {
     ...createDelivery({
       run,
-      seenRun: (runId) => live.has(runId) || stores.runs.known(runId),
+      seenRun: async (runId) => live.has(runId) || (await stores.runs.known(runId)),
       debug,
       log: config.log,
     }),

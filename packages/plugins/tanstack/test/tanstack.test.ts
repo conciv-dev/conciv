@@ -1,4 +1,4 @@
-import {execFile} from 'node:child_process'
+import {execFile, execFileSync} from 'node:child_process'
 import {copyFileSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {realpath} from 'node:fs/promises'
 import {join} from 'node:path'
@@ -10,8 +10,14 @@ import {makeViteBridge} from '@conciv/unplugin/vite-bridge'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
+import {buildAndPack, installPacked} from '@conciv/vitest-config/pack'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {Effect, Fiber, FileSystem, Layer, Path, Stream} from 'effect'
+import {TestClock} from 'effect/testing'
+import {diagnosticsLayer} from '../src/diagnostics.js'
 import {Definition} from '../src/rpc.js'
+import {serverFnTraceLayer} from '../src/serverfn-trace.js'
+import {capabilities} from '../src/tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
@@ -166,7 +172,7 @@ describe('the tanstack plugin without a bundler', () => {
 
     rmSync(join(kit.stateRoot, 'src', 'routeTree.gen.ts'))
     const unreadable = await toolFailure(useTool(kit, 'route_manifest'))
-    expect(unreadable).toContain('ENOENT')
+    expect(unreadable).toContain('NotFound: FileSystem.readFile')
     expect(unreadable).toContain('routeTree.gen.ts')
     expect(await terminalCall(kit, 'routeManifest')).toEqual({
       ok: false,
@@ -279,7 +285,7 @@ async function attachPage(kit: CoreKit, sessionId: string, nextControl: () => Pr
 }
 
 describe('the tanstack plugin with a page attached', () => {
-  it('grants the browser tools to that session only, carries each call to the focused tab as ids and answers with the page result', async () => {
+  it('grants the browser tools, each with a description, to that session only, carries each call to the focused tab as ids and answers with the page result', async () => {
     const kit = await bootProject({})
     const session = await kit.session()
     const other = (await kit.rpc.sessions.create()).sessionId
@@ -294,6 +300,7 @@ describe('the tanstack plugin with a page attached', () => {
     expect(offered.tools.map((tool) => tool.name).toSorted()).toEqual(
       [...ENGINE_TOOLS, ...BROWSER_TOOLS].map((name) => `external_${name}`).toSorted(),
     )
+    expect(offered.tools.filter((tool) => tool.description.trim().length === 0).map((tool) => tool.name)).toEqual([])
     const elsewhere = await makeDiscoverTools(kit.base, other)([...ENGINE_TOOLS, ...BROWSER_TOOLS])
     expect(elsewhere.tools.map((tool) => tool.name)).toEqual(ENGINE_TOOLS.map((name) => `external_${name}`))
     expect(await useTool(kit, 'tabs_list')).toEqual({tabs: [page.tab], focusedTabId: page.tab.id})
@@ -446,4 +453,111 @@ describe('the tanstack plugin on a real Vite dev server', () => {
     })
     expect(await terminalCall(kit, 'serverFnTrace', '{"count":1}')).toEqual({ok: true, data: based})
   })
+})
+
+const PACKED_ROOT = '@conciv/plugin-tanstack'
+
+function tarballManifest(tarball: string): string {
+  return execFileSync('tar', ['-xzOf', tarball, 'package/package.json']).toString()
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+describe('the packed tanstack plugin', {tags: ['packed']}, () => {
+  it('packs without the workspace protocol, installs every @conciv package from its tarball and loads as a plugin', async () => {
+    const {overrides} = await buildAndPack(tempDir('conciv-tanstack-packs-'), [PACKED_ROOT])
+    const packed = Object.entries(overrides).map(([name, override]) => ({
+      name,
+      tarball: override.replace(/^file:/, ''),
+    }))
+    for (const entry of packed) {
+      expect(tarballManifest(entry.tarball), `${entry.name} tarball must not carry workspace protocol`).not.toContain(
+        'workspace:',
+      )
+    }
+    const root = packed.find((entry) => entry.name === PACKED_ROOT)
+    if (!root) throw new Error('the plugin is missing from its own packed closure')
+    expect(JSON.parse(tarballManifest(root.tarball))).toMatchObject({
+      exports: {'.': {types: './dist/index.d.ts', import: './dist/index.js'}},
+    })
+    const files = execFileSync('tar', ['-tzf', root.tarball]).toString()
+    for (const file of ['dist/index.js', 'dist/rpc.js', 'dist/plugin-experimental.cjs']) {
+      expect(files).toContain(`package/${file}`)
+    }
+
+    const dir = tempDir('conciv-tanstack-packed-install-')
+    const {packageManager} = z
+      .object({packageManager: z.string()})
+      .parse(JSON.parse(readFileSync(join(PACKAGE_DIR, '..', '..', '..', 'package.json'), 'utf8')))
+    const dependencies = {
+      [PACKED_ROOT]: overrides[PACKED_ROOT],
+      '@conciv/plugin': overrides['@conciv/plugin'],
+      '@tanstack/react-router': '^1.170.0',
+    }
+    const manifest = {name: 'conciv-tanstack-packed-fixture', version: '0.0.0', private: true, type: 'module'}
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({...manifest, packageManager, dependencies}, null, 2))
+    await installPacked({root: dir, packages: ['.'], allowBuilds: {protobufjs: false}, overrides})
+
+    const lock = readFileSync(join(dir, 'pnpm-lock.yaml'), 'utf8')
+    for (const entry of packed) {
+      expect(lock, `${entry.name} must resolve via file: in the lockfile`).toContain(`${entry.name}@file:`)
+      expect(
+        new RegExp(`${escapeRegExp(entry.name)}@\\d`).test(lock),
+        `${entry.name} must not resolve from the registry`,
+      ).toBe(false)
+    }
+    expect(lock).not.toContain('registry.npmjs.org/@conciv')
+
+    const probe = join(dir, 'node-probe.mjs')
+    writeFileSync(
+      probe,
+      [
+        `import plugin from '${PACKED_ROOT}'`,
+        `process.stdout.write(JSON.stringify({id: plugin.id, entry: import.meta.resolve('${PACKED_ROOT}')}))`,
+      ].join('\n'),
+    )
+    const probed = z
+      .object({id: z.string(), entry: z.string()})
+      .parse(JSON.parse(execFileSync(process.execPath, [probe], {cwd: dir}).toString()))
+    expect(probed.id).toBe('tanstack')
+    expect(probed.entry).toContain('node_modules/@conciv/plugin-tanstack/dist/index.js')
+  }, 420_000)
+})
+
+describe('the tanstack plugin with an invalid option', () => {
+  it('fails its activation with Tanstack.InvalidOptions', async () => {
+    const kit = await bootCoreKit({id: 'fake', plugins: [[PACKAGE_DIR, {bundlerWaitMs: -1}]]})
+    onTestFinished(() => kit.cleanup())
+    const {data} = await kit.rpc.plugin.list()
+    expect(data.find((plugin) => plugin.id === 'tanstack')?.state).toEqual({
+      status: 'failed',
+      error: 'failed to load plugin: Tanstack.InvalidOptions: bundlerWaitMs: Too small: expected number to be >0',
+    })
+    expect(await terminalCall(kit, 'buildErrors')).toMatchObject({
+      ok: false,
+      error: {type: 'rpc.unavailable', message: 'RPC is unavailable: experimental.tanstack'},
+    })
+  })
+})
+
+describe('the tanstack plugin waiting for the bundler status', () => {
+  it('waits the set time on the test clock for a dev server, then fails BUNDLER_UNAVAILABLE', () =>
+    Effect.gen(function* () {
+      const rings = yield* Layer.build(Layer.mergeAll(diagnosticsLayer, serverFnTraceLayer))
+      const tanstack = yield* capabilities({event: {subscribe: () => Stream.never}}, PACKAGE_DIR, {
+        bundlerWaitMs: 5_000,
+      }).pipe(Effect.provide(rings))
+      const waiting = yield* tanstack.buildErrors().pipe(Effect.flip, Effect.forkChild)
+      yield* TestClock.adjust('4999 millis')
+      expect(waiting.pollUnsafe()).toBeUndefined()
+      yield* TestClock.adjust('1 millis')
+      const failure = yield* Fiber.join(waiting)
+      expect(failure).toEqual({_tag: 'Tanstack.BundlerUnavailable', message: 'bundler bridge unavailable'})
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(Layer.mergeAll(TestClock.layer(), FileSystem.layerNoop({}), Path.layer)),
+      Effect.runPromise,
+    ))
 })
