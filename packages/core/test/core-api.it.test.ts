@@ -247,7 +247,9 @@ async function sentTurn(
   text: string,
   signal?: AbortSignal,
 ): Promise<TurnText> {
-  const stream = await makeRpcClient(base).chat.send(
+  const browser = makeBrowserRpcClient(base)
+  onTestFinished(() => browser.close())
+  const stream = await browser.rpc.chat.send(
     {sessionId, runId, messages: [{id: `${runId}-user`, role: 'user', content: text}]},
     {signal},
   )
@@ -3889,7 +3891,13 @@ return seen`
         const [overSocket, overHttp] = [await newSession(), await newSession()]
         await finished(overSocket, 'same')
         await readTurn(
-          await sentTurn(chatKit().base, overHttp, 'http-run', 'same', new AbortController().signal),
+          turnText(
+            await makeRpcClient(chatKit().base).chat.send({
+              sessionId: overHttp,
+              runId: 'http-run',
+              messages: [{id: 'http-run-user', role: 'user', content: 'same'}],
+            }),
+          ),
           ChatEventType.RUN_FINISHED,
         )
         expect(roleTexts(await thread(overHttp))).toEqual(roleTexts(await thread(overSocket)))

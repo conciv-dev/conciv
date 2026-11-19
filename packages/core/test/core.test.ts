@@ -1022,7 +1022,9 @@ describe('chat plane', () => {
   }
 
   function engineTurn(engine: {port: number; agentToken: string}, session: SessionId, runId: string) {
-    return makeRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`).chat.send({
+    const browser = makeBrowserRpcClient(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`)
+    onTestFinished(() => browser.close())
+    return browser.rpc.chat.send({
       sessionId: session,
       runId,
       messages: turnMessages(runId, 'keep talking'),
