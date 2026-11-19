@@ -744,17 +744,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ]
   const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {
     const offered = offeredCapabilities(sessionId)
-    try {
-      const given = await withPluginTools(sessionId, offered)
-      const added = differenceBy(given, offered, (capability) => capability.name)
-      return [
-        ...intersectionBy(extensionTools, given, (tool) => tool.name),
-        ...added.map(({name, description}) => ({name, description})),
-      ]
-    } catch (error) {
-      logError(`[core] listing the plugin tools of session ${sessionId} failed: ${String(error)}`)
-      return extensionTools
-    }
+    const given = await withPluginTools(sessionId, offered)
+    const added = differenceBy(given, offered, (capability) => capability.name)
+    return [
+      ...intersectionBy(extensionTools, given, (tool) => tool.name),
+      ...added.map(({name, description}) => ({name, description})),
+    ]
   }
   const sessionToolNames = async (sessionId: SessionId): Promise<ReadonlySet<string>> =>
     new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
