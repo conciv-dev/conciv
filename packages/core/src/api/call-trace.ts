@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, toolTimeEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_NAMED_TAB_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/contract'
 import {logError} from '../lib/debug.js'
@@ -27,17 +27,22 @@ type MirrorSink = {
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
   const callId = randomUUID()
+  const clock = {startedAt: Date.now()}
   const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client, run: callId}}
   return {
     hub,
     callId,
     mark: (chunk: ChatEvent): ChatEvent => marked(chunk, marker),
-    start: (run: CallRun, toolName: string, input: unknown): ChatEvent[] => [
-      ...(run.live ? [] : [runStarted(run.threadId, callId)]),
-      ...startChunks(callId, toolName, input, marker),
-    ],
+    start: (run: CallRun, toolName: string, input: unknown): ChatEvent[] => {
+      clock.startedAt = Date.now()
+      return [
+        ...(run.live ? [] : [runStarted(run.threadId, callId)]),
+        ...startChunks(callId, toolName, input, marker, clock.startedAt),
+      ]
+    },
     result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
       resultChunk(callId, text, failed, marker),
+      toolTimeEvent.create({toolCallId: callId, time: {start: clock.startedAt, end: Date.now()}}),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
     mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),
@@ -98,10 +103,21 @@ function mirrorRunId(callId: string): string {
   return `mirror-${callId}`
 }
 
-function startChunks(callId: string, toolName: string, input: unknown, marker: CallMarker): ChatEvent[] {
+function startChunks(
+  callId: string,
+  toolName: string,
+  input: unknown,
+  marker: CallMarker,
+  startedAt: number,
+): ChatEvent[] {
   const metadata = marker === null ? {} : {metadata: marker}
   return [
-    {type: ChatEventType.TOOL_CALL_START, toolCallId: callId, toolCallName: toolName, ...metadata},
+    {
+      type: ChatEventType.TOOL_CALL_START,
+      toolCallId: callId,
+      toolCallName: toolName,
+      metadata: {...marker, time: {start: startedAt}},
+    },
     {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: callId, delta: safeStringify(input)},
     {type: ChatEventType.TOOL_CALL_END, toolCallId: callId, ...metadata},
   ]

@@ -9,7 +9,6 @@
 '@conciv/extension': patch
 '@conciv/extension-compiler': patch
 '@conciv/extension-recorder': patch
-'@conciv/extension-terminal': patch
 '@conciv/extension-whiteboard': patch
 '@conciv/grab': patch
 '@conciv/harness': patch

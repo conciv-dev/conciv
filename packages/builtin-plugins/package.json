@@ -20,6 +20,7 @@
     "test": "vitest run --project browser-firefox --coverage.enabled=false && vitest run --project !browser-firefox"
   },
   "dependencies": {
+    "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/page": "workspace:^",

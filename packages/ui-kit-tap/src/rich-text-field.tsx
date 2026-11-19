@@ -32,7 +32,7 @@ export type RichTextFieldHandle = {
 
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 const EDITABLE =
-  '[font-family:var(--chat-font)] leading-[1.45] whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-chat-accent-hi [&_[data-chip]]:bg-chat-accent-08 [&_[data-chip]]:rounded-chat-surface-sm [&_[data-chip]]:px-0.5'
+  '[font-family:var(--chat-font)] leading-[1.45] whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-chat-accent-hi [&_[data-chip]]:bg-chat-accent-08 [&_[data-chip]]:rounded-chat-surface-sm [&_[data-chip]]:px-0.5 [&_[data-chip]]:!whitespace-nowrap'
 const PLACEHOLDER =
   '[font-family:var(--chat-font)] pointer-events-none absolute top-0 [inset-inline:0] leading-[1.45] text-[0.8125rem] text-chat-text-3 select-none whitespace-nowrap overflow-hidden text-ellipsis'
 
@@ -189,6 +189,7 @@ export function RichTextField(props: {
   onReady?: (handle: RichTextFieldHandle) => void
   slashTrigger?: RichTextFieldTriggerSource
   mentionTrigger?: RichTextFieldTriggerSource
+  menuBoundary?: () => Element | undefined
 }): JSX.Element {
   let host: HTMLDivElement | undefined
   let editorView: EditorView | undefined
@@ -310,7 +311,12 @@ export function RichTextField(props: {
         </ScrollArea.Scrollbar>
       </ScrollArea.Root>
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <TriggerMenu menu={menu} onDismiss={dismissMenu} onRefocus={() => editorInstance?.commands.focus()} />
+      <TriggerMenu
+        menu={menu}
+        onDismiss={dismissMenu}
+        onRefocus={() => editorInstance?.commands.focus()}
+        boundary={props.menuBoundary}
+      />
     </div>
   )
 }

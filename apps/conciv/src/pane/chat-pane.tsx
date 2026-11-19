@@ -51,8 +51,6 @@ import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
 import {usePane} from '../app/pane-context.js'
-import {createToolDurations} from './tool-durations.js'
-import {toolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
@@ -68,7 +66,6 @@ import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
 import {DraftUnsavedNotice} from './draft-unsaved-notice.js'
-import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
@@ -88,10 +85,18 @@ import {
   SessionLinks,
   SessionStatusSlot,
 } from './plugin-session-parts.js'
-import {createPluginToolCards} from './plugin-tool-cards.js'
+import {createToolRender} from './tool-registry-render.js'
+import {Contribution} from '../runtime/plugin/render'
 
 const PAGE_SESSION: PageSessionConfig = {
-  entry: pageSessionEntry,
+  entry: {
+    key: pageSessionEntry.key,
+    render: (props) => (
+      <Contribution plugin="page" fallback={() => props.children}>
+        {() => pageSessionEntry.render(props)}
+      </Contribution>
+    ),
+  },
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }
@@ -242,6 +247,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const sessionId = untrack(() => props.sessionId)
   const harness = useSessionHarness(() => sessionId)
   const chat = pane.chat()
+  let paneBody: HTMLDivElement | undefined
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -263,7 +269,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
   const catalog = useToolCatalog()
-  const captures = useSessionCaptures(sessionId)
   const draftStorage = makeDraftStorage(appData, liveSessions.keepDraft, sessionId)
 
   const messaging = usePaneMessaging({
@@ -280,20 +285,15 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   const toolCtx = makeToolViewCtx({
-    harnessId: () => harness()?.id ?? '',
     catalog,
-    sendMessage: sendFromButton,
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: messaging.onAnswer,
-    durationFor: createToolDurations(chat.messages, Date.now),
-    captureFor: captures.lookup,
   })
 
   const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
-  const pluginToolCards = createPluginToolCards(pluginSession.view)
+  const toolRender = createToolRender()
   const tools = (): ToolCardEntry[] => [
-    ...pluginToolCards(),
     ...extensionToolCards,
     ...concivToolCards,
     ...coreToolCards,
@@ -357,16 +357,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const PaneBody = (): JSX.Element => {
     const thread = useThread()
     const lastTurn = () => thread.turns.at(-1)?.turn()
-    const outOfBandAsks = createMemo(
-      () =>
-        chat
-          .pendingApprovals()
-          .filter((ask) => !lastTurn()?.parts.some((part) => part.type === 'tool-call' && part.id === ask.toolCallId)),
-      [],
-      {equals: sameEntries},
-    )
+    const asks = createMemo(() => chat.pendingApprovals(), [], {equals: sameEntries})
     createEffect<number>((previous) => {
-      const waiting = outOfBandAsks().length
+      const waiting = asks().length
       if (waiting > previous) announce('conciv is asking for permission.')
       return waiting
     }, 0)
@@ -417,6 +410,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       <div class="contents">
         <SessionHeaderSlot pane={pluginSession} />
         <div
+          ref={(element) => (paneBody = element)}
           {...viewTabPanelAttributes(props.viewTab)}
           onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
           class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
@@ -436,9 +430,11 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       </Thread.Welcome>
                     </Show>
                     <Thread.Messages
+                      sessionID={sessionId}
                       tools={tools()}
                       attachmentCards={attachments().cards}
-                      components={{ToolFallback: toolFallbackCard}}
+                      render={toolRender.render}
+                      renderPending={toolRender.pending()}
                       turnPrefix={renderTurnPrefix}
                       promptSuffix={renderPromptSuffix}
                       pageSession={PAGE_SESSION}
@@ -453,8 +449,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Show when={compacting()}>
                       <Divider kind="compact" pending />
                     </Show>
-                    <Show when={outOfBandAsks().length > 0}>
-                      <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
+                    <Show when={asks().length > 0}>
+                      <PendingApprovals asks={asks()} ctx={toolCtx} />
                     </Show>
                     <Show when={narrating()}>
                       <NarrationRow />
@@ -504,6 +500,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     onSelectionChange={draftStorage.noteSelection}
                     busy={compactingIndicator(compacting())}
                     triggers={commandSources.triggers}
+                    menuBoundary={() => paneBody}
                     prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
                   >
                     <SessionComposerBinding

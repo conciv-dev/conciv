@@ -1,13 +1,24 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
-import {uniqBy} from 'es-toolkit'
+import {useSearch} from '@tanstack/solid-router'
+import {partition, uniqBy} from 'es-toolkit'
+import {createAsyncDebouncer} from '@tanstack/solid-pacer'
+import BookOpen from 'lucide-solid/icons/book-open'
+import Brain from 'lucide-solid/icons/brain'
+import File from 'lucide-solid/icons/file'
+import Folder from 'lucide-solid/icons/folder'
+import MessageCircle from 'lucide-solid/icons/message-circle'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
+import type {RpcClient} from '@conciv/contract'
+import type {InferClientOutputs} from '@orpc/client'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
 import {useAppData, useAppQueryClient, useInstances} from '../app/context.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import {usePluginHost, type Item} from '../runtime/plugin/host'
 import type {ComposerTriggerSources} from './composer-input-adapter.js'
+import {quickPaneIds} from '../lib/quick-search.js'
+import {rankSessionTitle} from './session-title-rank.js'
 
 export type PaneCommandProps = {sessionId: string; openModelMenu: () => void}
 
@@ -101,8 +112,102 @@ function parseTyped(text: string): {name: string; input?: string} | undefined {
   return {name: typed.slice(1, separator), input: typed.slice(separator).trim()}
 }
 
+type RpcOutputs = InferClientOutputs<RpcClient>
+
+const SKILL_ICON: RichTextFieldTriggerItem['icon'] = {component: BookOpen, name: 'Skill'}
+
+const AGENT_ICON: RichTextFieldTriggerItem['icon'] = {component: Brain, name: 'Agent', tone: 'chat-agent'}
+
+const SESSION_ICON: RichTextFieldTriggerItem['icon'] = {component: MessageCircle, name: 'Session'}
+
+function skillEntry(skill: RpcOutputs['skill']['list']['data'][number]): RichTextFieldTriggerItem {
+  return {id: skill.id, label: `@${skill.id}`, description: skill.description, icon: SKILL_ICON}
+}
+
+function agentEntries(agents: RpcOutputs['agent']['list']['data']): RichTextFieldTriggerItem[] {
+  return agents
+    .filter((agent) => agent.mode !== 'primary' && !agent.hidden)
+    .map((agent) => ({id: agent.name, label: `@${agent.name}`, icon: AGENT_ICON}))
+}
+
+const FILE_ICON: RichTextFieldTriggerItem['icon'] = {component: File, name: 'File'}
+
+const FOLDER_ICON: RichTextFieldTriggerItem['icon'] = {component: Folder, name: 'Folder'}
+
+const MENTION_FILE_DEBOUNCE_MS = 150
+
+function fileEntry(entry: RpcOutputs['fs']['find']['data'][number]): RichTextFieldTriggerItem {
+  return {
+    id: `file:${entry.path}`,
+    label: entry.path,
+    insert: `@${entry.path}`,
+    icon: entry.type === 'directory' ? FOLDER_ICON : FILE_ICON,
+  }
+}
+
+function searchesFiles(query: string): boolean {
+  return query.trim().length > 0 && !/\s/.test(query)
+}
+
+type SessionRow = RpcOutputs['sessions']['list']['sessions'][number]
+
+type SessionCandidate = {session: SessionRow; local: boolean}
+
+type SessionContext = {sessionId: string; openIds: string[]}
+
+type RankedSession = {entry: RichTextFieldTriggerItem; local: boolean; rank: number; open: boolean; updated: number}
+
+const SESSION_LIMIT = 5
+
+const SESSION_READ_LIMIT = 50
+
+function rankSession(candidate: SessionCandidate, query: string, context: SessionContext): RankedSession[] {
+  const session = candidate.session
+  if (session.id === context.sessionId) return []
+  if (!query && !candidate.local) return []
+  const rank = query ? rankSessionTitle(session.title, query) : 0
+  if (rank === undefined) return []
+  return [
+    {
+      entry: {id: `session:${session.id}`, label: session.title, insert: `@${session.title}`, icon: SESSION_ICON},
+      local: candidate.local,
+      rank,
+      open: context.openIds.includes(session.id),
+      updated: session.updatedAt,
+    },
+  ]
+}
+
+function sessionEntries(
+  candidates: SessionCandidate[],
+  query: string,
+  context: SessionContext,
+): RichTextFieldTriggerItem[] {
+  return candidates
+    .flatMap((candidate) => rankSession(candidate, query, context))
+    .toSorted(
+      (first, second) =>
+        Number(second.local) - Number(first.local) ||
+        first.rank - second.rank ||
+        Number(second.open) - Number(first.open) ||
+        second.updated - first.updated,
+    )
+    .slice(0, SESSION_LIMIT)
+    .map((ranked) => ranked.entry)
+}
+
 function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
   return {id: tool.name, label: `@${tool.name}`, group: tool.extension ?? 'Tools', description: tool.description}
+}
+
+function settledEntries<Value>(
+  result: PromiseSettledResult<Value>,
+  catalog: string,
+  toEntries: (value: Value) => RichTextFieldTriggerItem[],
+): RichTextFieldTriggerItem[] {
+  if (result.status === 'fulfilled') return toEntries(result.value)
+  console.error(`[conciv] the @ list could not read ${catalog}`, result.reason)
+  return []
 }
 
 const readGroup = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
@@ -160,12 +265,42 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
   }
   const appData = useAppData()
   const queryClient = useAppQueryClient()
+  const search = useSearch({strict: false})
+  const openIds = (): string[] => {
+    const panes = search().panes
+    return panes === undefined ? [] : quickPaneIds({panes, focus: search().focus ?? 0})
+  }
+  const sessionCandidates = (query: string): Promise<SessionCandidate[]> => {
+    return query
+      ? queryClient
+          .fetchQuery({
+            ...appData.utils.sessions.search.queryOptions({
+              input: {term: query, everywhere: true, limit: SESSION_READ_LIMIT},
+            }),
+            staleTime: 0,
+          })
+          .then((page) => page.sessions.map((session) => ({session, local: session.cwd === null})))
+      : queryClient
+          .fetchQuery({...appData.utils.sessions.list.queryOptions({input: {limit: SESSION_READ_LIMIT}}), staleTime: 0})
+          .then((page) => page.sessions.map((session) => ({session, local: true})))
+  }
   const filter = useFilter({sensitivity: 'base'})
   const matcher = (): Matcher => ({
     equals: (text, query) => filter().startsWith(text, query) && filter().startsWith(query, text),
     startsWith: filter().startsWith,
     contains: filter().contains,
   })
+  const fileSearch = createAsyncDebouncer(
+    (query: string) =>
+      queryClient
+        .fetchQuery({...appData.utils.fs.find.queryOptions({input: {query}}), staleTime: 0})
+        .then((found) => found.data.map(fileEntry)),
+    {wait: MENTION_FILE_DEBOUNCE_MS},
+  )
+  const searchFiles = async (query: string): Promise<RichTextFieldTriggerItem[]> => {
+    if (!searchesFiles(query)) return []
+    return (await fileSearch.maybeExecute(query)) ?? []
+  }
   const triggers: ComposerTriggerSources = {
     slash: {
       label: 'Commands',
@@ -182,12 +317,36 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
       },
     },
     mention: {
-      label: 'Tools',
+      label: 'Context',
       items: async (query) => {
-        const data = await queryClient.ensureQueryData(
-          appData.utils.meta.tools.queryOptions({input: {sessionId: props.sessionId}}),
+        const [skills, agents, tools, sessions, files] = await Promise.allSettled([
+          queryClient.fetchQuery({...appData.utils.skill.list.queryOptions(), staleTime: 0}),
+          queryClient.fetchQuery({...appData.utils.agent.list.queryOptions(), staleTime: 0}),
+          queryClient.fetchQuery({
+            ...appData.utils.meta.tools.queryOptions({input: {sessionId: props.sessionId}}),
+            staleTime: 0,
+          }),
+          sessionCandidates(query),
+          searchFiles(query),
+        ])
+        const entries = uniqBy(
+          [
+            ...settledEntries(skills, 'skills', (value) => value.data.map(skillEntry)),
+            ...settledEntries(agents, 'agents', (value) => agentEntries(value.data)),
+            ...settledEntries(tools, 'tools', (value) => value.tools.map(toolEntry)),
+          ],
+          (entry) => entry.id,
         )
-        return matchingItems(data.tools.map(toolEntry), query, matcher())
+        const sessionContext = {sessionId: props.sessionId, openIds: openIds()}
+        const titled = settledEntries(sessions, 'sessions', (candidates) =>
+          sessionEntries(candidates, query, sessionContext),
+        )
+        const found = settledEntries(files, 'files', (rows) => rows)
+        const settled = [skills, agents, tools, sessions, files]
+        const failures = settled.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+        if (failures.length === settled.length) throw failures[0]
+        const [headless, headed] = partition(matchingItems(entries, query, matcher()), (entry) => !entry.group)
+        return [...headless, ...titled, ...found, ...headed]
       },
     },
   }

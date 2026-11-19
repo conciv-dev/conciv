@@ -1,7 +1,15 @@
 import {children, createUniqueId, For, onCleanup, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {Ui, UiIconProps, UiMenuItem, UiMenuSubProps} from '@conciv/plugin/experimental'
+import type {
+  Ui,
+  UiIconProps,
+  UiMenuCheckbox,
+  UiMenuItem,
+  UiMenuRadioGroup,
+  UiMenuSubProps,
+} from '@conciv/plugin/experimental'
 import {Markdown} from '@conciv/ui-kit-chat'
+import {Chip} from '@conciv/ui-kit-chat/tools'
 import {
   Avatar,
   Button,
@@ -165,6 +173,10 @@ export const ui: Ui = {
                     <For each={entry.items}>{(item) => <MenuItem {...item} />}</For>
                   </Menu.ItemGroup>
                 )
+
+              if (entry.type === 'radio-group') return <MenuRadioGroup {...entry} />
+
+              if (entry.type === 'checkbox') return <MenuCheckbox {...entry} />
 
               return <MenuItem {...entry} />
             }}
@@ -341,6 +353,9 @@ export const ui: Ui = {
       <Select.HiddenSelect />
     </Select.Root>
   ),
+  Chip: (props) => (
+    <Chip kind="pill" value={props.value} tone={props.tone} tooltip={props.tooltip} class={props.class} />
+  ),
   Keybind: (props) => (
     <Show when={props.keys.length > 0}>
       <Keys keys={props.keys} class={props.class} />
@@ -421,7 +436,7 @@ function MenuItem(props: UiMenuItem) {
 
   return (
     <Menu.Item value={value} disabled={props.disabled} onSelect={() => props.onSelect()}>
-      <Show when={props.icon}>{(icon) => <Icon name={icon()} class={MUTED_ICON} />}</Show>
+      <Show when={props.icon}>{(icon) => <Icon name={icon()} size="small" class={MUTED_ICON} />}</Show>
       <span class="min-w-0 truncate">{props.label}</span>
       <Show when={props.keys?.length}>
         <Keys keys={props.keys ?? []} class="ms-auto" />
@@ -430,12 +445,55 @@ function MenuItem(props: UiMenuItem) {
   )
 }
 
+function MenuRadioGroup(props: UiMenuRadioGroup): JSX.Element {
+  return (
+    <Menu.RadioItemGroup value={props.value} onValueChange={(details) => props.onValueChange(details.value)}>
+      <Show when={props.label}>{(label) => <Menu.ItemGroupLabel>{label()}</Menu.ItemGroupLabel>}</Show>
+      <For each={props.items}>
+        {(item) => (
+          <Menu.RadioItem value={item.value} disabled={item.disabled} class={MENU_ITEM}>
+            <MenuItemCheck />
+            <Menu.ItemText class="min-w-0 truncate">{item.label}</Menu.ItemText>
+          </Menu.RadioItem>
+        )}
+      </For>
+    </Menu.RadioItemGroup>
+  )
+}
+
+function MenuCheckbox(props: UiMenuCheckbox): JSX.Element {
+  const value = createUniqueId()
+
+  return (
+    <Menu.CheckboxItem
+      value={value}
+      checked={props.checked}
+      disabled={props.disabled}
+      onCheckedChange={(checked) => props.onCheckedChange(checked)}
+      class={MENU_ITEM}
+    >
+      <MenuItemCheck />
+      <Menu.ItemText class="min-w-0 truncate">{props.label}</Menu.ItemText>
+    </Menu.CheckboxItem>
+  )
+}
+
+function MenuItemCheck(): JSX.Element {
+  return (
+    <span class="flex size-4 shrink-0 items-center justify-center">
+      <Menu.ItemIndicator>
+        <Icon name="check" size="small" />
+      </Menu.ItemIndicator>
+    </span>
+  )
+}
+
 function SubTriggerBody(props: Pick<UiMenuSubProps, 'icon' | 'label'>): JSX.Element {
   return (
     <>
-      <Show when={props.icon}>{(icon) => <Icon name={icon()} class={MUTED_ICON} />}</Show>
+      <Show when={props.icon}>{(icon) => <Icon name={icon()} size="small" class={MUTED_ICON} />}</Show>
       <span class="min-w-0 truncate">{props.label}</span>
-      <Icon name="chevron-right" class={`ms-auto ${MUTED_ICON}`} />
+      <Icon name="chevron-right" size="small" class={`ms-auto ${MUTED_ICON}`} />
     </>
   )
 }

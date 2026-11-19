@@ -20,6 +20,7 @@ import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type Tooltip
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
 import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
 import {nativeFocusPart} from './native-focus.js'
+import {LayerPortal} from './layer-portal.js'
 
 const CONTENT =
   'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] font-chat max-w-60 focus-visible:outline-none'
@@ -28,6 +29,8 @@ const LONG_PRESS = 500
 const HOLD_SLOP = 10
 
 type RootProps = ComponentProps<typeof Ark.Root>
+type TooltipApi = ReturnType<typeof useTooltipContext>
+type PressEvents = {pointerdown: PointerEvent; pointermove: PointerEvent; pointerover: PointerEvent}
 type Hold = {phase: 'idle'} | {phase: 'holding'; x: number; y: number; pointerId: number} | {phase: 'held'}
 
 type ContentBinding = {bind: (element: HTMLElement) => void; pop: (element: HTMLElement) => void}
@@ -35,8 +38,46 @@ type ContentBinding = {bind: (element: HTMLElement) => void; pop: (element: HTML
 const ContentRefContext = createContext<ContentBinding>()
 const MemberContext = createContext<Setter<{children?: JSX.Element}>>()
 
+const closesOnPress = (props: RootProps) => (): boolean => props.closeOnPointerDown ?? props.closeOnClick ?? true
+
+function keepClosedWhilePressed(
+  root: Document | ShadowRoot,
+  api: TooltipApi,
+  applies: (event: PointerEvent) => boolean,
+): void {
+  const holdClosed = (event: PointerEvent): void => {
+    if (event.buttons !== 0 && applies(event)) event.preventDefault()
+  }
+  makeEventListener<PressEvents>(
+    root,
+    'pointerdown',
+    (event) => {
+      if (!api().open && applies(event)) api().setOpen(false)
+    },
+    {capture: true},
+  )
+  makeEventListener<PressEvents>(root, 'pointermove', holdClosed, {capture: true})
+  makeEventListener<PressEvents>(root, 'pointerover', holdClosed, {capture: true})
+}
+
+function PressKeepsClosed(props: {owner: string; enabled: () => boolean}): JSX.Element {
+  const api = useTooltipContext()
+  const environment = useEnvironmentContext()
+  const pressedTrigger = (event: PointerEvent): boolean =>
+    props.enabled() &&
+    event.target instanceof Element &&
+    event.target.closest(`[data-scope="tooltip"][data-part="trigger"][data-ownedby="${CSS.escape(props.owner)}"]`) !==
+      null
+  onMount(() => {
+    const root = environment().getRootNode()
+    if (isDocument(root) || isShadowRoot(root)) keepClosedWhilePressed(root, api, pressedTrigger)
+  })
+  return undefined
+}
+
 function PlainRoot(props: RootProps) {
-  const [local, rest] = splitProps(props, ['positioning', 'openDelay', 'closeDelay', 'onOpenChange', 'children'])
+  const [local, rest] = splitProps(props, ['id', 'positioning', 'openDelay', 'closeDelay', 'onOpenChange', 'children'])
+  const id = untrack(() => local.id) ?? `tooltip-${createUniqueId()}`
   const [content, setContent] = createSignal<HTMLElement>()
   const pop = (element: HTMLElement): void => {
     element.getAnimations().forEach((animation) => animation.cancel())
@@ -55,10 +96,12 @@ function PlainRoot(props: RootProps) {
       openDelay={local.openDelay ?? 300}
       closeDelay={local.closeDelay ?? 80}
       positioning={{strategy: 'fixed', placement: 'top', gutter: 6, ...local.positioning}}
+      id={id}
       onOpenChange={onOpenChange}
       {...rest}
     >
       <ContentRefContext.Provider value={binding}>{local.children}</ContentRefContext.Provider>
+      <PressKeepsClosed owner={id} enabled={closesOnPress(props)} />
     </Ark.Root>
   )
 }
@@ -122,9 +165,12 @@ function GroupRoot(props: RootProps & {group: TooltipGroupApi}) {
 
   onMount(() => {
     const root = environment().getRootNode()
-    const element = isDocument(root) || isShadowRoot(root) ? root.getElementById(triggerId) : null
+    if (!isDocument(root) && !isShadowRoot(root)) return
+    const element = root.getElementById(triggerId)
     if (!isHTMLElement(element)) return
     setTrigger(element)
+    const enabled = closesOnPress(props)
+    keepClosedWhilePressed(root, api, (event) => enabled() && event.composedPath().includes(element))
     makeEventListener(element, 'pointerenter', (event) => {
       if (event.pointerType === 'touch' || event.buttons !== 0 || api().open) return
       local.group.arm({member, duration: openDelay()})
@@ -181,7 +227,11 @@ function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
   return (
     <Show
       when={useContext(MemberContext)}
-      fallback={<Ark.Positioner {...rest} class={`pointer-events-none ${local.class ?? ''}`} />}
+      fallback={
+        <LayerPortal>
+          <Ark.Positioner {...rest} class={`pointer-events-none ${local.class ?? ''}`} />
+        </LayerPortal>
+      }
     >
       {props.children}
     </Show>

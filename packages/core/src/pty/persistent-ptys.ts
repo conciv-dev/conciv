@@ -1,13 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
-import {Cache, Duration, Effect} from 'effect'
 import {HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {createTtySessions, type TtySession} from './pty-sessions.js'
-
-const TICKET_TTL = Duration.seconds(60)
-
-const TICKET_CAPACITY = 10_000
 
 const RESUMED_BANNER = '\u001b[2m─ conciv: resumed session ─\u001b[0m'
 
@@ -16,8 +11,6 @@ type PtySize = {cols: number; rows: number}
 type PersistentPtyInfo = {id: string; sessionId: SessionId; size: PtySize; busy: boolean}
 
 type TtyLauncher = NonNullable<ServerHarness['ttyCommand']>
-
-type TicketScope = {ptyId: string; origin: string | null}
 
 type CreateInput = {sessionId: SessionId; size?: PtySize; model?: string}
 
@@ -41,25 +34,6 @@ function describePty(session: TtySession, sessionId: SessionId): PersistentPtyIn
 
 export function createPersistentPtys(deps: PersistentPtyDeps) {
   const ttys = createTtySessions()
-  const tickets = Effect.runSync(
-    Cache.make<string, TicketScope>({
-      capacity: TICKET_CAPACITY,
-      timeToLive: TICKET_TTL,
-      lookup: () => Effect.die(new Error('conciv: terminal tickets are set and consumed, never looked up')),
-    }),
-  )
-
-  const issueTicket = (scope: TicketScope): {ticket: string; expiresIn: number} => {
-    const ticket = randomUUID()
-    Effect.runSync(Cache.set(tickets, ticket, scope))
-    return {ticket, expiresIn: Duration.toSeconds(TICKET_TTL)}
-  }
-
-  const consumeTicket = (ticket: string, scope: TicketScope): boolean =>
-    Effect.runSync(
-      Cache.invalidateWhen(tickets, ticket, (bound) => bound.ptyId === scope.ptyId && bound.origin === scope.origin),
-    )
-
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
     const owner = ownerKey((await deps.harness(sessionId)).id, await deps.sessions.resumeToken(sessionId))
     const alive = ttys.get(sessionId)
@@ -105,17 +79,26 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     return session
   }
 
-  const create = async (input: CreateInput): Promise<PersistentPtyInfo | null> => {
+  const opened = async (input: CreateInput, harness: ServerHarness, command: TtyLauncher): Promise<TtySession> => {
+    const alive = await live(input.sessionId)
+    if (alive === undefined || alive.exited() !== null) return spawnFresh(input, harness, command)
+    resizeTo(alive, input.size)
+    return alive
+  }
+
+  const create = async (input: CreateInput, origin: string | null): Promise<PersistentPtyInfo | null> => {
     const harness = await deps.harness(input.sessionId)
     const command = harness.ttyCommand
     if (command === undefined) return null
-    const alive = await live(input.sessionId)
-    if (alive !== undefined && alive.exited() === null) {
-      resizeTo(alive, input.size)
-      return describePty(alive, input.sessionId)
-    }
-    return describePty(await spawnFresh(input, harness, command), input.sessionId)
+    const session = await opened(input, harness, command)
+    if (!session.admitted.includes(origin)) session.admitted = [...session.admitted, origin]
+    return describePty(session, input.sessionId)
   }
 
-  return {create, find: ttys.find, issueTicket, consumeTicket, shutdown: ttys.shutdown}
+  const admitted = (ptyId: string, origin: string | null): TtySession | undefined => {
+    const session = ttys.find(ptyId)
+    return session?.admitted.includes(origin) === true ? session : undefined
+  }
+
+  return {create, find: ttys.find, admitted, shutdown: ttys.shutdown}
 }

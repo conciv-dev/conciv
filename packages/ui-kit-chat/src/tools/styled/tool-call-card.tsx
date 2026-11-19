@@ -1,4 +1,4 @@
-import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, createSignal, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isEqual} from 'es-toolkit'
 import {OutsideCallMetadataSchema, type ToolCallPart, type ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -20,11 +20,9 @@ import {
 import {MetaToolCard, metaToolHasEmbeddedBody} from './meta-tool-card.js'
 import {toolFallbackHasEmbeddedBody} from './tool-fallback.js'
 import {genericToolRowProjection} from './generic-tool-headline.js'
-import {PermissionCard} from './permission-card.js'
-import {CardChromeProvider, ToolDurationProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
+import {CardChromeProvider, ToolPartProvider, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
 import {TraceBodyFrame, type TraceOutputTone} from '../../styled/trace/output-block.js'
-import {TracePermissionBlock} from '../../styled/trace/permission-block.js'
 
 export type ToolCallCardProps = Omit<ToolCardProps, 'addResult'> & {
   tools?: () => ToolCardEntry[]
@@ -41,7 +39,7 @@ export type CardBodyQuery = {
 }
 
 export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
-  const entry = findToolEntry(query.tools, query.part, query.result)
+  const entry = findToolEntry(query.tools, query.part)
   if (entry) return entry.hasEmbeddedBody(query.part, query.result, query.ctx)
   if (query.ctx.catalog.meta(query.part.name)) return metaToolHasEmbeddedBody(query.part, query.result, query.ctx)
   const fallback = query.fallback?.hasEmbeddedBody ?? toolFallbackHasEmbeddedBody
@@ -49,24 +47,17 @@ export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
 }
 
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
-  const declared = () => props.ctx.catalog.meta(props.part.name)
-  const embedded = useEmbeddedCard()
-  const matched = () => findToolEntry(props.tools?.(), props.part, props.result)
-  const ownsApproval = () => !embedded() && (matched() !== undefined || declared() !== undefined)
   const duration = (): number | undefined => props.durationMs
   return (
-    <ToolDurationProvider value={duration}>
+    <ToolPartProvider callId={props.part.id} duration={duration}>
       <ToolCardView {...props} />
-      <Show when={ownsApproval()}>
-        <PermissionCard part={props.part} ctx={props.ctx} />
-      </Show>
-    </ToolDurationProvider>
+    </ToolPartProvider>
   )
 }
 
 function ToolCardView(props: ToolCallCardProps): JSX.Element {
   const render = (): ToolUIComponent => {
-    const card = findToolEntry(props.tools?.(), props.part, props.result)?.render
+    const card = findToolEntry(props.tools?.(), props.part)?.render
     if (card) return card
     if (props.ctx.catalog.meta(props.part.name)) return MetaToolCard
     return props.fallback?.render ?? ToolFallback
@@ -79,7 +70,6 @@ function ToolCardView(props: ToolCallCardProps): JSX.Element {
       ctx={props.ctx}
       addResult={(value) => props.ctx.addResult(props.part.id, value)}
       durationMs={props.durationMs}
-      capture={props.ctx.captureFor?.(props.part.id)}
     />
   )
 }
@@ -107,7 +97,6 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   )
   const tag = createMemo(() => outsideTag(local.part))
   const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
-  const asked = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const embeddedCard = (): JSX.Element => (
     <CardChromeProvider
@@ -141,27 +130,11 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     </TraceBodyFrame>
   )
   return (
-    <>
-      <TraceToolRow
-        projection={projection()}
-        ring={local.ring ?? true}
-        body={cardBody}
-        foldable={framed()}
-        tag={tag()}
-      />
-      <Show when={asked()}>
-        <TracePermissionBlock
-          part={local.part}
-          ctx={local.ctx}
-          target={projection().target}
-          explanation={local.ctx.catalog.meta(local.part.name)?.summary}
-        />
-      </Show>
-    </>
+    <TraceToolRow projection={projection()} ring={local.ring ?? true} body={cardBody} foldable={framed()} tag={tag()} />
   )
 }
 
-function outsideTag(part: ToolCallPart): string | undefined {
+export function outsideTag(part: ToolCallPart): string | undefined {
   const marker = OutsideCallMetadataSchema.safeParse(part.metadata)
   if (!marker.success) return undefined
   return `from ${marker.data.conciv.client ?? 'outside agent'}`

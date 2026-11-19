@@ -1,7 +1,6 @@
-import type {Component, JSX} from 'solid-js'
+import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from './chat-message-types.js'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
-import type {ToolCaptureView} from './element-capture-types.js'
 import type {PermissionScope} from './chat-types.js'
 import type {UiAnswerValue} from './ui-types.js'
 
@@ -29,15 +28,10 @@ export type ToolCatalogView = {
 export const INERT_TOOL_CATALOG: ToolCatalogView = {loaded: () => true, meta: () => undefined}
 
 export type ToolViewCtx = {
-  apiBase: string
-  harnessId: string
-  sendMessage: (text: string) => void
   catalog: ToolCatalogView
   addResult: (toolCallId: string, value: UiAnswerValue) => Promise<void>
 
   respondApproval?: (approvalId: string, approved: boolean, scope: PermissionScope) => void
-  durationFor?: (toolCallId: string) => number | undefined
-  captureFor?: (toolCallId: string) => ToolCaptureView | undefined
 }
 
 export type ToolCardProps = {
@@ -46,8 +40,6 @@ export type ToolCardProps = {
   ctx: ToolViewCtx
   addResult: (value: UiAnswerValue) => Promise<void>
   durationMs?: number
-  capture?: ToolCaptureView
-  body?: JSX.Element
 }
 
 export type ToolRenderResultOptions = {expanded: boolean; isPartial: boolean}
@@ -73,7 +65,5 @@ export type ToolCardView = {
 
 export type ToolCardEntry = ToolCardView & {
   names: string[]
-  streamTitle?: string
   display?: 'standalone'
-  accepts?: (part: ToolCallPart, result: ToolResultPart | undefined) => boolean
 }
