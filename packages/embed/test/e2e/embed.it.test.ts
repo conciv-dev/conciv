@@ -2636,6 +2636,38 @@ test.describe('reload continuity', () => {
       }
     })
 
+    test('a draft kept only in this browser survives another tab loading before it is trusted', async ({page}) => {
+      const KEPT = 'kept here while another tab logs in'
+      const context = page.context()
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      const lastRefused = await failRpcCalls(page, {path: ['drafts', 'set'], input: {text: KEPT}})
+      const otherEngine = await proxyTo(suite.kit().base)
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially(KEPT)
+        await lastRefused.answered()
+        await page.close()
+
+        const untrusted = await context.newPage()
+        await untrusted.goto(`${suite.host().base}/?apiBase=${encodeURIComponent(otherEngine.base)}`, {
+          waitUntil: 'domcontentloaded',
+        })
+        await expect(untrusted.getByRole('button', {name: 'Unauthorized. Authorize conciv'})).toBeVisible()
+
+        const later = await context.newPage()
+        await openLoggedIn(later, suite.kit(), suite.host().base)
+        await openPanel(later)
+        await switchToSessionByTitle(later, `session under test ${sessionId.slice(-12)}`)
+        await expect(chatBox(later)).toHaveText(KEPT)
+      } finally {
+        await lastRefused.dispose()
+        await refused.dispose()
+        await otherEngine.close()
+      }
+    })
+
     test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({
       page,
     }) => {
