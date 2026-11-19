@@ -6,12 +6,11 @@ import {eq} from 'drizzle-orm'
 import {chatMessages, markers, openDb, sessions as sessionRows, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
-import {defineWebSocketHelper} from 'hono/ws'
 import {
   Agent,
   Bus,
@@ -459,14 +458,10 @@ describe('plugin tools in code mode', () => {
         return {text: 'read'}
       },
     ])
-    const response = await chat.routes(defineWebSocketHelper(async () => undefined)).request(CHAT_SSE_PATH, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
+    await collected(
+      chat.send({
         threadId: sessionId,
         runId: 'run-resent',
-        tools: [],
-        context: [],
         messages: [
           {
             id: 'resent-assistant',
@@ -482,8 +477,7 @@ describe('plugin tools in code mode', () => {
           {id: 'resent-user', role: 'user', content: 'and again'},
         ],
       }),
-    })
-    await response.text()
+    )
     expect(
       read[0]?.flatMap((message) => [
         ...(message.toolCalls ?? []).map((call) => call.function.name),
@@ -847,20 +841,10 @@ describe('the session prompt hook', () => {
       sent.push(request.messages.findLast((message) => message.role === 'user')?.content)
       return {text: 'done'}
     }
-    const routes = chat.routes(defineWebSocketHelper(async () => undefined))
     const say = async (runId: string, text: string) => {
-      const response = await routes.request(CHAT_SSE_PATH, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({
-          threadId: sessionId,
-          runId,
-          messages: [{id: `${runId}-user`, role: 'user', content: text}],
-          tools: [],
-          context: [],
-        }),
-      })
-      await response.text()
+      await collected(
+        chat.send({threadId: sessionId, runId, messages: [{id: `${runId}-user`, role: 'user', content: text}]}),
+      )
     }
 
     model.setResponses([recorded])
@@ -903,18 +887,13 @@ describe('text parts keep their own paragraph', () => {
         return {text: 'done'}
       },
     ])
-    const response = await chat.routes(defineWebSocketHelper(async () => undefined)).request(CHAT_SSE_PATH, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
+    await collected(
+      chat.send({
         threadId: sessionId,
         runId: 'run-text-parts',
         messages: [{id: 'run-text-parts-user', role: 'user', content: 'hello\n\nAttachment x.txt:\nthe file body'}],
-        tools: [],
-        context: [],
       }),
-    })
-    await response.text()
+    )
     expect(prompts).toEqual(['a skill was added\n\nhello\n\nAttachment x.txt:\nthe file body'])
   })
 })
@@ -958,6 +937,12 @@ describe('stopping a run', () => {
     expect(chat.driving(sessionId)).toBe(false)
   })
 })
+
+async function collected<T>(source: AsyncIterable<T>): Promise<T[]> {
+  const seen: T[] = []
+  for await (const value of source) seen.push(value)
+  return seen
+}
 
 describe('a session deleted while its transcript is read', () => {
   it('a compact and the transcript sync it hydrates write no marker and no thread once the session is deleted', async () => {

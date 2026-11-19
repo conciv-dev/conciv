@@ -5,7 +5,16 @@ import type {PinPatch} from './comment-writes.js'
 
 const DRAG_THRESHOLD = 4
 
-type Drag = {cid: string; grabX: number; grabY: number; originX: number; originY: number; x: number; y: number}
+type Drag = {
+  pointerId: number
+  cid: string
+  grabX: number
+  grabY: number
+  originX: number
+  originY: number
+  x: number
+  y: number
+}
 type Prompt = {cid: string; x: number; y: number; originX: number; originY: number}
 
 const movedPastThreshold = (drag: Drag): boolean =>
@@ -49,9 +58,21 @@ export function createPinDrag(model: PinDragModel) {
   const promptAnchor = (): HTMLButtonElement | undefined =>
     state.prompt ? model.pinButton(state.prompt.cid) : undefined
 
+  const heldBy = (pin: PinRow, event: PointerEvent): Drag | undefined => {
+    const drag = state.drag
+    return drag?.cid === pin.cid && drag.pointerId === event.pointerId ? drag : undefined
+  }
+
+  const held = (): boolean => {
+    const drag = state.drag
+    return drag !== null && model.pinButton(drag.cid)?.hasPointerCapture(drag.pointerId) === true
+  }
+
   const grab = (view: Viewport, pin: PinRow, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
+    if (held() || state.prompt) return
     const down = screenToScene(view, event.clientX, event.clientY)
     setState('drag', {
+      pointerId: event.pointerId,
       cid: pin.cid,
       grabX: pin.x - down.x,
       grabY: pin.y - down.y,
@@ -64,8 +85,8 @@ export function createPinDrag(model: PinDragModel) {
   }
 
   const follow = (view: Viewport, pin: PinRow, event: PointerEvent): void => {
-    const drag = state.drag
-    if (!drag || drag.cid !== pin.cid) return
+    const drag = heldBy(pin, event)
+    if (!drag) return
     const scene = screenToScene(view, event.clientX, event.clientY)
     setState('drag', {x: scene.x + drag.grabX, y: scene.y + drag.grabY})
     if (movedPastThreshold(drag)) model.closeThread()
@@ -76,10 +97,11 @@ export function createPinDrag(model: PinDragModel) {
     if (comment?.kind !== 'source-linked') return model.movePin(drag.cid, {x: drag.x, y: drag.y})
     setState('prompt', {cid: drag.cid, x: drag.x, y: drag.y, originX: drag.originX, originY: drag.originY})
   }
-  const drop = (pin: PinRow, comment: CommentRow | undefined): void => {
-    const drag = state.drag
+  const drop = (pin: PinRow, comment: CommentRow | undefined, event: PointerEvent): void => {
+    const drag = heldBy(pin, event)
+    if (!drag) return
     setState('drag', null)
-    if (drag?.cid === pin.cid) release(drag, comment)
+    release(drag, comment)
   }
 
   return {
@@ -87,7 +109,9 @@ export function createPinDrag(model: PinDragModel) {
     grab,
     follow,
     drop,
-    abandon: (): void => void setState('drag', null),
+    abandon: (pin: PinRow, event: PointerEvent): void => {
+      if (heldBy(pin, event)) setState('drag', null)
+    },
     prompting: (): boolean => state.prompt !== null,
     promptCid: (): string | undefined => state.prompt?.cid,
     promptAnchor,

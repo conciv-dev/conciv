@@ -6,7 +6,7 @@ import {join} from 'node:path'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
-import {makeChatSockets, type TurnMessage} from './chat-turn.js'
+import {makeChatTurns, type TurnMessage} from './chat-turn.js'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
 import {makeBrowserRpcClient} from '@conciv/contract'
@@ -151,14 +151,13 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const callTool = async (name: string, input: unknown, session?: string): Promise<unknown> =>
         makeCallTool(base, await sessionFor(session))(name, input)
 
-      const sockets = makeChatSockets()
+      const sockets = makeChatTurns(rpc)
       const startTurn = async (
         input: string | ChatMessage,
         opts: {session?: string; runId?: string; messageId?: string} = {},
       ): Promise<RunStream> => {
         const sessionId = await sessionFor(opts.session)
         return sockets.turn({
-          wsBase,
           sessionId,
           runId: opts.runId ?? randomUUID(),
           ...(opts.messageId === undefined ? {} : {messageId: opts.messageId}),
@@ -176,7 +175,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         rpc,
         session: (id) => (id ? resolve(id) : Promise.resolve(activeSession.id)),
         turn: startTurn,
-        join: (runId) => sockets.join({wsBase, runId}),
+        join: (runId) => sockets.join(runId),
         hydrate: async (session) => rpc.chat.hydrate({sessionId: await sessionFor(session)}),
         events: async (session, opts) => {
           const abort = new AbortController()

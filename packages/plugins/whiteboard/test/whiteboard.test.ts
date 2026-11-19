@@ -577,8 +577,11 @@ describe('the whiteboard store and its rpc', () => {
       y: 5,
       lastSeen: 1,
     }
+    const stamped = {...drawing, lastSeen: expect.any(Number)}
     expect(await call(kit, 'cursor.move', {room, cursor: drawing})).toEqual({ok: true})
-    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, room}})
+    const moved = await nextCursor(cursors)
+    expect(moved).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...stamped, room}})
+    expect(moved).not.toMatchObject({data: {lastSeen: drawing.lastSeen}})
     expect(await since(kit, room, 3)).toEqual({changes: [], cursor: 3})
 
     const parts = [{type: 'text', text: 'here'}]
@@ -591,7 +594,7 @@ describe('the whiteboard store and its rpc', () => {
     })
     expect(await useTool(kit, 'comment_move', {cid: 'a1', x: 70, y: 80})).toEqual({cid: 'a1', x: 70, y: 80})
     expect(await call(kit, 'cursor.move', {room, cursor: {...drawing, x: 9}})).toEqual({ok: true})
-    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, x: 9, room}})
+    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...stamped, x: 9, room}})
     closing.abort()
   })
 })

@@ -270,7 +270,6 @@ function composeRoutes(
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .route('/', deps.plane.routes(deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {

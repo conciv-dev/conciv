@@ -6,16 +6,16 @@ export type PinPatch = Partial<Pick<PinRow, 'x' | 'y' | 'pinState' | 'anchorX' |
 
 export function markThreadRead(
   db: WhiteboardDb,
-  input: {room: string; accountId: string; threadId: string; reads: readonly ReadRow[]},
+  input: {room: string; accountId: string; threadId: string; seenAt: number; reads: readonly ReadRow[]},
 ): void {
   const existing = input.reads.find((row) => row.threadId === input.threadId && row.accountId === input.accountId)
-  if (existing) return void db.reads.update(existing.id, (draft) => void (draft.lastReadAt = Date.now()))
+  if (existing) return void db.reads.update(existing.id, (draft) => void (draft.lastReadAt = input.seenAt))
   db.reads.insert({
     id: crypto.randomUUID(),
     sessionId: input.room,
     threadId: input.threadId,
     accountId: input.accountId,
-    lastReadAt: Date.now(),
+    lastReadAt: input.seenAt,
   })
 }
 

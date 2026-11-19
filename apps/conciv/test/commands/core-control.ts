@@ -6,13 +6,7 @@ import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {REVOKED_SOCKET_CLOSE_CODE, type EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {
-  CHAT_SSE_PATH,
-  CHAT_WS_PATH,
-  CONCIV_CLIENT_HEADER,
-  CONCIV_ORIGIN_HEADER,
-  CONCIV_SESSION_HEADER,
-} from '@conciv/protocol/chat-types'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {
@@ -88,7 +82,7 @@ export type FaultSpec =
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
-  | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'cut'}
+  | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'fail'}
   | {kind: 'project-socket-gate'; socket: string}
   | {kind: 'cut-on-release'; path: string[]; input?: unknown}
   | {kind: 'deliver-then-cut'; path: string[]; input: object}
@@ -568,7 +562,6 @@ async function preVersionEngine(ctx: BrowserCommandContext): Promise<Injector> {
   const matcher = (url: URL): boolean => url.origin === origin
   const handler = async (route: Route): Promise<void> => {
     if ((await route.request().headerValue(CONCIV_VERSION_HEADER)) !== null) return route.abort('failed')
-    if (new URL(route.request().url()).pathname.endsWith(CHAT_SSE_PATH)) return route.continue()
     const response = await route.fetch()
     const headers = Object.fromEntries(
       Object.entries(response.headers()).filter(([name]) => name !== CONCIV_VERSION_HEADER),
@@ -601,98 +594,11 @@ async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector
 
 type Route = Parameters<Parameters<BrowserCommandContext['page']['route']>[1]>[0]
 
-async function holdPosts(
-  ctx: BrowserCommandContext,
-  matcher: (url: URL) => boolean,
-  settle: (route: Route) => Promise<void>,
-): Promise<Fault> {
-  const held: {open: boolean; routes: Route[]; waiters: {count: number; deliver: () => void}[]} = {
-    open: false,
-    routes: [],
-    waiters: [],
-  }
-  const handler = async (route: Route): Promise<void> => {
-    if (held.open || route.request().method() !== 'POST') return route.continue()
-    held.routes.push(route)
-    for (const waiter of held.waiters.filter((entry) => held.routes.length >= entry.count)) waiter.deliver()
-  }
-  await ctx.page.route(matcher, handler)
-  const open = async (): Promise<void> => {
-    held.open = true
-    await Promise.all(held.routes.splice(0).map((route) => settle(route).catch(ignoreHandledRoute)))
-  }
-  return {
-    pending: () => held.routes.length,
-    awaitCaptured: (count) =>
-      held.routes.length >= count
-        ? Promise.resolve()
-        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
-    answered: () => Promise.reject(new Error('a held request fault has no single call to await')),
-    release: open,
-    dispose: async () => {
-      await open()
-      await ctx.page.unroute(matcher, handler)
-    },
-  }
-}
+const CHAT_SEND_PATH = ['chat', 'send']
 
-function ignoreHandledRoute(error: unknown): void {
-  if (error instanceof Error && error.message.includes('Route is already handled')) return
-  throw error
-}
-
-type SocketRoute = Parameters<Parameters<BrowserCommandContext['page']['routeWebSocket']>[1]>[0]
-
-type HeldFrame = {socket: SocketRoute; server: SocketRoute; message: string | Buffer}
-
-function isRunSocket(url: URL, host: string): boolean {
-  return (
-    url.host === host &&
-    url.pathname.endsWith(CHAT_WS_PATH) &&
-    url.searchParams.has('runId') &&
-    !url.searchParams.has('offset')
-  )
-}
-
-function settleFrame(frame: HeldFrame, onRelease: 'deliver' | 'cut'): void {
-  if (onRelease === 'deliver') return frame.server.send(frame.message)
-  void frame.server.close()
-  void frame.socket.close()
-}
-
-async function gateChatFrames(ctx: BrowserCommandContext, onRelease: 'deliver' | 'cut'): Promise<Fault> {
-  const host = new URL(requireKit(ctx).origin).host
-  const held: {open: boolean; frames: HeldFrame[]; waiters: {count: number; deliver: () => void}[]} = {
-    open: false,
-    frames: [],
-    waiters: [],
-  }
-  await ctx.page.routeWebSocket(
-    (url) => isRunSocket(url, host),
-    (socket) => {
-      const server = socket.connectToServer()
-      socket.onMessage((message) => {
-        if (held.open) return server.send(message)
-        held.frames.push({socket, server, message})
-        for (const waiter of held.waiters.filter((entry) => held.frames.length >= entry.count)) waiter.deliver()
-      })
-    },
-  )
-  const open = (): Promise<void> => {
-    held.open = true
-    for (const frame of held.frames.splice(0)) settleFrame(frame, onRelease)
-    return Promise.resolve()
-  }
-  return {
-    pending: () => held.frames.length,
-    awaitCaptured: (count) =>
-      held.frames.length >= count
-        ? Promise.resolve()
-        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
-    answered: () => Promise.reject(new Error('a held frame fault has no single call to await')),
-    release: open,
-    dispose: open,
-  }
+async function gateChatSends(ctx: BrowserCommandContext, onRelease: 'deliver' | 'fail'): Promise<Fault> {
+  const testkit = await importTestkit(ctx)
+  return testkit.gateRpcCalls(ctx.page, {path: CHAT_SEND_PATH, onRelease: onRelease === 'deliver' ? 'forward' : 'fail'})
 }
 
 const UNIX_SOCKET_PATH_LIMIT = 103
@@ -742,14 +648,6 @@ async function gateProjectSocket(root: string, name: string): Promise<Fault> {
   }
 }
 
-function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
-  return holdPosts(
-    ctx,
-    (url) => url.pathname.endsWith(CHAT_SSE_PATH),
-    (route) => route.fallback(),
-  )
-}
-
 async function cutOnRelease(ctx: BrowserCommandContext, path: string[], input: unknown): Promise<Fault> {
   return (await importTestkit(ctx)).gateRpcCalls(ctx.page, {path, input, onRelease: 'cut'})
 }
@@ -775,8 +673,8 @@ function brokenRpcCalls(
 async function createFault(ctx: BrowserCommandContext, handle: string, spec: FaultSpec): Promise<Fault> {
   const testkit = await importTestkit(ctx)
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, {...pathOptions(spec.path), input: spec.input})
-  if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
-  if (spec.kind === 'chat-frame-gate') return gateChatFrames(ctx, spec.onRelease)
+  if (spec.kind === 'chat-gate') return gateChatSends(ctx, 'deliver')
+  if (spec.kind === 'chat-frame-gate') return gateChatSends(ctx, spec.onRelease)
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path, spec.input)
   if (spec.kind === 'deliver-then-cut') {

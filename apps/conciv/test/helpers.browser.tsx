@@ -17,9 +17,8 @@ import type {
   PointerHover,
 } from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {fetchServerSentEvents} from '@conciv/ai/client'
-import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
-import {QueryClient, QueryClientProvider, type ChatTransportPreference} from '@conciv/client'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
+import {QueryClient, QueryClientProvider} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
 import type {DraftWriteChain} from '../src/pane/draft-storage.js'
@@ -155,12 +154,15 @@ function isReplyText(chunk: unknown): boolean {
   return chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT
 }
 
-function turnStream(base: string, sessionId: string, text: string, signal: AbortSignal): AsyncIterable<ChatEvent> {
-  return fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`).connect(
-    [{id: crypto.randomUUID(), role: 'user', parts: [{type: 'text', content: text}]}],
-    {},
-    signal,
-    {threadId: sessionId, runId: crypto.randomUUID()},
+async function* turnStream(
+  base: string,
+  sessionId: string,
+  text: string,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  yield* await coreRpc(base).chat.send(
+    {sessionId, runId: crypto.randomUUID(), messages: [{id: crypto.randomUUID(), role: 'user', content: text}]},
+    {signal},
   )
 }
 
@@ -212,7 +214,6 @@ type AppContextValueOptions = {
   base: string
   sessionId?: string
   announce?: (message: string) => void
-  transport?: ChatTransportPreference
   engineOnlyDrafts?: boolean
 }
 
@@ -233,7 +234,6 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
     rpc,
     apiBase: () => options.base,
     generation: () => 0,
-    transport: () => options.transport,
     appData: data,
     queryClient,
     announce: (message) => announce?.(message),
@@ -280,7 +280,6 @@ export type PaneMountOptions = {
   grabProvider?: GrabProvider
   ground?: (grab: Grab) => Promise<Grab | null>
   width?: number
-  transport?: ChatTransportPreference
   onNewSession?: () => void
   engineOnlyDrafts?: boolean
 }
@@ -315,7 +314,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         base: options.base,
         sessionId: options.sessionId,
         announce: (message) => setAnnounced((entries) => [...entries, message]),
-        transport: options.transport,
         engineOnlyDrafts: options.engineOnlyDrafts,
       },
       client,
@@ -401,7 +399,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
 }
 
 export type ShellMountOptions = {
-  transport?: ChatTransportPreference
   host?: Record<string, unknown>
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
@@ -421,12 +418,6 @@ function shellLogin(
   })
   void startEngineLogin(login)
   return login
-}
-
-function shellSettings(options: ShellMountOptions) {
-  return parseConcivSettings(
-    JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
-  )
 }
 
 function mountConcivRoot(inShadow: boolean): {
@@ -508,7 +499,7 @@ export function createShellHarness(base: () => string): ShellHarness {
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: shell.root ?? document, document},
-      settings: shellSettings(options),
+      settings: parseConcivSettings(JSON.stringify(options.host ?? {})),
       apiBase: options.apiBase ?? shellRpc.apiBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
       bindApiBase: shellRpc.bindApiBase,

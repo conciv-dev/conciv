@@ -65,7 +65,7 @@ function PressKeepsClosed(props: {owner: string; enabled: () => boolean}): JSX.E
   const environment = useEnvironmentContext()
   const pressedTrigger = (event: PointerEvent): boolean =>
     props.enabled() &&
-    event.target instanceof Element &&
+    event.target instanceof environment().getWindow().Element &&
     event.target.closest(`[data-scope="tooltip"][data-part="trigger"][data-ownedby="${CSS.escape(props.owner)}"]`) !==
       null
   onMount(() => {
