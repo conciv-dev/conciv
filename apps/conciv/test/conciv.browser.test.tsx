@@ -9356,6 +9356,40 @@ describe('terminal panel', () => {
     await expect.element(terminalInput()).not.toHaveFocus()
     await expect.element(menu()).toBeVisible()
   }, 60_000)
+
+  test('deleting a session drops its saved model pick and keeps the other sessions and the last pick', async () => {
+    const prefsKey = 'conciv.global:plugin.terminal.prefs'
+    const readPrefs = (): unknown => JSON.parse(localStorage.getItem(prefsKey) ?? '{}')
+    const savedPicks = () => z.object({sessions: z.record(z.string(), z.string())}).parse(readPrefs()).sessions
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const pick = async (name: string) => {
+      await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+      await picker().click()
+      await page.getByRole('option', {name}).click()
+    }
+    const rpc = coreRpc(coreBase())
+    const kept = await createSession(rpc)
+    const deleted = await createSession(rpc)
+
+    harness.mountShell(terminalRoute(deleted))
+    await pick('Calm model')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(terminalRoute(kept))
+    await pick('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(terminalRoute(deleted))
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
+    expect(savedPicks()).toMatchObject({[kept]: 'first-model', [deleted]: 'busy-model'})
+
+    await rpc.sessions.delete({sessionId: deleted})
+
+    await expect.poll(savedPicks, {timeout: 8000}).not.toHaveProperty(deleted)
+    expect(savedPicks()).toMatchObject({[kept]: 'first-model'})
+    expect(readPrefs()).toMatchObject({model: 'busy-model'})
+  }, 60_000)
 })
 
 describe('terminal panel for a plain shell with no models', () => {

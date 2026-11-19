@@ -1,4 +1,4 @@
-import {createMemo, untrack} from 'solid-js'
+import {createMemo, onCleanup, untrack} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
 import {createTanstackQueryUtils, useQuery} from '@conciv/client'
@@ -20,6 +20,8 @@ type LiveTerminal = {
   readonly busy: () => boolean
 }
 
+type EventClient = MountedSession['server']['client']
+
 type TerminalRun = {
   generation: number
   restarting: boolean
@@ -40,6 +42,16 @@ async function removeLive(session: MountedSession, live: LiveTerminal | null): P
     if (cause instanceof ORPCError && cause.code === 'PTY_NOT_FOUND') return
     throw cause
   })
+}
+
+async function forgetDeletedSessions(ctx: TerminalContext, client: EventClient, signal: AbortSignal): Promise<void> {
+  for await (const event of client.event.subscribe({types: ['session.deleted'], signal})) {
+    if (event.type !== 'session.deleted') continue
+    const sessionId = event.data.sessionID
+    ctx.stores.prefs.update((prefs) => {
+      delete prefs.sessions[sessionId]
+    })
+  }
 }
 
 function restartMessage(cause: unknown): string {
@@ -92,6 +104,17 @@ export function createTerminalState(ctx: TerminalContext) {
     )
     setRun('restarting', false)
   }
+
+  const readClient = createMemo(
+    (previous: EventClient | undefined) => ctx.sessions.current()?.server.client ?? previous,
+  )
+  createKeyed(readClient, (client) => {
+    const controller = new AbortController()
+    onCleanup(() => controller.abort())
+    void forgetDeletedSessions(ctx, client, controller.signal).catch((cause: unknown) => {
+      if (!controller.signal.aborted) console.error('[terminal] following deleted sessions failed', cause)
+    })
+  })
 
   createKeyed(
     () => {
