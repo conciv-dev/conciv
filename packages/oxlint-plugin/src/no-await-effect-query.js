@@ -31,6 +31,22 @@ function isQueryMember(node) {
   return isPlainMember(node) && QUERY_METHODS.has(node.property.name) && isDatabase(node.object)
 }
 
+const PROMISE_RUNNERS = new Set(['runPromise', 'runPromiseExit', 'runPromiseWith', 'runPromiseExitWith'])
+
+function isPromiseRunner(node) {
+  if (isNode(node) && node.type === 'CallExpression') return isPromiseRunner(node.callee)
+  return isPlainMember(node) && PROMISE_RUNNERS.has(node.property.name)
+}
+
+function isPipedToPromise(node) {
+  return (
+    node.type === 'CallExpression' &&
+    isPlainMember(node.callee) &&
+    node.callee.property.name === 'pipe' &&
+    isPromiseRunner(node.arguments.at(-1))
+  )
+}
+
 function nextInChain(node) {
   if (node.type === 'CallExpression') return node.callee
   if (node.type === 'MemberExpression') return node.object
@@ -40,6 +56,7 @@ function nextInChain(node) {
 
 function isQueryChain(node) {
   if (!isNode(node)) return false
+  if (isPipedToPromise(node)) return false
   if (isQueryMember(node)) return true
   return isQueryChain(nextInChain(node))
 }
