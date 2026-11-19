@@ -1964,6 +1964,62 @@ describe('rpc registry catalog cosmetics', () => {
   }, 30_000)
 })
 
+describe('rpc registry server tool consent', () => {
+  it('a server plugin tool that asks permission waits for the user through registry.call, and a deny refuses the caller without running it', async () => {
+    const ran: string[] = []
+    const asked = Promise.withResolvers<{id: string; sessionId: string}>()
+    const replier = Promise.withResolvers<Plugin.Context['permission']['reply']>()
+    const guard = Plugin.define({
+      id: 'guard',
+      async setup(ctx) {
+        replier.resolve(ctx.permission.reply)
+        await ctx.agent.transform((editor) =>
+          editor.list().forEach((agent) => agent.permissions.push({action: 'guard_run', resource: '*', effect: 'ask'})),
+        )
+        await ctx.tool.transform((tools) =>
+          tools.add({
+            name: 'guard_run',
+            description: 'Runs once the user agrees',
+            input: z.object({}),
+            execute: async (_input, context) => {
+              await ctx.permission.assert({
+                action: 'guard_run',
+                resources: ['now'],
+                sessionId: context.sessionId,
+                agent: context.agent,
+              })
+              ran.push(context.sessionId)
+              return {content: 'guard ran'}
+            },
+          }),
+        )
+        const follow = async () => {
+          for await (const event of ctx.event.subscribe({types: ['permission.asked']}))
+            asked.resolve({id: event.data.id, sessionId: event.data.sessionId})
+        }
+        void follow().catch(() => {})
+      },
+    })
+    const kit = await bootKit({plugins: [guard]})
+    try {
+      const sessionId = await kit.session()
+      const call = registryCall(kit.base, sessionId)('guard_run', {}).then(
+        () => 'ran',
+        (error: unknown) => `refused: ${String(error)}`,
+      )
+      const card = await asked.promise
+      expect(card.sessionId).toBe(sessionId)
+      expect(ran).toEqual([])
+      const reply = await replier.promise
+      await reply({sessionId: SessionId.parse(sessionId), requestId: card.id, decision: 'reject'})
+      expect(await call).toMatch(/^refused: /)
+      expect(ran).toEqual([])
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+})
+
 describe('rpc registry without a dev-server reload', () => {
   it('the catalog has no server_reload and calling it answers unknown tool', async () => {
     const kit = await bootKit()

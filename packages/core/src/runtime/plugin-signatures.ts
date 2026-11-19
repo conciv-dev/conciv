@@ -134,13 +134,15 @@ export function callPluginTool(
   Tool.Error,
   Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface | PluginHooks.Interface
 > {
-  const admitted = PluginHooks.Service.use((hooks) =>
-    hooks.register('permission', 'evaluate', (event) =>
-      Effect.sync(() => {
-        if (event.source?.id === callId) event.effect = 'allow'
-      }),
-    ),
-  )
+  const admitted = isPageTool(name)
+    ? PluginHooks.Service.use((hooks) =>
+        hooks.register('permission', 'evaluate', (event) =>
+          Effect.sync(() => {
+            if (event.source?.id === callId) event.effect = 'allow'
+          }),
+        ),
+      )
+    : Effect.void
   return admitted.pipe(
     Effect.andThen(currentToolDomain(sessionId)),
     Effect.flatMap(({snapshot, agent}) => {
