@@ -7338,10 +7338,9 @@ describe('session selector', () => {
     await navigator.clipboard.writeText('')
     await userEvent.click(resumeCopy('Copy resume command'), {position: {x: -6, y: 14}})
     await expect.element(resumeCopy('Copied')).toBeVisible()
-    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
-    await expect.element(preview('the gull census').getByRole('tooltip')).toHaveTextContent('Copied')
-    await expect.element(preview('the gull census').getByRole('tooltip')).toBeVisible()
-    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
+    await expect.element(page.getByRole('tooltip', {name: 'Copied'})).toBeVisible()
+    await expect.element(resumeCopy('Copied')).toHaveAccessibleDescription('Copied')
+    expect(page.getByRole('tooltip').all()).toHaveLength(1)
     await expect
       .element(page.getByRole('log', {name: 'Announcements'}))
       .toMatchTextContent(/puffin notes \| Copied \| Copied \| Copied$/)

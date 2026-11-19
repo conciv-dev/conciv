@@ -309,8 +309,9 @@ export const HeaderSummary: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await userEvent.tab()
+    const page = within(canvasElement.ownerDocument.body)
     await expect(canvas.getByRole('button', {name: /Edited the page/})).toHaveFocus()
-    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('the AI drove the live page'), {
       timeout: 2000,
     })
   },

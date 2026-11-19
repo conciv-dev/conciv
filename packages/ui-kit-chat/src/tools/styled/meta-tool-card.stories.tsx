@@ -166,8 +166,9 @@ export const TitleTooltip: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     await userEvent.hover(canvas.getByText('Filled the field #email'))
-    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('type a value into a form field'), {
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('type a value into a form field'), {
       timeout: 2000,
     })
   },
