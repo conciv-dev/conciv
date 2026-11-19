@@ -425,6 +425,42 @@ describe('rpc faults by input', () => {
     },
     15_000,
   )
+
+  browserTest(
+    'a gate that releases its held call as a failure is answered with that failure',
+    async ({browser}) => {
+      const router = {echo: os.handler(({input}) => input)}
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        const gate = await gateRpcCalls(page, {path: ['echo'], input: {value: 'held'}, onRelease: 'fail'})
+        const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize({value: 'held'})
+        const held = await encodeRequestMessage('1', MessageType.REQUEST, {
+          url: new URL('http://orpc/echo'),
+          method: 'POST',
+          headers: {},
+          body,
+        })
+        if (typeof held !== 'string') throw new Error('an rpc frame encoded to binary')
+        await page.evaluate(
+          ({url, heldFrame}) => {
+            const socket = new WebSocket(url)
+            socket.addEventListener('open', () => socket.send(heldFrame))
+          },
+          {url: served.wsUrl, heldFrame: held},
+        )
+        await gate.awaitCaptured(1)
+        await gate.release()
+        await expect(gate.answered()).resolves.toBeUndefined()
+        await gate.dispose()
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    30_000,
+  )
 })
 
 describe('rpc socket liveness', () => {

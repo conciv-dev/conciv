@@ -134,7 +134,8 @@ export async function gateRpcCalls(
   const socket = rpcSocketFor(page)
   await socket.installed
   const matches = callMatcher(options.path, options.input)
-  const answered = answeredBy(page, options.path, RELEASED_GATE_STATUS, options.input)
+  const answeredStatus = options.onRelease === 'fail' ? FAILED_RELEASE_STATUS : RELEASED_GATE_STATUS
+  const answered = answeredBy(page, options.path, answeredStatus, options.input)
   const open = {value: false}
   const captured: RpcSocketCall[] = []
   const waiters = new Set<CaptureWaiter>()
