@@ -130,6 +130,7 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
+
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}

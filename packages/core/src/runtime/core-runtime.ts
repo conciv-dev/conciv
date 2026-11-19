@@ -4,7 +4,7 @@ import type {EngineStaleness, RawFrame, SourceLoc, ToolCommandSignature} from '@
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
 import {navigation, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
@@ -124,14 +124,20 @@ async function* caughtUpThenLive(
   missed: () => Promise<ChatEvent[]>,
 ): AsyncGenerator<ChatEvent> {
   const first = live.next()
-  yield* await missed().catch((error: unknown) => {
+  const caught = await missed().catch((error: unknown): ChatEvent[] => {
     logError(`[core] reading what a new subscriber missed failed: ${String(error)}`)
     return []
   })
+  yield* caught
   const opened = await first
   if (opened.done === true) return
-  yield opened.value
+  if (!announcedAgain(opened.value, caught)) yield opened.value
   yield* live
+}
+
+function announcedAgain(event: ChatEvent, caught: ChatEvent[]): boolean {
+  const runId = sessionRunEvent.parse(event)?.runId
+  return runId !== undefined && caught.some((missed) => sessionRunEvent.parse(missed)?.runId === runId)
 }
 
 function established(raw: SessionScope): SessionScope {

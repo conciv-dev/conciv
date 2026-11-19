@@ -1,7 +1,6 @@
 import {
   Array as Arr,
   Cause,
-  Data,
   Deferred,
   Duration,
   Effect,
@@ -14,6 +13,7 @@ import {
   Request,
   RequestResolver,
   Schedule,
+  Schema,
   Scope,
   Semaphore,
   Stream,
@@ -60,9 +60,11 @@ const PAGE_CODE = /^\[page\.([\w-]+)\]/u
 
 const Coded = z.object({code: z.string()})
 
-export const TabGone = Data.TaggedError('PageTabGone')<{readonly dispatched: boolean}>
+const TabGone = Schema.TaggedStruct('PageTabGone', {dispatched: Schema.Boolean})
+export type TabGone = typeof TabGone.Type & globalThis.Error
 
-export type TabGone = InstanceType<typeof TabGone>
+const makeTabGone = (fields: Omit<typeof TabGone.Type, '_tag'>): TabGone =>
+  Object.assign(new globalThis.Error('The page tab went away'), TabGone.make(fields), {name: 'PageTabGone'})
 
 export type PageError = Tool.Error | TabGone
 
@@ -261,7 +263,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       const tab = yield* lock.withPermit(
         Effect.gen(function* () {
           const live = yield* FiberMap.get(tabs, call.attempt)
-          if (Option.isNone(live)) return yield* new TabGone({dispatched: false})
+          if (Option.isNone(live)) return yield* Effect.fail(makeTabGone({dispatched: false}))
           if (yield* Deferred.isDone(reply)) return yield* Effect.interrupt
           yield* registration.events
             .emit('control', {type: 'command', connectionId: call.connectionId, requestId: call.requestId})
@@ -271,7 +273,7 @@ export const make = Effect.fn('PageConnection.make')(function* (
       )
       const outcome = yield* Effect.raceFirst(
         Deferred.await(reply),
-        Fiber.await(tab).pipe(Effect.andThen(Effect.fail(new TabGone({dispatched: true})))),
+        Fiber.await(tab).pipe(Effect.andThen(Effect.fail(makeTabGone({dispatched: true})))),
       ).pipe(
         Effect.timeoutOrElse({
           duration: Duration.millis(call.command.timeoutMs),
@@ -351,9 +353,8 @@ export const make = Effect.fn('PageConnection.make')(function* (
       const sent = deliver(target, command)
       if (!call.reading) return yield* serialized(call.sessionId, sent)
       return yield* sent.pipe(
-        Effect.catchIf(
-          (error): error is TabGone => !Tool.isToolError(error) && error.dispatched,
-          (gone) => resent(call, command, deadline, gone),
+        Effect.catchTag('PageTabGone', (gone) =>
+          gone.dispatched ? resent(call, command, deadline, gone) : Effect.fail(gone),
         ),
       )
     })

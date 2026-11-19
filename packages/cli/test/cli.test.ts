@@ -25,7 +25,6 @@ import {approvePending, exchangePrintedCode, loginThroughTerminal} from '@conciv
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {
-  CHAT_SSE_PATH,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
@@ -35,8 +34,10 @@ import {
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
-import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {makeRpcClient, SOCKET_TRUST_FRAME, type RpcClient} from '@conciv/contract'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {createORPCClient} from '@orpc/client'
+import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
@@ -993,42 +994,48 @@ describe('cli', () => {
         const token = await loginThroughTerminal(origin, () => printed.join('\n'))
         const call = async () => fetchStatus(`/t/${token}`)
         expect(await call()).not.toBe(401)
-        const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
-        const pushSocket = (prefix: string, frames: unknown[]) => {
-          const socket = new WebSocket(
-            `ws://127.0.0.1:${engine.port}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
-          )
-          socket.addEventListener('open', () => frames.forEach((frame) => socket.send(JSON.stringify(frame))))
-          return socket
+        const rpcSocket = (prefix: string, trustToken?: string) => {
+          const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${prefix}${RPC_WS_PATH}`)
+          if (trustToken !== undefined) {
+            websocket.addEventListener('open', () =>
+              websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: trustToken})),
+            )
+          }
+          return websocket
         }
-        const framed = pushSocket('', [{type: SOCKET_TRUST_FRAME, token}])
-        const [browser, agent] = [pushSocket(`/t/${token}`, []), pushSocket(`/t/${engine.agentToken}`, [])]
-        await Promise.all(
-          [browser, agent, framed].map((socket) => once(socket, 'open', {signal: AbortSignal.timeout(3_000)})),
+        const openChanges = async (websocket: WebSocket) => {
+          const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
+          const stream = await rpc.settings.changes({scope: 'project', namespace: 'revoke-probe'})
+          const first = await stream.next()
+          return {kind: first.done ? 'ended' : 'snapshot', stream}
+        }
+        const framed = rpcSocket('', token)
+        const [browser, agent] = [rpcSocket(`/t/${token}`), rpcSocket(`/t/${engine.agentToken}`)]
+        const [browserChanges, agentChanges, framedChanges] = await Promise.all(
+          [browser, agent, framed].map(openChanges),
         )
-        const delivered = Promise.all(
-          [browser, agent, framed].map((socket) => once(socket, 'message', {signal: AbortSignal.timeout(3_000)})),
-        )
-        const turn = await fetch(`${origin}/t/${token}${CHAT_SSE_PATH}`, {
-          method: 'POST',
-          headers: {'content-type': 'application/json'},
-          body: JSON.stringify({
-            threadId: sessionId,
-            runId: 'before-revoke',
-            messages: [{id: 'before-revoke-user', role: 'user', content: 'hello'}],
-            tools: [],
-            context: [],
-          }),
-        })
-        await turn.text()
-        await delivered
+        expect([browserChanges?.kind, agentChanges?.kind, framedChanges?.kind]).toEqual([
+          'snapshot',
+          'snapshot',
+          'snapshot',
+        ])
         const closedCode = async (socket: WebSocket) =>
           z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
+        const pulled = Promise.all(
+          [browserChanges, framedChanges].map((changes) =>
+            changes?.stream.next().then(
+              () => 'yielded',
+              (error: unknown) => error,
+            ),
+          ),
+        )
         runRevoke({all: true, cwd: project.nested})
         expect([await call(), await fetchStatus(`/t/${linkedToken}`)]).toEqual([401, 401])
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
+        const refused = {code: 'UNAUTHORIZED', message: 'this browser is no longer trusted'}
+        expect(await pulled).toMatchObject([refused, refused])
         agent.close()
       } finally {
         await engine.stop()
@@ -3312,10 +3319,11 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never an extension, the harness or an agent sdk', () => {
+    test('the CLI installs alone with its native addon, never an extension, the harness or an agent sdk', () => {
       const manifests = prodClosureDirs().map(readManifest)
       const names = manifests.map((manifest) => manifest.name)
-      expect(names).toContain('@conciv/harness-init')
+      expect(names).toEqual(['@conciv/cli'])
+      expect(manifests.flatMap((manifest) => Object.keys(manifest.dependencies))).toEqual(['@ast-grep/napi'])
       expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
       for (const banned of BANNED) expect(names).not.toContain(banned)
       for (const manifest of manifests) {

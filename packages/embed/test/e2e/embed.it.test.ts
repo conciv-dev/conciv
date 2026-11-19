@@ -55,7 +55,6 @@ import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
 import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 import {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
-import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
@@ -639,17 +638,6 @@ test.describe('element capture', () => {
 
   const openHostPage = (page: Page): Promise<void> => openLoggedIn(page, kit, host.base)
 
-  const PushChannelSchema = z.object({channel: z.string()})
-
-  function parsedFrame(payload: string): unknown {
-    try {
-      return JSON.parse(payload)
-    } catch (error) {
-      if (error instanceof SyntaxError) return null
-      throw error
-    }
-  }
-
   function rowIdentities(stored: SessionCaptures): string[] {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
   }
@@ -713,16 +701,8 @@ test.describe('element capture', () => {
 
     test('hands the harness a result with no capture in it, through the page plugin alone', async ({page}) => {
       test.setTimeout(90_000)
-      const pushChannels: string[] = []
-      page.on('websocket', (socket) => {
-        if (!socket.url().includes(PUSH_WS_PATH)) return
-        const note = (event: {payload: string | Buffer}): void => {
-          const frame = PushChannelSchema.safeParse(parsedFrame(String(event.payload)))
-          if (frame.success) pushChannels.push(frame.data.channel)
-        }
-        socket.on('framesent', note)
-        socket.on('framereceived', note)
-      })
+      const socketPaths = new Set<string>()
+      page.on('websocket', (socket) => socketPaths.add(new URL(socket.url()).pathname))
       await rpcSocketFor(page).installed
       const calls = rpcCallCursor(page)
       const chatSessionId = await openSessionPanel(page, 'harness result')
@@ -730,7 +710,7 @@ test.describe('element capture', () => {
       expect(result).toContain('"success":true')
       expect(calls.startedSince(['page', 'queries'])).toBe(0)
       expect(calls.startedSince(['page', 'reply'])).toBe(0)
-      expect(pushChannels.filter((channel) => channel !== 'chat')).toEqual([])
+      expect([...socketPaths].toSorted()).toEqual([CHAT_WS_PATH, RPC_WS_PATH].toSorted())
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -1483,7 +1463,7 @@ test.describe('native widget', () => {
 
 test.describe('page dispatch parity', () => {
   const HOST_BODY = `
-  <div id="probe">page-bus-ok</div>
+  <div id="probe">page-probe-ok</div>
   <button id="press-btn" onclick="document.getElementById('clicked-flag').textContent='clicked'">Press target</button>
   <output id="clicked-flag"></output>
 `
@@ -1634,7 +1614,7 @@ test.describe('page dispatch parity', () => {
 
     test('holding Alt and clicking a page element with no source says so', async () => {
       const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
-      const probe = page.getByText('page-bus-ok')
+      const probe = page.getByText('page-probe-ok')
 
       await probe.click()
       await expect(hint).toHaveCount(0)
@@ -1685,12 +1665,12 @@ test.describe('page dispatch parity', () => {
         path: ['plugin', 'call'],
         input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: deleted}},
       }
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       const ended = wire.completed(attach)
       await kit.rpc.sessions.delete({sessionId: deleted})
       await ended
       const since = wire.mark()
-      await page.getByText('page-bus-ok').click()
+      await page.getByText('page-probe-ok').click()
       const refused = await wire.completed({...attach, since})
       expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`, data: {type: 'missing'}})
       await page.reload({waitUntil: 'domcontentloaded'})
@@ -1740,10 +1720,10 @@ test.describe('page dispatch parity', () => {
         kit.rpc.plugin
           .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
           .then((attached) => AttachedSchema.parse(attached))
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       await kit.restartServer()
       await expect.poll(attachedNow, {timeout: 30_000}).toContain(sessionId)
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
     })
   })
 
@@ -1810,7 +1790,7 @@ test.describe('page dispatch parity', () => {
           )
           .join('\n')
       }
-      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
+      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-probe-ok')
     })
   })
 
@@ -1861,7 +1841,7 @@ test.describe('page dispatch parity', () => {
       expect(await attachedNow()).not.toContain(existing)
       database.exec('DROP TRIGGER refuse_page_grant')
       await expect.poll(attachedNow, {timeout: 30_000}).toContain(existing)
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
     })
   })
 
@@ -1942,7 +1922,7 @@ test.describe('page dispatch parity', () => {
 
     test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
       const {kit, page} = refused
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
         code: 1,
         document: {
@@ -1954,12 +1934,12 @@ test.describe('page dispatch parity', () => {
           },
         },
       })
-      await expect(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+      await expect(page.getByText('page-probe-ok', {exact: true})).toBeVisible()
     })
 
     test('with page_eval allowed in the host config, eval runs with no click and the page shows its effect', async () => {
       const {kit, page} = allowed
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
         code: 0,
         document: {ok: true, data: {result: 'evaluated'}},

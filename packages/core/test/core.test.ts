@@ -45,6 +45,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
   type HeldBrowserRpcLink,
+  type RpcClient,
   type SettingsStore,
   type TrustStatus,
 } from '@conciv/contract'
@@ -89,7 +90,6 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {and, eq, isNull, sql} from 'drizzle-orm'
 import {
   Agent,
@@ -163,7 +163,7 @@ import {
   requestPrintedCode,
 } from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
-import {createORPCClient} from '@orpc/client'
+import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
@@ -757,7 +757,7 @@ describe('chat plane', () => {
     expect(runRows()).toEqual(swept)
   })
 
-  it('a push socket that opens while a run is going is told about that run', async () => {
+  it('a chat.events stream that opens on the rpc socket while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
     const engine = await bootEngine(tempDir('conciv-core-unit-'), {harness: cliHarness(cli)})
     onTestFinished(async () => {
@@ -771,21 +771,76 @@ describe('chat plane', () => {
       body: turnBody(id, 'late-push-run', 'keep talking'),
     })
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
-    const socket = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${id}`)
-    onTestFinished(() => socket.close())
-    const announced = new Promise<string | null>((resolve) => {
-      socket.addEventListener('message', (event) => {
-        const frame = PushFrameSchema.safeParse(JSON.parse(String(event.data)))
-        if (!frame.success || frame.data.channel !== 'chat') return
-        const run = sessionRunEvent.parse(frame.data.chunk)
-        if (run !== null) resolve(run.runId)
-      })
-      socket.addEventListener('close', () => resolve(null))
-    })
-    socket.addEventListener('open', () =>
-      socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
+    const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`)
+    websocket.addEventListener('open', () =>
+      websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
     )
-    expect(await announced).toBe('late-push-run')
+    const abort = new AbortController()
+    onTestFinished(() => {
+      abort.abort()
+      websocket.close()
+    })
+    const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
+    const events = await rpc.chat.events({sessionId: id}, {signal: abort.signal})
+    const announced = async (): Promise<string | null> => {
+      for await (const chunk of events) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run !== null) return run.runId
+      }
+      return null
+    }
+    expect(await announced()).toBe('late-push-run')
+  }, 10_000)
+
+  it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const db = openDatabase(root)
+    const primitives = makeSessionPrimitives()
+    const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const chat = await plane(cliHarness(fakeCli()), root, {
+      db,
+      sessions: {
+        ...sessionPort(),
+        onRunStart: async () => {
+          starting.entered.resolve()
+          await starting.held.promise
+        },
+        publish: (id, chunk) => primitives.stream.publish(id, chunk),
+      },
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: chat,
+      db,
+      model: () => null,
+      staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
+      interruptIdle: async () => false,
+      symbolicate: async () => null,
+    })
+    const id = sessionId('registering-as-a-run-starts')
+    const turn = startTurn(chat, id, 'racing-run', 'hi')
+    await starting.entered.promise
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const announced: string[] = []
+    const caughtUp = Promise.withResolvers<void>()
+    async function collect(): Promise<void> {
+      for await (const chunk of runtime.forSession(id).stream.events(abort.signal)) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run === null) continue
+        announced.push(run.runId)
+        caughtUp.resolve()
+      }
+    }
+    const collecting = collect()
+
+    await caughtUp.promise
+    expect(announced).toEqual(['racing-run'])
+    starting.held.resolve()
+    expect(await readUntil(await turn, 'end')).toContain(ChatEventType.RUN_FINISHED)
+    abort.abort()
+    await collecting
+    expect(announced).toEqual(['racing-run'])
   }, 10_000)
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
@@ -2014,7 +2069,7 @@ describe('engine login', () => {
         path: route.path.replaceAll(/:[^/]+|\*/g, 'x'),
       }))
       expect(routes.map((route) => route.path)).toEqual(
-        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', '/push-ws']),
+        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', RPC_WS_PATH]),
       )
       const versions = new Set<string | null>()
       const sent = async (url: string, init: RequestInit = {}) => {
@@ -2053,24 +2108,19 @@ describe('engine login', () => {
       const client = makeExtRpcClient<typeof versionRouter>(`${origin}/t/${made.agentToken}`, 'probe')
       expect(await client.clientVersion()).toBe(coreManifest.version)
       const {sessionId} = await makeRpcClient(`${origin}/t/${made.agentToken}`).sessions.create(undefined)
-      const pushSocket = (frame: string) =>
-        new Promise<string>((resolve) => {
-          const socket = new WebSocket(
-            `${origin.replace('http', 'ws')}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
-          )
-          socket.addEventListener('open', () => {
-            for (const outgoing of [frame, JSON.stringify({channel: 'page-serving', serving: true})])
-              socket.send(outgoing)
-          })
-          socket.addEventListener('message', (event) => {
-            resolve(String(event.data))
-            socket.close()
-          })
-          socket.addEventListener('close', (event) => resolve(`closed ${event.code}`))
-        })
+      const refusedStreams = async (frame: string) => {
+        const websocket = new WebSocket(`${origin.replace('http', 'ws')}${RPC_WS_PATH}`)
+        websocket.addEventListener('open', () => websocket.send(frame))
+        const headers = {[CONCIV_SESSION_HEADER]: sessionId}
+        const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket, headers}))
+        const refusal = (error: unknown) => (error instanceof ORPCError ? error.code : 'not served')
+        const outcome = await rpc.chat.events({sessionId}).then(() => 'served', refusal)
+        websocket.close()
+        return outcome
+      }
       const untrusted = JSON.stringify({type: SOCKET_TRUST_FRAME, token: 'not-a-token'})
-      const closed = await Promise.all([pushSocket(untrusted), pushSocket('{"channel":"ready"}')])
-      expect(closed).toEqual(['closed 1008', 'closed 1008'])
+      const streamRefusals = await Promise.all([refusedStreams(untrusted), refusedStreams('{"channel":"ready"}')])
+      expect(streamRefusals).toEqual(['UNAUTHORIZED', 'not served'])
     } finally {
       await stop()
     }

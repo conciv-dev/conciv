@@ -27,6 +27,7 @@ import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
+import {createRootRoute, createRoute, createRouter, RouterProvider} from '@tanstack/react-router'
 import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
@@ -2864,7 +2865,7 @@ describe('the page tab the agent sees', () => {
     })
   }
 
-  it('hides secret search and hash values and keeps the rest', () => {
+  it('hides secret search, hash and router path values and keeps the rest', async () => {
     keepLocation()
     history.replaceState(null, '', '/shop?token=abc&q=shoes#access_token=xyz')
     const url = new URL(readTab(tabId).url)
@@ -2880,6 +2881,28 @@ describe('the page tab the agent sees', () => {
       ],
       hash: [['access_token', '[redacted]']],
     })
+
+    history.replaceState(null, '', '/reset/param-secret-value')
+    installReactBridge()
+    const rootRoute = createRootRoute()
+    const resetRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/reset/$token',
+      component: () => createElement('h1', null, 'Reset password'),
+    })
+    const router = createRouter({routeTree: rootRoute.addChildren([resetRoute])})
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    const reactRoot = createRoot(mount)
+    reactRoot.render(createElement(RouterProvider, {router}))
+    onTestFinished(() => {
+      reactRoot.unmount()
+      mount.remove()
+    })
+    await expect.element(page.getByRole('heading', {name: 'Reset password'})).toBeVisible()
+    const routed = new URL(readTab(tabId).url)
+    expect(routed.pathname).toBe('/reset/[redacted]')
+    expect(routed.href).not.toContain('param-secret-value')
   })
 
   it('fits a very long url and title inside the rpc caps', () => {

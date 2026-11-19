@@ -122,7 +122,7 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string}
     <meta name="conciv-api-base" content="${browserBase(opts.apiBase)}">
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
   </head><body>
-    ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
+    ${opts.body ?? '<div id="probe">page-probe-ok</div>'}
     <script src="/conciv-widget.global.js"></script>
   </body></html>`
 }
@@ -132,7 +132,7 @@ export function handleHostPage(body?: string): string {
   return `<!doctype html><html><head>
     <meta charset="utf-8">
   </head><body>
-    ${body ?? '<div id="probe">page-bus-ok</div>'}
+    ${body ?? '<div id="probe">page-probe-ok</div>'}
     <script>${handleBundle}</script>
   </body></html>`
 }
