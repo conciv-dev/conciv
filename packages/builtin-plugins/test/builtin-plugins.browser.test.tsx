@@ -1025,7 +1025,9 @@ describe.skipIf(inFirefox)('a page call carries its capture', () => {
   const captured = async (verb: string, input: Record<string, unknown>) => {
     const driver = makePageOperations(noEffects)
     onTestFinished(() => driver.dispose())
-    const outcome = await driver.execute(command(verb, input))
+    const call = command(verb, input)
+    onTestFinished(() => dropCursor(call.agentId))
+    const outcome = await driver.execute(call)
     if (outcome.type === 'failure') throw new Error(`expected a result for ${verb}, got ${outcome.code}`)
     return outcome.result
   }
