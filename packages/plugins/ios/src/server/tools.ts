@@ -5,6 +5,7 @@ import type {Permission} from '@conciv/plugin/schema/permission'
 import type {Tool} from '@conciv/plugin/schema/tool'
 import {build, BuildOutputSchema} from './build.js'
 import {IosConfigSchema} from './config.js'
+import {iosSystemPrompt} from './prompt.js'
 import type {IosRuntime, NotConfigured} from './shared.js'
 import * as Simctl from './simctl.js'
 import {logs, LogsOutputSchema, run, RunOutputSchema, screenshot, ScreenshotOutputSchema} from './simulator.js'
@@ -27,7 +28,7 @@ const LogsInput = z.object({
   limit: z.number().int().positive().max(5000).optional(),
 })
 
-type Registration = Pick<Context, 'agent' | 'options' | 'permission' | 'servers' | 'tool' | 'location'>
+type Registration = Pick<Context, 'agent' | 'options' | 'permission' | 'servers' | 'session' | 'tool' | 'location'>
 
 function builtinServerUrl(servers: Context['servers']): string | undefined {
   return servers
@@ -110,4 +111,7 @@ export const register = Effect.fn('IosTools.register')(function* (ctx: Registrat
       execute: (input) => configured((runtime) => logs(runtime, input)),
     })
   })
+  if (configuredRuntime === undefined) return
+  const rules = iosSystemPrompt(configuredRuntime.config, {cwd: configuredRuntime.cwd})
+  yield* ctx.session.hook('context', (event) => Effect.sync(() => event.system.push({type: 'text', text: rules})))
 })

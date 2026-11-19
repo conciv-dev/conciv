@@ -15,7 +15,7 @@ import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
-import {becameTrusted, engineLocked, type EngineLogin} from './app/engine-login.js'
+import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
 import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
 
 const PaneParamsSchema = z.object({sessionId: z.string()})
@@ -98,7 +98,7 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
   }
 }
 
-type TrustHandlers = {rerunRefused: () => void; trusted: () => void; lockedOut: () => void}
+type TrustHandlers = {rerunRefused: () => void; trusted: () => void; revoked: () => void}
 
 type EngineWatch = {stop: () => void; locked: () => boolean}
 
@@ -106,9 +106,9 @@ function watchEngine(apiBase: string, handlers: TrustHandlers): EngineWatch {
   const stopReachability = setupEngineReachability(apiBase)
   const connection = browserRpcConnection(apiBase)
   if (connection.trust.isTrusted()) handlers.trusted()
-  if (engineLocked(connection.trust.status())) handlers.lockedOut()
+  if (engineLock(connection.trust.status()) === 'revoked') handlers.revoked()
   const stopTrust = connection.trust.subscribe((status, previous) => {
-    if (engineLocked(status)) handlers.lockedOut()
+    if (engineLock(status) === 'revoked') handlers.revoked()
     if (!becameTrusted(status, previous)) return
     handlers.rerunRefused()
     handlers.trusted()
@@ -223,7 +223,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     trusted: once(() => {
       void data.forgetGoneDrafts(shownSessions())
     }),
-    lockedOut: () => {
+    revoked: () => {
       void data.forgetLocalDrafts()
     },
   })

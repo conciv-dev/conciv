@@ -1,6 +1,6 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {Tool, type Rule} from '@conciv/plugin'
-import type {Action, Command, Control, Method, Outcome, Result, State, Tab} from './rpc.js'
+import type {Control, State, Tab} from './rpc.js'
 import {id as skillId} from './skill.js'
 
 export const ACCESS = [
@@ -13,7 +13,6 @@ export type PermissionSync = {readonly attempt: number; readonly allow: boolean}
 export type Attachment = {
   readonly attempt: number
   readonly tab: Tab | undefined
-  readonly pending: ReadonlyMap<string, Command>
 }
 
 export type SessionState =
@@ -49,10 +48,6 @@ export type ConnectionState =
 
 export type AttachmentOutcome = 'closed' | 'replaced' | 'unavailable'
 
-export type RequestSettlement =
-  | {readonly ok: true; readonly result: Result}
-  | {readonly ok: false; readonly error: Tool.Error; readonly tabClosed?: true}
-
 export type ConnectionEvent =
   | {
       readonly type: 'attach.started'
@@ -75,39 +70,6 @@ export type ConnectionEvent =
       readonly connectionId: string
       readonly tab: Tab
     }
-  | {
-      readonly type: 'request.started'
-      readonly sessionId: SessionId
-      readonly connectionId: string
-      readonly requestId: string
-      readonly command: Command
-    }
-  | {
-      readonly type: 'request.dispatch-failed'
-      readonly sessionId: SessionId
-      readonly connectionId: string
-      readonly requestId: string
-      readonly error: unknown
-    }
-  | {
-      readonly type: 'request.settled'
-      readonly sessionId: SessionId
-      readonly connectionId: string
-      readonly requestId: string
-      readonly outcome: Outcome
-    }
-  | {
-      readonly type: 'request.timed-out'
-      readonly sessionId: SessionId
-      readonly connectionId: string
-      readonly requestId: string
-    }
-  | {
-      readonly type: 'request.cancelled'
-      readonly sessionId: SessionId
-      readonly connectionId: string
-      readonly requestId: string
-    }
   | {readonly type: 'session.deleted'; readonly sessionId: SessionId}
   | {readonly type: 'disposed'}
 
@@ -120,13 +82,6 @@ export type ConnectionEffect =
     }
   | {readonly type: 'close-attachment'; readonly attempt: number; readonly outcome: AttachmentOutcome}
   | {readonly type: 'emit-control'; readonly control: Control}
-  | {
-      readonly type: 'dispatch-command'
-      readonly sessionId: SessionId
-      readonly connectionId: string
-      readonly requestId: string
-    }
-  | {readonly type: 'settle-request'; readonly requestId: string; readonly settlement: RequestSettlement}
   | {readonly type: 'warn'; readonly message: string; readonly error: unknown}
   | {readonly type: 'notify-drained'}
 
@@ -146,18 +101,6 @@ export function createConnectionState(): ConnectionState {
 
 export function transitionConnection(state: ConnectionState, event: ConnectionEvent): ConnectionTransition {
   if (event.type === 'disposed') return dispose(state)
-
-  if (event.type === 'request.started' && !isAttachedConnection(state, event.sessionId, event.connectionId))
-    return {
-      state,
-      effects: [
-        {
-          type: 'settle-request',
-          requestId: event.requestId,
-          settlement: {ok: false, error: disconnectedBeforeDispatch()},
-        },
-      ],
-    }
 
   const entry = state.sessions.get(event.sessionId)
 
@@ -248,9 +191,9 @@ function join(
   const replaced = entry.attachments.get(event.connectionId)
   const attachments = new Map(entry.attachments)
   attachments.delete(event.connectionId)
-  attachments.set(event.connectionId, {attempt: event.attempt, tab: undefined, pending: new Map()})
+  attachments.set(event.connectionId, {attempt: event.attempt, tab: undefined})
   const closing: ConnectionEffect[] = replaced
-    ? [...failPending(replaced), {type: 'close-attachment', attempt: replaced.attempt, outcome: 'replaced'}]
+    ? [{type: 'close-attachment', attempt: replaced.attempt, outcome: 'replaced'}]
     : []
 
   return {
@@ -288,10 +231,7 @@ function transitionAttaching(
         entry: {
           status: 'attached',
           attachments: new Map(
-            Array.from(entry.connections, ([connectionId, attempt]) => [
-              connectionId,
-              {attempt, tab: undefined, pending: new Map()},
-            ]),
+            Array.from(entry.connections, ([connectionId, attempt]) => [connectionId, {attempt, tab: undefined}]),
           ),
           focusedConnectionId: undefined,
         },
@@ -342,60 +282,8 @@ function transitionAttached(
 ): Step<SessionState> | undefined {
   if (event.type === 'state.updated') return updateTabState(entry, event, nextAttempt)
 
-  if (event.type === 'request.started') {
-    const attachment = entry.attachments.get(event.connectionId)
-
-    if (!attachment || attachment.pending.has(event.requestId)) return undefined
-
-    return {
-      entry: withAttachment(entry, event.connectionId, {
-        ...attachment,
-        pending: new Map(attachment.pending).set(event.requestId, event.command),
-      }),
-      nextAttempt,
-      effects: [
-        {
-          type: 'dispatch-command',
-          sessionId: event.sessionId,
-          connectionId: event.connectionId,
-          requestId: event.requestId,
-        },
-      ],
-    }
-  }
-
-  if (
-    event.type === 'request.dispatch-failed' ||
-    event.type === 'request.settled' ||
-    event.type === 'request.timed-out' ||
-    event.type === 'request.cancelled'
-  ) {
-    const attachment = entry.attachments.get(event.connectionId)
-    const command = attachment?.pending.get(event.requestId)
-
-    if (!attachment || !command) return undefined
-    const pending = new Map(attachment.pending)
-    pending.delete(event.requestId)
-
-    return {
-      entry: withAttachment(entry, event.connectionId, {...attachment, pending}),
-      nextAttempt,
-      effects: settleRequest(event, command),
-    }
-  }
-
   if (event.type === 'session.deleted')
-    return {
-      entry: undefined,
-      nextAttempt,
-      effects: [
-        ...Array.from(entry.attachments).flatMap(([connectionId, attachment]) =>
-          cancelPending(connectionId, attachment),
-        ),
-        ...Array.from(entry.attachments.values()).flatMap(failPending),
-        ...closeEvery(readAttempts(entry), 'closed'),
-      ],
-    }
+    return {entry: undefined, nextAttempt, effects: closeEvery(readAttempts(entry), 'closed')}
 
   if (event.type === 'attach.closed') return closeTab(entry, event, nextAttempt)
 
@@ -423,7 +311,7 @@ function closeTab(
       focusedConnectionId: entry.focusedConnectionId === connectionId ? undefined : entry.focusedConnectionId,
     },
     nextAttempt,
-    effects: [...failPending(attachment), {type: 'close-attachment', attempt: attachment.attempt, outcome: 'closed'}],
+    effects: [{type: 'close-attachment', attempt: attachment.attempt, outcome: 'closed'}],
   }
 }
 
@@ -494,11 +382,7 @@ function revokeAttached(entry: AttachedSession, sessionId: SessionId, nextAttemp
   return {
     entry: {status: 'revoking', sync, deleted: false},
     nextAttempt: nextAttempt + 1,
-    effects: [
-      ...Array.from(entry.attachments.values()).flatMap(failPending),
-      ...closeEvery(readAttempts(entry), 'closed'),
-      {type: 'sync-permissions', sessionId, ...sync},
-    ],
+    effects: [...closeEvery(readAttempts(entry), 'closed'), {type: 'sync-permissions', sessionId, ...sync}],
   }
 }
 
@@ -535,61 +419,6 @@ function closeEvery(attempts: Iterable<number>, outcome: AttachmentOutcome): Con
 
 function attachedControl(connectionId: string): ConnectionEffect {
   return {type: 'emit-control', control: {type: 'attached', connectionId, version: 1}}
-}
-
-function settleRequest(
-  event: Extract<
-    SessionEvent,
-    {readonly type: 'request.dispatch-failed' | 'request.settled' | 'request.timed-out' | 'request.cancelled'}
-  >,
-  command: Command,
-): ConnectionEffect[] {
-  const cancel: ConnectionEffect = {
-    type: 'emit-control',
-    control: {type: 'cancel', connectionId: event.connectionId, requestId: event.requestId},
-  }
-
-  if (event.type === 'request.cancelled') return [cancel]
-  const settle = (settlement: RequestSettlement): ConnectionEffect => ({
-    type: 'settle-request',
-    requestId: event.requestId,
-    settlement,
-  })
-
-  if (event.type === 'request.timed-out')
-    return [settle({ok: false, error: timedOut(command.action.type, command.timeoutMs)}), cancel]
-
-  if (event.type === 'request.dispatch-failed')
-    return [settle({ok: false, error: dispatchFailed(command.action.type, event.error)})]
-
-  if (event.outcome.type === 'success') return [settle({ok: true, result: event.outcome.result})]
-  const failed = event.outcome
-
-  return [
-    settle({
-      ok: false,
-      error: Tool.toolError({
-        message: `[page.${failed.code}] ${failed.message}`,
-        metadata: {code: failed.code, message: failed.message},
-        ...(failed.raised ? {error: failed.raised} : {}),
-      }),
-    }),
-  ]
-}
-
-function cancelPending(connectionId: string, attachment: Attachment): ConnectionEffect[] {
-  return Array.from(attachment.pending.keys(), (requestId) => ({
-    type: 'emit-control',
-    control: {type: 'cancel', connectionId, requestId},
-  }))
-}
-
-function failPending(attachment: Attachment): ConnectionEffect[] {
-  return Array.from(attachment.pending.keys(), (requestId) => ({
-    type: 'settle-request',
-    requestId,
-    settlement: {ok: false, error: disconnectedAfterDispatch(), tabClosed: true},
-  }))
 }
 
 function syncWarning(
@@ -652,15 +481,6 @@ export function isAttachedConnection(state: ConnectionState, sessionId: SessionI
   return attachedEntry(state, sessionId)?.attachments.has(connectionId) === true
 }
 
-export function selectPendingCommand(
-  state: ConnectionState,
-  sessionId: SessionId,
-  connectionId: string,
-  requestId: string,
-) {
-  return attachedEntry(state, sessionId)?.attachments.get(connectionId)?.pending.get(requestId)
-}
-
 export function selectTabs(state: ConnectionState, sessionId: SessionId): State {
   const entry = attachedEntry(state, sessionId)
 
@@ -695,9 +515,9 @@ function lastFocused(entry: AttachedSession) {
 export function selectTarget(
   state: ConnectionState,
   sessionId: SessionId,
-  action: Action,
+  tabId: string | undefined,
 ):
-  | {readonly ok: true; readonly connectionId: string; readonly tab: Tab | undefined}
+  | {readonly ok: true; readonly connectionId: string; readonly attempt: number; readonly tab: Tab | undefined}
   | {readonly ok: false; readonly error: Tool.Error} {
   const entry = state.status === 'active' ? state.sessions.get(sessionId) : undefined
 
@@ -720,8 +540,8 @@ export function selectTarget(
       }),
     }
 
-  if (action.type !== 'tabs.list' && action.tabId !== undefined) {
-    const named = Array.from(entry.attachments).find(([, attachment]) => attachment.tab?.id === action.tabId)
+  if (tabId !== undefined) {
+    const named = Array.from(entry.attachments).find(([, attachment]) => attachment.tab?.id === tabId)
 
     if (!named)
       return {
@@ -732,35 +552,18 @@ export function selectTarget(
         }),
       }
 
-    return {ok: true, connectionId: named[0], tab: named[1].tab}
+    return {ok: true, connectionId: named[0], attempt: named[1].attempt, tab: named[1].tab}
   }
   const chosen = lastFocused(entry)
 
   if (!chosen) return {ok: false, error: disconnectedBeforeDispatch()}
 
-  return {ok: true, connectionId: chosen[0], tab: chosen[1].tab}
+  return {ok: true, connectionId: chosen[0], attempt: chosen[1].attempt, tab: chosen[1].tab}
 }
 
-function disconnectedBeforeDispatch() {
+export function disconnectedBeforeDispatch() {
   return Tool.toolError({
     message:
       '[page.disconnected] The page disconnected before this action was sent; no action ran. Call page.tabs.list({}) once the page is open again.',
   })
-}
-
-function disconnectedAfterDispatch() {
-  return Tool.toolError({
-    message:
-      '[page.disconnected] The page connection closed; the action may already have run. Call page.tabs.list({}) once the page is open again and inspect it with page.snapshot({}). Do not repeat clicks, fills or evaluations until their outcome is known.',
-  })
-}
-
-function dispatchFailed(action: Method, error: unknown) {
-  const message = `[page.not_dispatched] Could not dispatch page.${action}; it did not run. Check that the page is open and call page.tabs.list({}) before deciding whether to retry.`
-  return Tool.toolError({message, metadata: {code: 'not_dispatched', message}, error})
-}
-
-function timedOut(action: Method, timeoutMs: number) {
-  const message = `[page.timeout] page.${action} did not finish within ${timeoutMs / 1000} seconds; its outcome is unknown. Call page.tabs.list({}) and inspect the page before you repeat a changing action.`
-  return Tool.toolError({message, metadata: {code: 'timeout', message}})
 }

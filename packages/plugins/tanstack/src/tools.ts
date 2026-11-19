@@ -1,18 +1,37 @@
 import {z} from 'zod'
+import {omit} from 'es-toolkit'
 import {Deferred, Effect, Stream} from 'effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
+import type {RpcClient} from '@conciv/plugin/effect/rpc'
+import type {SystemError} from '@conciv/plugin/schema/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
-import type {Connection} from './connection.js'
-import {UNTRUSTED_NOTE} from './failures.js'
-import {Action, Definition, Operations, type AppError, type Operation} from './rpc.js'
+import {Definition as PageDefinition, State, TabId} from '@conciv/plugin-page/rpc'
+import {
+  UNTRUSTED_NOTE,
+  disconnectedAfterDispatch,
+  disconnectedBeforeDispatch,
+  dispatchFailed,
+  pageFailed,
+  passedThrough,
+  tabUnavailable,
+} from './failures.js'
+import {Action, Definition, Operations, Reply, type AppError, type Operation} from './rpc.js'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {readRouteManifest} from './server/route-manifest.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
-import {info, pageInfo} from './skill.js'
+import {info} from './skill.js'
 
 const options = {namespace: 'tanstack', codemode: true}
 
+const pageOptions = {...options, permission: 'page'}
+
 const JsonObject = z.record(z.string(), z.json())
+
+const Targeted = z.object({tabId: TabId.optional()})
+
+type Page = RpcClient<typeof PageDefinition, SystemError>
+
+type PageError = Effect.Error<ReturnType<Page['operate']>> | Effect.Error<ReturnType<Page['tabs.list']>>
 
 const UNTRUSTED = {type: 'text' as const, text: UNTRUSTED_NOTE}
 
@@ -66,36 +85,63 @@ function toolFailure(failure: Failure) {
   return Tool.toolError({message: failure.message, error: failure.error, metadata: {code: failure.code}})
 }
 
+function failedFailure(name: string, error: Extract<PageError, {readonly type: 'failed'}>): Tool.Error {
+  if (error.data.code === 'tab_unavailable') return tabUnavailable()
+  if (error.data.code === 'not_dispatched') return dispatchFailed(name, error)
+  return passedThrough(error.data.code, error.message)
+}
+
+function pageFailure(name: string) {
+  return (error: PageError): Tool.Error => {
+    if (error.type === 'failed') return failedFailure(name, error)
+    if (error.type !== 'tab_gone') return passedThrough(error.type, error.message)
+    return error.data.dispatched ? disconnectedAfterDispatch() : disconnectedBeforeDispatch()
+  }
+}
+
+function invalidResult(operation: Operation, error: z.ZodError) {
+  return Tool.toolError({
+    message: `The page returned an invalid result for tanstack.${operation.name}. Check that the engine and the page run compatible versions. Do not retry the same action to repair a protocol error; it may already have run.\n${z.prettifyError(error)}`,
+  })
+}
+
 export const register = Effect.fn('TanstackTools.register')(function* (
-  ctx: Pick<Context, 'tool' | 'skill'>,
+  ctx: Pick<Context, 'tool' | 'skill' | 'rpc'>,
   tanstack: Capabilities,
-  connection: Connection,
 ) {
+  const page = ctx.rpc(PageDefinition)
   const execute = Effect.fn('TanstackTools.execute')(function* (
     operation: Operation,
     input: unknown,
     tool: Tool.Context,
   ) {
-    const action = yield* Effect.try({
-      try: () => Action.parse({...JsonObject.parse(input), type: operation.name}),
+    const fields = yield* Effect.try({
+      try: () => {
+        const parsed = JsonObject.parse(input)
+        Action.parse({...parsed, type: operation.name})
+        return parsed
+      },
       catch: (error) => Tool.toolError({message: `Invalid input for tanstack.${operation.name}.`, error}),
     })
-    if (action.type === 'tabs.list') return {output: connection.tabs(tool.sessionId), content: [UNTRUSTED]}
-    const result = yield* connection.request(tool.sessionId, action)
-    const output = operation.output.safeParse(result.value)
-    if (!output.success)
-      return yield* Effect.fail(
-        Tool.toolError({
-          message: `The page returned an invalid result for tanstack.${operation.name}. Check that the engine and the page run compatible versions. Do not retry the same action to repair a protocol error; it may already have run.`,
-          error: output.error,
-        }),
-      )
+    const value = yield* page
+      .operate({
+        sessionId: tool.sessionId,
+        tabId: Targeted.parse(fields).tabId,
+        name: `tanstack.${operation.name}`,
+        input: omit(fields, ['tabId']),
+        reading: !operation.mutating,
+      })
+      .pipe(Effect.mapError(pageFailure(operation.name)))
+    const reply = Reply.safeParse(value)
+    if (!reply.success) return yield* Effect.fail(invalidResult(operation, reply.error))
+    if (reply.data.type === 'failure') return yield* Effect.fail(pageFailed(reply.data.code, reply.data.message))
+    const output = operation.output.safeParse(reply.data.value)
+    if (!output.success) return yield* Effect.fail(invalidResult(operation, output.error))
     return {output: output.data, content: [UNTRUSTED]}
   })
 
   yield* ctx.skill.transform((editor) => {
     editor.add(info)
-    editor.add(pageInfo)
   })
   yield* ctx.tool.transform((editor) => {
     editor.namespace({
@@ -137,18 +183,26 @@ export const register = Effect.fn('TanstackTools.register')(function* (
       options,
       execute: ({count}) => Effect.succeed({output: tanstack.serverFnTrace(count)}),
     })
+    editor.add({
+      name: 'list',
+      description:
+        "List this session's browser tabs and the tab the user focused last. A call without a tabId goes to that tab.",
+      input: z.object({}),
+      output: State,
+      options: {...pageOptions, namespace: 'tanstack.tabs'},
+      execute: (_input, tool) =>
+        page['tabs.list']({sessionId: tool.sessionId}).pipe(
+          Effect.map((output) => ({output, content: [UNTRUSTED]})),
+          Effect.mapError(pageFailure('tabs.list')),
+        ),
+    })
     Operations.forEach((operation) => {
-      const separator = operation.name.lastIndexOf('.')
       editor.add({
-        name: operation.name.slice(separator + 1),
+        name: operation.name,
         description: operation.description,
         input: operation.input,
         output: operation.output,
-        options: {
-          namespace: separator < 0 ? 'tanstack' : `tanstack.${operation.name.slice(0, separator)}`,
-          permission: 'tanstack',
-          codemode: true,
-        },
+        options: pageOptions,
         execute: (input, tool) => execute(operation, input, tool),
       })
     })

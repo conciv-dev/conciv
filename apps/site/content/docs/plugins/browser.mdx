@@ -24,6 +24,9 @@ export default defineConfig({
 Export the bundle as `./plugin-experimental` from the package. A plugin folder in the project ships it as
 `plugin-experimental.cjs` or `plugin-experimental.js` beside its engine part.
 
+During development, run the same build with `vite build --watch` from the plugin's dev script. Each build reloads only
+that plugin in the widget: the page does not reload, and the draft in the composer stays.
+
 The build keeps the modules the widget provides external. An import of another `effect`, `solid-js` or `@conciv`
 module fails the build: the widget does not provide it, and a bundled copy would not share the widget's instance. An
 `import()` becomes a chunk the widget loads the first time it runs.
@@ -183,13 +186,13 @@ ctx.add(Slot, {
 })
 ```
 
-| `at`                | Where                                          | `render` input                          |
-| ------------------- | ---------------------------------------------- | --------------------------------------- |
-| `window.bottom`     | the bottom of the widget window                | none                                    |
-| `session.header`    | a session's header                             | `session`, `screen`, `active`, `compact` |
-| `session.status`    | above a session's composer                     | `session`, `screen`                     |
-| `session.panel.end` | the end of a session's status bar              | `session`, `screen`                     |
-| `page.overlay`      | over the page                                  | none                                    |
+| `at`                | Where                             | `render` input                           |
+| ------------------- | --------------------------------- | ---------------------------------------- |
+| `window.bottom`     | the bottom of the widget window   | none                                     |
+| `session.header`    | a session's header                | `session`, `screen`, `active`, `compact` |
+| `session.status`    | above a session's composer        | `session`, `screen`                      |
+| `session.panel.end` | the end of a session's status bar | `session`, `screen`                      |
+| `page.overlay`      | over the page                     | none                                     |
 
 A `page.overlay` slot holds the focus unless it sets `hides: false`.
 
@@ -207,15 +210,21 @@ A settings page adds to the widget's settings:
 ```js title="apps/conciv/test/conciv.browser.test.tsx"
 const text = (value) => () => Object.assign(document.createElement('p'), {textContent: value})
 ctx.add(SettingsPage, {id: 'prefs', title: 'Alpha prefs', render: text('Alpha prefs body')})
-ctx.add(SettingsPage, {id: 'inline', page: 'general', section: 'general', title: 'Inline', render: text('Alpha row in general')})
+ctx.add(SettingsPage, {
+  id: 'inline',
+  page: 'general',
+  section: 'general',
+  title: 'Inline',
+  render: text('Alpha row in general'),
+})
 ctx.add(SettingsPage, {id: 'block', page: 'general', title: 'Block', render: text('Alpha section on general')})
 ```
 
-| Fields                            | Adds                                     |
-| --------------------------------- | ---------------------------------------- |
-| no `page`                         | a page of its own                        |
-| `page: 'general'`                 | a section on the General page            |
-| `page: 'general'`, `section: 'general'` | a row in the General section       |
+| Fields                                  | Adds                          |
+| --------------------------------------- | ----------------------------- |
+| no `page`                               | a page of its own             |
+| `page: 'general'`                       | a section on the General page |
+| `page: 'general'`, `section: 'general'` | a row in the General section  |
 
 Frame a page of your own with `ctx.ui.SettingsLayout`, a section with `ctx.ui.SettingsSection`, and a row with
 `ctx.ui.SettingsRow`, so it renders as the widget's own settings do.

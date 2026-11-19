@@ -1,4 +1,4 @@
-import {createSignal, onCleanup} from 'solid-js'
+import {createMemo, createSignal, onCleanup} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {readStorage, writeStorage} from './storage.js'
 
@@ -42,7 +42,8 @@ export function createResizable(opts: {
           },
           opts.initial,
         )
-  const [size, setSize] = createSignal(bound(stored))
+  const [requested, setSize] = createSignal(bound(stored))
+  const size = createMemo(() => bound(requested()))
   const persist = (value: number) => {
     if (storageKey !== undefined) writeStorage(storageKey, value)
   }

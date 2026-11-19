@@ -75,17 +75,19 @@ async function answerFirst(
   abort: AbortController,
 ): Promise<void> {
   const first = await queries.next()
-  if (first.done) return
-  const query = first.value.query
+  if (first.done || first.value.kind !== 'ready') return
+  const asked = await queries.next()
+  if (asked.done || asked.value.kind !== 'query') return
+  const query = asked.value.query
   state.seen = typeof query === 'object' && query !== null ? {...query} : {}
-  await kit.rpc.page.reply({requestId: first.value.requestId, outcome})
+  await kit.rpc.page.reply({requestId: asked.value.requestId, outcome})
   abort.abort()
   await queries.return(undefined)
 }
 
 export async function answerNextQuery(kit: Kit, outcome: PageOutcome): Promise<{seen: () => SeenQuery | null}> {
   const abort = new AbortController()
-  const queries = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+  const queries = await kit.rpc.page.queries({focus: {focused: true, visible: true}}, {signal: abort.signal})
   const state: QueryState = {seen: null}
   void answerFirst(kit, queries, state, outcome, abort).catch(() => {})
   await new Promise((resolve) => setTimeout(resolve, 50))

@@ -23,13 +23,45 @@ const NotConfiguredSchema = z.strictObject({ok: z.literal(false), error: z.strin
 
 const NOT_CONFIGURED = {ok: false, error: 'ios plugin not configured'}
 
-async function boot(options?: Record<string, string>): Promise<CoreKit> {
+const SYSTEM_RECORDER = `import {appendFileSync} from 'node:fs'
+export default {
+  id: 'system-recorder',
+  async setup(ctx) {
+    const hooked = {context: false}
+    await ctx.session.hook('prompt', async () => {
+      if (hooked.context) return
+      hooked.context = true
+      await ctx.session.hook('context', (event) => {
+        appendFileSync(ctx.options.out, JSON.stringify(event.system.map((part) => part.text)) + '\\n')
+      })
+    })
+  },
+}
+`
+
+async function boot(
+  options?: Record<string, string>,
+  recorded?: NonNullable<Parameters<typeof bootCoreKit>[0]['plugins']>,
+): Promise<CoreKit> {
   const kit = await bootCoreKit({
     id: 'fake',
-    plugins: [options === undefined ? PACKAGE_DIR : [PACKAGE_DIR, options]],
+    plugins: [options === undefined ? PACKAGE_DIR : [PACKAGE_DIR, options], ...(recorded ?? [])],
   })
   onTestFinished(() => kit.cleanup())
   return kit
+}
+
+async function systemPromptsSent(options?: Record<string, string>): Promise<{kit: CoreKit; system: string[]}> {
+  const directory = tempDir('conciv-ios-system-')
+  const recorder = join(directory, 'system-recorder')
+  const out = join(directory, 'system.jsonl')
+  mkdirSync(recorder)
+  writeFileSync(join(recorder, 'package.json'), JSON.stringify({type: 'module'}))
+  writeFileSync(join(recorder, 'index.js'), SYSTEM_RECORDER)
+  const kit = await boot(options, [[recorder, {out}]])
+  expect((await (await kit.turn('hello', {session: await kit.session()})).done()).errors()).toEqual([])
+  const [line] = readFileSync(out, 'utf8').trim().split('\n')
+  return {kit, system: z.array(z.string()).parse(JSON.parse(line ?? ''))}
 }
 
 async function directTool(kit: CoreKit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
@@ -102,6 +134,19 @@ describe('the ios plugin in an engine', () => {
     const runAsk = await deniedAsk(kit, 'ios_run')
     expect(runAsk.toolName).toContain('ios_run')
     expect(String(runAsk.failure)).toContain('denied')
+  })
+
+  it('adds the ios rules for the configured app to every model request, and nothing when unconfigured', async () => {
+    const options = {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}
+    const configured = await systemPromptsSent(options)
+    const config = IosConfigSchema.parse(options)
+    if (config === undefined) throw new Error('expected the ios options to configure the plugin')
+    const rules = iosSystemPrompt(config, {cwd: configured.kit.stateRoot})
+    expect(configured.system.filter((text) => text === rules)).toHaveLength(1)
+    expect(rules).toContain(`Your working directory is ${configured.kit.stateRoot}`)
+
+    const unconfigured = await systemPromptsSent()
+    expect(unconfigured.system.filter((text) => text.includes('transparent WebView'))).toEqual([])
   })
 })
 
@@ -369,8 +414,25 @@ describe('the ios tools against a fake simctl', () => {
     const failed = await against(failing.layer, build(runtime(xcodebuildConfig(), '/tmp'), {}))
     expect(failed.ok).toBe(false)
     expect(failed.appPath).toBeNull()
-    expect(failed.diagnostics.length).toBeGreaterThan(0)
+    expect(failed.diagnostics.map((diagnostic) => diagnostic.severity)).toEqual(['error', 'warning'])
     expect(failing.calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
+
+    const unparsed = fakeSimctl([
+      {
+        when: (call) => has(call, 'build'),
+        reply: {
+          code: 1,
+          stderr:
+            "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory is a CLT instance",
+        },
+      },
+    ])
+    const raw = await against(unparsed.layer, build(runtime(xcodebuildConfig(), '/tmp'), {}))
+    expect(raw.ok).toBe(false)
+    expect(raw.diagnostics).toHaveLength(1)
+    expect(raw.diagnostics[0]?.severity).toBe('error')
+    expect(raw.diagnostics[0]?.message).toContain('requires Xcode')
+    expect(unparsed.calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
 
     const passing = fakeSimctl([
       {when: (call) => has(call, '-showBuildSettings'), reply: {stdout: transcript('xcodebuild-settings.json')}},
