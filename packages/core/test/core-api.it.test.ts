@@ -106,6 +106,7 @@ import {
   toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {GRAB_MIME} from '@conciv/grab/grab-attachment'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   HarnessSessionId,
@@ -2859,14 +2860,14 @@ describe('rpc wire', () => {
     })
 
     describe('attachments and images', () => {
-      it('an attachment is stored as sent, expanded once for the model only, and the CLI gets the expansion', async () => {
+      it('a grabbed element is stored as sent, expanded once for the model only, and the CLI gets the expansion', async () => {
         const sessionId = await newSession()
         await finished(sessionId, {content: attachmentParts()})
         const sent = findLastRun(sessionId).messages
-        expect(sent.indexOf('fixture-expanded')).toBeGreaterThan(sent.indexOf(FIXTURE_MIME))
-        expect(sent).toContain('[attachment could not be processed]')
+        expect(sent.indexOf(GRAB_TEXT)).toBeGreaterThan(sent.indexOf(GRAB_MIME))
+        expect(sent).toContain('application/x-unknown')
         const user = (await thread(sessionId)).find((message) => message.role === 'user')
-        expect(user?.parts.filter((part) => part.type === 'document')).toHaveLength(3)
+        expect(user?.parts.filter((part) => part.type === 'document')).toHaveLength(2)
         expect(user?.parts.filter(isExpansion)).toEqual([EXPANSION_PART])
       })
 
@@ -3701,7 +3702,7 @@ describe('rpc wire', () => {
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
         expect(description).toContain('discover_tools')
-        expect(description).toContain('- fixture (7 tools')
+        expect(description).toContain('- fixture_echo (1 tool)')
         expect(description).toContain('external_fixture_echo(')
       })
 
@@ -3821,24 +3822,25 @@ return seen`
         await expect(page.command(requestId)).rejects.toThrow('Page request is no longer available.')
       })
 
-      it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
+      it('discover_tools shows a plugin tool signature, and the catalog on execute_typescript shows each plugin tool output type', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
-        expect(found).toContain('Returns JSON matching')
-        expect(found).toContain('PROBE_BROKE: the probe broke')
-        expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
+        expect(found).toContain('declare function external_fixture_fail')
+        expect(found).toContain('spaced: boolean')
         const execute = await mcpTool('execute_typescript')
-        expect(execute.description).toContain('- fixture (7 tools')
-        expect(execute.description).not.toContain('PROBE_BROKE')
+        expect(execute.description).toContain(
+          'external_fixture_echo({\n  text: string;\n}): Promise<{\n  echoed: string;\n}> // Echo the text back.',
+        )
+        expect(execute.description).toContain('external_fixture_fail({\n  spaced: boolean;\n}): Promise<string | null>')
         expect(discover.description).toContain('toolNames')
         expect(discover.description).not.toContain('external_fixture_fail')
       })
 
-      it('errors keep their declared code, other failures stay plain errors, and huge results are capped', async () => {
-        expect(await executeResult(catchMessage('external_fixture_fail({spaced: true})'))).toBe(DECLARED_MESSAGE)
-        expect(await executeResult(catchMessage('external_fixture_fail({spaced: false})'))).toBe(DECLARED_MESSAGE)
+      it('a failing plugin tool throws a plain error, other failures stay plain errors, and huge results are capped', async () => {
+        expect(await executeResult(catchMessage('external_fixture_fail({spaced: true})'))).toBe(FAILED_MESSAGE)
+        expect(await executeResult(catchMessage('external_fixture_fail({spaced: false})'))).toBe(FAILED_MESSAGE)
         await expect(runTypescript('await external_fixture_fail({spaced: true})')).rejects.toThrow(
-          /"code":"PROBE_BROKE"/,
+          JSON.stringify({error: {message: FAILED_MESSAGE, name: 'Error'}}),
         )
         const undeclared = await runTypescript('throw new Error("EACCES: denied")').catch((error: unknown) =>
           String(error),
@@ -3996,8 +3998,7 @@ return seen`
 
   const SILENCE_MS = 1_000
   const GUARD = {hangGuardMs: 5_000}
-  const FIXTURE_MIME = 'application/x-conciv-fixture'
-  const BROKEN_MIME = 'application/x-conciv-broken'
+  const GRAB_TEXT = '<button>Buy</button> in src/cart.tsx'
   const EVAL_ID = 'conciv:tool:page_eval'
   const EVALUATE = {name: 'page_eval', input: {code: '1'}}
   const EVALUATED = {result: 'evaluated'}
@@ -4006,11 +4007,11 @@ return seen`
   const TERMINAL_ID = 'sess-terminal-born'
   const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
-  const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
+  const FAILED_MESSAGE = 'the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read']
   const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
-  const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
+  const EXPANSION_PART = {type: 'text', content: GRAB_TEXT, metadata: {modelOnly: true}}
   const IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}
   const BIG_IMAGE_BYTES = ONE_PIXEL_PNG.repeat(1_000)
   const BIG_IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: BIG_IMAGE_BYTES}}
@@ -4129,10 +4130,10 @@ return seen`
           })
           tools.add({
             name: 'fixture_fail',
-            description: 'Fail with a declared error.',
+            description: 'Fail with a plain error.',
             input: z.object({spaced: z.boolean()}),
             execute: async () => {
-              throw new Error(DECLARED_MESSAGE)
+              throw new Error(FAILED_MESSAGE)
             },
           })
           tools.add({
@@ -4422,7 +4423,7 @@ return seen`
   }
 
   function isExpansion(part: ChatMessage['parts'][number]): boolean {
-    return part.type === 'text' && part.content === 'fixture-expanded'
+    return part.type === 'text' && part.content === GRAB_TEXT
   }
 
   function isTurnBoundary(chunk: ChatEvent): boolean {
@@ -4442,11 +4443,13 @@ return seen`
   }
 
   function attachmentParts() {
+    const grabbed = Buffer.from(JSON.stringify({text: GRAB_TEXT, source: null, rect: null, preview: null})).toString(
+      'base64',
+    )
     return [
       {type: 'text', content: 'why?'},
-      {type: 'document', source: {type: 'data', mimeType: FIXTURE_MIME, value: 'eyJpZCI6MX0='}},
+      {type: 'document', source: {type: 'data', mimeType: GRAB_MIME, value: grabbed}},
       {type: 'document', source: {type: 'data', mimeType: 'application/x-unknown', value: 'eA=='}},
-      {type: 'document', source: {type: 'data', mimeType: BROKEN_MIME, value: 'eA=='}},
     ]
   }
 

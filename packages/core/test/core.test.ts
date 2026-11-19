@@ -226,15 +226,8 @@ function readServerRecord(root: string) {
   return ServerRecordSchema.parse(JSON.parse(readFileSync(statePaths(root).server, 'utf8')))
 }
 
-function boundPortProbe(root: string) {
-  const bound = Promise.withResolvers<number>()
-  const plugin = Plugin.define({
-    id: 'bound-port',
-    async setup() {
-      bound.resolve(readServerRecord(root).port)
-    },
-  })
-  return {plugin, port: bound.promise}
+function recordedPort(root: string): Promise<number> {
+  return vi.waitFor(() => readServerRecord(root).port, {interval: 1, timeout: 10_000})
 }
 
 async function serveCore(root: string, overrides: Partial<Parameters<typeof makeApp>[0]>, port = 0) {
@@ -1331,13 +1324,15 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     }
   })
 
-  it('releases the port when the endpoint file cannot be written', async () => {
+  it('a failed endpoint write fails start with its own error, releases the port and leaves no server.json behind', async () => {
     const root = tempDir('conciv-core-unit-')
-    const bound = boundPortProbe(root)
     mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
-    await expect(bootEngine(root, {plugins: [bound.plugin]})).rejects.toMatchObject({syscall: 'rename'})
-    const probe = createServer().listen(await bound.port, '127.0.0.1')
-    await once(probe, 'listening')
+    const failed = expect(bootEngine(root)).rejects.toMatchObject({syscall: 'rename'})
+    const port = await recordedPort(root)
+    await failed
+    expect(existsSync(statePaths(root).server)).toBe(false)
+    const probe = createServer().listen(port, '127.0.0.1')
+    await expect(once(probe, 'listening')).resolves.toEqual([])
     await once(probe.close(), 'close')
   })
 
@@ -1363,28 +1358,6 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     }
   })
 
-  it('a failed endpoint write fails start with its own error even when a plugin cleanup also fails', async () => {
-    const root = tempDir('conciv-core-unit-')
-    mkdirSync(join(statePaths(root).dir, 'mcp-endpoint.json'), {recursive: true})
-    const written = vi.spyOn(console, 'error')
-    const failingDispose = Plugin.define({
-      id: 'failing-dispose',
-      async setup() {
-        return () => {
-          throw new Error('plugin cleanup failed')
-        }
-      },
-    })
-    try {
-      await expect(bootEngine(root, {plugins: [failingDispose]})).rejects.toMatchObject({syscall: 'rename'})
-      const logged = written.mock.calls.flat().map(String).join('\n')
-      expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
-      expect.soft(logged).toContain('plugin cleanup failed')
-    } finally {
-      written.mockRestore()
-    }
-  })
-
   it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
     const root = tempDir('conciv-core-unit-')
     await Effect.runPromise(
@@ -1396,26 +1369,18 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
         ),
       ),
     )
-    const outcomes: Array<Promise<number | 'dropped'>> = []
-    const bound = Promise.withResolvers<number>()
-    const knocking = Plugin.define({
-      id: 'knocking',
-      async setup() {
-        const {port} = readServerRecord(root)
-        bound.resolve(port)
-        const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
-        outcomes.push(
-          new Promise((resolve) => {
-            request.on('response', (response) => resolve(response.statusCode ?? 0))
-            request.on('error', () => resolve('dropped'))
-          }),
-        )
-        await once(request.end(), 'continue')
-      },
+    const booting = bootEngine(root)
+    const failed = expect(booting).rejects.toThrow(/is not valid JSON/)
+    const port = await recordedPort(root)
+    const request = httpRequest({host: '127.0.0.1', port, path: '/health', headers: {expect: '100-continue'}})
+    const outcome = new Promise<number | 'dropped'>((resolve) => {
+      request.on('response', (response) => resolve(response.statusCode ?? 0))
+      request.on('error', () => resolve('dropped'))
     })
-    await expect(bootEngine(root, {plugins: [knocking]})).rejects.toThrow(/is not valid JSON/)
-    expect(await Promise.all(outcomes)).toEqual([expect.toBeOneOf([500, 'dropped'])])
-    const probe = createServer().listen(await bound.promise, '127.0.0.1')
+    await once(request.end(), 'continue')
+    await failed
+    expect(await outcome).toBeOneOf([500, 'dropped'])
+    const probe = createServer().listen(port, '127.0.0.1')
     await expect(once(probe, 'listening')).resolves.toEqual([])
     await once(probe.close(), 'close')
   }, 20_000)

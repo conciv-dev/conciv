@@ -7,7 +7,7 @@ import {chatMessages, markers, openDb, sessions as sessionRows, type ConcivDb} f
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, ContentPart, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
@@ -895,6 +895,48 @@ describe('text parts keep their own paragraph', () => {
       }),
     )
     expect(prompts).toEqual(['a skill was added\n\nhello\n\nAttachment x.txt:\nthe file body'])
+  })
+})
+
+describe('attachment expansion', () => {
+  it('an expander that throws leaves the attachment in place, tells the model it could not be processed, and logs why', async () => {
+    const {root, db} = await openDatabase()
+    const sessionId = SessionId.parse('conciv_broken_attachment')
+    const logged: string[] = []
+    const chat = await chatPlane(db, root, {
+      attachmentExpanders: {
+        'application/x-broken': async () => {
+          throw new Error('the payload is unreadable')
+        },
+      },
+      log: (line) => logged.push(line),
+    })
+    const document: ContentPart = {
+      type: 'document',
+      source: {type: 'data', mimeType: 'application/x-broken', value: 'eA=='},
+    }
+    const sent: unknown[] = []
+    model.setResponses([
+      ({request}: {request: {messages: ModelMessage[]}}) => {
+        sent.push(request.messages.findLast((message) => message.role === 'user')?.content)
+        return {text: 'done'}
+      },
+    ])
+    await collected(
+      chat.send({
+        threadId: sessionId,
+        runId: 'run-broken',
+        messages: [{id: 'run-broken-user', role: 'user', content: [{type: 'text', content: 'why?'}, document]}],
+      }),
+    )
+    expect(sent).toEqual([
+      [
+        {type: 'text', content: 'why?'},
+        document,
+        {type: 'text', content: '[attachment could not be processed]', metadata: {modelOnly: true}},
+      ],
+    ])
+    expect(logged).toContainEqual(expect.stringContaining('the payload is unreadable'))
   })
 })
 
