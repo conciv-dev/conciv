@@ -54,6 +54,31 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - No test code, test-only exports, `data-testid`, debug flags, or `window.__X__` hooks in product
   source. No mutable singletons for tests to overwrite (`export const x = {value: 15}`).
 
+## Effect
+
+- A resource that must be closed (socket, process, watcher, subscription) is made with `Effect.acquireRelease`
+  inside a `Scope`; closing the scope is the teardown. No hand-written cleanup lists.
+- Background work lives in a fiber container: `FiberHandle` (one replaceable slot: a timer, the current attempt),
+  `FiberSet` (many), `FiberMap` (one per key). No bare forks, no hand-made `Map` of fibers.
+- Shared state other code reads is a `SubscriptionRef` (a `Ref` when nobody watches it); one-shot waits are a
+  `Deferred`; one-at-a-time sections are `Semaphore(1)`; shared resources by key are an `RcMap`.
+- A state machine is a pure `transitionX(state, event) -> {state, effects}` file plus an Effect driver file beside it
+  (opencode `x-machine.ts` + `x.ts`); the driver runs effects, the machine owns delays.
+- Retries, repeats and back-off are a `Schedule` (`Effect.retry` / `Effect.repeat`) or the machine's own delays;
+  deadlines are `Effect.timeout`. No `setTimeout` loops.
+- `Effect.forEach` runs one item at a time by default. Independent I/O over many items passes a bounded
+  `concurrency` (a number); `'unbounded'` only over a list the code itself bounds; the default where order matters.
+  `discard: true` when the results are not used. `Effect.all` for a fixed tuple or struct.
+- A big or endless sequence is a `Stream`. Consuming it with a limit or an accumulation is a `Sink`
+  (`Sink.foldWeighted` / `Sink.foldUntil` for a byte or count cap, `Sink.zip` for two results in one pass), never a
+  counter in `Stream.mapAccum` followed by `Stream.runCollect`.
+- Fan-out of events is a `PubSub`; hand-off of work to one taker is a `Queue`. Batching and de-duplicating calls is
+  `Request` + `RequestResolver`; memoized lookups with a lifetime are a `Cache`.
+- Services are `Context` + `Layer`; tests swap a real in-memory layer, never a mock. Tests move time with
+  `TestClock`, never a real wait.
+- Effect code called from Solid goes through one bridge (`ManagedRuntime` in, `SubscriptionRef` out read with
+  `fromRef`), not ad hoc `runPromise` calls in components.
+
 ## SolidJS
 
 - Destructuring props breaks reactivity: use `splitProps`.
