@@ -69,7 +69,7 @@ export function createPinDrag(model: PinDragModel) {
   }
 
   const grab = (view: Viewport, pin: PinRow, event: PointerEvent & {currentTarget: HTMLButtonElement}): void => {
-    if (held()) return
+    if (held() || state.prompt) return
     const down = screenToScene(view, event.clientX, event.clientY)
     setState('drag', {
       pointerId: event.pointerId,
