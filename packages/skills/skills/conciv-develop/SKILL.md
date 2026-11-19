@@ -128,10 +128,9 @@ defineExtension({
   attachments, // AnyAttachmentBuilder[] — see below
   commands, // ExtensionCommand[] — {name, description, run({sessionId})}; runs in the widget from the / menu (or typed alone and sent), never sent to the agent, replaces a harness command of the same name
   views, // ExtensionView[] — {id, label, icon?, Component, actions?}, one per full panel
-  Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface/connect)
+  Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface)
   Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot
   systemPrompt, // string, or (config, {cwd}) => string, appended to the agent's system prompt
-  connectGate, // {preflight: () => Promise<string | null>} — gate the widget's connect flow
 })
 ```
 
@@ -266,7 +265,7 @@ export const terminal = defineExtension({
 
 `getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
 uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `useSessionId`, `useGrab`,
-`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useConnect`, `useViewLock`,
+`useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`, `useViewLock`,
 `useLeaveView`, `useScope`, `useColorScheme`, plus the `Suppress`/`YieldFocus`
 layer-gate components — and adds `useContext`, scoped to the extension you named. Each hook throws
 with a clear "used outside a host that provides…" message if called where the host never wired that

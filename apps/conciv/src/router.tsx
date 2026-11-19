@@ -17,6 +17,7 @@ import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
 import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
 import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
 
 const PaneParamsSchema = z.object({sessionId: z.string()})
 
@@ -35,9 +36,9 @@ export type ConcivRouterContext = {
   extensions: AnyExtension[]
   instances: ExtensionInstance[]
   connected: () => boolean
-  connectMode: boolean
+  plugins: readonly ComposedPlugin[]
+  servers: boolean
   bindApiBase?: (apiBase: string) => void
-  disconnect?: () => void
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
@@ -58,9 +59,9 @@ export type ConcivRouterConfig = {
   settings: ConcivSettings
   extensions?: AnyExtension[]
   connected?: () => boolean
-  connectMode?: boolean
+  plugins?: readonly ComposedPlugin[]
+  servers?: boolean
   bindApiBase?: (apiBase: string) => void
-  disconnect?: () => void
   grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number
@@ -195,9 +196,9 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       extensions,
       instances,
       connected,
-      connectMode: config.connectMode ?? false,
+      plugins: reserveComposedPlugins(config.plugins ?? []),
+      servers: config.servers ?? false,
       bindApiBase: config.bindApiBase,
-      disconnect: config.disconnect,
       grabProvider: config.grabProvider,
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),

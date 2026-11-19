@@ -1,5 +1,6 @@
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {createServer, type Socket} from 'node:net'
+import {connect as connectSocket, createServer, type Server as TcpServer, type Socket} from 'node:net'
+import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
@@ -103,6 +104,7 @@ type FileState = {
   handles: {count: number}
   hubCli: {current: HubCliState}
   rpcCalls: RpcCallCursor | null
+  forward: {server: TcpServer; sockets: Set<Socket>} | null
 }
 
 const FRESH: EngineStaleness = {
@@ -135,6 +137,7 @@ function ensureState(ctx: BrowserCommandContext): FileState {
     handles: {count: 0},
     hubCli: {current: null},
     rpcCalls: null,
+    forward: null,
   }
   files.set(key, created)
   return created
@@ -185,8 +188,45 @@ function holdTranscriptsWhen(kit: CoreKit, held: boolean | undefined): void {
   if (held) kit.harness.transcripts.hold()
 }
 
+function listenOnConnectPort(server: TcpServer, port: number): Promise<number> {
+  if (port > CONNECT_LAST_PORT) return Promise.reject(new Error('every connect port is taken'))
+  return new Promise<boolean>((resolve) => {
+    server.once('error', () => resolve(false))
+    server.listen(port, '127.0.0.1', () => resolve(true))
+  }).then((bound) => (bound ? port : listenOnConnectPort(server, port + 1)))
+}
+
+function closeForward(state: FileState): Promise<void> {
+  const forward = state.forward
+  state.forward = null
+  if (!forward) return Promise.resolve()
+  forward.sockets.forEach((socket) => socket.destroy())
+  return new Promise((resolve) => forward.server.close(() => resolve()))
+}
+
+const forwardConnectPort: BrowserCommand<[]> = async (ctx): Promise<number> => {
+  const state = ensureState(ctx)
+  const kit = state.kit
+  if (!kit) throw new Error('no core is booted for this test file; call bootCore first')
+  await closeForward(state)
+  const target = Number(new URL(kit.base).port)
+  const sockets = new Set<Socket>()
+  const server = createServer((socket) => {
+    const upstream = connectSocket(target, '127.0.0.1')
+    sockets.add(socket).add(upstream)
+    socket.on('error', () => upstream.destroy())
+    upstream.on('error', () => socket.destroy())
+    socket.pipe(upstream).pipe(socket)
+  })
+  state.forward = {server, sockets}
+  return listenOnConnectPort(server, CONNECT_FIRST_PORT)
+}
+
+const closeConnectForward: BrowserCommand<[]> = (ctx): Promise<void> => closeForward(ensureState(ctx))
+
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   const state = ensureState(ctx)
+  await closeForward(state)
   for (const fault of state.faults.values()) await fault.dispose()
   state.faults.clear()
   state.staleness.value = FRESH
@@ -767,6 +807,8 @@ export const coreCommands = {
   hoverButton,
   bootCore,
   closeCore,
+  forwardConnectPort,
+  closeConnectForward,
   pagePluginPaths,
   writeProjectFile,
   projectFileExists,

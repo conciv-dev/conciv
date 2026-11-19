@@ -1521,7 +1521,7 @@ test.describe('page dispatch parity', () => {
     })
   })
 
-  test.describe('bootConnect: the connect handle serves page tools through the dispatcher', () => {
+  test.describe('servers mode: the connect handle serves page tools through the dispatcher', () => {
     let kit: EmbedKit
     let host: {base: string; close: () => Promise<void>}
     let page: Page
