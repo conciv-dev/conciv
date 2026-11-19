@@ -1,5 +1,6 @@
 import {Context, Effect, Layer} from 'effect'
 import {openDb} from '@conciv/db'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Agent} from '../../../src/core/agent.js'
 import {Bus} from '../../../src/core/bus.js'
 import {Database} from '../../../src/core/database/database.js'
@@ -27,11 +28,8 @@ const sessionsLayer = Layer.effect(
 export const databaseLayer = Layer.unwrap(
   Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
-    const db = openDb(tmp.path)
-    const file = db.$client.location()
-    db.$client.close()
-    if (!file) return yield* Effect.die(new Error('openDb returned an in-memory database'))
-    return Database.layer({path: file})
+    const db = yield* openDb(tmp.path)
+    return Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))
   }),
 )
 

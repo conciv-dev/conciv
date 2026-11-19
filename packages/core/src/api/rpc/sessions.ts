@@ -1,4 +1,5 @@
 import {platform} from 'node:os'
+import {Effect} from 'effect'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
 import type {Router} from '@orpc/server'
@@ -20,7 +21,7 @@ import type {
   TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
-import {readModel, sessions} from '@conciv/db'
+import {sessions} from '@conciv/db'
 import {
   ensureRow,
   listSessionMetas,
@@ -95,7 +96,7 @@ type ListedHit = Omit<SessionHit, 'resume'>
 export async function rpcSessionMeta(chat: ChatContext, sessionId: SessionId): Promise<SessionMeta | null> {
   const row = await rowById(chat.db, sessionId)
   if (!row) return null
-  const context = {db: chat.db, running: await chat.plane.running(), model: (id: SessionId) => readModel(chat.db, id)}
+  const context = {db: chat.db, running: await chat.plane.running()}
   return buildSessionMeta(context, {row, native: await loadNativeMeta(chat, row)})
 }
 
@@ -115,7 +116,6 @@ async function sessionPage(
     page,
     search,
     running: await chat.plane.running(),
-    model: (sessionId) => readModel(chat.db, sessionId),
     includeHidden: input.includeHidden ?? false,
   })
   const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
@@ -181,15 +181,17 @@ export async function switchSessionModel(
 ): Promise<'switched' | 'missing' | 'unknown'> {
   const row = await ensuredRow(chat, sessionId)
   if (!row) return 'missing'
-  const models = await resolveHarnessModels(chat.harnessFor(sessionId), {signal: chat.signal})
+  const models = await resolveHarnessModels(await chat.harnessFor(sessionId), {signal: chat.signal})
   const found = models.find((candidate) => candidate.id === model && !candidate.disabled)
   if (!found) return 'unknown'
   const effort = row.effort !== null && found.efforts?.includes(row.effort) ? row.effort : null
-  const written = await chat.db
-    .update(sessions)
-    .set({model, effort, updatedAt: Date.now()})
-    .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameEffort(row.effort)))
-    .returning({id: sessions.id})
+  const written = await Effect.runPromise(
+    chat.db
+      .update(sessions)
+      .set({model, effort, updatedAt: Date.now()})
+      .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameEffort(row.effort)))
+      .returning({id: sessions.id}),
+  )
   return written.length > 0 ? 'switched' : switchSessionModel(chat, sessionId, model)
 }
 
@@ -201,17 +203,19 @@ export async function switchSessionEffort(
   const row = await ensuredRow(chat, sessionId)
   if (!row) return 'missing'
   if (effort !== null) {
-    const harness = chat.harnessFor(sessionId)
+    const harness = await chat.harnessFor(sessionId)
     const models = await resolveHarnessModels(harness, {signal: chat.signal})
     const modelId = row.model ?? harness.defaultModel ?? models[0]?.id
     const current = models.find((model) => model.id === modelId)
     if (!current?.efforts?.includes(effort)) return 'unsupported'
   }
-  const written = await chat.db
-    .update(sessions)
-    .set({effort, updatedAt: Date.now()})
-    .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameModel(row.model)))
-    .returning({id: sessions.id})
+  const written = await Effect.runPromise(
+    chat.db
+      .update(sessions)
+      .set({effort, updatedAt: Date.now()})
+      .where(and(eq(sessions.id, sessionId), eq(sessions.harnessKind, row.harnessKind), sameModel(row.model)))
+      .returning({id: sessions.id}),
+  )
   return written.length > 0 ? 'switched' : switchSessionEffort(chat, sessionId, effort)
 }
 
@@ -323,7 +327,7 @@ export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, 
         if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
       }
       if (chat.plane.driving(input.sessionId)) throw errors.SESSION_RUNNING()
-      switchRowHarness(db, input.sessionId, target.id, model)
+      await switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
     compact: os.sessions.compact.handler(async ({input, errors}) => {

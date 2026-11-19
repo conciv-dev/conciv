@@ -45,6 +45,7 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 
 - A package's `src/` root holds only its public entry files (one per `exports` entry); internals live
   in folders by concern. Exports are an explicit list, never `"./*"`.
+  Plugin packages (`packages/plugins/*`, `packages/plugin-page`) use opencode's flat plugin layout.
 - A new package or a diff that adds many tiny files (3 to 10 lines each) usually means hand-rolled
   parallels of a library or needless splits: ask to delete or merge.
 - No relative paths across workspace packages (`../../../packages/x/...`). Cross-package paths come
