@@ -483,7 +483,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       commands: os.meta.commands.handler(({input, context}) =>
         listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),
-      tools: os.meta.tools.handler(() => ({tools: deps.tools})),
+      tools: os.meta.tools.handler(async ({input}) => ({tools: await deps.tools(input.sessionId)})),
       engine: os.meta.engine.handler(() => engine.staleness()),
       hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),

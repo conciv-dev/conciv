@@ -501,7 +501,7 @@ export const contract = {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
-    tools: oc.output(ChatToolsSchema),
+    tools: oc.input(SessionIdInput).output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),

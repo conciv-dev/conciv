@@ -41,6 +41,7 @@ export async function bootEmbedKit(
     history?: HarnessSessionMeta[]
     imageInput?: HarnessCapabilities['imageInput']
     terminal?: boolean
+    files?: Readonly<Record<string, string>>
   } = {},
 ): Promise<EmbedKit> {
   const kit = await bootCoreKit({
@@ -54,6 +55,7 @@ export async function bootEmbedKit(
     permission: opts.permission,
     permissions: opts.permissions,
     tty: opts.terminal ? {command: shellTerminal} : undefined,
+    files: opts.files,
   })
   return {
     ...kit,

@@ -2157,11 +2157,12 @@ describe('read value card image', () => {
       await mountExpandedCard()
       const thumbnail = page.getByRole('button', {name: THUMBNAIL})
       await thumbnail.click()
-      await expect.element(page.getByRole('dialog', {name: VIEWER})).toBeVisible()
+      const viewer = page.getByRole('dialog', {name: VIEWER})
+      await expect.element(viewer.getByRole('button', {name: 'Show actual size'})).toHaveFocus()
 
       await userEvent.keyboard('{Escape}')
 
-      await expect.element(page.getByRole('dialog', {name: VIEWER})).not.toBeInTheDocument()
+      await expect.element(viewer).not.toBeInTheDocument()
       await expect.element(thumbnail).toHaveFocus()
       expect(document.activeElement?.matches(':focus-visible')).toBe(true)
     })
