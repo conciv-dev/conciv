@@ -76,6 +76,9 @@ already enforced by a tool (formatting, lint autofix) is not review material.
   `Request` + `RequestResolver`; memoized lookups with a lifetime are a `Cache`.
 - Services are `Context` + `Layer`; tests swap a real in-memory layer, never a mock. Tests move time with
   `TestClock`, never a real wait.
+- Observability: every service function is `Effect.fn('package.area.verb')` (a named span); request-scoped ids go on
+  the span with `Effect.annotateCurrentSpan` (`sessionId`, `plugin`); Effect code logs with `Effect.log` /
+  `logWarning` / `logError` (they land as span events), never `console.*`.
 - Effect code called from Solid goes through one bridge (`ManagedRuntime` in, `SubscriptionRef` out read with
   `fromRef`), not ad hoc `runPromise` calls in components.
 
