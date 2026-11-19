@@ -200,6 +200,34 @@ describe('terminal primitives', () => {
     host.remove()
   })
 
+  it('a screen in a container that shrinks to fit keeps its width across fits', async () => {
+    const container = document.createElement('div')
+    container.style.cssText = 'width:640px;height:320px;display:flex'
+    document.body.appendChild(container)
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const dispose = render(
+      () => (
+        <>
+          <TerminalPrimitive.Root model={model}>
+            <TerminalPrimitive.Screen />
+          </TerminalPrimitive.Root>
+          <ModelState model={model} label="shrink to fit state" />
+        </>
+      ),
+      {container},
+    ).unmount
+    await expect.element(region('shrink to fit state')).toMatchTextContent('status=connecting')
+    model.fit()
+    const fitted = model.terminal.cols
+    for (let fit = 0; fit < 5; fit += 1) {
+      await new Promise(requestAnimationFrame)
+      model.fit()
+    }
+    expect(model.terminal.cols).toBe(fitted)
+    dispose()
+    container.remove()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = controlModel()
     const {host, dispose} = mount(() => (

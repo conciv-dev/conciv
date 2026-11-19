@@ -4,6 +4,8 @@ import type {TerminalModel} from '../model.js'
 
 const TerminalContext = createContext<TerminalModel>()
 
+const ROOT_STYLE: JSX.CSSProperties = {width: '100%', 'min-width': '0'}
+
 export function useTerminal(): TerminalModel {
   const model = useContext(TerminalContext)
   if (!model) throw new Error('useTerminal outside <TerminalPrimitive.Root>')
@@ -13,7 +15,7 @@ export function useTerminal(): TerminalModel {
 function Root(props: {model: TerminalModel; class?: string; children: JSX.Element}): JSX.Element {
   return (
     <TerminalContext.Provider value={untrack(() => props.model)}>
-      <div class={props.class} data-terminal-root data-status={props.model.status()}>
+      <div class={props.class} style={ROOT_STYLE} data-terminal-root data-status={props.model.status()}>
         {props.children}
       </div>
     </TerminalContext.Provider>
