@@ -32,7 +32,7 @@ import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {makePageOperations, type PageEffect, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab} from '@conciv/plugin-page/rpc'
+import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab, type PageCommand} from '@conciv/plugin-page/rpc'
 import {readTab, reportChanges} from '../src/page/tab.js'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
@@ -54,8 +54,15 @@ const noEffects: readonly PageEffect[] = []
 
 const JsonRecord = z.record(z.string(), z.unknown())
 
-function command(verb: string, input: Record<string, unknown>, agentId = 'test-agent'): Command {
-  return Command.parse({action: {type: verb, ...input}, agentId, timeoutMs: 5000})
+function pageCommand(input: unknown): PageCommand {
+  const parsed = Command.parse(input)
+  const {action} = parsed
+  if (action.type === 'operation') throw new Error('expected one of the page plugin own actions')
+  return {...parsed, action}
+}
+
+function command(verb: string, input: Record<string, unknown>, agentId = 'test-agent'): PageCommand {
+  return pageCommand({action: {type: verb, ...input}, agentId, timeoutMs: 5000})
 }
 
 function readValue(outcome: Outcome, verb: string): Record<string, unknown> {
@@ -1520,7 +1527,7 @@ describe.skipIf(inFirefox)('page action queue', () => {
     const driver = makePageOperations(noEffects)
     onTestFinished(driver.dispose)
     const queued = (id: string, index: number, of: number, action: Record<string, unknown>, signal?: AbortSignal) =>
-      driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
+      driver.execute(pageCommand({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
     const accept = (
       id: string,
       actions: Record<string, unknown>[],
