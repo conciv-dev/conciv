@@ -7953,6 +7953,31 @@ describe('terminal panel', () => {
     await expect.element(output('model none')).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a model list that failed while the CLI is busy still offers Retry, which lists the models', async () => {
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const failed = () => bar().getByRole('button', {name: 'Couldn’t load models', exact: true})
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(failed(), {timeout: 15_000}).toBeVisible()
+
+    await terminalPanel().click()
+    await typeLine(`printf '\\033\\1359;4;1\\007'; read; printf '\\033\\1359;4;0\\007'`)
+    await expect.element(newTerminal(), {timeout: 15_000}).toBeDisabled()
+    await coreControl.releaseFault(broken)
+
+    await expect.element(failed()).toBeEnabled()
+    await failed().click()
+    await menu().getByRole('button', {name: 'Couldn’t load models: Retry loading models'}).click()
+    await expect.element(menu().getByRole('option', {name: 'First model'}), {timeout: 15_000}).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await terminalPanel().click()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(newTerminal(), {timeout: 15_000}).toBeEnabled()
+  }, 60_000)
+
   test('a control the user opened before the terminal starts keeps focus and stays open once the terminal starts', async () => {
     const menu = () => page.getByRole('dialog', {name: 'Session options'})
     const sessionId = await createSession(coreRpc(coreBase()))

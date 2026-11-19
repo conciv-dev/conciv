@@ -487,7 +487,7 @@ export function HarnessModelSelector(props: HarnessModelSelectorProps): JSX.Elem
               variant="plain"
               size="none"
               class={pill() ? MODEL_SELECTOR_TRIGGER : PROMPT}
-              disabled={props.disabled === true || (pill() && noModels())}
+              disabled={(props.disabled === true && !failed()) || (pill() && noModels())}
               title={pill() ? pillLabel() : undefined}
               aria-label={pill() ? pillLabel() : failed() ? MODELS_UNAVAILABLE : promptAriaLabel(shownName(), effort())}
             >
