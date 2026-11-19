@@ -74,9 +74,7 @@ export function failRpcCalls(
   const status = options.status ?? 500
   const answered = answeredBy(page, options.path, status, options.input)
   return brokenWhile(page, callMatcher(options.path, options.input), answered, (call) => {
-    call
-      .reply(status)
-      .catch((error: unknown) => console.error('[extension-testkit] the rpc failure reply failed', error))
+    call.reply(status).catch((error: unknown) => console.error('[plugin-testkit] the rpc failure reply failed', error))
   })
 }
 
@@ -93,7 +91,7 @@ export function garbleRpcReplies(
   const answered = (): Promise<void> =>
     Promise.reject(new Error('a garbled rpc call never reaches the server, so it is never answered'))
   return brokenWhile(page, callMatcher(options.path, options.input), answered, (call) => {
-    call.garble().catch((error: unknown) => console.error('[extension-testkit] the garbled rpc reply failed', error))
+    call.garble().catch((error: unknown) => console.error('[plugin-testkit] the garbled rpc reply failed', error))
   })
 }
 

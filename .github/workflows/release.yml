@@ -99,7 +99,7 @@ jobs:
   # The Swift SDK is not an npm package: source of truth is native/swift/ConcivWidget
   # in this repo, distribution is the conciv-dev/conciv-swift mirror (root Package.swift
   # + bare-semver tags SwiftPM can resolve). The mirror ships in lockstep with npm: the
-  # tag is the @conciv/extension-ios version (its bridge-protocol peer), which changesets
+  # tag is the @conciv/plugin-ios version (its bridge-protocol peer), which changesets
   # bumps in lockstep with every @conciv/* release. npm is the lockstep authority: the
   # mirror only tags a version npm has ALREADY published (see the detect step), so it can
   # never expose a Swift version whose npm peer does not exist. `needs: [test, release]`
@@ -125,7 +125,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      # Publish a mirror tag only for an @conciv/extension-ios version npm has ALREADY
+      # Publish a mirror tag only for an @conciv/plugin-ios version npm has ALREADY
       # published: npm is the lockstep authority, so a mid-cycle manifest edit that never
       # rode a release is not on npm and never tags. HEAD only supplies the version to
       # publish; conciv-publish then anchors the actual Swift tree to the commit that set
@@ -143,13 +143,13 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          manifest="packages/extensions/ios/package.json"
+          manifest="packages/plugins/ios/package.json"
           head_version=$(git show "$HEAD_SHA:$manifest" 2>/dev/null | jq -r '.version // empty')
           if [ -z "$head_version" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if npm view "@conciv/extension-ios@$head_version" version >/dev/null 2>&1; then
+          if npm view "@conciv/plugin-ios@$head_version" version >/dev/null 2>&1; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -172,12 +172,12 @@ jobs:
         if: steps.detect.outputs.run == 'true'
       # In-repo fixture drift gate (D2): the mirror carries the committed fixture copy,
       # so refuse to publish a mirror whose fixtures drifted from the canonical table.
-      - run: pnpm --filter @conciv/extension-ios gen:fixtures
+      - run: pnpm --filter @conciv/plugin-ios gen:fixtures
         if: steps.detect.outputs.run == 'true'
       - run: git diff --exit-code
         if: steps.detect.outputs.run == 'true'
       # Regenerate the mirror tree from the release commit's native/swift, tag it with the
-      # @conciv/extension-ios version, and push (skipped when that tag already exists; on an
+      # @conciv/plugin-ios version, and push (skipped when that tag already exists; on an
       # existing tag it re-asserts the assembled tree matches what was published).
       - run: pnpm exec conciv-publish swift-mirror
         if: steps.detect.outputs.run == 'true'

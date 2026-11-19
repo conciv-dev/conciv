@@ -176,7 +176,10 @@ export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interfa
     },
     storage: storage(kv, pluginId, global.state),
     tool: {
-      transform: tools.transform,
+      transform: (callback) =>
+        tools.transform((editor) => {
+          callback({...editor, add: (tool) => editor.add(tool, pluginId)})
+        }),
       reload: tools.reload,
       list: tools.list,
       hook: (name, callback) => hooks.register('tool', name, callback),

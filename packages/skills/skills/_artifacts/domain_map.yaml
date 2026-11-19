@@ -16,9 +16,9 @@ domains:
   - name: 'Installation & mounting'
     slug: 'installation'
     description: 'Getting the widget script into a build and a running app for the first time.'
-  - name: 'Extension authoring'
-    slug: 'extension-authoring'
-    description: 'Adding project-specific tools, attachments, and UI to the widget from a consuming app.'
+  - name: 'Plugin authoring'
+    slug: 'plugin-authoring'
+    description: 'Adding project-specific tools, skills, RPC methods and widget UI from a consuming app.'
   - name: 'Harness adapters'
     slug: 'harness-adapters'
     description: 'Wiring a new coding-agent CLI into conciv as the process behind the chat.'
@@ -73,47 +73,42 @@ skills:
         status: 'active'
         skills: ['conciv-setup']
 
-  - name: 'Building a conciv extension'
+  - name: 'Building a conciv plugin'
     slug: 'conciv-develop'
-    domain: 'extension-authoring'
-    description: 'Adding an agent tool, attachment type, or widget UI from a consuming app via defineExtension/defineTool/defineAttachment.'
+    domain: 'plugin-authoring'
+    description: 'Adding agent tools, skills, RPC methods and widget UI from a consuming app with a plugin in conciv/plugins/ or a package.'
     type: 'core'
     packages:
-      - '@conciv/extension'
+      - '@conciv/plugin'
     covers:
-      - 'defineExtension, defineTool, defineAttachment'
-      - 'tool contract: server/client/render, errors, approval, meta'
-      - 'getExtensionApi (extension surface) / @conciv/extension/host (host wiring surface)'
-      - 'RPC to an extension server via makeExtRpcClient/subscriptionIterator'
-      - '@conciv/extension-testkit'
+      - 'Plugin.define (engine part, @conciv/plugin/effect)'
+      - 'tools: fields, name rule, Tool.Error, approvals via ctx.permission.assert'
+      - 'Rpc.define and ctx.rpc.register'
+      - 'browser part: @conciv/plugin/experimental registries and the experimental() vite build'
+      - '@conciv/plugin-testkit'
     tasks:
-      - 'add a defineTool that calls out to project infrastructure'
-      - 'add UI to the widget composer or status slot via Component/Surface'
-      - 'add a chat-attachment type via defineAttachment'
-      - 'test an extension with @conciv/extension-testkit'
+      - 'add a tool that calls out to project infrastructure'
+      - 'add a panel, slot or composer pill to the widget'
+      - 'expose an RPC method to the widget and the terminal'
+      - 'test a plugin with @conciv/plugin-testkit'
     failure_modes:
-      - mistake: 'writing to app state inside a render body or subscription'
-        mechanism: 'extension Component/Surface code compiles as Solid JSX even inside a React host; writes belong in event handlers, not render or effects.'
+      - mistake: 'writing the engine part as .tsx or importing ./rpc without its extension'
+        mechanism: 'Node imports the engine part as source with types stripped; it cannot load .tsx and needs the real file name.'
         wrong_pattern: |
-          function Surface() {
-            store.set(latestValue)
-            return <div>{latestValue}</div>
-          }
+          import {Deploy} from './rpc'
         correct_pattern: |
-          function Surface() {
-            return <button onClick={() => store.set(latestValue)}>Save</button>
-          }
-        source: 'packages/extension/src/extension-api.ts'
+          import {Deploy} from './rpc.ts'
+        source: 'apps/site/content/docs/plugins/index.mdx'
         priority: 'HIGH'
         status: 'active'
         skills: ['conciv-develop']
-      - mistake: 'reading apps/site/content/docs/extending/*.mdx as the current extension contract'
-        mechanism: 'those docs pages describe an older extension API; the type definitions in packages/extension/src are the source of truth.'
+      - mistake: 'naming a tool with a hyphen'
+        mechanism: 'the engine refuses a tool name with -, logs Invalid tool name, and leaves the tool out.'
         wrong_pattern: |
-          # copying an example straight from apps/site/content/docs/extending/*.mdx
+          editor.add({name: 'deploy-run', ...})
         correct_pattern: |
-          # verifying the shape against packages/extension/src/define-extension.ts and define-tool.ts first
-        source: 'packages/extension/src/define-extension.ts'
+          editor.add({name: 'run', options: {namespace: 'deploy'}, ...})
+        source: 'packages/plugin-host/src/core/tool.ts'
         priority: 'MEDIUM'
         status: 'active'
         skills: ['conciv-develop', 'conciv-debug']
@@ -210,10 +205,10 @@ cross_references:
     reason: 'Most "widget never appears" symptoms trace back to the install path (bundler plugin vs manual mount) that conciv-setup owns.'
   - from: 'conciv-debug'
     to: 'conciv-harness'
-    reason: 'A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem — conciv-harness covers adapter wiring.'
+    reason: 'A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem: conciv-harness covers adapter wiring.'
   - from: 'conciv-develop'
     to: 'conciv-debug'
-    reason: 'An extension tool with approval: "ask" goes through the same gate/timeout mechanism conciv-debug documents.'
+    reason: 'A plugin tool that asks through ctx.permission.assert goes through the same approval mechanism conciv-debug documents.'
 
 gaps: []
 
@@ -257,11 +252,6 @@ coverage:
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/ui-kit-terminal'
       reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/extension-whiteboard'
       reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/extension-recorder'
-      reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/extension-ios'
-      reason: 'internal to @conciv/embed (the WKWebView bridge of the native page), not installed directly'
     - name: '@conciv/mascot'
       reason: 'internal to @conciv/it, not installed directly'

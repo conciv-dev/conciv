@@ -3,7 +3,6 @@ import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
-import type {AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, reactBridge} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
@@ -70,7 +69,6 @@ function makeActiveSessionBinding(): ActiveSessionBinding {
 
 type BootNormalConfig = {
   root: ShadowRoot
-  extensions: AnyExtension[]
   plugins: readonly PluginEntry[]
   settings: ConcivSettings
   apiBase: string
@@ -106,7 +104,6 @@ function bootNormal(config: BootNormalConfig): BootResult {
     history: createWebStorageHistory({storage}),
     environment: {rootNode: config.root, document},
     settings: config.settings,
-    extensions: config.extensions,
     plugins: config.plugins,
     connected: () => engineConnected(login.status()),
     grabProvider: config.grabProvider,
@@ -163,7 +160,6 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
 type BootServersConfig = {
   root: ShadowRoot
-  extensions: AnyExtension[]
   plugins: readonly PluginEntry[]
   settings: ConcivSettings
   grabProvider?: GrabProvider
@@ -184,7 +180,6 @@ function bootServers(config: BootServersConfig): BootResult {
     history: createMemoryHistory({initialEntries: [connectPath(config.settings)]}),
     environment: {rootNode: config.root, document},
     settings: config.settings,
-    extensions: config.extensions,
     plugins: config.plugins,
     servers: true,
     connected: deferred.bound,
@@ -210,14 +205,13 @@ function bootServers(config: BootServersConfig): BootResult {
 }
 
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
-  const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const plugins = init.plugins ?? []
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
   const engineToken = init.engineToken
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (!apiBase && plugins.length > 0) return bootServers({root, extensions, plugins, settings, grabProvider})
-  return bootNormal({root, extensions, plugins, settings, apiBase, grabProvider, engineToken})
+  if (!apiBase && plugins.length > 0) return bootServers({root, plugins, settings, grabProvider})
+  return bootNormal({root, plugins, settings, apiBase, grabProvider, engineToken})
 }
 
 function initSettings(init: ConcivInit): ConcivSettings {

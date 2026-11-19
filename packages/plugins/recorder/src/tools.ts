@@ -5,7 +5,8 @@ import {z} from 'zod'
 import {CaptureControl} from './capture-control.js'
 import type {ClientRingsInterface} from './rings.js'
 import type {RendererCacheInterface} from './renderer-cache.js'
-import {pullWindow} from './runtime.js'
+import {RecordingStore} from './recordings.js'
+import {MAX_SECONDS_BACK, pullWindow, renderRecording} from './runtime.js'
 
 const options = {namespace: 'recording', codemode: true}
 
@@ -18,6 +19,7 @@ const Keyframes = z.number().int().min(0).max(8).default(3)
 export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick<Context, 'tool'>) {
   const services = yield* Effect.context<ClientRingsInterface | RendererCacheInterface>()
   const control = yield* CaptureControl
+  const recordings = yield* RecordingStore
   const pull = (fromTs: number, toTs: number, keyframes: number) =>
     pullWindow(fromTs, toTs, keyframes).pipe(Effect.provideContext(services))
   yield* ctx.tool.transform((editor) => {
@@ -68,7 +70,10 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
       name: 'pull',
       description:
         'Pull the last N seconds of the on-demand page recording. Recording happens only while a requested recording is live, so data exists only during or after a recording_start; start one before acting. Returns a semantic action log plus keyframe screenshots.',
-      input: z.object({secondsBack: z.number().int().positive().max(600).default(60), keyframes: Keyframes}),
+      input: z.object({
+        secondsBack: z.number().int().positive().max(MAX_SECONDS_BACK).default(60),
+        keyframes: Keyframes,
+      }),
       output: z.string(),
       options,
       execute: ({secondsBack, keyframes}) =>
@@ -80,6 +85,24 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
           }
           return yield* pull(toTs - secondsBack * 1000, toTs, keyframes)
         }),
+    })
+    editor.add({
+      name: 'get',
+      description:
+        'Read a saved screen recording by its id. The user sends one as a screen recording note whose sentence names the id. Returns its semantic action log plus keyframe screenshots.',
+      input: z.object({recordingId: z.string().min(1).max(256), keyframes: Keyframes}),
+      output: z.string(),
+      options,
+      execute: ({recordingId, keyframes}) =>
+        recordings.get(recordingId).pipe(
+          Effect.flatMap((events) => renderRecording(events, keyframes).pipe(Effect.provideContext(services))),
+          Effect.catchTags({
+            RecorderRecordingExpired: () =>
+              Effect.fail(Tool.makeError({message: `the recording ${recordingId} has expired`})),
+            RecorderRecordingNotFound: () =>
+              Effect.fail(Tool.makeError({message: `there is no saved recording ${recordingId}`})),
+          }),
+        ),
     })
   })
 })

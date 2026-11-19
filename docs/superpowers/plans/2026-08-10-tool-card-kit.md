@@ -255,7 +255,7 @@
 
 - Modify: `packages/extensions/tanstack/src/tool/card-shared.tsx` (InspectionCard/ActionCard re-expressed on CardShell; CardRows/CardRow/CardNote -> NoteRow/kit rows; CardErrorBlock -> ErrorBlock) + 11 cards (ToolChip -> Chip pill); `packages/extensions/tanstack/src/tool/*/def.ts` files gain `meta.icon` + real `meta.label` entries (11 tools; labels written running/done per the existing page defs pattern)
 - Modify: `packages/extensions/recorder/src/tool/card.tsx` (danger div -> ErrorBlock; action rows -> NoteRow/Chip)
-- Modify: `packages/extensions/whiteboard/src/tool/canvas/card.tsx`, `comment/card.tsx`, `card-util.ts` (danger divs -> ErrorBlock; ToolChip -> Chip pill; toolPayload/failureOf folded into kit `parseResultPayload` extension for image+JSON, new export `parseResultMedia` in the kit returning `{json: unknown; imageUrl?: string}`; blessed `ResultImage` component in the kit for the img rendering)
+- Modify: the removed whiteboard extension's `src/tool/canvas/card.tsx`, `comment/card.tsx`, `card-util.ts` (danger divs -> ErrorBlock; ToolChip -> Chip pill; toolPayload/failureOf folded into kit `parseResultPayload` extension for image+JSON, new export `parseResultMedia` in the kit returning `{json: unknown; imageUrl?: string}`; blessed `ResultImage` component in the kit for the img rendering)
 - Create: `packages/ui-kit-chat/src/tools/primitives/result-media.ts` + `styled/result-image.tsx`
 - Test: extension card tests via testkit harness updated; tanstack/recorder suites green locally; whiteboard typecheck/lint only (CI-only suite)
 

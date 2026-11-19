@@ -19,7 +19,12 @@ function Body(): JSX.Element {
   return (
     <>
       {view.contents() ? (
-        <CodeBlock size="sm" maxHeight="log" file={{name: view.path() || 'file', contents: view.contents()}} />
+        <CodeBlock
+          size="sm"
+          chrome="file"
+          maxHeight="log"
+          file={{name: view.path() || 'file', contents: view.contents()}}
+        />
       ) : view.path() ? (
         <Chip kind="pill" value={`${view.path()}${view.range() ?? ''}`} />
       ) : (

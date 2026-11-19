@@ -1908,6 +1908,27 @@ describe('message articles', () => {
     {id: 'u3', role: 'user', parts: [{type: 'text', content: LONG_PROMPT}]},
     {id: 'a3', role: 'assistant', parts: [{type: 'text', content: 'The header is renamed.'}]},
     {id: 'u4', role: 'user', parts: [imagePart('before'), imagePart('after')]},
+    {id: 'a4', role: 'assistant', parts: [{type: 'text', content: 'Both screens are compared.'}]},
+    {
+      id: 'u5',
+      role: 'user',
+      parts: [{type: 'text', content: 'The user made the following comment regarding the header: make it blue'}],
+      metadata: {
+        displayText: '',
+        comments: [
+          {
+            type: 'note',
+            origin: 'grab',
+            label: 'Header',
+            icon: 'pointer',
+            subject: 'the header',
+            comment: 'make it blue',
+          },
+          {type: 'note', comment: 'a note with no origin'},
+        ],
+        attachments: [],
+      },
+    },
   ]
 
   function ArticleThread(): JSX.Element {
@@ -1936,10 +1957,12 @@ describe('message articles', () => {
       .element(article('Reply to: Fix the button in @src/button.tsx'))
       .toMatchTextContent('The button is fixed.')
     await expect.element(article('You: image')).toBeVisible()
-    await expect.element(article('Reply')).toMatchTextContent('That is the settings screen.')
+    await expect.element(article('Reply').filter({hasText: 'That is the settings screen.'})).toBeVisible()
+    await expect.element(article('Reply').filter({hasText: 'Both screens are compared.'})).toBeVisible()
     await expect.element(article(`You: ${excerpt}`)).toMatchTextContent(LONG_PROMPT)
     await expect.element(article(`Reply to: ${excerpt}`)).toMatchTextContent('The header is renamed.')
     await expect.element(article('You: 2 attachments')).toBeVisible()
-    await expect.element(page.getByRole('log').getByRole('article')).toHaveLength(7)
+    await expect.element(article('You: 1 note')).toBeInTheDocument()
+    await expect.element(page.getByRole('log').getByRole('article')).toHaveLength(9)
   })
 })

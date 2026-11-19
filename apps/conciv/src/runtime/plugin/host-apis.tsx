@@ -19,6 +19,7 @@ import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {useQuery} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import {writeClipboardText} from '@conciv/ui-kit-system'
+import type {ComposerContextValue} from '@conciv/ui-kit-chat'
 import {Conciv, type ClientConnectionStatus, type ConcivClient} from '@conciv/plugin'
 import {AbsolutePath} from '@conciv/plugin/schema/schema'
 import type {GrabApi} from '@conciv/plugin/experimental/grab'
@@ -96,7 +97,10 @@ type Attached = {
 }
 
 export type ComposerBinding = {
-  readonly composer: {readonly text: Accessor<string>; readonly setText: (value: string) => void}
+  readonly composer: {readonly text: Accessor<string>; readonly setText: (value: string) => void} & Pick<
+    ComposerContextValue,
+    'items' | 'addItem' | 'updateItem' | 'removeItem'
+  >
   readonly input: Accessor<ComposerInputHandle | undefined>
   readonly prompt: {readonly quotable: Accessor<boolean>; readonly focus: () => void; readonly focused: () => boolean}
 }
@@ -137,7 +141,9 @@ export function createHostApis() {
   const current = () => attached()
   const located = createLocatedWrites()
   const client = useAppData().client
-  const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
+  const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}), {
+    server: () => UNAVAILABLE,
+  })
 
   const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
   const engineStream = from<ClientConnectionStatus>((set) => {
@@ -410,6 +416,7 @@ export function createHostApis() {
     engine,
     grab,
     unavailableClient: (): ConcivClient => unavailable,
+    queryClient: useAppQueryClient(),
     whenMounted: (run: () => void) => write(() => run()),
     attach(value: Attached) {
       dispatchAttach({type: 'attach', attached: value})

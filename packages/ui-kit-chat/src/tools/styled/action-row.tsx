@@ -4,7 +4,7 @@ import {Button} from '@conciv/ui-kit-system'
 import {FOCUS} from '../../styled/classes.js'
 
 const actionButton = cva(
-  `flex-none inline-flex items-center gap-1 rounded-[var(--chat-radius-sm)] py-1 px-2.5 font-semibold text-[length:var(--chat-text-sm)] leading-none ${FOCUS}`,
+  `flex-none inline-flex items-center gap-1 rounded-chat-sm py-1 px-2.5 font-semibold text-[length:var(--chat-text-sm)] leading-none ${FOCUS}`,
   {
     variants: {
       intent: {

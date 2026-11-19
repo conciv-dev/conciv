@@ -8,7 +8,7 @@ export type TooltipIconButtonVariant = 'ghost' | 'solid'
 export type TooltipIconButtonSide = 'top' | 'bottom' | 'left' | 'right'
 
 const BASE =
-  'inline-flex items-center justify-center cursor-pointer trans-btn focus-ring disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]'
+  'inline-flex items-center justify-center [&_svg]:block [&_svg]:shrink-0 cursor-pointer trans-btn focus-ring disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]'
 
 const VARIANT: Record<TooltipIconButtonVariant, string> = {
   ghost: 'rounded-chat-surface-md bg-transparent text-chat-text-2 hover:text-chat-text hover:bg-chat-fill-strong',

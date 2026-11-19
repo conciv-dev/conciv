@@ -15,6 +15,7 @@ import {
   type DraftWriteChain,
 } from '../pane/draft-storage.js'
 import {becameTrusted} from './engine-login.js'
+import type {Notify} from '../shell/notices.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -41,7 +42,10 @@ export type LiveSessionsDeps = {
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
+  notify: Notify
 }
+
+const DRAFT_RETURN_FAILED = 'The queued message could not be put back in its draft.'
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>; dispose: () => void}
 
@@ -57,6 +61,7 @@ function clientWorking(chat: ChatSession): boolean {
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const keepDraft = makeDraftWriteChain()
+  const notifyReturnFailed = () => deps.notify(DRAFT_RETURN_FAILED, {tone: 'danger'})
   const [state, setState] = createStore<{
     openers: Accessor<string>[]
     runs: Record<string, RunWatch>
@@ -108,7 +113,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const returnLostQueue = (sessionId: string, session: ChatSession): void => {
     returnQueueToDraft(
       session,
-      state.paneDraftSinks[sessionId]?.queue ?? draftCacheSink(keepDraft, deps.appData, sessionId, appendDraft),
+      state.paneDraftSinks[sessionId]?.queue ??
+        draftCacheSink(keepDraft, deps.appData, sessionId, appendDraft, notifyReturnFailed),
     )
   }
 
@@ -217,7 +223,8 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       if (owner.queue().some((queued) => queued.id === item.id)) return
       putBackInDraft(
         [item],
-        state.paneDraftSinks[sessionId]?.steered ?? draftCacheSink(keepDraft, deps.appData, sessionId, prependDraft),
+        state.paneDraftSinks[sessionId]?.steered ??
+          draftCacheSink(keepDraft, deps.appData, sessionId, prependDraft, notifyReturnFailed),
       )
     },
   }

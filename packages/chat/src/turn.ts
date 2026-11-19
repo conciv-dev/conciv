@@ -9,9 +9,13 @@ import {
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
+import {
+  PromptPresentationSchema,
+  type AttachmentDocumentPart,
+  type ContentPart,
+  type ModelMessage,
+} from '@conciv/protocol/chat-message-types'
 import type {Turn, TurnHooks} from '@conciv/ai/server'
-import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isEqual, once} from 'es-toolkit'
 import {
@@ -249,10 +253,14 @@ function isBlank(message: ModelMessage): boolean {
   return !hasParts && readText(message).trim() === ''
 }
 
+function titleText(message: ModelMessage | undefined): string {
+  const display = PromptPresentationSchema.safeParse(message?.metadata)
+  if (!display.success) return readText(message).trim()
+  return display.data.displayText.trim() || display.data.comments[0]?.label.trim() || ''
+}
+
 export function firstUserTitle(messages: readonly ModelMessage[]): string {
-  return readText(messages.find((message) => message.role === 'user'))
-    .trim()
-    .slice(0, TITLE_MAX_CHARS)
+  return titleText(messages.find((message) => message.role === 'user')).slice(0, TITLE_MAX_CHARS)
 }
 
 async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {

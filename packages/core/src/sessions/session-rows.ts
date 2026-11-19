@@ -364,7 +364,11 @@ export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
             .where(
               and(
                 eq(drafts.sessionId, sessions.id),
-                or(ne(drafts.text, ''), sql`json_array_length(${drafts.attachments}) > 0`),
+                or(
+                  ne(drafts.text, ''),
+                  sql`json_array_length(${drafts.attachments}) > 0`,
+                  sql`json_array_length(${drafts.items}) > 0`,
+                ),
               ),
             ),
         ),

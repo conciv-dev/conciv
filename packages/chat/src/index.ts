@@ -35,7 +35,6 @@ import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, tur
 
 export {
   assistCapabilities,
-  registryCapabilities,
   toolDomainCapabilities,
   type CapabilityResult,
   type CodeCapability,

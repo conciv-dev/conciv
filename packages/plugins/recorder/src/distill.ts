@@ -101,3 +101,11 @@ export function distill(events: RrwebEvent[]): ActionLogEntry[] {
   }
   return log
 }
+
+export function recordingSummary(entries: ActionLogEntry[]): string {
+  const first = entries[0]?.ts ?? 0
+  const last = entries.at(-1)?.ts ?? first
+  const seconds = Math.max(0, Math.round((last - first) / 1000))
+  const word = new Intl.PluralRules('en').select(entries.length) === 'one' ? 'action' : 'actions'
+  return `${entries.length} ${word} · ${seconds}s`
+}

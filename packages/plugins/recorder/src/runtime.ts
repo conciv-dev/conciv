@@ -5,6 +5,8 @@ import {RendererCache} from './renderer-cache.js'
 import {distill} from './distill.js'
 import {pickKeyframeTimestamps, recordingParts} from './format.js'
 
+export const MAX_SECONDS_BACK = 600
+
 const renderFrames = Effect.fn('recorder.renderFrames')(function* (
   events: RrwebEvent[],
   log: ReturnType<typeof distill>,
@@ -21,6 +23,16 @@ const renderFrames = Effect.fn('recorder.renderFrames')(function* (
       ),
     )
   return Option.getOrElse(frames, () => [])
+})
+
+export const renderRecording = Effect.fn('recorder.renderRecording')(function* (
+  events: RrwebEvent[],
+  keyframeCount: number,
+) {
+  const fromTs = (events.at(-1)?.timestamp ?? 0) - MAX_SECONDS_BACK * 1000
+  const log = distill(events).filter((entry) => entry.ts >= fromTs)
+  const frames = yield* renderFrames(events, log, keyframeCount)
+  return recordingParts(log, frames, keyframeCount > 0)
 })
 
 export const pullWindow = Effect.fn('recorder.pullWindow')(function* (

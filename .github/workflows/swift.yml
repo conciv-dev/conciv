@@ -2,7 +2,7 @@ name: Swift
 
 # Required, path-filtered macOS conformance gate (plan 07 section 6, D15/M-A13). The
 # cross-language bridge contract is guaranteed TS-side and Swift-side symmetrically:
-# on PRs touching the bridge schema/fixtures (packages/extensions/ios) or the Swift
+# on PRs touching the bridge schema/fixtures (packages/plugins/ios) or the Swift
 # source (native/swift/ConcivWidget), run gen:fixtures + `git diff --exit-code` (the
 # in-repo drift gate, D2) then `swift build` + `swift test` from the NESTED manifest
 # (macOS host, conformance only - no simulator; the sim lane stays manual for v1).
@@ -44,7 +44,7 @@ jobs:
             exit 0
           fi
           changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
-          if echo "$changed" | grep -qE '^(packages/extensions/ios/|native/swift/ConcivWidget/)'; then
+          if echo "$changed" | grep -qE '^(packages/plugins/ios/|native/swift/ConcivWidget/)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -74,7 +74,7 @@ jobs:
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       # In-repo fixture drift gate (D2): regenerate the canonical fixtures + the Swift
       # committed copy, then fail if either drifted from what the PR checked in.
-      - run: pnpm --filter @conciv/extension-ios gen:fixtures
+      - run: pnpm --filter @conciv/plugin-ios gen:fixtures
       - run: git diff --exit-code
       # Nested manifest (no root Package.swift; the mirror repo is a release artifact).
       # Conformance only: compile + decode/roundtrip the committed fixtures on the host.
@@ -103,7 +103,7 @@ jobs:
             exit 1
           fi
           if [ "$DETECT_RUN" != "true" ]; then
-            echo "no packages/extensions/ios or native/swift changes; conformance gate not required"
+            echo "no packages/plugins/ios or native/swift changes; conformance gate not required"
             exit 0
           fi
           test "$SWIFT_RESULT" = "success"

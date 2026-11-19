@@ -54,8 +54,8 @@ const ActionLogEntrySchema = z.object({
 })
 
 const SaveOutput = z.union([
-  z.object({recordingId: z.string()}),
-  z.object({error: z.enum(['too-large', 'empty', 'io-error'])}),
+  z.object({saved: z.literal(true), recordingId: z.string(), summary: z.string()}),
+  z.object({saved: z.literal(false), error: z.enum(['too-large', 'empty', 'io-error'])}),
 ])
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -67,7 +67,11 @@ const VideoPieceOutput = z.strictObject({
   mime: z.literal('video/webm'),
 })
 
-const RecordingOutput = z.union([z.object({events: z.array(RrwebEventSchema)}), z.object({expired: z.literal(true)})])
+const RecordingOutput = z.discriminatedUnion('kind', [
+  z.object({kind: z.literal('found'), events: z.array(RrwebEventSchema)}),
+  z.object({kind: z.literal('expired')}),
+  z.object({kind: z.literal('missing')}),
+])
 
 export const Recorder = Rpc.define({
   id: 'recorder',
@@ -86,7 +90,12 @@ export const Recorder = Rpc.define({
     'recordings.exportVideo': {
       input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
       output: VideoPieceOutput,
-      errors: {expired: z.undefined(), 'render-failed': z.undefined(), unreadable: z.undefined()},
+      errors: {
+        expired: z.undefined(),
+        missing: z.undefined(),
+        'render-failed': z.undefined(),
+        unreadable: z.undefined(),
+      },
     },
   },
   events: {

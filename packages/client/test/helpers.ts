@@ -1,14 +1,11 @@
 import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
-import type {AnyExtension} from '@conciv/extension'
 import {makeApp} from '@conciv/core/app'
 
 export type ClientKit = Kit & {harness: FakeHarness; gate: {hold: () => void; release: () => void}}
 
 type AppPlugins = Parameters<typeof makeApp>[0]['plugins']
 
-export async function bootClientKit(
-  opts: {extensions?: AnyExtension[]; plugins?: AppPlugins} = {},
-): Promise<ClientKit> {
+export async function bootClientKit(opts: {plugins?: AppPlugins} = {}): Promise<ClientKit> {
   const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
   const kit = await createTestkit(harness, async (env) => {
     const {fetch, dispose, agentToken, awaitActivation} = await makeApp({
@@ -29,7 +26,6 @@ export async function bootClientKit(
       cwd: env.cwd,
       openInEditor: () => {},
       harness: env.harness,
-      extensions: opts.extensions,
       plugins: opts.plugins,
     })
     await awaitActivation()

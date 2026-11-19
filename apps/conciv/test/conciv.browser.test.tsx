@@ -67,7 +67,9 @@ import {
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
 import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
-import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
+import {composerDraftSink, paneAttachments, putBackInDraft, returnQueueToDraft} from '../src/pane/pane-attachments.js'
+import {formatNoteComment, noteComment, promptWithNotes} from '../src/composer/comment-note.js'
+import {contextItemKey} from '../src/composer/note-schema.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
@@ -492,6 +494,10 @@ describe('attachment widget', () => {
     await expect
       .element(composerChips.getByRole('button', {name: 'Failed to render crash-attachment'}), {timeout: 2000})
       .toBeVisible()
+    await composerChips.getByRole('button', {name: 'Remove crashing.bin'}).click()
+    await expect
+      .element(composerChips.getByRole('button', {name: 'Failed to render crash-attachment'}))
+      .not.toBeInTheDocument()
     expect(crash.mock.calls.filter((call) => call[0] === '[conciv] extension "crash-attachment" crashed').length).toBe(
       2,
     )
@@ -662,15 +668,16 @@ describe('chat pane', () => {
     }
     const mount = mountPane({base: core(), sessionId}, () => <></>)
     active.pane = mount
-    const sink = draftCacheSink(mount.keepDraft, mount.data, sessionId, appendDraft)
+    const sink = draftCacheSink(mount.keepDraft, mount.data, sessionId, appendDraft, () => undefined)
+    const insert = (text: string) => sink({text, files: [], items: []})
 
-    sink.insert('returned and saved')
+    insert('returned and saved')
     await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId, text: 'returned and saved'})
     const saved = await rpc.drafts.get({sessionId})
     await expect.poll(readLocalCopy).toMatchObject({text: 'returned and saved', syncedAt: saved?.updatedAt, sent: []})
 
     await faults.install({kind: 'fail', path: ['drafts', 'set'], status: 400})
-    sink.insert('returned and refused')
+    insert('returned and refused')
     await expect
       .poll(readLocalCopy)
       .toMatchObject({text: 'returned and saved\nreturned and refused', syncedAt: saved?.updatedAt, sent: []})
@@ -2771,6 +2778,9 @@ describe('grab staging', () => {
     await expect.element(snapshot()).toBeVisible()
     await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([HERO_GRAB.text])
+
+    await userEvent.hover(page.getByRole('button', {name: 'Open grabbed element'}))
+    await expect.element(removeGrab()).toBeVisible()
 
     api.clear()
 
@@ -6066,16 +6076,54 @@ describe('queue strip', () => {
         </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
-    const sink = {
+    const sink = composerDraftSink({
       insert: (text: string) => inputs[0]?.append(text),
       addFile: (file: File) => void attached.push(file),
-    }
+      addItem: () => {},
+    })
     const stop = () => {
       returnQueueToDraft(session, sink)
       return session.stop()
     }
     return {session, stop, attached}
   }
+
+  const item = {
+    type: 'note' as const,
+    origin: 'fixture',
+    commentId: 'c1',
+    label: 'Fixture note',
+    icon: 'terminal',
+    subject: 'the fixture subject',
+    comment: ' make it blue ',
+  }
+
+  test('a queued message whose typed text reads as its note sentence comes back with that text', () => {
+    const sentence = formatNoteComment(noteComment(item, 'make it blue'))
+    const image = {
+      type: 'image' as const,
+      source: {type: 'data' as const, value: btoa('png'), mimeType: 'image/png'},
+    }
+    const draft = {draft: sentence, attachments: [], quote: null, items: [{key: contextItemKey(item), value: item}]}
+    const content = promptWithNotes({content: [{type: 'text', content: sentence}, image]}, draft)
+    if (typeof content === 'string') throw new Error('expected the notes to make structured content')
+    const inserted: string[] = []
+    const files: string[] = []
+    const notes: string[] = []
+
+    putBackInDraft(
+      [{id: 'q1', content, createdAt: 0}],
+      composerDraftSink({
+        insert: (text) => inserted.push(text),
+        addFile: (file) => files.push(file.type),
+        addItem: (entry) => notes.push(entry.key.split(':c=')[0] ?? ''),
+      }),
+    )
+
+    expect(inserted).toEqual([sentence])
+    expect(files).toEqual(['image/png'])
+    expect(notes).toEqual(['note:fixture'])
+  })
 })
 
 describe('quick add pane', () => {
@@ -6440,6 +6488,30 @@ describe('a deleted session', () => {
 
     await expect.element(editor().getByText(KEPT), {timeout: 8000}).toBeVisible()
     expect(await readLocalCopy(deletedId)).toBeNull()
+  }, 40_000)
+
+  test('New session shows the moved text while the engine is still clearing the deleted session draft', async () => {
+    const MOVED = 'moved while the engine clears'
+    const readLocalCopy = (sessionId: string) => createBrowserDraftStore().getItem(sessionId)
+    const rpc = coreRpc(core())
+    const deletedId = await createSession(rpc)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await seedDraft(rpc, deletedId, {text: MOVED})
+    harness.mountShell(`/panel/${deletedId}?open=true`)
+    await expect.element(movesLine(), {timeout: 8000}).toBeVisible()
+    const clear = await faults.install({kind: 'gate', path: ['drafts', 'set'], input: {sessionId: deletedId, text: ''}})
+
+    await userEvent.click(newSessionButton())
+    await coreControl.awaitFaultPending(clear, 1)
+
+    await expect.element(editor().getByText(MOVED), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).not.toBe(`/panel/${deletedId}`)
+    expect(await readLocalCopy(deletedId)).toBeNull()
+
+    await coreControl.releaseFault(clear)
+    await coreControl.awaitFaultAnswered(clear)
+
+    expect(await rpc.drafts.get({sessionId: deletedId})).toEqual(expect.objectContaining({text: ''}))
   }, 40_000)
 
   test('text kept only in this browser moves with New session, and the deleted session keeps no local copy', async () => {
@@ -8624,13 +8696,13 @@ describe('plugin enable state', () => {
   const coreBase = bootedCore('plugin-enable-state')
 
   test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
-    const store = createManager(Conciv.make(coreRpc(coreBase())), [])
+    const store = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     const fresh = await store.read()
     expect(fresh).toEqual([])
     expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
     expect(await store.enabled('y')).toBe(true)
 
-    const follower = createManager(Conciv.make(coreRpc(coreBase())), [])
+    const follower = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     const followed: (readonly EnableState[])[] = []
     onTestFinished(follower.on((state) => followed.push(state)))
     await expect.poll(() => followed.at(-1)).toEqual([])
@@ -8648,7 +8720,7 @@ describe('plugin enable state', () => {
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
 
     await store.setEnabled('x', false)
-    const reloaded = createManager(Conciv.make(coreRpc(coreBase())), [])
+    const reloaded = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
     expect(await reloaded.enabled('x')).toBe(false)
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
@@ -8716,7 +8788,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base, builtins})
+  return createBundleSource({client: Conciv.make(coreRpc(base), {server: () => base}), apiBase: () => base, builtins})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
@@ -9067,6 +9139,103 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
     await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+  }, 30_000)
+})
+
+describe('a plugin view reads through the host query cache', () => {
+  const tallyDefinition = `{
+  id: 'tally',
+  methods: {
+    count: {input: {type: 'object'}, output: {type: 'object'}},
+    bump: {input: {type: 'object'}, output: {type: 'object'}},
+  },
+  events: {bumped: {schema: {type: 'object'}}},
+}`
+  const tallyEngine = `const Tally = ${tallyDefinition}
+export default {
+  id: 'tally',
+  async setup(ctx) {
+    const tally = {count: 0}
+    const registration = await ctx.rpc.register(Tally, {
+      count: async () => ({count: tally.count}),
+      bump: async () => {
+        tally.count += 1
+        await registration.events.emit('bumped', {count: tally.count})
+        return {count: tally.count}
+      },
+    })
+  },
+}
+`
+  const tallyBundle = `const {Panel} = require('@conciv/plugin/experimental')
+const {useMutation, useQuery, useQueryClient} = require('@conciv/client')
+const {createComponent, insert} = require('solid-js/web')
+const Tally = ${tallyDefinition}
+module.exports = {default: {setup(ctx) {
+  const tally = () => ctx.client.rpc(Tally)
+  const queryClient = useQueryClient()
+  tally().events.on('bumped', () => queryClient.invalidateQueries({queryKey: tally().count.key()}), {signal: ctx.signal})
+  function TallyView() {
+    const count = useQuery(() => tally().count.queryOptions({input: {}}))
+    const bump = useMutation(() => tally().bump.mutationOptions())
+    const canvas = useQuery(() => ({queryKey: ['plugin', 'tally', 'canvas'], queryFn: async () => () => 'Tally canvas, first revision'}))
+    const body = document.createElement('div')
+    const shown = document.createElement('p')
+    const drawn = document.createElement('p')
+    insert(shown, () => (count.isSuccess ? 'Tally ' + count.data.count : 'Counting'))
+    insert(drawn, () => (canvas.isSuccess ? canvas.data() : 'Drawing'))
+    insert(body, [createComponent(ctx.ui.Button, {onClick: () => bump.mutate({}), children: 'Bump the tally'}), shown, drawn, Object.assign(document.createElement('p'), {textContent: 'Tally view, first revision'})])
+    return body
+  }
+  ctx.add(Panel, {
+    id: 'tally',
+    region: 'pane',
+    list: () => [{id: 'tally', title: 'Tally', pinned: true}],
+    render: () => createComponent(TallyView, {}),
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-view-query', {
+    plugins: ['./tally'],
+    files: {'tally/index.ts': tallyEngine, 'tally/plugin-experimental.js': tallyBundle},
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin view reads its engine method through queryOptions, writes through mutationOptions, and shows the fresh value each time the engine announces a change', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const tab = page.getByRole('tab', {name: 'Tally', exact: true})
+    await expect.element(tab, {timeout: 15_000}).toBeVisible()
+    await tab.click()
+    await expect.element(page.getByText('Tally 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Bump the tally', exact: true}).click()
+    await expect.element(page.getByText('Tally 1', {exact: true})).toBeVisible()
+
+    await rpc.plugin.call({rpcId: 'tally', method: 'bump', input: {}})
+    await expect.element(page.getByText('Tally 2', {exact: true})).toBeVisible()
+  }, 30_000)
+
+  test("a reloaded plugin runs its new revision's code, not the old revision's cached in the host's query cache", async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const tab = page.getByRole('tab', {name: 'Tally', exact: true})
+    await expect.element(tab, {timeout: 15_000}).toBeVisible()
+    await tab.click()
+    await expect.element(page.getByText('Tally canvas, first revision', {exact: true})).toBeVisible()
+
+    await coreControl.writeProjectFile(
+      'tally/plugin-experimental.js',
+      tallyBundle.replaceAll('first revision', 'second revision'),
+    )
+    await expect.element(page.getByText('Tally view, second revision', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Tally canvas, second revision', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Tally canvas, first revision', {exact: true})).not.toBeInTheDocument()
   }, 30_000)
 })
 
@@ -10979,7 +11148,7 @@ describe('installed plugins in settings', () => {
 describe('a fixture plugin driven like a user', () => {
   const PLUGIN_CALL = ['plugin', 'call']
 
-  const fixtureBundle = `const {Panel, SettingsPage, Slot, Store, ToolRegistry, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {NoteCard, Panel, SettingsPage, Slot, Store, ToolRegistry, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent, insert} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
@@ -11001,6 +11170,18 @@ module.exports = {default: {stores: {
       const card = document.createElement('p')
       insert(card, () => (props.status === 'completed' ? 'Fixture drew ' + JSON.parse(props.output).drawn : 'Fixture probe ' + props.status))
       return card
+    },
+  })
+  const fixtureNote = (commentId, comment) =>
+    ({type: 'note', origin: 'fixture', commentId, label: 'Fixture note', icon: 'terminal', subject: 'the fixture subject', comment})
+  const drawnNote = (commentId, comment) =>
+    ({type: 'note', origin: 'fixture-drawn', commentId, label: 'Drawn note', icon: 'pencil', subject: 'a drawn subject', comment})
+  ctx.add(NoteCard, {
+    origins: ['fixture-drawn'],
+    render: (props) => {
+      if (props.note.comment.startsWith('a card it declines')) return undefined
+      if (props.note.comment === 'a card that throws') throw new Error('the fixture card failed')
+      return Object.assign(document.createElement('p'), {textContent: 'Fixture card: ' + props.note.comment})
     },
   })
   const engineLine = document.createElement('p')
@@ -11057,6 +11238,28 @@ module.exports = {default: {stores: {
       ),
       button('Open the fixture dialog', first),
       button('Write a plain note', () => props.screen.composer.insert('plain note')),
+      button('Attach two notes', () => {
+        props.screen.composer.attach(fixtureNote('c1', 'the first comment'))
+        props.screen.composer.attach(fixtureNote('c1', 'a second comment'))
+        props.screen.composer.attach(fixtureNote('c2', 'the other comment'))
+        props.screen.composer.insert('noted')
+      }),
+      button('Attach six notes', () => {
+        for (const index of [1, 2, 3, 4, 5, 6]) props.screen.composer.attach(fixtureNote('s' + index, 'note number ' + index))
+        props.screen.composer.insert('six notes')
+      }),
+      button('Attach six notes alone', () => {
+        for (const index of [1, 2, 3, 4, 5, 6]) props.screen.composer.attach(fixtureNote('a' + index, 'alone note ' + index))
+      }),
+      button('Attach drawn notes', () => {
+        props.screen.composer.attach(drawnNote('d1', 'a card it draws'))
+        props.screen.composer.attach(drawnNote('d2', 'a card it declines'))
+        props.screen.composer.attach(drawnNote('d3', 'a card that throws'))
+      }),
+      button('Make the failed card decline', () => props.screen.composer.update('d3', {comment: 'a card it declines, then draws'})),
+      button('Make the declined card draw', () => props.screen.composer.update('d3', {comment: 'a card drawn on change'})),
+      button('Change the first note', () => props.screen.composer.update('c1', {comment: 'the changed comment'})),
+      button('Detach the other note', () => props.screen.composer.detach('c2')),
       button('Open the listed tab', () => ctx.layout.open('fixture:opened', props.session)),
       button('Open the old tab', () => ctx.layout.open('fixture:old', props.session)),
       button('Open an unlisted tab', () => ctx.layout.open('fixture:missing', props.session)),
@@ -11243,6 +11446,10 @@ module.exports = {default: {stores: {
     at: 'window.bottom',
     render: () => button('Write a held note', () => ctx.screen.current()?.composer.insert(' held note')),
   })
+  ctx.add(Slot, {
+    at: 'window.bottom',
+    render: () => button('Attach a held note', () => ctx.screen.current()?.composer.attach(fixtureNote('h1', 'the held comment'))),
+  })
   const [hidingOverlay, setHidingOverlay] = createSignal(false)
   ctx.add(Slot, {at: 'window.bottom', render: () => button('Open the hiding overlay', () => setHidingOverlay(true))})
   ctx.add(Slot, () =>
@@ -11296,6 +11503,7 @@ module.exports = {default: {setup(ctx) {
 `,
   )
   const coreBase = bootedCore('plugin-fixture-journey', {
+    text: 'the fixture reply',
     plugins: ['./fixture', './fragile'],
     files: {
       'fixture/index.ts': `export default {id: 'fixture', async setup() {}}
@@ -11316,6 +11524,26 @@ module.exports = {default: {setup(ctx) {
   const dialog = (name: string) => page.getByRole('dialog', {name, exact: true})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const openedContent = () => page.getByText('The opened tab content', {exact: true})
+  const notes = () => page.getByRole('list', {name: 'Notes'})
+  const card = (text: string) => notes().getByRole('listitem').filter({hasText: text})
+  const sentLists = () => page.getByRole('list', {name: 'Notes on this message'})
+  const sentCard = (text: string) => sentLists().getByRole('listitem').filter({hasText: text}).first()
+  const sentence = () => page.getByText(/The user made the following comment/)
+  const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
+  const typed = (text: string) => chatPanel().getByText(text, {exact: true}).first()
+  const readAsked = async (sessionId: string) =>
+    (await coreRpc(coreBase()).chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+  const titleButton = (title: string) =>
+    page.getByRole('banner').getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+  const switchTo = async (from: string, to: string) => {
+    await titleButton(from).click()
+    await page
+      .getByRole('dialog', {name: 'Session options'})
+      .getByRole('button', {name: `Session: ${from}`})
+      .click()
+    await page.getByRole('option', {name: new RegExp(`^${to},`)}).click()
+    await expect.element(titleButton(to), {timeout: 8000}).toBeVisible()
+  }
 
   test('its engine ref reads the event connection: down while the engine is offline, up again when it returns, and a keyed run attaches again', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -11413,6 +11641,457 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).toBe(`${draftedPath}/settings/plugins/${encodeURIComponent('fixture:prefs')}`)
   }, 60_000)
 
+  test('its notes go from the composer cards to the sent message and stay after a reload', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    const staged = (commentId: string, comment: string) => ({
+      key: `note:fixture:c=${commentId}`,
+      value: {
+        type: 'note',
+        origin: 'fixture',
+        commentId,
+        label: 'Fixture note',
+        icon: 'terminal',
+        subject: 'the fixture subject',
+        comment,
+      },
+    })
+    const sentNote = (origin: string, label: string, icon: string, subject: string, comment: string) => ({
+      type: 'note',
+      origin,
+      label,
+      icon,
+      subject,
+      comment,
+    })
+    const savedOnChat = async () => {
+      const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+      await tab('Chat').click()
+      await expect.element(editor()).toHaveTextContent('noted')
+      await coreControl.awaitFaultPending(write, 1)
+      await coreControl.releaseFault(write)
+      await coreControl.awaitFaultAnswered(write)
+      return rpc.drafts.get({sessionId})
+    }
+    const title = () => page.getByLabelText('Session: noted', {exact: true})
+    const refused = await faults.install({kind: 'chat-refused', status: 500})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+
+    await control('Attach two notes').click()
+    expect(await savedOnChat()).toMatchObject({
+      text: 'noted',
+      items: [staged('c1', 'the first comment'), staged('c2', 'the other comment')],
+    })
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
+
+    await tab('Fixture tools').click()
+    await control('Change the first note').click()
+    await control('Detach the other note').click()
+    expect(await savedOnChat()).toMatchObject({text: 'noted', items: [staged('c1', 'the changed comment')]})
+    await expect.element(card('the changed comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment')).not.toBeInTheDocument()
+
+    await tab('Fixture tools').click()
+    await control('Attach drawn notes').click()
+    await tab('Chat').click()
+    await expect.element(card('Fixture card: a card it draws')).toBeVisible()
+    await expect.element(card('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
+    await expect.element(card('a card that throws').getByText('Drawn note', {exact: true})).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Make the failed card decline').click()
+    await tab('Chat').click()
+    await expect.element(card('a card it declines, then draws').getByText('Drawn note', {exact: true})).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Make the declined card draw').click()
+    await tab('Chat').click()
+    await expect.element(card('Fixture card: a card drawn on change')).toBeVisible()
+    await card('a card drawn on change').getByRole('button', {name: 'Remove a card drawn on change'}).click()
+    await expect.element(card('a card drawn on change')).not.toBeInTheDocument()
+    await expect.element(notes().getByRole('listitem').nth(2)).toBeVisible()
+    await expect.element(notes().getByRole('listitem').nth(3)).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
+
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(page.getByRole('region', {name: /Notifications/}))
+      .toMatchTextContent(/Internal Server Error|could not be sent/)
+    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(card('the changed comment')).toBeVisible()
+    await expect.element(card('Fixture card: a card it draws')).toBeVisible()
+    await expect.element(card('a card it declines')).toBeVisible()
+
+    await coreControl.releaseFault(refused)
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    await expect.element(notes()).not.toBeInTheDocument()
+    const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+    expect(asked).toHaveLength(1)
+    expect(asked[0]).toMatchObject({
+      parts: [
+        {
+          type: 'text',
+          content: [
+            'noted',
+            'The user made the following comment regarding the fixture subject: the changed comment',
+            'The user made the following comment regarding a drawn subject: a card it draws',
+            'The user made the following comment regarding a drawn subject: a card it declines',
+          ].join('\n'),
+        },
+      ],
+      metadata: {
+        displayText: 'noted',
+        comments: [
+          sentNote('fixture', 'Fixture note', 'terminal', 'the fixture subject', 'the changed comment'),
+          sentNote('fixture-drawn', 'Drawn note', 'pencil', 'a drawn subject', 'a card it draws'),
+          sentNote('fixture-drawn', 'Drawn note', 'pencil', 'a drawn subject', 'a card it declines'),
+        ],
+        attachments: [],
+      },
+    })
+    await expect.element(typed('noted')).toBeVisible()
+    await expect.element(title()).toBeInTheDocument()
+    await expect.element(sentence()).not.toBeInTheDocument()
+    await expect.element(sentCard('the changed comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
+    await expect.element(sentCard('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
+
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(sentCard('alone note 6')).toBeVisible()
+    await expect
+      .element(page.getByRole('article', {name: 'You: 6 notes', exact: true}))
+      .toMatchTextContent(/alone note 1[\s\S]*alone note 6/)
+
+    await tab('Fixture tools').click()
+    await control('Attach six notes').click()
+    await tab('Chat').click()
+    await expect.element(editor()).toHaveTextContent('six notes')
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(typed('six notes')).toBeVisible()
+    await expect.element(sentLists().last().getByRole('listitem').nth(5)).toBeVisible()
+    await expect.element(sentCard('note number 6')).toBeVisible()
+    await expect
+      .element(sentLists().last().getByRole('listitem').first().getByText('note number 1', {exact: true}))
+      .toBeVisible()
+
+    const fileShown = (body: string) => chatPanel().getByRole('article').getByText(new RegExp(body)).first()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await coreControl.chooseFiles('Add an attachment', [
+      {name: 'typed.txt', mimeType: 'text/plain', text: 'the typed file body'},
+    ])
+    await expect.element(page.getByRole('button', {name: 'Remove typed.txt'})).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(sentCard('the other comment')).toBeVisible()
+    await expect.element(fileShown('the typed file body')).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await coreControl.chooseFiles('Add an attachment', [
+      {name: 'alone.txt', mimeType: 'text/plain', text: 'the lone file body'},
+    ])
+    await expect.element(page.getByRole('button', {name: 'Remove alone.txt'})).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(fileShown('the lone file body')).toBeVisible()
+    await expect.element(sentence()).not.toBeInTheDocument()
+    await expect
+      .poll(async () =>
+        (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user').at(-1),
+      )
+      .toMatchObject({
+        parts: [
+          {type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body\n\nThe user /)},
+        ],
+        metadata: {comments: {length: 6}},
+      })
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(typed('six notes'), {timeout: 15_000}).toBeVisible()
+    await expect.element(fileShown('the typed file body')).toBeVisible()
+    await expect.element(fileShown('the lone file body')).toBeVisible()
+    await expect.element(typed('noted')).toBeVisible()
+    await expect.element(title()).toBeInTheDocument()
+    await expect.element(sentence()).not.toBeInTheDocument()
+    await expect.element(sentCard('the changed comment')).toBeVisible()
+    await expect.element(sentCard('a card it draws')).toHaveTextContent('Fixture card: a card it draws')
+    await expect.element(sentCard('a card it declines').getByText('Drawn note', {exact: true})).toBeVisible()
+    await expect.element(sentCard('note number 5')).toBeVisible()
+    await expect.element(sentCard('note number 6')).toBeVisible()
+    await expect.element(sentCard('alone note 6')).toBeVisible()
+
+    const aloneId = await createSession(rpc)
+    harness.dispose()
+    harness.mountShell(`${tabPath(aloneId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach six notes alone'), {timeout: 15_000}).toBeVisible()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(sentCard('alone note 6')).toBeVisible()
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    await expect.element(page.getByLabelText('Session: Fixture note', {exact: true})).toBeInTheDocument()
+    await expect.element(page.getByLabelText(/^Session: The user referenced/)).not.toBeInTheDocument()
+  }, 90_000)
+
+  test('its notes written while the draft still loads stay with that session when the user switches to another', async () => {
+    const NOTED = 'the noted session'
+    const OTHER = 'the session switched to'
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: NOTED})
+    const savedItems = async (id: string) => (await rpc.drafts.get({sessionId: id}))?.items.length ?? 0
+    const restore = await faults.install({kind: 'gate', path: ['drafts', 'get'], input: {sessionId}})
+    const threeNotes = await faults.install({
+      kind: 'gate',
+      path: ['drafts', 'set'],
+      input: {sessionId, items: [{}, {}, {}]},
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(restore, 1)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await control('Attach a held note').click()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+
+    await switchTo(NOTED, OTHER)
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+    await coreControl.releaseFault(restore)
+    await coreControl.awaitFaultPending(threeNotes, 1)
+    await coreControl.releaseFault(threeNotes)
+    await coreControl.awaitFaultAnswered(threeNotes)
+    expect(await savedItems(sessionId)).toBe(3)
+    await tab('Chat').click()
+    await expect.element(editor()).toBeVisible()
+    await expect.element(editor()).not.toHaveTextContent('noted')
+    await expect.element(notes()).not.toBeInTheDocument()
+    expect(await savedItems(otherId)).toBe(0)
+
+    await switchTo(OTHER, NOTED)
+    await tab('Chat').click()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the held comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+  }, 60_000)
+
+  test('its notes written while the draft still loads never replace a saved draft that could not be read', async () => {
+    const SAVED = 'the session with an unread draft'
+    const OTHER = 'the session left open meanwhile'
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: SAVED})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'the earlier draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+      items: [],
+      updatedAt: Date.now(),
+    })
+    const restore = await faults.install({kind: 'cut-on-release', path: ['drafts', 'get']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(restore, 1)
+    await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+
+    await switchTo(SAVED, OTHER)
+    await coreControl.releaseFault(restore)
+    await tab('Chat').click()
+    await expect.element(editor()).toBeVisible()
+    await switchTo(OTHER, SAVED)
+    await tab('Chat').click()
+    await expect.element(editor(), {timeout: 8000}).toHaveTextContent('the earlier draft')
+    expect(await rpc.drafts.get({sessionId})).toMatchObject({text: 'the earlier draft'})
+  }, 60_000)
+
+  test('its notes come back to the composer as notes, with the typed text, whenever a draft is put back', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const queued = () => page.getByRole('button', {name: 'Remove from queue'})
+    const firstSentence = 'The user made the following comment regarding the fixture subject: the first comment'
+    const otherSentence = 'The user made the following comment regarding the fixture subject: the other comment'
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+
+    await coreControl.holdTurn()
+    await tab('Chat').click()
+    await userEvent.click(editor())
+    await userEvent.keyboard('first turn{Enter}')
+    await expect.element(stopButton()).toBeVisible()
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(queued()).toBeVisible()
+    await expect.element(notes()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('listitem').filter({has: queued()})).toMatchTextContent(/noted/)
+    await expect.element(page.getByRole('listitem').filter({has: queued()})).not.toMatchTextContent(/The user made/)
+    await stopButton().click()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(editor()).not.toMatchTextContent(/The user made/)
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(queued()).not.toBeInTheDocument()
+
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(stopButton()).toBeVisible()
+    await coreControl.releaseTurn()
+    await expect.element(sentCard('the other comment')).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    const asked = await readAsked(sessionId)
+    expect(asked).toHaveLength(2)
+    expect(asked[1]).toMatchObject({
+      parts: [{type: 'text', content: ['noted', firstSentence, otherSentence].join('\n')}],
+      metadata: {displayText: 'noted'},
+    })
+
+    const rpc = coreRpc(coreBase())
+    const deletedId = await createSession(rpc)
+    harness.dispose()
+    harness.mountShell(`${tabPath(deletedId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+    const carriedWrite = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await coreControl.awaitFaultPending(carriedWrite, 1)
+    await coreControl.releaseFault(carriedWrite)
+    await coreControl.awaitFaultAnswered(carriedWrite)
+    await rpc.sessions.delete({sessionId: deletedId})
+    await expect.element(page.getByText('This session was deleted.', {exact: true}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('Your draft moves to the new session.', {exact: true})).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'New session', exact: true}))
+    await expect.element(card('the first comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment')).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+    expect(harness.pathname()).not.toMatch(deletedId)
+
+    const carriedNote = {
+      type: 'note',
+      origin: 'fixture',
+      commentId: 'carried',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment: 'the carried comment',
+    }
+
+    const brokenId = await createSession(rpc)
+    const sendButton = () => page.getByRole('button', {name: 'Send message'})
+    await rpc.drafts.set({
+      sessionId: brokenId,
+      text: '',
+      selectionStart: 0,
+      selectionEnd: 0,
+      attachments: [],
+      items: [
+        {key: 'note:broken', value: {type: 'note', comment: 'a note with no origin'}},
+        {key: 'note:fixture:c=kept', value: {...carriedNote, commentId: 'kept', comment: 'the kept comment'}},
+      ],
+      updatedAt: Date.now(),
+    })
+    harness.dispose()
+    harness.mountShell(`/panel/${brokenId}?open=true`)
+    await expect.element(card('the kept comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(sendButton()).toBeEnabled()
+    await card('the kept comment').getByRole('button', {name: 'Remove the kept comment'}).click()
+    await expect.element(card('the kept comment')).not.toBeInTheDocument()
+    await expect.element(notes()).not.toBeInTheDocument()
+    await expect.element(sendButton()).toBeDisabled()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('after the broken note{Enter}')
+    await expect.element(page.getByText('the fixture reply')).toBeVisible()
+    const brokenAsked = await readAsked(brokenId)
+    expect(brokenAsked).toHaveLength(1)
+    expect(brokenAsked[0]).toMatchObject({parts: [{type: 'text', content: 'after the broken note'}]})
+
+    await tab('Fixture tools').click()
+    await control('Attach six notes alone').click()
+    await tab('Chat').click()
+    await expect.element(card('alone note 6')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveTextContent('/model')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('textbox', {name: 'Search models'})).toHaveFocus()
+    await expect.element(editor()).not.toHaveTextContent()
+    await expect.element(card('alone note 1')).toBeVisible()
+    await expect.element(card('alone note 6')).toBeVisible()
+    expect(await readAsked(brokenId)).toHaveLength(1)
+
+    const returningId = await createSession(rpc)
+    const awayId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: returningId, title: 'the returning session'})
+    await rpc.sessions.rename({sessionId: awayId, title: 'the session away'})
+    const refusedSave = await faults.install({kind: 'fail', path: ['drafts', 'set'], status: 500})
+    const cut = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    harness.dispose()
+    harness.mountShell(`${tabPath(returningId, 'fixture:tools')}?open=true`)
+    await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
+    await tab('Chat').click()
+    await userEvent.click(editor())
+    await userEvent.keyboard('a turn that breaks{Enter}')
+    await coreControl.awaitFaultPending(cut, 1)
+    await tab('Fixture tools').click()
+    await control('Attach two notes').click()
+    await tab('Chat').click()
+    await expect.element(card('the other comment')).toBeVisible()
+    await userEvent.click(editor())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(queued()).toBeVisible()
+    await switchTo('the returning session', 'the session away')
+    await coreControl.releaseFault(cut)
+    await switchTo('the session away', 'the returning session')
+    await expect.element(card('the first comment'), {timeout: 8000}).toBeVisible()
+    await expect.element(card('the first comment').getByText('Fixture note', {exact: true})).toBeVisible()
+    await expect.element(card('the other comment')).toBeVisible()
+    await expect.element(editor()).toHaveTextContent('noted')
+    await expect.element(editor()).not.toMatchTextContent(/The user made/)
+    const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
+    const savedDrafts = await coreControl.rpcCallCount(['drafts', 'set'])
+    await runClockPastDraftSaveRetries(unsaved)
+    expect(await rpc.drafts.get({sessionId: returningId})).toBeNull()
+    await coreControl.releaseFault(refusedSave)
+    await userEvent.click(unsaved.getByRole('button', {name: 'Retry'}))
+    await expect.element(unsaved).not.toBeInTheDocument()
+    await coreControl.rpcStartedOnceServed(['drafts', 'set'], savedDrafts + 1, [])
+    expect(await rpc.drafts.get({sessionId: returningId})).toMatchObject({
+      text: 'noted',
+      items: [{value: {comment: 'the first comment'}}, {value: {comment: 'the other comment'}}],
+    })
+  }, 90_000)
+
   describe('its ctx.ui.Popover', () => {
     const textbox = (name: string) => page.getByRole('textbox', {name, exact: true})
 
@@ -11478,6 +12157,49 @@ module.exports = {default: {setup(ctx) {
         .element(tooltip.getByText('Reviewed in full by Ada Lovelace and Alan Turing', {exact: true}))
         .toBeVisible()
       await expect.element(tooltip.getByText('Both reviewers signed off', {exact: true})).toBeVisible()
+    })
+  })
+
+  describe('its ctx.ui.Menu radio and checkbox entries', () => {
+    test("a radio entry and a checkbox entry stay checked, and the app's MentionField from @conciv/ui-kit-tap sends a mention", async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      const menuButton = () => control('View options')
+      const radio = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
+      const checkbox = () => page.getByRole('menuitemcheckbox', {name: 'Show resolved', exact: true})
+      const field = () => page.getByRole('textbox', {name: 'Reply with a mention', exact: true})
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
+      await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture people').click()
+
+      await menuButton().click()
+      await expect.element(page.getByRole('group', {name: 'Density', exact: true})).toBeVisible()
+      await expect.element(radio('Comfortable')).toHaveAttribute('aria-checked', 'true')
+      await expect.element(radio('Compact')).toHaveAttribute('aria-checked', 'false')
+      await radio('Compact').click()
+      await expect.element(page.getByText('Density: compact', {exact: true})).toBeVisible()
+      await menuButton().click()
+      await expect.element(radio('Compact')).toHaveAttribute('aria-checked', 'true')
+      await expect.element(radio('Comfortable')).toHaveAttribute('aria-checked', 'false')
+      await expect.element(checkbox()).toHaveAttribute('aria-checked', 'false')
+      await checkbox().click()
+      await expect.element(page.getByText('Show resolved: true', {exact: true})).toBeVisible()
+      await menuButton().click()
+      await expect.element(checkbox()).toHaveAttribute('aria-checked', 'true')
+      await userEvent.keyboard('{Escape}')
+      await expect.element(checkbox()).not.toBeInTheDocument()
+
+      await field().click()
+      await expect.element(field()).toHaveFocus()
+      await userEvent.keyboard('hi @')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).toBeVisible()
+      await userEvent.keyboard('Ad')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).not.toBeInTheDocument()
+      await page.getByRole('option', {name: 'Ada Lovelace'}).click()
+      await expect.element(page.getByRole('option', {name: 'Ada Lovelace'})).not.toBeInTheDocument()
+      await expect.element(field()).toHaveTextContent('hi @Ada Lovelace')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('Sent: hi @ada', {exact: true})).toBeVisible()
+      await expect.element(field()).toHaveTextContent('')
     })
   })
 
@@ -11708,15 +12430,16 @@ module.exports = {default: {setup(ctx) {
     const OUTAGE_WINDOW_MS = CALL_DEADLINE_MS + CONNECTION_LOSS_RETRY_DELAY_MS + MARGIN_MS
     const STORE_READS = 2
     const STORE_READ = ['settings', 'all']
+    const PLUGIN_STORES = {scope: 'project', namespace: 'plugins'}
     const SERVER_ERROR = 500
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
     const note = (text: string) => page.getByText(`Stored note: ${text}`, {exact: true})
     const visits = (text: string) => page.getByText(`Visits: ${text}`, {exact: true})
 
+    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ, input: PLUGIN_STORES})
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(tab('Fixture tools'), {timeout: 15_000}).toBeVisible()
-    const reads = await faults.install({kind: 'cut-on-release', path: STORE_READ})
     await tab('Fixture tools').click()
     await coreControl.awaitFaultPending(reads, STORE_READS)
     await expect.element(note('loading')).toBeVisible()

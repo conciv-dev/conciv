@@ -155,13 +155,13 @@ git commit -m "feat(extension-tanstack): per-environment conditional exports (ve
 
 ## Task 2: Conditional exports on terminal / test-runner / whiteboard / recorder
 
-**Files:** Modify each package.json; **add `publint`/`attw` scripts to `@conciv/extension-whiteboard`** (it lacks them today).
+**Files:** Modify each package.json; **add `publint`/`attw` scripts to the removed whiteboard extension** (it lacks them today).
 
 **Interfaces:** Consumes the Task 1 map shape.
 
 - [ ] **Step 1: Add missing scripts to whiteboard**
 
-In `packages/extensions/whiteboard/package.json` `scripts`, add `"publint": "publint"` and `"attw": "attw --pack . --profile esm-only"` (match the other extension packages).
+In the removed whiteboard extension's `package.json` `scripts`, add `"publint": "publint"` and `"attw": "attw --pack . --profile esm-only"` (match the other extension packages).
 
 - [ ] **Step 2: Apply the `.` map + `./server` to all four**
 
@@ -170,7 +170,7 @@ Apply the Task 1 `.` map + `"./server"` to `terminal`, `test-runner`, `whiteboar
 - [ ] **Step 3: Build + publint + attw all four**
 
 ```bash
-pnpm turbo run build publint attw --filter=@conciv/extension-terminal --filter=@conciv/extension-test-runner --filter=@conciv/extension-whiteboard --filter=@conciv/extension-recorder
+pnpm turbo run build publint attw --filter=@conciv/extension-terminal --filter=@conciv/extension-test-runner --filter=the removed whiteboard extension --filter=@conciv/extension-recorder
 ```
 
 Expected: all green.
@@ -178,7 +178,7 @@ Expected: all green.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/extensions/terminal/package.json packages/extensions/test-runner/package.json packages/extensions/whiteboard/package.json packages/extensions/recorder/package.json
+git add packages/extensions/terminal/package.json packages/extensions/test-runner/package.json the removed whiteboard extension's package.json packages/extensions/recorder/package.json
 git commit -m "feat(extensions): per-environment conditional exports for terminal, test-runner, whiteboard, recorder"
 ```
 

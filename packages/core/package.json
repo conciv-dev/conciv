@@ -70,7 +70,6 @@
     "@conciv/chat": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-init": "workspace:^",

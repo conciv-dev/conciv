@@ -13,7 +13,7 @@ const HINT = 'text-[0.75rem] leading-[1.35] text-chat-text-2'
 export const TEXT_LINK =
   'p-0 bg-transparent [border:none] font-chat text-[0.6875rem] text-chat-dim underline underline-offset-2 cursor-pointer focus-ring hover:text-chat-text-hi'
 const BUTTON =
-  'inline-flex shrink-0 items-center gap-1.5 h-7 px-2.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:1px_solid_var(--chat-line-2)] font-chat text-[0.75rem] text-chat-text cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong disabled:opacity-50 disabled:cursor-not-allowed'
+  'inline-flex shrink-0 items-center gap-1.5 h-7 px-2.5 rounded-chat-sm bg-transparent [border:1px_solid_var(--chat-line-2)] font-chat text-[0.75rem] text-chat-text cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong disabled:opacity-50 disabled:cursor-not-allowed'
 export const BUTTON_WARN = `${BUTTON} [border-color:color-mix(in_oklch,var(--chat-warn)_42%,transparent)] !text-chat-warn hover:!bg-[color-mix(in_oklch,var(--chat-warn)_10%,transparent)]`
 export const BUTTON_DANGER_FILL = `${BUTTON} !bg-chat-danger [border-color:var(--chat-danger)] !text-chat-on-accent`
 const BADGE =

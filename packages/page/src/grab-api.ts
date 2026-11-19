@@ -1,5 +1,5 @@
-import {createEffect, createRoot} from 'solid-js'
-import {getReactGrabAdapter} from './react-grab/adapter.js'
+import {createEffect, createResource, createRoot, type Accessor} from 'solid-js'
+import {getReactGrabAdapter, loadReactGrab} from './react-grab/adapter.js'
 import {picking, cancelPick} from './react-grab/picking.js'
 import type {Grab, GrabApi} from '@conciv/grab'
 
@@ -29,9 +29,20 @@ function startPick(mode: 'activate' | 'comment'): Promise<Grab | null> {
   })
 }
 
+let pickerLoaded: Accessor<boolean> | undefined
+
+function pickerReady(): boolean {
+  pickerLoaded ??= createRoot(() => {
+    const [picker] = createResource(loadReactGrab)
+    return () => picker.state === 'ready'
+  })
+  return pickerLoaded()
+}
+
 export const grabApi: Omit<GrabApi, 'stage' | 'staged' | 'clear'> = {
   pick: () => startPick('activate'),
   comment: () => startPick('comment'),
   cancel: cancelPick,
   isActive: picking,
+  grabbable: pickerReady,
 }

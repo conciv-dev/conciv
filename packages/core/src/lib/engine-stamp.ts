@@ -9,7 +9,7 @@ const TRACKED_PACKAGES: Record<string, string[]> = {
   '@conciv/harness': ['@conciv/harness'],
   '@conciv/tools': ['@conciv/tools'],
   '@conciv/db': ['@conciv/db'],
-  '@conciv/extension': ['@conciv/extension'],
+  '@conciv/plugin-host': ['@conciv/plugin-host'],
   '@conciv/serve': ['@conciv/serve', '@conciv/serve/rpc'],
 }
 

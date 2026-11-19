@@ -76,7 +76,7 @@ const EFFORT_DEFAULT_NAME = 'Default'
 
 const PROMPT_FONT = '[font-family:var(--chat-mono)] text-[13px] leading-[1.45]'
 const PROMPT_SLOT = 'flex-none flex items-center gap-1.5 min-h-7 select-none'
-const PROMPT = `inline-flex items-center gap-1 min-h-7 overflow-hidden -ms-1.5 px-1.5 rounded-[var(--chat-radius-sm)] focus-ring trans-bg hover:bg-chat-fill-strong data-[state=open]:bg-chat-fill-strong ${PROMPT_FONT}`
+const PROMPT = `inline-flex items-center gap-1 min-h-7 overflow-hidden -ms-1.5 px-1.5 rounded-chat-sm focus-ring trans-bg hover:bg-chat-fill-strong data-[state=open]:bg-chat-fill-strong ${PROMPT_FONT}`
 const PROMPT_MODEL = 'max-w-[32ch] truncate text-chat-text-3 anim-word-in tracking-[-0.04em] [word-spacing:-0.3em]'
 const PROMPT_GLYPH = 'text-chat-accent'
 const PILL_NAME = 'min-w-0 truncate'

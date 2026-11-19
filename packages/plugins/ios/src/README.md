@@ -1,10 +1,13 @@
 # src
 
-The engine half of the iOS plugin: it builds, runs, screenshots and reads the logs of a native iOS app on the
-simulator by running `xcrun`, `swiftc`, `plutil` and `codesign` as child processes.
+The iOS plugin. Its engine half builds, runs, screenshots and reads the logs of a native iOS app on the
+simulator by running `xcrun`, `swiftc`, `plutil` and `codesign` as child processes. Its browser half is the WKWebView bridge
+that the widget's native page talks to the Swift SDK through.
 
-- `index.ts` is the only entry; every other file is a flat module told apart by name.
+- The entries are `index.ts` (the engine plugin), `bridge.ts` (the bridge message schemas, mirrored by the Swift SDK) and
+  `client.tsx` (the browser half); every other root file is a flat engine module told apart by name.
+- `native/` holds the browser half's bridge client and the native page base.
 - Every child process goes through the `Simctl` service, so an interrupted tool call stops its child.
 - Options are untrusted input and are parsed with zod where they enter (`config.ts`); without options every tool
   answers `{ok: false, error: 'ios plugin not configured'}` and no rules reach the system prompt.
-- The plugin holds no state between tool calls beyond the parsed options.
+- The engine half holds no state between tool calls beyond the parsed options.

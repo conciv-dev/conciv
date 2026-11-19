@@ -1,10 +1,10 @@
-import {createResource, Show, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import CornerDownRight from 'lucide-solid/icons/corner-down-right'
-import {isCompleteAttachment, useAttachment} from '@conciv/ui-kit-chat'
+import {useQuery} from '@conciv/client'
+import {CornerRemoveButton, isCompleteAttachment, useAttachment, type AttachmentCardProps} from '@conciv/ui-kit-chat'
 import {Button, Dialog, Loader} from '@conciv/ui-kit-system'
-import type {AttachmentCardProps} from '@conciv/extension'
 import {parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {sourceLabel} from '@conciv/grab'
 import {GrabSnapshotFrame} from './grab-snapshot-frame.js'
@@ -81,11 +81,16 @@ function Preview(props: {preview: GrabPreview; class: string}): JSX.Element {
   )
 }
 
-function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Element {
+function GrabBody(props: {payload: GrabPayload; onRemove?: (id: string) => void}): JSX.Element {
+  const attachment = useAttachment()
   const [view, setView] = createStore({open: false, agentText: false})
   return (
     <div class={CARD} data-chat-grab>
-      {props.remove}
+      <Show when={props.onRemove}>
+        {(remove) => (
+          <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove()(attachment.id)} />
+        )}
+      </Show>
       <Show when={props.payload.preview} fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}>
         {(preview) => (
           <div class={PREVIEW_SLOT}>
@@ -139,10 +144,14 @@ function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Elem
 
 export function GrabCard(props: AttachmentCardProps): JSX.Element {
   const attachment = useAttachment()
-  const [payload] = createResource(() => resolvePayload(attachment))
+  const payload = useQuery(() => ({
+    queryKey: ['grab-card', 'attachment', attachment.id],
+    queryFn: () => resolvePayload(attachment),
+    retry: false,
+  }))
   return (
     <Show
-      when={payload.state === 'ready' || payload.state === 'errored'}
+      when={!payload.isPending}
       fallback={
         <div class={CARD} aria-busy="true">
           <div class={LOADING_ROW}>
@@ -155,14 +164,14 @@ export function GrabCard(props: AttachmentCardProps): JSX.Element {
       }
     >
       <Show
-        when={payload()}
+        when={payload.data}
         fallback={
           <div class={CARD} role="status">
             <span class={AGENT_TEXT}>Grabbed element could not be read</span>
           </div>
         }
       >
-        {(value) => <GrabBody payload={value()} remove={props.remove} />}
+        {(value) => <GrabBody payload={value()} onRemove={props.onRemove} />}
       </Show>
     </Show>
   )

@@ -5,7 +5,6 @@ import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/ch
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
-import type {CompositeRpcRouter as ExtensionCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import type {ConcivServerTool} from '@conciv/tools'
@@ -15,7 +14,6 @@ import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import type {RowScope} from '../../sessions/session-rows.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import {callTrace} from '../call-trace.js'
-import type {makeRpcRouter} from './router.js'
 import type {AuthRouter} from '../../engine-login.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
@@ -226,5 +224,3 @@ async function admitHubCaller(
 }
 
 export type SessionOs = ReturnType<typeof os.use<{session: SessionScope}>>
-
-export type CompositeRpcRouter = ExtensionCompositeRpcRouter<ReturnType<typeof makeRpcRouter>>
