@@ -27,7 +27,7 @@ import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import {Show, Suspense, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {isSessionId} from '@conciv/protocol/chat-types'
+import {ORPCError} from '@orpc/client'
 import {
   useAnnounce,
   useAppData,
@@ -95,9 +95,15 @@ const panelSessionSearchSchema = z.object({
 export const Route = createFileRoute('/panel/$sessionId')({
   validateSearch: panelSessionSearchSchema,
   beforeLoad: async ({context, params}) => {
-    if (isSessionId(params.sessionId)) return
-    const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
-    throw redirect({to: '/panel/$sessionId', params: {sessionId}, replace: true})
+    const resolved = await context.queryClient
+      .ensureQueryData(context.data.utils.sessions.resolve.queryOptions({input: {id: params.sessionId}}))
+      .catch((error: unknown) => {
+        if (error instanceof ORPCError && error.code === 'NOT_FOUND')
+          throw redirect({to: '/panel/latest', search: true, replace: true})
+        throw error
+      })
+    if (resolved.sessionId === params.sessionId) return
+    throw redirect({to: '/panel/$sessionId', params: {sessionId: resolved.sessionId}, replace: true})
   },
   loader: async ({context, params}) => {
     await context.queryClient

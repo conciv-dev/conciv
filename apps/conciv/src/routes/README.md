@@ -28,7 +28,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 ## Invariants
 
 - `__root.tsx:Route.validateSearch`: `open` is either `true` or absent; a malformed `sessionSearch` or `allProjects` falls back to its default (zod `.catch`), and a digit-only term is coerced back to a string
-- `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
+- `panel.$sessionId.tsx:Route.beforeLoad`: every param is resolved through `sessions.resolve` (the query `warm-session.ts` shares), which recreates a session id whose row the engine swept; a param that resolves to another id redirects with `replace: true`, and a `NOT_FOUND` (a deleted session, which stays deleted) redirects to `/panel/latest`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
 - `__root.tsx:onKeyDown`: Escape on a settings route navigates to the chat route with `replace` and history state `restoreFocus: 'settings'`, which focuses the settings link in the session header and keeps `panel.tsx` from focusing the composer
 - the session menu is open exactly when `/panel/$sessionId/options` or `/panel/$sessionId/$view/options` matches by path alone (`matchRoute` with `includeSearch: false`, so a search write from inside the menu, such as `sessionSearch`, never closes it mid-navigation); any navigation off those routes (a session pick, a new session, a view tab, back) closes it, and opening or closing it never remounts the chat pane or the view
