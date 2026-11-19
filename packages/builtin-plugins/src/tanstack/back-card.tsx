@@ -1,13 +1,9 @@
 import {type JSX} from 'solid-js'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {InspectionCard, actionCardBody, resultOk} from './card-shared.js'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {InspectionCard} from './card-shared.js'
 
-function BackCard(props: ToolCardProps): JSX.Element {
-  const summary = () => (resultOk(props.result) ? 'went back' : '')
-  return <InspectionCard {...props} summary={summary()} />
+function BackCard(props: ToolProps): JSX.Element {
+  return <InspectionCard {...props} summary="" />
 }
 
-export const backCard: ToolCardView = {
-  render: BackCard,
-  hasEmbeddedBody: actionCardBody,
-}
+export const backCard: ToolComponent = BackCard

@@ -14,7 +14,6 @@ export function collectToolRenderers(builders: AnyExtension[]): ToolCardEntry[] 
         names: [tool.name],
         render: card.render,
         hasEmbeddedBody: card.hasEmbeddedBody,
-        streamTitle: tool.streamTitle,
         display: tool.display,
       })
     }

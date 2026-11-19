@@ -1,19 +1,10 @@
-import {Show, splitProps, Switch, Match, type JSX} from 'solid-js'
+import {splitProps, Switch, Match, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {isPlainObject} from 'es-toolkit'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {isPlainObject, lowerCase, upperFirst} from 'es-toolkit'
+import type {ToolProps} from '@conciv/plugin/experimental'
 import {Operations, type Operation} from '@conciv/plugin-tanstack/rpc'
-import {cardErrorMessage} from '../page/cards/shared.js'
-import {
-  CardShell,
-  CodeBlock,
-  ErrorBlock,
-  JsonTree,
-  cardHeader,
-  parseResultPayload,
-  toolStatus,
-  type ToolStatus,
-} from '@conciv/ui-kit-chat/tools'
+import {tanstackToolMeta} from './tanstack-tool-names.js'
+import {BasicTool, CodeBlock, JsonTree, ToolErrorCard} from '@conciv/ui-kit-chat/tools'
 
 export function tanstackOperation<const Name extends Operation['name']>(name: Name): Extract<Operation, {name: Name}> {
   const operation = Operations.find(
@@ -25,31 +16,22 @@ export function tanstackOperation<const Name extends Operation['name']>(name: Na
 
 const OkResult = z.looseObject({ok: z.literal(true)})
 
-export function resultOk(result: ToolCardProps['result']): boolean {
-  return OkResult.safeParse(parseResultPayload(result)).success
+export function parseOutput(output: string | undefined): unknown {
+  if (!output) return undefined
+  try {
+    return JSON.parse(output)
+  } catch {
+    return undefined
+  }
 }
 
-function readError(result: ToolCardProps['result']): string | null {
-  if (result?.state !== 'error') return null
-  return cardErrorMessage(result) ?? 'tool failed'
+export function readInput<Schema extends z.ZodType>(schema: Schema, input: unknown): z.infer<Schema> | undefined {
+  const parsed = schema.safeParse(input)
+  return parsed.success ? parsed.data : undefined
 }
 
-function isRunning(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
-  return toolStatus(part, result) === 'running'
-}
-
-export function settledCardBody(
-  part: ToolCardProps['part'],
-  result: ToolCardProps['result'],
-  hasContent: boolean,
-): boolean {
-  if (readError(result) !== null) return true
-  if (isRunning(part, result)) return false
-  return hasContent
-}
-
-export function actionCardBody(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
-  return readError(result) !== null
+export function resultOk(output: string | undefined): boolean {
+  return OkResult.safeParse(parseOutput(output)).success
 }
 
 export function CardRows(props: {children: JSX.Element}): JSX.Element {
@@ -82,27 +64,38 @@ export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {
   )
 }
 
+function tanstackTitle(tool: string, status: string | undefined): string {
+  const label = tanstackToolMeta(tool)?.label
+  if (label === undefined) return tool
+  return status === 'pending' || status === 'running' || status === 'streaming' ? label.running : label.done
+}
+
 export function InspectionCard(
-  props: ToolCardProps & {summary: string; failed?: boolean; children?: JSX.Element},
+  props: ToolProps & {summary: string; failed?: boolean; hasContent?: boolean; children?: JSX.Element},
 ): JSX.Element {
-  const [local, card] = splitProps(props, ['summary', 'failed', 'children'])
-  const {meta, title} = cardHeader(card)
-  const error = () => readError(card.result)
-  const running = () => isRunning(card.part, card.result)
-  const subtitle = () => (error() || running() ? undefined : local.summary)
-  const status = (): ToolStatus | undefined => (local.failed === true ? 'error' : undefined)
+  const [local, tool] = splitProps(props, ['summary', 'failed', 'hasContent', 'children'])
+  const running = () => tool.status === 'pending' || tool.status === 'running' || tool.status === 'streaming'
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      subtitle={subtitle()}
-      part={card.part}
-      result={card.result}
-      durationMs={card.durationMs}
-      status={status()}
+    <BasicTool
+      {...tool}
+      status={local.failed === true ? 'error' : tool.status}
+      trigger={{title: tanstackTitle(tool.tool, tool.status), subtitle: running() ? undefined : local.summary}}
+      hasContent={!running() && (local.hasContent ?? false)}
     >
-      <Show when={error()}>{(message) => <ErrorBlock message={message()} outcome={card.result?.outcome} />}</Show>
-      <Show when={!error() && !running()}>{local.children}</Show>
-    </CardShell>
+      {local.children}
+    </BasicTool>
+  )
+}
+
+export function TanstackFailedCard(props: ToolProps): JSX.Element {
+  return (
+    <ToolErrorCard
+      tool={props.tool}
+      error={props.error ?? ''}
+      title={upperFirst(lowerCase(props.tool.replace(/^tanstack_/, '')))}
+      defaultOpen={props.defaultOpen}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+    />
   )
 }

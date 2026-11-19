@@ -1,57 +1,28 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
   ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
   ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
 } from '@conciv/ui-kit-chat/tools'
-import {editLiveCard} from './edit-live-card.js'
-import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
-
-const EditLiveCard = editLiveCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/EditLiveCard'}
 export default meta
 type Story = StoryObj
 
-const settextMeta: ToolViewMeta = {
-  summary: 'replace the text content of an element',
-  category: 'edit-live',
-  icon: 'edit',
-  label: {running: 'Setting text', done: 'Set the text'},
-  mutating: true,
-  inputSchema: {
-    type: 'object',
-    properties: {selector: {type: 'string'}, ref: {type: 'string'}, name: {type: 'string'}, text: {type: 'string'}},
-    required: ['text'],
-  },
-  outputSchema: {type: 'object', properties: {ok: {type: 'boolean'}}},
-}
-
-const evalMeta: ToolViewMeta = {
-  summary: 'run javascript in the page and return its result',
-  category: 'edit-live',
-  icon: 'script',
-  label: {running: 'Running a script', done: 'Ran a script'},
-  mutating: true,
-  inputSchema: {type: 'object', properties: {code: {type: 'string'}}, required: ['code']},
-  outputSchema: {type: 'object', properties: {result: {}}},
-}
-
 export const TextChangeWithDiff: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <EditLiveCard
-        part={storyPart('page_settext', {selector: '#cta', text: 'Order placed'})}
-        result={storyResult({ok: true})}
-        ctx={storyCtx({page_settext: settextMeta})}
-        addResult={storyAddResult}
-        capture={{
-          before: ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
-          after: ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
-          css: ELEMENT_CAPTURE_FIXTURE_CSS,
+      <StoryTool
+        call={storyCall('page_settext', {selector: '#cta', text: 'Order placed'}, {ok: true})}
+        captures={{
+          s1: {
+            before: ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
+            after: ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
+            css: ELEMENT_CAPTURE_FIXTURE_CSS,
+          },
         }}
       />
     </div>
@@ -81,12 +52,7 @@ export const TextChangeWithDiff: Story = {
 export const EvalCodeBlock: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <EditLiveCard
-        part={storyPart('page_eval', {code: 'return document.title'})}
-        result={storyResult({result: 'Storefront'})}
-        ctx={storyCtx({page_eval: evalMeta})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_eval', {code: 'return document.title'}, {result: 'Storefront'})} />
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -104,29 +70,16 @@ export const EvalCodeBlock: Story = {
   },
 }
 
-const editLiveTool: ToolCardEntry = {
-  names: ['page_setattr', 'page_eval'],
-  ...editLiveCard,
-}
-
 export const Trace: Story = {
   render: () =>
     traceGallery('2 edits', [
-      traceRow(
-        editLiveTool,
-        storyPart('page_setattr', {selector: '#cta', attribute: 'disabled', value: 'true'}, 'complete', 'e1'),
-        storyResult({ok: true}, 'complete', 'e1'),
-      ),
-      traceRow(
-        editLiveTool,
-        storyPart('page_eval', {code: 'return document.title'}, 'complete', 'e2'),
-        storyResult({result: 'Storefront'}, 'complete', 'e2'),
-      ),
+      traceRow(storyCall('page_setattr', {selector: '#cta', attribute: 'disabled', value: 'true'}, {ok: true}, 'e1')),
+      traceRow(storyCall('page_eval', {code: 'return document.title'}, {result: 'Storefront'}, 'e2')),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('setattr')).toBeVisible()
-    await expect(canvas.getAllByText('#cta').length).toBeGreaterThan(0)
-    await expect(canvas.getByText('exec')).toBeVisible()
+    await expect(canvas.getByText('Set an attribute')).toBeVisible()
+    await expect(canvas.getAllByText(/#cta/).length).toBeGreaterThan(0)
+    await expect(canvas.getByText('Ran a script')).toBeVisible()
   },
 }

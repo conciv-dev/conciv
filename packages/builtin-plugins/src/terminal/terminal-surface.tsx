@@ -3,6 +3,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {createTerminalModel, Terminal, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {engineWebSocket} from '@conciv/contract'
 import {createKeyed, usePlugin, type MountedSession, type ServerRef} from '@conciv/plugin/experimental'
+import {GrabApi} from '@conciv/plugin/experimental/grab'
 import {OPEN_FAILED, PANEL_KEY, type TerminalState} from './terminal-state.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
@@ -55,6 +56,12 @@ function keepFocusInsideTheWidget(element: HTMLElement): void {
     if (event.composedPath().some((node) => node === element || takesFocusOnPress(node, view))) return
     event.preventDefault()
   })
+}
+
+function isPlainEnter(event: KeyboardEvent): boolean {
+  if (event.isComposing || event.keyCode === 229) return false
+  if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false
+  return event.type === 'keydown' && event.key === 'Enter'
 }
 
 async function openPty(server: ServerRef, request: PtyRequest): Promise<{ptyId: string; url: string}> {
@@ -112,9 +119,24 @@ export default function TerminalSurface(props: {
     },
   )
   onCleanup(() => props.terminal.closed(terminalKey))
+  const grab = ctx.use(GrabApi)
+  const pasteStagedGrabs = (): boolean => {
+    const live = grab()
+    if (live.status !== 'active' || model.status() !== 'open') return true
+    const staged = live.value.staged()
+    if (staged.length === 0) return true
+    const block = staged.map((entry) => entry.text).join('\n\n')
+    model.paste(model.terminal.modes.bracketedPasteMode ? block : block.replaceAll(/[\r\n]+/g, ' '))
+    model.sendInput('\r')
+    live.value.clear()
+    return false
+  }
   model.terminal.attachCustomKeyEventHandler((event) => {
     if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
-    return true
+    if (!isPlainEnter(event)) return true
+    if (pasteStagedGrabs()) return true
+    event.preventDefault()
+    return false
   })
   const interruptOnEscape = (element: HTMLDivElement) => {
     onMount(() => keepFocusInsideTheWidget(element))

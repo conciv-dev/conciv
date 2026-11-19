@@ -30,6 +30,9 @@ const SEED: CompleteAttachment[] = [
 
 function Frame(): JSX.Element {
   const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
+  const remove = (id: string): void => {
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+  }
   return (
     <ComposerProvider
       value={{
@@ -38,9 +41,7 @@ function Frame(): JSX.Element {
         addAttachment: async () => null,
         hasAttachment: () => false,
         replaceAttachment: async () => null,
-        removeAttachment: async (id) => {
-          setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
-        },
+        removeAttachment: async (id) => remove(id),
         sendingAttachments: () => false,
         snapshotDraft: () => ({draft: '', attachments: [], quote: null}),
         restoreDraft: () => {},
@@ -57,7 +58,7 @@ function Frame(): JSX.Element {
         <For each={attachments()}>
           {(draft) => (
             <AttachmentProvider value={draft}>
-              <AttachmentUI removable />
+              <AttachmentUI onRemove={remove} />
             </AttachmentProvider>
           )}
         </For>
@@ -70,14 +71,14 @@ export const ImageAndFileTiles: Story = {
   render: () => <Frame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
 
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
 
     await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
-    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
 
-    const page = within(canvasElement.ownerDocument.body)
     await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
     const viewer = await page.findByRole('dialog', {name: 'diagram.png'})
     await expect(within(viewer).getByRole('button', {name: 'Show actual size'})).toBeVisible()

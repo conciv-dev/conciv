@@ -10,8 +10,7 @@ export const concivToolCards: ToolCardEntry[] = [
     names: ['conciv_ui'],
     render: UiCard,
     hasEmbeddedBody: () => true,
-    streamTitle: 'Rendering UI',
     display: 'standalone',
   },
-  {names: ['open'], render: OpenCard, hasEmbeddedBody: () => true, streamTitle: 'Opening a file'},
+  {names: ['open'], render: OpenCard, hasEmbeddedBody: () => true},
 ]
