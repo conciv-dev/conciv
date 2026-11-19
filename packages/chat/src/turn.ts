@@ -167,7 +167,7 @@ function promptFile(part: ContentPart): PromptFile[] {
 
 function promptEvent(sessionId: SessionId, messageId: string, message: ModelMessage): SessionPrompt {
   const parts = contentParts(message.content)
-  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
+  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')
   const files = parts.flatMap(promptFile)
   return {
     sessionId,
@@ -224,7 +224,7 @@ function withUpdate(messages: ModelMessage[], update: string): ModelMessage[] {
   if (update === '' || target === undefined) return messages
   return messages.with(lastUser, {
     ...target,
-    content: [{type: 'text', content: update}, ...contentParts(target.content)],
+    content: [{type: 'text', content: `${update}\n\n`}, ...contentParts(target.content)],
   })
 }
 

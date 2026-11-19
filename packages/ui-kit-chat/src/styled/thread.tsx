@@ -416,7 +416,8 @@ function collectPromptText(turn: Turn): string {
         part.type === 'text' && part.content.trim().length > 0 && !partIsModelOnly(part),
     )
     .map((part) => part.content)
-    .join('\n')
+    .join('')
+    .trim()
 }
 
 function UserTurn(): JSX.Element {
