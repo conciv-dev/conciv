@@ -11259,14 +11259,57 @@ export default {
   },
 }
 `
+  const operatorPlugin = (rpcPath: string) => `import {Definition} from '${rpcPath}'
+
+const Operator = {id: 'page-operator', methods: {operate: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+
+export default {
+  id: 'page-operator',
+  async setup(ctx) {
+    const page = ctx.rpc(Definition)
+    await ctx.rpc.register(Operator, {
+      operate: async (input, call) =>
+        page.operate(input, {signal: call.signal}).then(
+          (value) => ({ok: true, value}),
+          (error) => ({ok: false, type: error.type, data: error.data ?? null}),
+        ),
+    })
+  },
+}
+`
+  const operatorBundle = `const {PageOperation} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  ctx.add(PageOperation, {
+    name: 'operator.count',
+    run: async (input) => ({count: document.querySelectorAll('[aria-label=Operated] li').length + input.by}),
+  })
+  ctx.add(PageOperation, {
+    name: 'operator.break',
+    run: async () => {
+      throw new Error('the operator broke')
+    },
+  })
+  ctx.add(PageOperation, {
+    name: 'operator.snap',
+    run: () => {
+      throw new Error('the operator snapped before it promised')
+    },
+  })
+}}}
+`
   const core = {base: ''}
   beforeAll(async () => {
     const paths = await coreControl.pagePluginPaths()
     const booted = await coreControl.bootCore({
       id: 'page-plugin-attachment',
       allowedOrigins: [window.location.origin],
-      plugins: ['./page', './driver'],
-      files: {'page/index.ts': `export {default} from '${paths.engine}'\n`, 'driver/index.ts': driverPlugin(paths.rpc)},
+      plugins: ['./page', './driver', './operator'],
+      files: {
+        'page/index.ts': `export {default} from '${paths.engine}'\n`,
+        'driver/index.ts': driverPlugin(paths.rpc),
+        'operator/index.ts': operatorPlugin(paths.rpc),
+        'operator/plugin-experimental.js': operatorBundle,
+      },
     })
     core.base = booted.base
   }, 60_000)
@@ -11452,6 +11495,49 @@ export default {
     await expect(second).rejects.toThrow()
     await expect.element(card()).not.toBeInTheDocument()
   }, 60_000)
+
+  describe('a second plugin runs its own page operation', () => {
+    test('its engine half calls page.operate and its browser half answers on the attached tab, a throw or an unknown name fails, and a changing call with no tab fails', async () => {
+      const sessionId = await createSession(coreRpc(core.base))
+      const operate = (name: string, input: Record<string, unknown>) =>
+        coreRpc(core.base).plugin.call({
+          rpcId: 'page-operator',
+          method: 'operate',
+          input: {sessionId, name, input, reading: false},
+        })
+      expect(await operate('operator.count', {by: 1})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'disconnected'},
+      })
+      onTestFinished(
+        render(() => (
+          <ul aria-label="Operated">
+            <li>one</li>
+            <li>two</li>
+          </ul>
+        )).unmount,
+      )
+      harness.mountShell(panel(sessionId))
+      await attached()
+      expect(await operate('operator.count', {by: 1})).toEqual({ok: true, value: {count: 3}})
+      expect(await operate('operator.break', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'handler-error'},
+      })
+      expect(await operate('operator.snap', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'handler-error'},
+      })
+      expect(await operate('operator.missing', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'unsupported'},
+      })
+    }, 60_000)
+  })
 })
 
 describe('a fixture plugin built into chunks', () => {

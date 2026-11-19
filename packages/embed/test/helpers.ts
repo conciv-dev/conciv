@@ -244,7 +244,9 @@ export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit(options)
-    host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+    host = await serveWidgetHost((url) =>
+      hostPage({apiBase: url.searchParams.get('apiBase') ?? kit.base, widget: '{"quickTerminal":false}'}),
+    )
   })
 
   test.afterEach(async () => {

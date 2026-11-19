@@ -12,8 +12,12 @@ import {
   type PageQueueResult,
 } from '@conciv/protocol/page-types'
 import {type PageChangeEntry, PageRaisedErrorSchema as Raised} from '@conciv/protocol/page-types'
-import type {RequestSettlement} from './machine.js'
-import {Action} from './rpc.js'
+import type {Tool} from '@conciv/plugin/schema/tool'
+import {Action, type Result} from './rpc.js'
+
+export type RequestSettlement =
+  | {readonly ok: true; readonly result: Result}
+  | {readonly ok: false; readonly error: Tool.Error; readonly tabClosed?: true}
 
 type Landed = 'played' | 'stopped' | 'lost'
 
