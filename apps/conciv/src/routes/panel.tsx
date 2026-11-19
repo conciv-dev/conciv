@@ -3,7 +3,7 @@ import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
 import {Show, createEffect, createMemo, createSignal, type JSX} from 'solid-js'
 import {createActiveElement} from '@solid-primitives/active-element'
 import {panelPlacement} from '../lib/draggable-position.js'
-import {useEnvironment, useFabAnchor, useLayers, useSettings, useSuppressed} from '../app/context.js'
+import {useEnvironment, useFabAnchor, useLayers, usePanelWidthCap, useSettings, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -32,6 +32,7 @@ const PANEL_OPEN =
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
 
 const PANEL_MIN_HEIGHT = 400
+const PANEL_MIN_WIDTH = 448
 const PANEL_DEFAULT_WIDTH = 500
 
 function rootFontSizePx(): number {
@@ -47,6 +48,7 @@ export const Route = createFileRoute('/panel')({component: PanelLayout})
 
 function PanelLayout(): JSX.Element {
   const fabAnchor = useFabAnchor()
+  const panelWidthCap = usePanelWidthCap()
   const layers = useLayers()
   const suppressed = useSuppressed()
   const panelChrome = usePanelChrome()
@@ -88,7 +90,8 @@ function PanelLayout(): JSX.Element {
   })
   const resizeX = createResizable({
     initial: PANEL_DEFAULT_WIDTH,
-    min: 448,
+    min: PANEL_MIN_WIDTH,
+    max: panelWidthCap,
     storageKey: 'conciv-modal-width',
     grow: () => (anchoredRight() ? 'left' : 'right'),
   })
@@ -141,7 +144,8 @@ function PanelLayout(): JSX.Element {
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="Resize chat width"
-                aria-valuemin={300}
+                aria-valuemin={PANEL_MIN_WIDTH}
+                aria-valuemax={Math.round(panelWidthCap())}
                 aria-valuenow={Math.round(resizeX.size())}
                 tabindex={0}
                 onPointerDown={resizeX.onPointerDown}

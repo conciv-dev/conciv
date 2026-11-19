@@ -25,6 +25,7 @@ export type AppContextValue = {
   layers: LayerStack
   suppressed: () => '' | undefined
   fabAnchor: Accessor<LauncherAnchor>
+  panelWidthCap: Accessor<number>
   instances: ExtensionInstance[]
   connected: () => boolean
   arrivedFromConnect: () => boolean
@@ -91,6 +92,10 @@ export function useSuppressed(): () => '' | undefined {
 
 export function useFabAnchor(): Accessor<LauncherAnchor> {
   return useAppScope('useFabAnchor', (app) => app.fabAnchor)
+}
+
+export function usePanelWidthCap(): Accessor<number> {
+  return useAppScope('usePanelWidthCap', (app) => app.panelWidthCap)
 }
 
 export function useInstances(): ExtensionInstance[] {
