@@ -10887,6 +10887,12 @@ module.exports = {default: {stores: {
       return [
         createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
         createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
+        createComponent(ctx.ui.Chip, {value: 'Reviewed', tone: 'success', tooltip: 'Ada marked it reviewed'}),
+        createComponent(ctx.ui.Chip, {
+          value: 'Reviewed in full by Ada Lovelace and Alan Turing',
+          tooltip: 'Both reviewers signed off',
+          class: 'max-w-40',
+        }),
         createComponent(ctx.ui.Menu, {
           label: 'View options',
           get items() {
@@ -11170,8 +11176,8 @@ module.exports = {default: {setup(ctx) {
     })
   })
 
-  describe('its ctx.ui.RelativeTime and ctx.ui.Avatar', () => {
-    test('show how long ago a time was and a person by name with their initials when there is no image', async () => {
+  describe('its ctx.ui.RelativeTime, ctx.ui.Avatar and ctx.ui.Chip', () => {
+    test('show how long ago a time was, a person by name with their initials when there is no image, a chip whose tooltip opens on hover, and a clipped chip whose tooltip shows its full value with the tooltip text', async () => {
       const sessionId = await createSession(coreRpc(coreBase()))
       harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
       await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
@@ -11180,6 +11186,14 @@ module.exports = {default: {setup(ctx) {
       await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
       await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
       await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
+      await page.getByRole('button', {name: 'Reviewed', exact: true}).hover()
+      await expect.element(page.getByText('Ada marked it reviewed', {exact: true})).toBeVisible()
+      await page.getByRole('button', {name: 'Reviewed in full by Ada Lovelace and Alan Turing', exact: true}).hover()
+      const tooltip = page.getByRole('tooltip')
+      await expect
+        .element(tooltip.getByText('Reviewed in full by Ada Lovelace and Alan Turing', {exact: true}))
+        .toBeVisible()
+      await expect.element(tooltip.getByText('Both reviewers signed off', {exact: true})).toBeVisible()
     })
   })
 
