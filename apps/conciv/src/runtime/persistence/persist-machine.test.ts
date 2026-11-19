@@ -99,7 +99,11 @@ describe('persist store machine', () => {
       {type: 'flushed', serialized: edited},
     ])
 
-    expect(saved.state).toEqual({status: 'clean', last: edited})
+    expect(saved.state).toEqual({
+      status: 'clean',
+      last: edited,
+      writing: {type: 'save', serialized: edited, fallback: undefined},
+    })
     expect(saved.effects).toEqual([{type: 'schedule-save'}, {type: 'save', serialized: edited, fallback: undefined}])
 
     expect(canWriteBackHydration(saved.state)).toBe(false)
@@ -116,20 +120,26 @@ describe('persist store machine', () => {
       {type: 'flushed', serialized: edited},
     ])
 
-    expect(result.state).toEqual({status: 'clean', last: edited})
+    expect(result.state).toEqual({
+      status: 'clean',
+      last: edited,
+      writing: {type: 'save', serialized: edited, fallback: stored},
+    })
     expect(result.effects.at(-1)).toEqual({type: 'save', serialized: edited, fallback: stored})
   })
 
   test('a failed write rolls `last` back so the same value is written again', () => {
-    const saved = replay({status: 'clean', last: stored}, [
+    const saved = replay({status: 'clean', last: stored, writing: undefined}, [
       {type: 'edited', baseline: undefined},
       {type: 'flushed', serialized: edited},
     ])
 
     expect(saved.effects.at(-1)).toEqual({type: 'save', serialized: edited, fallback: stored})
 
-    const failed = transitionPersistStore(saved.state, {type: 'write.failed', attempted: edited, fallback: stored})
-    expect(failed.state).toEqual({status: 'clean', last: stored})
+    const save = saved.state.status === 'clean' ? saved.state.writing : undefined
+    if (!save) throw new Error('the flush started no write')
+    const failed = transitionPersistStore(saved.state, {type: 'write.failed', save})
+    expect(failed.state).toEqual({status: 'clean', last: stored, writing: undefined})
 
     const retried = replay(failed.state, [
       {type: 'edited', baseline: undefined},
@@ -140,8 +150,11 @@ describe('persist store machine', () => {
   })
 
   test('a failed write that a newer value superseded is ignored', () => {
-    const state: PersistStoreState = {status: 'clean', last: remote}
-    const result = transitionPersistStore(state, {type: 'write.failed', attempted: edited, fallback: stored})
+    const state: PersistStoreState = {status: 'clean', last: remote, writing: undefined}
+    const result = transitionPersistStore(state, {
+      type: 'write.failed',
+      save: {type: 'save', serialized: edited, fallback: stored},
+    })
     expect(result.state).toBe(state)
   })
 
@@ -156,14 +169,20 @@ describe('persist store machine', () => {
   })
 
   test('disposal saves a real edit once, never hydrates, and ignores every later event', () => {
-    const dirty: PersistStoreState = {status: 'dirty', last: stored, remote: undefined, baseline: undefined}
+    const dirty: PersistStoreState = {
+      status: 'dirty',
+      last: stored,
+      remote: undefined,
+      baseline: undefined,
+      writing: undefined,
+    }
     const disposed = transitionPersistStore(dirty, {type: 'disposed', serialized: edited})
     expect(disposed).toEqual({
       state: {status: 'disposed'},
       effects: [{type: 'save', serialized: edited, fallback: stored}],
     })
 
-    const held: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined}
+    const held: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined, writing: undefined}
     expect(transitionPersistStore(held, {type: 'disposed', serialized: stored}).effects).toEqual([])
 
     const events: PersistStoreEvent[] = [
@@ -177,11 +196,11 @@ describe('persist store machine', () => {
   })
 
   test('events that do not apply return the same state', () => {
-    const clean: PersistStoreState = {status: 'clean', last: stored}
+    const clean: PersistStoreState = {status: 'clean', last: stored, writing: undefined}
     expect(transitionPersistStore(clean, {type: 'remote.received', raw: stored}).state).toBe(clean)
     expect(transitionPersistStore(clean, {type: 'flushed', serialized: edited}).state).toBe(clean)
 
-    const dirty: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined}
+    const dirty: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined, writing: undefined}
     expect(transitionPersistStore(dirty, {type: 'edited', baseline: undefined}).state).toBe(dirty)
     expect(transitionPersistStore(dirty, {type: 'remote.received', raw: remote}).state).toBe(dirty)
     expect(transitionPersistStore(loading(), {type: 'flushed', serialized: edited}).effects).toEqual([])

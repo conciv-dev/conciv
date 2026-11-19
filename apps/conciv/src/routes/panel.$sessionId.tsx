@@ -26,7 +26,6 @@ import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
-import Unplug from 'lucide-solid/icons/unplug'
 import {Show, Suspense, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isSessionId} from '@conciv/protocol/chat-types'
@@ -35,7 +34,6 @@ import {
   useAppData,
   useAppQueryClient,
   useChatDeps,
-  useDisconnect,
   useGrabProvider,
   useInstances,
   useLiveSessions,
@@ -290,7 +288,6 @@ function PanelSession(): JSX.Element {
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const instances = useInstances()
-  const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
   const navigate = Route.useNavigate()
@@ -506,12 +503,6 @@ function PanelSession(): JSX.Element {
                   <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
                   Pop out to a window
                 </Button>
-                <Show when={connectMode && disconnect}>
-                  <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
-                    <Unplug class="size-4 block shrink-0" aria-hidden="true" />
-                    Disconnect this machine
-                  </Button>
-                </Show>
               </div>
             </Popover.Content>
           </Popover.Positioner>

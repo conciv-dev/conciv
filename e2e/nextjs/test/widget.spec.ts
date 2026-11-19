@@ -15,7 +15,13 @@ import {expect, test} from '@playwright/test'
 import getPort from 'get-port'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
-import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
+import {
+  collectFailures,
+  expectPluginBundleReloadsInPlace,
+  expectWidgetBoots,
+  loginWidget,
+  trustedEngineBase,
+} from '@conciv/e2e-utils/widget'
 import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, run} from '@conciv/vitest-config/pack'
 import {stopNext, waitFor, type NextHandle} from '../packed/harness.js'
 
@@ -117,4 +123,14 @@ test.describe('a workspace-linked @conciv/it under next dev and then next build'
       rmSync(appDir, {recursive: true, force: true})
     }
   })
+})
+
+test('a rebuilt project plugin bundle reloads in the open widget without a page reload', async ({page}) => {
+  const failures = collectFailures(page)
+  await loginWidget(page)
+  await expectPluginBundleReloadsInPlace(
+    page,
+    failures,
+    join(import.meta.dirname, '../conciv/plugins/live-line/plugin-experimental.js'),
+  )
 })

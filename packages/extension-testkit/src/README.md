@@ -6,7 +6,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 
 ## Product path
 
-The testkit runs the real product path. A page under test talks to the engine through the same transports and clients the product uses: browser rpc goes over the partysocket `/rpc-ws` socket from `@conciv/contract`, chat over the chat socket, push over the push socket. The only fakes are the expensive externals: the LLM harness (a scripted fake harness) and the agent CLIs. Interception never swaps a transport: `@conciv/plugin-testkit/rpc-socket` routes the page's real `/rpc-ws` socket with `page.routeWebSocket` to observe calls or fault them (fail, hold, cut), and everything it does not fault reaches the engine unchanged. A node-side helper uses HTTP `/rpc` only where the product caller it stands in for is itself a node client, such as the CLI calling `registry.call`.
+The testkit runs the real product path. A page under test talks to the engine through the same transports and clients the product uses: browser rpc goes over the partysocket `/rpc-ws` socket from `@conciv/contract`, chat over the chat socket. The only fakes are the expensive externals: the LLM harness (a scripted fake harness) and the agent CLIs. Interception never swaps a transport: `@conciv/plugin-testkit/rpc-socket` routes the page's real `/rpc-ws` socket with `page.routeWebSocket` to observe calls or fault them (fail, hold, cut), and everything it does not fault reaches the engine unchanged. A node-side helper uses HTTP `/rpc` only where the product caller it stands in for is itself a node client, such as the CLI calling `registry.call`.
 
 ## Interface
 

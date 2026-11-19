@@ -1,5 +1,5 @@
 import {ServerResponse} from 'node:http'
-import {ORPCError, type AnyRouter} from '@orpc/server'
+import {AsyncIteratorClass, ORPCError, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
 import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/server/websocket'
 import type {Context, MiddlewareHandler} from 'hono'
@@ -13,6 +13,8 @@ import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketT
 const ADAPTER_REFUSED_STATUS = 500
 
 const SOCKET_OPEN = 1
+
+const REVOKED_MESSAGE = 'this browser is no longer trusted'
 
 export const RPC_PREFIX = '/rpc'
 
@@ -29,7 +31,7 @@ export type UpgradeWebSocket = (createEvents: (c: Context) => WSEvents) => Middl
 
 export type RpcSocketGate = {
   trust: RpcSocketTrust
-  open: (socket: WSContext<unknown>) => void
+  open: (socket: Pick<WSContext<unknown>, 'close'>) => void
   present: (token: string) => void
   close: () => void
 }
@@ -38,7 +40,37 @@ function rpcConnectionContext(requestUrl: string, callerOrigin: string | null, h
   return {origin: new URL(requestUrl).origin, callerOrigin, headers}
 }
 
-function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
+type SocketStreams = {revoked: AbortSignal; replies: Set<Promise<boolean>>}
+
+function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, unknown, void> {
+  return typeof value === 'object' && value !== null && Symbol.asyncIterator in value
+}
+
+function failedOnRevoke(
+  stream: AsyncIteratorObject<unknown, unknown, void>,
+  revoked: AbortSignal,
+): AsyncIteratorClass<unknown, unknown> {
+  const refused = Promise.withResolvers<never>()
+  refused.promise.catch(() => undefined)
+  const refuse = (): void => refused.reject(revoked.reason)
+  revoked.addEventListener('abort', refuse, {once: true})
+  if (revoked.aborted) refuse()
+  return new AsyncIteratorClass(
+    () => Promise.race([stream.next(), refused.promise]),
+    async () => {
+      revoked.removeEventListener('abort', refuse)
+      void stream.return?.()?.catch(() => undefined)
+    },
+  )
+}
+
+function heldUntilReplied(streams: SocketStreams, replied: Promise<boolean> | undefined): void {
+  if (replied === undefined) return
+  streams.replies.add(replied)
+  void replied.finally(() => streams.replies.delete(replied))
+}
+
+function rpcHandlerOptions(streams?: SocketStreams): StandardRPCHandlerOptions<RpcContext> {
   return {
     rootInterceptors: [
       (options) =>
@@ -57,6 +89,12 @@ function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
           throw new ORPCError('UNAUTHORIZED', {message: 'this connection is not trusted'})
         }
         return options.next()
+      },
+      async (options) => {
+        const output = await options.next()
+        if (streams === undefined || !isEventIterator(output)) return output
+        heldUntilReplied(streams, options.context.replied)
+        return failedOnRevoke(output, streams.revoked)
       },
     ],
   }
@@ -133,8 +171,10 @@ export function rpcWebsocketRoute(
     gate?: (c: Context) => RpcSocketGate
   },
 ): MiddlewareHandler {
-  const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions())
   const route = options.upgrade((c) => {
+    const revocation = new AbortController()
+    const streams: SocketStreams = {revoked: revocation.signal, replies: new Set()}
+    const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions(streams))
     const gate = options.gate?.(c)
     const connection = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null, upgradeHeaders(c))
     const context = gate === undefined ? connection : {...connection, socket: gate.trust}
@@ -143,7 +183,12 @@ export function rpcWebsocketRoute(
     return {
       onOpen: (_event, ws) => {
         held.socket = ws
-        gate?.open(ws)
+        gate?.open({
+          close: (code, reason) => {
+            revocation.abort(new ORPCError('UNAUTHORIZED', {message: REVOKED_MESSAGE}))
+            void Promise.allSettled(streams.replies).then(() => ws.close(code, reason))
+          },
+        })
       },
       onMessage: (event, ws) => {
         held.socket = ws

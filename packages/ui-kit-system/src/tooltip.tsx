@@ -177,8 +177,12 @@ function Root(props: RootProps) {
 const Trigger = nativeFocusPart(Ark.Trigger, 'button')
 
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
+  const [local, rest] = splitProps(props, ['class'])
   return (
-    <Show when={useContext(MemberContext)} fallback={<Ark.Positioner {...props} />}>
+    <Show
+      when={useContext(MemberContext)}
+      fallback={<Ark.Positioner {...rest} class={`pointer-events-none ${local.class ?? ''}`} />}
+    >
       {props.children}
     </Show>
   )

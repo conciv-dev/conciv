@@ -50,6 +50,7 @@ import {AttachmentProvider} from '../src/primitives/attachment/attachment.js'
 import {AttachmentUI} from '../src/styled/attachment-ui.js'
 import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../src/store/sample-image.fixtures.js'
 import type {WebStorage} from '@conciv/storage-history'
+import type {ComposerDraftWriter} from '../src/behaviors/use-composer-draft.js'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
 import {Composer} from '../src/styled/composer.js'
 import {createStore} from 'solid-js/store'
@@ -149,14 +150,16 @@ describe('action bar inactive unreachable', () => {
         <button type="button" onClick={() => void chat.sendMessage('two')}>
           ask-two
         </button>
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Messages />
-          </Thread.Viewport>
-          <Thread.Composer>
-            <span>composer region</span>
-          </Thread.Composer>
-        </Thread>
+        <div class="flex flex-col h-96">
+          <Thread>
+            <Thread.Viewport>
+              <Thread.Messages />
+            </Thread.Viewport>
+            <Thread.Composer>
+              <span>composer region</span>
+            </Thread.Composer>
+          </Thread>
+        </div>
       </ChatProvider>
     )
   }
@@ -361,7 +364,7 @@ describe('attachment image viewer', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('a refused image says why on its chip, by name and by a tooltip that opens on keyboard focus', async () => {
+  it('a refused image says why on its chip, by name and by a tooltip that opens on hover and keyboard focus and never blocks the input', async () => {
     const tooLarge = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'huge.png', {type: 'image/png'})
     const reason = `huge.png exceeds the ${MAX_ATTACHMENT_RAW_BYTES / (1024 * 1024)}MB image limit`
     mountComposer([])
@@ -370,7 +373,10 @@ describe('attachment image viewer', () => {
 
     const refused = page.getByRole('button', {name: reason})
     await expect.element(refused).toBeVisible()
+    await refused.hover()
+    await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
     await page.getByRole('textbox', {name: 'Message'}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(page.getByRole('button', {name: 'Remove huge.png'})).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
@@ -981,16 +987,42 @@ describe('composer completion', () => {
     )
   }
 
-  function ComposerHarness(props: {storage?: WebStorage}): JSX.Element {
+  function ComposerHarness(props: {
+    storage?: WebStorage
+    writer?: ComposerDraftWriter
+    adapter?: AttachmentAdapter
+  }): JSX.Element {
     return (
-      <ComposerPrimitive.Root draftStorage={props.storage} draftKey={DRAFT_KEY}>
+      <ComposerPrimitive.Root
+        draftStorage={props.storage}
+        draftWriter={props.writer}
+        draftKey={DRAFT_KEY}
+        attachmentAdapter={props.adapter ?? createSimpleImageAttachmentAdapter()}
+      >
         <ComposerPrimitive.Input aria-label="Message" />
+        <AttachKeptImage />
         <ComposerPrimitive.Quote />
         <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
         <ErrorPrimitive.Root>
           <ErrorPrimitive.Message />
         </ErrorPrimitive.Root>
       </ComposerPrimitive.Root>
+    )
+  }
+
+  function AttachKeptImage(): JSX.Element {
+    const composer = useComposerContext()
+    const image = new File(
+      [Uint8Array.from(atob(SAMPLE_IMAGE_BASE64), (character) => character.charCodeAt(0))],
+      'kept.png',
+      {
+        type: SAMPLE_IMAGE_MIME,
+      },
+    )
+    return (
+      <button type="button" onClick={() => void composer.addAttachment(image)}>
+        Attach kept.png
+      </button>
     )
   }
 
@@ -1018,6 +1050,42 @@ describe('composer completion', () => {
       .toBeVisible()
   })
 
+  it('hands every change to the draft writer at once, with its files, and leaves the storage alone', async () => {
+    const probe = createProbeStorage()
+    const [writes, setWrites] = createSignal<readonly string[]>([])
+    const writer: ComposerDraftWriter = (key, draft) => {
+      const files = draft.attachments.map((attachment) =>
+        attachment.file instanceof File ? `${attachment.file.name} as a File` : 'no file',
+      )
+      setWrites((current) => [...current, `${key}: "${draft.draft}" [${files.join(', ')}]`])
+    }
+    mountView(() => (
+      <ChatHost>
+        <ComposerHarness storage={probe.storage} writer={writer} />
+        <p>writes: {writes().length}</p>
+        <p>last write: {writes().at(-1) ?? 'none'}</p>
+        <p>storage: {probe.written() ?? 'untouched'}</p>
+      </ChatHost>
+    ))
+
+    await expect.element(page.getByText('writes: 0')).toBeVisible()
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('h')
+    await expect.element(page.getByText('writes: 1')).toBeVisible()
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "h" []`)).toBeVisible()
+    await userEvent.keyboard('i')
+    await expect.element(page.getByText('writes: 2')).toBeVisible()
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "hi" []`)).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Attach kept.png'}))
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "hi" [kept.png as a File]`)).toBeVisible()
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('{Backspace}{Backspace}')
+    await expect.element(page.getByText(`last write: ${DRAFT_KEY}: "" [kept.png as a File]`)).toBeVisible()
+    await expect.element(page.getByText('storage: untouched')).toBeVisible()
+  })
+
   it('restores a persisted draft and quote when the composer mounts', async () => {
     const probe = createProbeStorage(seeded({text: 'kept across the reload', quote: 'a quoted line'}))
     mountView(() => (
@@ -1028,6 +1096,36 @@ describe('composer completion', () => {
 
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('kept across the reload')
     await expect.element(page.getByText('a quoted line')).toBeVisible()
+  })
+
+  it("keeps a host's blob reference on an attachment through a refused send, untouched", async () => {
+    const images = createSimpleImageAttachmentAdapter()
+    const adapter: AttachmentAdapter = {
+      ...images,
+      add: (state) => {
+        const added = images.add(state)
+        if (!(added instanceof Promise)) return added
+        return added.then((pending) => ({...pending, blob: {id: 'stored-kept', url: ''}}))
+      },
+    }
+    const [blobs, setBlobs] = createSignal('none')
+    const writer: ComposerDraftWriter = (_key, draft) =>
+      setBlobs(draft.attachments.map((attachment) => attachment.blob?.id ?? 'no blob').join(', '))
+    const handlers: ComposerHandlers = {onSend: () => Promise.reject(new Error('the server rejected the send'))}
+    mountView(() => (
+      <ChatHost handlers={handlers}>
+        <ComposerHarness writer={writer} adapter={adapter} />
+        <p>blobs: {blobs()}</p>
+      </ChatHost>
+    ))
+
+    await userEvent.click(page.getByRole('button', {name: 'Attach kept.png'}))
+    await expect.element(page.getByText('blobs: stored-kept')).toBeVisible()
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('send the image')
+    await userEvent.click(page.getByRole('button', {name: 'Send'}))
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('send the image')
+    await expect.element(page.getByText('blobs: stored-kept')).toBeVisible()
   })
 
   it('restores the draft when the send handler rejects', async () => {

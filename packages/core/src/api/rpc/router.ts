@@ -325,8 +325,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         return rows[0] ?? null
       }),
       set: os.drafts.set.handler(async ({input}) => {
-        const row = {...input, updatedAt: Date.now()}
-        await db.insert(drafts).values(row).onConflictDoUpdate({target: drafts.sessionId, set: row})
+        await db.insert(drafts).values(input).onConflictDoUpdate({target: drafts.sessionId, set: input})
         return {ok: true as const}
       }),
     },
@@ -468,9 +467,13 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
         hubTraced(deps, context, 'page_clear_changes', {}, () => deps.queues.clearChanges(context.session.id)),
       ),
-      queries: sessionOs.page.queries.handler(({context, signal}) =>
-        context.session.page.queries(signal ?? new AbortController().signal),
+      queries: sessionOs.page.queries.handler(({input, context, signal}) =>
+        context.session.page.queries(signal ?? new AbortController().signal, input.focus),
       ),
+      focus: sessionOs.page.focus.handler(({input, context}) => {
+        context.session.page.focus(input.browserTab, input)
+        return {ok: true as const}
+      }),
       reply: sessionOs.page.reply.handler(({input, context, errors}) => {
         if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
