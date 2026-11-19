@@ -367,9 +367,9 @@ describe('claude chat config', () => {
       })
     })
 
-    it('caps MCP tool calls above the 120s ui-ask window so blocking conciv_ui times out gracefully first', () => {
+    it('lets an MCP tool call wait an hour, so a permission card waits for the user', () => {
       const config = claudeChatConfig(deps())
-      expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({env: {MCP_TOOL_TIMEOUT: '150000'}})
+      expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({env: {MCP_TOOL_TIMEOUT: '3600000'}})
     })
 
     it('caller env wins over the MCP_TOOL_TIMEOUT default', () => {

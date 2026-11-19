@@ -78,12 +78,12 @@ by two different paths.
   which is a bare `default: 'ask'` with no command rules (`packages/ai/src/server/chat-server.ts`), and
   arrives in the widget as an ask. Conciv keeps no allow, ask or deny list. A command stuck on a card is
   the CLI asking, so read the CLI's verdict rather than looking for a conciv rule.
-- **The same command asked twice.** A grant is remembered for the session only when the user answers
-  with `scope: 'session'` (`packages/chat/src/approvals.ts:83-100`). A `once` grant is consumed by the
-  next run (`forRun`, `packages/chat/src/approvals.ts:101-105`), and a command containing a shell
-  metacharacter is never session-grantable: it falls back to `once`
-  (`sessionGrantable`, `packages/chat/src/approvals.ts:48-55`). Asking again is the design, not a lost
-  decision.
+- **The same command asked twice.** A harness ask is never remembered: `askForHarness` asserts with
+  `save: []` (`packages/core/src/runtime/permission-cards.ts:249-271`), so its card offers no "always"
+  (`permission: {always: ...}`, `packages/core/src/runtime/permission-cards.ts:178`) and the next call
+  asks again. Only an ask that names `save` resources, such as the outside-agent consent, stores an
+  `always` answer (`packages/plugin-host/src/core/permission.ts:364-370`). Asking again is the design,
+  not a lost decision.
 - **First-response hang with no tool call involved.** `guardedAdapter`
   (`packages/ai/src/server/run-guard.ts:24-38`, `:62-71`) bounds the wait with two limits. Until the
   harness's first `RUN_STARTED` the start limit runs, `FIRST_START_TIMEOUT_MS` (30s,
@@ -97,21 +97,26 @@ by two different paths.
 
 ## Failure scenario 4: an approval never resolves
 
-- **The request is already gone when the click lands.** `decide` settles only an id still in the
-  thread's pending list and returns `false` otherwise
-  (`packages/chat/src/approvals.ts:83-85`). The RPC turns that `false` into `UNKNOWN_REQUEST`
-  (`packages/core/src/api/rpc/chat.ts:10-15`), so a second click on an answered card surfaces as
-  "no pending approval", not silence.
-- **A card outlives its run on purpose.** Pending requests live in thread metadata, not in the run
-  (`asked`, `packages/chat/src/approvals.ts:70-74`), and `chat.hydrate` returns them after a reload
-  (`packages/chat/src/index.ts:101`). A card that survives a reload or a finished run is still
-  answerable.
-- **Approving records a grant; it does not run the tool.** `decide` only writes the grant
-  (`packages/chat/src/approvals.ts:92-98`). The server reads grants when a run starts, through
-  `forRun` in the turn's setup (`packages/chat/src/turn.ts:201-206`), so the tool executes when a run
-  retries it, not at the click.
-- **Deny writes nothing.** A denied request leaves the pending list and adds no grant
-  (`packages/chat/src/approvals.ts:91`), so a later retry asks again.
+- **The request is already gone when the click lands.** `answerPermission` answers `gone` for an id the
+  permission service no longer holds and `foreign` for one owned by another session
+  (`packages/core/src/runtime/permission-cards.ts:274-292`). `decidePermissionCard` drops a `gone` card
+  and returns `false` for anything but `replied`
+  (`packages/core/src/runtime/permission-cards.ts:312-319`), and the RPC turns that into
+  `UNKNOWN_REQUEST` (`packages/core/src/api/rpc/chat.ts:28-39`), so a second click on an answered card
+  surfaces as "no pending approval", not silence.
+- **A card lives exactly as long as its ask.** Pending cards are read from the permission service's
+  pending list (`pendingPermissionCards`, `packages/core/src/runtime/permission-cards.ts:212-218`),
+  which a reload hydrates through `pendingPermissions` (`packages/chat/src/index.ts:107`). An ask ends
+  with its run: the waiting `assert` removes its request when it is interrupted
+  (`packages/plugin-host/src/core/permission.ts:304`), and `settlingAsks` then settles every card of
+  that run left unanswered (`packages/core/src/runtime/permission-cards.ts:220-243`). A card that
+  survives a reload is still answerable; one whose run stopped is gone.
+- **Approving resumes the waiting call.** `reply` completes the ask the tool call is waiting on, so the
+  tool runs at the click (`packages/plugin-host/src/core/permission.ts:331-388`). The Claude harness
+  waits up to `MCP_TOOL_TIMEOUT` for that answer (`packages/harness/src/claude/chat.ts:14`).
+- **Deny ends every ask of the session.** A `reject` fails the request and every other pending request
+  of the same session (`packages/plugin-host/src/core/permission.ts:342-361`), and the harness answers
+  the call with `The user rejected ...` (`packages/core/src/runtime/permission-cards.ts:268`).
 
 ## Failure scenario 5: SSE stream never settles, tests hang
 
@@ -165,7 +170,8 @@ Two consequences:
 
 - `packages/ai/src/server/chat-server.ts`
 - `packages/ai/src/server/run-guard.ts`
-- `packages/chat/src/approvals.ts`
+- `packages/core/src/runtime/permission-cards.ts`
+- `packages/plugin-host/src/core/permission.ts`
 - `packages/chat/src/code-mode.ts`
 - `packages/chat/src/index.ts`
 - `packages/chat/src/turn.ts`

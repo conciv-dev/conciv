@@ -39,7 +39,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 
 - Writes `conciv-claude-settings-<sha256 16>.json` to `os.tmpdir()` on every `claudeChatConfig` call (`claudeAskSettingsFile`).
 - Creates `<concivStateDir(cwd)>/tmp` and writes `img-<uuid>.<ext>` files (`imageRefs`).
-- Sets adapter env `MCP_TOOL_TIMEOUT=150000` and `ENABLE_TOOL_SEARCH=false`, merged with `deps.env` (`claudeChatConfig`).
+- Sets adapter env `MCP_TOOL_TIMEOUT=3600000` (one hour, so a permission card waits for the user) and `ENABLE_TOOL_SEARCH=false`, merged with `deps.env` (`claudeChatConfig`).
 - `existsSync` probe at module load (`CONCIV_PLUGIN_DIR`).
 - Starts an Agent SDK `query` with `permissionMode: 'acceptEdits'` to read `supportedCommands`, then interrupts it (`probeCommands`, `sdk.ts`).
 - Reads `<Claude config dir>/projects/<encoded cwd>/*.jsonl` (`transcriptMessages`, `transcriptTail`, `observeTranscript`) and, through the Agent SDK, the same directory's heads and tails (`listSessions`, `sessionMeta`); an `everywhere` listing reads every `projects/*` directory.

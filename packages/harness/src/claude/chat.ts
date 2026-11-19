@@ -11,7 +11,7 @@ import {lastUserImages} from '../_shared/text-adapter.js'
 import {claudeAskSettingsFile} from './ask-rules.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
-const MCP_TOOL_TIMEOUT_MS = 150_000
+const MCP_TOOL_TIMEOUT_MS = 3_600_000
 
 const BRIDGED_CONCIV_TOOLS = ['mcp__tanstack']
 
