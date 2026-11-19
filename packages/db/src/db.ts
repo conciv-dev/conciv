@@ -17,16 +17,13 @@ export const MigrationLockError = Schema.TaggedStruct('ConcivDb.MigrationLockErr
   lockFile: Schema.String,
   cause: Schema.Defect(),
 })
-export type MigrationLockError = typeof MigrationLockError.Type & globalThis.Error
-
-const makeMigrationLockError = (fields: Omit<typeof MigrationLockError.Type, '_tag'>): MigrationLockError =>
-  Object.assign(new globalThis.Error(), MigrationLockError.make(fields), {name: 'ConcivDb.MigrationLockError'})
+export type MigrationLockError = typeof MigrationLockError.Type
 
 function whileMigrationLockHeld<A, E, R>(lockFile: string, run: Effect.Effect<A, E, R>) {
   return Effect.acquireUseRelease(
     Effect.try({
       try: () => takeMigrationLock(lockFile),
-      catch: (cause) => makeMigrationLockError({lockFile, cause}),
+      catch: (cause) => MigrationLockError.make({lockFile, cause}),
     }),
     () => run,
     (lock) => Effect.sync(() => lock.close()),
