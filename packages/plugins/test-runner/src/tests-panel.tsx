@@ -1,6 +1,6 @@
 import {createUniqueId, For, Show, type JSX} from 'solid-js'
 import type {IconName, Ui} from '@conciv/plugin/experimental'
-import type {Summary, TestError, TestRow} from '../shared/events.js'
+import type {Summary, TestError, TestRow} from './events.js'
 import {
   counts,
   duration,
@@ -12,12 +12,12 @@ import {
   STATE_LABEL,
   testFiles,
   type FileGroup,
-} from '../view.js'
-import type {RunPhase, RunState} from './run-state.js'
+} from './view.js'
+import {selectEndedFiles, selectSummary, selectTests, type RunView, type RunViewStatus} from './run-state.js'
 
 export type TestsPanelProps = {
   readonly ui: Ui
-  readonly run: RunState
+  readonly run: RunView
   readonly directory: string
   readonly canOpen: boolean
   readonly onOpen: (error: TestError) => void
@@ -34,10 +34,10 @@ const STATE_TONE: Record<TestRow['state'], string> = {
   fail: 'text-chat-danger',
   skip: 'text-chat-text-3',
 }
-function statusSentence(phase: RunPhase, summary: Summary): string {
-  if (phase === 'running') return `Running tests: ${counts(summary)}`
-  if (phase === 'done') return `Test run finished: ${counts(summary)}`
-  if (phase === 'unavailable') return 'The test runner is unavailable'
+function statusSentence(status: RunViewStatus, summary: Summary): string {
+  if (status === 'running') return `Running tests: ${counts(summary)}`
+  if (status === 'done') return `Test run finished: ${counts(summary)}`
+  if (status === 'unavailable') return 'The test runner is unavailable'
   return 'No test run yet'
 }
 
@@ -128,9 +128,9 @@ function FailureCard(props: {
 }
 
 export function TestsPanel(props: TestsPanelProps): JSX.Element {
-  const running = () => props.run.phase === 'running'
-  const failures = () => props.run.tests.flatMap((test) => (test.error ? [test.error] : []))
-  const files = () => testFiles(props.run.tests)
+  const running = () => props.run.status === 'running'
+  const failures = () => selectTests(props.run).flatMap((test) => (test.error ? [test.error] : []))
+  const files = () => testFiles(selectTests(props.run))
   const failingHeading = createUniqueId()
   const filesHeading = createUniqueId()
   return (
@@ -142,27 +142,29 @@ export function TestsPanel(props: TestsPanelProps): JSX.Element {
           </span>
         </Show>
         <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2 flex-1 min-w-0">
-          {statusSentence(props.run.phase, props.run.summary)}
+          {statusSentence(props.run.status, selectSummary(props.run))}
         </p>
         <span class="text-chat-xs text-chat-text-3 font-chat-mono shrink-0 tabular-nums">
-          {props.run.phase === 'done' ? duration(props.run.summary.durationMs) : ''}
+          {props.run.status === 'done' ? duration(selectSummary(props.run).durationMs) : ''}
         </span>
       </div>
-      <Show when={props.run.phase === 'idle'}>
+      <Show when={props.run.status === 'idle'}>
         <p class="text-chat-sm text-chat-text-3">
           Ask the agent to run the tests; the results show here as they come in.
         </p>
       </Show>
-      <Show when={props.run.phase === 'unavailable'}>
-        <div class="p-3 border border-chat-danger-line rounded-chat-surface-md bg-chat-danger-10 flex flex-col gap-2">
-          <div class="text-chat-sm text-chat-text font-semibold flex gap-2 items-center">
-            <span class="text-chat-danger flex shrink-0">
-              <props.ui.Icon name="triangle-alert" size="small" />
-            </span>
-            The project's test runner could not start
+      <Show when={props.run.status === 'unavailable' ? props.run : undefined}>
+        {(view) => (
+          <div class="p-3 border border-chat-danger-line rounded-chat-surface-md bg-chat-danger-10 flex flex-col gap-2">
+            <div class="text-chat-sm text-chat-text font-semibold flex gap-2 items-center">
+              <span class="text-chat-danger flex shrink-0">
+                <props.ui.Icon name="triangle-alert" size="small" />
+              </span>
+              The project's test runner could not start
+            </div>
+            <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{view().reason}</p>
           </div>
-          <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{props.run.reason}</p>
-        </div>
+        )}
       </Show>
       <Show when={failures().length > 0}>
         <section aria-labelledby={failingHeading} class="flex flex-col gap-2">
@@ -195,9 +197,9 @@ export function TestsPanel(props: TestsPanelProps): JSX.Element {
               {(file) => (
                 <FileRow
                   ui={props.ui}
-                  group={fileGroup(props.run.tests, file)}
+                  group={fileGroup(selectTests(props.run), file)}
                   directory={props.directory}
-                  running={running() && !props.run.endedFiles.includes(file)}
+                  running={running() && !selectEndedFiles(props.run).includes(file)}
                 />
               )}
             </For>
