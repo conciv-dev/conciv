@@ -48,8 +48,13 @@ function Screen(props: {class?: string}): JSX.Element {
       model.connect()
       if (focusStayedOnTheTab(screen)) model.focus()
     }
+    const measure = (): void => {
+      if (model.status() === 'closed') return
+      if (started) model.fit()
+      else start()
+    }
     start()
-    const observer = new ResizeObserver(() => (started ? model.fit() : start()))
+    const observer = new ResizeObserver(() => requestAnimationFrame(measure))
     observer.observe(screen)
     onCleanup(() => {
       observer.disconnect()
