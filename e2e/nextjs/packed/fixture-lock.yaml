@@ -5,39 +5,39 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@conciv/ai': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-ai-0.0.22.tgz
-  '@conciv/chat': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-chat-0.0.22.tgz
-  '@conciv/cli': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-cli-0.0.22.tgz
-  '@conciv/client': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-client-0.0.22.tgz
-  '@conciv/contract': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-contract-0.0.22.tgz
-  '@conciv/core': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-core-0.0.22.tgz
-  '@conciv/db': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-db-0.0.22.tgz
-  '@conciv/embed': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-embed-0.0.22.tgz
-  '@conciv/extension': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-0.0.22.tgz
-  '@conciv/extension-compiler': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-compiler-0.0.22.tgz
-  '@conciv/extension-ios': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-ios-0.0.22.tgz
-  '@conciv/extension-tanstack': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-tanstack-0.0.22.tgz
-  '@conciv/grab': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-grab-0.0.22.tgz
-  '@conciv/harness': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-harness-0.0.22.tgz
-  '@conciv/harness-init': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-harness-init-0.0.22.tgz
-  '@conciv/it': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-it-0.0.22.tgz
-  '@conciv/mascot': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-mascot-0.0.22.tgz
-  '@conciv/page': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-page-0.0.22.tgz
-  '@conciv/plugin': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-plugin-0.0.22.tgz
-  '@conciv/plugin-host': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-plugin-host-0.0.22.tgz
-  '@conciv/plugin-page': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-plugin-page-0.0.22.tgz
-  '@conciv/protocol': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-protocol-0.0.22.tgz
-  '@conciv/serve': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-serve-0.0.22.tgz
-  '@conciv/solid-diffs': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-solid-diffs-0.0.22.tgz
-  '@conciv/solid-streamdown': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-solid-streamdown-0.0.22.tgz
-  '@conciv/storage-history': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-storage-history-0.0.22.tgz
-  '@conciv/tools': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-tools-0.0.22.tgz
-  '@conciv/ui-kit-chat': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-ui-kit-chat-0.0.22.tgz
-  '@conciv/ui-kit-chat-tools': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-ui-kit-chat-tools-0.0.22.tgz
-  '@conciv/ui-kit-system': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-ui-kit-system-0.0.22.tgz
-  '@conciv/ui-kit-tap': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-ui-kit-tap-0.0.22.tgz
-  '@conciv/ui-kit-terminal': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-ui-kit-terminal-0.0.22.tgz
-  '@conciv/unplugin': file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-unplugin-0.0.22.tgz
+  '@conciv/ai': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-ai-0.0.22.tgz
+  '@conciv/chat': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-chat-0.0.22.tgz
+  '@conciv/cli': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-cli-0.0.22.tgz
+  '@conciv/client': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-client-0.0.22.tgz
+  '@conciv/contract': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-contract-0.0.22.tgz
+  '@conciv/core': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-core-0.0.22.tgz
+  '@conciv/db': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-db-0.0.22.tgz
+  '@conciv/embed': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-embed-0.0.22.tgz
+  '@conciv/extension': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-0.0.22.tgz
+  '@conciv/extension-compiler': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-compiler-0.0.22.tgz
+  '@conciv/extension-ios': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-ios-0.0.22.tgz
+  '@conciv/extension-tanstack': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-tanstack-0.0.22.tgz
+  '@conciv/grab': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-grab-0.0.22.tgz
+  '@conciv/harness': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-harness-0.0.22.tgz
+  '@conciv/harness-init': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-harness-init-0.0.22.tgz
+  '@conciv/it': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-it-0.0.22.tgz
+  '@conciv/mascot': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-mascot-0.0.22.tgz
+  '@conciv/page': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-page-0.0.22.tgz
+  '@conciv/plugin': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-plugin-0.0.22.tgz
+  '@conciv/plugin-host': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-plugin-host-0.0.22.tgz
+  '@conciv/plugin-page': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-plugin-page-0.0.22.tgz
+  '@conciv/protocol': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-protocol-0.0.22.tgz
+  '@conciv/serve': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-serve-0.0.22.tgz
+  '@conciv/solid-diffs': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-solid-diffs-0.0.22.tgz
+  '@conciv/solid-streamdown': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-solid-streamdown-0.0.22.tgz
+  '@conciv/storage-history': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-storage-history-0.0.22.tgz
+  '@conciv/tools': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-tools-0.0.22.tgz
+  '@conciv/ui-kit-chat': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-ui-kit-chat-0.0.22.tgz
+  '@conciv/ui-kit-chat-tools': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-ui-kit-chat-tools-0.0.22.tgz
+  '@conciv/ui-kit-system': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-ui-kit-system-0.0.22.tgz
+  '@conciv/ui-kit-tap': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-ui-kit-tap-0.0.22.tgz
+  '@conciv/ui-kit-terminal': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-ui-kit-terminal-0.0.22.tgz
+  '@conciv/unplugin': file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-unplugin-0.0.22.tgz
 
 importers:
 
@@ -46,16 +46,16 @@ importers:
   packages/app:
     dependencies:
       '@conciv/extension':
-        specifier: file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-0.0.22.tgz
         version: file:tgz/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/extension-compiler':
-        specifier: file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-compiler-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-compiler-0.0.22.tgz
         version: file:tgz/conciv-extension-compiler-0.0.22.tgz(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/extension-tanstack':
-        specifier: file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-extension-tanstack-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-extension-tanstack-0.0.22.tgz
         version: file:tgz/conciv-extension-tanstack-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(@tanstack/react-router@1.170.46(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/it':
-        specifier: file:/tmp/conciv-packed-fixture-xhcWTr/tgz/conciv-it-0.0.22.tgz
+        specifier: file:/tmp/conciv-packed-fixture-6RlGjZ/tgz/conciv-it-0.0.22.tgz
         version: file:tgz/conciv-it-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(next@16.2.10(@babel/core@7.29.13)(@opentelemetry/api@1.10.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(shiki@4.6.0)(solid-js@1.9.18)(srvx@1.0.8)(ws@8.22.2)
       next:
         specifier: 16.2.10
@@ -482,7 +482,7 @@ packages:
     resolution: {tarball: file:tgz/conciv-mascot-0.0.22.tgz}
     version: 0.0.22
     peerDependencies:
-      solid-js: '>=1.8'
+      solid-js: ^1.8
     peerDependenciesMeta:
       solid-js:
         optional: true
@@ -3687,14 +3687,6 @@ packages:
     resolution: {integrity: sha512-6Lh3jQPLthYujSrlw6ccWXBGZTkoTCz27Hd92g79LH/kjAbgoEu0t442cCCNbegPSJsA0lwDX8z0bcKtkpA32g==}
     engines: {node: '>=18'}
 
-  p-queue@10.0.0:
-    resolution: {integrity: sha512-P2wrCri3bhGLPo3kX7qYVXbo/5GvaVATU0DpO24CbeT53Y4z35t8JUWku04ERpXHUYB5rPMi3TkWE3fmJgx5rA==}
-    engines: {node: '>=22'}
-
-  p-timeout@8.1.0:
-    resolution: {integrity: sha512-vajKtRMD6MqeaVhwkUVwoFTBEXwxn4MDUV9M1A8FNG5KS7Tg3nN0a9RrKjGYI8LApm0zHHcGSo6JTFD+2jzrmA==}
-    engines: {node: '>=22'}
-
   package-manager-detector@1.9.0:
     resolution: {integrity: sha512-zAMfbta9nPA8AKkA4WdmNAT8R8s6Dk0/xwPsqNnRidMFcLo1YkLuPDTgs2f64XdzS8vbLNnoJ+uUIkgbz7oRHA==}
 
@@ -4874,6 +4866,7 @@ snapshots:
       '@tanstack/ai-solid': 1.0.1(@opentelemetry/api@1.10.0)(@tanstack/ai@1.2.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(react@19.2.4)(solid-js@1.9.18)(zod@4.6.7)
       '@tanstack/store': 0.11.2
       drizzle-orm: 1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(effect@4.1.0)(zod@4.6.7)
+      es-toolkit: 1.53.2
       piscina: 5.3.2
       solid-js: 1.9.18
       zod: 4.6.7
@@ -4936,14 +4929,14 @@ snapshots:
       - vitest
       - ws
 
-  '@conciv/chat@file:tgz/conciv-chat-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)':
+  '@conciv/chat@file:tgz/conciv-chat-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(solid-js@1.9.18)(ws@8.22.2)':
     dependencies:
       '@conciv/ai': file:tgz/conciv-ai-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(react@19.2.4)(ws@8.22.2)
       '@conciv/contract': file:tgz/conciv-contract-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/db': file:tgz/conciv-db-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/extension': file:tgz/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/harness': file:tgz/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
-      '@conciv/plugin-host': file:tgz/conciv-plugin-host-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
+      '@conciv/plugin-host': file:tgz/conciv-plugin-host-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(solid-js@1.9.18)
       '@conciv/protocol': file:tgz/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/serve': file:tgz/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)
       '@conciv/tools': file:tgz/conciv-tools-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
@@ -5008,6 +5001,7 @@ snapshots:
       - postgres
       - react
       - react-dom
+      - redis
       - solid-js
       - sql.js
       - sqlite3
@@ -5112,7 +5106,7 @@ snapshots:
   '@conciv/core@file:tgz/conciv-core-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(solid-js@1.9.18)(srvx@1.0.8)(ws@8.22.2)':
     dependencies:
       '@conciv/ai': file:tgz/conciv-ai-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(react@19.2.4)(ws@8.22.2)
-      '@conciv/chat': file:tgz/conciv-chat-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
+      '@conciv/chat': file:tgz/conciv-chat-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(crossws@0.4.17(srvx@1.0.8))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/contract': file:tgz/conciv-contract-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/db': file:tgz/conciv-db-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/extension': file:tgz/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
@@ -5120,7 +5114,7 @@ snapshots:
       '@conciv/harness': file:tgz/conciv-harness-0.0.22.tgz(@anthropic-ai/sdk@1.7.0(zod@4.6.7))(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7))(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(effect@4.1.0)(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/harness-init': file:tgz/conciv-harness-init-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
-      '@conciv/plugin-host': file:tgz/conciv-plugin-host-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
+      '@conciv/plugin-host': file:tgz/conciv-plugin-host-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(solid-js@1.9.18)
       '@conciv/plugin-page': file:tgz/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/protocol': file:tgz/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/serve': file:tgz/conciv-serve-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)
@@ -5140,8 +5134,6 @@ snapshots:
       es-toolkit: 1.53.2
       hono: 4.13.17
       lucide-solid: 1.66.0(solid-js@1.9.18)
-      p-queue: 10.0.0
-      p-timeout: 8.1.0
       solid-js: 1.9.18
       unstorage: 1.17.5
       zod: 4.6.7
@@ -5301,7 +5293,7 @@ snapshots:
       '@conciv/extension-ios': file:tgz/conciv-extension-ios-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/grab': file:tgz/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/mascot': file:tgz/conciv-mascot-0.0.22.tgz(solid-js@1.9.18)
-      '@conciv/page': file:tgz/conciv-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(ws@8.22.2)
+      '@conciv/page': file:tgz/conciv-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)
       '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/plugin-page': file:tgz/conciv-plugin-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/protocol': file:tgz/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
@@ -5432,7 +5424,7 @@ snapshots:
     dependencies:
       '@conciv/contract': file:tgz/conciv-contract-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/extension': file:tgz/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
-      '@conciv/page': file:tgz/conciv-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(ws@8.22.2)
+      '@conciv/page': file:tgz/conciv-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)
       '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/protocol': file:tgz/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/ui-kit-chat': file:tgz/conciv-ui-kit-chat-0.0.22.tgz(@opentelemetry/api@1.10.0)(@shikijs/themes@4.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.18)
@@ -5730,32 +5722,26 @@ snapshots:
     optionalDependencies:
       solid-js: 1.9.18
 
-  '@conciv/page@file:tgz/conciv-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(ws@8.22.2)':
+  '@conciv/page@file:tgz/conciv-page-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)':
     dependencies:
-      '@conciv/extension': file:tgz/conciv-extension-0.0.22.tgz(@opentelemetry/api@1.10.0)(crossws@0.4.17(srvx@1.0.8))(react@19.2.4)(solid-js@1.9.18)(ws@8.22.2)
       '@conciv/grab': file:tgz/conciv-grab-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
       '@conciv/protocol': file:tgz/conciv-protocol-0.0.22.tgz(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       bippy: 0.6.1(react@19.2.4)
-      p-queue: 10.0.0
       react-grab: 0.2.0(react@19.2.4)
       rrweb-snapshot: 2.2.0
       solid-js: 1.9.18
     transitivePeerDependencies:
       - '@opentelemetry/api'
-      - bufferutil
-      - crossws
-      - fastify
       - react
-      - utf-8-validate
       - vite
       - vite-plugin-solid
-      - ws
 
-  '@conciv/plugin-host@file:tgz/conciv-plugin-host-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)':
+  '@conciv/plugin-host@file:tgz/conciv-plugin-host-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(redis@6.3.1(@opentelemetry/api@1.10.0))(solid-js@1.9.18)':
     dependencies:
       '@conciv/db': file:tgz/conciv-db-0.0.22.tgz(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@opentelemetry/api@1.10.0)(solid-js@1.9.18)
       '@conciv/plugin': file:tgz/conciv-plugin-0.0.22.tgz(@opentelemetry/api@1.10.0)(react@19.2.4)(solid-js@1.9.18)
+      '@effect/platform-node': 4.1.0(effect@4.1.0)(redis@6.3.1(@opentelemetry/api@1.10.0))
       '@effect/sql-sqlite-node': 4.1.0(effect@4.1.0)
       '@npmcli/arborist': 9.4.0
       '@npmcli/config': 10.8.1
@@ -5817,6 +5803,7 @@ snapshots:
       - '@xata.io/client'
       - arktype
       - better-sqlite3
+      - bufferutil
       - bun-types
       - expo-sqlite
       - mssql
@@ -5824,11 +5811,13 @@ snapshots:
       - pg
       - postgres
       - react
+      - redis
       - solid-js
       - sql.js
       - sqlite3
       - supports-color
       - typebox
+      - utf-8-validate
       - valibot
       - vite
       - vite-plugin-solid
@@ -9663,10 +9652,6 @@ snapshots:
       - '@emnapi/runtime'
 
   p-map@7.1.1: {}
-
-  p-queue@10.0.0: {}
-
-  p-timeout@8.1.0: {}
 
   package-manager-detector@1.9.0: {}
 
