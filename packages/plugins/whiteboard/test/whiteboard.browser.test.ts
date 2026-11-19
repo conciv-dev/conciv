@@ -1204,7 +1204,7 @@ async function chooseSolidCanvas(page: Page): Promise<void> {
   await page.getByRole('link', {name: 'Settings'}).click({timeout: 10_000})
   const transparent = page.getByRole('switch', {name: CANVAS_BACKGROUND_SWITCH})
   await expect(transparent).toBeChecked({timeout: 10_000})
-  await transparent.locator('xpath=..').click()
+  await transparent.press('Space')
   await expect(transparent).not.toBeChecked()
   await page.getByRole('button', {name: 'Back to chat'}).click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 10_000})
