@@ -273,7 +273,7 @@ module.exports = {default: {setup(ctx) {
       })
       try {
         const page = widget.page
-        await expectLocator(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+        await expectLocator(page.getByText('page-probe-ok', {exact: true})).toBeVisible()
         await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
         await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeFocused({
           timeout: 30_000,

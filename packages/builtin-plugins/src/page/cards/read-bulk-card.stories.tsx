@@ -1,43 +1,11 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {ReadBulkCard, readBulkCard} from './read-bulk-card.js'
-import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/Page/tool/ReadBulkCard'}
 export default meta
 type Story = StoryObj
-
-const domMeta: ToolViewMeta = {
-  summary: 'return the outer HTML of an element or of the whole body',
-  category: 'read',
-  icon: 'read',
-  label: {running: 'Reading the DOM', done: 'Read the DOM'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
-  outputSchema: {type: 'object', properties: {html: {type: 'string'}}},
-}
-
-const queryMeta: ToolViewMeta = {
-  summary: 'describe every element matching a selector',
-  category: 'read',
-  icon: 'read',
-  label: {running: 'Querying the page', done: 'Queried the page'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
-  outputSchema: {type: 'object', properties: {count: {type: 'number'}, elements: {type: 'array'}}},
-}
-
-const snapshotMeta: ToolViewMeta = {
-  summary: 'take an accessibility snapshot with a ref for every control',
-  category: 'read',
-  icon: 'read',
-  label: {running: 'Capturing a snapshot', done: 'Captured a snapshot'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
-  outputSchema: {type: 'object', properties: {nodes: {type: 'array'}}},
-}
 
 function shadowText(canvasElement: HTMLElement): string {
   return Array.from(canvasElement.querySelectorAll('diffs-container'))
@@ -48,11 +16,12 @@ function shadowText(canvasElement: HTMLElement): string {
 export const DomMarkup: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadBulkCard
-        part={storyPart('page_dom', {selector: '#hero'})}
-        result={storyResult({html: '<section id="hero"><h1>Ship it on Friday</h1></section>'})}
-        ctx={storyCtx({page_dom: domMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_dom',
+          {selector: '#hero'},
+          {html: '<section id="hero"><h1>Ship it on Friday</h1></section>'},
+        )}
       />
     </div>
   ),
@@ -68,16 +37,17 @@ export const DomMarkup: Story = {
 export const SnapshotNodes: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadBulkCard
-        part={storyPart('page_snapshot', {selector: 'form'})}
-        result={storyResult({
-          nodes: [
-            {ref: 'e12', role: 'textbox', name: 'Email'},
-            {ref: 'e13', role: 'button', name: 'Ship it'},
-          ],
-        })}
-        ctx={storyCtx({page_snapshot: snapshotMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_snapshot',
+          {selector: 'form'},
+          {
+            nodes: [
+              {ref: 'e12', role: 'textbox', name: 'Email'},
+              {ref: 'e13', role: 'button', name: 'Ship it'},
+            ],
+          },
+        )}
       />
     </div>
   ),
@@ -92,14 +62,15 @@ export const SnapshotNodes: Story = {
 export const QueryMatches: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadBulkCard
-        part={storyPart('page_query', {selector: 'button.primary'})}
-        result={storyResult({
-          count: 3,
-          elements: [{tagName: 'button', className: 'primary'}, {tagName: 'button'}, {tagName: 'button'}],
-        })}
-        ctx={storyCtx({page_query: queryMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_query',
+          {selector: 'button.primary'},
+          {
+            count: 3,
+            elements: [{tagName: 'button', className: 'primary'}, {tagName: 'button'}, {tagName: 'button'}],
+          },
+        )}
       />
     </div>
   ),
@@ -113,12 +84,7 @@ export const QueryMatches: Story = {
 export const EmptySnapshot: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ReadBulkCard
-        part={storyPart('page_snapshot', {selector: '#empty'})}
-        result={storyResult({nodes: []})}
-        ctx={storyCtx({page_snapshot: snapshotMeta})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_snapshot', {selector: '#empty'}, {nodes: []})} />
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -128,25 +94,25 @@ export const EmptySnapshot: Story = {
   },
 }
 
-const readBulkTool: ToolCardEntry = {names: ['page_snapshot'], ...readBulkCard}
-
 export const Trace: Story = {
   render: () =>
     traceGallery('1 snap', [
       traceRow(
-        readBulkTool,
-        storyPart('page_snapshot', {selector: 'form'}),
-        storyResult({
-          nodes: [
-            {ref: 'e12', role: 'textbox', name: 'Email'},
-            {ref: 'e13', role: 'button', name: 'Ship it'},
-          ],
-        }),
+        storyCall(
+          'page_snapshot',
+          {selector: 'form'},
+          {
+            nodes: [
+              {ref: 'e12', role: 'textbox', name: 'Email'},
+              {ref: 'e13', role: 'button', name: 'Ship it'},
+            ],
+          },
+        ),
       ),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('snapshot')).toBeVisible()
+    await expect(canvas.getByText('Captured a snapshot')).toBeVisible()
     await expect(canvas.getAllByText('form').length).toBeGreaterThan(0)
     await waitFor(() => expect(canvas.getByText('Email')).toBeVisible())
     await expect(canvas.getByText('Ship it')).toBeVisible()

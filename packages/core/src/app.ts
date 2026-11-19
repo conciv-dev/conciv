@@ -66,7 +66,7 @@ import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -82,7 +82,6 @@ import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
-import {persistentPtySocketRoutes} from './api/persistent-pty-socket.js'
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
@@ -382,7 +381,6 @@ function composeRoutes(
       return c.json({ok: true})
     })
     .route('/', deps.plane.routes(deps.upgrade))
-    .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {
@@ -493,13 +491,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
-  const primitives = makeSessionPrimitives({
-    db,
-    root: opts.cwd,
-    storeCapture: (params) => writeToolCapture(db, params),
-    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-  })
+  const primitives = makeSessionPrimitives()
   const {registry, stream} = primitives
   const rows: RowScope = {
     db,
@@ -726,11 +718,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
     withPluginTools(sessionId, [
-      ...registryCapabilities(
-        registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
-        scopedToolCall,
-        extensionFor,
-      ),
+      ...registryCapabilities(registry.sandboxTools(), scopedToolCall, extensionFor),
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
     ])
 
@@ -738,7 +726,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
   )
   const offeredCapabilities = (sessionId: SessionId): CodeCapability[] => [
-    ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
+    ...registryCapabilities(registry.sandboxTools(), scopedToolCall, extensionFor),
     ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
   ]
   const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {

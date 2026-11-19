@@ -4,9 +4,6 @@ import type {Component} from 'solid-js'
 import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 
 const defaultCtx: ToolViewCtx = {
-  apiBase: '',
-  harnessId: 'claude',
-  sendMessage: () => {},
   addResult: () => Promise.resolve(),
   catalog: INERT_TOOL_CATALOG,
 }

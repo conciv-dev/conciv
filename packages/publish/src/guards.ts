@@ -87,8 +87,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/ui-kit-tap',
   '@conciv/ui-kit-terminal',
   '@conciv/extension-whiteboard',
-  '@conciv/extension-terminal',
-  '@conciv/extension-tanstack',
   '@conciv/extension-ios',
   '@conciv/mascot',
   '@conciv/mascot-react',

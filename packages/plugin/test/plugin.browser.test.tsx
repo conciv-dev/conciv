@@ -93,6 +93,7 @@ function pluginContext(id: string, sessions: Sessions = {list: () => [], current
       Switch: unused,
       TextInput: unused,
       Select: unused,
+      Chip: unused,
       Keybind: unused,
       Markdown: unused,
       Code: unused,
