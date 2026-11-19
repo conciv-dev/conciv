@@ -1,8 +1,10 @@
+import {Effect, Stream, type Scope} from 'effect'
 import {z} from 'zod'
 import type {eventWithTime} from '@rrweb/types'
-import themeCss from './player-theme.css?inline'
+import themeCss from './assets/player-theme.css?inline'
 import type Player from 'rrweb-player'
-import {RrwebEventSchema, type RrwebEvent} from '../protocol.js'
+import {RrwebEventSchema, type RrwebEvent} from './rpc.js'
+import type {ReplaySource} from './player-follow.js'
 
 const playerEvent = z.custom<eventWithTime>()
 const playerEvents = z.array(playerEvent)
@@ -37,20 +39,17 @@ function styleScope(container: HTMLDivElement): Document | ShadowRoot {
   return root instanceof ShadowRoot ? root : document
 }
 
-function demoteInjectedStyles(scope: Document | ShadowRoot, known: Set<Element>): void {
+function demoteInjectedStyles(scope: Document | ShadowRoot, known: readonly Element[]): void {
   for (const injected of scope.querySelectorAll('style')) {
-    if (known.has(injected)) continue
+    if (known.includes(injected)) continue
     injected.textContent = `@layer rrweb {\n${injected.textContent ?? ''}\n}`
-    known.add(injected)
   }
 }
 
 export type PlayerKit = {Player: typeof Player; playerCss: string; rrwebCss: string}
 
-let playerKit: Promise<PlayerKit> | undefined
-
 export function loadPlayerKit(): Promise<PlayerKit> {
-  playerKit ??= Promise.all([
+  return Promise.all([
     import('rrweb-player'),
     import('rrweb-player/dist/style.css?inline'),
     import('rrweb/dist/style.css?inline'),
@@ -59,19 +58,17 @@ export function loadPlayerKit(): Promise<PlayerKit> {
     playerCss: playerStyles.default,
     rrwebCss: rrwebStyles.default,
   }))
-  return playerKit
 }
 
 function injectPlayerStyles(
   kit: PlayerKit,
   container: HTMLDivElement,
-): {scope: Document | ShadowRoot; known: Set<Element>} {
+): {scope: Document | ShadowRoot; known: readonly Element[]} {
   const scope = styleScope(container)
-  const known = new Set<Element>(scope.querySelectorAll('style'))
   const style = document.createElement('style')
   style.textContent = `@layer rrweb {\n${kit.rrwebCss}\n${kit.playerCss}\n}\n${themeCss}`
+  const known = [...scope.querySelectorAll('style'), style]
   container.appendChild(style)
-  known.add(style)
   return {scope, known}
 }
 
@@ -140,26 +137,43 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
 
 const LIVE_EDGE_MS = 2500
 
-export type StreamPlayerHandle = {
-  goLive: () => void
-  dispose: () => void
-}
-
-export function mountStreamPlayer(
+export function streamPlayer(
   kit: PlayerKit,
   container: HTMLDivElement,
-  initial: {events: RrwebEvent[]; cursor: number},
+  initial: ReplaySource,
   hooks: {
-    follow: (cursor: number, signal: AbortSignal) => Promise<AsyncIterable<{events: RrwebEvent[]; cursor: number}>>
+    follow: (cursor: number) => Stream.Stream<ReplaySource>
+    goLiveRequests: Stream.Stream<void>
     onLive: (live: boolean) => void
   },
-): StreamPlayerHandle {
+): Effect.Effect<void, never, Scope.Scope> {
+  return Effect.gen(function* () {
+    const mounted = yield* Effect.acquireRelease(
+      Effect.sync(() => mountStreamPlayer(kit, container, initial, hooks.onLive)),
+      (player) => Effect.sync(player.dispose),
+    )
+    yield* Stream.suspend(() => hooks.follow(mounted.cursor())).pipe(
+      Stream.runForEach((fresh) => Effect.sync(() => mounted.take(fresh))),
+      Effect.forkScoped,
+    )
+    yield* hooks.goLiveRequests.pipe(
+      Stream.runForEach(() => Effect.sync(mounted.goLive)),
+      Effect.forkScoped,
+    )
+  })
+}
+
+function mountStreamPlayer(
+  kit: PlayerKit,
+  container: HTMLDivElement,
+  initial: ReplaySource,
+  onLive: (live: boolean) => void,
+): {goLive: () => void; take: (fresh: ReplaySource) => void; cursor: () => number; dispose: () => void} {
   const buffer = detachEvents(initial.events)
   let cursor = initial.cursor
   let lastTs = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
   let mounted: {player: Player} | undefined
-  const following = new AbortController()
 
   const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
 
@@ -170,7 +184,7 @@ export function mountStreamPlayer(
     return replayer.getCurrentTime() + LIVE_EDGE_MS >= tailOffset()
   }
 
-  const announceLive = (): void => hooks.onLive(isLive())
+  const announceLive = (): void => onLive(isLive())
 
   const build = (): void => {
     const {scope, known} = injectPlayerStyles(kit, container)
@@ -193,7 +207,7 @@ export function mountStreamPlayer(
     player.addEventListener('ui-update-player-state', announceLive)
     player.addEventListener('ui-update-current-time', announceLive)
     player.getReplayer().on('event-cast', announceLive)
-    hooks.onLive(true)
+    onLive(true)
   }
 
   const cancelBuild = whenConnected(container, build)
@@ -210,21 +224,12 @@ export function mountStreamPlayer(
     mounted.player.addEvent(parsed)
   }
 
-  const take = (fresh: {events: RrwebEvent[]; cursor: number}): void => {
+  const take = (fresh: ReplaySource): void => {
     const atEdge = isLive()
     for (const event of fresh.events) feed(event, atEdge)
     cursor = Math.max(cursor, fresh.cursor)
     announceLive()
   }
-
-  const follow = async (): Promise<void> => {
-    try {
-      for await (const fresh of await hooks.follow(cursor, following.signal)) take(fresh)
-    } catch (error) {
-      if (!following.signal.aborted) console.error('[conciv] the recorder replay stopped following new events', error)
-    }
-  }
-  void follow()
 
   const stopResize = observeContainerSize(
     container,
@@ -236,12 +241,13 @@ export function mountStreamPlayer(
   )
 
   return {
+    take,
+    cursor: () => cursor,
     goLive: () => {
       mounted?.player.goto(tailOffset() + 1, true)
-      hooks.onLive(true)
+      onLive(true)
     },
     dispose: () => {
-      following.abort()
       cancelBuild()
       stopResize()
       mounted?.player.$destroy()
