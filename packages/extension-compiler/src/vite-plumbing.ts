@@ -5,9 +5,9 @@ import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import {
   EXTENSIONS_DOCK_RESOLVED_ID,
-  EXTENSIONS_DOCK_ROUTE,
+  WIDGET_DOCK_ROUTE,
   EXTENSIONS_RESOLVED_ID,
-  EXTENSIONS_ROUTE,
+  WIDGET_ROUTE,
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
 } from './extensions.js'
@@ -58,8 +58,8 @@ export function dropIncludedFromExcludes(
 export function resolveExtensionsModule(id: string): string | null {
   const cut = id.search(/[?#]/)
   const bareId = cut === -1 ? id : id.slice(0, cut)
-  if (bareId === EXTENSIONS_DOCK_ROUTE) return EXTENSIONS_DOCK_RESOLVED_ID
-  return bareId === EXTENSIONS_VIRTUAL_ID || bareId === EXTENSIONS_ROUTE ? EXTENSIONS_RESOLVED_ID : null
+  if (bareId === WIDGET_DOCK_ROUTE) return EXTENSIONS_DOCK_RESOLVED_ID
+  return bareId === EXTENSIONS_VIRTUAL_ID || bareId === WIDGET_ROUTE ? EXTENSIONS_RESOLVED_ID : null
 }
 
 export function loadExtensionsModule(

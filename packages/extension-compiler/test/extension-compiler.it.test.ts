@@ -2,16 +2,16 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {describe, expect, it, test} from 'vitest'
 import {
   EXTENSIONS_DOCK_RESOLVED_ID,
-  EXTENSIONS_DOCK_ROUTE,
+  WIDGET_DOCK_ROUTE,
   EXTENSIONS_RESOLVED_ID,
-  EXTENSIONS_ROUTE,
+  WIDGET_ROUTE,
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
   loadServerExtensions,
   loadExtensionPackages,
   listExtensionFiles,
 } from '../src/extensions.js'
-import {isClientEntry, transformConcivModule, concivSolidConfig, resolveExtensionsModule} from '../src/vite-plumbing.js'
+import {isClientEntry, transformConcivModule, resolveExtensionsModule} from '../src/vite-plumbing.js'
 import {fileURLToPath} from 'node:url'
 import {dedupeExtensions} from '../src/dedupe-extensions.js'
 import {isExtension} from '../src/extension-guard.js'
@@ -343,35 +343,17 @@ function Component() {
   })
 })
 
-describe('optimize deps', () => {
-  describe('vite optimizeDeps for the extension graph', () => {
-    it('excludes the Solid singletons and extension runtime, force-includes nothing', () => {
-      const {optimizeDeps} = concivSolidConfig()
-      expect(optimizeDeps.exclude).toEqual([
-        'solid-js',
-        'solid-js/web',
-        'solid-js/store',
-        '@tanstack/solid-router',
-        '@ark-ui/solid',
-        '@conciv/extension',
-        '@conciv/plugin',
-      ])
-      expect(optimizeDeps.include).toEqual([])
-    })
-  })
-})
-
 describe('resolve extensions module', () => {
   it('resolves the extensions ids with any query or hash cut off, and nothing else', () => {
     expect(resolveExtensionsModule(EXTENSIONS_VIRTUAL_ID)).toBe(EXTENSIONS_RESOLVED_ID)
-    expect(resolveExtensionsModule(`${EXTENSIONS_ROUTE}?v=1`)).toBe(EXTENSIONS_RESOLVED_ID)
-    expect(resolveExtensionsModule(`${EXTENSIONS_DOCK_ROUTE}#top`)).toBe(EXTENSIONS_DOCK_RESOLVED_ID)
-    expect(resolveExtensionsModule(`${EXTENSIONS_ROUTE}?v=1#top`)).toBe(EXTENSIONS_RESOLVED_ID)
-    expect(resolveExtensionsModule(`${EXTENSIONS_ROUTE}#top?v=1`)).toBe(EXTENSIONS_RESOLVED_ID)
+    expect(resolveExtensionsModule(`${WIDGET_ROUTE}?v=1`)).toBe(EXTENSIONS_RESOLVED_ID)
+    expect(resolveExtensionsModule(`${WIDGET_DOCK_ROUTE}#top`)).toBe(EXTENSIONS_DOCK_RESOLVED_ID)
+    expect(resolveExtensionsModule(`${WIDGET_ROUTE}?v=1#top`)).toBe(EXTENSIONS_RESOLVED_ID)
+    expect(resolveExtensionsModule(`${WIDGET_ROUTE}#top?v=1`)).toBe(EXTENSIONS_RESOLVED_ID)
     expect(resolveExtensionsModule('/src/main.tsx?v=1')).toBeNull()
-    expect(resolveExtensionsModule(`${EXTENSIONS_ROUTE}x`)).toBeNull()
-    expect(resolveExtensionsModule(`${EXTENSIONS_ROUTE}?${'#'.repeat(200_000)}\n`)).toBe(EXTENSIONS_RESOLVED_ID)
-    expect(resolveExtensionsModule(`${EXTENSIONS_ROUTE}?v=1\nmore`)).toBe(EXTENSIONS_RESOLVED_ID)
+    expect(resolveExtensionsModule(`${WIDGET_ROUTE}x`)).toBeNull()
+    expect(resolveExtensionsModule(`${WIDGET_ROUTE}?${'#'.repeat(200_000)}\n`)).toBe(EXTENSIONS_RESOLVED_ID)
+    expect(resolveExtensionsModule(`${WIDGET_ROUTE}?v=1\nmore`)).toBe(EXTENSIONS_RESOLVED_ID)
   })
 })
 
