@@ -42,7 +42,7 @@
     "@orpc/contract": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
     "defu": "catalog:",
-    "partysocket": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

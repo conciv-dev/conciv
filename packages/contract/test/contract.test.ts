@@ -1,4 +1,4 @@
-import {describe, expect, expectTypeOf, it, afterAll, beforeAll} from 'vitest'
+import {describe, expect, expectTypeOf, it, afterAll, beforeAll, onTestFinished} from 'vitest'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
 import {SocketTrustFrameSchema} from '../src/contract.js'
 import type {SessionMeta} from '../src/rows.js'
@@ -15,6 +15,20 @@ import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
 import {mergeSettings} from '../src/settings.js'
+import {Effect, Layer, Option, Scope, Stream, SubscriptionRef} from 'effect'
+import {Socket} from 'effect/socket'
+import {TestClock} from 'effect/testing'
+import {createORPCClient} from '@orpc/client'
+import type {ContractRouterClient} from '@orpc/contract'
+import {contract} from '../src/contract.js'
+import {makeEngineConnection, type RpcClientContext} from '../src/engine-connection.js'
+import {
+  createConnectionState,
+  reconnectDelay,
+  transitionConnection,
+  type ConnectionEffect,
+  type ConnectionEvent,
+} from '../src/engine-connection-machine.js'
 
 describe('client', () => {
   describe('makeRpcClient', () => {
@@ -567,5 +581,279 @@ describe('settings', () => {
       commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+K']},
     })
     expect(mergeSettings({}, global)).toEqual(global)
+  })
+})
+
+describe('engine connection machine', () => {
+  const summary = (effect: ConnectionEffect): string =>
+    effect.type === 'publish' ? `publish:${Object.values(effect.signal).join(':')}` : Object.values(effect).join(':')
+
+  it('replays the back-off and its cap, the uptime reset, a revocation, the reopen on the next call and disposal', () => {
+    expect([-1, 0, 1, 2, 3, 9, 40].map(reconnectDelay).map(Math.round)).toEqual([0, 0, 250, 325, 423, 2000, 2000])
+    const lost = ['publish:reachable:false', 'close-peer']
+    const revoked = ['forget-token:held', 'publish:status:revoked:trusted', 'close-peer']
+    const up = (attempt: number) => ['send-trust-frame:held', `schedule-uptime:${attempt}`, 'publish:reachable:true']
+    const replay: [ConnectionEvent, string[]][] = [
+      [{type: 'unauthorized', token: undefined}, []],
+      [{type: 'trusted', token: 'held'}, ['store-token:held', 'publish:status:trusted:checking']],
+      [{type: 'call-started'}, ['schedule-retry:1:0']],
+      [{type: 'retry-due', attempt: 1}, ['open-socket:1']],
+      [{type: 'socket-closed', attempt: 1, code: 1006}, ['schedule-retry:2:250', ...lost]],
+      [{type: 'retry-due', attempt: 2}, ['open-socket:2']],
+      [{type: 'socket-opened', attempt: 2}, up(2)],
+      [{type: 'uptime-reached', attempt: 2}, []],
+      [{type: 'socket-closed', attempt: 2, code: 1006}, ['schedule-retry:3:250', ...lost]],
+      [{type: 'call-started'}, []],
+      [{type: 'retry-due', attempt: 3}, ['open-socket:3']],
+      [{type: 'socket-opened', attempt: 3}, up(3)],
+      [{type: 'socket-closed', attempt: 3, code: 1008}, revoked],
+      [{type: 'retry-due', attempt: 3}, []],
+      [{type: 'unauthorized', token: undefined}, []],
+      [{type: 'trust-refused', token: 'other'}, ['forget-token:other']],
+      [{type: 'call-started'}, ['schedule-retry:4:0']],
+      [{type: 'disposed'}, ['close-socket', 'close-peer']],
+      [{type: 'call-started'}, []],
+    ]
+    const replayed = replay.reduce(
+      (folded, [event]) => {
+        const next = transitionConnection(folded.state, event)
+        return {state: next.state, steps: [...folded.steps, next.effects.map(summary)]}
+      },
+      {state: createConnectionState(undefined), steps: new Array<string[]>()},
+    )
+    expect(replayed.steps).toEqual(replay.map(([, steps]) => steps))
+  })
+})
+type FakeSocket = Socket.WebSocketLike & {
+  readonly frames: (string | Uint8Array)[]
+  readonly open: () => void
+  readonly drop: (code: number) => void
+  readonly closing: () => void
+  readonly receive: (data: string) => void
+}
+function waitFor<A, B>(ref: SubscriptionRef.SubscriptionRef<A>, pick: (value: A) => B | undefined) {
+  return SubscriptionRef.changes(ref).pipe(
+    Stream.map(pick),
+    Stream.filter((value) => value !== undefined),
+    Stream.runHead,
+    Effect.map(Option.getOrThrow),
+  )
+}
+function recorded<A>() {
+  const seen = Effect.runSync(SubscriptionRef.make<readonly A[]>([]))
+  return {
+    push: (value: A): void => Effect.runSync(SubscriptionRef.update(seen, (list) => [...list, value])),
+    reached: (length: number) => waitFor(seen, (list) => (list.length >= length ? list : undefined)),
+    touch: () => Effect.runSync(SubscriptionRef.update(seen, (list) => [...list])),
+    seen,
+  }
+}
+function fakeEngine() {
+  const sockets = recorded<FakeSocket>()
+  const create = (): FakeSocket => {
+    const events = new EventTarget()
+    const live = {readyState: 0}
+    const emit = (readyState: number, event: Event): void => {
+      live.readyState = readyState
+      events.dispatchEvent(event)
+    }
+    const socket: FakeSocket = {
+      get readyState() {
+        return live.readyState
+      },
+      frames: [],
+      addEventListener: (type, listener, options) => events.addEventListener(type, listener, options),
+      removeEventListener: (type, listener) => events.removeEventListener(type, listener),
+      close: () => emit(3, new Event('closed')),
+      send: (data) => {
+        socket.frames.push(data)
+        sockets.touch()
+      },
+      open: () => emit(1, new Event('open')),
+      drop: (code) => emit(3, new CloseEvent('close', {code})),
+      closing: () => emit(2, new Event('closing')),
+      receive: (data) => events.dispatchEvent(new MessageEvent('message', {data})),
+    }
+    sockets.push(socket)
+    return socket
+  }
+  const socketAt = (index: number) => waitFor(sockets.seen, (list) => list[index])
+  const framesOn = (index: number, count: number) =>
+    waitFor(sockets.seen, (list) => ((list[index]?.frames.length ?? 0) >= count ? list[index]?.frames : undefined))
+  const requestsOn = (index: number, count: number) =>
+    framesOn(index, count + 1).pipe(
+      Effect.flatMap((frames) => Effect.promise(() => Promise.all(frames.slice(1).map(decodeRequestMessage)))),
+    )
+  const requestOn = (index: number, frame: number) =>
+    requestsOn(index, frame).pipe(Effect.map((requests) => requests[frame - 1] ?? [undefined, undefined, undefined]))
+  const pathsOn = (index: number, count: number) =>
+    requestsOn(index, count).pipe(
+      Effect.map((requests) => requests.map(([, , payload]) => String(Reflect.get(Object(payload), 'url')))),
+    )
+  const reply = (index: number, id: string | undefined, body: unknown) =>
+    Effect.flatMap(socketAt(index), (socket) =>
+      Effect.promise(async () =>
+        socket.receive(
+          String(await encodeResponseMessage(String(id), MessageType.RESPONSE, {status: 200, headers: {}, body})),
+        ),
+      ),
+    )
+  const answer = (index: number, id: string | undefined, json: unknown) => reply(index, id, {json, meta: []})
+  const count = SubscriptionRef.get(sockets.seen).pipe(Effect.map((list) => list.length))
+  const layer = Layer.succeed(Socket.WebSocketConstructor)(create)
+  return {socketAt, framesOn, requestOn, pathsOn, reply, answer, count, layer}
+}
+const clocked = (body: () => Generator<Effect.Effect<unknown, unknown, Scope.Scope>, void, never>) =>
+  Effect.runPromise(Effect.gen(body).pipe(Effect.scoped, Effect.provide(TestClock.layer())))
+const connected = Effect.gen(function* () {
+  const engine = fakeEngine()
+  const connection = yield* Effect.provide(makeEngineConnection('http://engine.test'), engine.layer)
+  const votes = recorded<boolean>()
+  connection.subscribeReachability(votes.push)
+  const rpc = createORPCClient<ContractRouterClient<typeof contract, RpcClientContext>>(connection.link)
+  return {engine, connection, votes, rpc}
+})
+const trustFrame = (token: string) => JSON.stringify({type: 'conciv:trust', token})
+const swapGlobal = (name: string, descriptor: PropertyDescriptor) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, name)
+  Object.defineProperty(globalThis, name, {configurable: true, ...descriptor})
+  return (): void => {
+    if (previous === undefined) Reflect.deleteProperty(globalThis, name)
+    else Object.defineProperty(globalThis, name, previous)
+  }
+}
+
+describe('engine connection driver on the test clock', () => {
+  it('backs off 0, 250, 325, 422.5 ms up to 2 s, gives up an open after 30 s, and resets the back-off after 1 s up', () =>
+    clocked(function* () {
+      const {engine, votes, rpc} = yield* connected
+      const refused = rpc.meta.harnesses(undefined, {context: {shouldRetry: false}}).then(String, String)
+      const failAndWait = (index: number, delayMs: number) =>
+        Effect.gen(function* () {
+          const voted = (yield* SubscriptionRef.get(votes.seen)).length
+          ;(yield* engine.socketAt(index)).drop(1006)
+          yield* votes.reached(voted + 1)
+          yield* TestClock.adjust(Math.ceil(delayMs) - 1)
+          expect(yield* engine.count).toBe(index + 1)
+          yield* TestClock.adjust(1)
+          expect(yield* engine.count).toBe(index + 2)
+        })
+      const delays = [250, 325, 422.5, 549.25, 714.025, 928.2325, 1206.70225, 1568.712925, 2000, 2000]
+      yield* Effect.forEach(delays, (delayMs, index) => failAndWait(index, delayMs), {discard: true})
+      expect(yield* Effect.promise(() => refused)).toBe('Error: Cannot send message, WebSocket is not open.')
+      yield* TestClock.adjust(29_999)
+      expect(yield* SubscriptionRef.get(votes.seen)).toHaveLength(10)
+      yield* TestClock.adjust(1)
+      yield* votes.reached(11)
+      yield* TestClock.adjust(1999)
+      expect(yield* engine.count).toBe(11)
+      yield* TestClock.adjust(1)
+      ;(yield* engine.socketAt(11)).open()
+      yield* votes.reached(12)
+      yield* TestClock.adjust(1000)
+      yield* failAndWait(11, 250)
+      ;(yield* engine.socketAt(12)).open()
+      yield* votes.reached(14)
+      yield* TestClock.adjust(999)
+      yield* failAndWait(12, 325)
+    }))
+
+  it('drops an abort for a closed socket, refuses a frame on a closing socket, and a 1008 close revokes the token with no vote, no reconnect, and a reopen on the next call', () =>
+    clocked(function* () {
+      const {engine, connection, votes, rpc} = yield* connected
+      const trusted = connection.trust.requestTrustWithToken('held')
+      ;(yield* engine.socketAt(0)).open()
+      const [id] = yield* engine.requestOn(0, 1)
+      expect((yield* engine.framesOn(0, 1))[0]).toBe(trustFrame(''))
+      yield* engine.answer(0, id, {trusted: true})
+      expect(yield* Effect.promise(() => trusted)).toBe(true)
+      const changes = rpc.sessions.changes()
+      const [streamId] = yield* engine.requestOn(0, 2)
+      yield* engine.reply(0, streamId, noEvents())
+      const stream = yield* Effect.promise(() => changes)
+      ;(yield* engine.socketAt(0)).drop(1006)
+      yield* votes.reached(2)
+      yield* Effect.promise(() => stream.return(undefined))
+      yield* TestClock.adjust(250)
+      ;(yield* engine.socketAt(1)).open()
+      const harnesses = rpc.meta.harnesses()
+      const [harnessesId] = yield* engine.requestOn(1, 1)
+      yield* engine.answer(1, harnessesId, [])
+      expect(yield* Effect.promise(() => harnesses)).toEqual([])
+      expect(yield* engine.pathsOn(1, 1)).toEqual(['http://orpc/meta/harnesses'])
+      expect((yield* engine.framesOn(1, 1))[0]).toBe(trustFrame('held'))
+      ;(yield* engine.socketAt(1)).closing()
+      const closing = rpc.meta.harnesses(undefined, {context: {shouldRetry: false}}).then(String, String)
+      expect(yield* Effect.promise(() => closing)).toBe('Error: Cannot send message, WebSocket is not open.')
+      const statuses = recorded<string>()
+      connection.trust.subscribe(statuses.push)
+      ;(yield* engine.socketAt(1)).drop(1008)
+      expect(yield* statuses.reached(1)).toEqual(['revoked'])
+      yield* TestClock.adjust('1 minute')
+      expect(yield* engine.count).toBe(2)
+      expect(yield* SubscriptionRef.get(votes.seen)).toEqual([true, false, true])
+      rpc.meta.harnesses().catch(String)
+      ;(yield* engine.socketAt(2)).open()
+      expect((yield* engine.framesOn(2, 1))[0]).toBe(trustFrame(''))
+    }))
+
+  it('auth answers time out after 3 s, and a one-shot call retries a lost socket until 3 s after it started', () =>
+    clocked(function* () {
+      const {engine, connection, votes, rpc} = yield* connected
+      const asked = connection.trust.requestTrust()
+      ;(yield* engine.socketAt(0)).open()
+      yield* engine.requestOn(0, 1)
+      yield* TestClock.adjust(2999)
+      expect(connection.trust.status()).toBe('checking')
+      yield* TestClock.adjust(1)
+      expect(connection.trust.status()).toBe('unreachable')
+      expect(yield* Effect.promise(() => asked)).toBe(false)
+      const code = connection.trust.requestAuthCode().then(String, () => 'rejected')
+      yield* engine.requestOn(0, 3)
+      yield* TestClock.adjust(3000)
+      expect(yield* Effect.promise(() => code)).toBe('rejected')
+      const harnesses = rpc.meta.harnesses().then(String, () => 'rejected')
+      expect((yield* engine.pathsOn(0, 5))[4]).toBe('http://orpc/meta/harnesses')
+      yield* TestClock.adjust(2999)
+      ;(yield* engine.socketAt(0)).drop(1006)
+      yield* votes.reached(2)
+      yield* TestClock.adjust(250)
+      ;(yield* engine.socketAt(1)).open()
+      expect(yield* engine.pathsOn(1, 2)).toContain('http://orpc/meta/harnesses')
+      yield* TestClock.adjust(1)
+      ;(yield* engine.socketAt(1)).drop(1006)
+      expect(yield* Effect.promise(() => harnesses)).toBe('rejected')
+    }))
+
+  it('a later token source replaces the earlier one, and a refused storage keeps the token in memory', () => {
+    const refuse = (name: string) => () => {
+      throw new DOMException('refused', name)
+    }
+    onTestFinished(swapGlobal('localStorage', {get: refuse('SecurityError')}))
+    return clocked(function* () {
+      const {engine, connection} = yield* connected
+      connection.useTokenSource(async () => 'from-first')
+      connection.useTokenSource(async () => 'from-second')
+      const asked = connection.trust.requestTrust()
+      ;(yield* engine.socketAt(0)).open()
+      const [storedId, , stored] = yield* engine.requestOn(0, 1)
+      expect(stored).toMatchObject({body: {json: {token: ''}}})
+      yield* engine.answer(0, storedId, {trusted: false})
+      const [sourcedId, , sourced] = yield* engine.requestOn(0, 2)
+      expect(sourced).toMatchObject({body: {json: {token: 'from-second'}}})
+      swapGlobal('localStorage', {value: {getItem: () => null, setItem: refuse('QuotaExceededError')}})
+      yield* engine.answer(0, sourcedId, {trusted: true})
+      expect(yield* Effect.promise(() => asked)).toBe(true)
+      expect(connection.trust.status()).toBe('trusted')
+    })
+  })
+
+  it("an empty api base is the page's origin root and shares that base's connection", () => {
+    onTestFinished(swapGlobal('location', {value: new URL('http://page.test/deep/page')}))
+    const empty = browserRpcConnection('')
+    const root = browserRpcConnection('http://page.test/')
+    expect(empty.trust).toBe(root.trust)
+    empty.release()
+    root.release()
   })
 })

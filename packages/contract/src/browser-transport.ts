@@ -1,75 +1,27 @@
-import {createORPCClient, mapEventIterator, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
-import {StandardRPCLink, type StandardLinkClient} from '@orpc/client/standard'
+import type {ClientLink} from '@orpc/client'
+import {Effect, Exit, Option, RcMap, Scope} from 'effect'
+import {Socket} from 'effect/socket'
 import {
-  ClientRetryPlugin,
-  type ClientRetryPluginAttemptOptions,
-  type ClientRetryPluginContext,
-} from '@orpc/client/plugins'
-import {
-  getContractRouter,
-  getEventIteratorSchemaDetails,
-  isContractProcedure,
-  type ContractRouterClient,
-} from '@orpc/contract'
-import {
-  decodeResponseMessage,
-  encodeRequestMessage,
-  experimental_ClientPeerWithoutCodec as ClientPeer,
-  MessageType,
-  type DecodedRequestMessage,
-  type DecodedResponseMessage,
-  type EncodedMessage,
-} from '@orpc/standard-server-peer'
-import ReconnectingWebSocket from 'partysocket/ws'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
-import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
+  makeEngineConnection,
+  type EngineConnection,
+  type EngineTokenSource,
+  type EngineTrust,
+  type ReachabilityListener,
+  type RpcClientContext,
+  type SessionAccessor,
+} from './engine-connection.js'
 
-export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
+export {REVOKED_SOCKET_CLOSE_CODE, type TrustStatus} from './engine-connection-machine.js'
+export type {
+  EngineTokenSource,
+  EngineTrust,
+  ReachabilityListener,
+  RpcClientContext,
+  SessionAccessor,
+  TrustListener,
+} from './engine-connection.js'
 
-export type SessionAccessor = () => string | null
-
-const CONNECTION_LOSS_RETRY_DELAY_MS = 250
-const CALL_DEADLINE_MS = 3000
-const MIN_RECONNECT_DELAY_MS = 250
-const MAX_RECONNECT_DELAY_MS = 2000
-const MIN_UPTIME_MS = 1000
-const CONNECTION_TIMEOUT_MS = 30_000
-const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 const MAGIC_LINK_PARAM = 'conciv_otp'
-const UNAUTHORIZED_STATUS = 401
-const NO_RECONNECT_DELAY_MS = 0
-const SOCKET_LINK_URL = 'http://orpc'
-const SOCKET_NOT_OPEN_MESSAGE = 'Cannot send message, WebSocket is not open.'
-
-export const REVOKED_SOCKET_CLOSE_CODE = 1008
-
-export type TrustStatus = 'checking' | 'trusted' | 'untrusted' | 'revoked' | 'unreachable'
-
-export type TrustListener = (status: TrustStatus, previous: TrustStatus) => void
-
-const TRUST_STATUSES: readonly TrustStatus[] = ['checking', 'trusted', 'untrusted', 'revoked', 'unreachable']
-
-export type EngineTokenSource = () => Promise<string>
-
-export type EngineTrust = {
-  isTrusted: () => boolean
-  status: () => TrustStatus
-  subscribe: (listener: TrustListener) => () => void
-  requestTrust: (options?: {storedOnly?: boolean}) => Promise<boolean>
-  requestTrustWithToken: (token: string) => Promise<boolean>
-  requestTrustWithCode: (code: string) => Promise<ExchangeResult>
-  requestAuthCode: (options?: {reissue?: boolean}) => Promise<void>
-}
-
-type TrustState = {
-  key: string
-  status: TrustStatus
-  token: string | undefined
-  events: EventTarget
-  tokenSource: EngineTokenSource | undefined
-  asking: Promise<boolean> | undefined
-}
 
 export type BrowserRpcConnection = {
   link: ClientLink<RpcClientContext>
@@ -77,52 +29,51 @@ export type BrowserRpcConnection = {
   release: () => void
 }
 
-type ConnectionEntry = {
-  link: ClientLink<RpcClientContext>
-  trust: EngineTrust
-  state: TrustState
-  reconnect: () => void
-  close: () => void
-  holders: Set<object>
-}
+type HeldConnection = {readonly connection: EngineConnection; readonly release: () => void}
 
-export type ReachabilityListener = (reachable: boolean) => void
+type ConnectionPool = {
+  readonly hold: (key: string) => HeldConnection
+  readonly find: (key: string) => EngineConnection | undefined
+}
 
 declare global {
   // eslint-disable-next-line no-var
-  var __concivBrowserRpcConnectionsV5: Map<string, ConnectionEntry> | undefined
+  var __concivBrowserRpcConnectionsV6: ConnectionPool | undefined
 }
 
-function connections(): Map<string, ConnectionEntry> {
-  globalThis.__concivBrowserRpcConnectionsV5 ??= new Map()
-  return globalThis.__concivBrowserRpcConnectionsV5
-}
-
-function storageRefused(error: unknown): boolean {
-  return error instanceof DOMException && (error.name === 'SecurityError' || error.name === 'QuotaExceededError')
-}
-
-function tokenStorage(): Storage | undefined {
-  try {
-    return typeof localStorage === 'undefined' ? undefined : (localStorage ?? undefined)
-  } catch (error) {
-    if (storageRefused(error)) return undefined
-    throw error
+function borrow<A>(lookup: Effect.Effect<A, never, Scope.Scope>): {value: A; release: () => void} {
+  const scope = Scope.makeUnsafe()
+  return {
+    value: Effect.runSync(Scope.provide(lookup, scope)),
+    release: () => {
+      Effect.runFork(Scope.close(scope, Exit.void))
+    },
   }
 }
 
-function readStoredToken(key: string): string | undefined {
-  return tokenStorage()?.getItem(`${TOKEN_STORAGE_PREFIX}${key}`) ?? undefined
+function makeConnectionPool(): ConnectionPool {
+  const connections = Effect.runSync(
+    RcMap.make({lookup: makeEngineConnection}).pipe(
+      Scope.provide(Scope.makeUnsafe()),
+      Effect.provide(Socket.layerWebSocketConstructorGlobal),
+    ),
+  )
+  return {
+    hold: (key) => {
+      const held = borrow(RcMap.get(connections, key))
+      return {connection: held.value, release: held.release}
+    },
+    find: (key) => {
+      const found = borrow(RcMap.getOption(connections, key))
+      found.release()
+      return Option.getOrUndefined(found.value)
+    },
+  }
 }
 
-function writeStoredToken(key: string, token: string | undefined): void {
-  const storage = tokenStorage()
-  try {
-    if (token === undefined) storage?.removeItem(`${TOKEN_STORAGE_PREFIX}${key}`)
-    else storage?.setItem(`${TOKEN_STORAGE_PREFIX}${key}`, token)
-  } catch (error) {
-    if (!storageRefused(error)) throw error
-  }
+function connectionPool(): ConnectionPool {
+  globalThis.__concivBrowserRpcConnectionsV6 ??= makeConnectionPool()
+  return globalThis.__concivBrowserRpcConnectionsV6
 }
 
 function magicLinkFragment(url: URL): URLSearchParams {
@@ -143,447 +94,52 @@ export function forgetMagicLinkCode(): void {
   history.replaceState(history.state, '', url.href)
 }
 
-const REACHABILITY_EVENT = 'reachability'
-
-export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
-  const key = normalizeApiBase(apiBase)
-  const release = holdConnection(key)
-  const {events} = connectionEntry(key).state
-  const handler = (event: Event): void => {
-    if (event instanceof CustomEvent && typeof event.detail === 'boolean') listener(event.detail)
-  }
-  events.addEventListener(REACHABILITY_EVENT, handler)
-  return () => {
-    events.removeEventListener(REACHABILITY_EVENT, handler)
-    release()
-  }
-}
-
 function normalizeApiBase(apiBase: string): string {
   const url = new URL(apiBase === '' ? '/' : apiBase, typeof location === 'undefined' ? undefined : location.href)
   const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname
   return `${url.origin}${path}`
 }
 
-function isStreamingCall(path: readonly string[]): boolean {
-  const procedure = getContractRouter(contract, path)
-  return isContractProcedure(procedure) && getEventIteratorSchemaDetails(procedure['~orpc'].outputSchema) !== undefined
+function holdConnection(apiBase: string): HeldConnection {
+  return connectionPool().hold(normalizeApiBase(apiBase))
 }
 
-function socketReopened(
-  socket: ReconnectingWebSocket,
-  lifetime: AbortSignal,
-  call: AbortSignal | undefined,
-): Promise<number> {
-  const ended = call === undefined ? lifetime : AbortSignal.any([lifetime, call])
-  if (socket.readyState === socket.OPEN || ended.aborted) return Promise.resolve(NO_RECONNECT_DELAY_MS)
-  return new Promise((resolve) => {
-    const settle = (): void => {
-      socket.removeEventListener('open', settle)
-      ended.removeEventListener('abort', settle)
-      resolve(NO_RECONNECT_DELAY_MS)
-    }
-    socket.addEventListener('open', settle)
-    ended.addEventListener('abort', settle)
-  })
-}
-
-function retryDelay(
-  socket: ReconnectingWebSocket,
-  lifetime: AbortSignal,
-  options: ClientRetryPluginAttemptOptions<RpcClientContext>,
-): number | Promise<number> {
-  if (!isStreamingCall(options.path)) return CONNECTION_LOSS_RETRY_DELAY_MS
-  return socketReopened(socket, lifetime, options.signal)
-}
-
-function retriable(lifetime: AbortSignal, options: ClientRetryPluginAttemptOptions<RpcClientContext>): boolean {
-  return !lifetime.aborted && options.signal?.aborted !== true && !(options.error instanceof ORPCError)
-}
-
-function retryPlugin(socket: ReconnectingWebSocket, lifetime: AbortSignal): ClientRetryPlugin<RpcClientContext> {
-  return new ClientRetryPlugin<RpcClientContext>({
-    default: {
-      retry: Number.POSITIVE_INFINITY,
-      retryDelay: (options) => retryDelay(socket, lifetime, options),
-      shouldRetry: (options) => retriable(lifetime, options),
-    },
-  })
-}
-
-const TRUST_STATUS_EVENT = 'status'
-
-function setStatus(state: TrustState, status: TrustStatus): void {
-  if (state.status === status) return
-  const previous = state.status
-  state.status = status
-  state.events.dispatchEvent(new CustomEvent(TRUST_STATUS_EVENT, {detail: previous}))
-}
-
-function distrust(state: TrustState, refused: string | undefined): void {
-  if (state.status === 'checking' || refused !== state.token) return
-  if (refused === undefined && state.status === 'revoked') return
-  if (state.token !== undefined && readStoredToken(state.key) === state.token) writeStoredToken(state.key, undefined)
-  state.token = undefined
-  setStatus(state, refusedStatus(refused))
-}
-
-function refusedStatus(token: string | undefined): TrustStatus {
-  return token === undefined || token === '' ? 'untrusted' : 'revoked'
-}
-
-function sessionHeaders(options: ClientOptions<RpcClientContext>): Record<string, string> {
-  const id = options.context.concivSessionId
-  return id ? {[CONCIV_SESSION_HEADER]: id} : {}
-}
-
-function rpcSocketUrl(key: string): string {
-  const url = new URL(`${key}${RPC_WS_PATH}`)
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  return url.toString()
-}
-
-function frame(encoded: EncodedMessage): string | Uint8Array<ArrayBuffer> {
-  if (typeof encoded === 'string') return encoded
-  return Uint8Array.from(ArrayBuffer.isView(encoded) ? encoded : new Uint8Array(encoded))
-}
-
-function attemptSettled(socket: ReconnectingWebSocket, lifetime: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const settle = (): void => {
-      socket.removeEventListener('open', settle)
-      socket.removeEventListener('close', settle)
-      lifetime.removeEventListener('abort', settle)
-      resolve()
-    }
-    socket.addEventListener('open', settle)
-    socket.addEventListener('close', settle)
-    lifetime.addEventListener('abort', settle)
-  })
-}
-
-async function connectionAttempt(socket: ReconnectingWebSocket, ended: AbortSignal): Promise<void> {
-  if (socket.readyState === socket.OPEN || ended.aborted) return
-  if (!socket.shouldReconnect) socket.reconnect()
-  await attemptSettled(socket, ended)
-}
-
-async function sendFrame(
-  socket: ReconnectingWebSocket,
-  lifetime: AbortSignal,
-  [id, type, payload]: DecodedRequestMessage,
-): Promise<void> {
-  const encoded = await encodeRequestMessage(id, type, payload)
-  if (type !== MessageType.ABORT_SIGNAL) await connectionAttempt(socket, lifetime)
-  if (socket.readyState === socket.OPEN) socket.send(frame(encoded))
-  else if (type !== MessageType.ABORT_SIGNAL) throw new Error(SOCKET_NOT_OPEN_MESSAGE)
-}
-
-async function receivedFrame(event: MessageEvent): Promise<DecodedResponseMessage> {
-  const raw: unknown = event.data
-  return decodeResponseMessage(
-    raw instanceof Blob ? await raw.arrayBuffer() : raw instanceof ArrayBuffer ? raw : String(raw),
-  )
-}
-
-function socketClient(socket: ReconnectingWebSocket, lifetime: AbortSignal): StandardLinkClient<RpcClientContext> {
-  const peer = new ClientPeer(async (message) => {
-    const sending = sendFrame(socket, lifetime, message)
-    if (message[1] === MessageType.REQUEST) return sending
-    await sending.catch((error: unknown) => peer.close({id: message[0], reason: error}))
-  })
-  socket.addEventListener('message', (event: MessageEvent) => {
-    void receivedFrame(event)
-      .then((message) => peer.message(message))
-      .catch((error: unknown) => {
-        console.error('[conciv] the dev server sent a frame the rpc client could not read', error)
-        peer.close({reason: error})
-      })
-  })
-  socket.addEventListener('close', () => peer.close())
-  return {
-    call: async (request) => {
-      await connectionAttempt(
-        socket,
-        request.signal === undefined ? lifetime : AbortSignal.any([lifetime, request.signal]),
-      )
-      request.signal?.throwIfAborted()
-      if (socket.readyState !== socket.OPEN) throw new Error(SOCKET_NOT_OPEN_MESSAGE)
-      const response = await peer.request(request)
-      return {...response, body: async () => response.body}
-    },
+export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
+  const {connection, release} = holdConnection(apiBase)
+  const unsubscribe = connection.subscribeReachability(listener)
+  return () => {
+    unsubscribe()
+    release()
   }
-}
-
-function socketLink(
-  socket: ReconnectingWebSocket,
-  state: TrustState,
-  lifetime: AbortSignal,
-): ClientLink<RpcClientContext> {
-  return new StandardRPCLink<RpcClientContext>(socketClient(socket, lifetime), {
-    url: SOCKET_LINK_URL,
-    headers: sessionHeaders,
-    interceptors: [
-      async (options) => {
-        const sent = state.token
-        const refused = (error: unknown, credential: string | undefined): unknown => {
-          if (error instanceof ORPCError && error.status === UNAUTHORIZED_STATUS) distrust(state, credential)
-          return error
-        }
-        const output = await options.next().catch((error: unknown) => {
-          throw refused(error, sent)
-        })
-        if (!isEventIterator(output)) return output
-        return mapEventIterator(output, {
-          value: async (value) => value,
-          error: async (error) => refused(error, state.token),
-        })
-      },
-    ],
-    plugins: [retryPlugin(socket, lifetime)],
-  })
-}
-
-function isEventIterator(value: unknown): value is AsyncIteratorObject<unknown, unknown, void> {
-  return typeof value === 'object' && value !== null && Symbol.asyncIterator in value
-}
-
-function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcClientContext>): EngineTrust {
-  const auth = createORPCClient<ContractRouterClient<typeof contract, RpcClientContext>>(link).auth
-  const trustWith = (token: string): void => {
-    state.token = token
-    writeStoredToken(key, token)
-    setStatus(state, 'trusted')
-  }
-  const pending = (asked: Promise<boolean>): Promise<boolean> => {
-    const settled = asked.catch(() => false)
-    const clear = (): void => {
-      if (state.asking === settled) state.asking = undefined
-    }
-    state.asking = settled
-    void asked.then(clear, clear)
-    return asked
-  }
-  const askWithToken = async (token: string): Promise<boolean> => {
-    const {trusted} = await auth.trust({token}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS), context: {retry: 0}})
-    if (trusted) {
-      trustWith(token)
-      return true
-    }
-    if (state.status === 'trusted' && state.token !== token) return false
-    if (readStoredToken(key) === token) writeStoredToken(key, undefined)
-    if (state.token === token) state.token = undefined
-    setStatus(state, refusedStatus(token))
-    return false
-  }
-  const sourcedToken = async (tokenSource: EngineTokenSource | undefined): Promise<string | undefined> => {
-    if (tokenSource === undefined) return undefined
-    return tokenSource().catch((error: unknown) => {
-      console.error('[conciv] the host could not provide an engine token', error)
-      return undefined
-    })
-  }
-  const ask = async (storedOnly: boolean): Promise<boolean> => {
-    try {
-      if (await askWithToken(state.token ?? readStoredToken(key) ?? '')) return true
-      if (storedOnly) return false
-      const sourced = await sourcedToken(state.tokenSource)
-      return sourced === undefined ? false : await askWithToken(sourced)
-    } catch (error) {
-      console.error('[conciv] the dev server did not answer the trust check', error)
-      if (state.status === 'checking') setStatus(state, 'unreachable')
-      return false
-    }
-  }
-  const requestTrust = (options: {storedOnly?: boolean} = {}): Promise<boolean> => {
-    if (state.status === 'trusted') return Promise.resolve(true)
-    return state.asking ?? pending(ask(options.storedOnly ?? false))
-  }
-  const subscribe = (listener: TrustListener): (() => void) => {
-    const handler = (event: Event): void => {
-      const previous =
-        event instanceof CustomEvent ? TRUST_STATUSES.find((status) => status === event.detail) : undefined
-      listener(state.status, previous ?? state.status)
-    }
-    state.events.addEventListener(TRUST_STATUS_EVENT, handler)
-    return () => {
-      state.events.removeEventListener(TRUST_STATUS_EVENT, handler)
-    }
-  }
-  return {
-    isTrusted: () => state.status === 'trusted',
-    status: () => state.status,
-    subscribe,
-    requestTrust,
-    requestTrustWithToken: (token) => pending(askWithToken(token)),
-    requestTrustWithCode: async (code) => {
-      const result = await auth.exchange({code}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS)})
-      if ('token' in result) trustWith(result.token)
-      return result
-    },
-    requestAuthCode: async (options = {}) => {
-      await auth.requestCode({reissue: options.reissue ?? false}, {signal: AbortSignal.timeout(CALL_DEADLINE_MS)})
-    },
-  }
-}
-
-function stalled(reason: unknown): boolean {
-  return reason instanceof DOMException && reason.name === 'TimeoutError'
-}
-
-function reconnectWhenStalled(socket: ReconnectingWebSocket, lifetime: AbortSignal, call: AbortSignal | undefined) {
-  call?.addEventListener(
-    'abort',
-    () => {
-      if (stalled(call.reason) && socket.readyState === socket.OPEN && !lifetime.aborted) socket.reconnect()
-    },
-    {once: true},
-  )
-}
-
-function socketConnection(key: string, state: TrustState): ConnectionEntry {
-  const lifetime = new AbortController()
-  const socket = new ReconnectingWebSocket(rpcSocketUrl(key), [], {
-    minReconnectionDelay: MIN_RECONNECT_DELAY_MS,
-    maxReconnectionDelay: MAX_RECONNECT_DELAY_MS,
-    minUptime: MIN_UPTIME_MS,
-    connectionTimeout: CONNECTION_TIMEOUT_MS,
-    shouldReconnectOnClose: (event) => event.code !== REVOKED_SOCKET_CLOSE_CODE,
-    startClosed: true,
-    WebSocket: trustingWebSocket(
-      () => state.token,
-      (sent) => distrust(state, sent),
-    ),
-  })
-  const vote = (reachable: boolean): void => {
-    if (!lifetime.signal.aborted) state.events.dispatchEvent(new CustomEvent(REACHABILITY_EVENT, {detail: reachable}))
-  }
-  socket.addEventListener('open', () => vote(true))
-  socket.addEventListener('close', (event) => {
-    if (event.code === REVOKED_SOCKET_CLOSE_CODE) {
-      distrust(state, state.token)
-      return
-    }
-    vote(false)
-  })
-  const rpc = socketLink(socket, state, lifetime.signal)
-  const link: ClientLink<RpcClientContext> = {
-    call: (path, input, options) => {
-      if (!socket.shouldReconnect && !lifetime.signal.aborted) socket.reconnect()
-      if (isStreamingCall(path)) {
-        reconnectWhenStalled(socket, lifetime.signal, options.signal)
-        return rpc.call(path, input, options)
-      }
-      const deadline = performance.now() + CALL_DEADLINE_MS
-      const asked = options.context.shouldRetry
-      const callerRetries = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> => {
-        if (asked === undefined) return performance.now() < deadline && retriable(lifetime.signal, attempt)
-        return typeof asked === 'function' ? asked(attempt) : asked
-      }
-      const shouldRetry = async (attempt: ClientRetryPluginAttemptOptions<RpcClientContext>): Promise<boolean> =>
-        !lifetime.signal.aborted && (await callerRetries(attempt))
-      return rpc.call(path, input, {...options, context: {...options.context, shouldRetry}})
-    },
-  }
-  const trust = makeEngineTrust(key, state, link)
-  socket.addEventListener('open', () => {
-    if (state.status === 'unreachable') void trust.requestTrust()
-  })
-  return {
-    link,
-    state,
-    trust,
-    holders: new Set(),
-    reconnect: () => {
-      if (socket.shouldReconnect && socket.readyState !== socket.OPEN && !lifetime.signal.aborted) socket.reconnect()
-    },
-    close: () => {
-      lifetime.abort()
-      socket.close()
-      state.asking = undefined
-    },
-  }
-}
-
-function connectionEntry(apiBase: string): ConnectionEntry {
-  const key = normalizeApiBase(apiBase)
-  const existing = connections().get(key)
-  if (existing) return existing
-  const created = socketConnection(key, {
-    key,
-    status: 'checking',
-    token: readStoredToken(key),
-    events: new EventTarget(),
-    tokenSource: undefined,
-    asking: undefined,
-  })
-  connections().set(key, created)
-  return created
-}
-
-function closeEntry(entry: ConnectionEntry): void {
-  if (connections().get(entry.state.key) === entry) connections().delete(entry.state.key)
-  entry.close()
 }
 
 export function browserRpcConnection(apiBase: string, tokenSource?: EngineTokenSource): BrowserRpcConnection {
-  const key = normalizeApiBase(apiBase)
-  const release = holdConnection(key)
-  const {link, trust, state} = connectionEntry(key)
-  if (tokenSource !== undefined) state.tokenSource = tokenSource
-  return {link, trust, release}
-}
-
-function holdConnection(key: string): () => void {
-  const entry = connectionEntry(key)
-  const holder = {}
-  entry.holders.add(holder)
-  return () => {
-    if (entry.holders.delete(holder) && entry.holders.size === 0) closeEntry(entry)
-  }
+  const {connection, release} = holdConnection(apiBase)
+  if (tokenSource !== undefined) connection.useTokenSource(tokenSource)
+  return {link: connection.link, trust: connection.trust, release}
 }
 
 export function resetBrowserRpcConnection(apiBase: string): void {
-  connections().get(normalizeApiBase(apiBase))?.reconnect()
-}
-
-function trustingWebSocket(
-  currentToken: () => string | undefined,
-  revoked: (sent: string | undefined) => void,
-): typeof WebSocket {
-  return new Proxy(WebSocket, {
-    construct: (target, args) => {
-      const socket: WebSocket = Reflect.construct(target, args)
-      const sent: {token: string | undefined} = {token: undefined}
-      socket.addEventListener('open', () => {
-        sent.token = currentToken()
-        socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: sent.token ?? ''}))
-      })
-      socket.addEventListener('close', (event) => {
-        if (event.code === REVOKED_SOCKET_CLOSE_CODE) revoked(sent.token)
-      })
-      return socket
-    },
-  })
+  connectionPool().find(normalizeApiBase(apiBase))?.reset()
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
 
 export type HeldBrowserRpcLink = {link: ClientLink<RpcClientContext>; release: () => void}
 
-type HeldConnection = {key: string | null; release: () => void}
+type HeldBase = {key: string | null; held: HeldConnection | undefined}
 
-const NOT_HELD: HeldConnection = {key: null, release: () => {}}
+const NOT_HELD: HeldBase = {key: null, held: undefined}
 
 export function heldBrowserRpcLink(currentApiBase: () => string | null, session?: SessionAccessor): HeldBrowserRpcLink {
-  const held: {current: HeldConnection} = {current: NOT_HELD}
-  const hold = (apiBase: string): ConnectionEntry => {
+  const held: {current: HeldBase} = {current: NOT_HELD}
+  const hold = (apiBase: string): EngineConnection => {
     const key = normalizeApiBase(apiBase)
-    if (held.current.key !== key) {
-      held.current.release()
-      held.current = {key, release: holdConnection(key)}
-    }
-    return connectionEntry(key)
+    if (held.current.key === key && held.current.held !== undefined) return held.current.held.connection
+    held.current.held?.release()
+    const next = connectionPool().hold(key)
+    held.current = {key, held: next}
+    return next.connection
   }
   return {
     link: {
@@ -596,7 +152,7 @@ export function heldBrowserRpcLink(currentApiBase: () => string | null, session?
       },
     },
     release: () => {
-      held.current.release()
+      held.current.held?.release()
       held.current = NOT_HELD
     },
   }
