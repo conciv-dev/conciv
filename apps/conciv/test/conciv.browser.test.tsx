@@ -2591,6 +2591,33 @@ describe('grab staging', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
   })
 
+  test('a grab staged in Chat stays in the chat draft when Chat closes while it is still being placed', async () => {
+    const [chatOpen, setChatOpen] = createSignal(true)
+    const chatGrab: Grab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
+    const sessionId = await createSession(coreRpc(core()))
+    const mount = mountPane({base: core(), sessionId}, () => (
+      <Show when={chatOpen()}>
+        <ChatPane sessionId={sessionId} />
+      </Show>
+    ))
+    keep(mount)
+    await expect.element(input()).toBeVisible()
+    const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)
+
+    api.stage(chatGrab)
+    setChatOpen(false)
+
+    await expect.element(input()).not.toBeInTheDocument()
+    expect(api.staged()).toEqual([])
+    api.clear()
+
+    setChatOpen(true)
+
+    await expect.element(input()).toBeVisible()
+    await expect.element(removeGrab()).toBeVisible()
+    expect(api.staged().map((grab) => grab.text)).toEqual([chatGrab.text])
+  })
+
   test('a grabbed element in a sent message shows its grab card', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
