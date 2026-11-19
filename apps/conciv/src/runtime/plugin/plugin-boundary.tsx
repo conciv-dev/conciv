@@ -29,6 +29,27 @@ function ChipFallback(props: {name: string; onRemove?: (id: string) => void}): J
   )
 }
 
+export function createTabCrash(focusAfterRetry: () => HTMLElement | undefined) {
+  const shown: {retry?: HTMLButtonElement} = {}
+  const retry = (reset: () => void): void => {
+    shown.retry = undefined
+    reset()
+    const target = shown.retry ?? focusAfterRetry()
+    target?.focus()
+  }
+
+  return (message: string, reset: () => void): JSX.Element => (
+    <ErrorScreen
+      message={message}
+      detail="Details are in the browser console."
+      onRetry={() => retry(reset)}
+      retryRef={(element) => {
+        shown.retry = element
+      }}
+    />
+  )
+}
+
 export function PluginBoundary(props: {
   name: string
   fallback: PluginFallback
@@ -36,26 +57,10 @@ export function PluginBoundary(props: {
   focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
-  let retryButton: HTMLButtonElement | undefined
-  const retry = (reset: () => void): void => {
-    retryButton = undefined
-    reset()
-    const target = retryButton ?? props.focusAfterRetry?.()
-    target?.focus()
-  }
+  const tabCrash = createTabCrash(() => props.focusAfterRetry?.())
   const fallback = (error: unknown, reset: () => void): JSX.Element => {
     reportCrash(props.name, error)
-    if (props.fallback === 'tab')
-      return (
-        <ErrorScreen
-          message={`The ${props.name} extension crashed`}
-          detail="Details are in the browser console."
-          onRetry={() => retry(reset)}
-          retryRef={(element) => {
-            retryButton = element
-          }}
-        />
-      )
+    if (props.fallback === 'tab') return tabCrash(`The ${props.name} extension crashed`, reset)
     if (props.fallback === 'card') return <CardFallback name={props.name} />
     if (props.fallback === 'chip') return <ChipFallback name={props.name} onRemove={props.onRemove} />
     return null

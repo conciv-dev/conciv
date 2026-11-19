@@ -13,6 +13,7 @@ import {isPluginView, panelKey} from '../runtime/plugin/panel-keys'
 import {PanelTrigger} from '../runtime/plugin/panel-trigger'
 import {createRegion, panelInput, RegionContent} from '../runtime/plugin/panels'
 import {PluginSlot} from '../runtime/plugin/render'
+import {createTabCrash} from '../runtime/plugin/plugin-boundary'
 import {usePluginsKnown} from '../runtime/plugin/root'
 
 type RouteTabs = Parameters<typeof createRegion>[0]['tabs']
@@ -276,6 +277,8 @@ export function PluginRegion(props: {view: Accessor<MountedSession>; screen: Ses
 }
 
 export function PluginTabContent() {
+  const content: {element?: HTMLDivElement} = {}
+  const tabCrash = createTabCrash(() => content.element)
   const params = viewRoute.useParams()
   const attachment = usePluginAttachment()
   const host = usePluginHost()
@@ -306,11 +309,20 @@ export function PluginTabContent() {
                   fallback={<Navigate to="/panel/$sessionId" params={{sessionId: params().sessionId}} replace />}
                 >
                   <Show when={!phone() || !mobile.find(params().view)}>
-                    <div class="relative flex flex-1 flex-col min-h-0">
+                    <div
+                      ref={(element) => {
+                        content.element = element
+                      }}
+                      role="group"
+                      aria-label={region().entry(params().view)?.tab.title ?? params().view}
+                      tabindex={-1}
+                      class="relative flex flex-1 flex-col min-h-0 focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-2px]"
+                    >
                       <RegionContent
                         pane={region().pane}
                         view={view()}
                         screen={screen}
+                        crashed={(plugin, retry) => tabCrash(`The ${plugin} plugin crashed`, retry)}
                         frame={{
                           placement: () => 'pane',
                           present: () => true,

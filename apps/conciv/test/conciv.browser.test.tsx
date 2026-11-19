@@ -4970,13 +4970,33 @@ module.exports = {default: {setup(ctx) {
 }}}
 `
 
+  const RECOVERED_BODY = 'the recovered tab body'
+  const crashingBundle = `const {Panel} = require('@conciv/plugin/experimental')
+const renders = {count: 0}
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'crashing',
+    region: 'pane',
+    list: () => [{id: 'crashing', title: 'Crashing', pinned: true}],
+    render: () => {
+      renders.count += 1
+      if (renders.count < 3) throw new Error('fixture crash')
+      return Object.assign(document.createElement('p'), {textContent: '${RECOVERED_BODY}'})
+    },
+  })
+}}}
+`
+
   const coreBase = bootedCore('panel-view-tabs', {
     imageInput: 'native',
-    plugins: ['./panel-view-survival'],
+    plugins: ['./panel-view-survival', './crash-tab'],
     files: {
       'panel-view-survival/index.ts': `export default {id: 'panel-view-survival', async setup() {}}
 `,
       'panel-view-survival/plugin-experimental.js': notesBundle,
+      'crash-tab/index.ts': `export default {id: 'crash-tab', async setup() {}}
+`,
+      'crash-tab/plugin-experimental.js': crashingBundle,
     },
   })
   const harness = createShellHarness(coreBase)
@@ -5596,58 +5616,34 @@ module.exports = {default: {setup(ctx) {
     }, 30_000)
   })
 
-  describe('a crashing extension', () => {
-    const RECOVERED_BODY = 'the recovered tab body'
+  describe('a crashing plugin tab', () => {
     const AFTER_TOOLS_TEXT = 'the thread kept going after the tools'
-    const tabCrash = {armed: true}
-
-    function boom(): JSX.Element {
-      throw new Error('fixture crash')
-    }
-
-    function CrashingTab(): JSX.Element {
-      if (tabCrash.armed) boom()
-      return <p>{RECOVERED_BODY}</p>
-    }
-
-    const crashingTab = defineExtension({
-      name: 'crash-tab',
-      views: [{id: 'crashing', label: 'Crashing', Component: CrashingTab}],
-    })
-    async function mountAfterTurn(
-      toolCalls: {name: string; input: Record<string, unknown>}[],
-      extensions: Parameters<typeof harness.mountShell>[1],
-    ): Promise<void> {
-      const sessionId = await createSession(coreRpc(coreBase()))
-      await coreControl.scriptTurn({toolCalls, text: AFTER_TOOLS_TEXT})
-      await runTurn(coreBase(), sessionId, 'run the fixture tools')
-      harness.mountShell(`/panel/${sessionId}?open=true`, extensions)
-    }
 
     const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
     const retry = () => page.getByRole('button', {name: 'Retry'})
+    const crashingTab = () => page.getByRole('tab', {name: 'Crashing', exact: true})
 
-    afterEach(() => {
-      tabCrash.armed = true
-    })
+    test('a throwing tab shows its fallback, Retry re-mounts it with focus kept, and chat stays usable', async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      await coreControl.scriptTurn({toolCalls: [], text: AFTER_TOOLS_TEXT})
+      await runTurn(coreBase(), sessionId, 'run the fixture tools')
+      harness.mountShell(`/panel/${sessionId}?open=true`)
+      const crashed = () => page.getByText('The crash-tab plugin crashed')
 
-    test('a throwing tab shows its fallback, Retry re-mounts it, and chat stays usable', async () => {
-      await mountAfterTurn([], [crashingTab])
-      const crashed = () => page.getByText('The crash-tab extension crashed')
-
-      await expect.element(page.getByRole('tab', {name: 'Crashing', exact: true}), {timeout: 8000}).toBeVisible()
-      await page.getByRole('tab', {name: 'Crashing', exact: true}).click()
+      await expect.element(crashingTab(), {timeout: 15_000}).toBeVisible()
+      await crashingTab().click()
 
       await expect.element(crashed(), {timeout: 8000}).toBeVisible()
       await expect.element(page.getByText('Details are in the browser console.')).toBeVisible()
 
       await retry().click()
       await expect.element(crashed()).toBeVisible()
+      await expect.element(retry()).toHaveFocus()
 
-      tabCrash.armed = false
       await retry().click()
       await expect.element(page.getByText(RECOVERED_BODY)).toBeVisible()
       await expect.element(crashed()).not.toBeInTheDocument()
+      await expect.element(page.getByRole('group', {name: 'Crashing'})).toHaveFocus()
 
       await chatTab().click()
       await expect.element(page.getByText(AFTER_TOOLS_TEXT), {timeout: 8000}).toBeVisible()
