@@ -2024,12 +2024,12 @@ importers:
 
   native/swift:
     dependencies:
-      '@conciv/extension-ios':
-        specifier: workspace:*
-        version: link:../../packages/extensions/ios
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
+      '@conciv/plugin-ios':
+        specifier: workspace:*
+        version: link:../../packages/plugins/ios
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2360,6 +2360,9 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tanstack/react-router':
+        specifier: 'catalog:'
+        version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tiptap/core':
         specifier: 'catalog:'
         version: 3.32.1(@tiptap/pm@3.32.1)
@@ -3422,12 +3425,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/core':
-        specifier: workspace:^
-        version: link:../../core
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -4868,9 +4865,9 @@ importers:
 
   packages/plugins/tanstack:
     dependencies:
-      '@conciv/protocol':
+      '@conciv/plugin-page':
         specifier: workspace:^
-        version: link:../../protocol
+        version: link:../../plugin-page
       effect:
         specifier: 'catalog:'
         version: 4.1.0
