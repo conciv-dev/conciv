@@ -2591,11 +2591,19 @@ describe('grab staging', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
   })
 
-  test('a grab staged in Chat stays in the chat draft when Chat closes while it is still being placed', async () => {
+  test('a grab staged in Chat stays in the chat draft when Chat closes mid-placement, and one grounded while it moves into Chat arrives grounded', async () => {
     const [chatOpen, setChatOpen] = createSignal(true)
-    const chatGrab: Grab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
+    const chatGrab: Grab = {...HERO_GRAB, text: 'echo "chat[owned]"', source: null}
+    const terminalGrab: Grab = {...HERO_GRAB, text: 'echo "terminal(owned)"', source: null}
+    const groundCalled = Promise.withResolvers<void>()
+    const grounding = Promise.withResolvers<Grab | null>()
+    const ground = async (grab: Grab): Promise<Grab | null> => {
+      if (grab.text !== terminalGrab.text) return null
+      groundCalled.resolve()
+      return grounding.promise
+    }
     const sessionId = await createSession(coreRpc(core()))
-    const mount = mountPane({base: core(), sessionId}, () => (
+    const mount = mountPane({base: core(), sessionId, ground}, () => (
       <Show when={chatOpen()}>
         <ChatPane sessionId={sessionId} />
       </Show>
@@ -2616,6 +2624,19 @@ describe('grab staging', () => {
     await expect.element(input()).toBeVisible()
     await expect.element(removeGrab()).toBeVisible()
     expect(api.staged().map((grab) => grab.text)).toEqual([chatGrab.text])
+
+    setChatOpen(false)
+    await expect.element(input()).not.toBeInTheDocument()
+    api.stage(terminalGrab)
+    await groundCalled.promise
+    expect(api.staged().map((grab) => grab.text)).toEqual([terminalGrab.text])
+
+    grounding.resolve({...terminalGrab, source: HERO_GRAB.source})
+    setChatOpen(true)
+
+    await expect.element(input()).toBeVisible()
+    await expect.element(removeGrab().last()).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 
   test('a grabbed element in a sent message shows its grab card', async () => {
