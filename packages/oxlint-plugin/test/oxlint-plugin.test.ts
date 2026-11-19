@@ -1,6 +1,14 @@
 import {describe, expect, test} from 'vitest'
 import {lintDiagnostics, lintFix, isRecord} from './run-lint.js'
 
+function firstLine(diagnostic: Record<string, unknown>): number {
+  const labels = diagnostic.labels
+  if (!Array.isArray(labels)) return 0
+  const [label] = labels
+  if (!isRecord(label) || !isRecord(label.span) || typeof label.span.line !== 'number') return 0
+  return label.span.line
+}
+
 describe('lucide per icon', () => {
   async function lintFixture(fixture: string): Promise<string[]> {
     const diagnostics = await lintDiagnostics('test/oxlintrc-lucide-per-icon.json', `test/fixtures/${fixture}`)
@@ -101,14 +109,6 @@ describe('no signal ref', () => {
 describe('router idioms', () => {
   type Finding = {message: string; line: number}
 
-  function firstLine(diagnostic: Record<string, unknown>): number {
-    const labels = diagnostic.labels
-    if (!Array.isArray(labels)) return 0
-    const [label] = labels
-    if (!isRecord(label) || !isRecord(label.span) || typeof label.span.line !== 'number') return 0
-    return label.span.line
-  }
-
   async function lintFixture(fixture: string): Promise<Finding[]> {
     const diagnostics = await lintDiagnostics('test/oxlintrc.json', `test/fixtures/${fixture}`)
     return diagnostics
@@ -167,6 +167,80 @@ describe('router idioms', () => {
     test('accepts fields that carry .catch()', async () => {
       expect(await lintFixture('src/lib/search-schemas.ts')).toEqual([])
     })
+  })
+})
+
+describe('plugin view reads through query', () => {
+  type Finding = {message: string; line: number}
+
+  async function lintFixture(fixture: string): Promise<Finding[]> {
+    const diagnostics = await lintDiagnostics('test/oxlintrc.json', `test/fixtures/plugin-view/${fixture}`)
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(plugin-view-reads-through-query)')
+      .map((diagnostic) => ({message: String(diagnostic.message), line: firstLine(diagnostic)}))
+  }
+
+  test.each([
+    {
+      fixture: 'plain-calls.tsx',
+      reason: 'createResource, a destructured client, and every plain method call on a client held, made or returned',
+      lines: [1, 9, 10, 11, 12, 13],
+      messages: [
+        expect.stringContaining('never uses createResource'),
+        expect.stringContaining("'search'"),
+        expect.stringContaining('takes methods out of an rpc client'),
+        expect.stringContaining("'save'"),
+        expect.stringContaining("'items.list'"),
+        expect.stringContaining("'reset'"),
+      ],
+    },
+    {
+      fixture: 'raw-calls.tsx',
+      reason: 'the raw plugin.call wire, on the client held or read, and through rpc.call',
+      lines: [6, 7, 8],
+      messages: [
+        expect.stringContaining('raw plugin call'),
+        expect.stringContaining('raw plugin call'),
+        expect.stringContaining('raw plugin call'),
+      ],
+    },
+    {
+      fixture: 'aliased-methods.tsx',
+      reason: 'a method read into a name or destructured, then called',
+      lines: [8, 9, 10, 11],
+      messages: [
+        expect.stringContaining('takes methods out of an rpc client'),
+        expect.stringContaining("'search'"),
+        expect.stringContaining("'save'"),
+        expect.stringContaining("'reset'"),
+      ],
+    },
+    {
+      fixture: 'namespace-solid.tsx',
+      reason: 'createResource through a solid-js namespace import or a renamed import',
+      lines: [2, 5],
+      messages: [
+        expect.stringContaining('never uses createResource'),
+        expect.stringContaining('never uses createResource'),
+      ],
+    },
+    {
+      fixture: 'tanstack-imports.tsx',
+      reason: 'TanStack Query imported from @tanstack/solid-query or @tanstack/query-core, not from @conciv/client',
+      lines: [1, 2],
+      messages: [expect.stringContaining("from '@conciv/client'"), expect.stringContaining("from '@conciv/client'")],
+    },
+    {
+      fixture: 'query-reads.tsx',
+      reason:
+        'nothing in Query imported from @conciv/client, reads through queryOptions, writes through mutationOptions, and event invalidation by key',
+      lines: [],
+      messages: [],
+    },
+  ])('flags $reason ($fixture)', async ({fixture, lines, messages}) => {
+    const findings = await lintFixture(fixture)
+    expect(findings.map((finding) => finding.line)).toEqual(lines)
+    expect(findings.map((finding) => finding.message)).toEqual(messages)
   })
 })
 
