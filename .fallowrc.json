@@ -12,7 +12,7 @@
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/cli/test/fixtures/**",
-    "packages/unplugin/test/fixtures/extension/**",
+    "packages/unplugin/test/fixtures/plugin/**",
     "apps/examples/**",
     "native/swift/**",
     "docs/assets/page-session-card-spike/**",
@@ -459,8 +459,8 @@
       },
       {
         "files": [
-          "packages/plugins/whiteboard/src/anchor/resolver.ts",
-          "packages/plugins/whiteboard/src/anchor/oxc-capture.ts"
+          "packages/plugins/whiteboard/src/anchor-resolver.ts",
+          "packages/plugins/whiteboard/src/oxc-capture.ts"
         ],
         "maxCognitive": 24,
         "reason": "moved from @conciv/extension-whiteboard src/anchor: resolve and the oxc visitors keep the extension's shape until the extension is removed"

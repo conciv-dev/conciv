@@ -11,10 +11,6 @@ export function widgetStarterPath(): string {
   return join(dirname(manifest), 'dist', 'core', 'widget-start.js')
 }
 
-export function noAppExtensionsPath(): string {
-  return join(dirname(widgetStarterPath()), 'no-app-extensions.js')
-}
-
 export function writeWidgetClient(root: string, port: number): string | undefined {
   if (!isEnginePort(port)) {
     console.error(

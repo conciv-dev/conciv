@@ -1,22 +1,37 @@
-import {createResource, onCleanup} from 'solid-js'
+import {getOwner, onCleanup} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {render} from 'solid-js/web'
+import {useQuery} from '@conciv/client'
 import {ComposerPill, Plugin, Slot} from '@conciv/plugin/experimental'
-import {WhiteboardCanvas, WhiteboardNotices} from './client/overlay.js'
+import {WhiteboardCanvas, WhiteboardNotices} from './overlay.js'
+import {whiteboardStores} from './stores.js'
+import type {ChatCover} from './comments-model.js'
 
 export default Plugin.define({
+  stores: whiteboardStores,
   setup(ctx) {
-    const [canvas, setCanvas] = createStore({open: false, engaged: false})
-    const [surface, {refetch}] = createResource(
-      () => canvas.engaged,
-      () => import('./client/canvas-surface.js'),
-    )
+    const [canvas, setCanvas] = createStore<{open: boolean; engaged: boolean; comments: ChatCover | undefined}>({
+      open: false,
+      engaged: false,
+      comments: undefined,
+    })
+    const surface = useQuery(() => ({
+      queryKey: ['plugin', 'whiteboard', 'canvas-surface'],
+      queryFn: () => import('./canvas-surface.js').then((module) => module.default),
+      enabled: canvas.engaged,
+      retry: false,
+      refetchOnWindowFocus: false,
+    }))
     const close = (): void => setCanvas('open', false)
+    const layer = document.createElement('div')
     const overlay: Slot = {
       at: 'page.overlay',
-      hides: false,
-      render: () => <WhiteboardNotices ctx={ctx} surface={surface} />,
+      get hides() {
+        return canvas.open && Boolean(canvas.comments?.threadOpen() || canvas.comments?.prompting())
+      },
+      render: () => <WhiteboardNotices ctx={ctx} surface={surface} layer={layer} />,
     }
+    const bindComments = (comments: ChatCover | undefined): void => void setCanvas({comments})
     const pill: ComposerPill = {
       id: 'whiteboard-open',
       order: 20,
@@ -25,19 +40,30 @@ export default Plugin.define({
         icon: 'presentation',
         title: 'Open the whiteboard canvas',
         run: () => {
-          if (surface.error === undefined) {
+          if (!surface.isError) {
             setCanvas({engaged: true, open: !canvas.open})
             return
           }
           setCanvas('open', true)
-          void refetch()
+          void surface.refetch()
         },
       }),
     }
     onCleanup(
       render(
-        () => <WhiteboardCanvas ctx={ctx} surface={surface} visible={canvas.open} close={close} />,
+        () => (
+          <WhiteboardCanvas
+            ctx={ctx}
+            surface={surface}
+            visible={canvas.open}
+            layer={layer}
+            close={close}
+            bindComments={bindComments}
+          />
+        ),
         document.createDocumentFragment(),
+        undefined,
+        {owner: getOwner()},
       ),
     )
     ctx.add(ComposerPill, pill)

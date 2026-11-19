@@ -98,6 +98,7 @@ declare module 'vitest/internal/browser' {
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>
+    rpcStartedCount: (path: string[], input?: unknown) => Promise<number>
     rpcStartedOnceServed: (served: string[], count: number, started: string[][], input?: unknown) => Promise<number[]>
     rpcMark: () => Promise<number>
     awaitRpcFailedCount: (path: string[], status: number, count: number, since: number) => Promise<void>
@@ -225,7 +226,13 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
   const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
-  const data = makeAppData(rpc, queryClient, options.engineOnlyDrafts ? null : createBrowserDraftStore(), () => false)
+  const data = makeAppData(
+    rpc,
+    queryClient,
+    options.engineOnlyDrafts ? null : createBrowserDraftStore(),
+    () => false,
+    () => options.base,
+  )
   const connected = () => true
   const liveSessions = makeLiveSessions({
     active: () => null,

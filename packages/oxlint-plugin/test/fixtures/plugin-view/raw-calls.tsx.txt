@@ -1,0 +1,10 @@
+import {usePlugin} from '@conciv/plugin/experimental'
+
+export function AcmeView() {
+  const ctx = usePlugin()
+  const client = ctx.client
+  void ctx.client.plugin.call({rpcId: 'acme', method: 'search', input: {}})
+  void client.plugin.call({rpcId: 'acme', method: 'save', input: {}})
+  void ctx.client.rpc.call({rpcId: 'acme', method: 'reset', input: {}})
+  return <p>raw</p>
+}

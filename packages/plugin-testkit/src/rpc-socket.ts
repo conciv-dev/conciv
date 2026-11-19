@@ -193,13 +193,13 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
     state.speaking.delete(route)
     outbound.tail = outbound.tail
       .then(() => server.close(forwardableClose(code, reason)))
-      .catch((error: unknown) => console.error('[extension-testkit] a page close could not reach the engine', error))
+      .catch((error: unknown) => console.error('[plugin-testkit] a page close could not reach the engine', error))
   })
   route.onMessage((message) => {
     speaks(route, state)
     outbound.tail = outbound.tail
       .then(() => sendOutbound(message, socketId, {route, forward: () => server.send(message), state, emit}))
-      .catch((error: unknown) => console.error('[extension-testkit] an rpc frame could not be routed', error))
+      .catch((error: unknown) => console.error('[plugin-testkit] an rpc frame could not be routed', error))
   })
   server.onClose((code, reason) => {
     state.speaking.delete(route)
@@ -211,7 +211,7 @@ async function connect(route: WebSocketRoute, state: SocketState): Promise<void>
   server.onMessage((message) => {
     inbound.tail = inbound.tail
       .then(() => observeInbound(message, socketId, emit))
-      .catch((error: unknown) => console.error('[extension-testkit] an rpc reply could not be decoded', error))
+      .catch((error: unknown) => console.error('[plugin-testkit] an rpc reply could not be decoded', error))
       .then(() => route.send(message))
   })
 }

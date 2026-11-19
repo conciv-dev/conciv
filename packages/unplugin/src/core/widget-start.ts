@@ -1,14 +1,8 @@
 /// <reference lib="dom" />
 
 async function mountWidget(): Promise<void> {
-  const [{entries}, {mountConciv}, {dedupeExtensions}] = await Promise.all([
-    import('@conciv/app-extensions'),
-    import('@conciv/embed'),
-    import('@conciv/extension-compiler/dedupe'),
-  ])
-  const picked = dedupeExtensions(entries)
-  for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
-  await mountConciv(picked.extensions)
+  const {mountConciv} = await import('@conciv/embed')
+  await mountConciv([])
 }
 
 function startWhenReady(): void {

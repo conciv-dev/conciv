@@ -10,6 +10,7 @@ export type {RequestOptions} from './generated/client.js'
 export type ClientConnectionStatus = 'connected' | 'connecting' | 'reconnecting'
 
 export type ClientConnectionOptions = {
+  readonly server: () => string
   readonly idleTimeout?: number
 }
 
@@ -20,7 +21,7 @@ type ClientConnection = {
 
 export function make(
   raw: RpcClient,
-  options: ClientConnectionOptions = {},
+  options: ClientConnectionOptions,
 ): Omit<RpcClient, 'event'> & {
   rpc: RpcApi & {call: RpcClient['plugin']['call']}
   event: ReturnType<typeof SharedEvents.make<EventSubscribeOutput>>
@@ -45,13 +46,16 @@ export function make(
     page: raw.page,
     editor: raw.editor,
     meta: raw.meta,
+    skill: raw.skill,
+    agent: raw.agent,
+    fs: raw.fs,
     plugin: raw.plugin,
     experimental: raw.experimental,
     event: raw.event,
   } satisfies {readonly [Group in keyof typeof contract]: RpcClient[Group]}
   return {
     ...groups,
-    rpc: Object.assign(makeRpc(raw, events), {call: raw.plugin.call}),
+    rpc: Object.assign(makeRpc(raw, events, options.server), {call: raw.plugin.call}),
     event: events,
     connection: {status: connection.status, on: connection.on},
   }

@@ -25,7 +25,7 @@ Each `*Card` is a ToolRegistry render: it takes `ToolProps` and draws a `BasicTo
 
 ## Side Effects
 
-- `GrabCard` (`grab-card.tsx`) reads `attachment.file.text()` asynchronously via createResource
+- `GrabCard` (`grab-card.tsx`) reads `attachment.file.text()` asynchronously through `useQuery`, keyed by the attachment id
 - `GrabSnapshotFrame` (`grab-snapshot-frame.tsx`) reads `getComputedStyle` (`--chat-panel`, `--chat-fill`) on mount and renders a sandboxed srcdoc iframe
 - `sessionLocation` (`session-card.tsx`) reads global `location.host`/`location.pathname` while streaming
 - Every page render and `PageSessionCard` (`session-card.tsx`) run the page plugin's captures query on the app's QueryClient, keyed exactly as the app invalidates it
