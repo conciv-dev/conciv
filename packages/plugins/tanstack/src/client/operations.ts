@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {Live} from '@conciv/plugin/experimental'
 import type {ReactTree} from '@conciv/plugin/experimental/page'
-import {SHORT_MAX, type Action, type Command, type Outcome} from '../rpc.js'
+import {Action, SHORT_MAX, type Method, type Reply} from '../rpc.js'
 import {readRuntimeErrors} from './error-ring.js'
 import {invalidateQuery, readMutations, readQueryCache, refetchQuery} from './query-adapter.js'
 import {
@@ -17,24 +17,26 @@ import {
 } from './router-adapter.js'
 
 export type TanstackOperations = {
-  readonly execute: (command: Command, signal?: AbortSignal) => Promise<Outcome>
+  readonly execute: (name: Method, input: unknown, signal: AbortSignal) => Promise<Reply>
 }
 
-const PAGE_DISABLED: Outcome = {
+const JsonObject = z.record(z.string(), z.json())
+
+const PAGE_DISABLED: Reply = {
   type: 'failure',
   code: 'page_disabled',
   message:
     'The page plugin is disabled in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to enable the page plugin, then call tanstack.tabs.list({}).',
 }
 
-const PAGE_FAILED: Outcome = {
+const PAGE_FAILED: Reply = {
   type: 'failure',
   code: 'page_failed',
   message:
     'The page plugin failed to start in this tab, so TanStack cannot read the React tree; no action ran. Ask the user to reload the page, then call tanstack.tabs.list({}).',
 }
 
-const PAGE_PENDING: Outcome = {
+const PAGE_PENDING: Reply = {
   type: 'failure',
   code: 'page_pending',
   message:
@@ -48,9 +50,6 @@ type ActionMap = {[Entry in Action as Entry['type']]: Entry}
 type Handlers = {[Type in keyof ActionMap]: (tree: ReactTree, action: ActionMap[Type]) => unknown}
 
 const handlers: Handlers = {
-  'tabs.list': () => {
-    throw new Error('tanstack.tabs.list is answered by the engine, not the page')
-  },
   detect: (tree) => readDetect(tree),
   router_state: (tree) => readRouterState(tree),
   route_tree: (tree) => readRouteTree(tree),
@@ -70,23 +69,24 @@ function perform<Type extends keyof ActionMap>(tree: ReactTree, type: Type, acti
   return handlers[type](tree, action)
 }
 
-function inactive(live: Exclude<Live<ReactTree>, {readonly status: 'active'}>): Outcome {
+function inactive(live: Exclude<Live<ReactTree>, {readonly status: 'active'}>): Reply {
   if (live.status === 'pending') return PAGE_PENDING
   return live.reason === 'disabled' ? PAGE_DISABLED : PAGE_FAILED
 }
 
 export function makeTanstackOperations(tree: () => Live<ReactTree>): TanstackOperations {
-  async function execute(command: Command, signal?: AbortSignal): Promise<Outcome> {
+  async function execute(name: Method, input: unknown, signal: AbortSignal): Promise<Reply> {
     const live = tree()
     if (live.status !== 'active') return inactive(live)
     try {
-      signal?.throwIfAborted()
-      const value = z.json().parse(await perform(live.value, command.action.type, command.action))
+      signal.throwIfAborted()
+      const action = Action.parse({...JsonObject.parse(input), type: name})
+      const value = z.json().parse(await perform(live.value, action.type, action))
       if ((JSON.stringify(value) ?? '').length > RESULT_MAX)
         throw new Error(
           'TanStack result exceeds 512000 JSON characters. Ask for one route with loader_data, or a single query key, instead of the whole cache. Repeating the same request will not reduce its output.',
         )
-      return {type: 'success', result: {value}}
+      return {type: 'success', value}
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       return {type: 'failure', code: 'handler_error', message: message.slice(0, SHORT_MAX)}

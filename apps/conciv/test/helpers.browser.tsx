@@ -253,6 +253,7 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
       right: '1.25rem',
       top: 'calc(100% - 4.5rem)',
     }),
+    panelWidthCap: () => document.documentElement.clientWidth - 40,
     instances: options.instances ?? [],
     connected,
     arrivedFromConnect: () => false,

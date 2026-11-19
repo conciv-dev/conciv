@@ -642,8 +642,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     post: [
       {
         ...concivPage,
-        setup: (context) =>
-          concivPage.setup({
+        effect: (context) =>
+          concivPage.effect({
             ...context,
             options: pickBy(
               {
