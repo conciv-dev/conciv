@@ -3,7 +3,7 @@ import {describe, expect, it, onTestFinished} from 'vitest'
 import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {eq} from 'drizzle-orm'
-import {chatMessages, markers, openDb, sessions, type ConcivDb} from '@conciv/db'
+import {chatMessages, markers, openDb, sessions as sessionRows, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
 import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -930,7 +930,7 @@ describe('a session deleted while its transcript is read', () => {
     const sessionId = SessionId.parse('conciv_deleted_mid_read')
     const nativeId = HarnessSessionId.parse('native-deleted-mid-read')
     await Effect.runPromise(
-      db.insert(sessions).values({
+      db.insert(sessionRows).values({
         id: sessionId,
         harnessSessionId: nativeId,
         harnessKind: 'transcribed',
@@ -961,7 +961,7 @@ describe('a session deleted while its transcript is read', () => {
       capabilities: {...harness.capabilities, transcriptHistory: true},
     })
     const readRow = async () => {
-      const row = await Effect.runPromise(db.select().from(sessions).where(eq(sessions.id, sessionId)).get())
+      const row = await Effect.runPromise(db.select().from(sessionRows).where(eq(sessionRows.id, sessionId)).get())
       return row === undefined
         ? null
         : {
@@ -980,7 +980,7 @@ describe('a session deleted while its transcript is read', () => {
 
     const compacting = chat.compact(sessionId)
     await reading.promise
-    await Effect.runPromise(db.update(sessions).set({deletedAt: 2}).where(eq(sessions.id, sessionId)))
+    await Effect.runPromise(db.update(sessionRows).set({deletedAt: 2}).where(eq(sessionRows.id, sessionId)))
     transcript.resolve([
       {id: 'native-question', role: 'user', parts: [{type: 'text', content: 'read after the delete'}]},
     ])

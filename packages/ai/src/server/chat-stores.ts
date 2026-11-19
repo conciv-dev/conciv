@@ -3,7 +3,7 @@ import {Effect} from 'effect'
 import type {MessagePage} from '@tanstack/ai-persistence'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatStores} from './chat-server.js'
-import {chatMessages, chatMetadata, chatRuns, type ConcivDb} from '@conciv/db'
+import {chatMessages, chatMetadata, chatRuns, sessions, type ConcivDb} from '@conciv/db'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 
@@ -161,6 +161,11 @@ export function drizzleChatStores(db: ConcivDb, opts: StoreOptions): ChatStores 
         const changed = await Effect.runPromise(
           db.transaction((tx) =>
             Effect.gen(function* () {
+              const tombstone = yield* tx
+                .select({id: sessions.id})
+                .from(sessions)
+                .where(and(eq(sessions.id, threadId), isNotNull(sessions.deletedAt)))
+              if (tombstone.length > 0) return null
               const dropped = yield* tx
                 .delete(chatMessages)
                 .where(and(eq(chatMessages.threadId, threadId), gte(chatMessages.position, messages.length)))

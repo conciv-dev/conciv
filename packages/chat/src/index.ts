@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {eq} from 'drizzle-orm'
+import {and, eq, isNotNull} from 'drizzle-orm'
 import {Effect} from 'effect'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/serve/rpc'
@@ -14,7 +14,7 @@ import {
   type CodeDriver,
 } from '@conciv/ai/server'
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
-import {chatRuns, markers, type ConcivDb} from '@conciv/db'
+import {chatRuns, markers, sessions, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
@@ -273,9 +273,20 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
       const afterMessageId = messages.at(-1)?.id ?? null
-      await Effect.runPromise(
-        deps.db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'}),
+      const marked = await Effect.runPromise(
+        deps.db.transaction((tx) =>
+          Effect.gen(function* () {
+            const tombstone = yield* tx
+              .select({id: sessions.id})
+              .from(sessions)
+              .where(and(eq(sessions.id, sessionId), isNotNull(sessions.deletedAt)))
+            if (tombstone.length > 0) return false
+            yield* tx.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
+            return true
+          }),
+        ),
       )
+      if (!marked) throw deletedSessionError(sessionId)
       await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
     },
     clear: async (sessionId) => {
