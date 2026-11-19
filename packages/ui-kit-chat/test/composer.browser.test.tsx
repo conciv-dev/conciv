@@ -148,14 +148,16 @@ describe('action bar inactive unreachable', () => {
         <button type="button" onClick={() => void chat.sendMessage('two')}>
           ask-two
         </button>
-        <Thread>
-          <Thread.Viewport>
-            <Thread.Messages />
-          </Thread.Viewport>
-          <Thread.Composer>
-            <span>composer region</span>
-          </Thread.Composer>
-        </Thread>
+        <div class="flex flex-col h-96">
+          <Thread>
+            <Thread.Viewport>
+              <Thread.Messages />
+            </Thread.Viewport>
+            <Thread.Composer>
+              <span>composer region</span>
+            </Thread.Composer>
+          </Thread>
+        </div>
       </ChatProvider>
     )
   }

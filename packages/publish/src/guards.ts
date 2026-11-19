@@ -75,6 +75,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/plugin-recorder',
   '@conciv/plugin-tanstack',
   '@conciv/plugin-test-runner',
+  '@conciv/plugin-try-it',
   '@conciv/plugin-testkit',
   '@conciv/harness-testkit',
   '@conciv/browser-fixture',
