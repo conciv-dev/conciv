@@ -8,9 +8,6 @@ export type {
 } from './define-extension.js'
 export {defineTool, isToolError, toolDefinition, toolError} from './define-tool.js'
 export type {
-  ClientConsoleEntry,
-  ClientToolCtx,
-  ClientToolLocator,
   RegisteredTool,
   RegisteredTools,
   ToolBinding,
@@ -26,13 +23,7 @@ export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
 export type {ContentPart} from '@conciv/protocol/chat-message-types'
-export {
-  collectAttachmentCards,
-  collectClientEffects,
-  collectClientTools,
-  collectToolRenderers,
-} from './collect-client.js'
-export type {ClientToolEntry} from './collect-client.js'
+export {collectAttachmentCards, collectToolRenderers} from './collect-client.js'
 export {getExtensionApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId} from './extension-api.js'
 export type {
@@ -80,5 +71,3 @@ export {createSettingsStore, mergeSettings, createClientSettings} from '@conciv/
 export type {Settings, SettingsState, SettingsStore} from '@conciv/contract'
 export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'
-export {pageVerbError, isPageVerbError} from './page-errors.js'
-export type {PageVerbError} from './page-errors.js'

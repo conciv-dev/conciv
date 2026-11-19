@@ -1,16 +1,43 @@
 import {execFileSync} from 'node:child_process'
-import {existsSync, mkdirSync} from 'node:fs'
+import {mkdirSync} from 'node:fs'
 import {open} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {randomUUID} from 'node:crypto'
 import {describe, expect, it, onTestFinished, vi} from 'vitest'
+import {isEqual, mapValues} from 'es-toolkit'
 import {z} from 'zod'
 import {makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
 import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import type {Context as PluginContext} from '@conciv/plugin/effect/plugin'
+import {Tool} from '@conciv/plugin/schema/tool'
+import {
+  Cause,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  PubSub,
+  Ref,
+  Scope,
+  Stream,
+  SubscriptionRef,
+  type Schema,
+} from 'effect'
+import {TestClock} from 'effect/testing'
+import {makeChangeFeed, SinceFailed, EventsStopped, type ChangeMessage, type FeedEvent} from '../src/change-feed.js'
+import {startChangeFeed, transitionChangeFeed, type FeedChange} from '../src/change-feed-machine.js'
+import {startDrain, transitionDrain, type DrainState} from '../src/drain-machine.js'
+import {makePendingDrain, makeSceneVersions, RemoveFailed} from '../src/island-model.js'
+import {replayDraft} from '../src/replay.js'
+import type {PendingRow} from '../src/rows.js'
+import {startPending, transitionPending, type PendingState} from '../src/pending-machine.js'
+import {makeWhiteboardStore} from '../src/store.js'
+import {awaitDrawing, commitDraft, exportPng} from '../src/canvas-tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const OTHER_ROOM = 'conciv_other_room'
@@ -28,29 +55,12 @@ const APP = [
 ].join('\n')
 
 const OFFERED_TOOLS = [
-  'whiteboard_anchor_resolve',
-  'whiteboard_canvas_clear',
-  'whiteboard_canvas_commit',
-  'whiteboard_canvas_connect',
-  'whiteboard_canvas_delete',
-  'whiteboard_canvas_diagram',
-  'whiteboard_canvas_discard',
-  'whiteboard_canvas_draw',
-  'whiteboard_canvas_export',
-  'whiteboard_canvas_preview',
-  'whiteboard_canvas_read',
-  'whiteboard_canvas_svg',
-  'whiteboard_canvas_update',
-  'whiteboard_comment_create',
-  'whiteboard_comment_delete',
-  'whiteboard_comment_list',
-  'whiteboard_comment_move',
-  'whiteboard_comment_read',
-  'whiteboard_comment_reply',
-  'whiteboard_comment_resolve',
-  'whiteboard_element_reference',
-  'whiteboard_pin_set_state',
+  'anchor_resolve canvas_clear canvas_commit canvas_connect canvas_delete canvas_diagram canvas_discard canvas_draw',
+  'canvas_export canvas_preview canvas_read canvas_svg canvas_update comment_create comment_delete comment_list',
+  'comment_move comment_read comment_reply comment_resolve element_reference pin_set_state',
 ]
+  .flatMap((line) => line.split(' '))
+  .map((name) => `whiteboard_${name}`)
 
 const PinSchema = z.object({
   id: z.string(),
@@ -102,8 +112,15 @@ const ConflictSchema = z.object({
 
 type Change = z.infer<typeof ChangeSchema>
 
-async function boot(files?: Record<string, string>): Promise<{kit: CoreKit; room: string}> {
-  const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], ...(files === undefined ? {} : {files})})
+async function boot(
+  files?: Record<string, string>,
+  options?: {agentCursorMs: number},
+): Promise<{kit: CoreKit; room: string}> {
+  const kit = await bootCoreKit({
+    id: 'fake',
+    plugins: [options === undefined ? PACKAGE_DIR : [PACKAGE_DIR, options]],
+    ...(files === undefined ? {} : {files}),
+  })
   onTestFinished(() => kit.cleanup())
   return {kit, room: await kit.session()}
 }
@@ -113,11 +130,7 @@ function call(kit: CoreKit, method: string, input: unknown): Promise<unknown> {
 }
 
 async function failureType(pending: Promise<unknown>): Promise<string> {
-  const failure = await pending.then(
-    () => new Error('the call answered instead of failing'),
-    (error: unknown) => error,
-  )
-  return RpcFailureSchema.parse(failure).data.type
+  return RpcFailureSchema.parse(await rejection(pending)).data.type
 }
 
 async function rejection(pending: Promise<unknown>): Promise<Error> {
@@ -160,6 +173,14 @@ async function askedTool(
 
 function denial(name: string): string {
   return `The user denied running tool "${name}". Do not retry it; continue without it.`
+}
+
+async function nextCursor(cursors: AsyncIterator<{type: string}>): Promise<unknown> {
+  for (;;) {
+    const delivered = await cursors.next()
+    if (delivered.done) throw new Error('the cursor events ended')
+    if (delivered.value.type !== 'server.heartbeat') return delivered.value
+  }
 }
 
 function useTool(kit: CoreKit, name: string, input: unknown = {}): Promise<unknown> {
@@ -316,7 +337,7 @@ function pinRow(cid: string) {
 }
 
 describe('the whiteboard plugin', () => {
-  it('is active, serves its browser bundle and offers its twenty-two tools under the whiteboard namespace', async () => {
+  it('is active, serves its browser bundle, offers its twenty-two tools under the whiteboard namespace', async () => {
     const {kit, room} = await boot()
 
     const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'whiteboard')
@@ -418,6 +439,34 @@ describe('the whiteboard store and its rpc', () => {
       deleted: 2,
     })
     expect(await listElements(kit, room, 'live')).toEqual([])
+
+    await call(kit, 'elements.bulkUpsert', {
+      room,
+      scope: 'live',
+      rows: [
+        {elementId: 'z-bottom', data: {id: 'z-bottom', index: 'a0'}, version: 1},
+        {elementId: 'a-top', data: {id: 'a-top', index: 'a1'}, version: 1},
+      ],
+    })
+    expect(await useTool(kit, 'canvas_read')).toEqual({
+      elements: [
+        {id: 'z-bottom', index: 'a0'},
+        {id: 'a-top', index: 'a1'},
+      ],
+      scope: 'live',
+    })
+    await call(kit, 'elements.upsert', {
+      room,
+      scope: 'live',
+      row: {elementId: 'z-bottom', data: {id: 'z-bottom', index: 'a2'}, version: 2},
+    })
+    expect(await useTool(kit, 'canvas_read')).toEqual({
+      elements: [
+        {id: 'a-top', index: 'a1'},
+        {id: 'z-bottom', index: 'a2'},
+      ],
+      scope: 'live',
+    })
   })
 
   it('lets one tab at a time claim a pending row, and lets a claim that outlived its lease be taken again', async () => {
@@ -439,7 +488,7 @@ describe('the whiteboard store and its rpc', () => {
     expect(await listPending(kit, room)).toEqual([])
   })
 
-  it('keeps its database in the project folder, where a second engine on that folder reads the board back', async () => {
+  it('keeps its board in the plugin storage of the state root, where a second engine on that root reads it back', async () => {
     const folder = tempDir('conciv-whiteboard-reopen-')
 
     const first = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], stateRoot: folder})
@@ -482,11 +531,10 @@ describe('the whiteboard store and its rpc', () => {
     onTestFinished(() => second.cleanup())
     expect(second.stateRoot).toBe(folder)
     expect(await board(second, room)).toEqual(stored)
-    expect(existsSync(join(folder, '.conciv', 'whiteboard', 'whiteboard.db'))).toBe(true)
   })
 
-  it('announces each stored change as ids and a per-room cursor, and answers the missed changes since a cursor', async () => {
-    const {kit, room} = await boot()
+  it('announces each stored change as ids and a per-room cursor, answers the missed changes since a cursor, broadcasts a live cursor to the room without storing it, and moves the agent cursor at most once per throttle window', async () => {
+    const {kit, room} = await boot(undefined, {agentCursorMs: 60_000})
     const seen: Change[] = []
     const settled = Promise.withResolvers<void>()
     const stop = await followChanges(kit, (change) => {
@@ -516,6 +564,35 @@ describe('the whiteboard store and its rpc', () => {
     expect((await since(kit, room, 1)).changes.map((change) => change.cursor)).toEqual([2, 3])
     expect(await since(kit, room, 3)).toEqual({changes: [], cursor: 3})
     expect((await since(kit, OTHER_ROOM, 0)).cursor).toBe(1)
+
+    const closing = new AbortController()
+    const cursors = await kit.rpc.event.subscribe({types: ['rpc.whiteboard.cursor']}, {signal: closing.signal})
+    expect(await cursors.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+    const drawing = {
+      peerId: `agent:${room}`,
+      kind: 'agent',
+      name: 'drawing…',
+      color: '#8a86e8',
+      x: 4,
+      y: 5,
+      lastSeen: 1,
+    }
+    expect(await call(kit, 'cursor.move', {room, cursor: drawing})).toEqual({ok: true})
+    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, room}})
+    expect(await since(kit, room, 3)).toEqual({changes: [], cursor: 3})
+
+    const parts = [{type: 'text', text: 'here'}]
+    expect(
+      await useTool(kit, 'comment_create', {cid: 'a1', kind: 'floating', parts, x: 7, y: 8, authorKind: 'ai'}),
+    ).toEqual({cid: 'a1'})
+    expect(await nextCursor(cursors)).toMatchObject({
+      type: 'rpc.whiteboard.cursor',
+      data: {room, kind: 'agent', color: '#19c3b2', x: 7, y: 8},
+    })
+    expect(await useTool(kit, 'comment_move', {cid: 'a1', x: 70, y: 80})).toEqual({cid: 'a1', x: 70, y: 80})
+    expect(await call(kit, 'cursor.move', {room, cursor: {...drawing, x: 9}})).toEqual({ok: true})
+    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, x: 9, room}})
+    closing.abort()
   })
 })
 
@@ -615,8 +692,16 @@ describe('the whiteboard canvas tools', () => {
 })
 
 describe('the whiteboard comment tools', () => {
-  it('creates, replies to, reads, lists and moves comments, sets pin state, and asks before deleting, clearing, resolving or removing', async () => {
-    const {kit, room} = await boot()
+  it('creates, replies to, reads, lists and moves comments with the agent cursor at each spot, sets pin state, and asks before deleting, clearing, resolving or removing', async () => {
+    const {kit, room} = await boot(undefined, {agentCursorMs: 1})
+    const closing = new AbortController()
+    onTestFinished(() => closing.abort())
+    const cursors = await kit.rpc.event.subscribe({types: ['rpc.whiteboard.cursor']}, {signal: closing.signal})
+    expect(await cursors.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+    const agentAt = (x: number, y: number) => ({
+      type: 'rpc.whiteboard.cursor',
+      data: {room, peerId: 'agent:ai', kind: 'agent', name: 'AI', color: '#19c3b2', x, y},
+    })
     expect(
       await useTool(kit, 'comment_create', {
         cid: 'root',
@@ -633,10 +718,12 @@ describe('the whiteboard comment tools', () => {
         .parse(await call(kit, 'pins.list', {room}))
         .map(({cid, x, y}) => ({cid, x, y})),
     ).toEqual([{cid: 'root', x: 5, y: 6}])
+    expect(await nextCursor(cursors)).toMatchObject(agentAt(5, 6))
 
     const reply = z
       .object({cid: z.string()})
       .parse(await useTool(kit, 'comment_reply', {cid: 'root', parts: [{type: 'text', text: 'agreed'}]}))
+    expect(await nextCursor(cursors)).toMatchObject(agentAt(5, 6))
     const read = z
       .object({comment: CommentSchema, replies: z.array(CommentSchema)})
       .parse(await useTool(kit, 'comment_read', {cid: 'root'}))
@@ -652,6 +739,7 @@ describe('the whiteboard comment tools', () => {
     ).toEqual(['root'])
 
     expect(await useTool(kit, 'comment_move', {cid: 'root', x: 50, y: 60})).toEqual({cid: 'root', x: 50, y: 60})
+    expect(await nextCursor(cursors)).toMatchObject(agentAt(50, 60))
     expect(await useTool(kit, 'pin_set_state', {cid: 'root', pinState: 'offset'})).toEqual({
       cid: 'root',
       pinState: 'offset',
@@ -782,5 +870,411 @@ describe('the whiteboard anchors', () => {
     expect(insertedThenEnriched.map((change) => change.type)).toEqual(['upsert', 'upsert'])
     const rows = z.array(CommentSchema).parse(await call(kit, 'comments.list', {room}))
     expect(rows.find((row) => row.id === inserted)?.anchorHash).toEqual(anchored?.anchorHash)
+  })
+})
+
+describe('the pending request machine', () => {
+  it('waits for the deadline, follows a claim lease, ignores stale attempts and ends once', () => {
+    const started = startPending(8_000)
+    expect(started.effects).toEqual([{type: 'wait', attempt: 0, ms: 8_000}])
+    const stale = transitionPending(started.state, {type: 'waitExpired', attempt: 3, claim: {status: 'gone'}, now: 0})
+    expect(stale.state).toBe(started.state)
+    expect(stale.effects).toEqual([])
+    expect(
+      transitionPending(started.state, {type: 'waitExpired', attempt: 0, claim: {status: 'unclaimed'}, now: 8_000}),
+    ).toEqual({state: {status: 'done', outcome: 'unclaimed'}, effects: [{type: 'finish', outcome: 'unclaimed'}]})
+    expect(
+      transitionPending(started.state, {type: 'waitExpired', attempt: 0, claim: {status: 'gone'}, now: 8_000}).state,
+    ).toEqual({status: 'done', outcome: 'drawn'})
+    const claimed = transitionPending(started.state, {
+      type: 'waitExpired',
+      attempt: 0,
+      claim: {status: 'claimed', until: 30_000},
+      now: 8_000,
+    })
+    expect(claimed).toEqual({
+      state: {status: 'claimed', attempt: 1, leaseUntil: 30_000},
+      effects: [{type: 'wait', attempt: 1, ms: 22_000}],
+    })
+    const expired = transitionPending(claimed.state, {
+      type: 'waitExpired',
+      attempt: 1,
+      claim: {status: 'claimed', until: 30_000},
+      now: 30_000,
+    })
+    expect(expired.state).toEqual({status: 'done', outcome: 'unfinished'})
+    expect(transitionPending(claimed.state, {type: 'drained'}).state).toEqual({status: 'done', outcome: 'drawn'})
+    const disposed = transitionPending(claimed.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    const after: PendingState = disposed.state
+    expect(transitionPending(after, {type: 'drained'}).state).toBe(after)
+    expect(transitionPending(expired.state, {type: 'drained'}).state).toBe(expired.state)
+  })
+})
+
+const memoryStorage = Effect.gen(function* () {
+  const entries = yield* Ref.make<Readonly<Record<string, Schema.Json>>>({})
+  const storage: PluginContext['storage'] = {
+    directory: '',
+    get: (key) => Ref.get(entries).pipe(Effect.map((all) => Object.entries(all).find(([name]) => name === key)?.[1])),
+    set: (key, value) => Ref.update(entries, (all) => ({...all, [key]: value})),
+    remove: (key) =>
+      Ref.update(entries, (all) => Object.fromEntries(Object.entries(all).filter(([name]) => name !== key))),
+    scan: ({prefix, after}) =>
+      Ref.get(entries).pipe(
+        Effect.map((all) => ({
+          entries: Object.entries(all)
+            .filter(([key]) => key.startsWith(prefix) && (after === undefined || key > after))
+            .toSorted(([left], [right]) => (left < right ? -1 : 1))
+            .map(([key, value]) => ({key, value})),
+        })),
+      ),
+  }
+  return yield* makeWhiteboardStore(storage)
+})
+
+const ROOM = 'conciv_clocked'
+
+function failureCode<Value, Failure>(exit: Exit.Exit<Value, Failure>): unknown {
+  if (Exit.isSuccess(exit)) return 'answered'
+  const failure = Cause.squash(exit.cause)
+  if (!Tool.isToolError(failure)) return 'no tool failure'
+  return failure.metadata?.['code']
+}
+
+function clocked<Value, Failure>(program: Effect.Effect<Value, Failure>) {
+  return Effect.runPromise(program.pipe(Effect.provide(TestClock.layer())))
+}
+
+describe('the pending request driver on the test clock', () => {
+  it('answers unclaimed at the draw deadline, waits out a claim lease, and times out a commit and an export', async () => {
+    const outcomes = await clocked(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* memoryStorage
+          const insert = (id: string) =>
+            store.pending.insert(ROOM, {id, room: ROOM, kind: 'skeletons', stage: 'draft', payload: {}})
+          const unclaimed = yield* Effect.forkChild(Effect.scoped(awaitDrawing(store, ROOM, insert, 8_000)), {
+            startImmediately: true,
+          })
+          yield* TestClock.adjust(7_999)
+          expect(unclaimed.pollUnsafe()).toBeUndefined()
+          yield* TestClock.adjust(1)
+          const first = yield* Fiber.join(unclaimed)
+
+          const leased = yield* Effect.forkChild(
+            Effect.scoped(
+              awaitDrawing(store, ROOM, (id) => insert(id).pipe(Effect.andThen(store.pending.claim(ROOM, id))), 8_000),
+            ),
+            {startImmediately: true},
+          )
+          yield* TestClock.adjust(8_000)
+          expect(leased.pollUnsafe()).toBeUndefined()
+          yield* TestClock.adjust(22_000)
+          const second = yield* Fiber.join(leased)
+
+          const drained = yield* Effect.forkChild(
+            Effect.scoped(
+              awaitDrawing(store, ROOM, (id) => insert(id).pipe(Effect.andThen(store.pending.remove(ROOM, id))), 8_000),
+            ),
+            {startImmediately: true},
+          )
+          const third = yield* Fiber.join(drained)
+
+          yield* store.upsertElement('draft', {room: ROOM, elementId: 'kept', data: {}, version: 1})
+          const commit = yield* Effect.forkChild(Effect.exit(commitDraft(store, ROOM)), {startImmediately: true})
+          yield* TestClock.adjust(15_000)
+          const committed = yield* Fiber.join(commit)
+          const exporting = yield* Effect.forkChild(Effect.exit(exportPng(store, ROOM, 'live')), {
+            startImmediately: true,
+          })
+          yield* TestClock.adjust(10_000)
+          const exported = yield* Fiber.join(exporting)
+          return [first.outcome, second.outcome, third.outcome, failureCode(committed), failureCode(exported)]
+        }),
+      ),
+    )
+    expect(outcomes).toEqual(['unclaimed', 'unfinished', 'drawn', 'COMMIT_TIMEOUT', 'EXPORT_TIMEOUT'])
+  })
+})
+
+describe('the change feed machine', () => {
+  it('reads the position, catches up, routes only newer changes, reloads when the stream stops, and is disposed once', () => {
+    const change = (cursor: number): FeedChange => ({table: 'pins', key: `pin-${cursor}`, type: 'upsert', cursor})
+    const opening = startChangeFeed()
+    expect(opening.effects).toEqual([{type: 'readPosition', attempt: 0}, {type: 'subscribe'}])
+    expect(transitionChangeFeed(opening.state, {type: 'connected'}).state).toBe(opening.state)
+    const early = transitionChangeFeed(opening.state, {type: 'changed', change: change(3)})
+    expect(early.effects).toEqual([{type: 'route', changes: [change(3)]}])
+    expect(transitionChangeFeed(early.state, {type: 'positionRead', attempt: 9, cursor: 5}).state).toBe(early.state)
+    const catching = transitionChangeFeed(early.state, {type: 'positionRead', attempt: 0, cursor: 5})
+    expect(catching).toEqual({
+      state: {status: 'catchingUp', attempt: 1, cursor: 5},
+      effects: [{type: 'opened'}, {type: 'readSince', attempt: 1, cursor: 5}],
+    })
+    expect(transitionChangeFeed(catching.state, {type: 'sinceRead', attempt: 0, changes: []}).state).toBe(
+      catching.state,
+    )
+    const during = transitionChangeFeed(catching.state, {type: 'changed', change: change(6)})
+    expect(during.state).toEqual({status: 'catchingUp', attempt: 1, cursor: 6})
+    const live = transitionChangeFeed(during.state, {type: 'sinceRead', attempt: 1, changes: [change(5), change(7)]})
+    expect(live).toEqual({
+      state: {status: 'live', attempt: 1, cursor: 7},
+      effects: [{type: 'route', changes: [change(7)]}],
+    })
+    expect(transitionChangeFeed(live.state, {type: 'connected'}).effects).toEqual([
+      {type: 'readSince', attempt: 2, cursor: 7},
+    ])
+    const reloading = transitionChangeFeed(live.state, {type: 'streamStopped'})
+    expect(reloading.effects).toEqual([{type: 'readPosition', attempt: 2}])
+    expect(transitionChangeFeed(reloading.state, {type: 'positionRead', attempt: 2, cursor: 4})).toEqual({
+      state: {status: 'live', attempt: 2, cursor: 7},
+      effects: [{type: 'reload'}, {type: 'subscribe'}],
+    })
+    const disposed = transitionChangeFeed(reloading.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    expect(transitionChangeFeed(disposed.state, {type: 'changed', change: change(9)}).state).toBe(disposed.state)
+  })
+})
+
+describe('the change feed driver on the test clock', () => {
+  it('retries the position read with backoff, catches up, routes per table, reloads when the events stop, and disposes with its scope', async () => {
+    const pin = (cursor: number): FeedChange => ({table: 'pins', key: `pin-${cursor}`, type: 'upsert', cursor})
+    const result = await clocked(
+      Effect.gen(function* () {
+        const calls = yield* Ref.make<readonly number[]>([])
+        const bus = yield* PubSub.unbounded<FeedEvent | 'stop'>()
+        const changes: readonly FeedChange[] = [pin(5), pin(6), {...pin(7), table: 'comments'}]
+        const source = {
+          since: (cursor: number) =>
+            Ref.updateAndGet(calls, (all) => [...all, cursor]).pipe(
+              Effect.flatMap((all) =>
+                all.length < 3
+                  ? Effect.fail(SinceFailed.make({message: 'offline'}))
+                  : Effect.succeed({
+                      cursor: all.length < 4 ? 5 : 8,
+                      changes: changes.filter((change) => change.cursor > cursor),
+                    }),
+              ),
+            ),
+          events: Stream.fromPubSub(bus).pipe(
+            Stream.mapEffect((event) =>
+              event === 'stop' ? Effect.fail(EventsStopped.make({message: 'gone'})) : Effect.succeed(event),
+            ),
+          ),
+        }
+        const scope = yield* Scope.make()
+        const feed = yield* makeChangeFeed(source, {retryMs: 100}).pipe(Scope.provide(scope))
+        const routed = yield* Ref.make<readonly ChangeMessage[]>([])
+        const pins = yield* feed.follow('pins').pipe(Scope.provide(scope))
+        yield* Effect.forkIn(
+          Stream.runForEach(pins, (message) => Ref.update(routed, (all) => [...all, message])),
+          scope,
+          {startImmediately: true},
+        )
+        yield* TestClock.adjust(79)
+        const beforeRetry = (yield* Ref.get(calls)).length
+        yield* TestClock.adjust(41)
+        const afterRetry = (yield* Ref.get(calls)).length
+        yield* TestClock.adjust(240)
+        const caughtUp = yield* SubscriptionRef.get(feed.state)
+        yield* PubSub.publish(bus, {type: 'changed', change: pin(6)})
+        yield* PubSub.publish(bus, {type: 'changed', change: pin(8)})
+        yield* TestClock.adjust(0)
+        yield* PubSub.publish(bus, 'stop')
+        yield* TestClock.adjust(0)
+        const reloaded = yield* SubscriptionRef.get(feed.state)
+        yield* Scope.close(scope, Exit.void)
+        return {
+          beforeRetry,
+          afterRetry,
+          caughtUp,
+          reloaded,
+          disposed: yield* SubscriptionRef.get(feed.state),
+          calls: yield* Ref.get(calls),
+          routed: yield* Ref.get(routed),
+        }
+      }),
+    )
+    expect(result).toEqual({
+      beforeRetry: 1,
+      afterRetry: 2,
+      caughtUp: {status: 'live', attempt: 1, cursor: 7},
+      reloaded: {status: 'live', attempt: 2, cursor: 8},
+      disposed: {status: 'disposed'},
+      calls: [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, 5, Number.MAX_SAFE_INTEGER],
+      routed: [{type: 'upsert', key: 'pin-6'}, {type: 'upsert', key: 'pin-8'}, {type: 'reload'}],
+    })
+  })
+})
+
+const pendingRow = (id: string): PendingRow => ({
+  id,
+  room: 'conciv_drain',
+  kind: 'skeletons',
+  stage: 'draft',
+  payload: {},
+})
+
+describe('the canvas drain machine', () => {
+  it('claims each new row once, runs then removes it, forgets a refused claim, ignores stale results, and stops on dispose', () => {
+    const row = pendingRow
+    const seen = transitionDrain(startDrain().state, {type: 'seen', rows: [row('a'), row('b')]})
+    expect(seen.effects).toEqual([
+      {type: 'claim', attempt: 0, row: row('a')},
+      {type: 'claim', attempt: 1, row: row('b')},
+    ])
+    expect(transitionDrain(seen.state, {type: 'seen', rows: [row('a'), row('b')]}).state).toBe(seen.state)
+    const running = transitionDrain(seen.state, {type: 'claimed', id: 'a', attempt: 0, claimed: true})
+    expect(running.effects).toEqual([{type: 'run', attempt: 0, row: row('a')}])
+    const refused = transitionDrain(running.state, {type: 'claimed', id: 'b', attempt: 1, claimed: false})
+    const again = transitionDrain(refused.state, {type: 'seen', rows: [row('b')]})
+    expect(again.effects).toEqual([{type: 'claim', attempt: 2, row: row('b')}])
+    expect(transitionDrain(again.state, {type: 'claimed', id: 'b', attempt: 1, claimed: true}).state).toBe(again.state)
+    const removing = transitionDrain(again.state, {type: 'ran', id: 'a', attempt: 0})
+    expect(removing.effects).toEqual([{type: 'remove', attempt: 0, row: row('a')}])
+    const done = transitionDrain(removing.state, {type: 'removed', id: 'a', attempt: 0})
+    expect(transitionDrain(done.state, {type: 'seen', rows: [row('a')]}).effects).toEqual([])
+    const disposed = transitionDrain(done.state, {type: 'disposed'})
+    expect(disposed).toEqual({state: {status: 'disposed'}, effects: []})
+    expect(transitionDrain(disposed.state, {type: 'claimed', id: 'b', attempt: 2, claimed: true}).state).toBe(
+      disposed.state,
+    )
+  })
+})
+
+describe('the canvas scene versions', () => {
+  it('applies a remote change once, never echoes it back as a local write, and writes only real local edits', () => {
+    const element = (id: string, version: number, versionNonce = 1) => ({id, version, versionNonce})
+    const row = (id: string, version: number, versionNonce = 1) => ({
+      room: 'room',
+      elementId: id,
+      version,
+      data: element(id, version, versionNonce),
+    })
+    const result = Effect.runSync(
+      Effect.gen(function* () {
+        const scene = yield* makeSceneVersions()
+        yield* scene.seed([row('a', 1)])
+        const seededEcho = yield* scene.takeLocal([element('a', 1)])
+        const remoteNewer = yield* scene.acceptRemote([row('a', 2), row('b', 1)], [element('a', 1)])
+        const remoteEcho = yield* scene.takeLocal([element('a', 2), element('b', 1)])
+        const localEdit = yield* scene.takeLocal([element('a', 3), element('b', 1)])
+        const ownWriteBack = yield* scene.acceptRemote([row('a', 3), row('b', 1)], [element('a', 3), element('b', 1)])
+        const lostTie = yield* scene.acceptRemote([row('a', 3, 9), row('b', 1)], [element('a', 3, 7), element('b', 1)])
+        const removed = yield* scene.acceptRemote([row('a', 3, 9)], [element('a', 3, 9), element('b', 1)])
+        const removedEcho = yield* scene.takeLocal([element('a', 3, 9)])
+        return {seededEcho, remoteNewer, remoteEcho, localEdit, ownWriteBack, lostTie, removed, removedEcho}
+      }),
+    )
+    expect(result).toEqual({
+      seededEcho: [],
+      remoteNewer: true,
+      remoteEcho: [],
+      localEdit: [element('a', 3)],
+      ownWriteBack: false,
+      lostTie: true,
+      removed: true,
+      removedEcho: [],
+    })
+  })
+})
+
+describe('the canvas drain driver on the test clock', () => {
+  it('removes a row after every exit of its work, retries a failed removal with backoff, re-claims a refused row, and disposes with its scope', async () => {
+    const result = await clocked(
+      Effect.gen(function* () {
+        const log = yield* Ref.make<readonly string[]>([])
+        const count = (entry: string) =>
+          Ref.get(log).pipe(Effect.map((all) => all.filter((item) => item === entry).length))
+        const note = (entry: string) =>
+          Ref.updateAndGet(log, (all) => [...all, entry]).pipe(Effect.flatMap(() => count(entry)))
+        const work = {
+          claim: (row: PendingRow) =>
+            note(`claim ${row.id}`).pipe(Effect.map((tries) => row.id !== 'refused' || tries > 1)),
+          perform: (row: PendingRow) =>
+            note(`perform ${row.id}`).pipe(
+              Effect.andThen(row.id === 'broken' ? Effect.die('bad payload') : Effect.void),
+            ),
+          remove: (row: PendingRow) =>
+            note(`remove ${row.id}`).pipe(
+              Effect.flatMap((tries) =>
+                row.id === 'drawn' && tries < 3 ? Effect.fail(RemoveFailed.make({message: 'offline'})) : Effect.void,
+              ),
+            ),
+        }
+        const scope = yield* Scope.make()
+        const drain = yield* makePendingDrain(work, {removeRetryMs: 100}).pipe(Scope.provide(scope))
+        const phases = (state: DrainState) =>
+          state.status === 'active' ? mapValues(state.rows, (row) => row.phase) : {}
+        const until = (wanted: Record<string, string>) =>
+          SubscriptionRef.changes(drain.state).pipe(
+            Stream.map(phases),
+            Stream.filter((current) => isEqual(current, wanted)),
+            Stream.runHead,
+          )
+        yield* drain.see([pendingRow('drawn'), pendingRow('broken'), pendingRow('refused')])
+        const first = yield* until({drawn: 'removing', broken: 'done'})
+        yield* TestClock.adjust(79)
+        const beforeRetry = yield* count('remove drawn')
+        yield* TestClock.adjust(41)
+        const afterRetry = yield* count('remove drawn')
+        yield* TestClock.adjust(240)
+        yield* until({drawn: 'done', broken: 'done'})
+        yield* drain.see([pendingRow('refused')])
+        const settled = yield* until({drawn: 'done', broken: 'done', refused: 'done'})
+        yield* Scope.close(scope, Exit.void)
+        const disposed = (yield* SubscriptionRef.get(drain.state)).status
+        return {first, beforeRetry, afterRetry, settled, disposed, log: (yield* Ref.get(log)).toSorted()}
+      }),
+    )
+    expect(result).toEqual({
+      first: Option.some({drawn: 'removing', broken: 'done'}),
+      beforeRetry: 1,
+      afterRetry: 2,
+      settled: Option.some({drawn: 'done', broken: 'done', refused: 'done'}),
+      disposed: 'disposed',
+      log: [
+        'claim broken',
+        'claim drawn',
+        'claim refused',
+        'claim refused',
+        'perform broken',
+        'perform drawn',
+        'perform refused',
+        'remove broken',
+        'remove drawn',
+        'remove drawn',
+        'remove drawn',
+        'remove refused',
+      ],
+    })
+  })
+})
+
+describe('the commit replay on the test clock', () => {
+  it('writes the first draft element at once, the next after a step, and the rest at once when skipped', async () => {
+    const result = await clocked(
+      Effect.gen(function* () {
+        const written = yield* Ref.make<readonly string[]>([])
+        const step = (elementId: string) => ({
+          elementId,
+          write: () => Effect.runSync(Ref.updateAndGet(written, (all) => [...all, elementId])),
+        })
+        const skipped = yield* Deferred.make<void>()
+        const replay = yield* Effect.forkChild(replayDraft([step('a'), step('b'), step('c'), step('d')], skipped), {
+          startImmediately: true,
+        })
+        const first = yield* Ref.get(written)
+        yield* TestClock.adjust(399)
+        const beforeStep = yield* Ref.get(written)
+        yield* TestClock.adjust(1)
+        const afterStep = yield* Ref.get(written)
+        yield* Deferred.succeed(skipped, undefined)
+        const results = yield* Fiber.join(replay)
+        return {first, beforeStep, afterStep, results: results.map((all) => all.at(-1))}
+      }),
+    )
+    expect(result).toEqual({first: ['a'], beforeStep: ['a'], afterStep: ['a', 'b'], results: ['a', 'b', 'c', 'd']})
   })
 })

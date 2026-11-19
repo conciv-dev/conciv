@@ -6,9 +6,6 @@ import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {cleanup} from '@solidjs/testing-library'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {defineTool} from '@conciv/extension/tool'
-import type {AnyToolBuilder} from '@conciv/extension'
-import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {
   GENERIC_TOOL_ICON,
@@ -28,12 +25,14 @@ import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/sear
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
 import {
   FIXTURE_TOOLS,
+  fixtureRegistry,
   fixtureToolMeta,
   fixtureToolName,
   fixtureToolRegistry,
   mountView,
   readFixtureVerb,
   registryCatalogView,
+  type FixtureTool,
 } from './helpers.js'
 import {parseClaudePatchBlocks, patchInfo} from '../src/primitives/tools/apply-patch.js'
 
@@ -177,26 +176,23 @@ describe('card body floor', () => {
 })
 
 describe('catalog cards', () => {
-  const shipTool = defineTool({
+  const shipTool: FixtureTool = {
     name: 'page_ship',
-    description: 'ship the page the user is looking at',
-    inputSchema: z.object({selector: z.string(), note: z.string().optional()}),
-    outputSchema: z.string(),
     meta: {
       summary: 'ship the page the user is looking at',
       category: 'act',
       icon: 'pointer',
       label: {running: 'Shipping the page', done: 'Shipped the page'},
       positional: 'selector',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({selector: z.string(), note: z.string().optional()}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.string(), {io: 'output'}),
+      errors: [],
     },
-  }).client()
+  }
 
-  const bannerTool = defineTool({
+  const bannerTool: FixtureTool = {
     name: 'page_banner',
-    description: 'paint a banner over the page',
-    inputSchema: z.object({value: z.string().optional()}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    errors: {NO_CANVAS: {message: 'this page has nowhere to paint a banner'}},
     meta: {
       summary: 'paint a banner over the page',
       category: 'act',
@@ -204,35 +200,43 @@ describe('catalog cards', () => {
       label: {running: 'Painting the banner', done: 'Painted the banner'},
       mutating: true,
       hint: 'the banner disappears on the next navigation',
+      inputSchema: z.toJSONSchema(z.object({value: z.string().optional()}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+      errors: [{code: 'NO_CANVAS', message: 'this page has nowhere to paint a banner'}],
     },
-  }).client()
+  }
 
-  const plainTool = defineTool({
+  const plainTool: FixtureTool = {
     name: 'page_plain',
-    description: 'do something the widget has no cosmetics for',
-    inputSchema: z.object({}),
-    outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'do something the widget has no cosmetics for', category: 'act'},
-  }).client()
+    meta: {
+      summary: 'do something the widget has no cosmetics for',
+      category: 'act',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+      errors: [],
+    },
+  }
 
-  const countTool = defineTool({
+  const countTool: FixtureTool = {
     name: 'page_count',
-    description: 'count the elements the page shows',
-    inputSchema: z.object({}),
-    outputSchema: z.number(),
-    meta: {summary: 'count the elements the page shows', category: 'read', icon: 'read'},
-  }).client()
+    meta: {
+      summary: 'count the elements the page shows',
+      category: 'read',
+      icon: 'read',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.number(), {io: 'output'}),
+      errors: [],
+    },
+  }
 
   function declaredRegistry() {
-    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
-    for (const tool of [shipTool, bannerTool, plainTool, countTool])
-      registry.register(tool, {owner: 'a test registrant'})
-    return registry
+    return fixtureRegistry([...FIXTURE_TOOLS, shipTool, bannerTool, plainTool, countTool])
   }
 
   function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-    return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => Promise.resolve(), catalog}
+    return {addResult: () => Promise.resolve(), catalog}
   }
 
   function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -353,31 +357,26 @@ describe('new tool projection', () => {
     }
   }
 
-  const shipTool = defineTool({
+  const shipTool: FixtureTool = {
     name: 'page_ship',
-    description: 'ship the page the user is looking at',
-    inputSchema: z.object({note: z.string().optional()}),
-    outputSchema: z.object({ok: z.literal(true)}),
     meta: {
       summary: 'ship the page the user is looking at',
       category: 'act',
       icon: 'pointer',
       label: {running: 'Shipping the page', done: 'Shipped the page'},
       hint: 'only once the user has approved the diff',
+      mutating: false,
+      inputSchema: z.toJSONSchema(z.object({note: z.string().optional()}), {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+      errors: [],
     },
-  }).client()
+  }
 
-  function registryWith(extra: AnyToolBuilder) {
-    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
-    registry.register(extra, {owner: 'a test registrant'})
-    return registry
+  function registryWith(extra: FixtureTool) {
+    return fixtureRegistry([...FIXTURE_TOOLS, extra])
   }
 
   const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: registryCatalogView(registryWith(shipTool)),
   }
@@ -420,13 +419,17 @@ describe('new tool projection', () => {
   })
 
   it('a declaration with no icon key falls back to the generic icon', () => {
-    const plainTool = defineTool({
+    const plainTool: FixtureTool = {
       name: 'page_plain',
-      description: 'do something the widget has no icon for',
-      inputSchema: z.object({}),
-      outputSchema: z.object({ok: z.literal(true)}),
-      meta: {summary: 'do something the widget has no icon for', category: 'act'},
-    }).client()
+      meta: {
+        summary: 'do something the widget has no icon for',
+        category: 'act',
+        mutating: false,
+        inputSchema: z.toJSONSchema(z.object({}), {io: 'input'}),
+        outputSchema: z.toJSONSchema(z.object({ok: z.literal(true)}), {io: 'output'}),
+        errors: [],
+      },
+    }
 
     expect(registryWith(plainTool).catalog.get('page_plain').summary).toBe('do something the widget has no icon for')
     expect(toolIconRender(plainTool.meta?.icon)).toBe(GENERIC_TOOL_ICON)
@@ -435,9 +438,6 @@ describe('new tool projection', () => {
 
 describe('registered tool cards', () => {
   const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog: registryCatalogView(fixtureToolRegistry()),
   }
@@ -509,9 +509,6 @@ describe('registered tool cards', () => {
 describe('registry card declarations', () => {
   const catalog = registryCatalogView(fixtureToolRegistry())
   const ctx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: 'test',
-    sendMessage: () => {},
     addResult: () => Promise.resolve(),
     catalog,
   }
@@ -729,6 +726,33 @@ describe('tool row projections', () => {
     await expect.element(page.getByRole('group', {name: 'Output'})).toBeVisible()
     await expect.element(page.getByText('[build] step 20 finished')).toBeVisible()
     expect(document.querySelector('diffs-container')).not.toBeNull()
+  })
+
+  it('heads a long bash output with its command, copies it from that header and expands the lines it hides', async () => {
+    const command = 'pnpm test --reporter verbose'
+    const lines = Array.from({length: 24}, (_, index) => `line ${index + 1} of a very tall body`)
+    const output = lines.join('\n')
+    const shownLines = 11
+    const lineText = (number: number) => page.getByText(`line ${number} of a very tall body`, {exact: true})
+    mountView(() => row(call('Bash', {command}), result(JSON.stringify({stdout: output, exitCode: 0}))))
+    const box = page.getByRole('group', {name: 'Output'})
+
+    await expect
+      .element(box.getByRole('button', {name: `${lines.length - shownLines} more lines`}))
+      .toHaveAttribute('aria-expanded', 'false')
+    await expect.element(box.getByText(command, {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'Command'})).not.toBeInTheDocument()
+    await expect.element(lineText(shownLines)).toBeInViewport({ratio: 1})
+    await expect.element(lineText(shownLines + 1)).not.toBeInViewport()
+
+    await box.getByRole('button', {name: 'Copy'}).click()
+    await expect.element(box.getByRole('status')).toHaveTextContent('Copied to clipboard')
+    expect(await navigator.clipboard.readText()).toBe(output)
+
+    await box.getByRole('button', {name: `${lines.length - shownLines} more lines`}).click()
+    await expect.element(box.getByRole('button', {name: 'Show less'})).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(lineText(lines.length)).toBeInViewport({ratio: 1})
+    await expect.element(page.getByRole('button', {name: /more lines/})).not.toBeInTheDocument()
   })
 
   it('renders ansi bash trace output through the ansi grammar so escape codes never leak as text', async () => {

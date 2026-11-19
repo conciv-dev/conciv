@@ -1,17 +1,28 @@
 import {render} from '@solidjs/testing-library'
 import type {JSX} from 'solid-js'
 import {z} from 'zod'
-import {defineTool} from '@conciv/extension/tool'
-import {createToolRegistry, type ToolRegistry} from '@conciv/extension/registry'
-import type {ToolCatalogView} from '@conciv/protocol/tool-view-types'
+import type {ToolCatalogView, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
 
 export function mountView(view: () => JSX.Element): HTMLElement {
   return render(view).container
 }
 
-export function registryCatalogView(registry: ToolRegistry): ToolCatalogView {
-  return {loaded: () => true, meta: (name) => (registry.has(name) ? registry.catalog.get(name) : undefined)}
+export type FixtureTool = {name: string; meta: ToolViewMeta}
+
+export type FixtureRegistry = {tools: readonly FixtureTool[]; catalog: {get: (name: string) => ToolViewMeta}}
+
+export function fixtureRegistry(tools: readonly FixtureTool[]): FixtureRegistry {
+  const get = (name: string): ToolViewMeta => {
+    const found = tools.find((tool) => tool.name === name)
+    if (found === undefined) throw new Error(`unknown tool "${name}"`)
+    return found.meta
+  }
+  return {tools, catalog: {get}}
+}
+
+export function registryCatalogView(registry: FixtureRegistry): ToolCatalogView {
+  return {loaded: () => true, meta: (name) => registry.tools.find((tool) => tool.name === name)?.meta}
 }
 
 const FIXTURE_TOOL_PREFIX = 'fixture_'
@@ -25,25 +36,24 @@ function fixtureTool<Shape extends z.ZodRawShape>(spec: {
   label: ToolLabel
   mutating?: boolean
   input: z.ZodObject<Shape>
-}) {
-  const summary = `a fixture tool for ${spec.label.running.toLowerCase()}`
-  return defineTool({
+}): FixtureTool {
+  return {
     name: `${FIXTURE_TOOL_PREFIX}${spec.verb}`,
-    description: summary,
-    inputSchema: spec.input,
-    outputSchema: z.unknown(),
     meta: {
-      summary,
+      summary: `a fixture tool for ${spec.label.running.toLowerCase()}`,
       category: spec.category,
       icon: spec.icon,
       label: spec.label,
       mutating: spec.mutating ?? false,
       ...('selector' in spec.input.shape ? {positional: 'selector'} : {}),
+      inputSchema: z.toJSONSchema(spec.input, {io: 'input'}),
+      outputSchema: z.toJSONSchema(z.unknown(), {io: 'output'}),
+      errors: [],
     },
-  }).client()
+  }
 }
 
-export const FIXTURE_TOOLS = [
+export const FIXTURE_TOOLS: FixtureTool[] = [
   fixtureTool({
     verb: 'text',
     category: 'read',
@@ -128,8 +138,6 @@ export function readFixtureVerb(name: string): string {
   return name.slice(FIXTURE_TOOL_PREFIX.length)
 }
 
-export function fixtureToolRegistry(): ToolRegistry {
-  const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-  for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
-  return registry
+export function fixtureToolRegistry(): FixtureRegistry {
+  return fixtureRegistry(FIXTURE_TOOLS)
 }

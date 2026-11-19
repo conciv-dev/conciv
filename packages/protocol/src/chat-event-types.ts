@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {PageQueueResultSchema} from './page-types.js'
 import {EventType, type CustomEvent, type StreamChunk} from '@tanstack/ai'
+import type {ChatMessage, ChatPart, ToolCallPart} from './chat-message-types.js'
 
 export type ChatEvent = StreamChunk
 
@@ -16,21 +17,63 @@ export type ChatEventDefinition<Name extends string, Schema extends z.ZodType> =
   name: Name
   create: (value: z.input<Schema>) => ChatCustomEvent
   parse: (event: ChatEvent) => z.output<Schema> | null
+  read: (eventName: string, value: unknown) => z.output<Schema> | null
 }
 
 export function defineChatEvent<Name extends string, Schema extends z.ZodType>(
   name: Name,
   schema: Schema,
 ): ChatEventDefinition<Name, Schema> {
+  const read = (eventName: string, value: unknown): z.output<Schema> | null => {
+    if (eventName !== name) return null
+    const parsed = schema.safeParse(value)
+    return parsed.success ? parsed.data : null
+  }
   return {
     name,
     create: (value) => ({type: EventType.CUSTOM, name, value: schema.parse(value)}),
-    parse: (event) => {
-      if (event.type !== EventType.CUSTOM || event.name !== name) return null
-      const parsed = schema.safeParse(event.value)
-      return parsed.success ? parsed.data : null
-    },
+    parse: (event) => (event.type === EventType.CUSTOM ? read(event.name, event.value) : null),
+    read,
   }
+}
+
+const ToolCallTimeSchema = z.object({start: z.number().optional(), end: z.number().optional()})
+
+export type ToolCallTime = z.infer<typeof ToolCallTimeSchema>
+
+export const toolTimeEvent = defineChatEvent(
+  'conciv.tool-time',
+  z.object({toolCallId: z.string().min(1), time: ToolCallTimeSchema.required({end: true})}),
+)
+
+const ToolCallTimeMetadataSchema = z.looseObject({time: ToolCallTimeSchema})
+
+export function readToolCallTime(part: ToolCallPart): ToolCallTime | undefined {
+  const parsed = ToolCallTimeMetadataSchema.safeParse(part.metadata)
+  return parsed.success ? parsed.data.time : undefined
+}
+
+export function toolCallDuration(part: ToolCallPart): number | undefined {
+  const time = readToolCallTime(part)
+  if (time?.start === undefined || time.end === undefined) return undefined
+  return time.end - time.start
+}
+
+function timedPart(part: ChatPart, toolCallId: string, time: ToolCallTime): ChatPart {
+  if (part.type !== 'tool-call' || part.id !== toolCallId) return part
+  const metadata = z.record(z.string(), z.unknown()).catch({}).parse(part.metadata)
+  const known = readToolCallTime(part)
+  return {...part, metadata: {...metadata, time: {start: time.start ?? known?.start, end: time.end ?? known?.end}}}
+}
+
+export function timedMessages(messages: readonly ChatMessage[], name: string, value: unknown): ChatMessage[] | null {
+  const timed = toolTimeEvent.read(name, value)
+  if (timed === null) return null
+  return messages.map((message) =>
+    message.parts.some((part) => part.type === 'tool-call' && part.id === timed.toolCallId)
+      ? {...message, parts: message.parts.map((part) => timedPart(part, timed.toolCallId, timed.time))}
+      : message,
+  )
 }
 
 export const approvalRequestedEvent = defineChatEvent(

@@ -77,12 +77,12 @@ function play(): Story {
       if (!traceHeader) throw new Error('trace header trigger not found')
 
       await expect(traceHeader).toHaveAttribute('data-state', 'open')
-      await expect(c.getByText('shell')).toBeVisible()
+      await expect(c.getByText('Called shell')).toBeVisible()
       const before = reply.getBoundingClientRect()
 
       await userEvent.click(c.getByText('1 shell'))
       await waitFor(() => expect(traceHeader).toHaveAttribute('data-state', 'closed'))
-      await waitFor(() => expect(c.getByText('shell')).not.toBeVisible())
+      await waitFor(() => expect(c.getByText('Called shell')).not.toBeVisible())
       const after = reply.getBoundingClientRect()
 
       expect(after.left).toBeCloseTo(before.left, 0)

@@ -3,6 +3,8 @@ import {z} from 'zod'
 import {
   commentRow,
   commentRowInsert,
+  cursorEvent,
+  cursorEventInsert,
   elementRow,
   elementRowInsert,
   pendingRow,
@@ -13,7 +15,7 @@ import {
   readRowInsert,
   replyRow,
   replyRowInsert,
-} from './shared/rows.js'
+} from './rows.js'
 
 const Room = z.string().regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
 const RoomInput = z.object({room: Room})
@@ -103,6 +105,7 @@ export const Whiteboard = Rpc.define({
       input: ScopeInput.extend({elementIds: z.array(z.string())}),
       output: z.object({deleted: z.number()}),
     },
+    'cursor.move': {input: RoomInput.extend({cursor: cursorEventInsert}), output: z.object({ok: z.literal(true)})},
     since: {
       input: RoomInput.extend({cursor: Cursor}),
       output: z.object({
@@ -112,6 +115,7 @@ export const Whiteboard = Rpc.define({
     },
   },
   events: {
+    cursor: {schema: cursorEvent},
     changed: {
       schema: z.object({room: Room, table: ChangeTable, key: z.string(), type: ChangeType, cursor: Cursor}),
     },

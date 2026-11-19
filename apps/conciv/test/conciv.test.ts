@@ -10,6 +10,7 @@ import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-search.js'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
+import {rankSessionTitle} from '../src/pane/session-title-rank.js'
 import {reconcileDraft} from '../src/pane/draft-reconcile.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
@@ -51,7 +52,13 @@ describe('draft storage', () => {
       await core.close()
     },
     app: async ({core}, use) => {
-      const app = makeAppData(makeRpcClient(core.base), new QueryClient(), null, () => false)
+      const app = makeAppData(
+        makeRpcClient(core.base),
+        new QueryClient(),
+        null,
+        () => false,
+        () => core.base,
+      )
       await use(app)
       app.dispose()
     },
@@ -686,6 +693,26 @@ describe('launcher drag physics', () => {
       expect(presetPlacement('middle-right')).toEqual({kind: 'free', x: 100, y: 50})
       expect(presetPlacement('top-right')).toEqual({kind: 'corner', corner: 'top-right'})
     })
+  })
+})
+
+describe('session title rank', () => {
+  test.each([
+    {title: 'OPENCODE CONSOLE', query: 'open con', rank: 1},
+    {title: 'OPENCODE CONSOLE', query: 'OPENCODE CONSOLE', rank: 0},
+    {title: 'OPENCODE CONSOLE', query: 'opencode console', rank: 0},
+    {title: 'OPENCODE CONSOLE', query: 'console', rank: 2},
+    {title: 'OPENCODE CONSOLE', query: 'OPENCODE CONSOLE ', rank: undefined},
+    {title: 'OPENCODE CONSOLE', query: 'OPENCODE CONSOLE on', rank: undefined},
+    {title: 'HOME', query: 'HOME ', rank: undefined},
+    {title: 'HOME', query: 'home', rank: 0},
+    {title: 'Home office', query: 'home', rank: 1},
+    {title: 'Back home', query: 'home', rank: 2},
+    {title: 'foobar', query: 'foo bar', rank: undefined},
+    {title: 'foo bar', query: 'foo bar', rank: 0},
+    {title: 'console', query: 'sole', rank: undefined},
+  ])('$query against $title: $rank', (row) => {
+    expect(rankSessionTitle(row.title, row.query)).toBe(row.rank)
   })
 })
 

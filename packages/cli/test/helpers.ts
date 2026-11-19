@@ -1,7 +1,7 @@
-import type {PageOutcome} from '@conciv/protocol/page-types'
 import {type BootApp, createFakeHarness, createTestkit, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
+import type {Plugin} from '@conciv/plugin'
 import {afterEach, beforeEach, expect, vi} from 'vitest'
 import {execFileSync} from 'node:child_process'
 import {appendFileSync, chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
@@ -16,7 +16,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
-  extensions?: Parameters<typeof makeApp>[0]['extensions']
+  plugins?: readonly Plugin.Plugin[]
 }
 
 function bootCliApp(extras: BootExtras): BootApp {
@@ -41,7 +41,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       openInEditor: () => {},
       harness: env.harness,
       bridge: extras.bridge,
-      extensions: extras.extensions,
+      plugins: extras.plugins,
     })
     await awaitActivation()
     return {fetch, dispose, agentToken}
@@ -62,37 +62,6 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
 }
 
 export type SeenQuery = Record<string, unknown>
-
-type Queries = Awaited<ReturnType<Kit['rpc']['page']['queries']>>
-
-type QueryState = {seen: SeenQuery | null}
-
-async function answerFirst(
-  kit: Kit,
-  queries: Queries,
-  state: QueryState,
-  outcome: PageOutcome,
-  abort: AbortController,
-): Promise<void> {
-  const first = await queries.next()
-  if (first.done || first.value.kind !== 'ready') return
-  const asked = await queries.next()
-  if (asked.done || asked.value.kind !== 'query') return
-  const query = asked.value.query
-  state.seen = typeof query === 'object' && query !== null ? {...query} : {}
-  await kit.rpc.page.reply({requestId: asked.value.requestId, outcome})
-  abort.abort()
-  await queries.return(undefined)
-}
-
-export async function answerNextQuery(kit: Kit, outcome: PageOutcome): Promise<{seen: () => SeenQuery | null}> {
-  const abort = new AbortController()
-  const queries = await kit.rpc.page.queries({focus: {focused: true, visible: true}}, {signal: abort.signal})
-  const state: QueryState = {seen: null}
-  void answerFirst(kit, queries, state, outcome, abort).catch(() => {})
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  return {seen: () => state.seen}
-}
 
 export type CliSession = {cleanups: (() => Promise<void>)[]; written: string[]}
 

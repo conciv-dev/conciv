@@ -1,117 +1,100 @@
-import {randomUUID} from 'node:crypto'
-import type {RecorderControl} from './protocol.js'
+import {Clock, Context, Effect, Layer, Option, PubSub, Schedule, Stream, SubscriptionRef, Schema} from 'effect'
+import {
+  initialCaptureControl,
+  isCaptureLive,
+  transitionCaptureControl,
+  type CaptureControlEffect,
+  type CaptureControlEvent,
+  type CaptureRange,
+} from './capture-control-machine.js'
+import {ClientRings} from './rings.js'
+import type {RecorderControl} from './rpc.js'
 
-type AppendSource = {
-  onAppend(listener: () => void): () => void
-  appendCursor(): number
+const CAPTURE_TICK = '5 seconds'
+
+export const CaptureNotFound = Schema.TaggedStruct('RecorderCaptureNotFound', {captureId: Schema.String})
+export type CaptureNotFound = typeof CaptureNotFound.Type
+
+export type StartedCapture = {readonly captureId: string; readonly startTs: number; readonly appendCursor: number}
+
+export type StoppedCapture = CaptureRange & {readonly appendCursor: number}
+
+export type CaptureControlInterface = {
+  readonly controls: Stream.Stream<RecorderControl>
+  readonly emit: (control: RecorderControl) => Effect.Effect<number>
+  readonly isLive: Effect.Effect<boolean>
+  readonly startCapture: Effect.Effect<StartedCapture>
+  readonly stopCapture: (captureId: string) => Effect.Effect<StoppedCapture, CaptureNotFound>
+  readonly renewViewer: (viewerId: string) => Effect.Effect<void>
+  readonly dropViewer: (viewerId: string) => Effect.Effect<void>
+  readonly awaitAppendAfter: (appendCursor: number, timeoutMs: number) => Effect.Effect<boolean>
 }
 
-const CAPTURE_TTL_MS = 10 * 60 * 1000
-const CAPTURE_SWEEP_MS = 5_000
-const VIEWER_LEASE_MS = 20_000
+export const CaptureControl = Context.Service<CaptureControlInterface>('@conciv/plugin-recorder/CaptureControl')
 
-export type CaptureControl = {
-  subscribe(emit: (control: RecorderControl) => void): () => void
-  emit(control: RecorderControl): number
-  isLive(): boolean
-  startCapture(): {captureId: string; startTs: number; appendCursor: number}
-  stopCapture(captureId: string): {startTs: number; stopTs: number; appendCursor: number} | null
-  renewViewer(viewerId: string): boolean
-  dropViewer(viewerId: string): void
-  awaitAppendAfter(appendCursor: number, timeoutMs: number): Promise<boolean>
-  dispose(): void
+function readStop(effects: readonly CaptureControlEffect[]): CaptureRange | undefined {
+  return effects.flatMap((effect) => (effect.type === 'answer-stop' && effect.range ? [effect.range] : []))[0]
 }
 
-export function createCaptureControl(ring: AppendSource, now: () => number = Date.now): CaptureControl {
-  const listeners = new Set<(control: RecorderControl) => void>()
-  const captures = new Map<string, {startTs: number; expiresAt: number}>()
-  const viewers = new Map<string, number>()
+function readControls(effects: readonly CaptureControlEffect[]): readonly RecorderControl[] {
+  return effects.flatMap((effect) => (effect.type === 'emit' ? [effect.control] : []))
+}
 
-  const emit = (control: RecorderControl): number => {
-    const appendCursor = ring.appendCursor()
-    for (const listener of listeners) listener(control)
-    return appendCursor
-  }
+export const captureControlLayer = Layer.effect(
+  CaptureControl,
+  Effect.gen(function* () {
+    const rings = yield* ClientRings
+    const state = yield* SubscriptionRef.make(initialCaptureControl)
+    const controls = yield* PubSub.unbounded<RecorderControl>()
+    const appendCursor = SubscriptionRef.get(rings.appendCursor)
 
-  const isLive = (): boolean => captures.size > 0 || viewers.size > 0
+    const emit = (control: RecorderControl) =>
+      Effect.flatMap(appendCursor, (cursor) => Effect.as(PubSub.publish(controls, control), cursor))
 
-  const expireCaptures = (nowTs: number): boolean => {
-    let removed = false
-    for (const [captureId, capture] of captures) {
-      if (capture.expiresAt > nowTs) continue
-      captures.delete(captureId)
-      removed = true
-    }
-    return removed
-  }
-
-  const expireViewers = (nowTs: number): boolean => {
-    let removed = false
-    for (const [viewerId, expiresAt] of viewers) {
-      if (expiresAt > nowTs) continue
-      viewers.delete(viewerId)
-      removed = true
-    }
-    return removed
-  }
-
-  const sweep = (): void => {
-    const nowTs = now()
-    const expiredCaptures = expireCaptures(nowTs)
-    const expiredViewers = expireViewers(nowTs)
-    if ((expiredCaptures || expiredViewers) && !isLive()) emit({live: false})
-  }
-
-  const sweepTimer = setInterval(sweep, CAPTURE_SWEEP_MS)
-  sweepTimer.unref?.()
-
-  const awaitAppendAfter = (appendCursor: number, timeoutMs: number): Promise<boolean> => {
-    if (ring.appendCursor() > appendCursor) return Promise.resolve(true)
-    return new Promise((resolve) => {
-      const finish = (appended: boolean): void => {
-        off()
-        clearTimeout(timer)
-        resolve(appended)
-      }
-      const off = ring.onAppend(() => finish(true))
-      const timer = setTimeout(() => finish(false), timeoutMs)
+    const dispatch = Effect.fn('recorder.capture.dispatch')(function* (event: (now: number) => CaptureControlEvent) {
+      const now = yield* Clock.currentTimeMillis
+      const effects = yield* SubscriptionRef.modify(state, (current) => {
+        const next = transitionCaptureControl(current, event(now))
+        return [next.effects, next.state]
+      })
+      yield* PubSub.publishAll(controls, readControls(effects))
+      return {effects, now}
     })
-  }
 
-  return {
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    emit,
-    isLive,
-    startCapture() {
-      const captureId = randomUUID()
-      const startTs = now()
-      captures.set(captureId, {startTs, expiresAt: startTs + CAPTURE_TTL_MS})
-      const appendCursor = emit({live: true, snapshot: true, flush: true})
-      return {captureId, startTs, appendCursor}
-    },
-    stopCapture(captureId) {
-      const capture = captures.get(captureId)
-      if (capture === undefined) return null
-      captures.delete(captureId)
-      const appendCursor = emit({flush: true, live: isLive()})
-      return {startTs: capture.startTs, stopTs: now(), appendCursor}
-    },
-    renewViewer(viewerId) {
-      const known = viewers.has(viewerId)
-      viewers.set(viewerId, now() + VIEWER_LEASE_MS)
-      if (!known && viewers.size === 1 && captures.size === 0) emit({live: true})
-      return !known
-    },
-    dropViewer(viewerId) {
-      if (!viewers.delete(viewerId)) return
-      if (!isLive()) emit({live: false})
-    },
-    awaitAppendAfter,
-    dispose() {
-      clearInterval(sweepTimer)
-    },
-  }
-}
+    const tick = dispatch((now) => ({type: 'clock.ticked', now}))
+
+    yield* tick.pipe(Effect.repeat(Schedule.spaced(CAPTURE_TICK)), Effect.forkScoped)
+    yield* Effect.addFinalizer(() => dispatch(() => ({type: 'disposed'})))
+
+    const awaitAppendAfter = (cursor: number, timeoutMs: number) =>
+      rings.appendCursor.pipe(
+        SubscriptionRef.changes,
+        Stream.filter((appended) => appended > cursor),
+        Stream.runHead,
+        Effect.timeoutOption(timeoutMs),
+        Effect.map(Option.isSome),
+      )
+
+    return CaptureControl.of({
+      controls: Stream.fromPubSub(controls),
+      emit,
+      isLive: Effect.map(Effect.andThen(tick, SubscriptionRef.get(state)), isCaptureLive),
+      startCapture: Effect.gen(function* () {
+        const captureId = yield* Effect.sync(() => crypto.randomUUID())
+        const cursor = yield* appendCursor
+        const {now} = yield* dispatch((at) => ({type: 'capture.started', captureId, now: at}))
+        return {captureId, startTs: now, appendCursor: cursor}
+      }),
+      stopCapture: Effect.fn('recorder.capture.stop')(function* (captureId: string) {
+        const cursor = yield* appendCursor
+        const {effects} = yield* dispatch((now) => ({type: 'capture.stopped', captureId, now}))
+        const range = readStop(effects)
+        if (!range) return yield* Effect.fail(CaptureNotFound.make({captureId}))
+        return {...range, appendCursor: cursor}
+      }),
+      renewViewer: (viewerId) => Effect.asVoid(dispatch((now) => ({type: 'viewer.renewed', viewerId, now}))),
+      dropViewer: (viewerId) => Effect.asVoid(dispatch((now) => ({type: 'viewer.dropped', viewerId, now}))),
+      awaitAppendAfter,
+    })
+  }),
+)

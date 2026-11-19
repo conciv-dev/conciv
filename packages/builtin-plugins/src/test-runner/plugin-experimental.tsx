@@ -1,10 +1,6 @@
-import {createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
-import {createStore, reconcile, unwrap} from 'solid-js/store'
-import {createKeyed, Plugin, type Context, type Ui} from '@conciv/plugin/experimental'
-import {ToolCall} from '@conciv/plugin/experimental/builtin'
-import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {MetaToolCard, parseResultPayload, StatusVisual, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
+import {createMemo, createUniqueId, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {Plugin, ToolRegistry, type Context, type ToolComponent, type Ui} from '@conciv/plugin/experimental'
+import {BasicTool, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {
   countLabel,
   counts,
@@ -13,17 +9,18 @@ import {
   failureLocation,
   fixPrompt,
   fileGroup,
-  followTestRun,
-  initialRunState,
+  followRunView,
+  initialRunView,
   parseRunResult,
   pathTail,
   relativePath,
   shortDuration,
   STATE_LABEL,
   testFiles,
-  transitionRun,
+  selectSummary,
+  selectTests,
   type FileGroup,
-  type RunAction,
+  type RunView,
   type Summary,
   type TestError,
   type TestRow,
@@ -187,13 +184,13 @@ function FileSection(props: Actions & {group: FileGroup; accordion: string}): JS
   )
 }
 
-type RunView = {
+type RunCardView = {
   readonly summary: Summary
   readonly tests: readonly TestRow[]
   readonly running: boolean
 }
 
-function RunCard(props: Actions & RunView): JSX.Element {
+function RunCard(props: Actions & RunCardView): JSX.Element {
   const accordion = createUniqueId()
   const sentence = () => `${props.running ? 'Test run in progress' : 'Test run finished'}: ${counts(props.summary)}`
   return (
@@ -228,29 +225,38 @@ function RunCard(props: Actions & RunView): JSX.Element {
 type Client = Context['client']
 
 function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
-  const [run, setRun] = createStore(initialRunState)
-  const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
-
-  createKeyed(
-    () => props.client(),
-    (client) => {
-      const controller = new AbortController()
-      onCleanup(() => controller.abort())
-      void followTestRun(client, controller.signal, dispatch)
-    },
-  )
+  const follow = createMemo(() => {
+    const client = props.client()
+    return client ? followRunView(client) : undefined
+  })
+  const run = (): RunView => follow()?.() ?? initialRunView
+  const unavailable = () => {
+    const view = run()
+    return view.status === 'unavailable' ? view : undefined
+  }
 
   return (
-    <Switch fallback={<RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase === 'running'} />}>
-      <Match when={run.phase === 'unavailable'}>
-        <div class="flex flex-col gap-1">
-          <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
-            The test runner is unavailable
-          </p>
-          <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{run.reason}</p>
-        </div>
+    <Switch
+      fallback={
+        <RunCard
+          {...props}
+          summary={selectSummary(run())}
+          tests={selectTests(run())}
+          running={run().status === 'running'}
+        />
+      }
+    >
+      <Match when={unavailable()}>
+        {(view) => (
+          <div class="flex flex-col gap-1">
+            <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+              The test runner is unavailable
+            </p>
+            <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{view().reason}</p>
+          </div>
+        )}
       </Match>
-      <Match when={run.phase === 'idle'}>
+      <Match when={run().status === 'idle'}>
         <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
           No test run yet
         </p>
@@ -269,18 +275,21 @@ function openFailure(ctx: Context, error: TestError): void {
   })
 }
 
-function TestRunBody(
-  props: Actions & {status: ToolStatus; result: ToolResultPart | undefined; client: () => Client | undefined},
-): JSX.Element {
-  const finished = () => (props.status === 'complete' ? parseRunResult(parseResultPayload(props.result)) : undefined)
-  return (
-    <Show when={finished()} fallback={<LiveRunCard {...props} />}>
-      {(result) => <RunCard {...props} summary={result().summary} tests={result().tests} running={false} />}
-    </Show>
-  )
+function parseOutput(output: string | undefined): unknown {
+  if (!output) return undefined
+  try {
+    return JSON.parse(output)
+  } catch {
+    return undefined
+  }
 }
 
-function testRunCard(ctx: Context): (props: ToolCardProps) => JSX.Element {
+const TEST_RUNNER_TITLES: Record<string, {running: string; done: string}> = {
+  test_runner_run: {running: 'Running the tests', done: 'Ran the tests'},
+  test_runner_status: {running: 'Reading the last test run', done: 'Read the last test run'},
+}
+
+function testRunCard(ctx: Context): ToolComponent {
   const session = () => ctx.sessions.current()
   const client = () => session()?.server.client
   const actions: Actions = {
@@ -291,27 +300,36 @@ function testRunCard(ctx: Context): (props: ToolCardProps) => JSX.Element {
       ctx.screen.current()?.composer.insert(fixPrompt(error, relativePath(error.file, session()?.directory ?? ''))),
   }
   return (props) => {
-    const status = () => toolStatus(props.part, props.result)
-    const streams = () => props.part.name === 'test_runner_run' && status() === 'running'
-    const finished = () => status() === 'complete' && parseRunResult(parseResultPayload(props.result)) !== undefined
+    const live = () => props.status === 'running' || props.status === 'streaming'
+    const unfinished = () => props.status === 'pending' || live()
+    const streams = () => props.tool === 'test_runner_run' && live()
+    const finished = createMemo(() =>
+      props.status === 'completed' ? parseRunResult(parseOutput(props.output)) : undefined,
+    )
+    const title = () => {
+      const titles = TEST_RUNNER_TITLES[props.tool]
+      if (titles === undefined) return props.tool
+      return unfinished() ? titles.running : titles.done
+    }
     return (
-      <MetaToolCard
+      <BasicTool
         {...props}
-        body={
-          streams() || finished() ? (
-            <TestRunBody {...actions} status={status()} result={props.result} client={client} />
-          ) : undefined
-        }
-      />
+        trigger={{title: title()}}
+        hasContent={streams() || finished() !== undefined}
+        allowOpenWhilePending
+      >
+        <Show when={finished()} fallback={<LiveRunCard {...actions} client={client} />}>
+          {(result) => <RunCard {...actions} summary={result().summary} tests={result().tests} running={false} />}
+        </Show>
+      </BasicTool>
     )
   }
 }
 
 export default Plugin.define({
   setup(ctx) {
-    ctx.add(ToolCall, {
-      tools: ['test_runner_run', 'test_runner_status'],
-      card: {render: testRunCard(ctx), hasEmbeddedBody: () => true},
-    })
+    const render = testRunCard(ctx)
+    ctx.add(ToolRegistry, {name: 'test_runner_run', render})
+    ctx.add(ToolRegistry, {name: 'test_runner_status', render})
   },
 })

@@ -24,6 +24,7 @@ export {schemaFields, schemaParams, type SchemaField} from './tools/primitives/s
 export {humanToolName, nowTitle} from './tools/primitives/now-title.js'
 export {
   DANGER_TEXT_CLASS,
+  FILE_HEADER_CSS,
   MUTATING_BADGE,
   QUIET_TEXT_CLASS,
   displayValue,
@@ -53,10 +54,11 @@ export {TraceMark, TraceRing, TraceRunRow, TraceToolRow} from './styled/trace/tr
 export {TraceBodyFrame, TraceOutputBlock, type TraceOutputTone} from './styled/trace/output-block.js'
 export {
   CardChromeProvider,
-  ToolDurationProvider,
+  ToolPartProvider,
   useCardChrome,
   useEmbeddedCard,
   useToolCallDuration,
+  useToolCallId,
   type CardChrome,
 } from './tools/styled/card-chrome.js'
 export {TraceActionRow} from './styled/trace/action-row.js'
@@ -64,7 +66,7 @@ export {TracePermissionBlock} from './styled/trace/permission-block.js'
 export {Trace, type TraceBranch, type TraceItem} from './styled/trace/trace.js'
 export {ElementPreview} from './tools/styled/element-preview.js'
 export {Chip, ChipRow, ChipGroup, CHIP} from './tools/styled/chip.js'
-export {CodeBlock, DiffBlock, diffBlockClass} from './tools/styled/code-block.js'
+export {CodeBlock, DiffBlock, diffBlockClass, SUNKEN_SURFACE} from './tools/styled/code-block.js'
 export {ErrorBlock} from './tools/styled/error-block.js'
 export {parseResultMedia} from './tools/primitives/result-media.js'
 export {ResultImage} from './tools/styled/result-image.js'
@@ -82,3 +84,6 @@ export {
   ELEMENT_CAPTURE_FIXTURE_MASKED,
   ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
 } from './tools/element-capture.fixtures.js'
+export {BasicTool, GenericTool, type BasicToolProps, type TriggerTitle} from './tools/styled/basic-tool.js'
+export {ToolErrorCard, type ToolErrorCardProps} from './tools/styled/tool-error-card.js'
+export {ToolDisplay, type ToolDisplayProps} from './tools/styled/tool-display.js'

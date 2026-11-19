@@ -66,11 +66,38 @@ function cliInput(schema: unknown) {
   }
 }
 
-function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string}): ToolCommandSignature[] {
+const StringProperty = z.object({type: z.literal('string')})
+
+function stringPositional(input: ReturnType<typeof cliInput>): string | undefined {
+  const strings = input.required.filter((field) => StringProperty.safeParse(input.properties[field]).success)
+  return strings.length === 1 && input.required.length === 1 ? strings[0] : undefined
+}
+
+function signature(
+  tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string; readonly pluginId?: string},
+): ToolCommandSignature[] {
+  const definition = ToolRuntime.definition(tool)
   const operation = pageOperations[tool.id]
   const entry = operation === undefined ? undefined : CliTools[operation.name]
-  if (operation === undefined || entry === undefined || !entry.terminal) return []
-  const definition = ToolRuntime.definition(tool)
+  if (operation === undefined || entry === undefined) {
+    const inputSchema = cliInput(definition.inputSchema)
+    return [
+      {
+        name: tool.id,
+        path: [tool.id],
+        binding: 'server',
+        summary: tool.description,
+        category: tool.pluginId,
+        positional: stringPositional(inputSchema),
+        mutating: false,
+        reachable: true,
+        inputSchema,
+        outputSchema: definition.outputSchema,
+        errors: [],
+      },
+    ]
+  }
+  if (!entry.terminal) return []
   return [
     {
       name: tool.id,
@@ -110,13 +137,15 @@ export function callPluginTool(
   Tool.Error,
   Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface | PluginHooks.Interface
 > {
-  const admitted = PluginHooks.Service.use((hooks) =>
-    hooks.register('permission', 'evaluate', (event) =>
-      Effect.sync(() => {
-        if (event.source?.id === callId) event.effect = 'allow'
-      }),
-    ),
-  )
+  const admitted = isPageTool(name)
+    ? PluginHooks.Service.use((hooks) =>
+        hooks.register('permission', 'evaluate', (event) =>
+          Effect.sync(() => {
+            if (event.source?.id === callId) event.effect = 'allow'
+          }),
+        ),
+      )
+    : Effect.void
   return admitted.pipe(
     Effect.andThen(currentToolDomain(sessionId)),
     Effect.flatMap(({snapshot, agent}) => {

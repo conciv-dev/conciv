@@ -10,7 +10,7 @@ export type TraceBranch = {readonly ring: boolean}
 export type TraceItem = {key: string; live?: boolean; render: (branch: TraceBranch) => JSX.Element}
 
 const HEADER_ITEM = 'min-w-0 w-full pb-px'
-const HEADER_ROW = `group w-full ${TRACE_LINE} ${TRACE_HOVER_INDENT} text-start cursor-pointer select-none [background:transparent] rounded-[var(--chat-radius-sm)] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
+const HEADER_ROW = `group w-full ${TRACE_LINE} ${TRACE_HOVER_INDENT} text-start cursor-pointer select-none [background:transparent] rounded-chat-sm trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
 const HEADER_LABEL = `${TRACE_MICROLABEL} text-chat-microlabel`
 const SUMMARY = 'flex-1 min-w-0 truncate text-chat-md leading-none [font-family:var(--chat-font)] text-chat-summary'
 const COMPACT_LINE = 'flex-1 min-w-0 truncate text-chat-xs leading-none [font-family:var(--chat-mono)] text-chat-text-3'

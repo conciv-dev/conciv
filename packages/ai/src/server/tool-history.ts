@@ -1,9 +1,9 @@
 import {z} from 'zod'
 import {defineChatMiddleware, type ModelMessage, type ToolCall} from '@tanstack/ai'
 import {isSandboxToolCall} from '@tanstack/ai-sandbox'
-import {ChatEventType} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, toolTimeEvent} from '@conciv/protocol/chat-event-types'
 
-type RecordedCall = {metadata: Record<string, unknown> | undefined; failed: boolean}
+type RecordedCall = {metadata: Record<string, unknown> | undefined; failed: boolean; startedAt?: number}
 
 type Recorded = Map<string, RecordedCall>
 
@@ -23,17 +23,26 @@ export function toolHistory() {
     name: 'conciv-tool-history',
     onChunk: (ctx, chunk) => {
       if (chunk.type === ChatEventType.TOOL_CALL_START) {
-        recorded.set(chunk.toolCallId, {metadata: chunk.metadata, failed: false})
+        const startedAt = Date.now()
+        const metadata = {...MetadataSchema.parse(chunk.metadata), time: {start: startedAt}}
+        recorded.set(chunk.toolCallId, {metadata, failed: false, startedAt})
+        return [{...chunk, metadata}]
+      }
+      if (chunk.type === ChatEventType.TOOL_CALL_END) {
+        restore(ctx)
         return
       }
-      if (chunk.type === ChatEventType.TOOL_CALL_RESULT) {
-        const call = recorded.get(chunk.toolCallId)
-        recorded.set(chunk.toolCallId, {
-          metadata: call?.metadata,
-          failed: FailedResultSchema.safeParse(chunk).success,
-        })
-      }
-      if (chunk.type === ChatEventType.TOOL_CALL_END || chunk.type === ChatEventType.TOOL_CALL_RESULT) restore(ctx)
+      if (chunk.type !== ChatEventType.TOOL_CALL_RESULT) return
+      const call = recorded.get(chunk.toolCallId)
+      const end = Date.now()
+      const time = call?.startedAt === undefined ? {end} : {start: call.startedAt, end}
+      recorded.set(chunk.toolCallId, {
+        metadata: {...call?.metadata, time},
+        failed: FailedResultSchema.safeParse(chunk).success,
+        startedAt: call?.startedAt,
+      })
+      restore(ctx)
+      return [chunk, toolTimeEvent.create({toolCallId: chunk.toolCallId, time})]
     },
     onIteration: restore,
   })
@@ -43,12 +52,10 @@ function restored(message: ModelMessage, recorded: Recorded): ModelMessage {
   if (message.role === 'tool') return restoredResult(message, recorded)
   const calls = message.toolCalls ?? []
   const [first] = calls
-  if (first === undefined || !calls.every(isSandboxToolCall)) return message
-  return {
-    ...message,
-    id: message.id ?? `${first.id}-call`,
-    toolCalls: calls.map((call) => withStartMetadata(call, recorded)),
-  }
+  if (first === undefined) return message
+  const toolCalls = calls.map((call) => withRecordedMetadata(call, recorded))
+  if (!calls.every(isSandboxToolCall)) return {...message, toolCalls}
+  return {...message, id: message.id ?? `${first.id}-call`, toolCalls}
 }
 
 function restoredResult(message: ModelMessage, recorded: Recorded): ModelMessage {
@@ -57,8 +64,8 @@ function restoredResult(message: ModelMessage, recorded: Recorded): ModelMessage
   return {...message, error: message.content}
 }
 
-function withStartMetadata(call: ToolCall, recorded: Recorded): ToolCall {
+function withRecordedMetadata(call: ToolCall, recorded: Recorded): ToolCall {
   const metadata = recorded.get(call.id)?.metadata
   if (metadata === undefined) return call
-  return {...call, metadata: {...metadata, ...MetadataSchema.parse(call.metadata)}}
+  return {...call, metadata: {...MetadataSchema.parse(call.metadata), ...metadata}}
 }

@@ -18,7 +18,7 @@ const MARK = 'flex-none text-[11px] [color:var(--chat-faint)]'
 const TEXT = 'flex-1 min-w-0 truncate text-[12.5px] [font-family:var(--chat-font)] [color:var(--chat-text-2)]'
 const STATE = '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.1em] [color:var(--chat-faint)]'
 const ACTION =
-  'flex-none px-1.5 py-0.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer text-[10.5px] [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:0.125rem]'
+  'flex-none px-1.5 py-0.5 rounded-chat-sm bg-transparent [border:none] cursor-pointer text-[10.5px] [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:0.125rem]'
 const REMOVE = `${ACTION} [color:var(--chat-text-3)] hover:[color:var(--chat-danger)]`
 const STEER = `${ACTION} [color:var(--chat-accent)]`
 const MORE_ROW = `${ROW} ${STATE}`

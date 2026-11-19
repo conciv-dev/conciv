@@ -14,10 +14,10 @@ import {FOCUS, HIGHLIGHT} from './classes.js'
 const ICON = 14
 const MORE_LABEL = 'More message actions'
 
-const TRIGGER = `inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-sm)] [background:transparent] [color:var(--chat-text-2)] cursor-pointer [transition:background_140ms_var(--chat-ease),color_140ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)] data-[state=open]:[background:var(--chat-fill-strong)] ${FOCUS}`
+const TRIGGER = `inline-flex items-center justify-center size-6 rounded-chat-sm [background:transparent] [color:var(--chat-text-2)] cursor-pointer [transition:background_140ms_var(--chat-ease),color_140ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)] data-[state=open]:[background:var(--chat-fill-strong)] ${FOCUS}`
 const MENU =
   'min-w-32 p-1.5 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-panel)] shadow-[var(--chat-shadow-lg)] anim-presence-in'
-const ITEM = `flex items-center gap-2 px-2.5 py-1.5 text-[length:var(--chat-text-sm)] rounded-[var(--chat-radius-sm)] cursor-pointer select-none [color:var(--chat-text-2)] hover:[background:var(--chat-fill-strong)] hover:[color:var(--chat-text-hi)] [outline:none] ${HIGHLIGHT}`
+const ITEM = `flex items-center gap-2 px-2.5 py-1.5 text-[length:var(--chat-text-sm)] rounded-chat-sm cursor-pointer select-none [color:var(--chat-text-2)] hover:[background:var(--chat-fill-strong)] hover:[color:var(--chat-text-hi)] [outline:none] ${HIGHLIGHT}`
 
 function ExportMarkdownItem(): JSX.Element {
   const exportMarkdown = useExportMarkdown()
@@ -75,11 +75,16 @@ export function AssistantActionBar(props: {
   readOnly?: boolean
   refreshDisabled?: boolean
   copyText?: string
+  keepVisible?: boolean
 }): JSX.Element {
+  const autohide = () => {
+    if (props.keepVisible === undefined) return 'not-last'
+    return props.keepVisible ? 'never' : 'always'
+  }
   return (
     <ActionBar.Root
       hideWhenRunning
-      autohide="not-last"
+      autohide={autohide()}
       autohideFloat="always"
       role="toolbar"
       aria-label="Message actions"

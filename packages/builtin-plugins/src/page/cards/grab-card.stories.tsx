@@ -1,5 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
+import {QueryClient, QueryClientProvider} from '@conciv/client'
 import {AttachmentProvider} from '@conciv/ui-kit-chat'
 import type {CompleteAttachment} from '@conciv/ui-kit-chat'
 import type {GrabPayload} from '@conciv/grab/grab-attachment'
@@ -45,9 +46,11 @@ const DOM_PAYLOAD: GrabPayload = {
 export const GrabbedElement: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <AttachmentProvider value={grabAttachment('g1', DOM_PAYLOAD)}>
-        <GrabCard />
-      </AttachmentProvider>
+      <QueryClientProvider client={new QueryClient()}>
+        <AttachmentProvider value={grabAttachment('g1', DOM_PAYLOAD)}>
+          <GrabCard />
+        </AttachmentProvider>
+      </QueryClientProvider>
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -68,9 +71,11 @@ const UNPARSEABLE_PAYLOAD: CompleteAttachment = {
 export const UnreadablePayload: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <AttachmentProvider value={UNPARSEABLE_PAYLOAD}>
-        <GrabCard />
-      </AttachmentProvider>
+      <QueryClientProvider client={new QueryClient()}>
+        <AttachmentProvider value={UNPARSEABLE_PAYLOAD}>
+          <GrabCard />
+        </AttachmentProvider>
+      </QueryClientProvider>
     </div>
   ),
   play: async ({canvasElement}) => {

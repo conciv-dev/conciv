@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {createMemo, Index, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, Index, Match, Show, Switch, useContext, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {
@@ -7,7 +7,6 @@ import {
   pageSessionThinkingParts,
   MorphLabel,
   ReasoningText,
-  useToolCtx,
   type GroupRenderProps,
 } from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
@@ -22,6 +21,7 @@ import {
   parseInput,
   parseResultPayload,
   SHIMMER,
+  SUNKEN_SURFACE,
   StatusVisual,
   ToolCard,
   toolIconRender,
@@ -29,6 +29,7 @@ import {
 } from '@conciv/ui-kit-chat/tools'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageOperation, pageToolMeta, pageVerbGerund} from './page-tool-names.js'
 import {cardErrorMessage, countLabel, mutatingBadge} from './shared.js'
+import {CaptureContext, SessionCaptures} from '../session-captures.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
 const SESSION_LABEL = {
@@ -56,8 +57,7 @@ const HEAD_STATE_LIVE = '[color:var(--chat-accent)]'
 const HEAD_STATE_SETTLED = 'text-chat-text-3'
 const ACTING_LABEL = 'acting'
 
-const RAIL =
-  'm-0 p-0 list-none grid grid-cols-[auto_minmax(5rem,max-content)_1fr_minmax(0,max-content)] gap-x-2.5 w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-hidden'
+const RAIL = `m-0 p-0 list-none grid grid-cols-[auto_minmax(5rem,max-content)_1fr_minmax(0,max-content)] gap-x-2.5 w-full ${SUNKEN_SURFACE} overflow-hidden`
 const ROW =
   'group px-2.5 py-1.5 grid grid-cols-subgrid col-span-4 items-center min-w-0 [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)]'
 const ROW_ENTRANCE = '[[data-state=open]_&]:anim-msg animate-fill-backwards'
@@ -258,9 +258,16 @@ function SessionHeader(props: {
   )
 }
 
+export function PageSessionCard(props: GroupRenderProps): JSX.Element {
+  return (
+    <SessionCaptures sessionID={props.sessionID}>
+      <SessionCard {...props} />
+    </SessionCaptures>
+  )
+}
+
 export function SessionCard(props: GroupRenderProps): JSX.Element {
-  const ctx = useToolCtx()
-  const captureFor = (toolCallId: string) => ctx.captureFor?.(toolCallId)
+  const captureFor = useContext(CaptureContext)
   const parts = createMemo(() => pageSessionCallParts(props.parts(), props.node.indices))
   const thinking = createMemo(() => pageSessionThinkingParts(props.parts(), props.node.indices))
   const steps = createMemo(() =>

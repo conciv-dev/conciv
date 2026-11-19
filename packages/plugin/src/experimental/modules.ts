@@ -4,8 +4,10 @@ export const pluginWindowModules = [
   'solid-js',
   'solid-js/web',
   'solid-js/store',
+  '@conciv/client',
   '@conciv/plugin/experimental/page',
   '@conciv/plugin/experimental/grab',
+  '@conciv/ui-kit-tap',
 ] as const
 
 export type PluginModule = (typeof pluginSharedModules)[number] | (typeof pluginWindowModules)[number]

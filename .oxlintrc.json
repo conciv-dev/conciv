@@ -254,6 +254,52 @@
       }
     },
     {
+      "files": ["packages/plugin/**", "packages/plugins/*/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@hono/node-server",
+                "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
+                "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+              },
+              {
+                "name": "@tanstack/solid-query",
+                "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @tanstack/solid-query. The widget provides @conciv/client to every plugin bundle with its one patched Query copy (TanStack/query#11230) and query cache; no plugin imports a @tanstack/* Query package."
+              },
+              {
+                "name": "@tanstack/query-core",
+                "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @tanstack/query-core. The widget provides @conciv/client to every plugin bundle with its one patched Query copy (TanStack/query#11230) and query cache; no plugin imports a @tanstack/* Query package."
+              },
+              {
+                "name": "@orpc/tanstack-query",
+                "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @orpc/tanstack-query. Read engine methods with useQuery(() => ctx.client.rpc(Definition).method.queryOptions({input})); no plugin imports a @tanstack/* Query package."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@tanstack/ai", "@tanstack/ai-*", "@tanstack/ai/**", "@tanstack/ai-*/**"],
+                "message": "Only packages/ai and packages/protocol may import @tanstack/ai*; use @conciv/protocol and the @conciv/ai entries."
+              },
+              {
+                "group": ["@ark-ui", "@ark-ui/**"],
+                "allowImportNames": ["useListCollection", "useFilter"],
+                "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/plugins/*/src/**/*.tsx", "packages/builtin-plugins/src/**/*.tsx"],
+      "rules": {
+        "conciv/plugin-view-reads-through-query": "error"
+      }
+    },
+    {
       "files": ["packages/serve/**"],
       "rules": {
         "no-restricted-imports": "off"
@@ -305,12 +351,7 @@
       }
     },
     {
-      "files": [
-        "packages/core/src/pty/**",
-        "packages/extensions/terminal/src/server/**",
-        "packages/extensions/terminal/test/**",
-        "packages/ui-kit-terminal/**"
-      ],
+      "files": ["packages/core/src/pty/**", "packages/ui-kit-terminal/**"],
       "rules": {
         "no-control-regex": "off"
       }
@@ -568,12 +609,6 @@
       "rules": {
         "conciv/solid-test-render": "off"
       }
-    },
-    {
-      "files": ["packages/extensions/terminal/test/terminal.browser.test.tsx"],
-      "rules": {
-        "conciv/solid-test-render": "off"
-      }
     }
   ],
   "ignorePatterns": [
@@ -586,7 +621,6 @@
     "**/*.gen.tsx",
     "**/test-results",
     "packages/unplugin/test/fixtures/**",
-    "packages/extensions/tanstack/test/fixtures/**",
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",

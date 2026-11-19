@@ -1,7 +1,7 @@
 {
   "name": "@conciv/skills",
   "version": "0.0.22",
-  "description": "Agent skills for building with conciv: widget setup, extension authoring, harness adapters, and debugging. Install as a devDependency so coding agents discover first-party guidance via @tanstack/intent.",
+  "description": "Agent skills for building with conciv: widget setup, plugin authoring, harness adapters, and debugging. Install as a devDependency so coding agents discover first-party guidance via @tanstack/intent.",
   "keywords": [
     "conciv",
     "tanstack-intent"

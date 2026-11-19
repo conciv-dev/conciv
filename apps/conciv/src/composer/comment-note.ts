@@ -40,7 +40,7 @@ export function formatNoteComment(input: NoteComment) {
 function shownText(content: string | SendContent): string {
   if (typeof content === 'string') return content
   if (typeof content.content === 'string') return content.content
-  return content.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
+  return content.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')
 }
 
 export function promptWithNotes(content: string | SendContent, draft: ComposerDraft): string | SendContent {

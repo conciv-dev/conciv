@@ -20,7 +20,7 @@ import {
   proxyTo,
   type ProxyCore,
   type WidgetSuite,
-  openPagePlaneHost,
+  awaitTabAttached,
   captureNativePosts,
   installNativeStub,
   type NativeBridge,
@@ -51,7 +51,7 @@ import {
 import {fileURLToPath} from 'node:url'
 import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import type {PageToNativeMessage} from '@conciv/plugin-ios/bridge'
 import {Buffer} from 'node:buffer'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -59,6 +59,7 @@ import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
 import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
+import {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
@@ -274,10 +275,10 @@ test.describe('composer rich input', () => {
 
       await input.pressSequentially('then ')
       await input.pressSequentially('@mention_second_probe')
-      await pickSuggestion(page, 'Tools', '@mention_second_probe')
+      await pickSuggestion(page, 'Context', '@mention_second_probe')
 
       await input.pressSequentially('@mention_probe')
-      await pickSuggestion(page, 'Tools', '@mention_probe')
+      await pickSuggestion(page, 'Context', '@mention_probe')
 
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
@@ -288,6 +289,24 @@ test.describe('composer rich input', () => {
       expect(await sent).toBe(expected)
       await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
       await expect(input).toHaveText('')
+    })
+
+    test('typed text and an attached text file reach the wire as separate paragraphs', async ({page}) => {
+      test.setTimeout(180_000)
+      const wire = watchChatWire(page)
+      await openComposer(page)
+      const input = composer(page)
+
+      await input.pressSequentially('hello')
+      const chooser = page.waitForEvent('filechooser')
+      await page.getByRole('button', {name: 'Add an attachment'}).click()
+      await (await chooser).setFiles({name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('the file body')})
+      await expect(panel(page).getByRole('button', {name: 'Remove x.txt'})).toBeVisible({timeout: 10_000})
+
+      const sent = wire.nextTurn().then((turn) => turn.content)
+      await page.getByRole('button', {name: 'Send message'}).click()
+      expect(await sent).toBe('hello\n\nAttachment x.txt:\nthe file body')
+      await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     })
 
     test('backspace removes a selected command chip in two steps, never a partial directive', async ({page}) => {
@@ -662,7 +681,7 @@ test.describe('element capture', () => {
     await kit.cleanup()
   })
 
-  const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, kit, host.base)
+  const openHostPage = (page: Page): Promise<void> => openLoggedIn(page, kit, host.base)
 
   function rowIdentities(stored: SessionCaptures): string[] {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
@@ -685,6 +704,7 @@ test.describe('element capture', () => {
     await openHostPage(page)
     await openPanel(page)
     await switchToSessionByTitle(page, title)
+    await awaitTabAttached(kit, fresh.sessionId)
     return fresh.sessionId
   }
 
@@ -724,13 +744,17 @@ test.describe('element capture', () => {
       expect(JSON.stringify(stored)).not.toContain(PASSWORD)
     })
 
-    test('hands the harness a result with no capture in it, over the rpc socket only', async ({page}) => {
+    test('hands the harness a result with no capture, via the page plugin on the rpc socket only', async ({page}) => {
       test.setTimeout(90_000)
       const socketPaths = new Set<string>()
       page.on('websocket', (socket) => socketPaths.add(new URL(socket.url()).pathname))
+      await rpcSocketFor(page).installed
+      const calls = rpcCallCursor(page)
       const chatSessionId = await openSessionPanel(page, 'harness result')
       const result = await runInChat(page, chatSessionId, "return await external_page_click({selector: '#cta'})")
       expect(result).toContain('"success":true')
+      expect(calls.startedSince(['page', 'queries'])).toBe(0)
+      expect(calls.startedSince(['page', 'reply'])).toBe(0)
       expect([...socketPaths]).toEqual([RPC_WS_PATH])
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
@@ -757,6 +781,7 @@ test.describe('element capture', () => {
       await openHostPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, fresh.sessionId)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
       })
@@ -782,6 +807,7 @@ test.describe('element capture', () => {
       await openHostPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, fresh.sessionId)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_click({selector: '#cta'})",
       })
@@ -1457,7 +1483,7 @@ test.describe('native widget', () => {
 
 test.describe('page dispatch parity', () => {
   const HOST_BODY = `
-  <div id="probe">page-bus-ok</div>
+  <div id="probe">page-probe-ok</div>
   <button id="press-btn" onclick="document.getElementById('clicked-flag').textContent='clicked'">Press target</button>
   <output id="clicked-flag"></output>
 `
@@ -1495,12 +1521,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `page dispatch ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1607,7 +1634,7 @@ test.describe('page dispatch parity', () => {
 
     test('holding Alt and clicking a page element with no source says so', async () => {
       const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
-      const probe = page.getByText('page-bus-ok')
+      const probe = page.getByText('page-probe-ok')
 
       await probe.click()
       await expect(hint).toHaveCount(0)
@@ -1637,12 +1664,13 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       title = `deleted while open ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1657,12 +1685,12 @@ test.describe('page dispatch parity', () => {
         path: ['plugin', 'call'],
         input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: deleted}},
       }
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       const ended = wire.completed(attach)
       await kit.rpc.sessions.delete({sessionId: deleted})
       await ended
       const since = wire.mark()
-      await page.getByText('page-bus-ok').click()
+      await page.getByText('page-probe-ok').click()
       const refused = await wire.completed({...attach, since})
       expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`, data: {type: 'missing'}})
       await page.reload({waitUntil: 'domcontentloaded'})
@@ -1691,12 +1719,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `restart untouched ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1711,10 +1740,10 @@ test.describe('page dispatch parity', () => {
         kit.rpc.plugin
           .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
           .then((attached) => AttachedSchema.parse(attached))
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       await kit.restartServer()
       await expect.poll(attachedNow, {timeout: 30_000}).toContain(sessionId)
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
     })
   })
 
@@ -1735,7 +1764,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1781,7 +1810,7 @@ test.describe('page dispatch parity', () => {
           )
           .join('\n')
       }
-      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
+      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-probe-ok')
     })
   })
 
@@ -1808,7 +1837,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1832,7 +1861,7 @@ test.describe('page dispatch parity', () => {
       expect(await attachedNow()).not.toContain(existing)
       database.exec('DROP TRIGGER refuse_page_grant')
       await expect.poll(attachedNow, {timeout: 30_000}).toContain(existing)
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
     })
   })
 
@@ -1849,12 +1878,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       const page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `headless eval ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
       return {kit, host, page}
     }
 
@@ -1912,7 +1942,7 @@ test.describe('page dispatch parity', () => {
 
     test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
       const {kit, page} = refused
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
         code: 1,
         document: {
@@ -1924,12 +1954,12 @@ test.describe('page dispatch parity', () => {
           },
         },
       })
-      await expect(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+      await expect(page.getByText('page-probe-ok', {exact: true})).toBeVisible()
     })
 
     test('with page_eval allowed in the host config, eval runs with no click and the page shows its effect', async () => {
       const {kit, page} = allowed
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
         code: 0,
         document: {ok: true, data: {result: 'evaluated'}},
@@ -2128,6 +2158,14 @@ test.describe('rebind', () => {
     await kit.cleanup()
   })
 
+  const AttachedSchema = z.array(z.string())
+
+  async function attachedSessions(): Promise<string[]> {
+    return AttachedSchema.parse(
+      await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
+    )
+  }
+
   async function panelSession(): Promise<string | null> {
     const state = await kit.rpc.navigation.get(undefined)
     const entry = state?.entries.find((row) => row.href.startsWith('/panel/'))
@@ -2159,12 +2197,13 @@ test.describe('rebind', () => {
       await mountHandle(page, proxyA.base)
       await openChatPanel(page)
 
-      const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
-      await expect(apiBaseProbe).toHaveText(browserBase(proxyA.base), {timeout: 30_000})
-
       await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
       const sessionBefore = await panelSession()
       expect(sessionBefore).not.toBeNull()
+      await until(async () => (await attachedSessions()).includes(String(sessionBefore)), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
 
       await sendChatMessage(page, USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -2179,7 +2218,10 @@ test.describe('rebind', () => {
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
-      await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base), {timeout: 30_000})
+      await until(async () => (await attachedSessions()).includes(String(sessionBefore)), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
       await page.getByRole('button', {name: 'Session options'}).click()
       await expect(page.getByRole('button', {name: `Session: ${renamed}`})).toBeVisible({timeout: 30_000})
       await page.keyboard.press('Escape')

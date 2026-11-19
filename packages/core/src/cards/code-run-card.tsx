@@ -11,7 +11,6 @@ import {
   ShapedValue,
   ToolCard,
   toolStatus,
-  TraceOutputBlock,
   useEmbeddedCard,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
@@ -64,12 +63,7 @@ const SECTION_LABEL =
   'text-[length:var(--chat-text-micro)] text-chat-microlabel leading-none tracking-[0.13em] uppercase [font-family:var(--chat-mono)]'
 
 function ConsoleLogs(props: {logs: string[]}): JSX.Element {
-  return (
-    <>
-      <span class={SECTION_LABEL}>console</span>
-      <CodeBlock file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
-    </>
-  )
+  return <CodeBlock title="console" file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
 }
 
 function RunResult(props: {output: ExecuteResult | null}): JSX.Element {
@@ -122,9 +116,13 @@ function EmbeddedOutput(props: {
         <>
           <Show when={text()}>
             {(value) => (
-              <TraceOutputBlock tone={props.failed ? 'error' : 'normal'} text={value()}>
-                <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'ansi', contents: value()}} />
-              </TraceOutputBlock>
+              <CodeBlock
+                size="xs"
+                title={props.failed ? 'Error' : 'Output'}
+                tone={props.failed ? 'error' : 'normal'}
+                label={props.failed ? 'Error output' : 'Output'}
+                file={{name: 'output.log', lang: 'ansi', contents: value()}}
+              />
             )}
           </Show>
           <RunResult output={props.output} />

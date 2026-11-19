@@ -12,18 +12,8 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import {
-  type AnyExtension,
-  type AnyToolBuilder,
-  type AttachmentDocumentPart,
-  type ContentPart,
-  type ExtensionServerTool,
-  type ServerResult,
-  type ToolMiddleware,
-} from '@conciv/extension'
 import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
-import {assertToolName, type ToolRequest} from '@conciv/protocol/tool-call-types'
-import type {ToolRegistry} from '@conciv/extension/registry'
+import {assertToolName} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {requireHarness} from './lib/require-harness.js'
@@ -53,24 +43,20 @@ import {
 import {
   assistCapabilities,
   createChatPlane,
-  registryCapabilities,
   toolDomainCapabilities,
-  type AttachmentExpanders,
   type ChatPlane,
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
-import {differenceBy, intersectionBy, isNotNil, memoize, pickBy, uniqBy} from 'es-toolkit'
+import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
 import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
 import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
-import {makeHubAdmission, type ChatContext, type PluginHost, type RpcDeps} from './api/rpc/mount.js'
-import {concivHome, readModel, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
+import {concivHome, readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
 import {createSettingsStorage, settingsOnDisk} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
-import type {RpcContext} from '@conciv/protocol/rpc-types'
-import {os} from '@orpc/server'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
 import {createTabs} from './api/tabs.js'
@@ -82,7 +68,6 @@ import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
 import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
-import {persistentPtySocketRoutes} from './api/persistent-pty-socket.js'
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
@@ -91,13 +76,11 @@ import {
   currentToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
-import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
+import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
-import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
-import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import {grabExpander} from './page/grab-expander.js'
 import {logError} from './lib/debug.js'
 import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
@@ -131,9 +114,6 @@ export type MakeAppOpts = {
 
   systemPromptText?: string
 
-  extensions?: AnyExtension[]
-
-  extensionConfig?: Record<string, unknown>
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
 
   allowedOrigins?: string[]
@@ -155,8 +135,6 @@ export type MakeAppOpts = {
 
   nativePageDir?: string
 
-  nativeUrl?: () => string | undefined
-
   tokenScopedBase?: () => string | undefined
 
   plugins?: readonly Plugin.Plugin[]
@@ -164,27 +142,6 @@ export type MakeAppOpts = {
   staleness?: () => EngineStaleness
 
   home?: string
-}
-
-export function slug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
-function assertUniqueExtensionSlugs(extensions: readonly AnyExtension[]): void {
-  const owners = new Map<string, string>()
-  for (const extension of extensions) {
-    const extensionSlug = slug(extension.name)
-    const existing = owners.get(extensionSlug)
-    if (existing !== undefined) {
-      throw new Error(
-        `extension slug collision: "${extensionSlug}" is claimed by both "${existing}" and "${extension.name}"`,
-      )
-    }
-    owners.set(extensionSlug, extension.name)
-  }
 }
 
 function executable(file: string): boolean {
@@ -215,62 +172,6 @@ function availableHarnesses(
     withSavedModels(adapter, stateDir, signal),
   )
   return [boot, ...others.filter((other) => other.harness.id !== boot.harness.id)]
-}
-
-function narrowExtensionApp(name: string, app: unknown): Hono | null {
-  if (app === undefined) return null
-  if (!(app instanceof Hono)) throw new Error(`extension "${name}" returned a non-hono app`)
-  return app
-}
-
-function buildAttachmentExpanders(
-  extension: AnyExtension,
-  context: unknown,
-): [string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>][] {
-  const entries: [string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>][] = []
-  for (const attachment of extension.attachments ?? []) {
-    const expand = attachment.__expand
-    if (!expand) continue
-    entries.push([attachment.mime, async (part) => expand(part, context)])
-  }
-  return entries
-}
-
-function mergeAttachmentExpanders(
-  entries: [string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>][],
-): AttachmentExpanders {
-  return Object.fromEntries(uniqBy([...Object.entries(grabExpander), ...entries], ([mime]) => mime))
-}
-
-function toolDescription(tool: AnyToolBuilder): string {
-  return [tool.description, tool.promptSnippet, ...(tool.promptGuidelines ?? [])].filter(Boolean).join('\n\n')
-}
-
-function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: string}[] {
-  return Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message}))
-}
-
-type RegistryToolSource = {
-  extensionName: string
-  registryTools: readonly AnyToolBuilder[]
-  context: unknown
-  middleware: ToolMiddleware | undefined
-}
-
-function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSource[]): void {
-  for (const source of sources) {
-    for (const tool of source.registryTools) {
-      registry.register(tool, {
-        owner: `extension "${source.extensionName}"`,
-        context: source.context,
-        ...(source.middleware === undefined ? {} : {middleware: source.middleware}),
-      })
-    }
-  }
-}
-
-function requiresApproval(subject: {approval?: 'ask'}): boolean {
-  return subject.approval === 'ask'
 }
 
 async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: UsageSnapshot): Promise<void> {
@@ -310,18 +211,6 @@ function sessionPort(
   }
 }
 
-function registryBackedTool(tool: AnyToolBuilder, call: ScopedToolCall): ExtensionServerTool {
-  return {
-    name: tool.name,
-    description: toolDescription(tool),
-    inputSchema: tool.inputSchema,
-    approval: tool.approval,
-    mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
-    errors: declaredToolErrors(tool),
-    execute: (input: unknown, request: ToolRequest) => call(tool.name, input, request),
-  }
-}
-
 function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   const owners = new Map<string, string>()
   for (const [source, names] of sources) {
@@ -349,7 +238,7 @@ export type CoreVars = CorsVars & {harnessId: string} & McpVars
 
 function composeRoutes(
   vars: CoreVars,
-  rpc: CompositeRpcRouter,
+  rpc: ReturnType<typeof makeRpcRouter>,
   deps: {
     engineId: string
     staleness: () => EngineStaleness
@@ -381,7 +270,6 @@ function composeRoutes(
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .route('/', persistentPtySocketRoutes(deps.ptys, deps.upgrade))
     .get(
       RPC_WS_PATH,
       rpcWebsocketRoute(rpc, {
@@ -406,7 +294,6 @@ export type MadeApp = {
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
-  extensionContexts: Record<string, unknown>
   runtime: CoreRuntime
   pluginHost: PluginHost
   awaitActivation: () => Promise<void>
@@ -434,6 +321,16 @@ function publishCreated(born: SessionRecord) {
   ).pipe(Effect.asVoid)
 }
 
+function publishRunEnd(sessionId: SessionId, run: RunLifecycle) {
+  const sessionID = SessionSchema.Id.make(sessionId)
+  return Bus.Service.use((bus) => {
+    if (run.phase === 'completed') return bus.publish(SessionEvent.Execution.Succeeded, {sessionID})
+    if (run.phase === 'failed')
+      return bus.publish(SessionEvent.Execution.Failed, {sessionID, error: run.error ?? 'the run failed'})
+    return Effect.void
+  }).pipe(Effect.asVoid)
+}
+
 async function mcpSessionId(
   rows: RowScope,
   header: SessionId | null,
@@ -445,10 +342,6 @@ async function mcpSessionId(
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
-  const extensions = opts.extensions ?? []
-
-  assertUniqueExtensionSlugs(extensions)
-
   const stateDir = concivStateDir(opts.cfg.stateRoot)
   const engineLife = new AbortController()
   const boot = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir, engineLife.signal)
@@ -492,14 +385,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
-  const primitives = makeSessionPrimitives({
-    db,
-    root: opts.cwd,
-    storeCapture: (params) => writeToolCapture(db, params),
-    pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
-    queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-  })
-  const {registry, stream} = primitives
+  const primitives = makeSessionPrimitives()
+  const {stream} = primitives
   const rows: RowScope = {
     db,
     harnessKind: harness.id,
@@ -510,11 +397,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     const kind = (await currentRow(db, sessionId))?.harnessKind
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
   }
-  const scopedToolCall: ScopedToolCall = (name, input, request) =>
-    runtime
-      .forSession(request.sessionId)
-      .tools.call(name, input, {toolCallId: request.toolCallId, signal: request.signal})
-
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
@@ -527,58 +409,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const serverHarness = async (sessionId: SessionId): Promise<ServerHarness> =>
     makeServerHarness(await harnessFor(sessionId), opts.cwd)
-  const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
-  function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
-    const context = result?.context
-    const registryTools = extension.tools ?? []
-    return {
-      extensionName: extension.name,
-      app: narrowExtensionApp(extension.name, result?.app),
-      router: result?.router,
-      registryTools,
-      tools: registryTools
-        .filter((tool) => tool.binding === 'server')
-        .map((tool) => registryBackedTool(tool, scopedToolCall)),
-      attachmentExpanders: buildAttachmentExpanders(extension, context),
-      context,
-      middleware: result?.middleware,
-      dispose: result?.dispose,
-      turnEnd: result?.turnEnd,
-    }
-  }
-
-  async function mountExtension(extension: AnyExtension): Promise<ReturnType<typeof assembleMounted> | null> {
-    try {
-      const result = await extension.__server?.({
-        stateDir,
-        scope: settings.scope,
-        config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
-        settings: extension.readSettings(settings.scope<string>(extension.name).settings),
-        cwd: opts.cwd,
-        basePath,
-        sessions: serverSessions,
-        harness: serverHarness,
-        symbolicate: pagePlugin.symbolicateOrNone,
-        bundler: opts.bridge,
-        nativeUrl,
-        upgradeWebSocket: socketUpgrade,
-      })
-      return assembleMounted(extension, result)
-    } catch (error) {
-      logError(`[core] extension "${extension.name}" failed to mount: ${String(error)}`)
-      return null
-    }
-  }
-
-  const mountResults = await Promise.all(extensions.map((extension) => mountExtension(extension)))
-  const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
-  const attachmentExpanders = mergeAttachmentExpanders(mounted.flatMap((entry) => entry.attachmentExpanders))
-  const extensionContexts: Record<string, unknown> = Object.fromEntries(
-    mounted.map((entry) => [entry.extensionName, entry.context]),
-  )
-  const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
-  const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
   const idleFailed = async (sessionId: SessionId, runId: string, error: unknown): Promise<void> => {
     logError(`[core] the experimental.idle hook failed: ${String(error)}`)
     const message = error instanceof Error ? error.message : String(error)
@@ -590,10 +421,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stream.publish(sessionId, idleFailedEvent.create({runId}))
   }
   const onRunEnd = async (sessionId: SessionId, run: RunLifecycle): Promise<void> => {
-    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
-    settled.forEach((outcome) => {
-      if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
-    })
+    await pluginHost
+      .runPromise(publishRunEnd(sessionId, run))
+      .catch((error: unknown) => logError(`[core] publishing how run ${run.runId} ended failed: ${String(error)}`))
     if (run.phase === 'completed' && !(await owedFollowUp(sessionId))) {
       const idled = await pluginHost
         .runPromiseExit(
@@ -633,14 +463,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const engineId = opts.engineId ?? randomUUID()
   const startPlugins = (): PluginRuntime => {
-    assertUniqueCapabilityNames([
-      ['a conciv assist tool', concivSandboxToolNames()],
-      ...mounted.map((entry): [string, string[]] => [
-        `extension "${entry.extensionName}"`,
-        entry.tools.map((tool) => tool.name),
-      ]),
-    ])
-    registerExtensionTools(registry, mounted)
+    assertUniqueCapabilityNames([['a conciv assist tool', concivSandboxToolNames()]])
     return makePluginRuntime({
       db,
       cwd: opts.cwd,
@@ -670,11 +493,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       signal: engineLife.signal,
       bundler: opts.bridge,
       openInEditor: opts.openInEditor,
-      extensionSlugs: mounted.map((entry) => slug(entry.extensionName)),
       sessions: () => ({chat: chatDeps, runtime, search, pluginHost, queues: pagePlugin}),
     })
   }
-  const plugins = await Promise.try(startPlugins).catch(failedStart([...disposers, settings.close]))
+  const plugins = await Promise.try(startPlugins).catch(failedStart([settings.close]))
   const pluginHost: PluginHost = plugins.runtime
   const startFailed = (steps: ShutdownStep[]) =>
     failedStart([
@@ -683,7 +505,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       plugins.closePermissions,
       ...steps,
       () => pluginHost.dispose(),
-      ...disposers,
       settings.close,
     ])
   await pluginHost.context().catch(startFailed([]))
@@ -704,16 +525,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         ),
       ),
     )
-  const extensionFor = (name: string): string | undefined =>
-    mounted.find((entry) => entry.registryTools.some((tool) => tool.name === name))?.extensionName
-  const reportToolCollision = memoize((name: string) => {
-    const extension = extensionFor(name)
-    if (extension === undefined)
-      return logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`)
-    return logError(
-      `[core] the plugin tool "${name}" is left out: extension "${extension}" already has a tool with that name`,
-    )
-  })
+  const reportToolCollision = memoize((name: string) =>
+    logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
+  )
   const withPluginTools = async (sessionId: SessionId, capabilities: CodeCapability[]): Promise<CodeCapability[]> =>
     toolDomainCapabilities(
       capabilities,
@@ -723,31 +537,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       reportToolCollision,
     )
 
+  const offeredCapabilities = (sessionId: SessionId): CodeCapability[] =>
+    assistCapabilities(concivSandboxTools(makeToolCtx(sessionId)))
   const codeModeCapabilities = (sessionId: SessionId): Promise<CodeCapability[]> =>
-    withPluginTools(sessionId, [
-      ...registryCapabilities(
-        registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
-        scopedToolCall,
-        extensionFor,
-      ),
-      ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-    ])
-
-  const extensionTools: ChatTool[] = mounted.flatMap((entry) =>
-    entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
-  )
-  const offeredCapabilities = (sessionId: SessionId): CodeCapability[] => [
-    ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall, extensionFor),
-    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-  ]
+    withPluginTools(sessionId, offeredCapabilities(sessionId))
   const sessionTools = async (sessionId: SessionId): Promise<ChatTool[]> => {
     const offered = offeredCapabilities(sessionId)
     const given = await withPluginTools(sessionId, offered)
-    const added = differenceBy(given, offered, (capability) => capability.name)
-    return [
-      ...intersectionBy(extensionTools, given, (tool) => tool.name),
-      ...added.map(({name, description}) => ({name, description})),
-    ]
+    return differenceBy(given, offered, (capability) => capability.name).map(({name, description}) => ({
+      name,
+      description,
+    }))
   }
   const sessionToolNames = async (sessionId: SessionId): Promise<ReadonlySet<string>> =>
     new Set([...(await sessionTools(sessionId)).map((tool) => tool.name), ...concivSandboxToolNames()])
@@ -774,7 +574,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
     toolNames: sessionToolNames,
     capabilities: codeModeCapabilities,
-    attachmentExpanders,
+    attachmentExpanders: grabExpander,
     prompt: plugins.prompt,
     promptHooked: plugins.promptHooked,
     context: plugins.context,
@@ -918,30 +718,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
   }
   const rpc = makeRpcRouter(rpcDeps)
-  const admittedOs = os.$context<RpcContext>().use(makeHubAdmission(rpcDeps))
-
-  const compositeRpc = makeCompositeRpcRouter(
-    rpc,
-    mounted.flatMap((entry) =>
-      entry.router
-        ? [
-            {
-              slug: slug(entry.extensionName),
-              extensionName: entry.extensionName,
-              router: admittedOs.router(entry.router),
-            },
-          ]
-        : [],
-    ),
-  )
-
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
       mcp,
     },
-    compositeRpc,
+    rpc,
     {
       engineId,
       staleness,
@@ -955,10 +738,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
 
-  mounted.forEach((entry) => {
-    if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
-  })
-
   const dispose = (): Promise<void> =>
     runInOrder(
       [
@@ -969,7 +748,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         plugins.closePermissions,
         () => plane.endAllRuns(),
         ptys.shutdown,
-        ...disposers,
         search.dispose,
         settings.close,
         () => browsers.close(),
@@ -1003,7 +781,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     chat: chatDeps,
     plane,
     dispose,
-    extensionContexts,
     runtime,
     pluginHost,
     awaitActivation: plugins.awaitActivation,

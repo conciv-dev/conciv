@@ -33,7 +33,7 @@ const MIRROR_REPOSITORY = 'conciv-dev/conciv-swift'
 const MIRROR_TREE = 'native/swift'
 const MIRROR_SOURCE_SUBDIR = 'ConcivWidget'
 const MIRROR_TEMPLATE_SUBDIR = 'mirror'
-const BRIDGE_MANIFEST = 'packages/extensions/ios/package.json'
+const BRIDGE_MANIFEST = 'packages/plugins/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
 const OUT_OF_RELEASE_FILTER = '--filter=!@conciv/extension-design'
@@ -304,7 +304,7 @@ const swiftMirror = defineCommand({
   meta: {
     name: 'swift-mirror',
     description:
-      'Regenerate the conciv-swift SDK mirror from native/swift/ConcivWidget and tag it with the @conciv/extension-ios version. Idempotent: skips if the tag already exists.',
+      'Regenerate the conciv-swift SDK mirror from native/swift/ConcivWidget and tag it with the @conciv/plugin-ios version. Idempotent: skips if the tag already exists.',
   },
   args: {
     'dry-run': {
@@ -368,7 +368,7 @@ async function assertTaggedTreeMatches(
     await cloneTaggedTree(git, sdkVersion, tagDir)
     if (await treesMatch(destDir, tagDir)) return
     throw new Error(
-      `conciv-swift ${sdkVersion} is already tagged but the assembled tree differs: the mirror source changed without a @conciv/extension-ios version bump. Check the release flow (changesets should bump the version on every release).`,
+      `conciv-swift ${sdkVersion} is already tagged but the assembled tree differs: the mirror source changed without a @conciv/plugin-ios version bump. Check the release flow (changesets should bump the version on every release).`,
     )
   } finally {
     await rm(tagDir, {recursive: true, force: true})

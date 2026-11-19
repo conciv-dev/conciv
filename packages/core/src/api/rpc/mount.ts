@@ -5,7 +5,6 @@ import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/ch
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
-import type {CompositeRpcRouter as ExtensionCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
 import type {ConcivDb} from '@conciv/db'
 import type {ConcivServerTool} from '@conciv/tools'
@@ -15,7 +14,6 @@ import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import type {RowScope} from '../../sessions/session-rows.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import {callTrace} from '../call-trace.js'
-import type {makeRpcRouter} from './router.js'
 import type {AuthRouter} from '../../engine-login.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
 import type {createHubInstaller} from './hub.js'
@@ -28,6 +26,7 @@ import type {
   Agent,
   Bus,
   Database,
+  FileSystem,
   InstructionEntry,
   KV,
   Location,
@@ -60,7 +59,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Location.Interface
   | Plugin.Interface
   | Database.Interface
-  | EventFeed.Interface,
+  | EventFeed.Interface
+  | FileSystem.Interface,
   never
 >
 
@@ -166,14 +166,25 @@ const EVENT_PROCEDURES = new Set(['event.subscribe', 'chat.join'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
-const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental', 'plugin.experimentalChunk'])
+const PLUGIN_PROCEDURES = new Set([
+  'plugin.call',
+  'plugin.list',
+  'plugin.experimental',
+  'plugin.experimentalChunk',
+  'skill.list',
+  'agent.list',
+  'fs.find',
+])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 
 const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.create',
   'experimental.persistentPty.remove',
-  'experimental.persistentPty.connectToken',
+  'experimental.persistentPty.output',
+  'experimental.persistentPty.write',
+  'experimental.persistentPty.resize',
+  'experimental.persistentPty.inject',
 ])
 
 const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"
@@ -213,5 +224,3 @@ async function admitHubCaller(
 }
 
 export type SessionOs = ReturnType<typeof os.use<{session: SessionScope}>>
-
-export type CompositeRpcRouter = ExtensionCompositeRpcRouter<ReturnType<typeof makeRpcRouter>>

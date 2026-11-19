@@ -91,11 +91,13 @@ function fieldTermContent(name: string | undefined, value: string, valueRef: (no
   )
 }
 
-function fieldSpanContent(name: string | undefined, value: string): JSX.Element {
+function fieldSpanContent(name: string | undefined, value: string, valueRef: (node: HTMLElement) => void): JSX.Element {
   return (
     <>
       <span class={FIELD_KEY}>{name}</span>
-      <span class={FIELD_VALUE}>{value}</span>
+      <span ref={valueRef} class={FIELD_VALUE}>
+        {value}
+      </span>
     </>
   )
 }
@@ -115,35 +117,14 @@ function chipContent(
   return fieldTermContent(name, value, valueRef)
 }
 
-function triggerContent(kind: 'field' | 'pill', name: string | undefined, value: string): JSX.Element {
-  if (kind === 'pill') return <span class={PILL_VALUE}>{value}</span>
-  return fieldSpanContent(name, value)
-}
-
-function ClippedChip(props: {
-  kind: 'field' | 'pill'
-  name: string | undefined
-  value: string
-  class: string
-}): JSX.Element {
-  const [local] = splitProps(props, ['kind', 'name', 'value', 'class'])
-  const reveal = createClipReveal()
-  return (
-    <Tooltip.Root onOpenChange={reveal.onOpenChange} lazyMount unmountOnExit>
-      <Tooltip.Trigger
-        asChild={(triggerProps) => (
-          <div {...revealTriggerProps(reveal, triggerProps())} class={local.class}>
-            {chipContent(local.kind, local.name, local.value, reveal.ref)}
-          </div>
-        )}
-      />
-      <Show when={reveal.clipped()}>
-        <Tooltip.Positioner>
-          <Tooltip.Content class={CLIP_REVEAL}>{local.value}</Tooltip.Content>
-        </Tooltip.Positioner>
-      </Show>
-    </Tooltip.Root>
-  )
+function triggerContent(
+  kind: 'field' | 'pill',
+  name: string | undefined,
+  value: string,
+  valueRef: (node: HTMLElement) => void,
+): JSX.Element {
+  if (kind === 'pill') return chipContent(kind, name, value, valueRef)
+  return fieldSpanContent(name, value, valueRef)
 }
 
 export function Chip(props: {
@@ -156,28 +137,43 @@ export function Chip(props: {
   class?: string
 }): JSX.Element {
   const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'tooltip', 'class'])
+  const reveal = createClipReveal()
   const kind = (): 'field' | 'pill' => local.kind ?? 'field'
   const chipClass = (): string =>
     `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full'})} ${local.class ?? ''}`
+  const showsContent = (): boolean => reveal.clipped() || local.tooltip !== undefined
 
   return (
-    <Show
-      when={local.tooltip}
-      fallback={<ClippedChip kind={kind()} name={local.name} value={local.value} class={chipClass()} />}
-    >
-      {(tooltip) => (
+    <Tooltip.Root onOpenChange={reveal.onOpenChange} lazyMount unmountOnExit>
+      <Show
+        when={local.tooltip !== undefined}
+        fallback={
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <div {...revealTriggerProps(reveal, triggerProps())} class={chipClass()}>
+                {chipContent(kind(), local.name, local.value, reveal.ref)}
+              </div>
+            )}
+          />
+        }
+      >
         <div class="contents">
-          <Tooltip.Root unmountOnExit lazyMount>
-            <Tooltip.Trigger type="button" class={chipClass()}>
-              {triggerContent(kind(), local.name, local.value)}
-            </Tooltip.Trigger>
-            <Tooltip.Positioner>
-              <Tooltip.Content>{tooltip()}</Tooltip.Content>
-            </Tooltip.Positioner>
-          </Tooltip.Root>
+          <Tooltip.Trigger type="button" class={chipClass()}>
+            {triggerContent(kind(), local.name, local.value, reveal.ref)}
+          </Tooltip.Trigger>
         </div>
-      )}
-    </Show>
+      </Show>
+      <Show when={showsContent()}>
+        <Tooltip.Positioner>
+          <Tooltip.Content class={reveal.clipped() ? CLIP_REVEAL : undefined}>
+            <Show when={reveal.clipped()}>
+              <span class="block">{local.value}</span>
+            </Show>
+            <Show when={local.tooltip}>{(tooltip) => <span class="block">{tooltip()}</span>}</Show>
+          </Tooltip.Content>
+        </Tooltip.Positioner>
+      </Show>
+    </Tooltip.Root>
   )
 }
 

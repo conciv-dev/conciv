@@ -24,7 +24,7 @@ const ICON = 'size-3.75 shrink-0 text-chat-text-2'
 const NAME =
   'flex flex-1 min-w-0 overflow-hidden items-center gap-2 text-[0.8125rem] font-medium text-chat-text-hi group-data-[off]:text-chat-dim'
 const PIN =
-  'grid place-items-center size-8 shrink-0 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi aria-pressed:text-chat-accent disabled:cursor-default disabled:hover:bg-transparent'
+  'grid place-items-center size-8 shrink-0 rounded-chat-sm bg-transparent [border:none] text-chat-text-2 cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong hover:text-chat-text-hi aria-pressed:text-chat-accent disabled:cursor-default disabled:hover:bg-transparent'
 
 type ViewRowProps = {
   view: SettingsView

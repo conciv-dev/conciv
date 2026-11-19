@@ -26,24 +26,26 @@ export const makeRegistrationError = (fields: Omit<typeof RegistrationError.Type
     name: 'Tool.RegistrationError',
   })
 
+export type Registered = Tool.Info & {readonly id: string; readonly pluginId?: string}
+
 export interface Editor {
   readonly list: () => readonly (Tool.Info & {readonly id: string})[]
   readonly get: (id: string) => (Tool.Info & {readonly id: string}) | undefined
   readonly namespace: (namespace: Tool.Namespace) => void
-  readonly add: (tool: Tool.Info) => void
+  readonly add: (tool: Tool.Info, pluginId?: string) => void
   readonly update: (id: string, update: (tool: Types.Mutable<Tool.Info>) => void) => void
   readonly remove: (id: string) => void
 }
 
 type Data = {
-  tools: Map<string, Tool.Info & {readonly id: string}>
+  tools: Map<string, Registered>
   definitions: Map<string, ToolDefinition>
   namespaces: Map<string, Tool.Namespace>
   errors: {kind: 'tool' | 'namespace'; name: string; namespace?: string; error: RegistrationError}[]
 }
 
 export interface Interface extends State.Transformable<Editor> {
-  readonly list: () => Effect.Effect<ReadonlyArray<Tool.Info & {readonly id: string}>>
+  readonly list: () => Effect.Effect<ReadonlyArray<Registered>>
   readonly snapshot: (permissions?: Permission.Ruleset) => Effect.Effect<Snapshot>
 }
 
@@ -194,9 +196,9 @@ export const layer = Layer.effect(
           }
           editor.namespaces.set(namespace.name, {...namespace})
         },
-        add: (tool) => {
+        add: (tool, pluginId) => {
           const id = effectiveName(tool)
-          commit(editor, id, {...tool, id, options: tool.options && {...tool.options}})
+          commit(editor, id, {...tool, id, pluginId, options: tool.options && {...tool.options}})
         },
         update: (id, update) => {
           const current = editor.tools.get(id)
@@ -298,7 +300,7 @@ export const layer = Layer.effect(
   }),
 )
 
-function commit(editor: Data, id: string, input: Tool.Info & {readonly id: string}) {
+function commit(editor: Data, id: string, input: Registered) {
   const tool = input.input === undefined || input.input === null ? {...input, input: {}} : input
   const registered = register(tool)
   if (Result.isFailure(registered)) {

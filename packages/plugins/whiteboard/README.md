@@ -1,12 +1,10 @@
 # @conciv/plugin-whiteboard
 
 The conciv whiteboard plugin. Its engine part keeps a canvas the user and the agent share, with source-anchored
-comments and pins, in the plugin's own libSQL database, and offers it to the agent and over the plugin's RPC. Its
+comments and pins, in the plugin storage the engine keeps for it, and offers it to the agent and over the plugin's RPC. Its
 browser part opens the Excalidraw canvas from the "Whiteboard" pill above the composer.
 
-Internal until the canvas ships in the widget: the package is private and not published. Until then, the old
-`@conciv/extension-whiteboard` is the whiteboard users have, and the two cannot run together (with the extension
-mounted, the plugin fails to load because its RPC id `whiteboard` is taken).
+The package is private and not published yet. It replaces the old whiteboard extension, which is removed.
 
 What enabling it gives today:
 
@@ -37,6 +35,5 @@ plugins: ['@conciv/plugin-whiteboard']
 plugins: [['@conciv/plugin-whiteboard', {catchUpRetryMs: 500}]]
 ```
 
-The database lives in the project the engine runs in, at `.conciv/whiteboard/whiteboard.db`. The `stateRoot` option
-and the `CONCIV_STATE_ROOT` environment variable do not apply to the whiteboard database yet: with either set, the
-board is still kept under the engine's working directory.
+The board lives in the plugin storage of the engine's state root, so a second engine on that state root reads it back.
+A board kept by an older version in `.conciv/whiteboard/whiteboard.db` is not read.

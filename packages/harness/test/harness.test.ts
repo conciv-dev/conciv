@@ -399,8 +399,9 @@ describe('claude chat config', () => {
       const last = prepared?.at(-1)
       const text =
         last && Array.isArray(last.content)
-          ? last.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
+          ? last.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')
           : ''
+      expect(text).toMatch(/^look at this\n\nAttached image files/)
       expect(readdirSync(dir).filter((name) => name.startsWith('.conciv-img-'))).toHaveLength(0)
       const tmpDir = join(concivStateDir(dir), 'tmp')
       const written = readdirSync(tmpDir).filter((name) => name.startsWith('img-'))

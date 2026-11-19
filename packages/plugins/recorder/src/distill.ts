@@ -1,6 +1,6 @@
 import {z} from 'zod'
-import type {ActionLogEntry, RrwebEvent} from './protocol.js'
-import {createNodeIndex, type NodeIndex} from './node-index.js'
+import type {RrwebEvent} from './rpc.js'
+import {applyFullSnapshot, applyMutation, describeNode, emptyNodeIndex, type NodeIndex} from './node-index.js'
 
 const meta = z.object({href: z.string()})
 const fullSnapshot = z.object({node: z.unknown()})
@@ -12,6 +12,10 @@ const consoleError = z.object({
   plugin: z.literal('rrweb/console@1'),
   payload: z.looseObject({level: z.literal('error'), payload: z.array(z.string())}),
 })
+
+export type ActionLogKind = 'click' | 'input' | 'navigation' | 'scroll' | 'console' | 'reload'
+
+export type ActionLogEntry = {ts: number; kind: ActionLogKind; detail: string}
 
 const SCROLL_COALESCE_MS = 1500
 const RELOAD_META_GAP_MS = 2000
@@ -27,7 +31,7 @@ function navigationEntry(state: DistillState, event: RrwebEvent): ActionLogEntry
 
 function snapshotEntry(state: DistillState, event: RrwebEvent): ActionLogEntry | undefined {
   const parsed = fullSnapshot.safeParse(event.data)
-  if (parsed.success) state.index.applyFullSnapshot(parsed.data.node)
+  if (parsed.success) state.index = applyFullSnapshot(parsed.data.node)
   state.snapshots += 1
   const isReload = state.snapshots > 1 && event.timestamp - state.lastMetaTs < RELOAD_META_GAP_MS
   if (!isReload) return undefined
@@ -35,22 +39,22 @@ function snapshotEntry(state: DistillState, event: RrwebEvent): ActionLogEntry |
 }
 
 function incrementalEntry(state: DistillState, event: RrwebEvent): ActionLogEntry | undefined {
-  if (mutation.safeParse(event.data).success) state.index.applyMutation(event.data)
+  if (mutation.safeParse(event.data).success) state.index = applyMutation(state.index, event.data)
   const ts = event.timestamp
   const clicked = click.safeParse(event.data)
   if (clicked.success) {
     if (clicked.data.id === -1) return undefined
-    return {ts, kind: 'click', detail: `clicked ${state.index.describe(clicked.data.id)}`}
+    return {ts, kind: 'click', detail: `clicked ${describeNode(state.index, clicked.data.id)}`}
   }
   const typed = input.safeParse(event.data)
   if (typed.success) {
     if (typed.data.id === -1 || typed.data.text === '') return undefined
-    return {ts, kind: 'input', detail: `typed "${typed.data.text}" into ${state.index.describe(typed.data.id)}`}
+    return {ts, kind: 'input', detail: `typed "${typed.data.text}" into ${describeNode(state.index, typed.data.id)}`}
   }
   const scrolled = scroll.safeParse(event.data)
   if (scrolled.success) {
     if (scrolled.data.id === -1) return undefined
-    return {ts, kind: 'scroll', detail: `scrolled ${state.index.describe(scrolled.data.id)}`}
+    return {ts, kind: 'scroll', detail: `scrolled ${describeNode(state.index, scrolled.data.id)}`}
   }
   return undefined
 }
@@ -83,7 +87,7 @@ function coalescesInto(last: ActionLogEntry | undefined, entry: ActionLogEntry):
 }
 
 export function distill(events: RrwebEvent[]): ActionLogEntry[] {
-  const state: DistillState = {index: createNodeIndex(), snapshots: 0, lastMetaTs: Number.NEGATIVE_INFINITY}
+  const state: DistillState = {index: emptyNodeIndex, snapshots: 0, lastMetaTs: Number.NEGATIVE_INFINITY}
   const log: ActionLogEntry[] = []
   for (const event of events) {
     const entry = entryFor(state, event)
@@ -96,4 +100,12 @@ export function distill(events: RrwebEvent[]): ActionLogEntry[] {
     log.push(entry)
   }
   return log
+}
+
+export function recordingSummary(entries: ActionLogEntry[]): string {
+  const first = entries[0]?.ts ?? 0
+  const last = entries.at(-1)?.ts ?? first
+  const seconds = Math.max(0, Math.round((last - first) / 1000))
+  const word = new Intl.PluralRules('en').select(entries.length) === 'one' ? 'action' : 'actions'
+  return `${entries.length} ${word} · ${seconds}s`
 }

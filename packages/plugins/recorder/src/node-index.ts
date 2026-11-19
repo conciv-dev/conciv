@@ -1,18 +1,19 @@
 import {z} from 'zod'
 
 export type SerializedNode = {
-  id: number
-  type: number
-  tagName?: string
-  attributes?: Record<string, unknown>
-  textContent?: string
-  isSVG?: boolean
-  needBlock?: boolean
-  compatMode?: string
-  name?: string
-  publicId?: string
-  systemId?: string
-  childNodes?: SerializedNode[]
+  readonly id: number
+  readonly type: number
+  readonly tagName?: string
+  readonly attributes?: Readonly<Record<string, unknown>>
+  readonly textContent?: string
+  readonly isSVG?: boolean
+  readonly needBlock?: boolean
+  readonly compatMode?: string
+  readonly name?: string
+  readonly publicId?: string
+  readonly systemId?: string
+  readonly childNodes?: readonly SerializedNode[]
+  readonly shadowed?: boolean
 }
 
 const serializedNode: z.ZodType<SerializedNode> = z.lazy(() =>
@@ -39,11 +40,9 @@ const mutationData = z.object({
   texts: z.array(z.object({id: z.number(), value: z.string().nullable()})).default([]),
 })
 
-export type NodeIndex = {
-  applyFullSnapshot(root: unknown): void
-  applyMutation(data: unknown): void
-  describe(id: number): string
-}
+export type NodeIndex = readonly SerializedNode[]
+
+export const emptyNodeIndex: NodeIndex = []
 
 function ownText(node: SerializedNode): string {
   const direct = node.textContent ?? ''
@@ -84,99 +83,85 @@ function selectorish(node: SerializedNode): string {
   return `${node.tagName ?? 'node'}${idPart}`
 }
 
-export function createNodeIndex(): NodeIndex {
-  const byId = new Map<number, SerializedNode>()
-  const parentByNode = new Map<number, number>()
-
-  const walk = (node: SerializedNode, parentId?: number): void => {
-    byId.set(node.id, node)
-    if (parentId !== undefined) parentByNode.set(node.id, parentId)
-    for (const child of node.childNodes ?? []) walk(child, node.id)
+function pathTo(nodes: NodeIndex, id: number): readonly SerializedNode[] | undefined {
+  for (const node of nodes) {
+    if (node.id === id && !node.shadowed) return [node]
+    const below = pathTo(node.childNodes ?? [], id)
+    if (below) return [node, ...below]
   }
+  return undefined
+}
 
-  const forget = (node: SerializedNode): void => {
-    for (const child of node.childNodes ?? []) forget(child)
-    parentByNode.delete(node.id)
-    byId.delete(node.id)
-  }
+function findNode(nodes: NodeIndex, id: number): SerializedNode | undefined {
+  return pathTo(nodes, id)?.at(-1)
+}
 
-  const detach = (id: number): void => {
-    const parentId = parentByNode.get(id)
-    const parent = parentId === undefined ? undefined : byId.get(parentId)
-    if (parent) parent.childNodes = (parent.childNodes ?? []).filter((child) => child.id !== id)
-  }
+function withoutNode(nodes: NodeIndex, id: number): NodeIndex {
+  return nodes
+    .filter((node) => node.id !== id || node.shadowed)
+    .map((node) => (node.childNodes ? {...node, childNodes: withoutNode(node.childNodes, id)} : node))
+}
 
-  const isInside = (id: number, ancestorId: number, seen: ReadonlySet<number> = new Set()): boolean => {
-    if (id === ancestorId) return true
-    const parentId = parentByNode.get(id)
-    if (parentId === undefined || seen.has(id)) return false
-    return isInside(parentId, ancestorId, new Set([...seen, id]))
-  }
+function updateNode(nodes: NodeIndex, id: number, change: (node: SerializedNode) => SerializedNode): NodeIndex {
+  return nodes.map((node) => {
+    if (node.id === id && !node.shadowed) return change(node)
+    return node.childNodes ? {...node, childNodes: updateNode(node.childNodes, id, change)} : node
+  })
+}
 
-  const move = (node: SerializedNode, parent: SerializedNode): void => {
-    detach(node.id)
-    parentByNode.set(node.id, parent.id)
-    parent.childNodes = [...(parent.childNodes ?? []), node]
-  }
+function appendChild(nodes: NodeIndex, parentId: number, child: SerializedNode): NodeIndex {
+  return updateNode(nodes, parentId, (parent) => ({...parent, childNodes: [...(parent.childNodes ?? []), child]}))
+}
 
-  type Mutation = z.infer<typeof mutationData>
+function subtreeIds(node: SerializedNode): readonly number[] {
+  return [node.id, ...(node.childNodes ?? []).flatMap(subtreeIds)]
+}
 
-  const applyAdds = (adds: Mutation['adds']): void => {
-    for (const add of adds) {
-      const parent = add.parentId === undefined ? undefined : byId.get(add.parentId)
-      const existing = byId.get(add.node.id)
-      if (parent && existing && sameMeta(existing, add.node) && !isInside(parent.id, existing.id)) {
-        move(existing, parent)
-        continue
-      }
-      walk(add.node, add.parentId)
-      if (parent) parent.childNodes = [...(parent.childNodes ?? []), add.node]
-    }
-  }
+function shadow(nodes: NodeIndex, ids: readonly number[], added: SerializedNode): NodeIndex {
+  return nodes.map((node) => {
+    if (node === added) return node
+    const marked = !node.shadowed && ids.includes(node.id) ? {...node, shadowed: true} : node
+    return marked.childNodes ? {...marked, childNodes: shadow(marked.childNodes, ids, added)} : marked
+  })
+}
 
-  const applyAttributes = (changes: Mutation['attributes']): void => {
-    for (const change of changes) {
-      const node = byId.get(change.id)
-      if (node) node.attributes = {...node.attributes, ...change.attributes}
-    }
-  }
+type Mutation = z.infer<typeof mutationData>
 
-  const applyTexts = (changes: Mutation['texts']): void => {
-    for (const change of changes) {
-      const node = byId.get(change.id)
-      if (node) node.textContent = change.value ?? ''
-    }
-  }
+function applyAdd(index: NodeIndex, add: Mutation['adds'][number]): NodeIndex {
+  const parentPath = add.parentId === undefined ? undefined : pathTo(index, add.parentId)
+  const parent = parentPath?.at(-1)
+  const existing = findNode(index, add.node.id)
+  const insideExisting = parentPath?.some((node) => node.id === add.node.id) ?? false
+  if (parent && existing && sameMeta(existing, add.node) && !insideExisting)
+    return appendChild(withoutNode(index, existing.id), parent.id, existing)
+  const placed = parent ? appendChild(index, parent.id, add.node) : [...index, add.node]
+  return shadow(placed, subtreeIds(add.node), add.node)
+}
 
-  const applyRemoves = (removes: Mutation['removes']): void => {
-    for (const removal of removes) {
-      const node = byId.get(removal.id)
-      detach(removal.id)
-      if (node) forget(node)
-      if (!node) parentByNode.delete(removal.id)
-    }
-  }
+export function applyFullSnapshot(root: unknown): NodeIndex {
+  const parsed = serializedNode.safeParse(root)
+  return parsed.success ? [parsed.data] : emptyNodeIndex
+}
 
-  return {
-    applyFullSnapshot(root) {
-      byId.clear()
-      parentByNode.clear()
-      const parsed = serializedNode.safeParse(root)
-      if (parsed.success) walk(parsed.data)
-    },
-    applyMutation(data) {
-      const parsed = mutationData.safeParse(data)
-      if (!parsed.success) return
-      applyRemoves(parsed.data.removes)
-      applyAdds(parsed.data.adds)
-      applyAttributes(parsed.data.attributes)
-      applyTexts(parsed.data.texts)
-    },
-    describe(id) {
-      const node = byId.get(id)
-      if (!node) return `node ${id}`
-      const name = label(node)
-      return name ? `${selectorish(node)} "${name}"` : selectorish(node)
-    },
-  }
+export function applyMutation(index: NodeIndex, data: unknown): NodeIndex {
+  const parsed = mutationData.safeParse(data)
+  if (!parsed.success) return index
+  const removed = parsed.data.removes.reduce((nodes, removal) => withoutNode(nodes, removal.id), index)
+  const added = parsed.data.adds.reduce(applyAdd, removed)
+  const attributed = parsed.data.attributes.reduce(
+    (nodes, change) =>
+      updateNode(nodes, change.id, (node) => ({...node, attributes: {...node.attributes, ...change.attributes}})),
+    added,
+  )
+  return parsed.data.texts.reduce(
+    (nodes, change) => updateNode(nodes, change.id, (node) => ({...node, textContent: change.value ?? ''})),
+    attributed,
+  )
+}
+
+export function describeNode(index: NodeIndex, id: number): string {
+  const node = findNode(index, id)
+  if (!node) return `node ${id}`
+  const name = label(node)
+  return name ? `${selectorish(node)} "${name}"` : selectorish(node)
 }

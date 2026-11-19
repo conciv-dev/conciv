@@ -1,8 +1,13 @@
-import type {ToolCardView} from '@conciv/protocol/tool-view-types'
-import {recordingCard} from './recording-card.js'
+import type {ToolRegistry} from '@conciv/plugin/experimental'
+import {recordingCard, recordingFailedCard} from './recording-card.js'
+
+const recorderEntry = {render: recordingCard, errorComponent: recordingFailedCard} satisfies Pick<
+  ToolRegistry,
+  'render' | 'errorComponent'
+>
 
 export const recorderCards = {
-  recording_start: recordingCard,
-  recording_stop: recordingCard,
-  recording_pull: recordingCard,
-} satisfies Record<string, ToolCardView>
+  recording_start: recorderEntry,
+  recording_stop: recorderEntry,
+  recording_pull: recorderEntry,
+} satisfies Record<string, Pick<ToolRegistry, 'render' | 'errorComponent'>>

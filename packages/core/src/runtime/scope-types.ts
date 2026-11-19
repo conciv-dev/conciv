@@ -1,45 +1,9 @@
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {PageOutcome} from '@conciv/protocol/page-types'
-import type {PageCaptureBundle, SessionCaptures} from '@conciv/protocol/element-capture-types'
 import type {NavigationWrite} from '@conciv/protocol/chat-types'
-import type {
-  ChatHistoryWindow,
-  ChatHydration,
-  EngineStaleness,
-  RawFrame,
-  SourceLoc,
-  ToolCommandSignature,
-} from '@conciv/contract'
-import type {ToolRegistry} from '@conciv/extension/registry'
-import type {RegistryCallGate, ToolRequest} from '@conciv/protocol/tool-call-types'
-import type {BrowserTabFocusReport, ChangeEntry, PageQueryStreamItem} from '../page/page-bus.js'
+import type {ChatHistoryWindow, ChatHydration, EngineStaleness, RawFrame, SourceLoc} from '@conciv/contract'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-
-export type ToolCatalog = ToolRegistry['catalog']
-
-export type ScopedToolCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
-
-export type SessionTools = {
-  call: (
-    name: string,
-    input: unknown,
-    options?: {toolCallId?: string; signal?: AbortSignal; gate?: RegistryCallGate},
-  ) => Promise<unknown>
-  has: (name: string) => boolean
-  catalog: ToolCatalog
-}
-
-export type SessionPage = {
-  ask: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
-  queries: (signal: AbortSignal, focus: BrowserTabFocusReport) => AsyncGenerator<PageQueryStreamItem>
-  focus: (browserTab: string, report: BrowserTabFocusReport) => void
-  reply: (requestId: string, outcome: PageOutcome) => boolean
-  connected: () => boolean
-  changes: () => Promise<ChangeEntry[]>
-  clearChanges: () => Promise<void>
-}
 
 export type SessionStream = {
   publish: (chunk: ChatEvent) => void
@@ -49,11 +13,6 @@ export type SessionStream = {
 
 export type SessionAsks = {
   ui: () => Promise<UiAnswer>
-}
-
-export type SessionCapturesScope = {
-  list: () => Promise<SessionCaptures>
-  store: (toolCallId: string, bundle: PageCaptureBundle) => Promise<void>
 }
 
 export type SessionHistory = {
@@ -70,17 +29,13 @@ export type SessionRun = {
 
 export type SessionScope = {
   readonly id: SessionId
-  tools: SessionTools
-  page: SessionPage
   stream: SessionStream
   asks: SessionAsks
-  captures: SessionCapturesScope
   history: SessionHistory
   run: SessionRun
 }
 
 export type EngineScope = {
-  catalog: () => ToolCommandSignature[]
   staleness: () => EngineStaleness
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   navigation: {

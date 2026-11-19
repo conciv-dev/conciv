@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Effect, type ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
-import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
+import {drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
@@ -98,14 +98,7 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
       (): unknown[] => [],
       (failure: unknown) => [failure],
     )
-  const cleanupFailures = await runInOrder(
-    [
-      () => deletion.plane.clear(sessionId),
-      () => deleteSessionCaptures(deletion.db, sessionId),
-      () => clearPageChanges(deletion.db, sessionId),
-    ],
-    deletionFailed,
-  ).then(
+  const cleanupFailures = await runInOrder([() => deletion.plane.clear(sessionId)], deletionFailed).then(
     (): unknown[] => [],
     (cleanup: unknown): unknown[] => (cleanup instanceof AggregateError ? cleanup.errors : [cleanup]),
   )

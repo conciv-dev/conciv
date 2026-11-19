@@ -1,24 +1,16 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import type {ToolProps} from '@conciv/plugin/experimental'
+import {DANGER_TEXT_CLASS, JsonTree, SUNKEN_SURFACE} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from './page-result-views.js'
 import {pageOperation} from './page-tool-names.js'
-import {
-  LIST_ROW_CLASS,
-  QUIET_TEXT_CLASS,
-  cardErrorMessage,
-  cardPayload,
-  countLabel,
-  hasPayloadOrError,
-} from './shared.js'
+import {LIST_ROW_CLASS, PageTool, QUIET_TEXT_CLASS, countLabel, outputPayload} from './shared.js'
 
 const ConsolePayload = pageOperation('console').output
 
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
-const LIST =
-  'm-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
+const LIST = `m-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto text-[length:var(--chat-text-xs)] ${SUNKEN_SURFACE}`
 const LEVEL = 'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [font-family:var(--chat-mono)]'
 const LEVEL_QUIET = `${LEVEL} text-chat-text-3`
 const LEVEL_DANGER = `${LEVEL} text-chat-danger`
@@ -52,26 +44,14 @@ function pickLevelClass(level: string): string {
   return isErrorLevel(level) ? LEVEL_DANGER : LEVEL_QUIET
 }
 
-function ConsoleCard(props: ToolCardProps): JSX.Element {
-  const {meta, title} = cardHeader(props)
-  const payload = () => cardPayload(props.result)
+export function ConsoleCard(props: ToolProps): JSX.Element {
+  const payload = () => outputPayload(props.output)
   const lines = () => readLines(payload())
-  const errorMessage = () => cardErrorMessage(props.result)
-  const failed = () => errorMessage() !== undefined || (lines() ?? []).some((entry) => isErrorLevel(entry.level))
+  const failed = () => (lines() ?? []).some((entry) => isErrorLevel(entry.level))
   return (
-    <CardShell
-      meta={meta()}
-      title={title()}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-      status={failed() ? 'error' : undefined}
-    >
+    <PageTool {...props} failed={failed()} hasContent={payload() !== undefined}>
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>
-            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
-          </Match>
           <Match when={lines()}>
             {(entries) => (
               <Show
@@ -100,11 +80,6 @@ function ConsoleCard(props: ToolCardProps): JSX.Element {
           </Match>
         </Switch>
       </div>
-    </CardShell>
+    </PageTool>
   )
-}
-
-export const consoleCard: ToolCardView = {
-  render: ConsoleCard,
-  hasEmbeddedBody: (_part, result) => hasPayloadOrError(result),
 }

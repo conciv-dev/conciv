@@ -128,7 +128,7 @@ function stepGlyph(status: ToolStatus): JSX.Element {
   )
 }
 
-const STEP_TRIGGER = `group flex w-full items-center gap-2 px-2 py-1 rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] cursor-pointer select-none hover:[background:var(--chat-fill-strong)] ${FOCUS_INSET}`
+const STEP_TRIGGER = `group flex w-full items-center gap-2 px-2 py-1 rounded-chat-sm text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] cursor-pointer select-none hover:[background:var(--chat-fill-strong)] ${FOCUS_INSET}`
 const STEP_CHEVRON =
   'size-3 shrink-0 ml-auto opacity-0 group-hover:opacity-100 [transition:rotate_150ms_var(--chat-ease)] group-data-[state=open]:opacity-100 group-data-[state=closed]:-rotate-90'
 

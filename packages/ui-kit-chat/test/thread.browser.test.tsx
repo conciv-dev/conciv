@@ -890,6 +890,14 @@ describe('thread session log', () => {
 
     await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
+
+    const row = page.getByRole('button', {name: /Called bash/})
+    await expect.element(row).toBeVisible()
+    await expect.element(page.getByText('src/watcher.ts:12')).not.toBeInTheDocument()
+
+    await userEvent.click(row)
+
+    await expect.element(page.getByText('src/watcher.ts:12')).toBeVisible()
   })
 
   function messagesWithTwoSegments(): ChatMessage[] {
@@ -1015,7 +1023,7 @@ describe('thread session log', () => {
     )
   }
 
-  it('lists outside agent calls as one open list with a copy-only action row under the last call', async () => {
+  it('lists outside agent calls as one open list with no action row under the text-less calls', async () => {
     mountView(() => <OutsideJourney />)
 
     await expect.element(page.getByText('Fixed the type on line 9, the build is green.'), {timeout: 3000}).toBeVisible()
@@ -1023,8 +1031,11 @@ describe('thread session log', () => {
     await page.getByRole('button', {name: 'outside agent drives the tab'}).click()
 
     await expect.element(page.getByText('It echoed three routes.'), {timeout: 3000}).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: /echo route 1/}))
     await expect.element(page.getByText('route answer 1')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: /echo route 2/}))
     await expect.element(page.getByText('route answer 2')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: /echo route 3/}))
     await expect.element(page.getByText('route answer 3')).toBeVisible()
     await expect.element(page.getByText('from claude').nth(0)).toBeVisible()
     await expect.element(page.getByText('from claude').nth(1)).toBeVisible()
@@ -1033,21 +1044,13 @@ describe('thread session log', () => {
     await expect.element(page.getByRole('button', {name: /Hide trace/})).not.toBeInTheDocument()
 
     const toolbars = page.getByRole('toolbar', {name: 'Message actions'})
-    await expect.element(toolbars.nth(3)).toBeInTheDocument()
-    await expect.element(toolbars.nth(4)).not.toBeInTheDocument()
-    await page.getByText('route answer 3').hover()
-    const outsideActions = toolbars.nth(2)
-    await expect.element(outsideActions.getByRole('button', {name: 'Copy'})).toBeVisible()
-    await expect.element(outsideActions.getByRole('button', {name: /Refresh|Reload/})).not.toBeInTheDocument()
-    await expect.element(toolbars.nth(3).getByRole('button', {name: /Refresh|Reload/})).toBeVisible()
+    await expect.element(toolbars.nth(2)).toBeInTheDocument()
+    await expect.element(toolbars.nth(3)).not.toBeInTheDocument()
+    await expect.element(toolbars.nth(2).getByRole('button', {name: /Refresh|Reload/})).toBeVisible()
 
-    await outsideActions.getByRole('button', {name: 'Copy'}).click()
-    await expect.element(outsideActions.getByRole('status')).toHaveTextContent('Could not copy the message')
-    await expect.element(outsideActions.getByRole('button', {name: 'Copy failed'})).toBeVisible()
-
-    await expect.element(toolbars.nth(3).getByRole('button', {name: 'Refresh'})).toBeEnabled()
+    await expect.element(toolbars.nth(2).getByRole('button', {name: 'Refresh'})).toBeEnabled()
     await page.getByRole('button', {name: 'the page logs out'}).click()
-    await expect.element(toolbars.nth(3).getByRole('button', {name: 'Refresh'})).toBeDisabled()
+    await expect.element(toolbars.nth(2).getByRole('button', {name: 'Refresh'})).toBeDisabled()
   })
 
   it('renders text, trace, then text in stream order for a turn with parts interleaved around a tool call', async () => {
@@ -1411,6 +1414,110 @@ describe('trace', () => {
 
     await expect.element(page.getByRole('button', {name: 'Review the diff'})).toBeVisible()
     expect(runs).toEqual(['reviewed'])
+  })
+})
+
+describe('turn action rows', () => {
+  function bashCall(id: string, command: string, metadata?: ToolCallPart['metadata']): ToolCallPart {
+    return {
+      type: 'tool-call',
+      id,
+      name: 'bash',
+      arguments: JSON.stringify({command}),
+      input: {command},
+      state: 'complete',
+      output: `${command} ok`,
+      metadata,
+    }
+  }
+
+  function fromOutside(run: string): ToolCallPart['metadata'] {
+    return {conciv: {origin: 'hub', client: 'claude', run}}
+  }
+
+  const THREAD: ChatMessage[] = [
+    {id: 'u1', role: 'user', parts: [{type: 'text', content: 'plan the fix'}]},
+    {
+      id: 'a1',
+      role: 'assistant',
+      parts: [{type: 'text', content: 'Here is the plan.'}, bashCall('plan-call', 'git status')],
+    },
+    {id: 'u2', role: 'user', parts: [{type: 'text', content: 'run the checks'}]},
+    {id: 'a2', role: 'assistant', parts: [bashCall('checks-call', 'pnpm lint')]},
+    {id: 'o1', role: 'assistant', parts: [bashCall('outside-one', 'echo route 1', fromOutside('outside-one'))]},
+    {id: 'u3', role: 'user', parts: [{type: 'text', content: 'read the route'}]},
+    {id: 'a3', role: 'assistant', parts: [{type: 'text', content: 'Read the route.'}]},
+    {
+      id: 'o2',
+      role: 'assistant',
+      parts: [
+        bashCall('outside-two', 'echo route 2', fromOutside('outside-two')),
+        {type: 'text', content: 'Route two is up.'},
+      ],
+    },
+    {id: 'u4', role: 'user', parts: [{type: 'text', content: 'all good?'}]},
+    {id: 'a4', role: 'assistant', parts: [{type: 'text', content: 'All set.'}]},
+  ]
+
+  const TRAILING_TOOL_TURN: ChatMessage[] = [
+    {id: 'u5', role: 'user', parts: [{type: 'text', content: 'one more check'}]},
+    {id: 'a5', role: 'assistant', parts: [bashCall('last-call', 'pnpm test')]},
+  ]
+
+  function ActionRowThread(): JSX.Element {
+    const chat = createChat({threadId: 'thread-turn-action-rows', connection: storyConnection()})
+    onMount(() => chat.setMessages(THREAD))
+    return (
+      <ChatProvider chat={chat}>
+        <ToolProvider value={ctxWith(makeCatalog({}))}>
+          <div class="flex flex-col h-200 w-110 [background:var(--chat-bg)]">
+            <Thread>
+              <Thread.Viewport>
+                <Thread.Messages />
+              </Thread.Viewport>
+            </Thread>
+          </div>
+        </ToolProvider>
+        <button type="button" onClick={() => chat.setMessages([...THREAD, ...TRAILING_TOOL_TURN])}>
+          the agent runs one more tool
+        </button>
+      </ChatProvider>
+    )
+  }
+
+  it('gives an action row only to the turns with text, reachable by keyboard on the latest one', async () => {
+    mountView(() => <ActionRowThread />)
+    const toolbars = page.getByRole('toolbar', {name: 'Message actions'})
+    const after = page.getByRole('button', {name: 'the agent runs one more tool'})
+
+    await expect.element(page.getByText('All set.'), {timeout: 3000}).toBeVisible()
+    await expect.element(toolbars.nth(3)).toBeInTheDocument()
+    await expect.element(toolbars.nth(4)).not.toBeInTheDocument()
+
+    await userEvent.click(after)
+    await expect.element(page.getByText('one more check')).toBeVisible()
+    await expect.element(toolbars.nth(4)).not.toBeInTheDocument()
+    await page.getByText('one more check').click()
+    await userEvent.tab({shift: true})
+    await expect.element(toolbars.nth(3).getByRole('button', {name: 'More message actions'})).toHaveFocus()
+
+    await page.getByText('Here is the plan.').click()
+    await userEvent.tab()
+    await expect.element(toolbars.nth(0).getByRole('button', {name: 'Copy'})).toHaveFocus()
+    await userEvent.tab()
+    await expect.element(toolbars.nth(0).getByRole('button', {name: 'Refresh'})).toHaveFocus()
+    await page.getByText('All set.').hover()
+    await expect.element(toolbars.nth(0).getByRole('button', {name: 'Refresh'})).toHaveFocus()
+    await userEvent.tab()
+    await expect.element(toolbars.nth(0).getByRole('button', {name: 'More message actions'})).toHaveFocus()
+    await userEvent.tab()
+    await expect.element(page.getByRole('button', {name: /Show trace/}).first()).toHaveFocus()
+
+    await page.getByText('Route two is up.').click()
+    const outsideCopy = toolbars.nth(2).getByRole('button', {name: 'Copy'})
+    await expect.element(toolbars.nth(2).getByRole('button', {name: 'Refresh'})).not.toBeInTheDocument()
+    await userEvent.tab()
+    await expect.element(outsideCopy).toHaveFocus()
   })
 })
 

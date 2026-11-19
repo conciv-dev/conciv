@@ -40,7 +40,6 @@
     "@conciv/ai": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/plugin-host": "workspace:^",
     "@conciv/protocol": "workspace:^",

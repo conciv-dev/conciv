@@ -11,7 +11,7 @@ import {FOCUS} from '../classes.js'
 import {TRACE_INDENT, TRACE_MICROLABEL} from './trace-row.js'
 
 const FRAME =
-  'flex flex-col gap-2 flex-1 min-w-0 rounded-[var(--chat-radius-sm)] px-3 py-2 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
+  'flex flex-col gap-2 flex-1 min-w-0 rounded-chat-sm px-3 py-2 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
 const HEADER = 'flex items-center gap-1.5 min-w-0'
 const HEADER_LABEL = `${TRACE_MICROLABEL} text-chat-perm-label`
 const WARN_GLYPH = 'select-none flex-none text-chat-xs leading-none text-chat-perm-label'
@@ -20,7 +20,7 @@ const CHIP =
 const TARGET = 'min-w-0 break-all text-chat-sm leading-normal [font-family:var(--chat-mono)] text-chat-target'
 const EXPLANATION = 'min-w-0 text-chat-md leading-snug [font-family:var(--chat-font)] text-chat-text-2'
 const ACTIONS = 'flex flex-wrap items-center gap-2'
-const BUTTON_SHAPE = `inline-flex items-center gap-1.5 px-2.5 py-2 rounded-[var(--chat-radius-sm)] text-chat-sm font-medium leading-none [font-family:var(--chat-font)] trans-chip motion-reduce:[transition:none] ${FOCUS}`
+const BUTTON_SHAPE = `inline-flex items-center gap-1.5 px-2.5 py-2 rounded-chat-sm text-chat-sm font-medium leading-none [font-family:var(--chat-font)] trans-chip motion-reduce:[transition:none] ${FOCUS}`
 const BUTTON_BASE = `${BUTTON_SHAPE} cursor-pointer`
 const APPROVE = `${BUTTON_BASE} [background:var(--chat-perm-chip-bg)] [border:1px_solid_var(--chat-perm-line)] text-chat-perm-label hover:[background:var(--chat-perm-bg)] hover:[border-color:var(--chat-warn)]`
 const DENY = `${BUTTON_BASE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line)]`

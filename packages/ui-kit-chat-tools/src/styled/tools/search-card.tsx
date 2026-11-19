@@ -83,7 +83,7 @@ function SearchHeader(): JSX.Element {
 function matchOverflowLabel(groups: ReturnType<typeof groupSearchMatches>): (hidden: number) => string {
   return (hidden) => {
     const summary = hiddenMatchSummary(groups, hidden)
-    return `… ${countLabel(summary.matches, 'more match', 'more matches')} in ${countLabel(summary.files, 'file', 'files')}`
+    return `${countLabel(summary.matches, 'more match', 'more matches')} in ${countLabel(summary.files, 'file', 'files')}`
   }
 }
 
@@ -94,9 +94,13 @@ function EmbeddedResults(props: {text: string; failed: boolean}): JSX.Element {
     <Show
       when={matches().length > 0}
       fallback={
-        <TraceOutputBlock text={props.text} tone={props.failed ? 'error' : 'normal'}>
-          <CodeBlock size="xs" file={{name: 'results.txt', lang: 'text', contents: props.text}} />
-        </TraceOutputBlock>
+        <CodeBlock
+          size="xs"
+          title={props.failed ? 'Error' : 'Output'}
+          tone={props.failed ? 'error' : 'normal'}
+          label={props.failed ? 'Error output' : 'Output'}
+          file={{name: 'results.txt', lang: 'text', contents: props.text}}
+        />
       }
     >
       <TraceOutputBlock

@@ -1,6 +1,6 @@
 ---
 name: conciv-debug
-description: Use when a conciv integration misbehaves at runtime — the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or extension authoring (see conciv-develop).
+description: Use when a conciv integration misbehaves at runtime: the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or plugin authoring (see conciv-develop).
 metadata:
   package: '@conciv/skills'
 ---
@@ -12,7 +12,7 @@ metadata:
 You are looking at a conciv widget that is installed (see the conciv-setup skill if it is not) but
 misbehaving at runtime: it does not show up, it shows up but cannot reach the engine, a tool call
 never finishes, or an approval prompt never resolves. This skill is about the sandbox/approval/SSE
-runtime underneath the widget, not the install step or extension authoring — see conciv-setup and
+runtime underneath the widget, not the install step or plugin authoring; see conciv-setup and
 conciv-develop for those.
 
 This skill was written straight from the current runtime source, and every claim below cites the file
@@ -23,12 +23,12 @@ it came from.
 The widget script probes the engine on load and only renders once that probe succeeds. Symptom →
 cause → fix:
 
-| Symptom                                    | Cause                                                                                                                                                                                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No button in a Vite production build       | The Vite plugin only runs during `vite dev` — `apply: 'serve'` (`packages/unplugin/src/core/vite.ts:178`) — so neither the engine boot nor the `<script>` injection ever happens at `vite build` time                                                                                                                                                                                                         | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                                                                                                                                                                                                                                                                                                                      |
-| No button, webpack/Rspack                  | A production build (`mode: 'production'` or no `mode`) gets no widget entry and no engine, or `enabled: false`; `mode: 'development'` and `mode: 'none'` get both                                                                                                                                                                                                                                             | run a development build (`mode: 'development'`) in watch mode or a dev server                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| No button, custom host (no bundler plugin) | `createConciv(...).mount(el)` never called, or called on an element removed before `impl.ready` resolves                                                                                                                                                                                                                                                                                                      | call `mount` on an element that stays in the DOM; `mount()` is a no-op if `state !== 'unmounted'` so a second call while `'mounting'` is silently dropped (`packages/embed/src/mount.ts:49-52`)                                                                                                                                                                                                                                                                                                                    |
-| Button appears, panel never opens          | `open()`/`close()`/`toggle()` do not touch the panel; they emit a named panel command onto the shared event bus (`emitPanelCommand`, `packages/embed/src/mount.ts:87-107`) and the widget root is the only subscriber — it starts the bus and binds `open`/`close`/`toggle` on mount (`apps/conciv/src/routes/__root.tsx:291-311`) — so until it mounts there is no `panel` peer to acknowledge the handshake | a command emitted before the bus answers is QUEUED and flushed on connect (`packages/protocol/src/event-bus.ts:198-212`), with the embed client retrying the handshake every 500ms up to 60 times (`packages/embed/src/mount.ts:37-47`); only after those retries does the client go `failed` and drop what it queued (`packages/protocol/src/event-bus.ts:177-188`). A dead button therefore means the widget never mounted inside that ~30s window, not a lost event — and a later click opens a fresh handshake |
+| Symptom                                    | Cause                                                                                                                                                                                                                                                                                                                                                                                                       | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No button in a Vite production build       | The Vite plugin only runs during `vite dev` (`apply: 'serve'`, `packages/unplugin/src/core/vite.ts:178`), so neither the engine boot nor the `<script>` injection ever happens at `vite build` time                                                                                                                                                                                                         | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                                                                                                                                                                                                                                                                                                                     |
+| No button, webpack/Rspack                  | A production build (`mode: 'production'` or no `mode`) gets no widget entry and no engine, or `enabled: false`; `mode: 'development'` and `mode: 'none'` get both                                                                                                                                                                                                                                           | run a development build (`mode: 'development'`) in watch mode or a dev server                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| No button, custom host (no bundler plugin) | `createConciv(...).mount(el)` never called, or called on an element removed before `impl.ready` resolves                                                                                                                                                                                                                                                                                                    | call `mount` on an element that stays in the DOM; `mount()` is a no-op if `state !== 'unmounted'` so a second call while `'mounting'` is silently dropped (`packages/embed/src/mount.ts:49-52`)                                                                                                                                                                                                                                                                                                                   |
+| Button appears, panel never opens          | `open()`/`close()`/`toggle()` do not touch the panel; they emit a named panel command onto the shared event bus (`emitPanelCommand`, `packages/embed/src/mount.ts:87-107`) and the widget root is the only subscriber, it starts the bus and binds `open`/`close`/`toggle` on mount (`apps/conciv/src/routes/__root.tsx:291-311`), so until it mounts there is no `panel` peer to acknowledge the handshake | a command emitted before the bus answers is QUEUED and flushed on connect (`packages/protocol/src/event-bus.ts:198-212`), with the embed client retrying the handshake every 500ms up to 60 times (`packages/embed/src/mount.ts:37-47`); only after those retries does the client go `failed` and drop what it queued (`packages/protocol/src/event-bus.ts:177-188`). A dead button therefore means the widget never mounted inside that ~30s window, not a lost event: and a later click opens a fresh handshake |
 
 ## Failure scenario 2: widget renders but never connects to the engine
 
@@ -36,22 +36,22 @@ This is different from "no button": the widget script loaded, but its `apiBase` 
 running engine, or the engine rejects the origin.
 
 - **Port mismatch.** The engine's actual bound port can differ from the one you configured. Pin it
-  with `conciv({port: 7378})`. On the Vite integration a taken port is just a preference — the
+  with `conciv({port: 7378})`. On the Vite integration a taken port is just a preference: the
   engine falls back to an OS-assigned port and logs `port ${preferred} is already in use, the engine
   is listening on http://127.0.0.1:${serving.port} instead` (`packages/core/src/start.ts:84-92`), and
   the page picks up the port it actually bound. On Next.js and the generic webpack/Rspack plugin
   there is no such fallback path for the client: the client learns the port before the engine boots
   (Next inlines it into `next.config`'s env; webpack/Rspack build it into the widget entry they add,
-  41700 unless you pass `port`), so a taken port there fails the boot instead of silently reconnecting —
+  24170 unless you pass `port`), so a taken port there fails the boot instead of silently reconnecting:
   fix the conflict (kill whatever else holds the port, or pin a different one) rather than expecting
   a fallback.
 - **CORS / wrong origin.** The engine only allows loopback origins (`localhost`, `127.0.0.1`, `[::1]`)
-  plus anything in `allowedOrigins` by default (`packages/core/src/lib/cors.ts` —
+  plus anything in `allowedOrigins` by default (`packages/core/src/lib/cors.ts`:
   `originAllowed`/`LOOPBACK_HOSTNAMES`). A widget served from a non-loopback host (a tunnel, a LAN IP,
   a container hostname) needs that host added to `allowedOrigins` in the `StartOpts` that boot the
   engine, or requests fail CORS silently in the browser console before the widget ever renders a chat.
 - **Manual mount pointed at the wrong `apiBase`.** `createConciv({apiBase})` and `rebind(apiBase)`
-  both no-op past the initial connect if called out of order — `rebind` only runs `rebindImpl` while
+  both no-op past the initial connect if called out of order: `rebind` only runs `rebindImpl` while
   `state === 'mounted'` (`packages/embed/src/mount.ts:109-112`); calling it before `mount()` resolves,
   or after `unmount()`, is a silent no-op, not a queued reconnect.
 
@@ -135,30 +135,30 @@ Two consequences:
   widget open, because the open turn socket plus the events iterator keep the network non-idle
   forever. Wait for `'domcontentloaded'`, or for a concrete UI signal (an element appearing/its text
   changing), never `networkidle`. This mirrors the repo's own testing rule for widget ITs
-  (`AGENTS.md` — "Never wait for Playwright `networkidle`... its SSE stream keeps the network busy
+  (`AGENTS.md`: "Never wait for Playwright `networkidle`... its SSE stream keeps the network busy
   forever").
 - **A held-open browser context/page from a previous test run** keeps its subscription alive
   server-side: a bus listener is released only on abort or in the generator's `finally`
   (`packages/core/src/sessions/session-bus.ts:24-46`). Always `unmount()`/close the page, don't just
   navigate away.
 
-## Red flags — stop and check the mechanism, not the symptom
+## Red flags: stop and check the mechanism, not the symptom
 
 - Increasing a client-side polling/retry loop instead of checking whether the widget ever reached
-  `'mounted'` state (`packages/embed/src/mount.ts`) — a widget stuck in `'mounting'` will retry
+  `'mounted'` state (`packages/embed/src/mount.ts`): a widget stuck in `'mounting'` will retry
   forever against nothing.
-- Assuming any approval failure is a "denied by user" — the `needs the user's approval` tool result
+- Assuming any approval failure is a "denied by user": the `needs the user's approval` tool result
   (`packages/ai/src/server/chat-server.ts:156-160`) means nobody has answered yet, and a
   settled-then-clicked card reports `UNKNOWN_REQUEST`.
-- Reaching for `networkidle` in a new Playwright check against the live widget — it will hang, not
+- Reaching for `networkidle` in a new Playwright check against the live widget: it will hang, not
   flake occasionally.
-- Treating a multi-second hang as an approval wait — approvals never block a turn, so a hang points
+- Treating a multi-second hang as an approval wait: approvals never block a turn, so a hang points
   at the harness CLI.
-- Treating a stream that never goes idle as a bug — every long-lived surface here (the turn socket,
+- Treating a stream that never goes idle as a bug: every long-lived surface here (the turn socket,
   the events iterator) is open by design; assert on a UI signal instead of on quiet.
-- Debugging extension-authoring behavior (tool contracts, `Component`/`Surface` wiring) instead of
-  runtime plumbing — that's the conciv-develop skill's territory; this skill covers the
-  sandbox/approval/SSE runtime underneath, not how an extension is built.
+- Debugging plugin-authoring behavior (tool contracts, panels, slots, pills) instead of runtime
+  plumbing: that is the conciv-develop skill's territory; this skill covers the sandbox/approval/SSE
+  runtime underneath, not how a plugin is built.
 
 ## Sources
 

@@ -22,6 +22,8 @@ import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-t
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness, EditorOpen} from '@conciv/plugin-testkit/core-kit'
 import type {RpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
+import {isEqual} from 'es-toolkit'
+import {isMatch} from 'es-toolkit/compat'
 
 export type BootCoreInput = {
   id: string
@@ -83,6 +85,7 @@ export type FaultSpec =
   | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'fail'}
   | {kind: 'project-socket-gate'; socket: string}
   | {kind: 'cut-on-release'; path: string[]; input?: unknown}
+  | {kind: 'deliver-then-cut'; path: string[]; input: object}
   | {kind: 'pre-version-engine'}
 
 type Fault = {
@@ -408,6 +411,9 @@ function restoreHubCli(state: FileState): void {
 const rpcCallCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
   requireCalls(ctx).servedSince(path, input)
 
+const rpcStartedCount: BrowserCommand<[string[], unknown?]> = (ctx, path, input): number =>
+  requireCalls(ctx).startedSince(path, input)
+
 const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][], unknown?]> = async (
   ctx,
   served,
@@ -489,6 +495,32 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
     dispose: () => {
       rpcSocket.release()
       return ctx.page.unroute(matcher)
+    },
+  }
+}
+
+function matchesInput(actual: unknown, expected: object): boolean {
+  return typeof actual === 'object' && actual !== null && isMatch(actual, expected)
+}
+
+async function deliverThenCut(ctx: BrowserCommandContext, path: string[], input: object): Promise<Injector> {
+  const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
+  await rpcSocket.installed
+  const armed = {value: true}
+  const remove = rpcSocket.rule((call) => {
+    if (!armed.value || !isEqual(call.path, path) || !matchesInput(call.input, input)) return 'pass'
+    armed.value = false
+    call.forward()
+    call.cut()
+    return 'handled'
+  })
+  return {
+    repair: () => {
+      armed.value = false
+    },
+    dispose: () => {
+      remove()
+      return Promise.resolve()
     },
   }
 }
@@ -645,6 +677,9 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'chat-frame-gate') return gateChatSends(ctx, spec.onRelease)
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path, spec.input)
+  if (spec.kind === 'deliver-then-cut') {
+    return trackedFault(handle, spec.kind, await deliverThenCut(ctx, spec.path, spec.input))
+  }
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
@@ -836,6 +871,7 @@ export const coreCommands = {
   fakeHubCli,
   setHubConnection,
   rpcCallCount,
+  rpcStartedCount,
   rpcStartedOnceServed,
   rpcMark,
   awaitRpcFailedCount,

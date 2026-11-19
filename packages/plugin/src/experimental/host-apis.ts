@@ -803,7 +803,64 @@ export interface UiMenuGroup {
   readonly items: readonly UiMenuItem[]
 }
 
-export type UiMenuEntry = UiMenuItem | UiMenuSeparator | UiMenuGroup
+export interface UiMenuRadioItem {
+  readonly value: string
+  readonly label: string
+  readonly disabled?: boolean
+}
+
+/**
+ * Rows of a menu of which one is picked, as radio buttons are: the picked row shows a check, and picking another calls
+ * `onValueChange` with its value. The menu closes on a pick.
+ *
+ * @example
+ * ```tsx
+ * <ctx.ui.Menu
+ *   label="View"
+ *   items={[
+ *     {
+ *       type: "radio-group",
+ *       label: "Density",
+ *       value: density(),
+ *       onValueChange: setDensity,
+ *       items: [
+ *         { value: "comfortable", label: "Comfortable" },
+ *         { value: "compact", label: "Compact" },
+ *       ],
+ *     },
+ *   ]}
+ * />
+ * ```
+ */
+export interface UiMenuRadioGroup {
+  readonly type: 'radio-group'
+  readonly label?: string
+  readonly value: string
+  readonly items: readonly UiMenuRadioItem[]
+  onValueChange(value: string): void
+}
+
+/**
+ * A menu row that is on or off, as a checkbox is: it shows a check while `checked`, and picking it calls
+ * `onCheckedChange` with the other state. The menu closes on a pick.
+ *
+ * @example
+ * ```tsx
+ * <ctx.ui.Menu
+ *   label="View"
+ *   items={[{ type: "checkbox", label: "Show resolved", checked: resolved(), onCheckedChange: setResolved }]}
+ * />
+ * ```
+ */
+export interface UiMenuCheckbox {
+  readonly type: 'checkbox'
+  readonly label: string
+  readonly checked: boolean
+  readonly disabled?: boolean
+  onCheckedChange(checked: boolean): void
+}
+
+export type UiMenuEntry = UiMenuItem | UiMenuSeparator | UiMenuGroup | UiMenuRadioGroup | UiMenuCheckbox
 
 export interface UiMenuProps {
   readonly label: string
@@ -895,6 +952,13 @@ export interface UiTextInputProps {
   readonly disabled?: boolean
   readonly invalid?: boolean
   readonly autofocus?: boolean
+  readonly class?: string
+}
+
+export interface UiChipProps {
+  readonly value: string
+  readonly tone?: 'neutral' | 'accent' | 'success' | 'danger'
+  readonly tooltip?: string
   readonly class?: string
 }
 
@@ -1169,6 +1233,18 @@ export interface Ui {
    * ```
    */
   Select<T extends string>(props: UiSelectProps<T>): JSX.Element
+  /**
+   * A short label in a pill, the chip the tool cards show for a state, a path or a name. A value too long for its
+   * room is cut with an ellipsis and shows in full in a tooltip on hover, above the tooltip text when one is given.
+   *
+   * @param props - The label, its tone, and an optional tooltip that explains it, which makes the chip focusable.
+   *
+   * @example
+   * ```tsx
+   * <ctx.ui.Chip value={run.status} tone={run.status === "error" ? "danger" : "neutral"} tooltip="Last run" />
+   * ```
+   */
+  Chip(props: UiChipProps): JSX.Element
   /**
    * Keys shown as chips, as menus and tooltips show shortcuts.
    *
