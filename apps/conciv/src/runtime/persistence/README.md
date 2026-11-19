@@ -18,6 +18,13 @@ relative to `packages/app/src/runtime/persistence/`). Names and shapes are openc
   app's one draft write chain, and a write queued behind a write still in flight never opened its transaction before
   the page was gone: the `pagehide` flush has to open its transaction in the `pagehide` task, so its writer skips the
   chain (`pane/README.md`).
+- The draft writer for the flush when the page is left also keeps the draft in `sessionStorage` (`leaving-copy.ts`:
+  `{stamp, draft}` under `conciv-draft-leaving:<session id>`, written synchronously in the `pagehide` task before the
+  IndexedDB write opens). Chromium aborts that IndexedDB write with the document whenever another transaction on the
+  store, such as another tab's, is ahead of it, so on a reload nothing held the text typed since the last committed
+  write. The reload reads the copy first and prefers it when it is newer than the IndexedDB copy; it is parsed with
+  zod, and an entry that fails is logged and dropped; it is removed once IndexedDB holds a write made after it. The
+  source has no such copy (`pane/README.md`).
 - The persist machine knows the write it started and has not seen settle (`persist-machine.ts`, `writing` on the
   `clean` and `dirty` states, cleared by `write.settled` or `write.failed` for that same save), and a store stays in
   `pending` while one is in flight (`holdsUnsavedWork`). The flush when the page is left first sends the machine a

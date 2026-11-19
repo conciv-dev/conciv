@@ -7,6 +7,12 @@ import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/
 import {encodeAttachments} from '@conciv/ui-kit-chat/draft-storage'
 import {persistStore} from '../runtime/persistence/persist.js'
 import {resolveBlobUrl, type BlobReference, type DraftStore} from '../runtime/persistence/drafts.js'
+import {
+  dropLeavingCopy,
+  keepLeavingCopy,
+  readLeavingCopy,
+  settleLeavingCopy,
+} from '../runtime/persistence/leaving-copy.js'
 import type {WebStorage} from '@conciv/storage-history'
 import type {AppData, PendingDraftAttachment} from '../data/app-data.js'
 import type {SelectionOffsets} from './composer-input-adapter.js'
@@ -88,6 +94,18 @@ function parseLocalDraft(raw: string | null): LocalDraft | null {
   if (parsed.success) return parsed.data
   console.error('[conciv] the local draft is not a draft, read as absent', parsed.error)
   return null
+}
+
+function newestStamp(draft: LocalDraft): number {
+  return Math.max(draft.syncedAt ?? 0, ...draft.sent)
+}
+
+function preferLeavingCopy(sessionId: string, stored: LocalDraft | null): LocalDraft | null {
+  const copy = readLeavingCopy(sessionId, LocalDraftSchema)
+  if (!copy) return stored
+  if (!stored || (!sameContent(stored, copy.draft) && newestStamp(stored) < copy.stamp)) return copy.draft
+  dropLeavingCopy(sessionId)
+  return stored
 }
 
 function rowLocalDraft(row: DraftRow): LocalDraft {
@@ -205,7 +223,7 @@ function makeLocalDraftWriter(
     draft: null,
     files: [],
   })
-  const storedRead = readLocalDraft(drafts, sessionId)
+  const storedRead = readLocalDraft(drafts, sessionId).then((stored) => preferLeavingCopy(sessionId, stored))
   void storedRead.then((read) => {
     if (!read || !document.draft) return
     persisted.setStore(
@@ -214,7 +232,16 @@ function makeLocalDraftWriter(
     )
   })
   const writeDocument = () =>
-    storedRead.then(() => drafts.setDocument(sessionId, structuredClone(unwrap(document.draft))))
+    storedRead.then(() => {
+      const writtenAt = Date.now()
+      return drafts
+        .setDocument(sessionId, structuredClone(unwrap(document.draft)))
+        .then(() => settleLeavingCopy(sessionId, writtenAt))
+    })
+  const writeLeaving = () => {
+    if (document.draft) keepLeavingCopy(sessionId, unwrap(document.draft))
+    return writeDocument()
+  }
   const send = (recorded: LocalDraft, attachments: DraftRow['attachments'], kind: DraftSendKind) => {
     const current = document.draft
     if (!current || !sameContent(current, recorded) || appData.sessionDeleted(sessionId)) return
@@ -281,7 +308,7 @@ function makeLocalDraftWriter(
     serialize: (value) => JSON.stringify(value.draft),
     deserialize: () => ({draft: null, files: []}),
     write: () => keep(writeDocument).finally(feed),
-    writeLeaving: () => writeDocument().finally(feed),
+    writeLeaving: () => writeLeaving().finally(feed),
   })
   const writer: ComposerDraftWriter = (_key, draft: ComposerDraft) => {
     const offsets = clampSelection(selection(), draft.draft)
