@@ -1272,6 +1272,12 @@ describe('nextjs config', () => {
       await expect(register()).rejects.toThrow('conciv: CONCIV_OPTIONS is not JSON')
     })
 
+    it('carries a turbopack config beside its webpack hook, keeping the user one, so next build picks Turbopack', () => {
+      expect(withConciv({}).turbopack).toEqual({})
+      const userTurbopack = {resolveAlias: {'user-lib': './user-lib'}, rules: {}}
+      expect(withConciv({turbopack: userTurbopack}).turbopack).toEqual(userTurbopack)
+    })
+
     it('is a passthrough when disabled: no turbopack or webpack config', () => {
       const cfg = withConciv({reactStrictMode: true}, {enabled: false})
       expect(cfg.reactStrictMode).toBe(true)

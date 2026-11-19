@@ -82,6 +82,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
     ...nextConfig,
     env: {...userEnv, ...concivEnv},
     serverExternalPackages,
+    turbopack: {...base.turbopack},
     webpack,
   }
 }
