@@ -7,15 +7,18 @@ import {
   DEV_PORT,
   agentApiBase,
   ENGINE_PORT,
+  SECOND_PLUGIN_LINE,
   buildProd,
   killPort,
   packedServerModule,
   prodConcivChunkHits,
+  removeSecondPlugin,
   setupFixture,
   startNext,
   stopNext,
   teardownFixture,
   waitReady,
+  writeSecondPlugin,
   type Fixture,
   type NextHandle,
 } from '../packed/harness.js'
@@ -25,7 +28,8 @@ const SERVER_ONLY_SYMBOLS = ['readRouteManifest', 'tanstack.routeManifest.read']
 const SETUP_TIMEOUT = 6 * 60_000
 const CELL_TIMEOUT = 12 * 60_000
 
-test.describe.serial('installed TanStack plugin and extensions on packed Next 16.2 (turbopack + webpack)', () => {
+test.describe
+  .serial('installed TanStack plugin and a second project plugin on packed Next 16.2 (turbopack + webpack)', () => {
   let fixture: Fixture
   let handle: NextHandle | undefined
 
@@ -38,7 +42,7 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     if (handle !== undefined) await stopNext(handle, ENGINE_PORT)
     handle = undefined
     await killPort(ENGINE_PORT)
-    removeSecondExtension(fixture.appDir)
+    removeSecondPlugin(fixture.appDir)
   })
 
   test.afterAll(() => {
@@ -79,6 +83,20 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     }
   }
 
+  async function assertLiveAddRemove(page: Page): Promise<void> {
+    const loads: string[] = []
+    page.on('load', () => loads.push(page.url()))
+    const secondLine = page.getByText(SECOND_PLUGIN_LINE)
+    await expect(secondLine).toHaveCount(0)
+    writeSecondPlugin(fixture.appDir)
+    await expect(secondLine).toBeVisible({timeout: 60_000})
+    await expect(chip(page)).toBeVisible()
+    removeSecondPlugin(fixture.appDir)
+    await expect(secondLine).toHaveCount(0, {timeout: 60_000})
+    await expect(chip(page)).toBeVisible()
+    expect(loads).toEqual([])
+  }
+
   test('the packed install resolves one @tanstack/ai-sandbox, so SandboxCapability stays single (#107)', () => {
     const copies = readdirSync(join(fixture.root, 'node_modules/.pnpm')).filter((entry) =>
       entry.startsWith('@tanstack+ai-sandbox@'),
@@ -86,7 +104,9 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     expect(copies).toHaveLength(1)
   })
 
-  test('turbopack: renders the chip and degrades gracefully without a TanStack app', async ({page}) => {
+  test('turbopack: renders the chip, degrades gracefully without a TanStack app, and adds and removes a second plugin live', async ({
+    page,
+  }) => {
     test.setTimeout(CELL_TIMEOUT)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -103,6 +123,9 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     await expect(callTool('tanstack_route_manifest', {})).rejects.toThrow(/routeTree\.gen\.ts/)
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])
+
+    await assertLiveAddRemove(page)
+    expect(pageErrors).toEqual([])
   })
 
   test('turbopack: the dev client graph excludes the plugin engine module', async ({page}) => {
@@ -112,7 +135,9 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     assertServerModuleAbsent(await fetchClientScripts(page))
   })
 
-  test('webpack: renders the chip and keeps the server module out of the client graph', async ({page}) => {
+  test('webpack: renders the chip, keeps the server module out of the client graph, and adds and removes a second plugin live', async ({
+    page,
+  }) => {
     test.setTimeout(CELL_TIMEOUT)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -120,6 +145,9 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     await waitReady(handle, ENGINE_PORT)
 
     assertServerModuleAbsent(await fetchClientScripts(page))
+    expect(pageErrors).toEqual([])
+
+    await assertLiveAddRemove(page)
     expect(pageErrors).toEqual([])
   })
 
@@ -135,9 +163,8 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     const markers = [
       'conciv picked',
       '@conciv/embed',
-      'dedupeExtensions',
       'mountConciv',
-      'extensions-client.gen',
+      '[conciv] widget failed to start',
       CLIENT_SENTINEL_ID,
       '__CONCIV_API_BASE__',
       'readRouteManifest',
