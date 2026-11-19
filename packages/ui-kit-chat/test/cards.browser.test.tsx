@@ -183,6 +183,35 @@ describe('a generic card', () => {
     await userEvent.click(fallback.getByRole('button', {name: /Called ping/}))
     await expect.element(fallback.getByText('pong from example.org')).toBeVisible()
   })
+
+  it('keeps the result of an unclaimed call folded until its row opens, and a call with no result has no body', async () => {
+    mountView(() => (
+      <>
+        <section aria-label="answered call">
+          <ToolDisplay
+            id="ping-1"
+            tool="ping"
+            input={{host: 'example.org'}}
+            metadata={{}}
+            status="completed"
+            output="pong from example.org"
+          />
+        </section>
+        <section aria-label="silent call">
+          <ToolDisplay id="ping-2" tool="ping" input={{host: 'example.net'}} metadata={{}} status="completed" />
+        </section>
+      </>
+    ))
+
+    const answered = region('answered call')
+    const answeredRow = answered.getByRole('button', {name: /Called ping/})
+    await expect.element(answeredRow).toBeVisible()
+    await userEvent.click(answeredRow)
+    await expect.element(answered.getByText('pong from example.org')).toBeVisible()
+
+    const silent = region('silent call')
+    await expect.element(silent.getByRole('button', {name: /Called ping/})).toBeDisabled()
+  })
 })
 
 describe('collapsible card shape', () => {

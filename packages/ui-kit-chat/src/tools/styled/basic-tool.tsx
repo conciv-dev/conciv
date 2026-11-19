@@ -17,6 +17,7 @@ import {formatDuration} from '../primitives/tool-util.js'
 import type {ToolRowMark} from '../primitives/tool-row.js'
 import {useToolCallDuration, useToolCallTag} from './card-chrome.js'
 import {Chip} from './chip.js'
+import {ShapedText} from './shaped-content.js'
 
 export type TriggerTitle = {
   title: string
@@ -184,12 +185,22 @@ export function GenericTool(props: {
   status?: string
   hideDetails?: boolean
   input?: GenericToolInput
+  output?: string
+  defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }): JSX.Element {
   return (
     <BasicTool
       status={props.status}
       trigger={{title: `Called ${props.tool}`, subtitle: label(props.input), args: args(props.input)}}
       hideDetails={props.hideDetails}
-    />
+      hasContent={Boolean(props.output)}
+      defaultOpen={props.defaultOpen}
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+    >
+      <Show when={props.output}>{(output) => <ShapedText name="result" text={output()} />}</Show>
+    </BasicTool>
   )
 }
