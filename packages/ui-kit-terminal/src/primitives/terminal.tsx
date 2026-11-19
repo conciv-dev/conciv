@@ -4,8 +4,6 @@ import type {TerminalModel} from '../model.js'
 
 const TerminalContext = createContext<TerminalModel>()
 
-const FEWEST_ROWS = 2
-
 export function useTerminal(): TerminalModel {
   const model = useContext(TerminalContext)
   if (!model) throw new Error('useTerminal outside <TerminalPrimitive.Root>')
@@ -46,7 +44,6 @@ function Screen(props: {class?: string}): JSX.Element {
       if (started || screen.clientWidth === 0 || screen.clientHeight === 0) return
       injectXtermCss(screen.getRootNode())
       model.fit()
-      if (model.terminal.rows < FEWEST_ROWS) return
       started = true
       model.connect()
       if (focusStayedOnTheTab(screen)) model.focus()

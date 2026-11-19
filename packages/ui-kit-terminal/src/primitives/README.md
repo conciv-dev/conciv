@@ -17,7 +17,7 @@ Headless Solid compound components for the terminal: a Root that provides the mo
 
 - `useTerminal` (`terminal.tsx`): throws outside `<TerminalPrimitive.Root>`
 - `Root` (`terminal.tsx`): the model is captured once with `untrack`; swapping the prop later has no effect
-- `Screen` (`terminal.tsx`): start runs once and only when the screen has width and height and fits at least two rows (the engine refuses a smaller terminal); later resizes only call `fit`
+- `Screen` (`terminal.tsx`): start runs once and only when the screen has width and height; later resizes only call `fit`
 
 ## Side Effects
 

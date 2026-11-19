@@ -7,6 +7,8 @@ import {TtyServerControlSchema, type TtyServerControl} from '@conciv/protocol/te
 const RETRY_BASE_MS = 500
 const RETRY_MAX_MS = 8000
 const CONNECT_ATTEMPTS = 7
+const FEWEST_CELLS = 2
+const MOST_CELLS = 500
 
 const LOST_CONNECTION = 'Lost connection to the terminal.'
 const COULD_NOT_OPEN = 'Could not open the terminal.'
@@ -102,8 +104,24 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     if (parsed) receiveControl(parsed)
   }
 
+  const engineTakesSize = (): boolean =>
+    Math.min(terminal.cols, terminal.rows) >= FEWEST_CELLS && Math.max(terminal.cols, terminal.rows) <= MOST_CELLS
+
+  const sizedForEngine = (): Promise<void> =>
+    new Promise((resolve) => {
+      if (engineTakesSize()) {
+        resolve()
+        return
+      }
+      const listener = terminal.onResize(() => {
+        if (!engineTakesSize()) return
+        listener.dispose()
+        resolve()
+      })
+    })
+
   const sendResize = (): void => {
-    if (live.socket?.readyState === WebSocket.OPEN) {
+    if (live.socket?.readyState === WebSocket.OPEN && engineTakesSize()) {
       live.socket.send(JSON.stringify({type: 'resize', cols: terminal.cols, rows: terminal.rows}))
     }
   }
@@ -160,6 +178,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
   }
 
   const attemptSession = async (): Promise<boolean> => {
+    await sizedForEngine()
     const ready = await prepare()
     if (!ready || settled()) return false
     return holdSession()
@@ -203,6 +222,8 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     },
     fit: () => {
       fitAddon.fit()
+      if (Math.max(terminal.cols, terminal.rows) > MOST_CELLS)
+        terminal.resize(Math.min(terminal.cols, MOST_CELLS), Math.min(terminal.rows, MOST_CELLS))
       sendResize()
     },
     focus: () => terminal.focus(),

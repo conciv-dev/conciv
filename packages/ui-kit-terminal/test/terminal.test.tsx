@@ -7,9 +7,9 @@ import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/m
 import {TerminalPrimitive} from '../src/primitives/terminal.js'
 import {Terminal} from '../src/styled/terminal.js'
 
-function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} {
+function mount(ui: () => JSX.Element, width = '640px'): {host: HTMLElement; dispose: () => void} {
   const host = document.createElement('div')
-  host.style.width = '640px'
+  host.style.width = width
   host.style.height = '320px'
   document.body.appendChild(host)
   const mounted = render(ui, {container: host})
@@ -273,6 +273,65 @@ describe('terminal reconnection', () => {
     await expect.element(region('successor log')).toMatchTextContent('solo-3')
     dropConnection(successor)
     await expect.element(region('successor log')).toMatchTextContent('solo-4')
+    dispose()
+  })
+})
+
+function engineSizedModel(key: string): TerminalModel {
+  const base = inject('controlBase')
+  return createTerminalModel({
+    url: () => `${base}/?greet=${key}`,
+    beforeConnect: (terminal) => {
+      if (terminal.rows < 2 || terminal.cols > 500) throw new Error('The engine refuses that terminal size.')
+    },
+  })
+}
+
+describe('terminal size the engine takes', () => {
+  it('a connection dropped while the screen holds one row reopens once the screen is tall again', async () => {
+    const model = engineSizedModel('short')
+    const {host, dispose} = mount(() => (
+      <>
+        <style>{'.engine-sized, .engine-sized [data-terminal-screen] {height: 100%}'}</style>
+        <TerminalPrimitive.Root model={model} class="engine-sized">
+          <TerminalPrimitive.Screen />
+        </TerminalPrimitive.Root>
+        <SessionLog model={model} label="short log" />
+        <ModelState model={model} label="short state" />
+      </>
+    ))
+    await expect.element(region('short log')).toMatchTextContent('short-1')
+    const shrunk = new Promise<void>((resolve) => {
+      const listener = model.terminal.onResize(({rows}) => {
+        if (rows >= 2) return
+        listener.dispose()
+        resolve()
+      })
+    })
+    host.style.height = '8px'
+    await shrunk
+    dropConnection(model)
+    await expect.element(region('short state')).toMatchTextContent('status=connecting')
+    host.style.height = '320px'
+    await expect.element(region('short log'), {timeout: 5000}).toMatchTextContent('short-2')
+    await expect.element(region('short state')).toMatchTextContent('status=open')
+    dispose()
+  })
+
+  it('a screen wider than the engine takes opens at the widest size it takes', async () => {
+    const model = engineSizedModel('wide')
+    const {dispose} = mount(
+      () => (
+        <>
+          <Terminal model={model} />
+          <SessionLog model={model} label="wide log" />
+          <ModelState model={model} label="wide state" />
+        </>
+      ),
+      '6000px',
+    )
+    await expect.element(region('wide log'), {timeout: 5000}).toMatchTextContent('wide-1')
+    await expect.element(region('wide state')).toMatchTextContent('status=open')
     dispose()
   })
 })
