@@ -538,7 +538,6 @@
     "@conciv/harness-init",
     "@conciv/core",
     "@conciv/embed",
-    "@conciv/extension",
     "@conciv/grab",
     "@conciv/harness",
     "@conciv/it",

@@ -1,7 +1,6 @@
 ---
 '@conciv/harness-init': patch
 '@conciv/cli': patch
-'@conciv/extension': patch
 ---
 
 The conciv section `conciv init` writes to AGENTS.md (and the Claude plugin's conciv skill) now teaches commands that run as written: `tools react find --name <ComponentName>` instead of `react find <ComponentName>`, and tracking as `tools react track --action start`, reproduce, `--action report [--name <ComponentName>]`, then `--action stop`, instead of `react track <selector>`. `react inspect` and `page eval` now show the argument each one needs. A project set up before this keeps the old text until you run `npx @conciv/cli@latest init` again, which replaces the marked conciv section.

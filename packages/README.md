@@ -27,7 +27,6 @@ Contracts:
 
 - protocol: [protocol/README.md](./protocol/README.md) - Zod schemas and types for the wire protocol; zero-runtime apart from small helpers.
 - contract: [contract/README.md](./contract/README.md) - The oRPC contract between core and its clients, with fetch and browser RPC clients.
-- extension: [extension/README.md](./extension/README.md) - The extension authoring contract: `defineExtension`, `defineTool`, host hooks, server tool registry.
 - grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
 - extensions: [extensions/README.md](./extensions/README.md) - The nine built-in `@conciv/extension-*` packages.
 - plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.

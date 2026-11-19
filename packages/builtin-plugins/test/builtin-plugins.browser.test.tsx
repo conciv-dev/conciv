@@ -5,7 +5,7 @@ import {cleanup, render} from '@solidjs/testing-library'
 import {createSignal, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
-import {EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
+import {PLUGIN_OVERLAY_ATTR} from '@conciv/protocol/page-types'
 import {StoryTool, storyCall, storyFailedCall} from '../src/page/cards/story.fixtures.js'
 import {pageToolCards} from '../src/page/cards/page-tool-cards.js'
 import {SessionCard} from '../src/page/cards/session-card.js'
@@ -910,22 +910,22 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
     }, 10_000)
 
-    it('leaves the conciv widget host, effects surface and grab toast out of the capture', async () => {
+    it('leaves the conciv widget host, a plugin overlay and grab toast out of the capture', async () => {
       const plain = coverViewport()
       const covered = centrePixel(await decoded((await runScreenshot()).image))
       plain.remove()
       const widget = coverViewport('data-conciv-root')
       const widgetExcluded = centrePixel(await decoded((await runScreenshot()).image))
       widget.remove()
-      const effects = coverViewport('data-conciv-effects')
-      const effectsExcluded = centrePixel(await decoded((await runScreenshot()).image))
-      effects.remove()
+      const overlay = coverViewport(PLUGIN_OVERLAY_ATTR)
+      const overlayExcluded = centrePixel(await decoded((await runScreenshot()).image))
+      overlay.remove()
       coverViewport('data-conciv-toast')
       const toastExcluded = centrePixel(await decoded((await runScreenshot()).image))
       expect(isRed(covered)).toBe(true)
-      expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded), toast: isRed(toastExcluded)}).toEqual({
+      expect({widget: isRed(widgetExcluded), overlay: isRed(overlayExcluded), toast: isRed(toastExcluded)}).toEqual({
         widget: false,
-        effects: false,
+        overlay: false,
         toast: false,
       })
     }, 10_000)
@@ -1147,15 +1147,15 @@ describe('page effects', () => {
     await userEvent.keyboard('{/Alt}')
   })
 
-  it('holding Alt over conciv’s own interface picks the page element under it, never conciv’s own', async () => {
+  it('holding Alt over a plugin overlay picks the page element under it, never the overlay’s own', async () => {
     const highlight = makeHighlight({opener: {symbolicate: async () => null, desktop: undefined}, toast: () => {}})
     const layer = document.createElement('div')
     layer.setAttribute(PLUGIN_OVERLAY_ATTR, '')
     const surface = document.createElement('div')
-    surface.setAttribute(EFFECTS_SURFACE_ATTR, '')
+    surface.setAttribute(PLUGIN_OVERLAY_ATTR, '')
     surface.style.cssText = 'position:fixed;top:64px;left:32px;z-index:2147483000'
     const effect = document.createElement('strong')
-    effect.textContent = 'conciv effect'
+    effect.textContent = 'plugin overlay'
     surface.append(effect)
     const heading = document.createElement('h1')
     heading.textContent = 'Page heading'
@@ -1172,7 +1172,7 @@ describe('page effects', () => {
 
     await userEvent.keyboard('{Alt>}')
     await expect.element(hint).toBeVisible()
-    await userEvent.hover(page.getByText('conciv effect'), {force: true})
+    await userEvent.hover(page.getByText('plugin overlay'), {force: true})
     await expect.element(page.getByText('<h1>', {exact: true})).toBeVisible()
     await expect.element(page.getByText('<strong>', {exact: true})).not.toBeInTheDocument()
     await userEvent.keyboard('{/Alt}')

@@ -1,6 +1,5 @@
 ---
 '@conciv/protocol': patch
-'@conciv/extension': patch
 '@conciv/page': patch
 '@conciv/serve': patch
 '@conciv/core': patch

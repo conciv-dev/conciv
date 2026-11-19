@@ -45,7 +45,6 @@
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/db": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-init": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",

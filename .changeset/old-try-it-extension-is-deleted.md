@@ -1,6 +1,5 @@
 ---
 '@conciv/embed': patch
-'@conciv/extension': patch
 '@conciv/app': patch
 ---
 
