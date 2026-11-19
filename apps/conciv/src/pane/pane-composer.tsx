@@ -43,7 +43,7 @@ export type PaneComposerProps = {
 }
 
 const GHOST =
-  'size-7 rounded-[var(--chat-radius-sm)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center text-chat-text-2 bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] [&:hover:not(:disabled)]:[background:var(--chat-fill-strong)] [&:hover:not(:disabled)]:text-chat-text-hi disabled:opacity-40 disabled:cursor-default'
+  'size-7 rounded-chat-sm [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center text-chat-text-2 bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] [&:hover:not(:disabled)]:[background:var(--chat-fill-strong)] [&:hover:not(:disabled)]:text-chat-text-hi disabled:opacity-40 disabled:cursor-default'
 const INPUT =
   '[font-family:var(--chat-font)] [color:var(--chat-text-hi)] text-[length:0.8125rem] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
 const GUTTER =

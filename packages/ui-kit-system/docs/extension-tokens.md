@@ -168,6 +168,7 @@ Used as `rounded-*`.
 | `chat-surface-lg` | `var(--chat-radius-surface-lg)` |
 | `chat-pill` | `var(--chat-radius-pill)` |
 | `chat-chip` | `var(--chat-radius-chip)` |
+| `chat-sm` | `var(--chat-radius-sm)` |
 
 ### fonts
 

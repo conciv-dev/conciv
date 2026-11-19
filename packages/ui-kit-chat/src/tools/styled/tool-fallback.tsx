@@ -79,7 +79,7 @@ const FALLBACK_BODY = 'text-[length:var(--chat-text-md)] flex flex-col gap-[7px]
 const SECTION = 'min-w-0 flex flex-col gap-[6px]'
 const SECTION_LABEL = `${TRACE_MICROLABEL} text-chat-microlabel m-0`
 const RESULT_BODY =
-  'min-w-0 rounded-e-[var(--chat-radius-sm)] ps-2 py-1 [border-inline-start:2px_solid_color-mix(in_oklab,var(--chat-success)_45%,transparent)] [background:color-mix(in_oklab,var(--chat-success)_4%,transparent)]'
+  'min-w-0 rounded-e-chat-sm ps-2 py-1 [border-inline-start:2px_solid_color-mix(in_oklab,var(--chat-success)_45%,transparent)] [background:color-mix(in_oklab,var(--chat-success)_4%,transparent)]'
 
 function Content(props: {children: JSX.Element}): JSX.Element {
   const embedded = useEmbeddedCard()

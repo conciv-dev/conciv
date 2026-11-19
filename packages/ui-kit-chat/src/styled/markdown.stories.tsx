@@ -133,7 +133,9 @@ export const DeclinedClaimedFence: Story = {
     const canvas = within(canvasElement)
     const declined = within(canvas.getByRole('region', {name: 'Claimed and declined'}))
     const unclaimed = within(canvas.getByRole('region', {name: 'Unclaimed'}))
-    await waitFor(() => expect(unclaimed.getByText('const')).toBeVisible())
-    await waitFor(() => expect(declined.getByText('const')).toBeVisible())
+    await waitFor(() => expect(unclaimed.getByRole('group', {name: 'ts'})).toBeVisible())
+    await waitFor(() => expect(declined.getByRole('group', {name: 'ts'})).toBeVisible())
+    await waitFor(() => expect(unclaimed.getByRole('button', {name: 'Copy'})).toBeVisible())
+    await waitFor(() => expect(declined.getByRole('button', {name: 'Copy'})).toBeVisible())
   },
 }

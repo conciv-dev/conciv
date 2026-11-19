@@ -24,7 +24,7 @@ export type ComposerProps = {
 }
 
 const GHOST =
-  'size-7 rounded-[var(--chat-radius-sm)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center text-chat-text-2 bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] [&:hover:not(:disabled)]:[background:var(--chat-fill-strong)] [&:hover:not(:disabled)]:text-chat-text-hi disabled:opacity-40 disabled:cursor-default'
+  'size-7 rounded-chat-sm [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center text-chat-text-2 bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] [&:hover:not(:disabled)]:[background:var(--chat-fill-strong)] [&:hover:not(:disabled)]:text-chat-text-hi disabled:opacity-40 disabled:cursor-default'
 const INPUT =
   'block max-h-30 [color:var(--chat-text-hi)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
 const GUTTER = 'flex-none pt-1.5 select-none [font-family:var(--chat-mono)] text-[13px] [color:var(--chat-accent)]'
@@ -32,7 +32,7 @@ const ATTACHMENT_LABEL = 'Add an attachment'
 const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
 const TRAILING_BTN =
-  'flex-none inline-flex items-center gap-1.5 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:none] cursor-pointer [font-family:var(--chat-font)] text-[12.5px] font-medium bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] disabled:opacity-40 disabled:cursor-default'
+  'flex-none inline-flex items-center gap-1.5 py-1 px-2.5 rounded-chat-sm [border:none] cursor-pointer [font-family:var(--chat-font)] text-[12.5px] font-medium bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] disabled:opacity-40 disabled:cursor-default'
 const TRAILING_SEND_ACTIVE =
   'text-chat-on-accent [background:var(--chat-accent)] hover:[background:var(--chat-accent-hi)]'
 const TRAILING_SEND_IDLE = 'text-chat-text-3'
@@ -40,7 +40,7 @@ const TRAILING_STOP = 'text-chat-text-2'
 const TRAILING_HINT = '[font-family:var(--chat-mono)] text-[10px] opacity-70'
 const QUEUE_ROW =
   'flex items-center gap-2 px-3 py-1.5 text-[length:var(--chat-text-sm)] text-chat-text-2 [&:not(:first-child)]:[border-block-start:1px_solid_var(--chat-line-soft)]'
-const QUEUE_ACTION = `${FOCUS} shrink-0 px-1.5 py-0.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-xs)] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)]`
+const QUEUE_ACTION = `${FOCUS} shrink-0 px-1.5 py-0.5 rounded-chat-sm bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-xs)] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)]`
 
 function reportRemoveFailed(error: unknown): void {
   console.error('[conciv] could not remove the attachment', error)
