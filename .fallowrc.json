@@ -6,16 +6,11 @@
     "**/.turbo/**",
     "**/*.d.ts",
     "**/*.generated.ts",
-    "packages/aidx/**",
     "packages/extensions/design/**",
-    "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/plugins/tanstack/test/fixtures/**",
-    "packages/oxlint-plugin/test/fixtures/**",
-    "packages/cli/test/fixtures/**",
     "packages/unplugin/test/fixtures/plugin/**",
     "apps/examples/**",
     "native/swift/**",
-    "docs/assets/page-session-card-spike/**",
     "e2e/astro/**",
     "e2e/nextjs/**",
     "e2e/solid-start/**",
@@ -40,35 +35,23 @@
       },
       {
         "name": "core-shared-leaf",
-        "patterns": ["packages/core/src/lib/debug.ts", "packages/core/src/command-policy.ts"]
+        "patterns": ["packages/core/src/lib/debug.ts"]
       },
       {
         "name": "core-callers",
         "patterns": ["packages/core/src/**"]
-      },
-      {
-        "name": "extension-servers",
-        "patterns": [
-          "packages/extensions/*/src/server.ts",
-          "packages/extensions/*/src/server/**/*.ts",
-          "packages/extensions/*/src/server/**/*.tsx"
-        ]
       }
     ],
     "rules": [
       {
         "from": "core-callers",
-        "allow": ["session-facade", "extension-servers", "core-shared-leaf"]
+        "allow": ["session-facade", "core-shared-leaf"]
       }
     ],
     "calls": {
       "forbidden": [
         {
           "from": "core-callers",
-          "callee": "createRouterClient"
-        },
-        {
-          "from": "extension-servers",
           "callee": "createRouterClient"
         }
       ]
@@ -130,12 +113,6 @@
         "functions": ["describe(\"persistence schemas\")"],
         "maxUnitSize": 230,
         "reason": "copied from opencode packages/app/src/runtime/persistence/schema.test.ts: describe(\"persistence schemas\") keeps the source's shape; conciv cases added under Night rulings 17, 52; Day ruling 113"
-      },
-      {
-        "files": ["apps/conciv/src/runtime/persistence/storage.ts"],
-        "functions": ["persisted"],
-        "maxUnitSize": 79,
-        "reason": "copied from opencode packages/app/src/runtime/persistence/storage.ts: persisted keeps the source's shape; edited under Night rulings 17, 52; Day ruling 113"
       },
       {
         "files": ["apps/conciv/src/runtime/plugin/attach-machine.ts"],
@@ -483,16 +460,10 @@
     "@parcel/watcher-linux-x64-musl",
     "@parcel/watcher-win32-arm64",
     "@parcel/watcher-win32-x64",
-    "@agentclientprotocol/sdk",
-    "@opencode-ai/sdk",
     "@tanstack/ai-mcp",
     "@tanstack/ai-event-client",
     "@tanstack/store",
-    "rrweb",
-    "collections",
-    "conciv",
     "@oxlint/plugins",
-    "@ark-ui/solid",
     "@tanstack/solid-virtual",
     "@tiptap/core",
     "@tiptap/extension-document",
@@ -511,26 +482,16 @@
     "remark-rehype",
     "remend",
     "unified",
-    "unist-util-visit-parents",
     "@shikijs/langs-precompiled",
     "@conciv/brand",
-    "@conciv/client",
     "@conciv/embed",
-    "@conciv/grab",
     "@conciv/mascot",
     "@conciv/skills",
     "@conciv/solid-diffs",
-    "@conciv/solid-streamdown",
-    "@conciv/ui-kit-chat",
     "@conciv/ui-kit-chat-tools",
-    "@conciv/ui-kit-system",
     "@conciv/ui-kit-tap",
     "bippy",
-    "react-grab",
-    "@solidjs/testing-library",
-    "cytoscape",
-    "cytoscape-cose-bilkent",
-    "cytoscape-fcose"
+    "react-grab"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
@@ -854,10 +815,7 @@
   "entry": [
     "packages/plugin-host/src/core/database/**",
     "packages/plugin-host/test/core/fixture/*-worker.ts",
-    "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
-    "packages/ui-kit-chat/src/tools.tsx",
-    "packages/ui-kit-chat/src/draft-storage.ts",
     "packages/embed/src/native-entry.ts",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",

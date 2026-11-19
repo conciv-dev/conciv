@@ -25,7 +25,7 @@ afterEach(async () => {
 
 async function scaffold(entries: {dir: string; name: string; isPrivate?: boolean; dist?: Record<string, string>}[]) {
   root = tempDir('conciv-bundle-size-')
-  await mkdir(join(root, 'packages/extensions'), {recursive: true})
+  await mkdir(join(root, 'packages'), {recursive: true})
   for (const entry of entries) {
     await mkdir(join(root, entry.dir, 'dist/widget'), {recursive: true})
     await writeFile(

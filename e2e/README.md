@@ -110,12 +110,12 @@ produced over the committed one, shows the diff in the run summary and uploads b
    resolution other than the `@conciv/*@file:` entries.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
-port registry (`src/ports.ts`) so suites can run side by side.
+port registry (`src/config.ts`) so suites can run side by side.
 
 ## Adding an app
 
 1. Scaffold into `e2e/<name>` with the framework's official CLI.
-2. Add the app to `E2E_PORTS` in `e2e-utils/src/ports.ts`.
+2. Add the app to `E2E_PORTS` in `e2e-utils/src/config.ts`.
 3. Add `@conciv/it` (`workspace:*`) and wire the plugin the way the framework's docs say.
 4. Add `@conciv/e2e-utils` + `@playwright/test` dev deps, a `test:e2e` script, a
    `playwright.config.ts` built from `e2eConfig(...)`, and a `test/widget.spec.ts`.

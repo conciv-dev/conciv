@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import conciv from '@conciv/it/plugin/vite'
 import {e2eDevEndpointDir} from '@conciv/e2e-utils/dev-endpoint'
 import {defineConfig} from 'vite'
-import type {HarnessApp} from '@conciv/e2e-utils/ports'
+import type {HarnessApp} from '@conciv/e2e-utils/config'
 
 export function harnessConfig(harness: HarnessApp) {
   return defineConfig({

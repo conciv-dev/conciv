@@ -2,26 +2,26 @@
 
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on a running
 app. `@conciv/skills` packages the agent-facing knowledge for building with it: installing the
-widget, authoring plugins, wiring a new harness adapter, and debugging the sandbox/gate/SSE
+widget, authoring plugins, wiring a new harness adapter, and debugging the sandbox/permission/SSE
 runtime once it's live.
 
 ## Domains
 
-| Domain                  | Description                                                                           | Skills         |
-| ----------------------- | ------------------------------------------------------------------------------------- | -------------- |
-| Installation & mounting | Getting the widget script into a build and a running app for the first time           | conciv-setup   |
-| Plugin authoring        | Adding project-specific tools, skills, RPC methods and widget UI from a consuming app | conciv-develop |
-| Harness adapters        | Wiring a new coding-agent CLI into conciv as the process behind the chat              | conciv-harness |
-| Runtime debugging       | Diagnosing the sandbox/gate/SSE runtime once the widget is installed and running      | conciv-debug   |
+| Domain                  | Description                                                                            | Skills         |
+| ----------------------- | -------------------------------------------------------------------------------------- | -------------- |
+| Installation & mounting | Getting the widget script into a build and a running app for the first time            | conciv-setup   |
+| Plugin authoring        | Adding project-specific tools, skills, RPC methods and widget UI from a consuming app  | conciv-develop |
+| Harness adapters        | Wiring a new coding-agent CLI into conciv as the process behind the chat               | conciv-harness |
+| Runtime debugging       | Diagnosing the sandbox/permission/SSE runtime once the widget is installed and running | conciv-debug   |
 
 ## Skill Inventory
 
-| Skill          | Type | Domain            | What it covers                                                                          | Failure modes |
-| -------------- | ---- | ----------------- | --------------------------------------------------------------------------------------- | ------------- |
-| conciv-setup   | core | installation      | plugin vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit              | 2             |
-| conciv-develop | core | plugin-authoring  | Plugin.define, tool contract, Rpc.define, browser part, plugin-testkit                  | 2             |
-| conciv-harness | core | harness-adapters  | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                   | 2             |
-| conciv-debug   | core | runtime-debugging | widget mount/connect, gate timeout vs no-listener refusal, port fallback, SSE lifecycle | 2             |
+| Skill          | Type | Domain            | What it covers                                                                           | Failure modes |
+| -------------- | ---- | ----------------- | ---------------------------------------------------------------------------------------- | ------------- |
+| conciv-setup   | core | installation      | plugin vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit               | 2             |
+| conciv-develop | core | plugin-authoring  | Plugin.define, tool contract, Rpc.define, browser part, plugin-testkit                   | 2             |
+| conciv-harness | core | harness-adapters  | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                    | 2             |
+| conciv-debug   | core | runtime-debugging | widget mount/connect, permission card waits vs rule blocks, port fallback, SSE lifecycle | 2             |
 
 ## Failure Mode Inventory
 
@@ -41,30 +41,30 @@ runtime once it's live.
 
 ### conciv-harness (2 failure modes)
 
-| #   | Mistake                                                                                     | Priority | Source                              | Cross-skill? |
-| --- | ------------------------------------------------------------------------------------------- | -------- | ----------------------------------- | ------------ |
-| 1   | spawning or decoding the CLI directly instead of returning a text adapter from chatConfig() | CRITICAL | `packages/core/src/chat/run.ts`     | none         |
-| 2   | passing a host-absolute cwd into an adapter config                                          | HIGH     | `packages/core/src/chat/sandbox.ts` | none         |
+| #   | Mistake                                                                                     | Priority | Source                                  | Cross-skill? |
+| --- | ------------------------------------------------------------------------------------------- | -------- | --------------------------------------- | ------------ |
+| 1   | spawning or decoding the CLI directly instead of returning a text adapter from chatConfig() | CRITICAL | `packages/chat/src/turn.ts`             | none         |
+| 2   | passing a host-absolute cwd into an adapter config                                          | HIGH     | `packages/ai/src/server/chat-server.ts` | none         |
 
 ### conciv-debug (2 failure modes)
 
-| #   | Mistake                                                          | Priority | Source                                | Cross-skill? |
-| --- | ---------------------------------------------------------------- | -------- | ------------------------------------- | ------------ |
-| 1   | treating every approval failure as a user denial                 | MEDIUM   | `packages/core/src/chat/gate.ts`      | none         |
-| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/chat/subscribe.ts` | none         |
+| #   | Mistake                                                          | Priority | Source                                          | Cross-skill? |
+| --- | ---------------------------------------------------------------- | -------- | ----------------------------------------------- | ------------ |
+| 1   | treating every permission refusal as a user denial               | MEDIUM   | `packages/core/src/runtime/permission-cards.ts` | none         |
+| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/sessions/session-bus.ts`     | none         |
 
 ## Tensions
 
-| Tension                       | Skills                        | Agent implication                                                                                                                                                           |
-| ----------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| fail-fast vs wait-for-a-human | conciv-harness ↔ conciv-debug | A stuck tool call is either an instant `noListenerRefusal` (code-mode) or a two-minute `ASK_TIMEOUT_MS` wait (normal chat tools): the fix depends on which gate path fired. |
+| Tension                        | Skills                        | Agent implication                                                                                                                                                              |
+| ------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| rule block vs wait-for-a-human | conciv-harness ↔ conciv-debug | A refused call is either an instant rule block (a session `deny` rule, no card) or an ask waiting on the user's card with no timeout: check the widget for an open card first. |
 
 ## Cross-References
 
 | From           | To             | Reason                                                                                                                  |
 | -------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | conciv-debug   | conciv-setup   | Most "widget never appears" symptoms trace back to the install path conciv-setup owns                                   |
-| conciv-debug   | conciv-harness | A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem                          |
+| conciv-debug   | conciv-harness | A stuck first-response with no tool call involved is a harness/CLI problem, not a permission problem                    |
 | conciv-develop | conciv-debug   | A plugin tool that asks through `ctx.permission.assert` goes through the same approval mechanism conciv-debug documents |
 
 ## Subsystems & Reference Candidates

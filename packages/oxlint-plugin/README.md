@@ -8,7 +8,7 @@ Private, repo-local oxlint JS plugin (`@conciv/oxlint-plugin`) holding the conci
 
 - `package.json:exports["."]` - `./src/plugin.js` (plain JS, no build step).
 - `package.json:scripts` - `test` (`vitest run`), `typecheck` (`tsc -p tsconfig.json --noEmit`, covers `test/*.ts`), `lint` (`oxlint src test/*.ts`).
-- Subdirectory: [src](./src/README.md) - the twelve rules and `plugin.js`.
+- Subdirectory: [src](./src/README.md) - the rule modules and `plugin.js`.
 - Test fixtures (lint inputs only) live under `test/fixtures/`: core-purity, lucide-per-icon, packages, signal-ref, solid-test-render, solid-test-render-outside, src, test-file-budget, vocabulary, waits.
 
 ## Invariants

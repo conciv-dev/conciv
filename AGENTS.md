@@ -80,7 +80,7 @@ README.md; this file is the non-obvious operational rules.
 ## Code style
 
 - Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
-  in `packages/ai/src/adapters.ts`, which the library's typing forces.)
+  in `packages/ai/src/adapters/adapters.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - No identifier ending in "Of" (`conciv/no-of-suffix`): name a function with a verb first that says what its body does,
   e.g. `readApprovalAsk`, not `approvalAskOf`. Files copied from opencode in `packages/plugin-host/src`,

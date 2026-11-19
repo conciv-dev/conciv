@@ -1,5 +1,65 @@
+import {execFile} from 'node:child_process'
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {promisify} from 'node:util'
 import {test} from '@playwright/test'
-import {runTrustPolicyInstall} from '../packed/trust-policy.js'
+import {assertTrustedResolutions, buildAndPack, firewalledPnpm, releaseAgeYaml} from '@conciv/vitest-config/pack'
+import {CLOSURE_ROOTS} from '../packed/harness.js'
+
+const execFileAsync = promisify(execFile)
+
+type TrustPolicyInstallResult = {stdout: string; stderr: string}
+
+const UPSTREAM_BLOCKED_TRUST_EXCLUDES = ['semver', 'langium', '@pierre/theme']
+
+async function runTrustPolicyInstall(): Promise<TrustPolicyInstallResult> {
+  const root = mkdtempSync(join(tmpdir(), 'conciv-trust-policy-'))
+  const tgzDir = join(root, 'tgz')
+  mkdirSync(tgzDir, {recursive: true})
+  try {
+    const {overrides} = await buildAndPack(tgzDir, CLOSURE_ROOTS)
+    const concivIt = overrides['@conciv/it']
+    if (concivIt === undefined) throw new Error('buildAndPack did not produce a tarball for @conciv/it')
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({name: 'trust-policy-fixture', version: '0.0.0', private: true}, null, 2),
+    )
+    const workspaceYaml = [
+      'packages:',
+      "  - '.'",
+      ...releaseAgeYaml(),
+      'trustPolicy: no-downgrade',
+      'trustPolicyExclude:',
+      ...UPSTREAM_BLOCKED_TRUST_EXCLUDES.map((name) => `  - ${JSON.stringify(name)}`),
+      'allowBuilds:',
+      '  protobufjs: false',
+      'overrides:',
+      ...Object.entries(overrides).map(([name, value]) => `  ${JSON.stringify(name)}: ${JSON.stringify(value)}`),
+      '',
+    ].join('\n')
+    writeFileSync(join(root, 'pnpm-workspace.yaml'), workspaceYaml)
+    const [command, args] = firewalledPnpm(['add', '-D', concivIt])
+    const {stdout, stderr} = await execFileAsync(command, args, {
+      cwd: root,
+      env: {...process.env, CI: 'true'},
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    assertTrustedResolutions(root)
+    return {stdout, stderr}
+  } catch (error) {
+    const stdout = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stdout') ?? '') : ''
+    const stderr = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stderr') ?? '') : ''
+    throw new Error(
+      `fresh @conciv/it install under trustPolicy: no-downgrade failed: ${String(error)}\n${stdout}\n${stderr}`,
+      {
+        cause: error,
+      },
+    )
+  } finally {
+    rmSync(root, {recursive: true, force: true})
+  }
+}
 
 test('a fresh packed @conciv/it install resolves attested @pierre/theme and cytoscape under pnpm trustPolicy: no-downgrade (#520)', async () => {
   test.setTimeout(6 * 60_000)

@@ -2,15 +2,15 @@
 
 ## Overview
 
-The oxlint JS plugin `conciv`: `plugin.js` registers fifteen rules, each in its own file. Rules use oxlint's `createOnce(context)` visitor API; two share the vocabulary matcher in `vocabulary.js`, and `ast-walk.js` holds the generic AST walker.
+The oxlint JS plugin `conciv`: `plugin.js` registers the rules. A rule with its own concern and real size lives in its own file; the small one-concern rules (`no-delegated-focus`, `no-timers-in-tests`, `tool-card-shell`, `solid-test-render`) live in `plugin.js` itself, and the three vocabulary rules (`banned-vocabulary`, `core-purity`, `no-of-suffix`) live in `vocabulary.js` beside the matcher they share. Rules use oxlint's `createOnce(context)` visitor API, and `ast-walk.js` holds the generic AST walker.
 
 ## Interface
 
 - `plugin.js:default` - `{meta: {name: 'conciv'}, rules}` with rule ids `banned-vocabulary`, `core-purity`, `lucide-per-icon`, `no-comments`, `no-delegated-focus`, `no-hand-made-temp-dir`, `no-locator-poll`, `no-of-suffix`, `no-predicate-waits`, `no-signal-ref`, `no-timers-in-tests`, `router-idioms`, `solid-test-render`, `test-file-budget`, `tool-card-shell`.
-- `vocabulary.js:makeVocabularyRule` - builds a rule from `{terms, allowedNames, exemptFiles, allowedTermPaths, message}`; splits identifiers into camel-case segments and reports declarations containing a term.
+- `vocabulary.js:makeVocabularyRule` (module-private) - builds a rule from `{terms, exemptFiles, allowedTermPaths, message}`; splits identifiers into camel-case segments and reports declarations containing a term.
 - `ast-walk.js:walk`, `ast-walk.js:isNode`, `ast-walk.js:isIdentifier` - recursive AST traversal that skips `parent` keys and stops on a `'skip'` return.
-- `banned-vocabulary.js:REWRITE_BANNED_TERMS` - `bridge`, `pipeline`, `maintenance`, `manager`, `sendWhenAvailable`, `holdAndFlush`, `veto`, `epoch`, `snapshotKey`, `externalRev`, `forceSend`, `adopt`, `attach`, `presence`.
-- `core-purity.js:CORE_FOREIGN_TERMS` - `terminal`, `verdict`.
+- `vocabulary.js:REWRITE_BANNED_TERMS` - `bridge`, `pipeline`, `maintenance`, `manager`, `sendWhenAvailable`, `holdAndFlush`, `veto`, `epoch`, `snapshotKey`, `externalRev`, `forceSend`, `adopt`, `attach`, `presence`.
+- `vocabulary.js:CORE_FOREIGN_TERMS` - `terminal`, `verdict`.
 - `test-file-budget.js` - the only rule with options: schema `{max: integer >= 1}`, default `DEFAULT_MAX = 2`.
 
 ## Invariants
@@ -18,16 +18,16 @@ The oxlint JS plugin `conciv`: `plugin.js` registers fifteen rules, each in its 
 - `no-comments.js:default` reports every comment except directives matched by `DIRECTIVE_RE` (`eslint-`, `oxlint-`, `@ts-`, `@__PURE__`, `prettier-ignore`, `@license`, `sourceMappingURL` and others) and autofixes by removing it.
 - `no-locator-poll.js:WEB_FIRST_REPLACEMENTS` maps a locator read inside `expect.poll` (`textContent`, `isVisible`, `count`, `getAttribute`, `inputValue` and others) to the web-first assertion to use instead.
 - `no-predicate-waits.js:default` flags an exported declaration whose parameter type is a function returning `boolean`, a boolean union or `Promise<boolean>` (`BOOLEAN_TYPE_CHECKS`).
-- `no-timers-in-tests.js:TIMER_NAMES` (`setTimeout`, `setInterval`, `setImmediate`) are reported wherever referenced, except as a member object or a non-computed property key; the rule has no filename filter and relies on config scoping.
+- `plugin.js:TIMER_NAMES` (`no-timers-in-tests`) (`setTimeout`, `setInterval`, `setImmediate`) are reported wherever referenced, except as a member object or a non-computed property key; the rule has no filename filter and relies on config scoping.
 - `no-signal-ref.js:default` flags a `createSignal` whose setter is only used as `ref={setter}` and whose getter is never read from a reactive scope.
 - `router-idioms.js:default` reports bare `useSearch`/`useNavigate`/`useParams`/`useLoaderData` imports in files matching `ROUTE_FILE` (`src/routes/`), `useRouterState` selects that read `matches`, and `validateSearch` / `*SearchSchema` zod fields without `.catch(...)`.
-- `solid-test-render.js:default` reports `render`/`hydrate` imported from `solid-js/web` in files matching `TEST_FILE`, except `EXEMPT_FILE` (`test/fixtures/host/main.tsx`).
-- `no-delegated-focus.js:default` reports a JSX attribute whose lowercased name is `onfocusin` or `onfocusout` (`DELEGATED_FOCUS`): Solid delegates those to the document, so they never run for a focus move inside a shadow root. Enabled for `packages/ui-kit-*/src/**` and `apps/conciv/src/**`.
+- `solid-test-render` (`plugin.js`) reports `render`/`hydrate` imported from `solid-js/web` in files matching `TEST_FILE`, except `RENDER_EXEMPT_FILE` (`test/fixtures/host/main.tsx`).
+- `no-delegated-focus` (`plugin.js`) reports a JSX attribute whose lowercased name is `onfocusin` or `onfocusout` (`DELEGATED_FOCUS`): Solid delegates those to the document, so they never run for a focus move inside a shadow root. Enabled for `packages/ui-kit-*/src/**` and `apps/conciv/src/**`.
 - `no-hand-made-temp-dir.js:default` reports, in files matching `TEST_FILE`, under `e2e/` (`E2E_FILE`) or under `packages/*-testkit/src/` (`TESTKIT_SOURCE`), outside `packages/vitest-config/src/` (`HELPER_FILE`), an fs call imported from `FS_SOURCES` (`node:fs`, `node:fs/promises`, `fs`, `fs/promises`; named or through the module object) that creates a path (`CREATED_PATH_ARGUMENT`: the first argument of `mkdtemp`, `mkdir`, `writeFile`, `appendFile`, the destination of `cp`, `copyFile`, `symlink`, each with its `Sync` twin) built on the OS temp dir: a `tmpdir()` call, `process.env.TMPDIR` or a `/tmp` string, directly or through the initialiser of one `const` in the same file (one hop, no further data flow). The message names the alternative for the place: in a test `tempDir(prefix)` and, for vitest configs and browser commands, a folder under the package's `test-results/conciv-home`; in `e2e/` the app run state folder `e2e/.conciv-e2e/<app>` (or the e2e config's `runFolders`) that the shared state cleanup reporter removes; in a testkit source a folder the caller owns and passes in. Reading from the temp dir, passing it as a `cwd`, and `rm` are not reported. In those files and in `vitest.config.*` / `playwright.config.*` (`CONFIG_FILE`) it also reports `process.on('exit', ...)` / `process.once('exit', ...)` on the undeclared global `process` (`exitHook`), the cleanup a crashed or killed run can skip. Kept sites carry an `oxlint-disable-next-line` with a reason or an exclusion in `.oxlintrc.json`.
-- `tool-card-shell.js:default` reports a `CollapsibleCard` import from `@conciv/ui-kit-chat` (`FORBIDDEN_SOURCE`) in any file outside `packages/ui-kit-chat/` (`ALLOWED_FILE`).
+- `tool-card-shell` (`plugin.js`) reports a `CollapsibleCard` import from `@conciv/ui-kit-chat` (`KIT_SOURCE`) in any file outside `packages/ui-kit-chat/` (`KIT_FILE`).
 - `lucide-per-icon.js:default` reports value imports from the `lucide-solid` barrel; it autofixes only when every per-icon path resolves, else reports `barrelImportUnresolved` without a fix.
 - `test-file-budget.js:default` counts `*.test.{ts,tsx,js}` files under the nearest `package.json` directory, skipping `IGNORED_DIRECTORIES` (`node_modules`, `dist`, `__screenshots__`, `fixtures`, `host`), nested packages and `apps/examples`; it reports once, on the first sorted file, when the count exceeds `max`.
-- `banned-vocabulary.js:default` exempts whole files listed in `PREEXISTING_MODULES` and allows specific terms at paths in `PREEXISTING_TERM_SITES`.
+- `bannedVocabulary` (`vocabulary.js`) exempts whole files listed in `PREEXISTING_MODULES` and allows specific terms at paths in `PREEXISTING_TERM_SITES`.
 
 ## Side Effects
 

@@ -1,6 +1,6 @@
 ---
 name: conciv-debug
-description: 'Use when a conciv integration misbehaves at runtime: the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or plugin authoring (see conciv-develop).'
+description: 'Use when a conciv integration misbehaves at runtime: the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call or a CLI command waits on a permission card, a permission card never resolves or the agent gets denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or plugin authoring (see conciv-develop).'
 metadata:
   package: '@conciv/skills'
 ---
@@ -11,7 +11,7 @@ metadata:
 
 You are looking at a conciv widget that is installed (see the conciv-setup skill if it is not) but
 misbehaving at runtime: it does not show up, it shows up but cannot reach the engine, a tool call
-never finishes, or an approval prompt never resolves. This skill is about the sandbox/approval/SSE
+never finishes, or a permission card never resolves. This skill is about the sandbox/approval/SSE
 runtime underneath the widget, not the install step or plugin authoring; see conciv-setup and
 conciv-develop for those.
 
@@ -55,47 +55,51 @@ running engine, or the engine rejects the origin.
   `state === 'mounted'` (`packages/embed/src/mount.ts:109-112`); calling it before `mount()` resolves,
   or after `unmount()`, is a silent no-op, not a queued reconnect.
 
-## Failure scenario 3: a tool call is refused, or waits on a card
+## Failure scenario 3: a tool call waits on a card, or is refused
 
-Nothing in the engine blocks a turn on an approval. There is no ask timeout and no wait on an open
-widget: approvals are a stored request plus a stored grant, and tools and sandbox commands reach them
-by two different paths.
+Every ask goes through one place: the plugin host's permission service. `permission.assert`
+(`packages/plugin-host/src/core/permission.ts:282-311`) checks the session's rules; `deny` fails at
+once with a blocked error, `allow` runs, and `ask` publishes `Permission.Event.Asked` and waits on
+the user's reply with no timeout. Core turns every `Asked` event into a card in the session's chat
+stream and every `Replied` event into a settled card (`followPermissionCards`,
+`packages/core/src/runtime/permission-cards.ts:197-210`). A call stuck on a card is waiting on the
+user, not hung.
 
-- **Tools declared `approval: 'ask'`** go through `gatedTools`
-  (`packages/ai/src/server/chat-server.ts:162-176`), whether the agent calls them directly or from
-  code mode (`chatToolSet` splits them out, `packages/chat/src/code-mode.ts:89-91`). Without a grant
-  the wrapper emits an `approval-requested` custom event and throws at once:
-  `Tool "<name>" needs the user's approval. The request is shown to the user; retry once they approve
-  it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:156-160`). A tool result carrying that
-  text is the design working, not a hang: the model got its answer immediately and the card is waiting
-  on the user, whether or not a widget is open. A call from outside a chat turn (external MCP, the
-  `conciv` CLI, raw RPC) to a page tool that asks is different: the tool's own `permission.assert` shows
-  the card and the call waits on it with no timeout (`registry.call`, `packages/core/src/api/rpc/router.ts`);
-  Approve runs it, Deny answers `APPROVAL_DENIED`, and nothing is stored for a later call.
-- **Shell commands and other CLI tool calls** belong to the CLI's own permission mode: Claude Code runs
-  with `permissionMode: 'auto'` (`modelOptions` in `packages/harness/src/claude/chat.ts`), so its
-  classifier decides. Only what it escalates reaches `--permission-prompt-tool` and the sandbox policy,
-  which is a bare `default: 'ask'` with no command rules (`packages/ai/src/server/chat-server.ts`), and
-  arrives in the widget as an ask. Conciv keeps no allow, ask or deny list. A command stuck on a card is
-  the CLI asking, so read the CLI's verdict rather than looking for a conciv rule.
-- **The same command asked twice.** A harness ask is never remembered: `askForHarness` asserts with
-  `save: []` (`packages/core/src/runtime/permission-cards.ts:249-271`), so its card offers no "always"
-  (`permission: {always: ...}`, `packages/core/src/runtime/permission-cards.ts:178`) and the next call
-  asks again. Only an ask that names `save` resources, such as the outside-agent consent, stores an
-  `always` answer (`packages/plugin-host/src/core/permission.ts:364-370`). Asking again is the design,
-  not a lost decision.
+- **Plugin tools** ask through their own `ctx.permission.assert`. In a chat turn the call runs
+  inside `settlingAsks` (`packages/core/src/app.ts:541`); from outside a turn (external MCP, the
+  `conciv` CLI, raw RPC) `registry.call` runs it the same way (`runPluginTool`,
+  `packages/core/src/api/rpc/router.ts:108-125`). Either way the call waits on the card: allow runs
+  the tool. A reject in a chat turn becomes the tool result `The user denied running tool "<name>".
+  Do not retry it; continue without it.` (`approvalDenied`, `packages/ai/src/server/chat-server.ts:196-198`,
+  mapped in `packages/chat/src/code-mode.ts:109-119`); through `registry.call` it answers
+  `APPROVAL_DENIED` (`pluginToolError`, `packages/core/src/api/rpc/router.ts:72-86`).
+- **CLI commands** belong to the CLI's own permission mode first: Claude Code runs with
+  `permissionMode: 'auto'` (`packages/harness/src/claude/chat.ts:89`) plus the ask rules in
+  `packages/harness/src/claude/ask-rules.ts`, so its classifier decides. What it escalates reaches
+  conciv's tool bridge as a permission prompt (`answerPrompt`,
+  `packages/ai/src/server/image-tool-results.ts:41-51`); an ACP CLI (Gemini) asks through
+  `onPermissionRequest` (`packages/harness/src/_shared/acp.ts:41-58`). Both land in `askForHarness`
+  (`packages/core/src/runtime/permission-cards.ts:249-272`), which calls `permission.assert` and waits
+  on the card: allow lets the CLI run the command, reject answers the CLI with
+  `The user rejected <action> <resources>.` Conciv keeps no allow, ask or deny list of its own; a
+  command stuck on a card is the CLI asking.
+- **The same command asked twice.** Only `always` is remembered: replying `always` to a request that
+  carries `save` patterns stores them and releases every other pending ask they now allow
+  (`reply`, `packages/plugin-host/src/core/permission.ts:331-390`). `once` lets this call through and
+  stores nothing, and harness asks carry no `save`, so a CLI command asks again on its next call.
+  Asking again is the design, not a lost decision.
 - **First-response hang with no tool call involved.** `guardedAdapter`
-  (`packages/ai/src/server/run-guard.ts:24-38`, `:62-71`) bounds the wait with two limits. Until the
+  (`packages/ai/src/server/run-guard.ts:24-38`, `:49-84`) bounds the wait with two limits. Until the
   harness's first `RUN_STARTED` the start limit runs, `FIRST_START_TIMEOUT_MS` (30s,
-  `packages/chat/src/index.ts:29`), and fails the run with `the agent did not start within Ns`. From
+  `packages/chat/src/index.ts:36`), and fails the run with `the agent did not start within Ns`. From
   that `RUN_STARTED` to the first output the silence limit runs, `FIRST_OUTPUT_TIMEOUT_MS` by default
-  (`packages/chat/src/index.ts:28`), and fails the run with `the agent produced no output within Ns`
-  (both messages: `packages/ai/src/server/chat-server.ts:509-510`). "Did not start" means the CLI never
+  (`packages/chat/src/index.ts:35`), and fails the run with `the agent produced no output within Ns`
+  (both messages: `packages/ai/src/server/chat-server.ts:615-616`). "Did not start" means the CLI never
   got going (wrong binary, missing install); "no output" means it started and went silent (stuck on
-  its own prompt). Either is a harness/CLI problem, not an approval; see the conciv-harness skill if
+  its own prompt). Either is a harness/CLI problem, not an ask; see the conciv-harness skill if
   you're debugging a specific adapter.
 
-## Failure scenario 4: an approval never resolves
+## Failure scenario 4: a permission card never resolves
 
 - **The request is already gone when the click lands.** `answerPermission` answers `gone` for an id the
   permission service no longer holds and `foreign` for one owned by another session
@@ -123,11 +127,11 @@ by two different paths.
 The chat runtime deliberately has no single "settled" moment, and it is split across three surfaces
 rather than one subscribe call:
 
-- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:314`), served by
-  the plane's `hydrate` (`packages/chat/src/index.ts:114-127`). It resolves once with messages, the
+- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:500`), served by
+  the plane's `hydrate` (`packages/chat/src/index.ts:133-155`). It resolves once with messages, the
   active run, the last run lifecycle, and any pending approvals; it never streams.
 - **The turn itself streams over the rpc socket**: `chat.send` starts a run once and streams it, and
-  `chat.join` streams a run from an event id (`packages/contract/src/contract.ts:456-457`). The run
+  `chat.join` streams a run from an event id (`packages/contract/src/contract.ts:498-499`). The run
   drains into its durable log on its own, so an aborted stream never stops it, and a resend of a known
   run id or a `chat.join` with a resume offset REPLAYS the run from its durable log instead of starting
   one, which is how a reload rejoins a run already in flight.
@@ -153,13 +157,14 @@ Two consequences:
 - Increasing a client-side polling/retry loop instead of checking whether the widget ever reached
   `'mounted'` state (`packages/embed/src/mount.ts`): a widget stuck in `'mounting'` will retry
   forever against nothing.
-- Assuming any approval failure is a "denied by user": the `needs the user's approval` tool result
-  (`packages/ai/src/server/chat-server.ts:156-160`) means nobody has answered yet, and a
-  settled-then-clicked card reports `UNKNOWN_REQUEST`.
+- Assuming any refusal is a "denied by user": a blocked error comes from a session `deny` rule with
+  no card at all (`packages/plugin-host/src/core/permission.ts:288-297`), an interrupted ask answers
+  `The ask ended before the user answered it.`, and a settled-then-clicked card reports
+  `UNKNOWN_REQUEST`.
 - Reaching for `networkidle` in a new Playwright check against the live widget: it will hang, not
   flake occasionally.
-- Treating a multi-second hang as an approval wait: approvals never block a turn, so a hang points
-  at the harness CLI.
+- Treating every hang as a harness problem: a call waiting on a permission card blocks with no
+  timeout by design, so check the widget for an open card before blaming the CLI.
 - Treating a stream that never goes idle as a bug: every long-lived surface here (the turn socket,
   the events iterator) is open by design; assert on a UI signal instead of on quiet.
 - Debugging plugin-authoring behavior (tool contracts, panels, slots, pills) instead of runtime

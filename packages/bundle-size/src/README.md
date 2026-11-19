@@ -11,7 +11,7 @@ CLI and library that gzip-measure every non-private package's dist JS/CSS, the e
 - `WorkerReport` type (`measure.ts`): {size: PackageSize, chunks: {file, gzip}[]}
 - `WORKER_NAME` (`measure.ts`): 'conciv.dev worker (apps/site)'
 - `WORKER_LIMIT_KIB` (`measure.ts`): 3 * 1024 (3072 KiB gzip budget)
-- `measureSizes(root)` (`measure.ts`): widget first load (the `conciv-widget.global.js` loader plus the static-import closure of its entry chunk and the `mount-impl` chunk the widget imports at mount) and widget lazy chunks (every other `dist/widget` chunk) first, then non-private packages under packages/ and packages/extensions/ sorted by name
+- `measureSizes(root)` (`measure.ts`): widget first load (the `conciv-widget.global.js` loader plus the static-import closure of its entry chunk and the `mount-impl` chunk the widget imports at mount) and widget lazy chunks (every other `dist/widget` chunk) first, then non-private packages under packages/ sorted by name
 - `parseSizes(raw)` (`measure.ts`): parses baseline JSON leniently into PackageSize[]
 - `parseWorkerSize(wranglerOutput)` (`measure.ts`): strips ANSI codes and extracts 'Total Upload: X KiB / gzip: Y KiB' as bytes
 - `workerIsOverBudget(report, limitKib)` (`measure.ts`): true when gzip &gt; limitKib*1024

@@ -278,7 +278,7 @@ function coverageOfEntry(entry: Record<string, unknown>): Coverage {
   return {covered: asNumber(lines.covered), total: asNumber(lines.total)}
 }
 
-export function parseCoverage(reportPackage: string, raw: string): Map<string, Coverage> {
+function parseCoverage(reportPackage: string, raw: string): Map<string, Coverage> {
   const report: unknown = JSON.parse(raw)
   const entries = isRecord(report) ? Object.entries(report).filter(([key]) => key !== 'total') : []
   const byPackage = groupBy(

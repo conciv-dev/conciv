@@ -2,15 +2,51 @@ import {access, lstat, readFile, readdir} from 'node:fs/promises'
 import {join, relative} from 'node:path'
 import {parseChangesetFile} from '@changesets/parse'
 import {execa} from 'execa'
-import {qualifiesForCoverage} from './coverage-files.ts'
-import {parseManifest} from './manifest.ts'
+import {minimatch} from 'minimatch'
 import {
   buildDependencyGraph,
   findOwner,
+  parseManifest,
   readWorkspacePackages,
   transitiveDependents,
   type WorkspacePackage,
 } from './workspace.ts'
+
+const CODE_FILE_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'html', 'json'])
+
+function isTestPath(packageRelativePath: string): boolean {
+  const segments = packageRelativePath.split('/')
+  if (segments[0] === 'test') return true
+  const base = segments.at(-1) ?? ''
+  return /\.(test|spec)\./.test(base)
+}
+
+function isCodePath(packageRelativePath: string): boolean {
+  const base = packageRelativePath.split('/').at(-1) ?? ''
+  const dotIndex = base.lastIndexOf('.')
+  if (dotIndex <= 0) return true
+  const extension = base.slice(dotIndex + 1).toLowerCase()
+  return CODE_FILE_EXTENSIONS.has(extension)
+}
+
+function matchesGlob(packageRelativePath: string, pattern: string): boolean {
+  return minimatch(packageRelativePath, pattern) || minimatch(packageRelativePath, `${pattern}/**`)
+}
+
+function matchesFilesAllowlist(packageRelativePath: string, patterns: string[]): boolean {
+  const includes = patterns.filter((pattern) => !pattern.startsWith('!'))
+  const excludes = patterns.filter((pattern) => pattern.startsWith('!')).map((pattern) => pattern.slice(1))
+  if (!includes.some((pattern) => matchesGlob(packageRelativePath, pattern))) return false
+  return !excludes.some((pattern) => matchesGlob(packageRelativePath, pattern))
+}
+
+function qualifiesForCoverage(packageRelativePath: string, filesAllowlist: string[] | undefined): boolean {
+  if (isTestPath(packageRelativePath)) return false
+  if (filesAllowlist && filesAllowlist.length > 0 && matchesFilesAllowlist(packageRelativePath, filesAllowlist)) {
+    return true
+  }
+  return isCodePath(packageRelativePath)
+}
 
 const CHANGESET_DIR = '.changeset'
 
@@ -286,10 +322,6 @@ export async function assertPublicDepsPublic(cwd: string): Promise<void> {
   }
 }
 
-const CATALOG_EXEMPTIONS: Record<string, string[]> = {
-  'packages/plugins/whiteboard': ['drizzle-kit', 'drizzle-orm'],
-}
-
 type DependencyUse = {name: string; manifestDir: string; spec: string}
 
 function externalDependencyUses(pkg: WorkspacePackage): DependencyUse[] {
@@ -305,17 +337,13 @@ async function readRootPackage(cwd: string): Promise<WorkspacePackage> {
   return {dir: cwd, relativeDir: '', manifest: parseManifest(raw, manifestPath)}
 }
 
-function isExempt(use: DependencyUse): boolean {
-  return (CATALOG_EXEMPTIONS[use.manifestDir] ?? []).includes(use.name)
-}
-
 export async function assertSharedDependenciesCatalogued(cwd: string): Promise<void> {
   const packages = [await readRootPackage(cwd), ...(await readWorkspacePackages(cwd))]
   const usesByName = Object.groupBy(packages.flatMap(externalDependencyUses), (use) => use.name)
   const violations = Object.values(usesByName)
     .filter((uses) => uses !== undefined && uses.length > 1)
     .flatMap((uses) => uses ?? [])
-    .filter((use) => !use.spec.startsWith('catalog:') && !isExempt(use))
+    .filter((use) => !use.spec.startsWith('catalog:'))
     .map((use) => `${use.manifestDir}/package.json: ${use.name} ${JSON.stringify(use.spec)}`)
     .toSorted()
   if (violations.length > 0) {

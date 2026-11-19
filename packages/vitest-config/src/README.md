@@ -16,7 +16,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - CLI `conciv-ci-shards <plan|run|report|summarize> [--task test|e2e] [--timings F] [--output F]` (`ci-shards.ts`). `TASKS.test` runs turbo `typecheck lint test --continue=dependencies-successful` over `packages/` and `apps/`; `TASKS.e2e` runs `test:e2e --continue --concurrency=1` over `e2e/` and `apps/site`.
 - CLI `conciv-ci-summary [--details] [--title T] [roots...]` (`ci-summary.ts`): summary from `test-results.json` files; roots default to `packages`.
 - `planShards(packages, timings, sizing?)`, `planE2eShards`, `discoverPackages(rootDir, groupDirs)`, `plannedPackages`, `e2ePackages`, `parseTimings`; constants `PACKAGE_GROUPS`, `PACKAGES_WITH_DEDICATED_JOBS` (`['conciv-storybook']`), `E2E_HARNESS_PACKAGE`, `TARGET_SHARD_MS` (150_000), `DEFAULT_PACKAGE_MS` (5_000), `E2E_SHARD_SIZING`; types `WorkspacePackage`, `ShardPlan`, `E2eShardPlan`, `ShardSizing` (`shards.ts`).
-- `parseReport`, `parseCoverage`, `parseSummaries`, `mergeSummaries`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
+- `parseReport`, `parseSummaries`, `mergeSummaries`, `loadSummaries(roots)`, `renderSummary(packages, options?)`; types `PackageSummary`, `CaseResult`, `CaseStatus`, `CaseAnnotation`, `Coverage`, `RenderOptions` (`summary.ts`).
 - Subdirectories:
   - setup: [./setup/README.md](./setup/README.md) - the conciv home globalSetup `ciTest()` carries
 

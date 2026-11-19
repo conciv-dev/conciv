@@ -16,9 +16,8 @@ import {
   assertVersioned,
   assertWorkspaceRoot,
 } from './guards.ts'
-import {registryRecord} from './registry.ts'
 import {assertTypecheckCoversTrackedFiles} from './typecheck-coverage.ts'
-import {buildSyncPlan, pushMissingTags, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
+import {buildSyncPlan, pushMissingTags, registryRecord, type SyncPackageState, type SyncPlanEntry} from './sync.ts'
 import {
   assembleMirrorTree,
   extractCommitSubtree,

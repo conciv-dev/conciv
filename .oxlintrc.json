@@ -120,15 +120,15 @@
           },
           {
             "name": "@tanstack/solid-query",
-            "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+            "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           },
           {
             "name": "@tanstack/query-core",
-            "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+            "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           },
           {
             "name": "@orpc/tanstack-query",
-            "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+            "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
           }
         ],
         "patterns": [
@@ -156,9 +156,7 @@
         "packages/plugin-page/src/rpc.ts",
         "packages/plugin-page/src/machine.ts",
         "packages/plugin-page/src/connection.ts",
-        "packages/plugins/tanstack/src/rpc.ts",
-        "packages/plugins/tanstack/src/machine.ts",
-        "packages/plugins/tanstack/src/connection.ts"
+        "packages/plugins/tanstack/src/rpc.ts"
       ],
       "rules": {
         "conciv/banned-vocabulary": "off"
@@ -203,15 +201,15 @@
               },
               {
                 "name": "@tanstack/solid-query",
-                "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+                "message": "Import TanStack Query from @conciv/client, never @tanstack/solid-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               },
               {
                 "name": "@tanstack/query-core",
-                "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+                "message": "Import TanStack Query from @conciv/client, never @tanstack/query-core directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               },
               {
                 "name": "@orpc/tanstack-query",
-                "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every extension share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
+                "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
               }
             ],
             "patterns": [
@@ -375,7 +373,7 @@
       }
     },
     {
-      "files": ["packages/extensions/**/test/**", "packages/plugin-testkit/**/test/**"],
+      "files": ["packages/plugin-testkit/**/test/**"],
       "rules": {
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
@@ -388,15 +386,6 @@
       "files": ["packages/embed/test/**", "packages/plugin-testkit/src/**"],
       "rules": {
         "playwright/prefer-web-first-assertions": "error"
-      }
-    },
-    {
-      "files": ["packages/extensions/**/test/fixtures/**"],
-      "rules": {
-        "playwright/no-raw-locators": "off",
-        "playwright/no-eval": "off",
-        "playwright/no-element-handle": "off",
-        "playwright/prefer-native-locators": "off"
       }
     },
     {
@@ -446,7 +435,7 @@
         "apps/site/test/helpers.ts",
         "e2e/nextjs/test/packed-closure.spec.ts",
         "e2e/nextjs/packed/harness.ts",
-        "e2e/nextjs/packed/trust-policy.ts"
+        "e2e/nextjs/test/packed-trust-policy-install.spec.ts"
       ],
       "rules": {
         "conciv/no-hand-made-temp-dir": "off"
@@ -468,12 +457,6 @@
       "files": ["packages/cli/test/**"],
       "rules": {
         "conciv/no-timers-in-tests": "error"
-      }
-    },
-    {
-      "files": ["packages/cli/test/support/cli-app.ts"],
-      "rules": {
-        "conciv/no-timers-in-tests": "off"
       }
     },
     {

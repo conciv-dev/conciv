@@ -15,10 +15,8 @@ import {
   assertWorkspaceRoot,
   assertPublishedChangesCovered,
 } from '../src/guards.ts'
-import {scaffoldWorkspaceRoot, writeManifest} from './fixtures.ts'
 import {execa} from 'execa'
-import {buildSyncPlan, pushMissingTags} from '../src/sync.ts'
-import {recordFromDocument} from '../src/registry.ts'
+import {buildSyncPlan, pushMissingTags, recordFromDocument} from '../src/sync.ts'
 import {
   assembleMirrorTree,
   assertBareSemver,
@@ -31,6 +29,22 @@ import {
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from '../src/workspace.ts'
 import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+
+async function scaffoldWorkspaceRoot(prefix: string, packageGlobs: string[] = ['packages/*']): Promise<string> {
+  const root = tempDir(prefix)
+  onTestFinished(() => rm(root, {recursive: true, force: true}))
+  await writeFile(
+    join(root, 'pnpm-workspace.yaml'),
+    `packages:\n${packageGlobs.map((glob) => `  - ${glob}`).join('\n')}\n`,
+  )
+  await writeFile(join(root, 'package.json'), `${JSON.stringify({name: 'workspace-root', private: true}, null, 2)}\n`)
+  return root
+}
+
+async function writeManifest(dir: string, manifest: Record<string, unknown>): Promise<void> {
+  await mkdir(dir, {recursive: true})
+  await writeFile(join(dir, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+}
 
 describe('catalog', () => {
   test('assertSharedDependenciesCatalogued accepts catalog deps, single-manifest explicit deps, workspace: references and peer ranges', async () => {
@@ -69,18 +83,6 @@ describe('catalog', () => {
     )
     await writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', devDependencies: {typescript: 'catalog:'}})
     await expect(assertSharedDependenciesCatalogued(root)).rejects.toThrow('./package.json: typescript "^6.0.3"')
-  })
-
-  test('assertSharedDependenciesCatalogued lets an exempt manifest keep its own line of a shared dep', async () => {
-    const root = await scaffoldWorkspaceRoot('catalog-exempt-', ['packages/*', 'packages/plugins/*'])
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', dependencies: {'drizzle-orm': 'catalog:'}}),
-      writeManifest(join(root, 'packages', 'plugins', 'whiteboard'), {
-        name: '@conciv/plugin-whiteboard',
-        dependencies: {'drizzle-orm': '^0.45.4'},
-      }),
-    ])
-    await expect(assertSharedDependenciesCatalogued(root)).resolves.toBeUndefined()
   })
 
   test('assertSharedDependenciesCatalogued passes on this repository', async () => {

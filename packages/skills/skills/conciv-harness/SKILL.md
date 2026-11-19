@@ -152,12 +152,12 @@ translation; most adapters omit it.
 
 ## `chat()` owns the turn — you never spawn or decode the CLI in core/widget
 
-`packages/chat/src/turn.ts:284-293` is the only call site that invokes `chatConfig`; the plan it
-returns reaches `chat()` in `started` (`packages/ai/src/server/chat-server.ts:589-641`):
+`packages/chat/src/turn.ts:322-331` is the only call site that invokes `chatConfig`; the plan it
+returns reaches `chat()` in `started` (`packages/ai/src/server/chat-server.ts:589-662`):
 
 ```ts
 const stream = chat({
-  adapter: guardedAdapter(plan.adapter, {
+  adapter: guardedAdapter(answeredAdapter(plan.adapter), {
     ended: entry.ending.signal,
     stopped: controller.signal,
     startMs: config.startTimeoutMs,
@@ -170,8 +170,7 @@ const stream = chat({
   messages,
   threadId: turn.threadId,
   runId: turn.runId,
-  systemPrompts: coded === null ? [] : [coded.preface],
-  tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals), ...plan.direct],
+  tools: [],
   lazyToolsConfig: {includeDescription: 'first-sentence'},
   retry: {maxRetries: 2},
   modelOptions: plan.modelOptions,
@@ -206,7 +205,7 @@ const stream = chat({
     }),
     withSandbox(sandbox, {locks}),
     toolHistory(),
-    concivTurn(turn, plan, granted, view, entry),
+    concivTurn(turn, plan, view, entry, offered),
   ],
 })
 ```
@@ -220,11 +219,11 @@ the only bound on a silent CLI: a start limit until the adapter's first `RUN_STA
 limit until its first output. A run outlives a client that disconnects because the
 transport's own stream durability keeps driving it and replays it on resume, not because of
 `withSandbox`. `withSandbox` emits `sandbox.starting` from its `setup`, which makes `chat()` send
-`RUN_STARTED` before `withPersistence` stores anything, so the `runRecord` step (`conciv-run-record`)
+`RUN_STARTED` before `withPersistence` stores anything, so the `conciv-run-record` step
 runs right before it: it writes the run's `running` row with `stores.runs.createOrResume`, then saves
 the incoming messages through `getPendingTurn(ctx, {optional: true})?.snapshot()`. A client that sees
-the run start therefore finds it active and finds the user's message in the thread. Tools that need
-approval are wrapped by `gatedTools` in `chat-server.ts`. A CLI's own commands are governed by that
+the run start therefore finds it active and finds the user's message in the thread. A plugin tool that
+asks does so itself through `ctx.permission.assert` and waits on the user's card. A CLI's own commands are governed by that
 CLI's native permission mode (`permissionMode: 'auto'` for Claude Code), set in `chatConfig`; when the CLI
 itself decides to ask, the ask goes to conciv's permission service (`permission.assert`) and waits on the
 user's card. Claude Code asks through its permission prompt tool, which conciv's tool bridge provisioner

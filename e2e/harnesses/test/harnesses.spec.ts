@@ -1,9 +1,8 @@
 import {spawnSync} from 'node:child_process'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
-import {e2eConfigDir, harnessHome} from '@conciv/e2e-utils/config'
+import {e2eConfigDir, harnessHome, type HarnessApp} from '@conciv/e2e-utils/config'
 import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
-import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
 type ExpectedModel = {model: string; usable?: false}
 

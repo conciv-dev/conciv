@@ -2,7 +2,29 @@ import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
 import {load} from 'js-yaml'
 import {minimatch} from 'minimatch'
-import {parseManifest, type Manifest} from './manifest.ts'
+import {z} from 'zod'
+
+const manifestSchema = z.object({
+  name: z.string().optional(),
+  version: z.string().optional(),
+  private: z.boolean().optional(),
+  files: z.array(z.string()).optional(),
+  scripts: z.record(z.string(), z.string()).optional(),
+  dependencies: z.record(z.string(), z.string()).optional(),
+  devDependencies: z.record(z.string(), z.string()).optional(),
+  optionalDependencies: z.record(z.string(), z.string()).optional(),
+  peerDependencies: z.record(z.string(), z.string()).optional(),
+})
+
+export type Manifest = z.infer<typeof manifestSchema>
+
+export function parseManifest(raw: unknown, manifestPath: string): Manifest {
+  const result = manifestSchema.safeParse(raw)
+  if (!result.success) {
+    throw new Error(`${manifestPath}: invalid package manifest - ${result.error.message}`)
+  }
+  return result.data
+}
 
 export type WorkspacePackage = {
   dir: string

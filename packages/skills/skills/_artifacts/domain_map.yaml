@@ -24,7 +24,7 @@ domains:
     description: 'Wiring a new coding-agent CLI into conciv as the process behind the chat.'
   - name: 'Runtime debugging'
     slug: 'runtime-debugging'
-    description: 'Diagnosing the sandbox/gate/SSE runtime once the widget is installed and running.'
+    description: 'Diagnosing the sandbox/permission/SSE runtime once the widget is installed and running.'
 
 skills:
   - name: 'Setting up conciv'
@@ -132,12 +132,12 @@ skills:
       - 'decide which HarnessCapabilities flags apply to a new CLI'
     failure_modes:
       - mistake: 'spawning or decoding the CLI directly instead of returning a text adapter from chatConfig()'
-        mechanism: 'chat() (with the conciv sandbox + permission-gate middleware) owns process lifecycle; a harness that bypasses it duplicates process management and loses abort handling.'
+        mechanism: 'chat() (with the conciv sandbox middleware) owns process lifecycle; a harness that bypasses it duplicates process management and loses abort handling.'
         wrong_pattern: |
           chatConfig: () => ({adapter: makeCustomProcessAdapter(spawnCli())})
         correct_pattern: |
           chatConfig: (deps) => ({adapter: yourTextAdapter(deps)})
-        source: 'packages/core/src/chat/run.ts'
+        source: 'packages/chat/src/turn.ts'
         priority: 'CRITICAL'
         status: 'active'
         skills: ['conciv-harness']
@@ -147,7 +147,7 @@ skills:
           connect: {plan: (ctx) => ['your-cli', '--cwd', process.cwd()]}
         correct_pattern: |
           connect: {plan: (ctx) => ['your-cli', '--cwd', ctx.cwd]}
-        source: 'packages/core/src/chat/sandbox.ts'
+        source: 'packages/ai/src/server/chat-server.ts'
         priority: 'HIGH'
         status: 'active'
         skills: ['conciv-harness']
@@ -155,7 +155,7 @@ skills:
   - name: 'Debugging a conciv integration'
     slug: 'conciv-debug'
     domain: 'runtime-debugging'
-    description: 'Diagnosing a conciv widget that is installed but misbehaving at runtime: missing widget, stuck tool calls, stalled approvals, port conflicts, and SSE stream quirks.'
+    description: 'Diagnosing a conciv widget that is installed but misbehaving at runtime: missing widget, stuck tool calls, unanswered permission cards, port conflicts, and SSE stream quirks.'
     type: 'core'
     packages:
       - '@conciv/it'
@@ -163,22 +163,22 @@ skills:
       - '@conciv/protocol'
     covers:
       - 'widget mount/connect probing'
-      - 'permission-gate timeout vs no-listener refusal paths'
+      - 'permission card waits, rule blocks and asks that end with their run'
       - 'engine port fallback behavior'
       - 'SSE stream lifecycle and Playwright networkidle'
     tasks:
       - 'diagnose why the conciv button never appears'
       - 'diagnose a tool call that hangs then fails'
-      - 'diagnose an approval card that never resolves'
+      - 'diagnose a permission card that never resolves'
       - 'fix a Playwright test that hangs against the live widget'
     failure_modes:
-      - mistake: 'treating every approval failure as a user denial'
-        mechanism: 'approvalRefusal produces different wording for `deny` vs `timeout`, and makeAskGate auto-denies with no ask at all when sessionId is empty; conflating the three hides the real cause.'
+      - mistake: 'treating every permission refusal as a user denial'
+        mechanism: 'permission.assert fails at once with a blocked error when a session rule denies, a reject answers the caller with its own wording, and an ask interrupted by its run ending answers "The ask ended before the user answered it."; conflating the three hides the real cause.'
         wrong_pattern: |
-          # assuming "approval failed" always means the user clicked Deny
+          # assuming a refused call always means the user clicked Reject
         correct_pattern: |
-          # reading whether the refusal message says "denied by the user" or "the ask timed out"
-        source: 'packages/core/src/chat/gate.ts'
+          # reading whether the refusal is a rule block, a user reject, or an ask that ended with its run
+        source: 'packages/core/src/runtime/permission-cards.ts'
         priority: 'MEDIUM'
         status: 'active'
         skills: ['conciv-debug']
@@ -188,16 +188,16 @@ skills:
           await page.waitForLoadState('networkidle')
         correct_pattern: |
           await page.waitForLoadState('domcontentloaded')
-        source: 'packages/core/src/chat/subscribe.ts'
+        source: 'packages/core/src/sessions/session-bus.ts'
         priority: 'HIGH'
         status: 'active'
         skills: ['conciv-debug']
 
 tensions:
-  - name: 'fail-fast vs wait-for-a-human'
+  - name: 'rule block vs wait-for-a-human'
     skills: ['conciv-harness', 'conciv-debug']
-    description: 'Code-mode tool calls refuse instantly when nothing is listening on a session, while normal chat tool calls wait up to two minutes for an approval before timing out.'
-    implication: 'An agent debugging "a tool call hangs" needs to know which gate path it is in before assuming the fix is the same for both.'
+    description: "A session deny rule refuses a call at once with no card, while an ask waits on the user's card with no timeout until it is answered or its run ends."
+    implication: 'An agent debugging "a tool call hangs" checks the widget for an open permission card before blaming the harness CLI.'
 
 cross_references:
   - from: 'conciv-debug'
@@ -205,10 +205,10 @@ cross_references:
     reason: 'Most "widget never appears" symptoms trace back to the install path (bundler plugin vs manual mount) that conciv-setup owns.'
   - from: 'conciv-debug'
     to: 'conciv-harness'
-    reason: 'A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem: conciv-harness covers adapter wiring.'
+    reason: 'A stuck first-response with no tool call involved is a harness/CLI problem, not a permission problem: conciv-harness covers adapter wiring.'
   - from: 'conciv-develop'
     to: 'conciv-debug'
-    reason: 'A plugin tool that asks through ctx.permission.assert goes through the same approval mechanism conciv-debug documents.'
+    reason: 'A plugin tool that asks through ctx.permission.assert goes through the same permission mechanism conciv-debug documents.'
 
 gaps: []
 

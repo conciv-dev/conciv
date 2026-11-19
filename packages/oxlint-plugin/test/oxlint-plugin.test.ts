@@ -401,7 +401,7 @@ describe('vocabulary', () => {
       )
     })
 
-    test('leaves attachment, adoption, and BundlerBridge vocabulary alone', async () => {
+    test('leaves attachment and adoption vocabulary alone', async () => {
       expect(await lintFixture('vocabulary/allowed.ts', 'conciv(banned-vocabulary)')).toEqual([])
     })
 
