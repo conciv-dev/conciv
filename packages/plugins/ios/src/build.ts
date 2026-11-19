@@ -68,15 +68,20 @@ const collectSwiftSources = Effect.fn('ios.build.collectSwiftSources')(function*
   const fileSystem = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const roots = [path.join(root, 'Sources'), ...extraSourceDirs.map((dir) => path.resolve(root, dir))]
-  const files = yield* Effect.forEach(roots, (dir) =>
-    Effect.gen(function* () {
-      if (!(yield* fileSystem.exists(dir))) return []
-      const entries = yield* fileSystem.readDirectory(dir, {recursive: true})
-      const swiftNamed = entries.filter((entry) => entry.endsWith('.swift')).map((entry) => path.join(dir, entry))
-      return yield* Effect.filter(swiftNamed, (candidate) =>
-        fileSystem.stat(candidate).pipe(Effect.map((info) => info.type === 'File')),
-      )
-    }),
+  const files = yield* Effect.forEach(
+    roots,
+    (dir) =>
+      Effect.gen(function* () {
+        if (!(yield* fileSystem.exists(dir))) return []
+        const entries = yield* fileSystem.readDirectory(dir, {recursive: true})
+        const swiftNamed = entries.filter((entry) => entry.endsWith('.swift')).map((entry) => path.join(dir, entry))
+        return yield* Effect.filter(
+          swiftNamed,
+          (candidate) => fileSystem.stat(candidate).pipe(Effect.map((info) => info.type === 'File')),
+          {concurrency: 8},
+        )
+      }),
+    {concurrency: 8},
   )
   return uniq(files.flat()).toSorted()
 })

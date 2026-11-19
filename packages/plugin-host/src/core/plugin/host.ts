@@ -42,6 +42,7 @@ export const EditorSource =
   Context.Service<(file: string, line?: number, column?: number) => void>('@conciv/EditorSource')
 
 export const make = Effect.fn('PluginHost.make')(function* (plugin: Pick<Interface, 'list'>, pluginId: string) {
+  yield* Effect.annotateCurrentSpan({plugin: pluginId})
   const app = yield* App.Service
   const agents = yield* Agent.Service
   const models = yield* Model.Service

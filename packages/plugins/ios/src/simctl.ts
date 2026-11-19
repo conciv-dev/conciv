@@ -1,4 +1,4 @@
-import {Context, Effect, Layer, Schema, Stream} from 'effect'
+import {Chunk, Context, Effect, Layer, Schema, Sink, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 
 export type RunOptions = {cwd?: string; env?: Record<string, string>}
@@ -19,21 +19,24 @@ export const Service = Context.Service<Interface>('@conciv/plugin-ios/Simctl')
 
 const MAX_OUTPUT_BYTES = 128 * 1024 * 1024
 
+type Collected = {size: number; chunks: Chunk.Chunk<Uint8Array>}
+
 function collectBytes<Failure>(
   command: string,
   stream: Stream.Stream<Uint8Array, Failure>,
 ): Effect.Effect<Uint8Array, Failure | typeof OutputTooLarge.Type> {
+  const capped = Sink.foldArray(
+    (): Collected => ({size: 0, chunks: Chunk.empty()}),
+    () => true,
+    (collected, input: readonly Uint8Array[]) => {
+      const size = input.reduce((total, chunk) => total + chunk.length, collected.size)
+      if (size > MAX_OUTPUT_BYTES) return Effect.fail(OutputTooLarge.make({command}))
+      return Effect.succeed({size, chunks: Chunk.appendAll(collected.chunks, Chunk.fromIterable(input))})
+    },
+  )
   return stream.pipe(
-    Stream.mapAccumEffect(
-      () => 0,
-      (size, chunk): Effect.Effect<readonly [number, readonly Uint8Array[]], typeof OutputTooLarge.Type> => {
-        const next = size + chunk.length
-        if (next > MAX_OUTPUT_BYTES) return Effect.fail(OutputTooLarge.make({command}))
-        return Effect.succeed([next, [chunk]])
-      },
-    ),
-    Stream.runCollect,
-    Effect.map((chunks) => Buffer.concat(chunks)),
+    Stream.run(capped),
+    Effect.map((collected) => Buffer.concat(Chunk.toReadonlyArray(collected.chunks))),
   )
 }
 
@@ -47,7 +50,11 @@ export const layer = Layer.effect(
           ChildProcess.make(command, args, {cwd: options?.cwd, env: options?.env, extendEnv: true}),
         )
         const [stdout, stderr, code] = yield* Effect.all(
-          [collectBytes(command, handle.stdout), Stream.mkString(Stream.decodeText(handle.stderr)), handle.exitCode],
+          [
+            collectBytes(command, handle.stdout),
+            collectBytes(command, handle.stderr).pipe(Effect.map((bytes) => new TextDecoder().decode(bytes))),
+            handle.exitCode,
+          ],
           {concurrency: 'unbounded'},
         )
         const result: RunResult = {code, stdout, stderr}

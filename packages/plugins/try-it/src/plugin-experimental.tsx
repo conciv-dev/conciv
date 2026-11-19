@@ -1,4 +1,4 @@
-import {Effect, Exit, Fiber, Layer, Scope, Stream, SubscriptionRef} from 'effect'
+import {Effect, Exit, Fiber, Layer, ManagedRuntime, Scope, Stream, SubscriptionRef} from 'effect'
 import {from, onCleanup, type Accessor} from 'solid-js'
 import {Plugin, Server, type ServerEntry} from '@conciv/plugin/experimental'
 import {connectPorts} from '@conciv/protocol/connect-ports'
@@ -18,12 +18,15 @@ const TryItOptions = z.object({
   slowMs: Milliseconds.default(60_000),
 })
 
-function follow<A>(ref: SubscriptionRef.SubscriptionRef<A>): Accessor<A> {
+function follow<A>(
+  runtime: ManagedRuntime.ManagedRuntime<never, never>,
+  ref: SubscriptionRef.SubscriptionRef<A>,
+): Accessor<A> {
   return from<A>((set) => {
-    const fiber = Effect.runFork(
+    const fiber = runtime.runFork(
       Stream.runForEach(SubscriptionRef.changes(ref), (value) => Effect.sync(() => set(() => value))),
     )
-    return () => void Effect.runFork(Fiber.interrupt(fiber))
+    return () => void runtime.runFork(Fiber.interrupt(fiber))
   }, SubscriptionRef.getUnsafe(ref))
 }
 
@@ -35,20 +38,20 @@ function entry(state: TryItConnectMachine.ConnectState, cover: ServerEntry['cove
 export default Plugin.define({
   setup(ctx) {
     const options = TryItOptions.parse(ctx.options)
-    const scope = Effect.runSync(Scope.make())
-    onCleanup(() => void Effect.runFork(Scope.close(scope, Exit.void)))
-    const started = Effect.runSync(
+    const runtime = ManagedRuntime.make(
+      Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)}),
+    )
+    const scope = runtime.runSync(Scope.make())
+    onCleanup(() => void runtime.runPromise(Scope.close(scope, Exit.void)).finally(() => runtime.dispose()))
+    const started = runtime.runSync(
       Effect.all({
         connection: connect({timings: options}),
         access: localNetworkAccess(),
-      }).pipe(
-        Effect.provide(Layer.succeed(TryItProbe, {probe: probeCore(options.token, connectPorts(), options.probeMs)})),
-        Scope.provide(scope),
-      ),
+      }).pipe(Scope.provide(scope)),
     )
-    const state = follow(started.connection.state)
-    const access = follow(started.access)
-    const copied = () => void Effect.runFork(started.connection.dispatch({type: 'copied'}))
+    const state = follow(runtime, started.connection.state)
+    const access = follow(runtime, started.access)
+    const copied = () => void runtime.runFork(started.connection.dispatch({type: 'copied'}))
     const cover = () => (
       <ConnectPane token={options.token} state={state} localNetworkAccess={access} onCopied={copied} />
     )

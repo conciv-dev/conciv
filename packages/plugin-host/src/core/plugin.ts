@@ -74,6 +74,7 @@ export const layer = Layer.effect(
       return inventory
     })
     const experimental = Effect.fn('Plugin.experimental')(function* (id: Plugin.Id) {
+      yield* Effect.annotateCurrentSpan({plugin: id})
       const part = active.get(id)?.plugin.experimental
       if (!part) return undefined
       return {
@@ -85,6 +86,7 @@ export const layer = Layer.effect(
       } satisfies Plugin.ExperimentalBundle
     })
     const experimentalChunk = Effect.fn('Plugin.experimentalChunk')(function* (id: Plugin.Id, file: string) {
+      yield* Effect.annotateCurrentSpan({plugin: id, file})
       const part = active.get(id)?.plugin.experimental
       if (!part) return undefined
       if (!part.chunks.files.has(file)) return yield* Effect.fail(Plugin.ChunkNotFound.make({file}))
@@ -337,17 +339,20 @@ type PendingFailure = {
 }
 
 function servedChunks(entry: string, chunks: Chunks, roots: readonly string[]) {
-  return Effect.forEach(closure(chunks, roots), (file) =>
-    Effect.tryPromise({
-      try: () => readFile(path.join(path.dirname(entry), file)),
-      catch: () => Plugin.ChunkNotFound.make({file}),
-    }).pipe(
-      Effect.flatMap((bytes) =>
-        Hash.sha256(bytes) === chunks.files.get(file)?.sha256
-          ? Effect.succeed({file, code: bytes.toString('utf8')})
-          : Effect.fail(Plugin.ChunkNotFound.make({file})),
+  return Effect.forEach(
+    closure(chunks, roots),
+    (file) =>
+      Effect.tryPromise({
+        try: () => readFile(path.join(path.dirname(entry), file)),
+        catch: () => Plugin.ChunkNotFound.make({file}),
+      }).pipe(
+        Effect.flatMap((bytes) =>
+          Hash.sha256(bytes) === chunks.files.get(file)?.sha256
+            ? Effect.succeed({file, code: bytes.toString('utf8')})
+            : Effect.fail(Plugin.ChunkNotFound.make({file})),
+        ),
       ),
-    ),
+    {concurrency: 8},
   )
 }
 

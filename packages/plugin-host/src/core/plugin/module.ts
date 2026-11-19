@@ -222,7 +222,7 @@ const readChunks = Effect.fn('PluginModule.readChunks')(function* (entry: string
         }).pipe(Effect.map(Hash.sha256)),
         imports: imported(record.imports),
       }).pipe(Effect.map((chunk) => [record.file, chunk] as const)),
-    {concurrency: 'unbounded'},
+    {concurrency: 8},
   )
   return {start: start.flat(), files: new Map(files)} satisfies Chunks
 })

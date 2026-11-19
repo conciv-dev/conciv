@@ -18,7 +18,7 @@ import {rpcMethod, type RpcCallOptions, type RpcEventPayload} from '../client/pr
 import type * as Plugin from './plugin.js'
 import type {RpcDomain, RpcHandlers} from './rpc.js'
 import type {Info} from './tool.js'
-import {Effect, Schema, Stream} from 'effect'
+import {Effect, FiberHandle, Schema, Stream} from 'effect'
 import type {Scope} from 'effect'
 import {define} from '../effect/plugin.js'
 import type {ToolFailures, ToolHooks} from '../effect/tool.js'
@@ -479,31 +479,31 @@ const toolHook: {
 }
 
 const executePromiseTool = (tool: Info, input: any, context: Tool.Context) =>
-  Effect.tryPromise({
-    try: (interrupted) => {
-      const stopped = new AbortController()
-      const finished = new AbortController()
-      const signal = AbortSignal.any([interrupted, stopped.signal])
-      const {cancel, ...rest} = context
-      let listening = false
-      const listen = () => {
-        if (listening || !cancel) return
-        listening = true
-        Effect.runPromise(cancel, {signal: AbortSignal.any([interrupted, finished.signal])}).then(
-          () => stopped.abort(),
-          () => {},
+  Effect.gen(function* () {
+    const {cancel, ...rest} = context
+    const runCancel = yield* FiberHandle.makeRuntime<never>()
+    return yield* Effect.tryPromise({
+      try: (interrupted) => {
+        const stopped = new AbortController()
+        const signal = AbortSignal.any([interrupted, stopped.signal])
+        return Promise.resolve(
+          tool.execute(input, {
+            ...rest,
+            get signal() {
+              if (cancel)
+                runCancel(
+                  Effect.andThen(
+                    cancel,
+                    Effect.sync(() => stopped.abort()),
+                  ),
+                  {onlyIfMissing: true},
+                )
+              return signal
+            },
+            progress: (update) => Effect.runPromise(context.progress(update), {signal: interrupted}),
+          }),
         )
-      }
-      return Promise.resolve(
-        tool.execute(input, {
-          ...rest,
-          get signal() {
-            listen()
-            return signal
-          },
-          progress: (update) => Effect.runPromise(context.progress(update), {signal: interrupted}),
-        }),
-      ).finally(() => finished.abort())
-    },
-    catch: toolError,
-  })
+      },
+      catch: toolError,
+    })
+  }).pipe(Effect.scoped)

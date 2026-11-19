@@ -311,6 +311,7 @@ export const layer = Layer.effect(
     )
 
     const assertNotDenied = Effect.fn('Permission.assertNotDenied')(function* (input: AssertInput) {
+      yield* Effect.annotateCurrentSpan({sessionId: input.sessionId})
       const result = yield* evaluateInput(input)
       if (result.effect !== 'deny') return
       return yield* Effect.fail(
@@ -324,6 +325,7 @@ export const layer = Layer.effect(
     })
 
     const allows = Effect.fn('Permission.allows')(function* (input: AssertInput) {
+      yield* Effect.annotateCurrentSpan({sessionId: input.sessionId})
       if (closed) return false
       return (yield* evaluateInput(input)).effect === 'allow'
     })
@@ -398,6 +400,7 @@ export const layer = Layer.effect(
     })
 
     const forSession = Effect.fn('Permission.forSession')(function* (sessionId: Session.Id) {
+      yield* Effect.annotateCurrentSpan({sessionId})
       return Array.from(pending.values(), (item) => item.request).filter((request) => request.sessionId === sessionId)
     })
 

@@ -58,7 +58,7 @@ function settleOutcome(outcome: IosBridgeMachine.PickOutcome): Effect.Effect<Gra
   return Effect.fail(PickFailed.make({requestId: outcome.requestId}))
 }
 
-export const makeNativeClient = Effect.fn('Ios.makeNativeClient')(function* (options: {
+export const makeNativeClient = Effect.fn('ios.bridge.makeClient')(function* (options: {
   readonly transport: NativeTransport
   readonly clientId: string
   readonly apiBase: string
@@ -69,6 +69,7 @@ export const makeNativeClient = Effect.fn('Ios.makeNativeClient')(function* (opt
   const settlements = yield* PubSub.unbounded<Settled>()
   const ticker = yield* FiberHandle.make<void, never>()
   const pickTimer = yield* FiberHandle.make<void, never>()
+  const reader = yield* FiberHandle.make<void, never>()
   const transitions = yield* Semaphore.make(1)
   const picks = yield* Semaphore.make(1)
 
@@ -77,37 +78,51 @@ export const makeNativeClient = Effect.fn('Ios.makeNativeClient')(function* (opt
     Effect.map(IosBridgeMachine.isAnnouncing),
   )
 
-  const perform = (effect: IosBridgeMachine.NativeEffect): Effect.Effect<void> => {
-    if (effect.type === 'post') return options.transport.post(effect.message)
-    if (effect.type === 'schedule-tick')
-      return FiberHandle.run(
-        ticker,
-        Effect.repeat(tickOnce, {schedule: Schedule.spaced(READY_INTERVAL), while: (announcing) => announcing}).pipe(
-          Effect.asVoid,
-        ),
-      ).pipe(Effect.asVoid)
-    if (effect.type === 'schedule-timeout')
-      return FiberHandle.run(
-        pickTimer,
-        Effect.sleep(PICK_TIMEOUT).pipe(Effect.andThen(dispatch({type: 'pick-timeout', attempt: effect.attempt}))),
-      ).pipe(Effect.asVoid)
-    if (effect.type === 'settle')
-      return PubSub.publish(settlements, {attempt: effect.attempt, outcome: effect.outcome}).pipe(Effect.asVoid)
-    if (effect.type === 'publish') return PubSub.publish(signals, effect.signal).pipe(Effect.asVoid)
-    return Effect.logWarning(effect.message).pipe(Effect.annotateLogs({plugin: 'ios', part: 'bridge'}))
-  }
+  const perform: (effect: IosBridgeMachine.NativeEffect) => Effect.Effect<void> = Effect.fn('ios.bridge.perform')(
+    function* (effect: IosBridgeMachine.NativeEffect) {
+      if (effect.type === 'post') return yield* options.transport.post(effect.message)
+      if (effect.type === 'schedule-tick') {
+        yield* FiberHandle.run(
+          ticker,
+          Effect.repeat(tickOnce, {schedule: Schedule.spaced(READY_INTERVAL), while: (announcing) => announcing}).pipe(
+            Effect.asVoid,
+          ),
+        )
+        return
+      }
+      if (effect.type === 'schedule-timeout') {
+        yield* FiberHandle.run(
+          pickTimer,
+          Effect.sleep(PICK_TIMEOUT).pipe(Effect.andThen(dispatch({type: 'pick-timeout', attempt: effect.attempt}))),
+        )
+        return
+      }
+      if (effect.type === 'settle') {
+        yield* PubSub.publish(settlements, {attempt: effect.attempt, outcome: effect.outcome})
+        return
+      }
+      if (effect.type === 'publish') {
+        yield* PubSub.publish(signals, effect.signal)
+        return
+      }
+      yield* Effect.logWarning(effect.message).pipe(Effect.annotateLogs({plugin: 'ios', part: 'bridge'}))
+    },
+  )
 
-  const dispatch = (event: IosBridgeMachine.NativeEvent): Effect.Effect<void> =>
-    transitions.withPermits(1)(
-      Effect.gen(function* () {
-        const current = yield* SubscriptionRef.get(state)
-        const next = IosBridgeMachine.transitionNative(current, event)
-        if (next.state !== current) yield* SubscriptionRef.set(state, next.state)
-        yield* Effect.forEach(next.effects, perform, {discard: true})
-      }),
-    )
+  const dispatch: (event: IosBridgeMachine.NativeEvent) => Effect.Effect<void> = Effect.fn('ios.bridge.dispatch')(
+    function* (event: IosBridgeMachine.NativeEvent) {
+      yield* transitions.withPermits(1)(
+        Effect.gen(function* () {
+          const current = yield* SubscriptionRef.get(state)
+          const next = IosBridgeMachine.transitionNative(current, event)
+          if (next.state !== current) yield* SubscriptionRef.set(state, next.state)
+          yield* Effect.forEach(next.effects, perform, {discard: true})
+        }),
+      )
+    },
+  )
 
-  const pick = Effect.fn('Ios.nativePick')(function* (mode: GrabMode) {
+  const pick = Effect.fn('ios.bridge.pick')(function* (mode: GrabMode) {
     const outcome = yield* Effect.scoped(
       Effect.gen(function* () {
         const subscription = yield* PubSub.subscribe(settlements)
@@ -129,9 +144,9 @@ export const makeNativeClient = Effect.fn('Ios.makeNativeClient')(function* (opt
 
   yield* Effect.addFinalizer(() => dispatch({type: 'disposed'}))
 
-  yield* options.transport.calls.pipe(
-    Stream.runForEach((raw) => dispatch(decodeCall(raw))),
-    Effect.forkScoped,
+  yield* FiberHandle.run(
+    reader,
+    Stream.runForEach(options.transport.calls, (raw) => dispatch(decodeCall(raw))),
   )
 
   yield* dispatch({type: 'started'})

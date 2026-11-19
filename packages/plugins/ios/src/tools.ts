@@ -200,7 +200,10 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
       input: z.object({clean: z.boolean().optional()}),
       output: BuildOutputSchema,
       options: direct,
-      execute: (input, tool) => asking('ios_build', tool, (runtime) => built(build, runtime, input)),
+      execute: Effect.fn('ios.tools.build')(function* (input, tool) {
+        yield* Effect.annotateCurrentSpan({sessionId: tool.sessionId, plugin: 'ios'})
+        return yield* asking('ios_build', tool, (runtime) => built(build, runtime, input))
+      }),
     })
     editor.add({
       name: 'run',
@@ -208,7 +211,10 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
       input: z.object({autoshow: z.boolean().optional()}),
       output: RunOutputSchema,
       options: direct,
-      execute: (input, tool) => asking('ios_run', tool, (runtime) => run(runtime, input)),
+      execute: Effect.fn('ios.tools.run')(function* (input, tool) {
+        yield* Effect.annotateCurrentSpan({sessionId: tool.sessionId, plugin: 'ios'})
+        return yield* asking('ios_run', tool, (runtime) => run(runtime, input))
+      }),
     })
     editor.add({
       name: 'screenshot',
@@ -216,10 +222,12 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
       input: z.object({}),
       output: ScreenshotOutputSchema,
       options: codeMode,
-      execute: () =>
-        configuredRuntime === undefined
+      execute: Effect.fn('ios.tools.screenshot')(function* (_input, tool) {
+        yield* Effect.annotateCurrentSpan({sessionId: tool.sessionId, plugin: 'ios'})
+        return yield* configuredRuntime === undefined
           ? Effect.succeed({output: NOT_CONFIGURED})
-          : screenshot(configuredRuntime).pipe(Effect.provide(services)),
+          : screenshot(configuredRuntime).pipe(Effect.provide(services))
+      }),
     })
     editor.add({
       name: 'logs',
@@ -227,7 +235,10 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
       input: LogsInput,
       output: LogsOutputSchema,
       options: codeMode,
-      execute: (input) => configured((runtime) => logs(runtime, input)),
+      execute: Effect.fn('ios.tools.logs')(function* (input, tool) {
+        yield* Effect.annotateCurrentSpan({sessionId: tool.sessionId, plugin: 'ios'})
+        return yield* configured((runtime) => logs(runtime, input))
+      }),
     })
   })
   if (configuredRuntime === undefined) return

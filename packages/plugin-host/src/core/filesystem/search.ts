@@ -220,16 +220,15 @@ const makeFffLayer = (create: CreatePicker) =>
     }),
   )
 
-const fffLayer = Layer.unwrap(Effect.map(Fff.create, makeFffLayer))
-
 const layer = (options?: Options) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const location = yield* Location.Service
       if (location.workspaceId) return ripgrepLayer
       if (options?.fff === false || (options?.fff === undefined && process.platform === 'win32')) return ripgrepLayer
-      if (!(yield* Fff.available)) return ripgrepLayer
-      return location.vcs && !Protected.isHome(location.directory) ? fffLayer : ripgrepLayer
+      const fff = yield* Fff.adapter
+      if (!fff.available()) return ripgrepLayer
+      return location.vcs && !Protected.isHome(location.directory) ? makeFffLayer(fff.create) : ripgrepLayer
     }),
   )
 

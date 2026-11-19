@@ -4,7 +4,7 @@ import type {PluginOptions} from '@conciv/plugin'
 import {ConfigPlugin} from '../../../schema/config/plugin.js'
 import {FSUtil} from '../../../util/fs-util.js'
 import * as Host from '@conciv/plugin/host'
-import {Context, Effect, Exit, Fiber, FiberMap, Layer, Option, PubSub, Schedule, Scope, Semaphore, Stream} from 'effect'
+import {Context, Effect, FiberMap, Layer, Option, PubSub, Schedule, Scope, Semaphore, Stream} from 'effect'
 import path from 'path'
 import {fileURLToPath, pathToFileURL} from 'url'
 import {Watcher} from '../../filesystem/watcher.js'
@@ -47,12 +47,8 @@ export const layer = Layer.effect(
     const reloadLock = Semaphore.makeUnsafe(1)
     const watches = yield* FiberMap.make<string>()
     const configuredWatches = yield* FiberMap.make<string>()
-    const layerScope = yield* Effect.scope
-    const afterRootDeleted = (watch: Fiber.Fiber<Option.Option<Watcher.Update>>, announce: Effect.Effect<void>) =>
-      Fiber.await(watch).pipe(
-        Effect.flatMap((exit) => (Exit.isSuccess(exit) && Option.isSome(exit.value) ? announce : Effect.void)),
-        Effect.forkIn(layerScope),
-      )
+    const announceWhenEnded = (announce: Effect.Effect<void>) =>
+      Effect.flatMap(Option.match({onNone: () => Effect.void, onSome: () => announce}))
     const untilArmed = (watch: Effect.Effect<Option.Option<Watcher.Update>>) =>
       watch.pipe(Effect.repeat({schedule: Schedule.exponential('100 millis'), times: 4, until: Option.isSome}))
     const reconcile = Effect.fn('ConfigPluginSource.reconcileWatches')(function* () {
@@ -62,7 +58,7 @@ export const layer = Layer.effect(
       }
       for (const [key, target] of plan) {
         if (yield* FiberMap.has(watches, key)) continue
-        const watch = yield* watcher.subscribe(target, requestReload).pipe(
+        yield* watcher.subscribe(target, requestReload).pipe(
           Effect.flatMap((updates) =>
             updates.pipe(
               Stream.tap((update) => PubSub.publish(watchUpdates, update).pipe(Effect.andThen(requestReload))),
@@ -70,9 +66,9 @@ export const layer = Layer.effect(
             ),
           ),
           untilArmed,
+          announceWhenEnded(requestReload),
           FiberMap.run(watches, key, {startImmediately: true}),
         )
-        yield* afterRootDeleted(watch, requestReload)
       }
     })
     const reload = Effect.fn('ConfigPluginSource.reload')(
@@ -104,12 +100,15 @@ export const layer = Layer.effect(
     const watchConfiguredSources = Effect.fn('ConfigPluginSource.watchConfiguredSources')(
       function* () {
         const targets = yield* configuredTargets
-        const inputs = yield* Effect.forEach(targets, (target) =>
-          fs
-            .isDir(target)
-            .pipe(
-              Effect.map((directory): Watcher.WatchInput => ({path: target, type: directory ? 'directory' : 'file'})),
-            ),
+        const inputs = yield* Effect.forEach(
+          targets,
+          (target) =>
+            fs
+              .isDir(target)
+              .pipe(
+                Effect.map((directory): Watcher.WatchInput => ({path: target, type: directory ? 'directory' : 'file'})),
+              ),
+          {concurrency: 8},
         )
         const plan = new Map(inputs.map((input) => [JSON.stringify(input), input]))
         for (const key of Array.from(configuredWatches, ([existing]) => existing)) {
@@ -117,7 +116,7 @@ export const layer = Layer.effect(
         }
         for (const [key, input] of plan) {
           if (yield* FiberMap.has(configuredWatches, key)) continue
-          const watch = yield* watcher.subscribe(input).pipe(
+          yield* watcher.subscribe(input).pipe(
             Effect.flatMap((updates) =>
               updates.pipe(
                 Stream.tap(() => configuredChanged),
@@ -130,9 +129,9 @@ export const layer = Layer.effect(
                 Effect.as(Option.none<Watcher.Update>()),
               ),
             ),
+            announceWhenEnded(configuredChanged),
             FiberMap.run(configuredWatches, key, {startImmediately: true}),
           )
-          yield* afterRootDeleted(watch, configuredChanged)
         }
       },
       (effect) => reloadLock.withPermit(effect),

@@ -42,7 +42,7 @@ declare global {
 
 type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
-type BridgeView = {incompatible: Incompatible | null; grabbable: boolean}
+type BridgeView = {incompatible: Incompatible | null; grabbable: boolean; picking: boolean}
 
 export type NativeService = {
   readonly grabProvider: GrabProvider
@@ -94,10 +94,6 @@ function followSignal(commands: PanelCommands, signal: IosBridgeMachine.NativeSi
   window.dispatchEvent(new CustomEvent('conciv:rebind', {detail: {apiBase: signal.apiBase}}))
 }
 
-function isPicking(client: IosBridge.NativeClient): boolean {
-  return Effect.runSync(SubscriptionRef.get(client.state)).pick.status === 'picking'
-}
-
 function IncompatibleBridgeAlert(props: {view: BridgeView}): JSX.Element {
   return (
     <Show when={props.view.incompatible}>
@@ -114,7 +110,7 @@ function IncompatibleBridgeAlert(props: {view: BridgeView}): JSX.Element {
   )
 }
 
-const startNativeService = Effect.fn('Ios.startNativeService')(function* () {
+const startNativeService = Effect.fn('ios.native.start')(function* () {
   const commands = yield* openPanelCommands
   const transport = yield* installTransport
   const client = yield* IosBridge.makeNativeClient({
@@ -124,15 +120,26 @@ const startNativeService = Effect.fn('Ios.startNativeService')(function* () {
   })
   const run = yield* FiberSet.makeRuntime<never, unknown, unknown>()
   const runPromise = yield* FiberSet.makeRuntimePromise<never, unknown, unknown>()
-  const [view, setView] = createStore<BridgeView>({incompatible: null, grabbable: false})
+  const [view, setView] = createStore<BridgeView>({incompatible: null, grabbable: false, picking: false})
 
-  yield* Stream.runForEach(SubscriptionRef.changes(client.state), (state) =>
-    Effect.sync(() =>
-      setView(reconcile({incompatible: IosBridgeMachine.readIncompatible(state), grabbable: state.grabbable})),
+  const followers = yield* FiberSet.make<void, never>()
+  yield* FiberSet.run(
+    followers,
+    Stream.runForEach(SubscriptionRef.changes(client.state), (state) =>
+      Effect.sync(() =>
+        setView(
+          reconcile({
+            incompatible: IosBridgeMachine.readIncompatible(state),
+            grabbable: state.grabbable,
+            picking: state.pick.status === 'picking',
+          }),
+        ),
+      ),
     ),
-  ).pipe(Effect.forkScoped)
-  yield* Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(commands, signal))).pipe(
-    Effect.forkScoped,
+  )
+  yield* FiberSet.run(
+    followers,
+    Stream.runForEach(client.signals, (signal) => Effect.sync(() => followSignal(commands, signal))),
   )
   yield* listenPanelToggled((event) => {
     const detail = event.detail
@@ -146,19 +153,23 @@ const startNativeService = Effect.fn('Ios.startNativeService')(function* () {
     )
   })
 
-  const pickWith = async (mode: GrabMode) => {
-    commands.emit('close', undefined)
-    try {
-      return await runPromise(client.pick(mode))
-    } finally {
-      if (!isPicking(client)) commands.emit('open', undefined)
-    }
-  }
+  const reopenUnlessPicking = SubscriptionRef.get(client.state).pipe(
+    Effect.flatMap((state) =>
+      state.pick.status === 'picking' ? Effect.void : Effect.sync(() => commands.emit('open', undefined)),
+    ),
+  )
+  const pickWith = (mode: GrabMode) =>
+    runPromise(
+      Effect.sync(() => commands.emit('close', undefined)).pipe(
+        Effect.andThen(client.pick(mode)),
+        Effect.ensuring(reopenUnlessPicking),
+      ),
+    )
   const actions: GrabActions = {
     pick: () => pickWith('activate'),
     comment: () => pickWith('comment'),
     cancel: () => void run(client.cancel),
-    isActive: () => isPicking(client),
+    isActive: () => view.picking,
     grabbable: () => view.grabbable,
   }
   const service: NativeService = {
