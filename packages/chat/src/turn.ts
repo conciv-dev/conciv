@@ -167,7 +167,7 @@ function promptFile(part: ContentPart): PromptFile[] {
 
 function promptEvent(sessionId: SessionId, messageId: string, message: ModelMessage): SessionPrompt {
   const parts = contentParts(message.content)
-  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')
+  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
   const files = parts.flatMap(promptFile)
   return {
     sessionId,
