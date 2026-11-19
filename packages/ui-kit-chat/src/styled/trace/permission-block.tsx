@@ -24,7 +24,7 @@ const BUTTON_SHAPE = `inline-flex items-center gap-1.5 px-2.5 py-2 rounded-chat-
 const BUTTON_BASE = `${BUTTON_SHAPE} cursor-pointer`
 const APPROVE = `${BUTTON_BASE} [background:var(--chat-perm-chip-bg)] [border:1px_solid_var(--chat-perm-line)] text-chat-perm-label hover:[background:var(--chat-perm-bg)] hover:[border-color:var(--chat-warn)]`
 const DENY = `${BUTTON_BASE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line)]`
-const SESSION = `${BUTTON_BASE} [background:transparent] [border:1px_solid_var(--chat-line)] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-perm-line)]`
+const ALWAYS = `${BUTTON_BASE} [background:transparent] [border:1px_solid_var(--chat-line)] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-perm-line)]`
 const HINT = 'select-none text-chat-micro leading-none [font-family:var(--chat-mono)] opacity-70'
 const REQUEST_ITEM = 'list-none min-w-0 relative'
 
@@ -53,11 +53,6 @@ function ExpiryChip(props: {expiresAt: number}): JSX.Element {
 }
 
 const DECISION_MESSAGE = {approved: 'Approved the request', denied: 'Denied the request'} as const
-
-const REMEMBER = {
-  session: {label: 'Allow for session', title: 'Allows this exact command for the rest of the session'},
-  project: {label: 'Always allow', title: 'Allows this in this project from now on'},
-} as const
 
 const DECIDED = `${BUTTON_SHAPE} [background:transparent] [border:1px_solid_transparent]`
 
@@ -127,15 +122,15 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
                     ⌘⏎
                   </span>
                 </Button>
-                <Show when={permission.rememberable()}>
+                <Show when={permission.savable()}>
                   <Button
                     variant="plain"
                     size="none"
-                    class={SESSION}
-                    title={REMEMBER[permission.remembers()].title}
-                    onClick={permission.approveForSession}
+                    class={ALWAYS}
+                    title="Allows this in this project from now on"
+                    onClick={permission.always}
                   >
-                    {REMEMBER[permission.remembers()].label}
+                    Always allow
                   </Button>
                 </Show>
                 <Button variant="plain" size="none" class={DENY} onClick={permission.reject}>

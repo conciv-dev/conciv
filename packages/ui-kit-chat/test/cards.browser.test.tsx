@@ -20,7 +20,7 @@ import {CollapsibleCard} from '../src/tools/styled/collapsible-card.js'
 import {CollapsibleSection} from '../src/tools/styled/collapsible-section.js'
 import {InlineShell} from '../src/tools/styled/inline-row.js'
 import {CardChromeProvider} from '../src/tools/styled/card-chrome.js'
-import type {PermissionScope} from '@conciv/protocol/chat-types'
+import type {PermissionReply} from '@conciv/protocol/chat-types'
 import {PermissionCard} from '../src/tools/styled/permission-card.js'
 import {ToolCallCard, ToolTraceRow} from '../src/tools/styled/tool-call-card.js'
 import {createSignal, type JSX} from 'solid-js'
@@ -517,7 +517,7 @@ describe('meta tool card object result', () => {
 })
 
 describe('permission card session', () => {
-  type Decision = {id: string; approved: boolean; scope: PermissionScope | undefined}
+  type Decision = {id: string; reply: PermissionReply}
 
   function askingPart(input: Record<string, unknown>): ToolCallPart {
     return {
@@ -533,17 +533,19 @@ describe('permission card session', () => {
   function ctxRecording(decisions: Decision[]): ToolViewCtx {
     return {
       ...INERT_TOOL_CTX,
-      respondApproval: (id, approved, scope) => decisions.push({id, approved, scope}),
+      respondApproval: (id, reply) => decisions.push({id, reply}),
     }
   }
 
-  it('reports a one-shot allow for the plain Allow action', async () => {
+  it('a command ask offers Allow and Deny with no session action, and Allow replies once', async () => {
     const decisions: Decision[] = []
     mountView(() => <PermissionCard part={askingPart({command: 'pnpm run build'})} ctx={ctxRecording(decisions)} />)
 
+    await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
+    expect(document.querySelectorAll('button')).toHaveLength(2)
     await page.getByRole('button', {name: 'Allow', exact: true}).click()
 
-    expect(decisions).toEqual([{id: 'appr-1', approved: true, scope: 'once'}])
+    expect(decisions).toEqual([{id: 'appr-1', reply: 'once'}])
   })
 })
 
@@ -812,8 +814,8 @@ describe('tool fallback json', () => {
 })
 
 describe('tool trace row', () => {
-  function ctxRecording(decisions: Array<{id: string; approved: boolean}>): ToolViewCtx {
-    return {...ctxWith(makeCatalog({})), respondApproval: (id, approved) => decisions.push({id, approved})}
+  function ctxRecording(decisions: Array<{id: string; reply: PermissionReply}>): ToolViewCtx {
+    return {...ctxWith(makeCatalog({})), respondApproval: (id, reply) => decisions.push({id, reply})}
   }
 
   const noCtx = ctxRecording([])
@@ -959,7 +961,7 @@ describe('tool trace row', () => {
   })
 
   it('a call waiting on approval keeps its row free of the ask, which the dock block answers', async () => {
-    const decisions: Array<{id: string; approved: boolean}> = []
+    const decisions: Array<{id: string; reply: PermissionReply}> = []
     const asking: ToolCallPart = {
       ...call('Bash', {command: 'rm -rf dist'}, 'approval-requested'),
       approval: {id: 'ap-1', needsApproval: true},
@@ -979,7 +981,7 @@ describe('tool trace row', () => {
 
     await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
-    expect(decisions).toEqual([{id: 'ap-1', approved: true}])
+    expect(decisions).toEqual([{id: 'ap-1', reply: 'once'}])
   })
 })
 

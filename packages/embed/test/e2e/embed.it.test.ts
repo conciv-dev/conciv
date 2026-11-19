@@ -1865,11 +1865,11 @@ test.describe('page dispatch parity', () => {
     })
   })
 
-  test.describe('conciv tools page eval in a headless run, with nobody at the tab', () => {
+  test.describe('conciv tools page eval from the terminal, answered at the tab', () => {
     const conciv = fileURLToPath(import.meta.resolve('@conciv/cli/bin'))
     const EVAL = "document.getElementById('probe').textContent = 'evaluated'"
     type HeadlessTab = {kit: EmbedKit; host: {base: string; close: () => Promise<void>}; page: Page}
-    let refused: HeadlessTab
+    let unruled: HeadlessTab
     let allowed: HeadlessTab
 
     const openTab = async (browser: Browser, options: Parameters<typeof bootEmbedKit>[0]): Promise<HeadlessTab> => {
@@ -1909,52 +1909,53 @@ test.describe('page dispatch parity', () => {
       )
     }
 
-    const askRefusal = {
+    const denial = {
       code: 1,
       document: {
         ok: false,
         error: {
           kind: 'user',
           code: 'APPROVAL_DENIED',
-          message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+          message: 'The user denied running tool "page_eval". Do not retry it; continue without it.',
         },
       },
     }
-    let denied: EmbedKit
-    let blanket: EmbedKit
-    let otherAction: EmbedKit
+    let denied: HeadlessTab
+    let blanket: HeadlessTab
+    let otherAction: HeadlessTab
+
+    const answeredInTab = async ({kit, page}: HeadlessTab, button: 'Approve' | 'Deny') => {
+      const answered = toolsPage(kit, ['eval', '--code', EVAL])
+      await page.getByRole('button', {name: button, exact: true}).click()
+      return answered
+    }
 
     test.beforeAll(async ({browser}) => {
-      refused = await openTab(browser, {})
+      unruled = await openTab(browser, {})
       allowed = await openTab(browser, {permission: {page_eval: 'allow'}})
-      denied = await bootEmbedKit({permission: {page_eval: 'deny'}})
-      blanket = await bootEmbedKit({permission: 'allow'})
-      otherAction = await bootEmbedKit({permission: {page_click: 'allow'}})
+      denied = await openTab(browser, {permission: {page_eval: 'deny'}})
+      blanket = await openTab(browser, {permission: 'allow'})
+      otherAction = await openTab(browser, {permission: {page_click: 'allow'}})
     })
 
     test.afterAll(async () => {
-      await closeTab(refused)
+      await closeTab(unruled)
       await closeTab(allowed)
-      await denied.cleanup()
-      await blanket.cleanup()
-      await otherAction.cleanup()
+      await closeTab(denied)
+      await closeTab(blanket)
+      await closeTab(otherAction)
     })
 
-    test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
-      const {kit, page} = refused
+    test('with no rule in the host config, eval waits on the card in the tab: Deny refuses it and leaves the page untouched, Approve runs it', async () => {
+      const {kit, page} = unruled
       await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
-      expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
-        code: 1,
-        document: {
-          ok: false,
-          error: {
-            kind: 'user',
-            code: 'APPROVAL_DENIED',
-            message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
-          },
-        },
-      })
+      expect(await answeredInTab(unruled, 'Deny')).toEqual(denial)
       await expect(page.getByText('page-probe-ok', {exact: true})).toBeVisible()
+      expect(await answeredInTab(unruled, 'Approve')).toEqual({
+        code: 0,
+        document: {ok: true, data: {result: 'evaluated'}},
+      })
+      await expect(page.getByText('evaluated', {exact: true})).toBeVisible()
     })
 
     test('with page_eval allowed in the host config, eval runs with no click and the page shows its effect', async () => {
@@ -1968,15 +1969,15 @@ test.describe('page dispatch parity', () => {
     })
 
     test('only a page_eval rule decides eval, and an allowed eval still needs an attached tab', async () => {
-      expect.soft(await toolsPage(denied, ['eval', '--code', EVAL])).toEqual({
+      expect.soft(await toolsPage(denied.kit, ['eval', '--code', EVAL])).toEqual({
         code: 1,
         document: {
           ok: false,
           error: {kind: 'user', code: 'APPROVAL_DENIED', message: 'Permission denied: page_eval'},
         },
       })
-      expect.soft(await toolsPage(blanket, ['eval', '--code', EVAL])).toEqual(askRefusal)
-      expect.soft(await toolsPage(otherAction, ['eval', '--code', EVAL])).toEqual(askRefusal)
+      expect.soft(await answeredInTab(blanket, 'Deny')).toEqual(denial)
+      expect.soft(await answeredInTab(otherAction, 'Deny')).toEqual(denial)
       const {sessionId} = await allowed.kit.rpc.sessions.create()
       expect.soft(await toolsPage(allowed.kit, ['eval', '--code', EVAL], sessionId)).toEqual({
         code: 1,

@@ -6,10 +6,11 @@ import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-typ
 import {resolveHarnessModels} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
 import type {Router} from '@orpc/server'
-import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
+import {Cause, Effect, Exit, Option, Result, Schema, Stream} from 'effect'
 import {OUTPUT_CAPACITY, ptyOutput, type PtyOutputEvent} from '../../pty/pty-output.js'
 import type {TtySession} from '../../pty/pty-sessions.js'
-import {Agent, Event, FileSystem, Location, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
+import {Agent, Event, FileSystem, Location, Permission, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
+import {approvalDenied} from '@conciv/ai/server'
 import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
@@ -21,6 +22,7 @@ import {
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
+import {rowById} from '../../sessions/session-rows.js'
 import {chatRouter} from './chat.js'
 import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
 import {
@@ -36,14 +38,7 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
-import {
-  askedPagePermission,
-  callPluginTool,
-  isPageTool,
-  pagePermissionAllows,
-  pluginSignature,
-  pluginSignatures,
-} from '../../runtime/plugin-signatures.js'
+import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -57,7 +52,6 @@ export const PAGE_ERROR_NAME = {
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
-type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: AbortSignal}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
   if (isPageFailure(error)) {
@@ -70,9 +64,19 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
 
 const PluginPageFailure = z.object({code: z.enum(PAGE_ERROR_CODES), message: z.string()})
 
-function pluginToolError(name: string, cause: Cause.Cause<unknown>, errors: RegistryErrors): Error {
+const isDeclined = Schema.is(Permission.DeclinedError)
+const isBlocked = Schema.is(Permission.BlockedError)
+const isCorrected = Schema.is(Permission.CorrectedError)
+
+function pluginToolError(name: string, cause: Cause.Cause<Tool.Error>, errors: RegistryErrors & ApprovalErrors): Error {
+  const defect = Cause.findDefect(cause)
+  if (Result.isSuccess(defect) && isDeclined(defect.success)) {
+    return errors.APPROVAL_DENIED({message: approvalDenied(name).message})
+  }
   const failure = Cause.findErrorOption(cause)
   if (Option.isNone(failure)) return registryCallError(Cause.squash(cause), errors)
+  const refused = failure.value.error
+  if (isBlocked(refused) || isCorrected(refused)) return errors.APPROVAL_DENIED({message: failure.value.message})
   const page = PluginPageFailure.safeParse(z.object({metadata: z.unknown()}).safeParse(failure.value).data?.metadata)
   if (page.success) {
     return errors[PAGE_ERROR_NAME[page.data.code]]({message: `${name}: ${page.data.message}`, cause: failure.value})
@@ -94,14 +98,21 @@ async function requireAttachedPage(
   throw errors.NO_PAGE_CLIENT({message: `${call.name}: ${reason}`, cause: undefined})
 }
 
+async function requireLiveSession(deps: RpcDeps, sessionId: SessionId, errors: ApprovalErrors): Promise<void> {
+  const row = await rowById(deps.chat.db, sessionId)
+  if (row !== null && row.deletedAt === null) return
+  throw errors.APPROVAL_DENIED({message: `session "${sessionId}" does not exist`})
+}
+
 async function runPluginTool(
   deps: RpcDeps,
-  call: {sessionId: SessionId; name: string; input: unknown; callId: string; signal?: AbortSignal},
-  errors: RegistryErrors,
+  call: {sessionId: SessionId; name: string; input: unknown; callId: string; widget: boolean; signal?: AbortSignal},
+  errors: RegistryErrors & ApprovalErrors,
 ): Promise<unknown> {
+  if (!call.widget) await requireLiveSession(deps, call.sessionId, errors)
   if (isPageTool(call.name)) await requireAttachedPage(deps, call, errors)
   const exit = await deps.pluginHost.runPromiseExit(
-    callPluginTool(call.sessionId, call.name, call.input, call.callId),
+    callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
     {signal: call.signal},
   )
   if (Exit.isFailure(exit)) throw pluginToolError(call.name, exit.cause, errors)
@@ -119,31 +130,6 @@ function contentPart(part: Tool.Content) {
   if (!part.mime.startsWith('image/')) return part
   const value = part.uri.slice(part.uri.indexOf(',') + 1)
   return {type: 'image', source: {type: 'data', value, mimeType: part.mime}}
-}
-
-async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, call: GatedCall): Promise<void> {
-  const widget = widgetCaller(call.context.callerOrigin, deps.allowedOrigins)
-  const asked = askedPagePermission(name, input)
-  if (asked === undefined && widget) return
-  if (asked === undefined && callTrace((header) => rpcHeader(call.context, header)).hub?.namedTab === true) return
-  const catalog = await deps.pluginHost.runPromise(pluginSignatures)
-  const asks = catalog.find((tool) => tool.name === name)?.approval === 'ask'
-  if (!asks) return
-  const scope = call.context.session
-  const allowed =
-    asked !== undefined &&
-    (await deps.pluginHost.runPromise(
-      pagePermissionAllows(scope.id, asked).pipe(
-        Effect.catchTag('Permission.BlockedError', (blocked) =>
-          Effect.fail(call.errors.APPROVAL_DENIED({message: blocked.message})),
-        ),
-        Effect.catchTag('Session.NotFoundError', () => Effect.succeed(false)),
-      ),
-      {signal: call.signal},
-    ))
-  if (allowed || widget) return
-  const refusal = await deps.chat.plane.admitCall(scope.id, {toolName: name, input, publish: scope.stream.publish})
-  if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }
 
 async function hubTraced<Result>(
@@ -387,13 +373,19 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
         if (trace.hub !== null) deps.code.hubCall(context.session.id, trace.callId)
         const gate: RegistryCallGate = async (run) => {
           await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
-          await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
           return hubTraced(deps, context, input.name, input.input, run, trace)
         }
         const pluginRun = () =>
           runPluginTool(
             deps,
-            {sessionId: context.session.id, name: input.name, input: input.input, callId: trace.callId, signal},
+            {
+              sessionId: context.session.id,
+              name: input.name,
+              input: input.input,
+              callId: trace.callId,
+              widget: widgetCaller(context.callerOrigin, deps.allowedOrigins),
+              signal,
+            },
             errors,
           )
         const call = (): Promise<unknown> =>

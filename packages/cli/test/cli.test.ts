@@ -21,7 +21,7 @@ import * as Bundler from '@conciv/plugin/schema/bundler'
 import {engineOrigin} from '../src/engine-origin.js'
 import {runLink, runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
-import {approvePending, exchangePrintedCode, loginThroughTerminal} from '@conciv/harness-testkit'
+import {exchangePrintedCode, loginThroughTerminal, withAutoApproval} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {
@@ -96,6 +96,8 @@ import {
   readSteps,
   type SeenQuery,
 } from './helpers.js'
+
+const EVAL_DENIED = 'The user denied running tool "page_eval". Do not retry it; continue without it.'
 
 const DiscoverTextSchema = z.tuple([z.object({type: z.literal('text'), text: z.string()})])
 
@@ -1266,18 +1268,24 @@ describe('cli', () => {
         })
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
-        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'once'})
         expect(await waiting).toMatchObject({ok: true, data: {pathname: expect.any(String)}})
         const evaluate = ['tools', 'page', 'eval', '--code', '1']
         expect([
           await conciv(elsewhere, home, [...evaluate, '--tab', sessionId]),
           await conciv(elsewhere, home, evaluate),
-          await conciv(elsewhere, home, ['tools', 'page', 'eval', '--code', '2', '--tab', sessionId]),
         ]).toMatchObject([
           {ok: true, data: evaluated},
           {ok: true, data: evaluated},
-          {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringMatching(/needs the user/)}},
         ])
+        const unruled = conciv(elsewhere, home, ['tools', 'page', 'eval', '--code', '2', '--tab', sessionId])
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
+        const [evalAsk] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(evalAsk).toMatchObject({toolName: 'page_eval 2'})
+        await page.chat.permissionDecision({approvalId: evalAsk?.approvalId ?? '', reply: 'reject'})
+        expect(await unruled).toMatchObject({ok: false, error: {code: 'APPROVAL_DENIED', message: EVAL_DENIED}})
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
         expect(await conciv(elsewhere, home, missing)).toMatchObject({
@@ -1309,7 +1317,7 @@ describe('cli', () => {
         await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
-        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'reject'})
         expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
       } finally {
         watched.abort()
@@ -1331,7 +1339,7 @@ describe('cli', () => {
         front.answerHeld()
         await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
         const [ask] = (await holder.page.chat.hydrate({sessionId: holder.sessionId})).pendingApprovals
-        await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'reject'})
         const denied = await waiting
         expect(denied).toMatchObject({
           ok: false,
@@ -1759,11 +1767,8 @@ describe('cli', () => {
       it.each(PAGE_ROWS)('$row', async ({action, value}) => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
-        if (action.type === 'eval') {
-          expect(await tools(pageArguments(action))).toMatchObject({code: 1, document: {ok: false}})
-          expect(await approvePending(engine.base, engine.sessionId)).toHaveLength(1)
-        }
-        const calling = tools(pageArguments(action))
+        const run = () => tools(pageArguments(action))
+        const calling = action.type === 'eval' ? withAutoApproval(engine.base, engine.sessionId, run) : run()
         const queued = action.type === 'queue' || action.type === 'queue_async' ? await nextQueue() : undefined
         if (action.type === 'queue' && queued !== undefined) await answerPlayed(queued.id)
         if (action.type === 'queue_async') expect(queued).toMatchObject({of: 1})
@@ -1880,30 +1885,34 @@ describe('cli', () => {
         })
       })
 
-      it('page eval needs the user: refused with a card, and one approval lets exactly one later call run', async () => {
+      it('page eval waits on the card: an approval runs it, and a denial refuses it with exit 1', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
-        const refusal = {
-          code: 1,
-          document: {
-            ok: false,
-            error: {kind: 'user', code: 'APPROVAL_DENIED', message: expect.stringContaining('needs the user')},
-          },
+        const pending = async () => (await engine.page.chat.hydrate({sessionId: engine.sessionId})).pendingApprovals
+        const decided = async (approved: boolean) => {
+          const answered = tools(['eval', '--code', 'document.title'])
+          await vi.waitFor(async () => expect(await pending()).toHaveLength(1), {timeout: 5000})
+          const [ask] = await pending()
+          expect(ask).toMatchObject({toolName: 'page_eval document.title', permission: {always: false}})
+          expect(answering.seen).toEqual([])
+          await engine.page.chat.permissionDecision({
+            approvalId: ask?.approvalId ?? '',
+            reply: approved ? 'once' : 'reject',
+          })
+          return answered
         }
-        expect(await tools(['eval', '--code', 'document.title'])).toMatchObject(refusal)
-        expect(answering.seen).toEqual([])
-        expect(await approvePending(engine.base, engine.sessionId)).toHaveLength(1)
         answering.next = {type: 'success', result: {value: {result: 'Example'}, files: []}}
-        expect(await tools(['eval', '--code', 'document.title'])).toEqual({
-          code: 0,
-          document: {ok: true, data: {result: 'Example'}},
-        })
+        expect(await decided(true)).toEqual({code: 0, document: {ok: true, data: {result: 'Example'}}})
         expect(answering.seen).toMatchObject([{action: {type: 'eval', code: 'document.title'}}])
-        expect(await tools(['eval', '--code', 'document.title'])).toMatchObject(refusal)
-        expect(answering.seen).toHaveLength(1)
+        answering.seen.length = 0
+        expect(await decided(false)).toEqual({
+          code: 1,
+          document: {ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED', message: EVAL_DENIED}},
+        })
+        expect(answering.seen).toEqual([])
       })
 
-      it('page eval from a caller naming its tab is asked like any outside call', async () => {
+      it('page eval from a caller naming its tab is asked like any outside call, then waits on the eval card', async () => {
         const {engine} = held
         if (engine === undefined) throw new Error('the engine with a tab did not start')
         const pending = async () => (await engine.page.chat.hydrate({sessionId: engine.sessionId})).pendingApprovals
@@ -1917,17 +1926,15 @@ describe('cli', () => {
         await vi.waitFor(async () => expect(await asked()).toHaveLength(1), {timeout: 5000})
         const [ask] = await asked()
         expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
-        await engine.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
+        await engine.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'once'})
+        await vi.waitFor(async () => expect(await asked()).toMatchObject([{toolName: 'page_eval document.title'}]), {
+          timeout: 5000,
+        })
+        const [evalAsk] = await asked()
+        await engine.page.chat.permissionDecision({approvalId: evalAsk?.approvalId ?? '', reply: 'reject'})
         expect(await answered).toEqual({
           code: 1,
-          document: {
-            ok: false,
-            error: {
-              kind: 'user',
-              code: 'APPROVAL_DENIED',
-              message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
-            },
-          },
+          document: {ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED', message: EVAL_DENIED}},
         })
         expect(answering.seen).toEqual([])
       })

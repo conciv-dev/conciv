@@ -143,7 +143,7 @@ async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise
   const asked = readApprovalAsk(await events.waitFor((event) => readApprovalAsk(event) !== null))
   if (asked === null) throw new Error(`${name} raised no permission ask`)
   const session = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: room}})
-  await session.chat.permissionDecision({approvalId: asked.approvalId, approved: true, scope: 'once'})
+  await session.chat.permissionDecision({approvalId: asked.approvalId, reply: 'once'})
   return result
 }
 

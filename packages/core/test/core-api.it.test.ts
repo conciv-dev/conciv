@@ -201,6 +201,8 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
   }
 }
 
+const EVAL_DENIED = 'The user denied running tool "page_eval". Do not retry it; continue without it.'
+
 const FINISHED_CALL_TIME = {start: expect.any(Number), end: expect.any(Number)}
 
 const HubCardTimeSchema = z.object({
@@ -2707,7 +2709,10 @@ describe('rpc wire', () => {
           const ask = await firstAsk(events)
           listening.abort()
           expect(ask).toMatchObject({toolName: 'page_eval 1', permission: {always: expect.any(Boolean)}})
-          await expect(decide(sessionId, ask.approvalId, approved)).resolves.toEqual({ok: true, startsTurn: false})
+          await expect(decide(sessionId, ask.approvalId, approved ? 'once' : 'reject')).resolves.toEqual({
+            ok: true,
+            startsTurn: false,
+          })
           return (await turn).done()
         }
         await evalTurn(false)
@@ -2726,33 +2731,31 @@ describe('rpc wire', () => {
         expect((await chatKit().hydrate(sessionId)).pendingApprovals.map((ask) => ask.approvalId)).toEqual([
           PLAIN_COMMAND,
         ])
-        await expect(decide(sessionId, PLAIN_COMMAND, false)).resolves.toEqual({ok: true, startsTurn: true})
+        await expect(decide(sessionId, PLAIN_COMMAND, 'reject')).resolves.toEqual({ok: true, startsTurn: true})
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
         await finished(sessionId, 'retry denied')
         expect(findLastRun(sessionId).denials).toEqual([PLAIN_COMMAND])
         await finished(sessionId, 'after the denial')
         expect(findLastRun(sessionId).denials).toEqual([])
         await commandAsks(sessionId, [PLAIN_COMMAND])
-        await decide(sessionId, PLAIN_COMMAND, true)
+        await decide(sessionId, PLAIN_COMMAND, 'once')
         await finished(sessionId, 'retry approved')
         expect(findLastRun(sessionId).approvals).toEqual([PLAIN_COMMAND])
         await finished(sessionId, 'after the approval')
         expect(findLastRun(sessionId).approvals).toEqual([])
-        await expect(decide(sessionId, 'claude-code:command:nothing', true)).rejects.toMatchObject({
+        await expect(decide(sessionId, 'claude-code:command:nothing', 'once')).rejects.toMatchObject({
           code: 'UNKNOWN_REQUEST',
         })
       })
 
-      it('approving a harness command for the session lets repeats through, except a command that could hide another', async () => {
+      it('a harness command ask has no session grant: an always reply reaches the next run once, like once', async () => {
         const sessionId = await newSession()
-        await commandAsks(sessionId, [PLAIN_COMMAND, HIDDEN_COMMAND])
-        await decide(sessionId, PLAIN_COMMAND, true, 'session')
-        await decide(sessionId, HIDDEN_COMMAND, true, 'session')
+        await commandAsks(sessionId, [PLAIN_COMMAND])
+        await expect(decide(sessionId, PLAIN_COMMAND, 'always')).resolves.toEqual({ok: true, startsTurn: true})
         await finished(sessionId, 'retry one')
-        expect(findLastRun(sessionId).approvals).toEqual(expect.arrayContaining([PLAIN_COMMAND, HIDDEN_COMMAND]))
+        expect(findLastRun(sessionId).approvals).toEqual([PLAIN_COMMAND])
         await finished(sessionId, 'retry two')
-        expect(findLastRun(sessionId).approvals).toContain(PLAIN_COMMAND)
-        expect(findLastRun(sessionId).approvals).not.toContain(HIDDEN_COMMAND)
+        expect(findLastRun(sessionId).approvals).toEqual([])
       })
 
       it('the widget calling page_eval is the approval, while malformed callers are refused', async () => {
@@ -2779,7 +2782,7 @@ describe('rpc wire', () => {
         expect((await mcpPost({[CONCIV_SESSION_HEADER]: 'nope'})).status).toBe(400)
       })
 
-      it('a page_eval from outside the widget: a disconnected agent and a denied outside admission are refused, and a plain caller is refused with the ask shown until one approval runs one retry', async () => {
+      it('a page_eval from outside the widget: a disconnected agent and a denied outside admission are refused, and a plain caller waits on the card: approve runs it, reject refuses it, an unknown session is refused before any card', async () => {
         const sessionId = await newSession()
         const tab = await chatTabs.open(sessionId, () => pageSuccess(EVALUATED))
         onTestFinished(() => tab.end())
@@ -2808,28 +2811,42 @@ describe('rpc wire', () => {
         const outsideAsk = await firstAsk(outsideEvents)
         outsideListening.abort()
         expect(outsideAsk).toMatchObject({input: {client: 'terminal'}})
-        await decide(sessionId, outsideAsk.approvalId, false)
+        await decide(sessionId, outsideAsk.approvalId, 'reject')
         await refusal
-        const call = () => callerWith(sessionId).registry.call(EVALUATE)
-        const listening = new AbortController()
-        const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
-        await expect(call()).rejects.toMatchObject({
-          code: 'APPROVAL_DENIED',
-          message: expect.stringMatching(/needs the user/),
-        })
-        expect(await firstAsk(events)).toMatchObject({approvalId: EVAL_ID})
-        listening.abort()
+        const asked = async () => {
+          const listening = new AbortController()
+          const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
+          const result = callerWith(sessionId)
+            .registry.call(EVALUATE)
+            .then(
+              (value) => ({value}),
+              (error: unknown) => ({error}),
+            )
+          const ask = await firstAsk(events)
+          listening.abort()
+          expect(ask).toMatchObject({toolName: 'page_eval 1', input: EVALUATE.input, permission: {always: false}})
+          return {result, ask}
+        }
+        const approved = await asked()
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([
-          {approvalId: EVAL_ID, toolCallId: EVAL_ID, toolName: 'page_eval', input: EVALUATE.input, runId: null},
+          expect.objectContaining({approvalId: approved.ask.approvalId, runId: null, permission: {always: false}}),
         ])
         expect(tab.seen()).toEqual([])
-        await expect(decide(sessionId, EVAL_ID, true)).resolves.toEqual({ok: true, startsTurn: false})
-        await expect(call()).resolves.toEqual(EVALUATED)
+        await expect(decide(sessionId, approved.ask.approvalId, 'once')).resolves.toEqual({ok: true, startsTurn: false})
+        expect(await approved.result).toEqual({value: EVALUATED})
         expect(tab.seen()).toEqual(['page_eval'])
-        await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+        const rejected = await asked()
+        await expect(decide(sessionId, rejected.ask.approvalId, 'reject')).resolves.toEqual({
+          ok: true,
+          startsTurn: false,
+        })
+        expect(await rejected.result).toMatchObject({error: {code: 'APPROVAL_DENIED', message: EVAL_DENIED}})
         expect(tab.seen()).toEqual(['page_eval'])
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
         const unknown = callerWith('conciv_unknown_probe').registry.call(EVALUATE)
         await expect(unknown).rejects.toThrow('session "conciv_unknown_probe" does not exist')
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+        expect(tab.seen()).toEqual(['page_eval'])
       })
     })
 
@@ -3999,11 +4016,9 @@ return seen`
   const SILENCE_MS = 1_000
   const GUARD = {hangGuardMs: 5_000}
   const GRAB_TEXT = '<button>Buy</button> in src/cart.tsx'
-  const EVAL_ID = 'conciv:tool:page_eval'
   const EVALUATE = {name: 'page_eval', input: {code: '1'}}
   const EVALUATED = {result: 'evaluated'}
   const PLAIN_COMMAND = 'claude-code:command:git status'
-  const HIDDEN_COMMAND = 'claude-code:command:grep "$(cat x)"'
   const TERMINAL_ID = 'sess-terminal-born'
   const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
@@ -4305,8 +4320,8 @@ return seen`
     throw new Error('the event stream ended before an ask was raised')
   }
 
-  function decide(sessionId: string, approvalId: string, approved: boolean, scope: 'once' | 'session' = 'once') {
-    return callerWith(sessionId).chat.permissionDecision({approvalId, approved, scope})
+  function decide(sessionId: string, approvalId: string, reply: 'once' | 'always' | 'reject') {
+    return callerWith(sessionId).chat.permissionDecision({approvalId, reply})
   }
 
   function callerWith(sessionId: string) {
@@ -4938,7 +4953,7 @@ describe('outside agent consent', () => {
     expect(ask).toMatchObject({...OUTSIDE_ASK, runId: null})
     const decision = await createSessionRpc(base, sessionId).chat.permissionDecision({
       approvalId: ask?.approvalId ?? '',
-      approved,
+      reply: approved ? 'once' : 'reject',
     })
     expect(decision.startsTurn).toBe(false)
   }
@@ -5329,7 +5344,7 @@ export default {
     expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab', input: {client: 'terminal'}})
     await createSessionRpc(base, sessionId).chat.permissionDecision({
       approvalId: ask?.approvalId ?? '',
-      approved: false,
+      reply: 'reject',
     })
     expect(await asked).toContain('denied')
   })
@@ -5423,7 +5438,7 @@ export default {
 
   it('an allowed outside agent still cannot answer permission requests or call plugin RPC methods: its decision, allow and plugin call are refused and the card stays', async () => {
     const base = await boot()
-    const sessionId = await newSession(base)
+    const sessionId = await openTab(base)
     const allowed = hubCall(base, sessionId)
     await decideOutside(base, sessionId, true)
     expect(await allowed).toMatch(RAN)
@@ -5433,16 +5448,17 @@ export default {
     const [card] = await loadPending(base, sessionId)
     expect(card?.approvalId).toBe(raised?.approvalId)
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
-    const decision = {approvalId: card?.approvalId ?? '', approved: true}
     const refusal = "outside agents can't answer permission requests; decide it in the tab"
-    expect(await hubRpc.chat.permissionDecision(decision).then(String, String)).toContain(refusal)
+    expect(
+      await hubRpc.chat.permissionDecision({approvalId: card?.approvalId ?? '', reply: 'once'}).then(String, String),
+    ).toContain(refusal)
     expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
     await expect(hubRpc.plugin.call({rpcId: 'embedded', method: 'ping', input: {}})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: "outside agents can't use plugin routes; use the plugin in the tab",
     })
     expect(await loadPending(base, sessionId)).toEqual([card])
-    await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', approved: false})
+    await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', reply: 'reject'})
     await waiting
   })
 
@@ -5455,7 +5471,7 @@ export default {
     ])
   })
 
-  it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves stops waiting, a plain rpc call never asks, project policy allows every session', async () => {
+  it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves stops waiting, a plain rpc call never asks, an eval waits marked on its card until a reject or the caller leaves, project policy allows every session', async () => {
     const base = await boot('project')
     const sessionId = await openTab(base)
     const route = {name: 'page_route', input: {}}
@@ -5468,30 +5484,49 @@ export default {
     leaving.abort()
     await expect(left).rejects.toThrow()
     expect(await loadPending(base, sessionId)).toHaveLength(1)
-    const starts = await toolStarts(base, sessionId)
+    const starts = await toolStarts(base, sessionId, 3)
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
-    await expect(namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
-      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
+    const evaluating = namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})
+    const evalAsk = await askRaised(base, sessionId)
+    expect(evalAsk).toMatchObject({toolName: 'page_eval 1', permission: {always: false}})
+    await createSessionRpc(base, sessionId).chat.permissionDecision({
+      approvalId: evalAsk?.approvalId ?? '',
+      reply: 'reject',
     })
-    expect(await starts()).toEqual([
-      expect.objectContaining({
-        toolCallName: 'page_route',
-        metadata: {
-          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
-          time: {start: expect.any(Number)},
-        },
+    await expect(evaluating).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: EVAL_DENIED})
+    const results = await createSessionRpc(base, sessionId).chat.events({sessionId}, {signal: pages.signal})
+    const leavingEval = new AbortController()
+    const leftEval = namedHubRpc.registry.call({name: 'page_eval', input: {code: '2'}}, {signal: leavingEval.signal})
+    const leftAsk = await askRaised(base, sessionId)
+    expect(leftAsk).toMatchObject({toolName: 'page_eval 2'})
+    leavingEval.abort()
+    await expect(leftEval).rejects.toThrow()
+    for await (const chunk of results) if (chunk.type === ChatEventType.TOOL_CALL_RESULT) break
+    await expect(
+      createSessionRpc(base, sessionId).chat.permissionDecision({
+        approvalId: leftAsk?.approvalId ?? '',
+        reply: 'once',
       }),
-    ])
+    ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+    expect(await loadPending(base, sessionId)).toEqual([])
+    const marked = {
+      conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+      time: {start: expect.any(Number)},
+    }
+    expect(await starts()).toEqual(
+      ['page_route', 'page_eval', 'page_eval'].map((toolCallName) =>
+        expect.objectContaining({toolCallName, metadata: marked}),
+      ),
+    )
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
       message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
     )
-    expect(saved).toEqual(['page_route'])
+    expect(saved).toEqual(['page_route', 'page_eval', 'page_eval'])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
@@ -5514,20 +5549,28 @@ export default {
     expect(await loadPending(base, first)).toEqual([])
   })
 
-  it('an outside page_eval is asked whether or not it names its tab, like a plain rpc call, and the asks share the one card', async () => {
+  it('an outside page_eval is asked whether or not it names its tab, like a plain rpc call: each waits on its own card, and one reject refuses every waiting ask of the session', async () => {
     const base = await boot('open')
     const sessionId = await openTab(base)
     const evaluate = {name: 'page_eval', input: {code: '1'}}
     const overRpc = (headers: Record<string, string>) =>
       makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...headers}})
         .registry.call(evaluate)
-        .then(JSON.stringify, String)
-    expect(await overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'})).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
-    expect(await overRpc(HUB)).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
-    expect(await overRpc({})).toMatch(/needs the user/)
-    expect((await loadPending(base, sessionId)).map((ask) => ask.toolName)).toEqual([evaluate.name])
+        .then(JSON.stringify, (error: unknown) => error)
+    const waiting = [overRpc({...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'}), overRpc(HUB), overRpc({})]
+    await vi.waitFor(async () => expect(await loadPending(base, sessionId)).toHaveLength(3))
+    const pending = await loadPending(base, sessionId)
+    expect(pending.map((ask) => [ask.toolName, ask.permission])).toEqual(
+      Array.from({length: 3}, () => ['page_eval 1', {always: false}]),
+    )
+    await createSessionRpc(base, sessionId).chat.permissionDecision({
+      approvalId: pending[0]?.approvalId ?? '',
+      reply: 'reject',
+    })
+    expect(await Promise.all(waiting)).toEqual(
+      Array.from({length: 3}, () => expect.objectContaining({code: 'APPROVAL_DENIED', message: EVAL_DENIED})),
+    )
+    await vi.waitFor(async () => expect(await loadPending(base, sessionId)).toEqual([]))
   })
 
   it('an outside agent over MCP calling page_eval in code mode is asked: it runs only once approved, and a denial refuses it', async () => {
@@ -5542,7 +5585,10 @@ export default {
       const pending = await loadPending(base, sessionId)
       expect(pending).toHaveLength(1)
       const [card] = pending
-      await createSessionRpc(base, sessionId).chat.permissionDecision({approvalId: card?.approvalId ?? '', approved})
+      await createSessionRpc(base, sessionId).chat.permissionDecision({
+        approvalId: card?.approvalId ?? '',
+        reply: approved ? 'once' : 'reject',
+      })
     }
     const allowed = executeOverMcp(base, headers, evaluate).then(String, String)
     await decideCard(true)
@@ -6573,7 +6619,7 @@ describe('page action queue delivery', () => {
     expect(evals).toEqual(['document.title'])
   })
 
-  it('an outside page_eval naming its tab is asked like any outside call: refused with no rule, run under a config allow, refused under a config deny', async () => {
+  it('an outside page_eval naming its tab is asked like any outside call: it waits on the card and a reject refuses it with no rule, runs under a config allow, refused under a config deny', async () => {
     const evals: string[] = []
     const holdsUnder = (command: Page.Command) => {
       if (command.action.type !== 'eval') return undefined
@@ -6588,10 +6634,15 @@ describe('page action queue delivery', () => {
       headers: {...HUB, [CONCIV_SESSION_HEADER]: page.sessionId, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
     const evaluate = (code: string) => outside.registry.call({name: 'page_eval', input: {code}})
-    await expect(evaluate('document.domain')).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
-      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
-    })
+    const unruled = evaluate('document.domain')
+    const tabRpc = makeRpcClient(page.base, {headers: {[CONCIV_SESSION_HEADER]: page.sessionId}})
+    await vi.waitFor(async () =>
+      expect((await tabRpc.chat.hydrate({sessionId: page.sessionId})).pendingApprovals).toHaveLength(1),
+    )
+    const [unruledAsk] = (await tabRpc.chat.hydrate({sessionId: page.sessionId})).pendingApprovals
+    expect(unruledAsk).toMatchObject({toolName: 'page_eval document.domain', permission: {always: false}})
+    await tabRpc.chat.permissionDecision({approvalId: unruledAsk?.approvalId ?? '', reply: 'reject'})
+    await expect(unruled).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: EVAL_DENIED})
     expect(evals).toEqual([])
     const allowed = evaluate('document.title')
     await page.onTab.reply(await page.heldRequest('eval/document.title'), pageSuccess({result: 'Example'}))
@@ -8381,14 +8432,6 @@ export default {
     expect(onEval.command.action).toEqual({type: 'eval', code: 'document.title'})
     await reply('conn_d', onEval.requestId, succeeded({result: 'Example'}))
     expect(await always).toEqual({ok: true, value: {result: 'Example'}})
-    await expect(
-      registryCall(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, session)('page_eval', {
-        code: 'location.href',
-      }),
-    ).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
-      message: `Tool "page_eval" needs the user's approval. The request is shown to the user; retry once they approve it.`,
-    })
     const askedAgain = ask({type: 'eval', code: 'location.href'})
     await decide('location.href', 'once')
     const again = await next('conn_d')
@@ -8672,7 +8715,7 @@ describe('prefixed serving', () => {
       const {sessionId} = await rpc.sessions.create(undefined)
       const sessionRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await expect(
-        sessionRpc.chat.permissionDecision({approvalId: 'none-pending', approved: false}),
+        sessionRpc.chat.permissionDecision({approvalId: 'none-pending', reply: 'reject'}),
       ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
     })
   })

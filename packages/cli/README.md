@@ -44,13 +44,11 @@ command, so restart your own dev server in your terminal. Who is asked depends o
 server:
 
 - Inside the project, the CLI acts on your latest chat (an agent conciv started acts on its own).
-  Unless an earlier approval still covers the call, an asking tool shows the Approve card in the tab,
-  and the CLI gets an error saying the call needs the user. Run the command again once they approve.
-  For these tools the card offers Approve and Deny: one Approve lets exactly one later call of that
-  tool through; after that, or after a Deny (which is not kept), the next call asks again. An Approve
-  given inside a chat turn does not carry over to the CLI.
-- With `--tab`, the CLI is an outside agent that named its tab. Nobody is asked: an asking tool runs
-  with no Approve card.
+  Unless a rule already covers the call, an asking tool shows the Approve card in the tab and the
+  command waits on it, with no timeout: Approve runs it, Deny fails it with `APPROVAL_DENIED`, and
+  leaving the command (Ctrl-C) stops the wait. Each call asks again.
+- With `--tab`, the CLI is an outside agent that named its tab; an asking tool waits on its Approve card
+  the same way.
 - With no `.conciv/server.json` in this folder or a parent and no `CONCIV_PORT`, the CLI uses the most
   recently started dev server on this machine and acts on that server's latest chat. It is an outside
   agent that named no tab, so an asking tool still shows the Approve card in the tab, on the same

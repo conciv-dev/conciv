@@ -11,13 +11,11 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
-import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
+import {CHAT_HISTORY_PAGE_SIZE, type PermissionReply} from '@conciv/protocol/chat-types'
 
 export type Chat = UseChatReturn
 
 export type CreateChatOptions = Parameters<typeof useChat>[0]
-
-export type ChatApprovalScope = 'once' | 'session'
 
 export type ChatSessionHydration = {
   messages: ChatMessage[]
@@ -45,7 +43,7 @@ export type CreateChatSessionOptions = {
   sessionId: string
   connect: (callbacks: ChatSessionCallbacks) => ChatSessionConnection
   stop: (runIds: string[]) => Promise<unknown>
-  decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<{startsTurn: boolean}>
+  decide: (approvalId: string, reply: PermissionReply) => Promise<{startsTurn: boolean}>
   onError?: (error: Error) => void
 }
 
@@ -63,7 +61,7 @@ export type ChatSession = Omit<Chat, 'stop' | 'error'> & {
   loadFailed: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
   readHarness: (messageId: string) => string | undefined
-  decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
+  decide: (approvalId: string, reply: PermissionReply) => Promise<void>
 }
 
 function buildAsk({approvalId, toolCallId, toolName, input, permission}: ApprovalAsk): ApprovalAsk {
@@ -85,10 +83,9 @@ function arrived(pending: ApprovalAsk[], arrival: CardArrival): ApprovalAsk[] {
   return arrival.kind === 'ask' ? withAsk(pending, arrival.ask) : withoutCard(pending, arrival.approvalId)
 }
 
-function decisionText(title: string, approved: boolean, scope: ChatApprovalScope): string {
+function decisionText(title: string, reply: PermissionReply): string {
   const action = title.replace(/^Approve /, '')
-  if (!approved) return `Denied: ${action}`
-  return scope === 'session' ? `Approved for this session: ${action}` : `Approved: ${action}`
+  return reply === 'reject' ? `Denied: ${action}` : `Approved: ${action}`
 }
 
 function newerRun(current: RunClockSource | null, hydration: ChatSessionHydration): RunClockSource | null {
@@ -382,11 +379,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     chat.setMessages(beforeLastUser(chat.messages()))
     throw failure
   }
-  const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
+  const decide = async (approvalId: string, reply: PermissionReply): Promise<void> => {
     const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
-    const decision = await options.decide(approvalId, approved, scope).finally(() => withdraw(approvalId))
+    const decision = await options.decide(approvalId, reply).finally(() => withdraw(approvalId))
     if (!decision.startsTurn || ask === undefined) return
-    await chat.sendMessage(decisionText(ask.toolName, approved, scope))
+    await chat.sendMessage(decisionText(ask.toolName, reply))
   }
   return {
     ...chat,

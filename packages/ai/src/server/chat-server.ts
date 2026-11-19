@@ -199,12 +199,6 @@ export function toolApprovalId(name: string): string {
   return approvalId({provider: 'conciv', kind: 'tool', target: name})
 }
 
-export function approvalNeeded(name: string): Error {
-  return new Error(
-    `Tool "${name}" needs the user's approval. The request is shown to the user; retry once they approve it.`,
-  )
-}
-
 export function approvalDenied(name: string): Error {
   return new Error(`The user denied running tool "${name}". Do not retry it; continue without it.`)
 }

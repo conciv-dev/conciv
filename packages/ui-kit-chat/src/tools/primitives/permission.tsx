@@ -1,25 +1,19 @@
 import {createContext, createSignal, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {PermissionScope} from '@conciv/protocol/chat-types'
+import type {PermissionReply} from '@conciv/protocol/chat-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {parseInput} from './tool-util.js'
-
-const CommandInputSchema = z.object({command: z.string().min(1)})
 
 const PermissionMetadataSchema = z.object({permission: z.object({always: z.boolean()})})
-
-type PermissionMemory = 'session' | 'project'
 
 export type PermissionDecision = 'approved' | 'denied' | undefined
 
 type PermissionContextValue = {
   pending: Accessor<boolean>
   decision: Accessor<PermissionDecision>
-  rememberable: Accessor<boolean>
-  remembers: Accessor<PermissionMemory>
+  savable: Accessor<boolean>
   approve: () => void
-  approveForSession: () => void
+  always: () => void
   reject: () => void
 }
 
@@ -45,25 +39,22 @@ function Root(props: {part: ToolCallPart; ctx: ToolViewCtx; children: JSX.Elemen
     props.part.state === 'approval-requested' &&
     approval() !== undefined &&
     Boolean(props.ctx.respondApproval)
-  const permission = () => PermissionMetadataSchema.safeParse(props.part.metadata).data?.permission
-  const rememberable = () => permission()?.always ?? parseInput(CommandInputSchema, props.part) !== undefined
-  const remembers = (): PermissionMemory => (permission() === undefined ? 'session' : 'project')
-  const decide = (approved: boolean, scope: PermissionScope) => {
+  const savable = () => PermissionMetadataSchema.safeParse(props.part.metadata).data?.permission.always ?? false
+  const decide = (reply: PermissionReply) => {
     const id = approval()?.id
     if (!id) return
-    setAnswered(approved ? 'approved' : 'denied')
-    props.ctx.respondApproval?.(id, approved, scope)
+    setAnswered(reply === 'reject' ? 'denied' : 'approved')
+    props.ctx.respondApproval?.(id, reply)
   }
   return (
     <PermissionContext.Provider
       value={{
         pending,
         decision,
-        rememberable,
-        remembers,
-        approve: () => decide(true, 'once'),
-        approveForSession: () => decide(true, 'session'),
-        reject: () => decide(false, 'once'),
+        savable,
+        approve: () => decide('once'),
+        always: () => decide('always'),
+        reject: () => decide('reject'),
       }}
     >
       {props.children}

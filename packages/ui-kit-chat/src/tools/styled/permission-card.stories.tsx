@@ -26,7 +26,7 @@ const pendingPart: ToolCallPart = {
 export const Pending: Story = {
   render: () => {
     const [decided, setDecided] = createSignal<boolean | null>(null)
-    const ctx: ToolViewCtx = {...INERT_TOOL_CTX, respondApproval: (_id, approved) => setDecided(approved)}
+    const ctx: ToolViewCtx = {...INERT_TOOL_CTX, respondApproval: (_id, reply) => setDecided(reply !== 'reject')}
     return frame(
       <>
         <PermissionCard part={pendingPart} ctx={ctx} label="Run this command?" />

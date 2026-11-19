@@ -4306,8 +4306,8 @@ describe('plugin permission cards', () => {
     const answer = (sessionId: SessionId, requestId: string, reply: Permission.Reply) =>
       host.runPromise(answerPermission(sessionId, requestId, reply))
     const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
-    const decide = (sessionId: SessionId, approvalId: string, approved: boolean, lasting: 'once' | 'session') =>
-      decidePermissionCard({plane, answer, publish}, sessionId, {approvalId, approved, scope: lasting})
+    const decide = (sessionId: SessionId, approvalId: string, reply: Permission.Reply) =>
+      decidePermissionCard({plane, answer, publish}, sessionId, {approvalId, reply})
     const first = runtime.forSession(id).stream.events(clients.signal)
     const second = runtime.forSession(id).stream.events(clients.signal)
 
@@ -4328,18 +4328,18 @@ describe('plugin permission cards', () => {
       },
     ])
 
-    expect(await decide(id, shown.approvalId, true, 'session')).toEqual({startsTurn: false})
+    expect(await decide(id, shown.approvalId, 'always')).toEqual({startsTurn: false})
     await expect(reading).resolves.toEqual({value: 'read src/.env', files: []})
     expect(await readNextEvent(second, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
-    expect(await plane.decide(id, shown.approvalId, true, 'once')).toBeNull()
+    expect(await plane.decide(id, shown.approvalId, true)).toBeNull()
     await expect(call(id, 'src/.env')).resolves.toEqual({value: 'read src/.env', files: []})
 
     const foreign = call(other, 'other/.env')
     const otherAsk = await readNextEvent(runtime.forSession(other).stream.events(clients.signal), readApprovalAsk)
     expect(await answer(id, otherAsk.approvalId, 'once')).toBe('foreign')
-    expect(await decide(id, otherAsk.approvalId, true, 'once')).toBeNull()
-    expect(await decide(other, otherAsk.approvalId, false, 'once')).toEqual({startsTurn: false})
+    expect(await decide(id, otherAsk.approvalId, 'once')).toBeNull()
+    expect(await decide(other, otherAsk.approvalId, 'reject')).toEqual({startsTurn: false})
     await expect(foreign).rejects.toThrow()
 
     await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
@@ -4355,7 +4355,7 @@ describe('plugin permission cards', () => {
       input: {},
       permission: {always: false},
     })
-    expect(await decide(id, 'per_gone', true, 'once')).toBeNull()
+    expect(await decide(id, 'per_gone', 'once')).toBeNull()
     expect(await readNextEvent(second, readApprovalSettled)).toBe('per_gone')
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
 
@@ -4437,8 +4437,7 @@ describe('plugin permission cards', () => {
     expect(
       await decidePermissionCard({plane, answer, publish}, id, {
         approvalId: shown.approvalId,
-        approved: true,
-        scope: 'once',
+        reply: 'once',
       }),
     ).toBeNull()
     expect(written).toEqual([])
@@ -4594,7 +4593,7 @@ describe('direct tools on the MCP surface', () => {
     expect(restarts).toEqual([])
     const [restartAsk] = (await made.plane.hydrate(id)).pendingApprovals
     const widget = makeRpcClient(`${origin}/t/${made.agentToken}`, {headers: {[CONCIV_SESSION_HEADER]: id}})
-    await widget.chat.permissionDecision({approvalId: restartAsk?.approvalId ?? '', approved: true})
+    await widget.chat.permissionDecision({approvalId: restartAsk?.approvalId ?? '', reply: 'once'})
     expect(ToolCalled.parse(await restarting).result.isError).not.toBe(true)
     expect(restarts).toEqual([true])
     expect((await made.plane.hydrate(id)).pendingApprovals).toEqual([])

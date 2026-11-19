@@ -96,6 +96,27 @@ describe('Permission', () => {
     }),
   )
 
+  it.effect('unattended rules settle an ask with nobody present, and a configured deny still wins', () =>
+    Effect.gen(function* () {
+      yield* setup([])
+      const service = yield* Permission.Service
+      const unattended = (rules: Permission.Ruleset) => Effect.provideService(Permission.Unattended, rules)
+      yield* service.assert(assertion()).pipe(unattended([{action: '*', resource: '*', effect: 'allow'}]))
+      expect(yield* service.list()).toEqual([])
+      const nobody = yield* service.assert(assertion()).pipe(unattended([]), Effect.flip)
+      expect(nobody).toMatchObject({
+        _tag: 'Permission.BlockedError',
+        message: 'Permission read needs approval, and nobody is present to give it',
+      })
+      yield* setRules([{action: 'read', resource: '*', effect: 'deny'}])
+      const configured = yield* service
+        .assert(assertion())
+        .pipe(unattended([{action: '*', resource: '*', effect: 'allow'}]), Effect.flip)
+      expect(configured).toMatchObject({_tag: 'Permission.BlockedError', message: 'Permission denied: read'})
+      expect(yield* service.list()).toEqual([])
+    }),
+  )
+
   it.effect('checks for a deny without asking', () =>
     Effect.gen(function* () {
       yield* setup([])

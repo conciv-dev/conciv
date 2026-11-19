@@ -157,7 +157,7 @@ async function askedTool(
   room: string,
   name: string,
   input: unknown,
-  decision: {approved: boolean; scope: 'once' | 'session'},
+  reply: 'once' | 'always' | 'reject',
 ): Promise<{toolName: string; settled: Settled}> {
   const events = await kit.events(room)
   const settled: Promise<Settled> = useTool(kit, name, input).then(
@@ -167,7 +167,7 @@ async function askedTool(
   const asked = readApprovalAsk(await events.waitFor((event) => readApprovalAsk(event) !== null))
   if (asked === null) throw new Error(`${name} raised no permission ask`)
   const session = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: room}})
-  await session.chat.permissionDecision({approvalId: asked.approvalId, ...decision})
+  await session.chat.permissionDecision({approvalId: asked.approvalId, reply})
   return {toolName: asked.toolName, settled: await settled}
 }
 
@@ -762,7 +762,7 @@ describe('the whiteboard comment tools', () => {
       scope: 'live',
       rows: ['e1', 'e2', 'e3'].map((elementId) => ({elementId, data: {type: 'rectangle'}, version: 1})),
     })
-    const denied = await askedTool(kit, room, 'canvas_delete', {elementId: 'e1'}, {approved: false, scope: 'once'})
+    const denied = await askedTool(kit, room, 'canvas_delete', {elementId: 'e1'}, 'reject')
     expect(denied.toolName).toContain('whiteboard_canvas_delete')
     expect(denied.settled).toEqual({
       error: expect.objectContaining({
@@ -771,20 +771,20 @@ describe('the whiteboard comment tools', () => {
     })
     expect((await listElements(kit, room, 'live')).map((row) => row.elementId)).toEqual(['e1', 'e2', 'e3'])
 
-    const always = await askedTool(kit, room, 'canvas_delete', {elementId: 'e1'}, {approved: true, scope: 'session'})
+    const always = await askedTool(kit, room, 'canvas_delete', {elementId: 'e1'}, 'always')
     expect(always.settled).toEqual({value: {deleted: 'e1'}})
     expect(await useTool(kit, 'canvas_delete', {elementId: 'e2'})).toEqual({deleted: 'e2'})
 
-    const cleared = await askedTool(kit, room, 'canvas_clear', {}, {approved: true, scope: 'once'})
+    const cleared = await askedTool(kit, room, 'canvas_clear', {}, 'once')
     expect(cleared.toolName).toContain('whiteboard_canvas_clear')
     expect(cleared.settled).toEqual({value: {cleared: 1}})
     expect(await listElements(kit, room, 'live')).toEqual([])
 
-    const resolved = await askedTool(kit, room, 'comment_resolve', {cid: 'root'}, {approved: true, scope: 'once'})
+    const resolved = await askedTool(kit, room, 'comment_resolve', {cid: 'root'}, 'once')
     expect(resolved.toolName).toContain('whiteboard_comment_resolve')
     expect(resolved.settled).toEqual({value: {cid: 'root', status: 'resolved'}})
 
-    const removed = await askedTool(kit, room, 'comment_delete', {cid: 'root'}, {approved: true, scope: 'once'})
+    const removed = await askedTool(kit, room, 'comment_delete', {cid: 'root'}, 'once')
     expect(removed.toolName).toContain('whiteboard_comment_delete')
     expect(removed.settled).toEqual({value: {cid: 'root', deleted: true}})
     expect(await call(kit, 'comments.list', {room})).toEqual([])

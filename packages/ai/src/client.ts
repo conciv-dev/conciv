@@ -1,7 +1,6 @@
 export {createChat, createChatSession} from './session/session.js'
 export type {
   Chat,
-  ChatApprovalScope,
   ChatSession,
   ChatSessionCallbacks,
   ChatSessionConnection,

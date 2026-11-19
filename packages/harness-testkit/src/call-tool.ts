@@ -1,5 +1,4 @@
 import {z} from 'zod'
-import {safe} from '@orpc/client'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {connectMcpClient} from './mcp-client.js'
@@ -135,7 +134,7 @@ export function autoApprove(apiBase: string, session: string, stream: RunStream)
     for (const approvalId of approvalIds(chunk)) {
       if (decided.has(approvalId)) continue
       decided.add(approvalId)
-      void browser.rpc.chat.permissionDecision({approvalId, approved: true}).catch(() => {})
+      void browser.rpc.chat.permissionDecision({approvalId, reply: 'once'}).catch(() => {})
     }
   })
   return () => {
@@ -157,7 +156,7 @@ export async function withAutoApproval<Result>(
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return
     decided.add(approvalId)
-    await browser.rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
+    await browser.rpc.chat.permissionDecision({approvalId, reply: 'once'}, {signal: abort.signal})
     onApproved?.(approvalId)
   }
   const pump = pumpApprovals(stream, abort.signal, decide)
@@ -182,7 +181,7 @@ export async function approvePending(apiBase: string, session: string): Promise<
   try {
     const {pendingApprovals} = await browser.rpc.chat.hydrate({sessionId: session})
     const pending = pendingApprovals.map((ask) => ask.approvalId)
-    for (const approvalId of pending) await browser.rpc.chat.permissionDecision({approvalId, approved: true})
+    for (const approvalId of pending) await browser.rpc.chat.permissionDecision({approvalId, reply: 'once'})
     return pending
   } finally {
     browser.close()
@@ -191,12 +190,8 @@ export async function approvePending(apiBase: string, session: string): Promise<
 
 export function makeApprovingRegistryCall(apiBase: string, session: string): CallTool {
   const sessionRpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  return async (name, input) => {
-    const call = () => sessionRpc.registry.call({name, input: RegistryInputSchema.parse(input ?? {})})
-    const first = await safe(call())
-    if (first.isSuccess) return first.data
-    if (!first.isDefined || first.error.code !== 'APPROVAL_DENIED') throw first.error
-    await approvePending(apiBase, session)
-    return call()
-  }
+  return (name, input) =>
+    withAutoApproval(apiBase, session, () =>
+      sessionRpc.registry.call({name, input: RegistryInputSchema.parse(input ?? {})}),
+    )
 }

@@ -69,8 +69,9 @@ by two different paths.
   it.` (`approvalNeeded`, `packages/ai/src/server/chat-server.ts:156-160`). A tool result carrying that
   text is the design working, not a hang: the model got its answer immediately and the card is waiting
   on the user, whether or not a widget is open. A call from outside a chat turn (external MCP, the
-  `conciv` CLI, raw RPC) gets the same refusal from `admitCall` (`packages/chat/src/index.ts`): approving
-  it stores a one-time grant only that caller's retry consumes, posts no message and starts no turn.
+  `conciv` CLI, raw RPC) to a page tool that asks is different: the tool's own `permission.assert` shows
+  the card and the call waits on it with no timeout (`registry.call`, `packages/core/src/api/rpc/router.ts`);
+  Approve runs it, Deny answers `APPROVAL_DENIED`, and nothing is stored for a later call.
 - **Shell commands and other CLI tool calls** belong to the CLI's own permission mode: Claude Code runs
   with `permissionMode: 'auto'` (`modelOptions` in `packages/harness/src/claude/chat.ts`), so its
   classifier decides. Only what it escalates reaches `--permission-prompt-tool` and the sandbox policy,

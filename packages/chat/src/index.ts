@@ -4,7 +4,6 @@ import {Effect} from 'effect'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
-  approvalNeeded,
   childCardChunks,
   createChatServer,
   drizzleChatStores,
@@ -24,7 +23,6 @@ import {
   type Admission,
   type ApprovalDecision,
   type ApprovalAsked,
-  type ApprovalScope,
 } from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
@@ -44,8 +42,6 @@ export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 const FIRST_START_TIMEOUT_MS = 30_000
-
-const OUTSIDE_DENIED = 'the user denied outside agents for this session'
 
 type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
@@ -83,7 +79,7 @@ type AdmittedCall = {
   until?: AbortSignal
 }
 
-type CallRefusal = {reason: 'asked' | 'denied' | 'missing'; message: string}
+type CallRefusal = {reason: 'missing'; message: string} | {reason: 'asked' | 'denied'}
 
 export type FollowUpOutcome = {kind: 'delivered'} | {kind: 'busy'} | {kind: 'stopped'} | {kind: 'failed'; error: string}
 
@@ -103,12 +99,7 @@ export type ChatPlane = {
   settled: (sessionId: SessionId) => Promise<void>
   recordRunError: (sessionId: SessionId, runId: string, message: string) => Promise<void>
   running: () => Promise<ReadonlySet<string>>
-  decide: (
-    sessionId: SessionId,
-    approvalId: string,
-    approved: boolean,
-    scope: ApprovalScope,
-  ) => Promise<ApprovalDecision | null>
+  decide: (sessionId: SessionId, approvalId: string, approved: boolean) => Promise<ApprovalDecision | null>
   answerUi: (sessionId: SessionId, toolCallId: string, value: unknown) => boolean
   askUi: (sessionId: SessionId) => Promise<UiAnswer>
   codeRunner: (
@@ -185,12 +176,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     )
     try {
       const admission = await approvals.admit(sessionId, approvalId)
-      if (admission !== 'ask') return buildRefusal(admission, call.toolName)
+      if (admission !== 'ask') return buildRefusal(admission)
       const title = call.title ?? call.toolName
       await approvals.asked(sessionId, {approvalId, toolCallId: approvalId, title, input: call.input, runId: null})
       call.publish({...approvalRequestedEvent.create({approvalId, title, input: call.input}), timestamp: Date.now()})
       await decided
-      return buildRefusal(await approvals.admit(sessionId, approvalId), call.toolName)
+      return buildRefusal(await approvals.admit(sessionId, approvalId))
     } finally {
       settled.abort()
     }
@@ -288,7 +279,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       await stores.runs.update(runId, {error: {message}})
     },
     running: () => runningThreadIds(deps.db),
-    decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
+    decide: (sessionId, approvalId, approved) => approvals.decide(sessionId, approvalId, approved),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
     admitCall,
@@ -379,8 +370,7 @@ function resolveFollowUpOutcome(ended: EndedRun): FollowUpOutcome {
   return {kind: 'failed', error: ended.error?.message ?? `the run ended ${ended.status}`}
 }
 
-function buildRefusal(admission: Admission, toolName: string): CallRefusal | null {
+function buildRefusal(admission: Admission): CallRefusal | null {
   if (admission === 'allowed') return null
-  if (admission === 'denied') return {reason: 'denied', message: OUTSIDE_DENIED}
-  return {reason: 'asked', message: approvalNeeded(toolName).message}
+  return {reason: admission === 'denied' ? 'denied' : 'asked'}
 }

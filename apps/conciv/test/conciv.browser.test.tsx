@@ -296,7 +296,7 @@ describe('approval replay', () => {
 
     test('the second button saves for the project, and a card leaves once answered, refused as gone, or settled elsewhere', async () => {
       const announced: ChatSessionCallbacks[] = []
-      const answers: Array<{approvalId: string; approved: boolean; scope: string}> = []
+      const answers: Array<{approvalId: string; reply: string}> = []
       const replies: Array<PromiseWithResolvers<{startsTurn: boolean}>> = []
       const session = createRoot((dispose) => {
         disposers.push(dispose)
@@ -307,11 +307,11 @@ describe('approval replay', () => {
             return quietConnection
           },
           stop: () => Promise.resolve(),
-          decide: (approvalId, approved, scope) => {
-            answers.push({approvalId, approved, scope})
-            const reply = Promise.withResolvers<{startsTurn: boolean}>()
-            replies.push(reply)
-            return reply.promise
+          decide: (approvalId, reply) => {
+            answers.push({approvalId, reply})
+            const answered = Promise.withResolvers<{startsTurn: boolean}>()
+            replies.push(answered)
+            return answered.promise
           },
         })
       })
@@ -347,13 +347,13 @@ describe('approval replay', () => {
 
       await alwaysAllow('edit src/app.ts').click()
       await expect.element(card('edit src/app.ts').getByText('Approved', {exact: true})).toBeVisible()
-      expect(answers).toEqual([{approvalId: 'edit-ask', approved: true, scope: 'session'}])
+      expect(answers).toEqual([{approvalId: 'edit-ask', reply: 'always'}])
       replies[0]?.resolve({startsTurn: false})
       await expect.element(card('edit src/app.ts')).not.toBeInTheDocument()
 
       await card('bash git push').getByRole('button', {name: 'Deny'}).click()
       await expect.element(card('bash git push').getByText('Denied', {exact: true})).toBeVisible()
-      expect(answers.at(-1)).toEqual({approvalId: 'push-ask', approved: false, scope: 'once'})
+      expect(answers.at(-1)).toEqual({approvalId: 'push-ask', reply: 'reject'})
       replies[1]?.reject(new Error('UNKNOWN_REQUEST'))
       await expect.element(card('bash git push')).not.toBeInTheDocument()
       await expect.element(page.getByRole('group', {name: 'Permission request'})).not.toBeInTheDocument()

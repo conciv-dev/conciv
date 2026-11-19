@@ -2,19 +2,10 @@ import {Effect} from 'effect'
 import {z} from 'zod'
 import {keyBy, omit} from 'es-toolkit'
 import type {ToolCommandSignature} from '@conciv/contract'
-import {
-  Agent,
-  Permission,
-  Plugin,
-  PluginHooks,
-  SessionErrors,
-  SessionSchema,
-  Tool,
-  ToolRuntime,
-} from '@conciv/plugin-host'
+import {Agent, Permission, Plugin, SessionSchema, Tool, ToolRuntime} from '@conciv/plugin-host'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {currentToolDomain} from './permission-cards.js'
-import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE, type AskedPermission} from '@conciv/plugin-page/rpc'
+import {CLI_HIDDEN_FIELDS, CliTools, Operations, PAGE_NAMESPACE} from '@conciv/plugin-page/rpc'
 
 const ObjectSchema = z.looseObject({
   properties: z.record(z.string(), z.unknown()).optional(),
@@ -27,34 +18,6 @@ const pageOperations = keyBy(Operations, (operation) =>
 
 export function isPageTool(name: string): boolean {
   return CliTools[pageOperations[name]?.name ?? '']?.terminal === true
-}
-
-export function askedPagePermission(name: string, input: unknown) {
-  return CliTools[pageOperations[name]?.name ?? '']?.asks?.(input)
-}
-
-export function pagePermissionAllows(
-  sessionId: SessionId,
-  asked: AskedPermission,
-): Effect.Effect<
-  boolean,
-  Permission.BlockedError | SessionErrors.NotFoundError,
-  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface | Permission.Interface
-> {
-  return currentToolDomain(sessionId).pipe(
-    Effect.flatMap(({agent}) =>
-      Permission.Service.use((permission) => {
-        const input: Permission.AssertInput = {
-          ...asked,
-          sessionId: SessionSchema.Id.make(sessionId),
-          agent,
-          save: [],
-          fallback: 'ask',
-        }
-        return permission.assertNotDenied(input).pipe(Effect.andThen(permission.allows(input)))
-      }),
-    ),
-  )
 }
 
 function cliInput(schema: unknown) {
@@ -128,33 +91,25 @@ export function pluginSignature(name: string) {
   return pluginSignatures.pipe(Effect.map((signatures) => signatures.find((entry) => entry.name === name)))
 }
 
+const WIDGET_PRESENT: Permission.Ruleset = [{action: '*', resource: '*', effect: 'allow'}]
+
 export function callPluginTool(
   sessionId: SessionId,
   name: string,
   input: unknown,
-  callId: string,
+  call: {id: string; widget: boolean},
 ): Effect.Effect<
   Tool.NormalizedResult,
   Tool.Error,
-  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface | PluginHooks.Interface
+  Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface
 > {
-  const admitted = isPageTool(name)
-    ? PluginHooks.Service.use((hooks) =>
-        hooks.register('permission', 'evaluate', (event) =>
-          Effect.sync(() => {
-            if (event.source?.id === callId) event.effect = 'allow'
-          }),
-        ),
-      )
-    : Effect.void
-  return admitted.pipe(
-    Effect.andThen(currentToolDomain(sessionId)),
+  const run = currentToolDomain(sessionId).pipe(
     Effect.flatMap(({snapshot, agent}) => {
       const context: Tool.Context = {
         sessionId: SessionSchema.Id.make(sessionId),
         agent,
         messageId: undefined,
-        id: Tool.CallId.make(callId),
+        id: Tool.CallId.make(call.id),
         progress: () => Effect.void,
       }
       return (
@@ -162,6 +117,6 @@ export function callPluginTool(
         Effect.fail(Tool.makeError({message: `no plugin tool ${name}`}))
       )
     }),
-    Effect.scoped,
   )
+  return call.widget ? run.pipe(Effect.provideService(Permission.Unattended, WIDGET_PRESENT)) : run
 }

@@ -65,6 +65,10 @@ export interface SessionsInterface {
 
 export const PermissionSessions = Context.Service<SessionsInterface>('@conciv/PermissionSessions')
 
+export const Unattended = Context.Reference<Permission.Ruleset | undefined>('@conciv/Permission/Unattended', {
+  defaultValue: () => undefined,
+})
+
 export const DeclinedError = Schema.TaggedStruct('Permission.DeclinedError', {})
 export type DeclinedError = typeof DeclinedError.Type & globalThis.Error
 
@@ -220,7 +224,17 @@ export const layer = Layer.effect(
         source: input.source,
         effect,
       })
-      return {effect: event.effect, message: event.message, rules: all}
+      const unattended = yield* Unattended
+      if (event.effect !== 'ask' || unattended === undefined)
+        return {effect: event.effect, message: event.message, rules: all}
+      const settled = [...all, ...unattended]
+      const allowed = input.resources.every((resource) => evaluate(input.action, resource, settled).effect === 'allow')
+      if (allowed) return {effect: 'allow' as const, rules: all}
+      return {
+        effect: 'deny' as const,
+        message: `Permission ${input.action} needs approval, and nobody is present to give it`,
+        rules: all,
+      }
     })
 
     function request(input: AssertInput, message?: string): Request {

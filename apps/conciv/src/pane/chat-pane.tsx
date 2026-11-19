@@ -201,8 +201,8 @@ function turnHarnessNames(
 }
 
 function decidedThen(chat: ChatSession, after: () => Promise<void>): ChatSession['decide'] {
-  return async (approvalId, approved, scope) => {
-    await chat.decide(approvalId, approved, scope)
+  return async (approvalId, reply) => {
+    await chat.decide(approvalId, reply)
     await after()
   }
 }

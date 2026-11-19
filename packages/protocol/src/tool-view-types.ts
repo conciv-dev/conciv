@@ -1,7 +1,7 @@
 import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from './chat-message-types.js'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
-import type {PermissionScope} from './chat-types.js'
+import type {PermissionReply} from './chat-types.js'
 import type {UiAnswerValue} from './ui-types.js'
 
 export type ToolViewError = {code: string; message: string}
@@ -31,7 +31,7 @@ export type ToolViewCtx = {
   catalog: ToolCatalogView
   addResult: (toolCallId: string, value: UiAnswerValue) => Promise<void>
 
-  respondApproval?: (approvalId: string, approved: boolean, scope: PermissionScope) => void
+  respondApproval?: (approvalId: string, reply: PermissionReply) => void
 }
 
 export type ToolCardProps = {

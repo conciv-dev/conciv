@@ -121,7 +121,7 @@ async function deniedAsk(kit: CoreKit, name: string): Promise<{toolName: string;
   const asked = readApprovalAsk(await events.waitFor((event) => readApprovalAsk(event) !== null))
   if (asked === null) throw new Error(`${name} raised no permission ask`)
   const client = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  await client.chat.permissionDecision({approvalId: asked.approvalId, approved: false, scope: 'once'})
+  await client.chat.permissionDecision({approvalId: asked.approvalId, reply: 'reject'})
   return {toolName: asked.toolName, failure: await settled}
 }
 

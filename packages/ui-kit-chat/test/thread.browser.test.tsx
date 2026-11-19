@@ -48,7 +48,7 @@ import {StatusVisual} from '../src/tools/primitives/status-visual.js'
 import {ErrorBlock} from '../src/tools/styled/error-block.js'
 import type {ToolStatus} from '../src/tools/primitives/tool-status.js'
 import {TraceOutputBlock} from '../src/styled/trace/output-block.js'
-import type {PermissionScope} from '@conciv/protocol/chat-types'
+import type {PermissionReply} from '@conciv/protocol/chat-types'
 import {TracePermissionBlock} from '../src/styled/trace/permission-block.js'
 import {Trace, type TraceItem} from '../src/styled/trace/trace.js'
 import {TraceToolRow} from '../src/styled/trace/trace-row.js'
@@ -1171,12 +1171,12 @@ describe('trace permission block', () => {
     }
   }
 
-  type Decision = {id: string; approved: boolean; scope: PermissionScope | undefined}
+  type Decision = {id: string; reply: PermissionReply}
 
   function ctxRecording(decisions: Decision[]): ToolViewCtx {
     return {
       ...ctxWith(makeCatalog({})),
-      respondApproval: (id, approved, scope) => decisions.push({id, approved, scope}),
+      respondApproval: (id, reply) => decisions.push({id, reply}),
     }
   }
 
@@ -1200,7 +1200,7 @@ describe('trace permission block', () => {
     await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('status')).toHaveTextContent('Approved the request')
     await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
-    expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
+    expect(decisions).toEqual([{id: 'approval-1', reply: 'once'}])
   })
 
   it('denies through the Deny button', async () => {
@@ -1212,7 +1212,7 @@ describe('trace permission block', () => {
     await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
     await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
-    expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
+    expect(decisions).toEqual([{id: 'approval-1', reply: 'reject'}])
   })
 
   it('approves only on the deliberate modifier-Enter, never on a bare Enter', async () => {
@@ -1231,7 +1231,7 @@ describe('trace permission block', () => {
 
     await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
-    expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
+    expect(decisions).toEqual([{id: 'approval-1', reply: 'once'}])
   })
 
   it('denies when Escape is pressed on the focused block', async () => {
@@ -1243,35 +1243,27 @@ describe('trace permission block', () => {
 
     await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
-    expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
+    expect(decisions).toEqual([{id: 'approval-1', reply: 'reject'}])
   })
 
-  it('remembers the exact command for the session through the session action', async () => {
+  it('offers no session action: a command ask shows only Approve and Deny', async () => {
     const decisions: Decision[] = []
     mountView(() => <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />)
-
-    await page.getByRole('button', {name: 'Allow for session'}).click()
-
-    await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
-    expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'session'}])
-  })
-
-  it('offers the session action only for an approval that carries a command to remember', async () => {
-    const decisions: Decision[] = []
-    const commandless: ToolCallPart = {
-      type: 'tool-call',
-      id: 'call-2',
-      name: 'canvas_delete',
-      arguments: JSON.stringify({elementId: 'e1'}),
-      state: 'approval-requested',
-      approval: {id: 'approval-2', needsApproval: true},
-    }
-    mountView(() => <TracePermissionBlock part={commandless} ctx={ctxRecording(decisions)} target="canvas_delete" />)
 
     await expect.element(page.getByRole('button', {name: 'Approve'})).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
     expect(document.querySelectorAll('button')).toHaveLength(2)
+  })
+
+  it('offers Always allow only for an ask that can be saved, and it replies always', async () => {
+    const decisions: Decision[] = []
+    const savable: ToolCallPart = {...askingPart(), metadata: {permission: {always: true}}}
+    mountView(() => <TracePermissionBlock part={savable} ctx={ctxRecording(decisions)} target={TARGET} />)
+
+    await page.getByRole('button', {name: 'Always allow'}).click()
+
+    await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+    expect(decisions).toEqual([{id: 'approval-1', reply: 'always'}])
   })
 
   it('shows the expiry countdown only for a request that carries a deadline', async () => {

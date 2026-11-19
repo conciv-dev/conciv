@@ -49,7 +49,7 @@ type CardSettle = {
   publish: PermissionCards['publish']
 }
 
-type CardDecision = {approvalId: string; approved: boolean; scope: 'once' | 'session'}
+type CardDecision = {approvalId: string; reply: Permission.Reply}
 
 const isAsked = Schema.is(Permission.Event.Asked.data)
 
@@ -228,11 +228,6 @@ export function answerPermission(
   })
 }
 
-function toPermissionReply(approved: boolean, scope: CardDecision['scope']): Permission.Reply {
-  if (!approved) return 'reject'
-  return scope === 'session' ? 'always' : 'once'
-}
-
 export async function decidePermissionCard(
   deps: {
     plane: Pick<ChatPlane, 'catchUp' | 'decide' | 'permissionSettled'>
@@ -245,12 +240,8 @@ export async function decidePermissionCard(
   const cards = (await deps.plane.catchUp(sessionId)).map(readApprovalAsk)
   const card = cards.find((ask) => ask?.approvalId === decision.approvalId)
   if (card?.permission === undefined)
-    return deps.plane.decide(sessionId, decision.approvalId, decision.approved, decision.scope)
-  const outcome = await deps.answer(
-    sessionId,
-    decision.approvalId,
-    toPermissionReply(decision.approved, decision.scope),
-  )
+    return deps.plane.decide(sessionId, decision.approvalId, decision.reply !== 'reject')
+  const outcome = await deps.answer(sessionId, decision.approvalId, decision.reply)
   if (outcome === 'gone') await dropCard(deps, sessionId, decision.approvalId)
   return outcome === 'replied' ? {startsTurn: false} : null
 }

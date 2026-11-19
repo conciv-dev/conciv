@@ -25,14 +25,14 @@ function Prompt(props: {label?: string}): JSX.Element {
             <X size={13} aria-hidden="true" />
             Deny
           </ActionButton>
-          <Show when={permission.rememberable()}>
+          <Show when={permission.savable()}>
             <ActionButton
               intent="neutral"
-              title="Allows this exact command for the rest of the session"
-              onClick={() => permission.approveForSession()}
+              title="Allows this in this project from now on"
+              onClick={() => permission.always()}
             >
               <ShieldCheck size={13} aria-hidden="true" />
-              Allow for session
+              Always allow
             </ActionButton>
           </Show>
           <ActionButton intent="allow" onClick={() => permission.approve()}>
