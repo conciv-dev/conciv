@@ -2,7 +2,7 @@
 
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on a running
 app. `@conciv/skills` packages the agent-facing knowledge for building with it: installing the
-widget, authoring extensions, wiring a new harness adapter, and debugging the sandbox/gate/SSE
+widget, authoring plugins, wiring a new harness adapter, and debugging the sandbox/gate/SSE
 runtime once it's live.
 
 ## Domains
@@ -10,18 +10,18 @@ runtime once it's live.
 | Domain                  | Description                                                                           | Skills         |
 | ----------------------- | ------------------------------------------------------------------------------------- | -------------- |
 | Installation & mounting | Getting the widget script into a build and a running app for the first time           | conciv-setup   |
-| Extension authoring     | Adding project-specific tools, attachments, and UI to the widget from a consuming app | conciv-develop |
+| Plugin authoring        | Adding project-specific tools, skills, RPC methods and widget UI from a consuming app | conciv-develop |
 | Harness adapters        | Wiring a new coding-agent CLI into conciv as the process behind the chat              | conciv-harness |
 | Runtime debugging       | Diagnosing the sandbox/gate/SSE runtime once the widget is installed and running      | conciv-debug   |
 
 ## Skill Inventory
 
-| Skill          | Type | Domain              | What it covers                                                                          | Failure modes |
-| -------------- | ---- | ------------------- | --------------------------------------------------------------------------------------- | ------------- |
-| conciv-setup   | core | installation        | plugin vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit              | 2             |
-| conciv-develop | core | extension-authoring | defineExtension/defineTool/defineAttachment, tool contract, testkit                     | 2             |
-| conciv-harness | core | harness-adapters    | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                   | 2             |
-| conciv-debug   | core | runtime-debugging   | widget mount/connect, gate timeout vs no-listener refusal, port fallback, SSE lifecycle | 2             |
+| Skill          | Type | Domain            | What it covers                                                                          | Failure modes |
+| -------------- | ---- | ----------------- | --------------------------------------------------------------------------------------- | ------------- |
+| conciv-setup   | core | installation      | plugin vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit              | 2             |
+| conciv-develop | core | plugin-authoring  | Plugin.define, tool contract, Rpc.define, browser part, plugin-testkit                  | 2             |
+| conciv-harness | core | harness-adapters  | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                   | 2             |
+| conciv-debug   | core | runtime-debugging | widget mount/connect, gate timeout vs no-listener refusal, port fallback, SSE lifecycle | 2             |
 
 ## Failure Mode Inventory
 
@@ -34,10 +34,10 @@ runtime once it's live.
 
 ### conciv-develop (2 failure modes)
 
-| #   | Mistake                                                                            | Priority | Source                                       | Cross-skill? |
-| --- | ---------------------------------------------------------------------------------- | -------- | -------------------------------------------- | ------------ |
-| 1   | writing to app state inside a render body or subscription                          | HIGH     | `packages/extension/src/hooks.tsx`           | —            |
-| 2   | reading `apps/site/content/docs/extending/*.mdx` as the current extension contract | MEDIUM   | `packages/extension/src/define-extension.ts` | conciv-debug |
+| #   | Mistake                                                                      | Priority | Source                                     | Cross-skill? |
+| --- | ---------------------------------------------------------------------------- | -------- | ------------------------------------------ | ------------ |
+| 1   | writing the engine part as `.tsx` or importing `./rpc` without its extension | HIGH     | `apps/site/content/docs/plugins/index.mdx` |              |
+| 2   | naming a tool with a hyphen                                                  | MEDIUM   | `packages/plugin-host/src/core/tool.ts`    | conciv-debug |
 
 ### conciv-harness (2 failure modes)
 
@@ -61,11 +61,11 @@ runtime once it's live.
 
 ## Cross-References
 
-| From           | To             | Reason                                                                                                       |
-| -------------- | -------------- | ------------------------------------------------------------------------------------------------------------ |
-| conciv-debug   | conciv-setup   | Most "widget never appears" symptoms trace back to the install path conciv-setup owns                        |
-| conciv-debug   | conciv-harness | A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem               |
-| conciv-develop | conciv-debug   | An extension tool with `approval: 'ask'` goes through the same gate/timeout mechanism conciv-debug documents |
+| From           | To             | Reason                                                                                                                  |
+| -------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| conciv-debug   | conciv-setup   | Most "widget never appears" symptoms trace back to the install path conciv-setup owns                                   |
+| conciv-debug   | conciv-harness | A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem                          |
+| conciv-develop | conciv-debug   | A plugin tool that asks through `ctx.permission.assert` goes through the same approval mechanism conciv-debug documents |
 
 ## Subsystems & Reference Candidates
 

@@ -43,20 +43,20 @@ skills:
       - 'conciv-dev/conciv:apps/site/content/docs/configuration.mdx'
       - 'conciv-dev/conciv:apps/site/content/docs/harnesses.mdx'
 
-  - name: 'Building a conciv extension'
+  - name: 'Building a conciv plugin'
     slug: 'conciv-develop'
     type: 'core'
-    domain: 'extension-authoring'
+    domain: 'plugin-authoring'
     path: 'skills/conciv-develop/SKILL.md'
     package: 'packages/skills'
     packages:
-      - '@conciv/extension'
-    description: 'Adding an agent tool, attachment type, or widget UI from a consuming app via defineExtension/defineTool/defineAttachment.'
+      - '@conciv/plugin'
+    description: 'Adding agent tools, skills, RPC methods and widget UI from a consuming app with a plugin in conciv/plugins/ or a package.'
     sources:
-      - 'conciv-dev/conciv:apps/site/content/docs/extending/your-first-extension.mdx'
-      - 'conciv-dev/conciv:apps/site/content/docs/extending/install-first-party.mdx'
-      - 'conciv-dev/conciv:packages/extension/src/define-extension.ts'
-      - 'conciv-dev/conciv:packages/extension/src/define-tool.ts'
+      - 'conciv-dev/conciv:apps/site/content/docs/plugins/your-first-plugin.mdx'
+      - 'conciv-dev/conciv:apps/site/content/docs/plugins/install.mdx'
+      - 'conciv-dev/conciv:packages/plugin/src/experimental/registries.ts'
+      - 'conciv-dev/conciv:packages/plugin-host/src/core/tool.ts'
 
   - name: 'Building a conciv harness adapter'
     slug: 'conciv-harness'

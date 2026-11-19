@@ -100,7 +100,7 @@ integration instead (`apps/site/content/docs/quick-start/rollup.mdx:21-23`,
 Use this when no `@conciv/it` plugin boots the widget for you, or when you are wiring a
 framework-specific wrapper. `createConciv` returns a handle you mount into an element and tear down
 yourself; `mountConciv` is the one-shot, fire-and-forget version that appends its own root div to
-`document.body` (`packages/embed/src/mount.ts:32-90`, `packages/embed/src/mount.ts:92-101`). Gate the
+`document.body` (`packages/embed/src/mount.ts:36-121`, `packages/embed/src/mount.ts:131-144`). Gate the
 mount call yourself the same way a plugin's `enabled` option would:
 
 ```ts
@@ -108,7 +108,6 @@ import {createConciv, type ConcivInit} from '@conciv/embed'
 
 if (process.env.NODE_ENV !== 'production') {
   const handle = createConciv({
-    extensions: [],
     apiBase: 'http://localhost:5178',
   })
   await handle.mount(document.getElementById('conciv-root')!)
@@ -116,29 +115,29 @@ if (process.env.NODE_ENV !== 'production') {
 }
 ```
 
-`ConcivInit` fields: `extensions` (array or async loader), `settings` (`ConcivSettingsInit`),
+`ConcivInit` fields: `plugins` (browser plugin entries, each `[plugin, options]`), `settings` (`ConcivSettingsInit`),
 `apiBase` (engine origin — required whenever the engine isn't served from the same origin/port the
-page loads from), `grabProvider` (`packages/embed/src/mount.ts:9-14`). The handle also exposes
+page loads from), `grabProvider`, `engineToken` (`packages/embed/src/mount.ts:14-21`). The handle also exposes
 `open()`/`close()`/`toggle()` (dispatch DOM `CustomEvent`s the widget listens for) and
 `rebind(apiBase)` to repoint an already-mounted widget at a different engine
-(`packages/embed/src/mount.ts:16-23`, `packages/embed/src/mount.ts:72-89`).
+(`packages/embed/src/mount.ts:23-30`).
 
-For a single always-on instance with no manual lifecycle, `mountConciv(extensions)` is a bare
+For a single always-on instance with no manual lifecycle, `mountConciv([], plugins)` is a bare
 fire-and-forget call — it no-ops if a `[data-conciv-script-root]` element already exists, so it is
-safe to call more than once (`packages/embed/src/mount.ts:92-101`):
+safe to call more than once (`packages/embed/src/mount.ts:131-144`). Pass `[]` first; the second
+argument is the browser plugin entries:
 
 ```ts
 import {mountConciv} from '@conciv/embed'
 
-mountConciv([myExtension])
+mountConciv([])
 ```
 
-(Real `mountConciv` call site: `apps/site/src/lib/mount-live-widget.ts:28` (import) and
-`apps/site/src/lib/mount-live-widget.ts:33` (call).)
+(Real `mountConciv` call site: `apps/site/src/lib/mount-live-widget.ts:69`.)
 
 For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv` —
 `@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears
-down on unmount, and remounts only when `apiBase`/`settings`/`extensions` actually change
+down on unmount, and remounts only when its config actually changes
 (`packages/react/src/index.ts:8-23`).
 
 ## Connecting a harness
@@ -183,8 +182,8 @@ values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/c
 | `widget`       | both layouts on | `{modal, quickTerminal}` — position/hotkey or disable a layout                |
 
 A string `systemPrompt` swaps out `CHAT_SYSTEM_PROMPT` entirely (`resolveSystemPrompt`,
-`packages/core/src/config.ts:18-22`); every installed extension's own `systemPrompt` is still appended
-after it, string or not (`composeSystemPrompt`, `packages/core/src/start.ts:110-117`).
+`packages/core/src/config.ts:18-22`). Plugins add their own rules after it through a session
+`context` hook (see the conciv-develop skill).
 
 `ConcivSettingsInit` is a **different, wider** type than `ConcivConfig.widget`: it's the `settings`
 field you pass directly to `createConciv`/`@conciv/react`'s `ConcivWidget`

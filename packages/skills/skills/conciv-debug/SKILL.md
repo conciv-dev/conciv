@@ -1,6 +1,6 @@
 ---
 name: conciv-debug
-description: Use when a conciv integration misbehaves at runtime — the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or extension authoring (see conciv-develop).
+description: Use when a conciv integration misbehaves at runtime: the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or plugin authoring (see conciv-develop).
 metadata:
   package: '@conciv/skills'
 ---
@@ -12,7 +12,7 @@ metadata:
 You are looking at a conciv widget that is installed (see the conciv-setup skill if it is not) but
 misbehaving at runtime: it does not show up, it shows up but cannot reach the engine, a tool call
 never finishes, or an approval prompt never resolves. This skill is about the sandbox/approval/SSE
-runtime underneath the widget, not the install step or extension authoring — see conciv-setup and
+runtime underneath the widget, not the install step or plugin authoring; see conciv-setup and
 conciv-develop for those.
 
 This skill was written straight from the current runtime source, and every claim below cites the file
@@ -158,9 +158,9 @@ Two consequences:
   at the harness CLI.
 - Treating a stream that never goes idle as a bug — every long-lived surface here (the turn socket,
   the events iterator) is open by design; assert on a UI signal instead of on quiet.
-- Debugging extension-authoring behavior (tool contracts, `Component`/`Surface` wiring) instead of
-  runtime plumbing — that's the conciv-develop skill's territory; this skill covers the
-  sandbox/approval/SSE runtime underneath, not how an extension is built.
+- Debugging plugin-authoring behavior (tool contracts, panels, slots, pills) instead of runtime
+  plumbing: that is the conciv-develop skill's territory; this skill covers the sandbox/approval/SSE
+  runtime underneath, not how a plugin is built.
 
 ## Sources
 
