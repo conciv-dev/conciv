@@ -18,7 +18,7 @@ export default defineConfig(async () => {
   return {
     resolve: {tsconfigPaths: true},
     plugins: [
-      devtools(),
+      devtools({consolePiping: {enabled: false}}),
       ...(nitroPlugin ? [nitroPlugin] : []),
       tailwindcss(),
       tanstackStart(),
