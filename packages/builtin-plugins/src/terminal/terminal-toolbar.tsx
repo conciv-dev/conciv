@@ -17,7 +17,7 @@ export function TerminalToolbar(props: {session: MountedSession; terminal: Termi
         menu={menu}
         status={status()}
         models={props.terminal.meta(props.session.id)}
-        value={props.terminal.shownModel(props.session) ?? null}
+        value={props.terminal.shownModel(props.session.id) ?? null}
         disabled={locked()}
         onRetry={() => props.terminal.reloadModels()}
         onModelChange={(model) => props.terminal.pick(props.session, model)}
