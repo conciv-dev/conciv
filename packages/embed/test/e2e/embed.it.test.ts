@@ -263,6 +263,24 @@ test.describe('composer rich input', () => {
       await expect(input).toHaveText('')
     })
 
+    test('typed text and an attached text file reach the wire as separate paragraphs', async ({page}) => {
+      test.setTimeout(180_000)
+      const wire = watchChatWire(page)
+      await openComposer(page)
+      const input = composer(page)
+
+      await input.pressSequentially('hello')
+      const chooser = page.waitForEvent('filechooser')
+      await page.getByRole('button', {name: 'Add an attachment'}).click()
+      await (await chooser).setFiles({name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('the file body')})
+      await expect(panel(page).getByRole('button', {name: 'Remove x.txt'})).toBeVisible({timeout: 10_000})
+
+      const sent = wire.nextTurn().then((turn) => turn.content)
+      await page.getByRole('button', {name: 'Send message'}).click()
+      expect(await sent).toBe('hello\n\nAttachment x.txt:\nthe file body')
+      await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
+    })
+
     test('backspace removes a selected command chip in two steps, never a partial directive', async ({page}) => {
       test.setTimeout(120_000)
       await openComposer(page)
