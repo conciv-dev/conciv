@@ -132,6 +132,36 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
   )
 }
 
+export const SECOND_PLUGIN_LINE = 'fixture second plugin line'
+const SECOND_PLUGIN_DIR = 'conciv/plugins/fixture-second'
+
+export function writeSecondPlugin(appDir: string): void {
+  const dir = join(appDir, SECOND_PLUGIN_DIR)
+  mkdirSync(dir, {recursive: true})
+  writeFileSync(join(dir, 'index.ts'), `export default {id: 'fixture-second', async setup() {}}\n`)
+  writeFileSync(
+    join(dir, 'plugin-experimental.js'),
+    [
+      `const {Slot} = require('@conciv/plugin/experimental')`,
+      `module.exports = {`,
+      `  default: {`,
+      `    setup(ctx) {`,
+      `      ctx.add(Slot, {`,
+      `        at: 'window.bottom',`,
+      `        render: () => Object.assign(document.createElement('p'), {textContent: '${SECOND_PLUGIN_LINE}'}),`,
+      `      })`,
+      `    },`,
+      `  },`,
+      `}`,
+      ``,
+    ].join('\n'),
+  )
+}
+
+export function removeSecondPlugin(appDir: string): void {
+  rmSync(join(appDir, SECOND_PLUGIN_DIR), {recursive: true, force: true})
+}
+
 export type Fixture = {root: string; appDir: string; tgzDir: string; closure: string[]}
 
 export async function setupFixture(): Promise<Fixture> {
