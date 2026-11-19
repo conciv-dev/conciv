@@ -347,6 +347,7 @@ export function turnHooks(
           await context.transcripts.sync(sessionId)
           const approvals = await context.approvals.forRun(sessionId)
           const {inventory} = await toolSet()
+          await normalizer()
           instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
           return approvals
         },
