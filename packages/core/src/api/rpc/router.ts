@@ -126,7 +126,7 @@ export function ptyOutput<Failure>(
   session: TtySession,
   options: PtyOutputOptions<Failure>,
 ): Stream.Stream<PtyOutputEvent, Failure> {
-  const subscribe = Effect.gen(function* () {
+  const subscribe = Effect.fn('core.pty.subscribe')(function* () {
     const queue = yield* Queue.dropping<PtyOutputEvent, Failure>(options.capacity ?? OUTPUT_CAPACITY)
     const offer = (event: PtyOutputEvent): void => {
       if (!Queue.offerUnsafe(queue, event)) Queue.failCauseUnsafe(queue, Cause.fail(options.overflow()))
@@ -143,7 +143,7 @@ export function ptyOutput<Failure>(
     return {queue, detach}
   })
   return Stream.unwrap(
-    Effect.acquireRelease(subscribe, ({queue, detach}) =>
+    Effect.acquireRelease(subscribe(), ({queue, detach}) =>
       Effect.sync(detach).pipe(Effect.andThen(Queue.shutdown(queue)), Effect.asVoid),
     ).pipe(Effect.map(({queue}) => Stream.fromQueue(queue))),
   )
@@ -354,7 +354,7 @@ function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Fai
   return Effect.gen(function* () {
     const location = yield* Location.Service
     return {location: {directory: location.directory}, data: yield* data}
-  })
+  }).pipe(Effect.withSpan('core.rpc.locationResponse'))
 }
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {

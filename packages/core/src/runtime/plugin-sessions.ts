@@ -109,19 +109,22 @@ function applyModelChoice(chat: ChatContext, sessionId: SessionId, choice: Model
   })
 }
 
-function createdModel(chat: ChatContext, input: CreateInput, sessionId: SessionId) {
-  return Effect.gen(function* () {
-    const agent = given(input.agent) ?? Agent.defaultId
-    if (agent !== Agent.defaultId) {
-      return yield* Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)}))
-    }
-    const model = given(input.model)
-    if (model === undefined) return null
-    const choice = yield* modelChoice(chat.defaultHarness, model, chat.signal)
-    if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
-    return choice
-  })
-}
+const createdModel = Effect.fn('core.sessions.chooseCreatedModel')(function* (
+  chat: ChatContext,
+  input: CreateInput,
+  sessionId: SessionId,
+) {
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const agent = given(input.agent) ?? Agent.defaultId
+  if (agent !== Agent.defaultId) {
+    return yield* Effect.fail(SessionErrors.makeAgentNotFoundError({sessionId, agent: Agent.Id.make(agent)}))
+  }
+  const model = given(input.model)
+  if (model === undefined) return null
+  const choice = yield* modelChoice(chat.defaultHarness, model, chat.signal)
+  if (choice === null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+  return choice
+})
 
 async function describeCreated(
   renaming: Parameters<typeof renameSession>[0],
@@ -146,52 +149,52 @@ const metadataSchema = SessionRecordSchema.shape.metadata.unwrap().unwrap()
 const permissionsSchema = SessionRecordSchema.shape.permissions.unwrap().unwrap()
 
 export function provideSessions(started: () => SessionKeyDeps) {
-  const found = (sessionId: SessionId) =>
-    Effect.promise(() => rowById(started().chat.db, sessionId)).pipe(
-      Effect.flatMap((row) =>
-        row === null || row.deletedAt !== null
-          ? Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
-          : Effect.succeed(row),
-      ),
-    )
-  const get = (sessionId: SessionId) => found(sessionId).pipe(Effect.map((row) => sessionInfo(started().chat, row)))
+  const found = Effect.fn('core.sessions.find')(function* (sessionId: SessionId) {
+    yield* Effect.annotateCurrentSpan({sessionId})
+    const row = yield* Effect.promise(() => rowById(started().chat.db, sessionId))
+    if (row === null || row.deletedAt !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+    return row
+  })
+  const get = Effect.fn('core.sessions.get')(function* (sessionId: SessionId) {
+    yield* Effect.annotateCurrentSpan({sessionId})
+    return sessionInfo(started().chat, yield* found(sessionId))
+  })
   return Layer.succeed(
     Session.Service,
     Session.Service.of({
       get,
-      list: (input) =>
-        Effect.gen(function* () {
-          const {chat, search} = started()
-          const cursor = input?.cursor === undefined ? null : yield* readCursor(input.cursor)
-          const limit = clamp(Math.trunc(input?.limit ?? DEFAULT_PAGE_SIZE), 1, MAX_PAGE_SIZE)
-          const term = input?.search?.trim() ?? ''
-          const page = yield* Effect.promise(() =>
-            term === ''
-              ? listedSessionPage(chat, search, {cursor, limit})
-              : searchedSessionPage(chat, search, {cursor, limit, term, everywhere: false}),
-          )
-          const rows = yield* Effect.promise(() => Promise.all(page.sessions.map((hit) => rowById(chat.db, hit.id))))
-          return {
-            data: rows.filter((row) => row !== null).map((row) => sessionInfo(chat, row)),
-            cursor: page.next === null ? {} : {next: JSON.stringify(page.next)},
-          }
-        }),
-      create: (input) =>
-        Effect.gen(function* () {
-          const {chat, search} = started()
-          const supplied = input.id
-          const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
-          if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
-          if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
-          const sessionId = supplied ?? newSessionId()
-          const choice = yield* createdModel(chat, input, sessionId)
-          yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
-          yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
-          if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
-            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
-          }
-          return yield* get(sessionId)
-        }),
+      list: Effect.fn('core.sessions.list')(function* (input) {
+        const {chat, search} = started()
+        const cursor = input?.cursor === undefined ? null : yield* readCursor(input.cursor)
+        const limit = clamp(Math.trunc(input?.limit ?? DEFAULT_PAGE_SIZE), 1, MAX_PAGE_SIZE)
+        const term = input?.search?.trim() ?? ''
+        const page = yield* Effect.promise(() =>
+          term === ''
+            ? listedSessionPage(chat, search, {cursor, limit})
+            : searchedSessionPage(chat, search, {cursor, limit, term, everywhere: false}),
+        )
+        const rows = yield* Effect.promise(() => Promise.all(page.sessions.map((hit) => rowById(chat.db, hit.id))))
+        return {
+          data: rows.filter((row) => row !== null).map((row) => sessionInfo(chat, row)),
+          cursor: page.next === null ? {} : {next: JSON.stringify(page.next)},
+        }
+      }),
+      create: Effect.fn('core.sessions.create')(function* (input) {
+        const {chat, search} = started()
+        const supplied = input.id
+        const recorded = supplied === undefined ? null : yield* Effect.promise(() => rowById(chat.db, supplied))
+        if (recorded !== null && recorded.deletedAt === null) return sessionInfo(chat, recorded)
+        if (recorded !== null) return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: recorded.id}))
+        const sessionId = supplied ?? newSessionId()
+        yield* Effect.annotateCurrentSpan({sessionId})
+        const choice = yield* createdModel(chat, input, sessionId)
+        yield* Effect.promise(() => createChatSession(chat.rows, sessionId))
+        yield* Effect.promise(() => describeCreated({db: chat.db, search}, sessionId, input))
+        if (choice !== null && !(yield* applyModelChoice(chat, sessionId, choice))) {
+          return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId}))
+        }
+        return yield* get(sessionId)
+      }),
       remove: (sessionId) =>
         found(sessionId).pipe(
           Effect.andThen(() => {
@@ -211,19 +214,19 @@ export function provideSessions(started: () => SessionKeyDeps) {
                 ),
           ),
         ),
-      switchModel: (input) =>
-        Effect.gen(function* () {
-          const {chat} = started()
-          yield* found(input.sessionId)
-          const harness = yield* Effect.tryPromise({
-            try: () => chat.harnessFor(input.sessionId),
-            catch: (cause) => HarnessReadError.make({sessionId: input.sessionId, cause}),
-          }).pipe(Effect.orDie)
-          const choice = yield* modelChoice(harness, input.model, chat.signal)
-          if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
-            return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
-          }
-        }),
+      switchModel: Effect.fn('core.sessions.switchModel')(function* (input) {
+        yield* Effect.annotateCurrentSpan({sessionId: input.sessionId})
+        const {chat} = started()
+        yield* found(input.sessionId)
+        const harness = yield* Effect.tryPromise({
+          try: () => chat.harnessFor(input.sessionId),
+          catch: (cause) => HarnessReadError.make({sessionId: input.sessionId, cause}),
+        }).pipe(Effect.orDie)
+        const choice = yield* modelChoice(harness, input.model, chat.signal)
+        if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
+          return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
+        }
+      }),
       rename: (input) =>
         found(input.sessionId).pipe(
           Effect.andThen(() => {

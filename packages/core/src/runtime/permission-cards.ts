@@ -22,7 +22,6 @@ import {
 } from '@conciv/plugin-host'
 import {Effect, Layer, Option, Ref, Schema} from 'effect'
 import {once} from 'es-toolkit'
-import {logError} from '../lib/debug.js'
 import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 import {loadInstructionEntries} from './instruction-entries.js'
 
@@ -42,7 +41,6 @@ type CardPublish = (sessionId: SessionId, chunk: ChatEvent) => void
 
 type PermissionCards = {
   publish: CardPublish
-  log: (line: string) => void
 }
 
 type CardDecision = {approvalId: string; reply: Permission.Reply}
@@ -60,10 +58,11 @@ const NO_PLUGIN_TOOLS: PermissionRule[] = [
   {action: 'execute', resource: '*', effect: 'allow'},
 ]
 
-function sessionPermissions(sessionId: SessionId, stored: StoredRules): PermissionRule[] {
-  if (stored.readable) return stored.rules ?? []
-  logError(`[core] session ${sessionId} has permission rules that cannot be read, so it is offered no plugin tools`)
-  return NO_PLUGIN_TOOLS
+function sessionPermissions(sessionId: SessionId, stored: StoredRules): Effect.Effect<PermissionRule[]> {
+  if (stored.readable) return Effect.succeed(stored.rules ?? [])
+  return Effect.logWarning(
+    '[core] the session has permission rules that cannot be read, so it is offered no plugin tools',
+  ).pipe(Effect.annotateLogs({sessionId}), Effect.as(NO_PLUGIN_TOOLS))
 }
 
 export function permissionSessions(db: ConcivDb) {
@@ -76,7 +75,7 @@ export function permissionSessions(db: ConcivDb) {
           if (!parsed.success) return undefined
           const stored = yield* storedSessionRules(db, parsed.data).pipe(Effect.orDie)
           if (stored === null) return undefined
-          return {agent: Agent.defaultId, permissions: sessionPermissions(parsed.data, stored)}
+          return {agent: Agent.defaultId, permissions: yield* sessionPermissions(parsed.data, stored)}
         }),
     }),
   )
@@ -92,24 +91,25 @@ function sessionRules(
   })
 }
 
-export function sessionToolDomain(
+export const sessionToolDomain = Effect.fn('core.permissions.toolDomain')(function* (
   sessionId: SessionId,
-): Effect.Effect<ToolDomain, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
-  return Effect.gen(function* () {
-    const {agent, rules} = yield* sessionRules(sessionId)
-    return {snapshot: yield* (yield* Tool.Service).snapshot(rules), agent}
-  })
-}
+): Effect.fn.Return<ToolDomain, never, Tool.Interface | Agent.Interface | Permission.SessionsInterface> {
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const {agent, rules} = yield* sessionRules(sessionId)
+  return {snapshot: yield* (yield* Tool.Service).snapshot(rules), agent}
+})
 
-export function currentToolDomain(
+export const currentToolDomain = Effect.fn('core.permissions.currentToolDomain')(function* (
   sessionId: SessionId,
-): Effect.Effect<
+): Effect.fn.Return<
   ToolDomain,
   never,
   Plugin.Interface | Tool.Interface | Agent.Interface | Permission.SessionsInterface
 > {
-  return Plugin.awaitActivation.pipe(Effect.andThen(sessionToolDomain(sessionId)))
-}
+  yield* Effect.annotateCurrentSpan({sessionId})
+  yield* Plugin.awaitActivation
+  return yield* sessionToolDomain(sessionId)
+})
 
 function isMarker(value: unknown): value is Instructions.Unavailable | Instructions.Removed {
   return value === Instructions.unavailable || value === Instructions.removed
@@ -119,49 +119,48 @@ function observedValues(read: Instructions.ReadResult) {
   return Object.fromEntries(read.flatMap(({key, value}) => (isMarker(value) ? [] : [[key, value]])))
 }
 
-export function pluginInstructions(
+export const pluginInstructions = Effect.fn('core.instructions.load')(function* (
   sessionId: SessionId,
   reset: 'keep' | 'reset',
   inventory: CodeModeCatalog.Inventory | undefined,
 ) {
-  return Effect.gen(function* () {
-    const db = (yield* Database.Service).db
-    const bus = yield* Bus.Service
-    const context = yield* Effect.context()
-    const id = SessionSchema.Id.make(sessionId)
-    const skills = yield* (yield* SkillInstructions.Service).load((yield* sessionRules(sessionId)).rules)
-    const entries = yield* loadInstructionEntries(yield* KV.Service, id)
-    const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
-    const read = yield* Instructions.read(instructions)
-    const {previewed, observation} = yield* db
-      .transaction(() =>
-        Effect.gen(function* () {
-          const previewed = yield* InstructionState.preview(db, id, instructions, read)
-          const observation = yield* InstructionState.observe(db, instructions, id)
-          return {previewed, observation}
-        }),
-      )
-      .pipe(
-        Effect.catch((error) =>
-          error._tag === 'Instructions.InitializationBlocked' ? Effect.fail(error) : Effect.die(error),
-        ),
-      )
-    const commit = db.transaction(() =>
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const db = (yield* Database.Service).db
+  const bus = yield* Bus.Service
+  const context = yield* Effect.context()
+  const id = SessionSchema.Id.make(sessionId)
+  const skills = yield* (yield* SkillInstructions.Service).load((yield* sessionRules(sessionId)).rules)
+  const entries = yield* loadInstructionEntries(yield* KV.Service, id)
+  const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
+  const read = yield* Instructions.read(instructions)
+  const {previewed, observation} = yield* db
+    .transaction(() =>
       Effect.gen(function* () {
-        yield* InstructionState.commit(db, bus, instructions, observation)
-        if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+        const previewed = yield* InstructionState.preview(db, id, instructions, read)
+        const observation = yield* InstructionState.observe(db, instructions, id)
+        return {previewed, observation}
       }),
     )
-    return {
-      initial:
-        reset === 'reset'
-          ? Instructions.join(Instructions.renderInitial(instructions, observedValues(read)))
-          : Instructions.join(previewed.initial),
-      update: reset === 'reset' ? '' : previewed.update,
-      told: once(() => Effect.runPromiseWith(context)(commit.pipe(Effect.orDie))),
-    }
-  })
-}
+    .pipe(
+      Effect.catch((error) =>
+        error._tag === 'Instructions.InitializationBlocked' ? Effect.fail(error) : Effect.die(error),
+      ),
+    )
+  const commit = db.transaction(() =>
+    Effect.gen(function* () {
+      yield* InstructionState.commit(db, bus, instructions, observation)
+      if (reset === 'reset') yield* InstructionState.advanceEpoch(db, id, yield* Bus.latestSequence(db, id))
+    }),
+  )
+  return {
+    initial:
+      reset === 'reset'
+        ? Instructions.join(Instructions.renderInitial(instructions, observedValues(read)))
+        : Instructions.join(previewed.initial),
+    update: reset === 'reset' ? '' : previewed.update,
+    told: once(() => Effect.runPromiseWith(context)(commit.pipe(Effect.orDie))),
+  }
+})
 
 function formatCardTitle(request: Permission.Request): string {
   const title = `${request.action} ${request.resources.join(', ')}`
@@ -194,28 +193,30 @@ function cardWork(cards: PermissionCards, type: string, data: unknown): void {
   if (type === Permission.Event.Replied.type && isReplied(data)) dropCard(cards.publish, data.sessionId, data.requestId)
 }
 
-export function followPermissionCards(cards: PermissionCards): Effect.Effect<Bus.Unsubscribe, never, Bus.Interface> {
-  return Effect.gen(function* () {
-    const bus = yield* Bus.Service
-    return yield* bus.listen((event) =>
-      Effect.try({try: () => cardWork(cards, event.type, event.data), catch: (error) => error}).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() =>
-            cards.log(`[core] the permission card for ${event.type} could not be updated: ${String(error)}`),
-          ),
+export const followPermissionCards = Effect.fn('core.permissions.followCards')(function* (
+  cards: PermissionCards,
+): Effect.fn.Return<Bus.Unsubscribe, never, Bus.Interface> {
+  const bus = yield* Bus.Service
+  return yield* bus.listen((event) =>
+    Effect.try({try: () => cardWork(cards, event.type, event.data), catch: (error) => error}).pipe(
+      Effect.catch((error) =>
+        Effect.logError('[core] the permission card could not be updated').pipe(
+          Effect.annotateLogs({event: event.type, error: String(error)}),
         ),
       ),
-    )
-  })
-}
-
-export function pendingPermissionCards(
-  sessionId: SessionId,
-): Effect.Effect<ChatPendingApproval[], never, Permission.Interface> {
-  return Permission.Service.use((permission) => permission.forSession(SessionSchema.Id.make(sessionId))).pipe(
-    Effect.map((requests) => requests.map(buildCard)),
+    ),
   )
-}
+})
+
+export const pendingPermissionCards = Effect.fn('core.permissions.pendingCards')(function* (
+  sessionId: SessionId,
+): Effect.fn.Return<ChatPendingApproval[], never, Permission.Interface> {
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const requests = yield* Permission.Service.use((permission) =>
+    permission.forSession(SessionSchema.Id.make(sessionId)),
+  )
+  return requests.map(buildCard)
+})
 
 export function settlingAsks<A, E, R>(
   sessionId: SessionId,
@@ -239,18 +240,19 @@ export function settlingAsks<A, E, R>(
       left.forEach((id) => dropCard(publish, sessionId, id))
     })
     return yield* effect.pipe(Effect.ensuring(settleLeft))
-  })
+  }).pipe(Effect.withSpan('core.permissions.settleAsks', {attributes: {sessionId}}))
 }
 
 function refused(message: string): HarnessPermissionVerdict {
   return {allowed: false, message}
 }
 
-export function askForHarness(
+export const askForHarness = Effect.fn('core.permissions.askForHarness')(function* (
   sessionId: SessionId,
   ask: HarnessPermissionAsk,
   publish: CardPublish,
-): Effect.Effect<HarnessPermissionVerdict, never, Permission.Interface | Bus.Interface> {
+): Effect.fn.Return<HarnessPermissionVerdict, never, Permission.Interface | Bus.Interface> {
+  yield* Effect.annotateCurrentSpan({sessionId})
   const asked = `${ask.action} ${ask.resources.join(', ')}`
   const assert = Permission.Service.use((permission) =>
     permission.assert({
@@ -268,45 +270,43 @@ export function askForHarness(
       isDeclined(defect) ? Effect.succeed(refused(`The user rejected ${asked}.`)) : Effect.die(defect),
     ),
   )
-  return settlingAsks(sessionId, assert, publish)
-}
+  return yield* settlingAsks(sessionId, assert, publish)
+})
 
-export function answerPermission(
+export const answerPermission = Effect.fn('core.permissions.answer')(function* (
   sessionId: SessionId,
   requestId: string,
   reply: Permission.Reply,
-): Effect.Effect<PermissionOutcome, never, Permission.Interface> {
-  return Effect.gen(function* () {
-    const permission = yield* Permission.Service
-    const id = decodeRequestId(requestId)
-    if (Option.isNone(id)) return 'gone'
-    const request = yield* permission.get(id.value)
-    if (request === undefined) return 'gone'
-    const owner: string = request.sessionId
-    if (owner !== sessionId) return 'foreign'
-    return yield* permission.reply({requestId: id.value, reply}).pipe(
-      Effect.map((): PermissionOutcome => 'replied'),
-      Effect.catchTag('Permission.NotFoundError', () => Effect.succeed<PermissionOutcome>('gone')),
-    )
-  })
-}
+): Effect.fn.Return<PermissionOutcome, never, Permission.Interface> {
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const permission = yield* Permission.Service
+  const id = decodeRequestId(requestId)
+  if (Option.isNone(id)) return 'gone'
+  const request = yield* permission.get(id.value)
+  if (request === undefined) return 'gone'
+  const owner: string = request.sessionId
+  if (owner !== sessionId) return 'foreign'
+  return yield* permission.reply({requestId: id.value, reply}).pipe(
+    Effect.map((): PermissionOutcome => 'replied'),
+    Effect.catchTag('Permission.NotFoundError', () => Effect.succeed<PermissionOutcome>('gone')),
+  )
+})
 
-export function assertOutsideAgent(
+export const assertOutsideAgent = Effect.fn('core.permissions.assertOutsideAgent')(function* (
   sessionId: SessionId,
   client: string,
-): Effect.Effect<void, Permission.Error | SessionErrors.NotFoundError, Permission.Interface> {
-  return Effect.gen(function* () {
-    const permission = yield* Permission.Service
-    yield* permission.assert({
-      sessionId: SessionSchema.Id.make(sessionId),
-      action: OUTSIDE_AGENT,
-      resources: [client],
-      save: [client],
-      fallback: 'ask',
-      metadata: {client},
-    })
+): Effect.fn.Return<void, Permission.Error | SessionErrors.NotFoundError, Permission.Interface> {
+  yield* Effect.annotateCurrentSpan({sessionId, client})
+  const permission = yield* Permission.Service
+  yield* permission.assert({
+    sessionId: SessionSchema.Id.make(sessionId),
+    action: OUTSIDE_AGENT,
+    resources: [client],
+    save: [client],
+    fallback: 'ask',
+    metadata: {client},
   })
-}
+})
 
 export async function decidePermissionCard(
   deps: {answer: PermissionAnswer; publish: CardPublish},

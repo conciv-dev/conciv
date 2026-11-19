@@ -3,9 +3,8 @@ import {engineTooOld, makeRpcClient} from '@conciv/contract'
 import {checkEngines, listEngines, withHomeDb, type EngineRow} from '@conciv/db'
 import {Conciv} from '@conciv/plugin'
 import {PluginHost} from '@conciv/plugin-host'
-import {Context, Effect, Latch, Layer, Ref, Semaphore, Stream} from 'effect'
+import {Context, Effect, Latch, Layer, Ref, Schedule, Semaphore, Stream} from 'effect'
 import {isEqual, memoize, uniqBy} from 'es-toolkit'
-import {logError} from '../lib/debug.js'
 import {homeDbReads} from '../lib/home-db-watch.js'
 
 const SERVER_HEALTH_POLL_MS = 10_000
@@ -54,7 +53,7 @@ function watchHome(home: string, refresh: Effect.Effect<void>): Effect.Effect<vo
       ).pipe(Stream.runForEach(() => refresh)),
     ),
     Effect.catch((error) =>
-      Effect.sync(() => logError(`[core] the conciv home folder could not be watched: ${error}`)),
+      Effect.logError('[core] the conciv home folder could not be watched').pipe(Effect.annotateLogs({home, error})),
     ),
     Effect.scoped,
   )
@@ -101,11 +100,13 @@ export function provideServersSource(input: ServersSourceInput) {
       const refresh = Effect.tryPromise(() => checked(input.home)).pipe(
         Effect.flatMap((next) => Ref.set(snapshot, next)),
         Effect.catch((error) =>
-          Effect.sync(() => logError(`[core] the conciv engines could not be listed: ${errorText(error.cause)}`)),
+          Effect.logError('[core] the conciv engines could not be listed').pipe(
+            Effect.annotateLogs({home: input.home, error: errorText(error.cause)}),
+          ),
         ),
         Semaphore.withPermit(serial),
       )
-      const pollHealth = Effect.sleep(SERVER_HEALTH_POLL_MS).pipe(Effect.andThen(refresh), Effect.forever)
+      const pollHealth = refresh.pipe(Effect.schedule(Schedule.spaced(SERVER_HEALTH_POLL_MS)))
       yield* read.await.pipe(
         Effect.andThen(
           Effect.all([watchHome(input.home, refresh), pollHealth], {concurrency: 'unbounded', discard: true}),

@@ -47,7 +47,7 @@ export function encode(event: Event.Payload): ConcivEvent {
   return EventEnvelopeSchema.parse(Schema.encodeUnknownSync(definition)(event))
 }
 
-export const make = Effect.fn('EventFeed.make')(function* (
+export const make = Effect.fn('core.eventFeed.make')(function* (
   observe: (subscriber: Bus.Subscriber) => Effect.Effect<Bus.Unsubscribe>,
   options?: {readonly capacity?: number; readonly encode?: (event: Event.Payload) => ConcivEvent},
 ) {

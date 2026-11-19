@@ -10,31 +10,30 @@ type Entry = typeof StoredEntry.Type & {readonly key: InstructionEntry.Key}
 
 const sessionPrefix = (sessionId: string): string => `${ENTRY_PREFIX}${sessionId}:`
 
-function scanAll(kv: KV.Interface, prefix: string, after?: string): Effect.Effect<ReadonlyArray<KV.Entry>> {
-  return kv
-    .scan({prefix, after, limit: SCAN_LIMIT})
-    .pipe(
-      Effect.flatMap((page) =>
-        page.next === undefined
-          ? Effect.succeed(page.entries)
-          : scanAll(kv, prefix, page.next).pipe(Effect.map((rest) => [...page.entries, ...rest])),
-      ),
-    )
-}
+const scanAll = Effect.fn('core.instructionEntries.scan')(function* (
+  kv: KV.Interface,
+  prefix: string,
+  after?: string,
+): Effect.fn.Return<ReadonlyArray<KV.Entry>> {
+  const page = yield* kv.scan({prefix, after, limit: SCAN_LIMIT})
+  if (page.next === undefined) return page.entries
+  return [...page.entries, ...(yield* scanAll(kv, prefix, page.next))]
+})
 
-function readEntries(kv: KV.Interface, sessionId: string): Effect.Effect<ReadonlyArray<Entry>> {
+const readEntries = Effect.fn('core.instructionEntries.read')(function* (
+  kv: KV.Interface,
+  sessionId: string,
+): Effect.fn.Return<ReadonlyArray<Entry>> {
+  yield* Effect.annotateCurrentSpan({sessionId})
   const prefix = sessionPrefix(sessionId)
-  return scanAll(kv, prefix).pipe(
-    Effect.flatMap((rows) =>
-      Effect.forEach(rows, (row) =>
-        Schema.decodeUnknownEffect(StoredEntry)(row.value).pipe(
-          Effect.orDie,
-          Effect.map((stored) => ({...stored, key: row.key.slice(prefix.length)})),
-        ),
-      ),
+  const rows = yield* scanAll(kv, prefix)
+  return yield* Effect.forEach(rows, (row) =>
+    Schema.decodeUnknownEffect(StoredEntry)(row.value).pipe(
+      Effect.orDie,
+      Effect.map((stored) => ({...stored, key: row.key.slice(prefix.length)})),
     ),
   )
-}
+})
 
 const renderValue = (value: Schema.Json): string => (typeof value === 'string' ? value : JSON.stringify(value, null, 2))
 
@@ -57,15 +56,23 @@ const entrySource = (entry: Entry): Instructions.List =>
     },
   })
 
-export function removeInstructionEntries(kv: KV.Interface, sessionId: string): Effect.Effect<void> {
-  return scanAll(kv, sessionPrefix(sessionId)).pipe(
-    Effect.flatMap((rows) => Effect.forEach(rows, (row) => kv.remove(row.key), {discard: true})),
-  )
-}
+export const removeInstructionEntries = Effect.fn('core.instructionEntries.remove')(function* (
+  kv: KV.Interface,
+  sessionId: string,
+): Effect.fn.Return<void> {
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const rows = yield* scanAll(kv, sessionPrefix(sessionId))
+  yield* Effect.forEach(rows, (row) => kv.remove(row.key), {discard: true})
+})
 
-export function loadInstructionEntries(kv: KV.Interface, sessionId: string): Effect.Effect<Instructions.List> {
-  return readEntries(kv, sessionId).pipe(Effect.map((entries) => Instructions.combine(entries.map(entrySource))))
-}
+export const loadInstructionEntries = Effect.fn('core.instructionEntries.load')(function* (
+  kv: KV.Interface,
+  sessionId: string,
+): Effect.fn.Return<Instructions.List> {
+  yield* Effect.annotateCurrentSpan({sessionId})
+  const entries = yield* readEntries(kv, sessionId)
+  return Instructions.combine(entries.map(entrySource))
+})
 
 export const provideInstructionEntries = Layer.effect(
   InstructionEntry.Service,

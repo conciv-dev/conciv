@@ -583,10 +583,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       settings.close,
     ])
   await pluginHost.context().catch(startFailed([]))
-  const idleScope = Effect.runSync(Scope.make())
-  const idleTriggers = Effect.runSync(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
+  const idleScope = await pluginHost.runPromise(Scope.fork(pluginHost.scope, 'sequential')).catch(startFailed([]))
+  const idleTriggers = await pluginHost
+    .runPromise(FiberMap.make<SessionId>().pipe(Scope.provide(idleScope)))
+    .catch(startFailed([]))
   const interruptIdle = (sessionId: SessionId, stopped: boolean): Promise<boolean> =>
-    Effect.runPromise(
+    pluginHost.runPromise(
       FiberMap.has(idleTriggers, sessionId).pipe(
         Effect.tap((running) => (running ? FiberMap.remove(idleTriggers, sessionId) : Effect.void)),
         Effect.tap((running) =>
@@ -670,7 +672,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }).catch(startFailed([]))
   planeRef.current = plane
   await pluginHost
-    .runPromise(followPermissionCards({publish: publishCard, log: logError}))
+    .runPromise(followPermissionCards({publish: publishCard}))
     .catch(startFailed([() => plane.endAllRuns()]))
   const chatDeps: ChatContext = {
     defaultHarness: harness,
@@ -818,7 +820,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         endListings,
         plugins.closeRpc,
         plugins.closePlugins,
-        () => Effect.runPromise(Scope.close(idleScope, Exit.void)),
+        () => pluginHost.runPromise(Scope.close(idleScope, Exit.void)),
         plugins.closePermissions,
         () => plane.endAllRuns(),
         ptys.shutdown,

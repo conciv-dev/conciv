@@ -49,10 +49,22 @@ import {
   ManagedPolicy,
   PluginHost,
 } from '@conciv/plugin-host'
-import {Cause, Effect, Exit, Layer, ManagedRuntime, Schema, Scope, Queue, Stream} from 'effect'
+import {
+  Cause,
+  Effect,
+  Exit,
+  FileSystem as PlatformFileSystem,
+  Layer,
+  ManagedRuntime,
+  PlatformError,
+  Schedule,
+  Schema,
+  Scope,
+  Queue,
+  Stream,
+} from 'effect'
 import type {PluginHost as PluginHostRuntime} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
-import {logError} from '../lib/debug.js'
 import * as EventFeed from '../event-feed.js'
 import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
@@ -78,18 +90,20 @@ function diagnostics(subscribe: NonNullable<Bundler.BundlerBridge['subscribe']>)
   )
 }
 
-export function publishBundlerDiagnostics(bundler: Bundler.BundlerBridge | undefined) {
-  return Layer.effectDiscard(
-    Effect.gen(function* () {
-      const subscribe = bundler?.subscribe?.bind(bundler)
-      if (subscribe === undefined) return
-      const bus = yield* Bus.Service
-      yield* diagnostics(subscribe).pipe(
-        Stream.runForEach((diagnostic) => bus.publish(Bundler.Event.Diagnostic, {diagnostic})),
-        Effect.forkScoped,
-      )
-    }),
+const followDiagnostics = Effect.fn('core.bundler.followDiagnostics')(function* (
+  bundler: Bundler.BundlerBridge | undefined,
+) {
+  const subscribe = bundler?.subscribe?.bind(bundler)
+  if (subscribe === undefined) return
+  const bus = yield* Bus.Service
+  yield* diagnostics(subscribe).pipe(
+    Stream.runForEach((diagnostic) => bus.publish(Bundler.Event.Diagnostic, {diagnostic})),
+    Effect.forkScoped,
   )
+})
+
+export function publishBundlerDiagnostics(bundler: Bundler.BundlerBridge | undefined) {
+  return Layer.effectDiscard(followDiagnostics(bundler))
 }
 
 export function provideEditorSource(openInEditor: (file: string, line?: number, column?: number) => void) {
@@ -111,8 +125,25 @@ export function provideConfiguredPermissions(permissions: ResolvedConcivConfig['
   return Layer.succeed(ConfigAgentPlugin.ConfiguredPermissions, permissions)
 }
 
+const isTransientErrno = Schema.is(Schema.Struct({code: Schema.Literals(['EMFILE', 'ENFILE', 'EAGAIN', 'EBUSY'])}))
+
+const isTransientMkdirError = (error: PlatformError.PlatformError): boolean => isTransientErrno(error.reason.cause)
+
+const makeRoots = Effect.fn('core.globalRoots.make')(function* (roots: Global.Interface) {
+  const files = yield* PlatformFileSystem.FileSystem
+  yield* Effect.forEach(
+    [roots.cache, roots.config, roots.state],
+    (directory) =>
+      files
+        .makeDirectory(directory, {recursive: true})
+        .pipe(Effect.retry({while: isTransientMkdirError, schedule: Schedule.exponential('50 millis'), times: 5})),
+    {discard: true},
+  )
+}, Effect.orDie)
+
 export function provideGlobalRoots(home: string) {
-  return Global.layerWith({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
+  const roots = {cache: join(home, 'cache'), config: home, state: join(home, 'state')}
+  return Layer.unwrap(makeRoots(roots).pipe(Effect.as(Global.layerWith(roots))))
 }
 
 function harnessModelInfo(harnessId: string, model: HarnessModel): HostModel.Info {
@@ -132,14 +163,12 @@ function harnessModelInfo(harnessId: string, model: HarnessModel): HostModel.Inf
   }
 }
 
-function listedModels(harness: HarnessAdapter, signal: AbortSignal) {
-  return Effect.promise(() => buildHarnessMenuEntry(harness, signal)).pipe(
-    Effect.map((entry) => {
-      const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
-      return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
-    }),
-  )
-}
+const listedModels = Effect.fn('core.models.list')(function* (harness: HarnessAdapter, signal: AbortSignal) {
+  yield* Effect.annotateCurrentSpan({harness: harness.id})
+  const entry = yield* Effect.promise(() => buildHarnessMenuEntry(harness, signal))
+  const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
+  return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
+})
 
 export function provideHarnessModels(harness: HarnessAdapter, signal: AbortSignal) {
   return Layer.succeed(
@@ -200,12 +229,15 @@ function locationLayer(cwd: string) {
 
 function machineRoots(home: string, fallback: string) {
   return provideGlobalRoots(home).pipe(
-    Layer.catchCause((cause) => {
-      logError(
-        `[core] the plugin host's folders under ${home} could not be made, using ${fallback}: ${Cause.pretty(cause)}`,
-      )
-      return provideGlobalRoots(fallback)
-    }),
+    Layer.catchCause((cause) =>
+      Layer.unwrap(
+        Effect.logError("[core] the plugin host's folders could not be made, using the fallback folder").pipe(
+          Effect.annotateLogs({home, fallback, cause: Cause.pretty(cause)}),
+          Effect.as(provideGlobalRoots(fallback)),
+        ),
+      ),
+    ),
+    Layer.provide(NodeFileSystem.layer),
   )
 }
 

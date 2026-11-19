@@ -29,17 +29,15 @@ function whileMigrationLockHeld<A, E, R>(lockFile: string, run: Effect.Effect<A,
   )
 }
 
-const migrateConcivDb = Effect.fn('migrateConcivDb')(function* (db: ConcivDb) {
+const migrateConcivDb = Effect.fn('db.migrations.migrate')(function* (db: ConcivDb) {
   yield* migrate(migrations, db._.session)
   yield* markRunningRunsDetached(db, Date.now())
 })
 
-export function openDb(stateRoot: string) {
-  return Effect.gen(function* () {
-    const stateDir = createConcivStateDir(concivStateDir(stateRoot))
-    const client = yield* Layer.build(SqliteClient.layer({filename: join(stateDir, 'conciv.db')}))
-    const db = yield* makeConcivDb.pipe(Effect.provide(client))
-    yield* whileMigrationLockHeld(join(stateDir, 'conciv.lock'), migrateConcivDb(db))
-    return db
-  })
-}
+export const openDb = Effect.fn('db.conciv.open')(function* (stateRoot: string) {
+  const stateDir = createConcivStateDir(concivStateDir(stateRoot))
+  const client = yield* Layer.build(SqliteClient.layer({filename: join(stateDir, 'conciv.db')}))
+  const db = yield* makeConcivDb.pipe(Effect.provide(client))
+  yield* whileMigrationLockHeld(join(stateDir, 'conciv.lock'), migrateConcivDb(db))
+  return db
+})

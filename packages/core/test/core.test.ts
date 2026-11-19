@@ -115,7 +115,22 @@ import {
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {SqliteClient} from '@effect/sql-sqlite-node'
-import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope, Stream} from 'effect'
+import {NodeFileSystem} from '@effect/platform-node'
+import {
+  Context,
+  Effect,
+  Exit,
+  Fiber,
+  FileSystem,
+  Layer,
+  ManagedRuntime,
+  PlatformError,
+  Ref,
+  Schema,
+  Scope,
+  Stream,
+} from 'effect'
+import {TestClock} from 'effect/testing'
 import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext} from 'hono/ws'
 import {rpcStream} from '@conciv/ai/client'
@@ -4654,7 +4669,7 @@ describe('plugin context keys provided by core', () => {
           {action: 'integration.use', resource: 'plugin:legacy', effect: 'deny'},
         ]),
         provideHarnessModels(listingHarness([OPUS, SONNET, RETIRED], 'sonnet'), UNSTOPPED),
-        provideGlobalRoots(home),
+        provideGlobalRoots(home).pipe(Layer.provide(NodeFileSystem.layer)),
       ).pipe(
         Layer.provideMerge(
           Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
@@ -4930,6 +4945,54 @@ describe('plugin context keys provided by core', () => {
         .map((session) => session.id)
         .filter((id) => id === suppliedId),
     ).toEqual([suppliedId])
+  })
+})
+
+describe('plugin host folders', () => {
+  it('a permanent mkdir errno fails the roots at once, a transient one is retried until the roots are made', async () => {
+    const home = join(tempDir('conciv-core-unit-'), 'home')
+    const mkdirFailure = (code: string) =>
+      PlatformError.systemError({
+        _tag: 'Unknown',
+        module: 'FileSystem',
+        method: 'makeDirectory',
+        cause: Object.assign(new Error(code), {code}),
+      })
+    const failingFiles = (code: string, failures: number) =>
+      Layer.unwrap(
+        Ref.make(failures).pipe(
+          Effect.map((left) =>
+            FileSystem.layerNoop({
+              makeDirectory: () =>
+                Ref.getAndUpdate(left, (count) => count - 1).pipe(
+                  Effect.flatMap((count) => (count > 0 ? Effect.fail(mkdirFailure(code)) : Effect.void)),
+                ),
+            }),
+          ),
+        ),
+      )
+    const buildRoots = (files: Layer.Layer<FileSystem.FileSystem>) =>
+      Effect.runPromiseExit(
+        Effect.gen(function* () {
+          const building = yield* Layer.build(provideGlobalRoots(home).pipe(Layer.provide(files))).pipe(
+            Effect.map((context) => Context.get(context, Global.Service)),
+            Effect.scoped,
+            Effect.forkChild,
+          )
+          yield* TestClock.adjust('10 seconds')
+          return yield* Fiber.join(building)
+        }).pipe(Effect.provide(TestClock.layer())),
+      )
+
+    const denied = await buildRoots(failingFiles('EACCES', 1))
+    expect(Exit.isFailure(denied)).toBe(true)
+
+    const busy = await buildRoots(failingFiles('EMFILE', 2))
+    expect(Exit.isSuccess(busy) ? busy.value : undefined).toEqual({
+      cache: join(home, 'cache'),
+      config: home,
+      state: join(home, 'state'),
+    })
   })
 })
 
