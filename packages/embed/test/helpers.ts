@@ -1,4 +1,3 @@
-import type {AnyExtension} from '@conciv/extension'
 import type {
   HarnessCapabilities,
   HarnessCommand,
@@ -35,7 +34,6 @@ function shellTerminal(): TtyCommand {
 export async function bootEmbedKit(
   opts: Pick<ConcivConfig, 'permission' | 'permissions'> & {
     text?: string
-    extensions?: AnyExtension[]
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: HarnessSessionMeta[]
@@ -47,7 +45,6 @@ export async function bootEmbedKit(
   const kit = await bootCoreKit({
     id: 'fake-embed',
     text: opts.text,
-    extensions: opts.extensions,
     models: opts.models,
     commands: opts.commands,
     history: opts.history,

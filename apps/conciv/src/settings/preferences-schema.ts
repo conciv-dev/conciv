@@ -14,9 +14,6 @@ export const PreferencesSchema = z.object({
   launcher: LauncherChoiceSchema.default('mascot').catch('mascot'),
   openOnLoad: z.boolean().default(false).catch(false),
   closeOnOutsideClick: z.boolean().default(false).catch(false),
-  docksHidden: z.array(z.string()).default([]).catch([]),
-  docksPinned: z.array(z.string()).default([]).catch([]),
-  docksCustomOrder: z.record(z.string(), z.number()).default({}).catch({}),
   commandShortcuts: z.partialRecord(ShortcutCommandSchema, z.array(z.string())).default({}).catch({}),
 })
 

@@ -22,7 +22,6 @@ function statusStory(status: SessionStatus, diff = {files: 3, adds: 42, dels: 11
         views={views}
         activeView="chat"
         onSelectView={() => {}}
-        disabled={false}
       />
     ),
   }

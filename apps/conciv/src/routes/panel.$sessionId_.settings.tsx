@@ -10,14 +10,12 @@ import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Switch, TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
-import LayoutPanelTop from 'lucide-solid/icons/layout-panel-top'
 import Keyboard from 'lucide-solid/icons/keyboard'
 import Shield from 'lucide-solid/icons/shield'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
 import Puzzle from 'lucide-solid/icons/puzzle'
 import Box from 'lucide-solid/icons/box'
 import {MICRO, SettingsHeader} from '../settings/settings-ui.js'
-import {extensionSettingsPage} from '../settings/extension-fields.js'
 import type {SettingsTabId} from '../settings/last-tab.js'
 import type {SettingsScope} from '@conciv/contract'
 import {settingsSearchSchema} from '../settings/settings-search-schemas.js'
@@ -57,7 +55,6 @@ type SettingsTab = TabFace & {id: string; selected: () => unknown; open: () => v
 
 const MAIN_TABS: BuiltinTab[] = [
   {id: 'general', label: 'General', icon: SlidersHorizontal},
-  {id: 'views', label: 'Views', icon: LayoutPanelTop},
   {id: 'shortcuts', label: 'Shortcuts', icon: Keyboard},
   {id: 'plugins', label: 'Plugins', icon: Box},
 ]
@@ -81,7 +78,6 @@ function TabTrigger(props: {tab: SettingsTab}): JSX.Element {
 function SettingsLayout(): JSX.Element {
   const params = Route.useParams()
   const navigate = Route.useNavigate()
-  const context = Route.useRouteContext()
   const matchRoute = useMatchRoute()
   const router = useRouter()
   const search = Route.useSearch()
@@ -95,24 +91,6 @@ function SettingsLayout(): JSX.Element {
   const queryClient = useAppQueryClient()
   usePluginListChange(() => void queryClient.invalidateQueries({queryKey: appData.utils.plugin.list.key()}))
   const advancedTab = builtin(ADVANCED_TAB)
-  const extensionTabs = context()
-    .extensions.filter((extension) => extension.settings)
-    .map((extension): SettingsTab => ({
-      id: `extensions/${extension.name}`,
-      label: extensionSettingsPage(extension).title,
-      icon: extension.icon ?? Puzzle,
-      selected: matchRoute({
-        to: '/panel/$sessionId/settings/extensions/$name',
-        params: {name: extension.name},
-        fuzzy: true,
-        includeSearch: false,
-      }),
-      open: () =>
-        void navigate({
-          to: '/panel/$sessionId/settings/extensions/$name',
-          params: {sessionId: params().sessionId, name: extension.name},
-        }),
-    }))
   const settingsPages = createSettingsPages()
   const pageTabs = createMemo(() =>
     settingsPages.pages().map((item): SettingsTab => {
@@ -134,7 +112,7 @@ function SettingsLayout(): JSX.Element {
       }
     }),
   )
-  const tabs = () => [...mainTabs, ...extensionTabs, ...pageTabs(), advancedTab]
+  const tabs = () => [...mainTabs, ...pageTabs(), advancedTab]
   const current = () => tabs().find((tab) => tab.selected())?.id ?? 'general'
   const select = (id: string) =>
     tabs()

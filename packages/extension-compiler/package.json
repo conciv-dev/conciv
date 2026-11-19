@@ -35,10 +35,6 @@
     "./split-extension": {
       "types": "./dist/split-extension.d.ts",
       "import": "./dist/split-extension.js"
-    },
-    "./dedupe": {
-      "types": "./dist/dedupe-extensions.d.ts",
-      "import": "./dist/dedupe-extensions.js"
     }
   },
   "publishConfig": {
@@ -55,14 +51,13 @@
   "dependencies": {
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
-    "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@tanstack/devtools-bundler-core": "catalog:",
     "babel-dead-code-elimination": "^2.0.0",
-    "babel-preset-solid": "^1.9.16",
-    "jiti": "^2.7.0"
+    "babel-preset-solid": "^1.9.16"
   },
   "devDependencies": {
+    "@conciv/extension": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
