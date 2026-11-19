@@ -18,7 +18,7 @@ export async function bootClientKit(opts: {plugins?: AppPlugins} = {}): Promise<
         sessionId: undefined,
         harnessSessionId: undefined,
         systemPrompt: '',
-        hubAccess: 'session',
+        hubAccess: 'project',
         plugins: [],
         policies: [],
         permissions: [],

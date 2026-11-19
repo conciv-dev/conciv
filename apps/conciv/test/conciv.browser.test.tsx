@@ -249,7 +249,9 @@ describe('approval replay', () => {
     await approveButton().click()
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
     expect(await waiting).toContain('{\\"result\\":1')
-    expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+    const asksAgain = coreControl.hubExecute(sessionId, 'return 40 + 2')
+    await approveButton().click()
+    expect(await asksAgain).toContain('42')
   }, 120_000)
 
   test('a card answered on one client and then on a client that missed the answer leaves both, with no error shown', async () => {
@@ -5108,24 +5110,21 @@ describe('session options outside agents', () => {
   const harness = createShellHarness(coreBase)
   afterEach(harness.dispose)
   const strip = () => page.getByRole('group', {name: 'Permission request'})
-  const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
   const approve = () =>
     strip()
       .getByRole('button', {name: /Approve/})
       .click()
 
-  test('allow outside agents lifts a deny and leaves the menu', async () => {
+  test('a denied outside agent asks again on its next call, and the card lets it in', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const denied = coreControl.hubExecute(sessionId, 'return 1')
     harness.mountShell(`/panel/${sessionId}?open=true`)
-    await expect.element(strip().getByText('Allow codex to use this tab'), {timeout: 8000}).toBeVisible()
+    await expect.element(strip().getByText('outside-agent codex'), {timeout: 8000}).toBeVisible()
     await page.getByRole('button', {name: 'Deny'}).click()
     await expect.element(strip()).not.toBeInTheDocument()
     expect(await denied).toContain('The user denied codex access')
-    await page.getByRole('button', {name: /session options$/}).click()
-    await allowRow().click()
-    await expect.element(allowRow()).not.toBeInTheDocument()
     const allowed = coreControl.hubExecute(sessionId, 'return 1')
+    await expect.element(strip().getByText('outside-agent codex'), {timeout: 8000}).toBeVisible()
     await approve()
     expect(await allowed).toContain('{\\"result\\":1')
   }, 30_000)

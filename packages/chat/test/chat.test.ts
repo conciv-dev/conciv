@@ -1,6 +1,6 @@
 import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
-import {drizzleChatStores, quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
+import {drizzleChatStores, quickJSThreadDriver} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {eq} from 'drizzle-orm'
 import {chatMessages, markers, openDb, sessions as sessionRows, type ConcivDb} from '@conciv/db'
@@ -98,8 +98,6 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
   onTestFinished(() => driver.dispose())
   return createChatPlane({
     db,
-    hubAccess: 'session',
-    hubGeneration: () => 0,
     cwd: root,
     harnessFor: async () => harness,
     systemPrompt: {},
@@ -122,7 +120,7 @@ describe('permission cards', () => {
     const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_cards')
     const plane = await chatPlane(db, root)
-    const editId = toolApprovalId('edit')
+    const editId = 'per_edit'
     const pendingIds = async () => (await plane.hydrate(sessionId)).pendingApprovals.map((entry) => entry.approvalId)
     const permissionCard = (approvalId: string, always: boolean) => ({
       approvalId,
@@ -162,15 +160,6 @@ describe('permission cards', () => {
 
     await plane.permissionSettled(sessionId, 'per_2')
     expect(await pendingIds()).toEqual(['per_3'])
-    const published: unknown[] = []
-    expect(
-      await plane.admitCall(sessionId, {
-        toolName: 'edit',
-        input: {},
-        publish: (chunk) => published.push(chunk),
-        until: AbortSignal.abort(),
-      }),
-    ).toMatchObject({reason: 'asked'})
 
     model.setResponses([{text: 'done'}])
     await plane.followUp(sessionId, 'go on')

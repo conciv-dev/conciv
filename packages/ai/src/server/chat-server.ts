@@ -19,7 +19,6 @@ import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
 import {getPendingTurn} from '@tanstack/ai/adapter-internals'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
-  approvalId,
   defineSandbox,
   defineSandboxPolicy,
   provideToolBridgeProvisioner,
@@ -193,10 +192,6 @@ function withLastUser(messages: ModelMessage[], user: ModelMessage | undefined):
   const index = messages.findLastIndex((message) => message.role === 'user')
   if (index === -1 || user === undefined) return messages
   return [...messages.slice(0, index), user, ...messages.slice(index + 1)]
-}
-
-export function toolApprovalId(name: string): string {
-  return approvalId({provider: 'conciv', kind: 'tool', target: name})
 }
 
 export function approvalDenied(name: string): Error {

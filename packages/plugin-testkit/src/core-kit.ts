@@ -92,7 +92,7 @@ export async function bootCoreKit(
           sessionId: undefined,
           harnessSessionId: undefined,
           systemPrompt: '',
-          hubAccess: 'session',
+          hubAccess: 'project',
           plugins: opts.plugins ?? [],
           policies: [],
           permissions: resolveConfig({permission: opts.permission, permissions: opts.permissions}, env.cwd).permissions,

@@ -1,4 +1,4 @@
-export {approvalDenied, createChatServer, toolApprovalId} from './server/chat-server.js'
+export {approvalDenied, createChatServer} from './server/chat-server.js'
 export {quickJSThreadDriver} from './server/quickjs-thread.js'
 export type {CodeDriver} from './server/quickjs-thread.js'
 export {loadIsolateDriver} from './server/code-mode.js'

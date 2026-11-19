@@ -21,13 +21,7 @@ import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import {
-  OUTSIDE_SESSION_TARGET,
-  type ChatTool,
-  type HarnessSessionId,
-  type SessionId,
-  type SessionRecord,
-} from '@conciv/protocol/chat-types'
+import {type ChatTool, type HarnessSessionId, type SessionId, type SessionRecord} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
@@ -50,8 +44,8 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {differenceBy, isNotNil, memoize, pickBy} from 'es-toolkit'
-import {Cause, Effect, Exit, Fiber, FiberMap, Scope} from 'effect'
-import {Bus, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
+import {Cause, Effect, Exit, Fiber, FiberMap, Option, Schema, Scope} from 'effect'
+import {Bus, Permission, PluginHooks, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import type {Plugin} from '@conciv/plugin'
 import type {ChatContext, PluginHost, RpcDeps} from './api/rpc/mount.js'
 import {concivHome, readModel, openDb, sessions, type ConcivDb} from '@conciv/db'
@@ -60,7 +54,6 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
 import {createTabs} from './api/tabs.js'
-import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
@@ -71,6 +64,7 @@ import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.j
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
+  assertOutsideAgent,
   followPermissionCards,
   pluginInstructions,
   currentToolDomain,
@@ -224,8 +218,6 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
     }
   }
 }
-
-const OUTSIDE_DECISION_WAIT_MS = 50_000
 
 const HealthSchema = z.object({
   ok: z.literal(true),
@@ -560,8 +552,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const driver = loadIsolateDriver(logError)
   const plane = await createChatPlane({
     cwd: opts.cwd,
-    hubAccess: opts.cfg.hubAccess,
-    hubGeneration: hub.generation,
     harnessFor,
     harnessEnv: opts.harnessEnv,
     systemPrompt: {
@@ -646,19 +636,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     client: string | null,
     signal: AbortSignal,
   ): Promise<string | null> => {
-    const deleted = ((await currentRow(db, scope.id))?.deletedAt ?? null) !== null
+    const row = await currentRow(db, scope.id)
+    const deleted = (row?.deletedAt ?? null) !== null
     if (opts.cfg.hubAccess === 'open' && !deleted) return null
-    const refusal = await plane.admitCall(scope.id, {
-      toolName: OUTSIDE_SESSION_TARGET,
-      input: {client},
-      publish: scope.stream.publish,
-      title: outsideTitle(client),
-      until: AbortSignal.any([signal, AbortSignal.timeout(OUTSIDE_DECISION_WAIT_MS)]),
-    })
-    if (refusal === null) return null
-    return refusal.reason === 'missing'
-      ? refusal.message
-      : outsideRefusal(pagePlugin.tabs, scope, client, refusal.reason)
+    if (row === null || deleted) return `session "${scope.id}" does not exist`
+    const exit = await pluginHost.runPromiseExit(assertOutsideAgent(scope.id, client ?? UNNAMED_CLIENT), {signal})
+    return readOutsideRefusal(exit, client)
   }
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
@@ -809,6 +792,16 @@ async function ensureConfiguredRows(rows: RowScope, cfg: ResolvedConcivConfig): 
   }
 }
 
-function outsideTitle(client: string | null): string {
-  return `Allow ${client ?? 'an outside agent'} to use this tab`
+const UNNAMED_CLIENT = 'unnamed'
+
+const isDeclined = Schema.is(Permission.DeclinedError)
+
+function refusedByUser(cause: Cause.Cause<unknown>): boolean {
+  return Cause.hasInterrupts(cause) || Option.isSome(Cause.findErrorOption(cause)) || isDeclined(Cause.squash(cause))
+}
+
+function readOutsideRefusal(exit: Exit.Exit<void, unknown>, client: string | null): string | null {
+  if (Exit.isSuccess(exit)) return null
+  if (!refusedByUser(exit.cause)) throw Cause.squash(exit.cause)
+  return `The user denied ${client ?? 'an outside agent'} access to this session; do not retry unless they ask you to.`
 }

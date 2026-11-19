@@ -154,7 +154,7 @@ export async function admitOutsideCall(
   await admitHubCaller(deps, context, scope, signal)
 }
 
-const DECIDING_PROCEDURES = new Set(['chat.permissionDecision', 'chat.allowOutside'])
+const DECIDING_PROCEDURES = new Set(['chat.permissionDecision'])
 
 const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
 

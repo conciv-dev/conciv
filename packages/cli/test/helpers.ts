@@ -29,7 +29,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       sessionId: undefined,
       harnessSessionId: undefined,
       systemPrompt: '',
-      hubAccess: 'session',
+      hubAccess: 'project',
       plugins: [],
       policies: [],
       permissions: [],

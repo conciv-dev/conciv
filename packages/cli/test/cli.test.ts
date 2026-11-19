@@ -1076,7 +1076,7 @@ describe('cli', () => {
       plugins?: Parameters<typeof startEngine>[0]['plugins']
       bridge?: Parameters<typeof startEngine>[0]['bridge']
       launchEditor?: Parameters<typeof startEngine>[0]['launchEditor']
-      hubAccess?: 'session' | 'open'
+      hubAccess?: 'project' | 'open'
       queued?: (queue: {id: string; of: number}) => void
       answer?: PageAnswer
       permissions?: Pick<ConcivConfig, 'permission' | 'permissions'>
@@ -1089,7 +1089,7 @@ describe('cli', () => {
         harnessBin: 'true',
         stateRoot: root,
         systemPrompt: `the instructions of ${root}`,
-        hubAccess: given.hubAccess ?? 'session',
+        hubAccess: given.hubAccess ?? 'project',
         ...given.permissions,
       },
       root,
@@ -1267,8 +1267,8 @@ describe('cli', () => {
           timeout: 5000,
         })
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
-        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
-        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'once'})
+        expect(ask).toMatchObject({toolName: 'outside-agent terminal'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'always'})
         expect(await waiting).toMatchObject({ok: true, data: {pathname: expect.any(String)}})
         const evaluate = ['tools', 'page', 'eval', '--code', '1']
         expect([
@@ -1314,9 +1314,9 @@ describe('cli', () => {
       try {
         const asked = askRaised(page, sessionId, AbortSignal.any([watched.signal, pages.signal]))
         const waiting = conciv(elsewhere, home, ['tools', 'page', 'route'])
-        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "outside-agent terminal"')
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
-        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
+        expect(ask).toMatchObject({toolName: 'outside-agent terminal'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'reject'})
         expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
       } finally {
@@ -1337,7 +1337,7 @@ describe('cli', () => {
         const waiting = conciv(elsewhere, home, ['tools', 'page', 'route'])
         await Promise.race([healthAsked, waiting])
         front.answerHeld()
-        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "Allow terminal to use this tab"')
+        await expect(Promise.race([asked, waiting])).rejects.toThrow('the CLI asked "outside-agent terminal"')
         const [ask] = (await holder.page.chat.hydrate({sessionId: holder.sessionId})).pendingApprovals
         await holder.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'reject'})
         const denied = await waiting
@@ -1925,7 +1925,7 @@ describe('cli', () => {
         const asked = async () => differenceBy(await pending(), before, (ask) => ask.approvalId)
         await vi.waitFor(async () => expect(await asked()).toHaveLength(1), {timeout: 5000})
         const [ask] = await asked()
-        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
+        expect(ask).toMatchObject({toolName: 'outside-agent terminal'})
         await engine.page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', reply: 'once'})
         await vi.waitFor(async () => expect(await asked()).toMatchObject([{toolName: 'page_eval document.title'}]), {
           timeout: 5000,
@@ -2365,7 +2365,7 @@ describe('cli', () => {
     })
 
     it.skipIf(process.getuid?.() === 0)(
-      'an unreadable home fails closed: no generation, and connect answers instead of throwing',
+      'an unreadable home fails closed: connect answers instead of throwing',
       async () => {
         const home = tempDir('conciv-home-')
         withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
@@ -2376,9 +2376,6 @@ describe('cli', () => {
             ok: false,
             message: expect.stringContaining('conciv could not reach its home db'),
           })
-          chmodSync(join(home, 'home.db'), 0o600)
-          chmodSync(home, 0o000)
-          expect(unreadable.generation()).toBeNull()
         } finally {
           chmodSync(home, 0o700)
           chmodSync(join(home, 'home.db'), 0o600)

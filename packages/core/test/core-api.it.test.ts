@@ -48,7 +48,6 @@ import {
   type EngineStaleness,
 } from '@conciv/contract'
 import {getHarness, type HarnessAdapter} from '@conciv/harness'
-import {createHubConnections} from '@conciv/harness-init/hub'
 import {
   anchorKey,
   chatMetadata,
@@ -4617,7 +4616,7 @@ describe('token charset', () => {
 function bootAt(
   homeDir: string,
   root = tempDir('conciv-outside-'),
-  hubAccess: HubAccess = 'session',
+  hubAccess: HubAccess = 'project',
   harness = createFakeHarness(),
   plugins: readonly Plugin.Plugin[] = [],
   permissions: Pick<ConcivConfig, 'permission' | 'permissions'> = {},
@@ -4815,8 +4814,9 @@ describe('outside sessions', () => {
 describe('outside agent consent', () => {
   const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
   const RAN = /"result":1/
-  const DENIED = 'The user denied codex access to the conciv tab'
-  const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
+  const DENIED = 'The user denied codex access to this session'
+  const OUTSIDE_ASK = {toolName: 'outside-agent codex', input: {client: 'codex'}}
+  const TERMINAL = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
   type Booted = {
     base: string
@@ -4862,7 +4862,7 @@ describe('outside agent consent', () => {
     return home
   }
 
-  async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
+  async function boot(hubAccess: HubAccess = 'project', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
     const tabs = pageTabs()
     return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess, createFakeHarness(), [tabs.plugin]), tabs)
@@ -4930,14 +4930,18 @@ describe('outside agent consent', () => {
     }
   }
 
-  async function askRaised(base: string, sessionId: string): Promise<ReturnType<typeof readApprovalAsk>> {
+  async function askRaised(
+    base: string,
+    sessionId: string,
+    pastId?: string,
+  ): Promise<ReturnType<typeof readApprovalAsk>> {
     const raised = new AbortController()
     const signal = AbortSignal.any([raised.signal, pages.signal])
     const events = await createSessionRpc(base, sessionId).chat.events({sessionId}, {signal})
     try {
       for await (const chunk of events) {
         const ask = readApprovalAsk(chunk)
-        if (ask !== null) return ask
+        if (ask !== null && ask.approvalId !== pastId) return ask
       }
       return null
     } finally {
@@ -4945,42 +4949,80 @@ describe('outside agent consent', () => {
     }
   }
 
-  async function decideOutside(base: string, sessionId: string, approved: boolean): Promise<void> {
-    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
-    const pending = await loadPending(base, sessionId)
-    expect(pending).toHaveLength(1)
-    const [ask] = pending
-    expect(ask).toMatchObject({...OUTSIDE_ASK, runId: null})
+  type OutsideReply = 'once' | 'always' | 'reject'
+
+  async function decideNewOutside(base: string, sessionId: string, reply: OutsideReply, leftId: string) {
+    const ask = await askRaised(base, sessionId, leftId)
+    expect(ask).toMatchObject(OUTSIDE_ASK)
+    const fresh = (await loadPending(base, sessionId)).filter((card) => card.approvalId !== leftId)
+    expect(fresh).toEqual([expect.objectContaining({...OUTSIDE_ASK, approvalId: ask?.approvalId, runId: null})])
+    expect(fresh[0]?.permission).toEqual({always: true})
     const decision = await createSessionRpc(base, sessionId).chat.permissionDecision({
-      approvalId: ask?.approvalId ?? '',
-      reply: approved ? 'once' : 'reject',
+      approvalId: fresh[0]?.approvalId ?? '',
+      reply,
     })
     expect(decision.startsTurn).toBe(false)
   }
 
-  it('session policy holds hub calls until the user answers: one allow releases every waiting call of its session only, a deny fails them and sticks until allowed', async () => {
+  async function decideOutside(
+    base: string,
+    sessionId: string,
+    reply: OutsideReply,
+    ask: {toolName: string; input: unknown} = OUTSIDE_ASK,
+  ): Promise<void> {
+    expect(await askRaised(base, sessionId)).toMatchObject(ask)
+    const pending = await loadPending(base, sessionId)
+    expect(pending).toHaveLength(1)
+    const [card] = pending
+    expect(card).toMatchObject({...ask, runId: null, permission: {always: true}})
+    const decision = await createSessionRpc(base, sessionId).chat.permissionDecision({
+      approvalId: card?.approvalId ?? '',
+      reply,
+    })
+    expect(decision.startsTurn).toBe(false)
+  }
+
+  it('an outside call waits on the card: once runs that call only, always saves a rule so later calls in every session run with no card, reject refuses', async () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
     expect((await lister.tools()).map((tool) => tool.name)).toEqual(['discover_tools', 'skill', 'execute_typescript'])
     await lister.close()
     expect(await loadPending(base, first)).toEqual([])
+    const once = hubCall(base, first)
+    await decideOutside(base, first, 'once')
+    expect(await once).toMatch(RAN)
+    expect(await loadPending(base, first)).toEqual([])
+    const asksAgain = hubCall(base, first)
+    await decideOutside(base, first, 'once')
+    expect(await asksAgain).toMatch(RAN)
     const waiting = [hubCall(base, first), hubCall(base, first)]
-    await decideOutside(base, first, true)
+    await vi.waitFor(async () => expect(await loadPending(base, first)).toHaveLength(2), {timeout: 3000})
+    const [card] = await loadPending(base, first)
+    await createSessionRpc(base, first).chat.permissionDecision({
+      approvalId: card?.approvalId ?? '',
+      reply: 'always',
+    })
     expect(await Promise.all(waiting)).toEqual([expect.stringMatching(RAN), expect.stringMatching(RAN)])
+    expect(await loadPending(base, first)).toEqual([])
     expect(await hubCall(base, first)).toMatch(RAN)
-    const refused = hubCall(base, second)
-    await decideOutside(base, second, false)
-    expect(await refused).toContain(DENIED)
-    expect(await hubCall(base, second)).toContain(DENIED)
+    expect(await hubCall(base, second)).toMatch(RAN)
     expect(await loadPending(base, second)).toEqual([])
-    const rpc = createSessionRpc(base, second)
-    expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: true})
-    await rpc.chat.allowOutside({sessionId: second})
-    expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: false})
-    const allowed = hubCall(base, second)
-    await decideOutside(base, second, true)
-    expect(await allowed).toMatch(RAN)
+    const terminalCall = () =>
+      executeOverMcp(base, {[CONCIV_SESSION_HEADER]: second, ...TERMINAL}, 'return 1').then(String, String)
+    const terminalAsk = {toolName: 'outside-agent terminal', input: {client: 'terminal'}}
+    const refused = terminalCall()
+    await decideOutside(base, second, 'reject', terminalAsk)
+    expect(await refused).toContain('The user denied terminal access to this session')
+    expect(await loadPending(base, second)).toEqual([])
+    const leaving = new AbortController()
+    const left = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: second, ...TERMINAL}}).chat.hydrate(
+      {sessionId: second},
+      {signal: leaving.signal},
+    )
+    expect(await askRaised(base, second)).toMatchObject(terminalAsk)
+    leaving.abort()
+    await expect(left).rejects.toThrow()
   })
 
   it('a tab that subscribes after the ask was published still receives it on its event stream', async () => {
@@ -4992,17 +5034,14 @@ describe('outside agent consent', () => {
     const first = await events[Symbol.asyncIterator]()
       .next()
       .catch((error: unknown): {done: true; value: string} => ({done: true, value: String(error)}))
-    expect(first.done === false ? readApprovalAsk(first.value) : first.value).toMatchObject({
-      toolName: 'Allow codex to use this tab',
-      input: {client: 'codex'},
-    })
-    await decideOutside(base, sessionId, true)
+    expect(first.done === false ? readApprovalAsk(first.value) : first.value).toMatchObject(OUTSIDE_ASK)
+    await decideOutside(base, sessionId, 'once')
     expect(await waiting).toMatch(RAN)
   })
 
   it('an outside run has no tab listing and refuses other capabilities with NO_TAB naming list_tabs; a hub call naming the tab runs it after allow, marked in its chat', async () => {
     const home = tempDir('conciv-home-')
-    const [runner, owner] = [await boot('open', home), await boot('session', home)]
+    const [runner, owner] = [await boot('open', home), await boot('project', home)]
     const [mine, theirs] = [await openTab(runner), await openTab(owner)]
     const inPage = 'return [typeof external_tabs, typeof external_use_tab]'
     expect(String(await executeOverMcp(runner, {[CONCIV_SESSION_HEADER]: mine}, inPage))).toContain(
@@ -5016,7 +5055,7 @@ describe('outside agent consent', () => {
     )
     const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
     const routed = onTab('return await external_page_route({})').then(String)
-    await decideOutside(owner, theirs, true)
+    await decideOutside(owner, theirs, 'always')
     expect(await routed).toContain(ROUTE.href)
     const ownerCalls = await createSessionRpc(owner, theirs).chat.hydrate({sessionId: theirs})
     const ownerParts = ownerCalls.messages.flatMap((message) =>
@@ -5258,7 +5297,7 @@ export default {
     expect(fields(oldId).compatible).toBe(true)
   }, 90_000)
 
-  it('cancelling a hub block while it waits for the allow leaves nothing to run after a later allow', async () => {
+  it('cancelling a hub block while it waits on the card, nothing of it runs after a later allow', async () => {
     const base = await boot()
     const heard: string[] = []
     const tab = await openTab(base, undefined, heard)
@@ -5266,29 +5305,28 @@ export default {
     const leaving = await connectMcpClient(`${base}/api/mcp`, headers)
     const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
     const cancelled = execute?.execute({typescriptCode: 'return await external_page_screenshot({})'})
-    expect(await askRaised(base, tab)).toMatchObject(OUTSIDE_ASK)
+    const leftAsk = await askRaised(base, tab)
+    expect(leftAsk).toMatchObject(OUTSIDE_ASK)
     await leaving.close()
     await expect(cancelled).rejects.toThrow()
-    await decideOutside(base, tab, true)
-    expect(String(await executeOverMcp(base, headers, 'return await external_page_route({})'))).toContain(ROUTE.href)
+    const routed = executeOverMcp(base, headers, 'return await external_page_route({})').then(String)
+    await decideNewOutside(base, tab, 'once', leftAsk?.approvalId ?? '')
+    expect(await routed).toContain(ROUTE.href)
     expect(heard.filter((name) => name === 'page_screenshot')).toEqual([])
   })
 
-  it('a hub-origin rpc call naming a session passes its consent: after a deny it can neither read nor clear the journal, nor allow itself', async () => {
+  it('a hub-origin rpc call naming a session passes its consent: after a deny it can neither read nor clear the journal', async () => {
     const base = await boot()
     const sessionId = await newSession(base)
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
     const journal = (method: string) => ({rpcId: 'experimental.page', method, input: {sessionId}})
     const asked = hubRpc.chat.hydrate({sessionId}).then(String, String)
-    await decideOutside(base, sessionId, false)
+    await decideOutside(base, sessionId, 'reject')
     expect(await asked).toContain(DENIED)
     const refusedRoute = "outside agents can't use plugin routes"
     expect(await hubRpc.plugin.call(journal('changes')).then(String, String)).toContain(refusedRoute)
     expect(await hubRpc.plugin.call(journal('clearChanges')).then(String, String)).toContain(refusedRoute)
-    expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain("outside agents can't answer")
-    expect(await hubRpc.chat.hydrate({sessionId}).then(String, String)).toContain(DENIED)
     const own = createSessionRpc(base, sessionId)
-    expect(await own.chat.outsideAccess({sessionId})).toEqual({denied: true})
     expect(await own.plugin.call(journal('changes'))).toEqual([])
   })
 
@@ -5313,7 +5351,7 @@ export default {
     })
     const root = tempDir('conciv-consent-')
     const engine = await start({
-      options: {stateRoot: root, hubAccess: 'session'},
+      options: {stateRoot: root, hubAccess: 'project'},
       root,
       launchEditor: () => {},
       harness: createFakeHarness(),
@@ -5330,18 +5368,14 @@ export default {
     expect(touched).toEqual([sessionId])
   })
 
-  it('a terminal caller needs no connection and still gets the Allow card', async () => {
+  it('a terminal caller needs no connection and still gets the card', async () => {
     const base = await boot()
     const sessionId = await newSession(base)
-    const terminal = {
-      [CONCIV_SESSION_HEADER]: sessionId,
-      [CONCIV_ORIGIN_HEADER]: 'hub',
-      [CONCIV_CLIENT_HEADER]: 'terminal',
-    }
+    const terminal = {[CONCIV_SESSION_HEADER]: sessionId, ...TERMINAL}
     const asked = executeOverMcp(base, terminal, 'return 1').then(String, String)
     await vi.waitFor(async () => expect(await loadPending(base, sessionId)).toHaveLength(1), {timeout: 3000})
     const [ask] = await loadPending(base, sessionId)
-    expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab', input: {client: 'terminal'}})
+    expect(ask).toMatchObject({toolName: 'outside-agent terminal', input: {client: 'terminal'}})
     await createSessionRpc(base, sessionId).chat.permissionDecision({
       approvalId: ask?.approvalId ?? '',
       reply: 'reject',
@@ -5349,7 +5383,7 @@ export default {
     expect(await asked).toContain('denied')
   })
 
-  it('disconnecting an agent refuses it at once and clears the outside Allow, so after reconnecting the tab asks again', async () => {
+  it('disconnecting an agent refuses it at once, and after reconnecting its saved rule lets it in with no card', async () => {
     const bin = tempDir('conciv-fake-codex-')
     writeFileSync(join(bin, 'codex'), '#!/bin/sh\nexit 0\n', {mode: 0o755})
     const savedPath = process.env.PATH
@@ -5358,15 +5392,14 @@ export default {
       const base = await boot()
       const sessionId = await newSession(base)
       const allowed = hubCall(base, sessionId)
-      await decideOutside(base, sessionId, true)
+      await decideOutside(base, sessionId, 'always')
       expect(await allowed).toMatch(RAN)
       expect(await hubCall(base, sessionId)).toMatch(RAN)
       expect(await makeRpcClient(base).meta.disconnectHub({harness: 'codex'})).toEqual({ok: true})
       expect(await hubCall(base, sessionId)).toContain('Codex is disconnected from conciv')
       expect(await makeRpcClient(base).meta.connectHub({harness: 'codex'})).toEqual({ok: true})
-      const asked = hubCall(base, sessionId)
-      await decideOutside(base, sessionId, false)
-      expect(await asked).toContain(DENIED)
+      expect(await hubCall(base, sessionId)).toMatch(RAN)
+      expect(await loadPending(base, sessionId)).toEqual([])
     } finally {
       process.env.PATH = savedPath
     }
@@ -5374,13 +5407,13 @@ export default {
 
   it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
     const home = connectedHome()
-    const base = await boot('session', home)
+    const base = await boot('project', home)
     const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
     const sessionId = await newSession(base)
     const overMcp = hubCall(base, sessionId)
     await vi.waitFor(async () => expect(await loadPending(base, sessionId)).toHaveLength(1), {timeout: 3000})
     forget()
-    await decideOutside(base, sessionId, true)
+    await decideOutside(base, sessionId, 'once')
     expect(await overMcp).toContain('Codex is disconnected from conciv')
     connectedHome(home)
     const tab = await openTab(base)
@@ -5389,58 +5422,15 @@ export default {
       .then(String, String)
     await vi.waitFor(async () => expect(await loadPending(base, tab)).toHaveLength(1), {timeout: 3000})
     forget()
-    await decideOutside(base, tab, true)
+    await decideOutside(base, tab, 'once')
     expect(await overRpc).toContain('Codex is disconnected from conciv')
   })
 
-  it.skipIf(process.getuid?.() === 0)(
-    'an Allow clicked while the home db is unreadable never admits a later call, even across a disconnect',
-    async () => {
-      const home = connectedHome()
-      const base = await boot('session', home)
-      const sessionId = await newSession(base)
-      const waiting = hubCall(base, sessionId)
-      await vi.waitFor(async () => expect(await loadPending(base, sessionId)).toHaveLength(1), {timeout: 3000})
-      chmodSync(join(home, 'home.db'), 0o000)
-      try {
-        await decideOutside(base, sessionId, true)
-        expect(await waiting).toContain('waiting for the user to allow it in the conciv tab')
-      } finally {
-        chmodSync(join(home, 'home.db'), 0o600)
-      }
-      withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
-      connectedHome(home)
-      const asked = hubCall(base, sessionId)
-      await decideOutside(base, sessionId, false)
-      expect(await asked).toContain(DENIED)
-    },
-  )
-
-  it('a disconnect from anything sharing the home, the terminal included, voids the outside Allow every engine holds', async () => {
-    const savedPath = process.env.PATH
-    process.env.PATH = tempDir('conciv-no-agents-')
-    try {
-      const home = connectedHome()
-      const base = await boot('session', home)
-      const sessionId = await newSession(base)
-      const allowed = hubCall(base, sessionId)
-      await decideOutside(base, sessionId, true)
-      expect(await allowed).toMatch(RAN)
-      expect(await createHubConnections(home).disconnect('codex')).toMatchObject({ok: true})
-      connectedHome(home)
-      const asked = hubCall(base, sessionId)
-      await decideOutside(base, sessionId, false)
-      expect(await asked).toContain(DENIED)
-    } finally {
-      process.env.PATH = savedPath
-    }
-  })
-
-  it('an allowed outside agent still cannot answer permission requests or call plugin RPC methods: its decision, allow and plugin call are refused and the card stays', async () => {
+  it('an allowed outside agent still cannot answer permission requests or call plugin RPC methods: its decision and plugin call are refused and the card stays', async () => {
     const base = await boot()
     const sessionId = await openTab(base)
     const allowed = hubCall(base, sessionId)
-    await decideOutside(base, sessionId, true)
+    await decideOutside(base, sessionId, 'always')
     expect(await allowed).toMatch(RAN)
     const own = createSessionRpc(base, sessionId)
     const waiting = own.registry.call({name: 'page_eval', input: {code: '1'}}).then(String, String)
@@ -5452,7 +5442,6 @@ export default {
     expect(
       await hubRpc.chat.permissionDecision({approvalId: card?.approvalId ?? '', reply: 'once'}).then(String, String),
     ).toContain(refusal)
-    expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
     await expect(hubRpc.plugin.call({rpcId: 'embedded', method: 'ping', input: {}})).rejects.toMatchObject({
       code: 'APPROVAL_DENIED',
       message: "outside agents can't use plugin routes; use the plugin in the tab",
@@ -5471,8 +5460,8 @@ export default {
     ])
   })
 
-  it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves stops waiting, a plain rpc call never asks, an eval waits marked on its card until a reject or the caller leaves, project policy allows every session', async () => {
-    const base = await boot('project')
+  it('a hub-origin rpc tool call waits for the allow and runs marked, a plain rpc call never asks, an eval waits marked on its card until a reject or the caller leaves, an always rule allows every session', async () => {
+    const base = await boot()
     const sessionId = await openTab(base)
     const route = {name: 'page_route', input: {}}
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
@@ -5480,19 +5469,20 @@ export default {
     expect(await loadPending(base, sessionId)).toEqual([])
     const leaving = new AbortController()
     const left = hubRpc.registry.call(route, {signal: leaving.signal})
-    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
+    const leftRouteAsk = await askRaised(base, sessionId)
+    expect(leftRouteAsk).toMatchObject(OUTSIDE_ASK)
+    const leftRouteId = leftRouteAsk?.approvalId ?? ''
     leaving.abort()
     await expect(left).rejects.toThrow()
-    expect(await loadPending(base, sessionId)).toHaveLength(1)
     const starts = await toolStarts(base, sessionId, 3)
     const waiting = hubRpc.registry.call(route)
-    await decideOutside(base, sessionId, true)
+    await decideNewOutside(base, sessionId, 'always', leftRouteId)
     expect(await waiting).toMatchObject({href: ROUTE.href})
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
     const evaluating = namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})
-    const evalAsk = await askRaised(base, sessionId)
+    const evalAsk = await askRaised(base, sessionId, leftRouteId)
     expect(evalAsk).toMatchObject({toolName: 'page_eval 1', permission: {always: false}})
     await createSessionRpc(base, sessionId).chat.permissionDecision({
       approvalId: evalAsk?.approvalId ?? '',
@@ -5502,7 +5492,7 @@ export default {
     const results = await createSessionRpc(base, sessionId).chat.events({sessionId}, {signal: pages.signal})
     const leavingEval = new AbortController()
     const leftEval = namedHubRpc.registry.call({name: 'page_eval', input: {code: '2'}}, {signal: leavingEval.signal})
-    const leftAsk = await askRaised(base, sessionId)
+    const leftAsk = await askRaised(base, sessionId, leftRouteId)
     expect(leftAsk).toMatchObject({toolName: 'page_eval 2'})
     leavingEval.abort()
     await expect(leftEval).rejects.toThrow()
@@ -5513,7 +5503,7 @@ export default {
         reply: 'once',
       }),
     ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
-    expect(await loadPending(base, sessionId)).toEqual([])
+    expect((await loadPending(base, sessionId)).filter((card) => card.approvalId !== leftRouteId)).toEqual([])
     const marked = {
       conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
       time: {start: expect.any(Number)},
@@ -5530,23 +5520,18 @@ export default {
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
-  it('project policy: a deny or allow in one session releases the calls waiting in every session and clears their cards', async () => {
-    const base = await boot('project')
+  it('a reject refuses the calls waiting in its own session only, and an always in another session releases the calls waiting in every session and clears their cards', async () => {
+    const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
-    const raise = async () => {
-      const waiting = [hubCall(base, first), hubCall(base, second)]
-      expect(await askRaised(base, second)).toMatchObject(OUTSIDE_ASK)
-      return waiting
-    }
-    const refused = await raise()
-    await decideOutside(base, first, false)
-    expect(await Promise.all(refused)).toEqual([expect.stringContaining(DENIED), expect.stringContaining(DENIED)])
-    expect(await loadPending(base, second)).toEqual([])
-    await createSessionRpc(base, first).chat.allowOutside({sessionId: first})
-    const allowed = await raise()
-    await decideOutside(base, second, true)
-    expect(await Promise.all(allowed)).toEqual([expect.stringMatching(RAN), expect.stringMatching(RAN)])
+    const refused = hubCall(base, first)
+    await decideOutside(base, first, 'reject')
+    expect(await refused).toContain(DENIED)
+    const waiting = [hubCall(base, first), hubCall(base, second)]
+    await vi.waitFor(async () => expect(await loadPending(base, first)).toHaveLength(1), {timeout: 3000})
+    await decideOutside(base, second, 'always')
+    expect(await Promise.all(waiting)).toEqual([expect.stringMatching(RAN), expect.stringMatching(RAN)])
     expect(await loadPending(base, first)).toEqual([])
+    expect(await loadPending(base, second)).toEqual([])
   })
 
   it('an outside page_eval is asked whether or not it names its tab, like a plain rpc call: each waits on its own card, and one reject refuses every waiting ask of the session', async () => {
@@ -7110,7 +7095,7 @@ export default {
     return start({
       options: {
         stateRoot: root,
-        hubAccess: 'session',
+        hubAccess: 'project',
         plugins: [['./configured', {greeting: 'hi'}], './removed', '-removed', './denied'],
         policies: [{action: 'plugin.use', resource: join(root, 'denied'), effect: 'deny'}],
       },
@@ -7724,7 +7709,7 @@ export default {
     mkdirSync(dirname(plugin), {recursive: true})
     writeFileSync(plugin, asker('first', first))
     const harness = createFakeHarness()
-    const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'session', harness)
+    const engine = await bootAt(tempDir('conciv-asker-home-'), root, 'project', harness)
     onTestFinished(async () => {
       writeFileSync(join(root, 'asker-gate'), '')
       await engine.stop()
@@ -8148,7 +8133,7 @@ export default {
     }
     const harness = createFakeHarness({id: 'page-connection'})
     const engine = await start({
-      options: {stateRoot: root, hubAccess: 'session', plugins: ['./tabs']},
+      options: {stateRoot: root, hubAccess: 'project', plugins: ['./tabs']},
       root,
       launchEditor: () => {},
       harness,

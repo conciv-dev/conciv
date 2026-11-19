@@ -509,11 +509,6 @@ export const contract = {
       .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending approval'}})
       .input(PermissionDecisionSchema)
       .output(Ok.extend({startsTurn: z.boolean()})),
-    outsideAccess: oc
-      .errors(approvalDenied)
-      .input(SessionIdInput)
-      .output(z.object({denied: z.boolean()})),
-    allowOutside: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     uiReply: oc
       .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending ui question'}})
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))

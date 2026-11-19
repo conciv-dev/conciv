@@ -176,7 +176,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     sessionId: undefined,
     harnessSessionId: undefined,
     systemPrompt: '',
-    hubAccess: overrides.hubAccess ?? 'session',
+    hubAccess: overrides.hubAccess ?? 'project',
     plugins: overrides.configPlugins ?? [],
     policies: [],
     permissions: overrides.permissions ?? [],

@@ -910,8 +910,6 @@ describe('chat plane', () => {
     const {driver = quickJSDriver(), ...given} = overrides
     return createChatPlane({
       db,
-      hubAccess: 'session',
-      hubGeneration: () => 0,
       cwd: root,
       harnessFor: async () => harness,
       systemPrompt: {},
@@ -3292,14 +3290,6 @@ describe('plugin host bus', () => {
     await expect(made.plane.compact(refused)).rejects.toMatchObject({code: SESSION_DELETED_CODE})
     await expect(kit.rpc.sessions.compact({sessionId: refused})).rejects.toMatchObject({code: 'NOT_FOUND'})
     expect(await kit.rpc.markers.list({sessionId: refused})).toEqual(markersBeforeCompact)
-    expect(
-      await made.plane.admitCall(refused, {
-        toolName: 'an outside call',
-        input: {},
-        publish: made.runtime.forSession(refused).stream.publish,
-        until: AbortSignal.abort(),
-      }),
-    ).toEqual({reason: 'missing', message: `session "${refused}" does not exist`})
     expect(publishedToRefused).toEqual([])
     expect(heardBy(refused)).toEqual(['session.created with no run', 'session.deleted with no run'])
     const afterRefusal = await made.plane.hydrate(refused)
@@ -4366,17 +4356,9 @@ describe('plugin permission cards', () => {
       input: {},
       permission: {always: false},
     })
-    expect(
-      await plane.admitCall(id, {
-        toolName: 'unit_kept',
-        input: {},
-        publish: () => undefined,
-        until: AbortSignal.abort(),
-      }),
-    ).toMatchObject({reason: 'asked'})
     const restarted = await bootMadeApp({stateRoot, cwd: stateRoot, harness: fixture.harness, print: () => {}})
     onTestFinished(() => restarted.dispose())
-    expect((await restarted.plane.hydrate(id)).pendingApprovals.map((entry) => entry.toolName)).toEqual(['unit_kept'])
+    expect((await restarted.plane.hydrate(id)).pendingApprovals).toEqual([])
     expect(logged).toEqual([])
   })
 

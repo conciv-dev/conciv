@@ -18,6 +18,7 @@ import {
   KV,
   Permission,
   Plugin,
+  SessionErrors,
   SessionSchema,
   SkillInstructions,
   Tool,
@@ -29,6 +30,8 @@ import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
 import {loadInstructionEntries} from './instruction-entries.js'
 
 const TITLE_LIMIT = 200
+
+const OUTSIDE_AGENT = 'outside-agent'
 
 export type PermissionOutcome = 'replied' | 'foreign' | 'gone'
 
@@ -225,6 +228,23 @@ export function answerPermission(
       Effect.map((): PermissionOutcome => 'replied'),
       Effect.catchTag('Permission.NotFoundError', () => Effect.succeed<PermissionOutcome>('gone')),
     )
+  })
+}
+
+export function assertOutsideAgent(
+  sessionId: SessionId,
+  client: string,
+): Effect.Effect<void, Permission.Error | SessionErrors.NotFoundError, Permission.Interface> {
+  return Effect.gen(function* () {
+    const permission = yield* Permission.Service
+    yield* permission.assert({
+      sessionId: SessionSchema.Id.make(sessionId),
+      action: OUTSIDE_AGENT,
+      resources: [client],
+      save: [client],
+      fallback: 'ask',
+      metadata: {client},
+    })
   })
 }
 

@@ -1,7 +1,5 @@
-import {EventEmitter, once} from 'node:events'
 import {z} from 'zod'
-import {toolApprovalId, type Approvals, type ChatStores} from '@conciv/ai/server'
-import {OUTSIDE_SESSION_TARGET, type HubAccess} from '@conciv/protocol/chat-types'
+import type {Approvals, ChatStores} from '@conciv/ai/server'
 import type {ChatPendingApproval} from '@conciv/contract'
 import {UiAnswerValueSchema, type UiAnswer} from '@conciv/protocol/ui-types'
 
@@ -27,11 +25,8 @@ const PendingSchema = z.array(
 )
 
 const GrantsSchema = z.object({
-  session: z.array(z.string()),
   once: z.array(z.string()),
   denied: z.array(z.string()).default([]),
-  refused: z.array(z.string()).default([]),
-  outsideAllowedGeneration: z.number().nullable().default(null),
 })
 
 type Grants = z.infer<typeof GrantsSchema>
@@ -47,8 +42,6 @@ export type ApprovalAsked = {
 
 export type ApprovalDecision = {startsTurn: boolean}
 
-export type Admission = 'allowed' | 'ask' | 'denied'
-
 export type ApprovalStore = {
   asked: (threadId: string, ask: ApprovalAsked) => Promise<void>
   remove: (threadId: string, approvalId: string) => Promise<void>
@@ -56,15 +49,7 @@ export type ApprovalStore = {
   pending: (threadId: string) => Promise<ChatPendingApproval[]>
   decide: (threadId: string, approvalId: string, approved: boolean) => Promise<ApprovalDecision | null>
   forRun: (threadId: string) => Promise<Approvals>
-  admit: (threadId: string, approvalId: string) => Promise<Admission>
-  decided: (threadId: string, approvalId: string, signal: AbortSignal) => Promise<void>
-  outsideDenied: (threadId: string) => Promise<boolean>
-  allowOutside: (threadId: string) => Promise<void>
 }
-
-const OUTSIDE_APPROVAL_ID = toolApprovalId(OUTSIDE_SESSION_TARGET)
-
-const PROJECT_HOLDER = 'project'
 
 const PENDING_SUFFIX = ':pending-approvals'
 
@@ -78,29 +63,11 @@ type ApprovalMetadata = ChatStores['metadata'] & {
   keysEndingWith: (namespace: string, suffix: string) => Promise<readonly string[]>
 }
 
-export function createApprovalStore(
-  metadata: ApprovalMetadata,
-  hubAccess: HubAccess,
-  hubGeneration: () => number | null,
-): ApprovalStore {
-  const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
-  const resolveHolder = (threadId: string, approvalId: string): string =>
-    approvalId === OUTSIDE_APPROVAL_ID ? outsideHolder(threadId) : threadId
-  const decisionKey = (threadId: string, approvalId: string): string =>
-    `${resolveHolder(threadId, approvalId)}:${approvalId}`
-  const decisions = new EventEmitter().setMaxListeners(0)
+export function createApprovalStore(metadata: ApprovalMetadata): ApprovalStore {
   const loadPending = async (threadId: string) =>
     PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, pendingKey(threadId))) ?? [])
   const loadGrants = async (threadId: string): Promise<Grants> =>
-    GrantsSchema.parse(
-      (await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {
-        session: [],
-        once: [],
-        denied: [],
-        refused: [],
-        outsideAllowedGeneration: null,
-      },
-    )
+    GrantsSchema.parse((await metadata.get(APPROVALS_NAMESPACE, grantsKey(threadId))) ?? {once: [], denied: []})
   const pendingTails = new Map<string, Promise<unknown>>()
   const serialised = <T>(threadId: string, update: () => Promise<T>): Promise<T> => {
     const run = (pendingTails.get(threadId) ?? Promise.resolve()).then(update)
@@ -113,34 +80,6 @@ export function createApprovalStore(
   }
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
     metadata.set(APPROVALS_NAMESPACE, grantsKey(threadId), grants)
-  const clearCoveredCards = async (): Promise<void> => {
-    if (hubAccess !== 'project') return
-    const keys = await metadata.keysEndingWith(APPROVALS_NAMESPACE, PENDING_SUFFIX)
-    await Promise.all(
-      keys.map(async (key) => {
-        const pending = PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, key)) ?? [])
-        if (!pending.some((entry) => entry.approvalId === OUTSIDE_APPROVAL_ID)) return
-        await metadata.set(
-          APPROVALS_NAMESPACE,
-          key,
-          pending.filter((entry) => entry.approvalId !== OUTSIDE_APPROVAL_ID),
-        )
-      }),
-    )
-  }
-  const decideOutside = async (threadId: string, approved: boolean): Promise<ApprovalDecision> => {
-    const holder = outsideHolder(threadId)
-    await clearCoveredCards()
-    const grants = await loadGrants(holder)
-    const bucket = approved ? 'session' : 'refused'
-    const allowedGeneration = approved ? hubGeneration() : grants.outsideAllowedGeneration
-    await writeGrants(holder, {
-      ...grants,
-      [bucket]: [...new Set([...grants[bucket], OUTSIDE_APPROVAL_ID])],
-      outsideAllowedGeneration: allowedGeneration,
-    })
-    return {startsTurn: false}
-  }
   const record = async (threadId: string, approvalId: string, approved: boolean): Promise<ApprovalDecision | null> => {
     const pending = await loadPending(threadId)
     const decided = pending.find((entry) => entry.approvalId === approvalId)
@@ -150,7 +89,6 @@ export function createApprovalStore(
       pendingKey(threadId),
       pending.filter((entry) => entry.approvalId !== approvalId),
     )
-    if (approvalId === OUTSIDE_APPROVAL_ID) return decideOutside(threadId, approved)
     if (decided.runId === null) return {startsTurn: false}
     const grants = await loadGrants(threadId)
     if (!approved) {
@@ -167,12 +105,6 @@ export function createApprovalStore(
       if (kept.length === pending.length) return
       await metadata.set(APPROVALS_NAMESPACE, pendingKey(threadId), kept)
     })
-  const outsideDenied = async (threadId: string): Promise<boolean> =>
-    (await loadGrants(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
-  const outsideRevoked = (allowedGeneration: number | null): boolean => {
-    const current = hubGeneration()
-    return current === null || allowedGeneration !== current
-  }
   return {
     asked: (threadId, ask) =>
       serialised(threadId, async () => {
@@ -184,38 +116,15 @@ export function createApprovalStore(
     removeWhere,
     pending: async (threadId) =>
       (await loadPending(threadId)).map(({title, ...entry}) => ({...entry, toolName: title})),
-    decide: async (threadId, approvalId, approved) => {
-      const decision = await serialised(threadId, () => record(threadId, approvalId, approved))
-      if (decision !== null) decisions.emit(decisionKey(threadId, approvalId))
-      return decision
-    },
-    decided: (threadId, approvalId, signal) =>
-      once(decisions, decisionKey(threadId, approvalId), {signal}).then(
-        () => undefined,
-        () => undefined,
-      ),
+    decide: (threadId, approvalId, approved) => serialised(threadId, () => record(threadId, approvalId, approved)),
     forRun: async (threadId) => {
       const grants = await loadGrants(threadId)
       if (grants.once.length > 0 || grants.denied.length > 0)
         await writeGrants(threadId, {...grants, once: [], denied: []})
       return new Map([
         ...grants.denied.map((id): [string, boolean] => [id, false]),
-        ...[...grants.session, ...grants.once].map((id): [string, boolean] => [id, true]),
+        ...grants.once.map((id): [string, boolean] => [id, true]),
       ])
-    },
-    admit: async (threadId, approvalId) => {
-      const holder = resolveHolder(threadId, approvalId)
-      const grants = await loadGrants(holder)
-      const revoked = approvalId === OUTSIDE_APPROVAL_ID && outsideRevoked(grants.outsideAllowedGeneration)
-      if (grants.session.includes(approvalId) && !revoked) return 'allowed'
-      if (grants.refused.includes(approvalId)) return 'denied'
-      return 'ask'
-    },
-    outsideDenied,
-    allowOutside: async (threadId) => {
-      const holder = outsideHolder(threadId)
-      const grants = await loadGrants(holder)
-      await writeGrants(holder, {...grants, refused: grants.refused.filter((id) => id !== OUTSIDE_APPROVAL_ID)})
     },
   }
 }

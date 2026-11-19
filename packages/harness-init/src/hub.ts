@@ -46,10 +46,6 @@ export function createHubConnections(home: string, run: Run = runFile) {
     })
   return {
     list,
-    generation: (): number | null => {
-      const current = readGeneration(home)
-      return current.ok ? current.generation : null
-    },
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}

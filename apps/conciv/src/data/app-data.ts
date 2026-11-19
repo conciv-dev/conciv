@@ -64,7 +64,6 @@ export type AppData = {
   invalidateSession: (sessionId: string) => Promise<void>
   seedSession: (row: SessionMeta) => Promise<void>
   createSession: () => Promise<{sessionId: string}>
-  invalidateOutsideAccess: () => Promise<void>
   readDraft: (sessionId: string) => Promise<DraftRow | null>
   cachedDraft: (sessionId: string) => DraftRow | null | undefined
   saveDraft: (save: DraftSave) => Promise<boolean>
@@ -239,7 +238,6 @@ export function makeAppData(
     invalidateSession,
     seedSession,
     createSession,
-    invalidateOutsideAccess: () => queryClient.invalidateQueries({queryKey: utils.chat.outsideAccess.key()}),
     readDraft: (sessionId) => queryClient.ensureQueryData(draftQuery(sessionId)),
     cachedDraft: (sessionId) => queryClient.getQueryData(draftQuery(sessionId).queryKey),
     saveDraft,

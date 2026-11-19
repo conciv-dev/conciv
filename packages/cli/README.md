@@ -56,11 +56,10 @@ server:
   `.conciv/server.json` left over from a stopped server still counts: the CLI uses it and fails with
   `No conciv dev server on 127.0.0.1:<port>.`
 
-Outside agents get one more card only when the project sets `hubAccess` to `'session'` (an Allow card
-per tab) or `'project'` (one for the whole project); the call waits for the answer. Once the user
-allows, later calls run with no card until an agent is disconnected from conciv, which asks again.
-Once the user denies, later calls are refused with no card until they choose Allow outside agents in
-the tab. The default, `'open'`, asks nothing.
+Outside agents get one more card only when the project sets `hubAccess` to `'project'`; the call
+waits for the answer with no timeout. Allow once admits that call; Allow always saves a project rule,
+so later calls in every tab run with no card. A deny refuses that call only; the next call asks again.
+The default, `'open'`, asks nothing.
 
 Whoever holds the engine's token is the owner. The CLI reads it from the project's `.conciv` folder,
 and conciv hands it to the agents it starts. The Approve and Allow cards guard against the model's
