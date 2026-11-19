@@ -121,7 +121,7 @@ describe('mount externals', () => {
     })
 
     it('inlines the private conciv app, @conciv/page, and the packages whose cards it renders', () => {
-      expect(externalized('@conciv/app/router')).toBe(false)
+      expect(externalized('@conciv/app')).toBe(false)
       expect(externalized('@conciv/page')).toBe(false)
       expect(externalized('@conciv/tools')).toBe(false)
       expect(externalized('@conciv/core')).toBe(false)

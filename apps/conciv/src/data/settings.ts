@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ConcivSurface, TriggerPosition} from '@conciv/protocol/config-types'
+import type {ConcivSettingsInit, ConcivSurface, TriggerPosition} from '@conciv/protocol/config-types'
 
 export type Launcher = 'native' | 'mascot' | false
 
@@ -46,6 +46,10 @@ function parseConfig(raw: string): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+export function readSettingsInit(raw: string): ConcivSettingsInit {
+  return parseConfig(raw)
 }
 
 export function parseConcivSettings(raw: string): ConcivSettings {

@@ -6,7 +6,7 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 
 ## Interface
 
-- `parseConcivSettings(raw)` (`settings.ts`): parses a JSON string into `ConcivSettings`; exported as `@conciv/app/settings`
+- `parseConcivSettings(raw)` (`settings.ts`): parses a JSON string into `ConcivSettings`
 - `ConcivSettings`, `Launcher` types (`settings.ts`): `modal`, `quickTerminal`, `defaultOpen`, `launcher`, `surface`
 - `makeAppData(rpc, queryClient, drafts, lockedOut, server)` (`app-data.ts`): returns `{utils, invalidateSessions, invalidateSession, seedSession, createSession}` built on `makeQueryUtils` from `@conciv/client`
 - `AppData` type (`app-data.ts`)

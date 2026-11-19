@@ -5,11 +5,7 @@
   "description": "The conciv app: a TanStack Solid Router UI over the @conciv/contract rpc surface. Inlined by @conciv/embed; runs standalone against a core dev server.",
   "type": "module",
   "exports": {
-    "./router": "./src/router.tsx",
-    "./settings": "./src/data/settings.ts",
-    "./shadow": "./src/lib/shadow.ts",
-    "./api-base": "./src/lib/api-base.ts",
-    "./engine-login": "./src/app/engine-login.tsx"
+    ".": "./src/index.tsx"
   },
   "scripts": {
     "dev": "vite dev --port 3000",
@@ -35,6 +31,7 @@
     "@conciv/plugin-tanstack": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
+    "@conciv/storage-history": "workspace:^",
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
@@ -69,7 +66,6 @@
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/plugin-try-it": "workspace:*",
-    "@conciv/storage-history": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

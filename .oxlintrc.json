@@ -93,6 +93,7 @@
         "customReactiveFunctions": [
           "bindActiveSession",
           "keyArray",
+          "makeBrowserRpcClient",
           "makeEventListener",
           "makeEventListenerStack",
           "makeTimer",

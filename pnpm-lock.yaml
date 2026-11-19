@@ -729,6 +729,9 @@ importers:
       '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../../packages/solid-streamdown
+      '@conciv/storage-history':
+        specifier: workspace:^
+        version: link:../../packages/storage-history
       '@conciv/tools':
         specifier: workspace:^
         version: link:../../packages/tools
@@ -826,9 +829,6 @@ importers:
       '@conciv/plugin-try-it':
         specifier: workspace:*
         version: link:../../packages/plugins/try-it
-      '@conciv/storage-history':
-        specifier: workspace:^
-        version: link:../../packages/storage-history
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig

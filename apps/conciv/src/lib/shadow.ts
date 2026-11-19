@@ -1,5 +1,3 @@
-import type {ConcivSurface} from '@conciv/protocol/config-types'
-import {makeEventListener} from '@solid-primitives/event-listener'
 import {CHAT_FONTS, type ChatFontFace} from '@conciv/ui-kit-chat/theme/fonts'
 import {widgetSheet, widgetStyles} from './widget-styles.js'
 
@@ -31,90 +29,8 @@ export function registerWind4Properties(doc: Document = document): void {
   doc.head.appendChild(style)
 }
 
-const KEYBOARD_EVENTS = ['keydown', 'keypress', 'keyup'] as const
-
-const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
-
-function isEditableInsideWidget(root: ShadowRoot, target: EventTarget | undefined): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  if (!root.contains(target)) return false
-  return EDITABLE_TAGS.has(target.tagName) || target.isContentEditable
-}
-
-function keepEditableKeysOffTheHostPage(root: ShadowRoot): () => void {
-  const guard = (event: KeyboardEvent) => {
-    if (!isEditableInsideWidget(root, event.composedPath()[0])) return
-    event.stopPropagation()
-  }
-  const clears = KEYBOARD_EVENTS.map((type) => makeEventListener(document, type, guard))
-  return () => {
-    for (const clear of clears) clear()
-  }
-}
-
-const SELECTING_ATTRIBUTE = 'data-conciv-selecting'
-
-function registerSelectionContainment(doc: Document = document): void {
-  if (doc.querySelector('style[data-conciv-selection]')) return
-  const style = doc.createElement('style')
-  style.setAttribute('data-conciv-selection', '')
-  style.textContent = `html[${SELECTING_ATTRIBUTE}],html[${SELECTING_ATTRIBUTE}] *{user-select:none !important}`
-  doc.head.appendChild(style)
-}
-
-function keepSelectionInsideTheWidget(host: HTMLElement, root: ShadowRoot): () => void {
-  const release = () => {
-    document.documentElement.removeAttribute(SELECTING_ATTRIBUTE)
-    host.style.removeProperty('user-select')
-  }
-  const clears = [
-    makeEventListener(root, 'pointerdown', () => {
-      host.style.setProperty('user-select', 'text', 'important')
-      document.documentElement.setAttribute(SELECTING_ATTRIBUTE, '')
-    }),
-    makeEventListener(document, 'pointerup', release),
-    makeEventListener(document, 'pointercancel', release),
-    makeEventListener(document, 'dragstart', release),
-    makeEventListener(window, 'blur', release),
-  ]
-  return () => {
-    for (const clear of clears) clear()
-    release()
-  }
-}
-
-function placeHost(host: HTMLElement, surface: ConcivSurface): void {
-  host.style.pointerEvents = 'none'
-  if (surface === 'dock') {
-    host.style.position = 'relative'
-    host.style.width = '100%'
-    host.style.height = '100%'
-    host.style.contain = 'layout'
-    return
-  }
-  host.style.position = 'fixed'
-  host.style.inset = '0'
-  host.style.zIndex = '2147483000'
-}
-
-export function createShadowRoot(
-  host: HTMLElement,
-  surface: ConcivSurface = 'page',
-): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
+export function styleShadowRoot(root: ShadowRoot): void {
   registerWind4Properties()
   registerFonts(CHAT_FONTS)
-  registerSelectionContainment()
-  placeHost(host, surface)
-  const root = host.attachShadow({mode: 'open'})
   root.adoptedStyleSheets = [widgetSheet()]
-  const releaseKeys = keepEditableKeysOffTheHostPage(root)
-  const releaseSelection = keepSelectionInsideTheWidget(host, root)
-  return {
-    host,
-    root,
-    dispose: () => {
-      releaseKeys()
-      releaseSelection()
-    },
-  }
 }

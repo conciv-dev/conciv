@@ -2,7 +2,7 @@
 
 ## Overview
 
-Router factory, standalone browser entry, generated TanStack route tree and module declarations for `?inline` css/woff2 imports.
+The one entry of `@conciv/app` (`ConcivApp` over a `Platform` a host builds), the app-internal router factory, the dev-server entry, the generated TanStack route tree and module declarations for `?inline` css/woff2 imports.
 
 ## Interface
 
@@ -10,12 +10,15 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 - `disposeConcivRouter(router)` (`router.tsx`): calls `router.options.context.dispose()`, which stops the engine watch and disposes the AppData once
 - `ConcivRouterContext`, `ConcivRouterConfig`, `ConcivEnvironment` types (`router.tsx`)
 - `routeTree` (`routeTree.gen.ts`): generated; full paths `/`, `/panel`, `/quick`, `/panel/$sessionId`, `/panel/connect`, `/panel/latest`, `/pip/$sessionId`, `/panel/$sessionId/`, `/panel/$sessionId/$view`, `/panel/$sessionId/settings` and its tab routes
-- `start` (`entry-standalone.tsx`): reads `?settings` and `?core`, builds the router with `makeBrowserRpcClient`, renders into `#app`
+- `index.tsx`: `ConcivApp` renders the whole app from a `Platform` (the engine to talk to, how navigation is stored, the root to render into, settings, plugins); it owns the rpc client, login and trust, the active-session stamp and teardown, so a host only builds the platform and renders
+- `entry-standalone.tsx`: the dev-server host; renders `ConcivApp` into `#app` with browser history and the engine named by `?core`
 - `css.d.ts`: `*.css?inline` and `*.woff2?inline` string module declarations
 - Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data](./data/README.md), [lib](./lib/README.md), [pane](./pane/README.md), [routes](./routes/README.md), [settings](./settings/README.md), [shell](./shell/README.md)
 
 ## Invariants
 
+- `index.tsx:makeNavigationStorage`: the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; the stored view is restored only on the first trust answer, so a page whose engine was unreachable at mount and is trusted later (when its socket opens) lands on the default view; every navigation is sent at once, not debounced, and stamped with a strictly increasing `updatedAt`, so the engine keeps the newest; nothing is held back while the page can unload, because Firefox closes the rpc socket between `beforeunload` and `pagehide`, before `visibilitychange` fires, so a write held for a flush on hide never leaves and a reload right after a navigation restored the one before it; a failed write is reported with `console.warn`.
+- `index.tsx:ConcivApp`: the api base starts as the one `platform.engine()` gives at mount; a rebind is the `conciv:rebind` window event, and its handler is the only writer of the base: it sets the base, then resets the cached queries, then asks for trust; an empty base or the current one is ignored, and servers mode does not listen. The rest is derived from the base: the rpc client reads it on every call, the connection generation counts the distinct bases, and the engine-stored navigation lives only while the first base holds
 - `router.tsx:makeGuardedDisposer`: the dispose function runs at most once
 - `router.tsx:wireEngine`: reachability and the trust subscription are re-set up only when `apiBase()` changes, and the previous setup is cleaned up first
 - `router.tsx:watchEngine`: when trust flips from untrusted or revoked to trusted, it refetches the queries that ended in error
@@ -26,7 +29,9 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 
 ## Side Effects
 
-- `entry-standalone.tsx:start`: writes `window.__CONCIV_API_BASE__`, reads `window.location.search`, creates browser history, renders into `#app`, opens an rpc client with `makeBrowserRpcClient(apiBase)`
+- `index.tsx:ConcivApp`: listens for the `conciv:rebind` window event while a bound app is mounted
+- `index.tsx:makeNavigationStorage`: calls `rpc.navigation.get` once and `rpc.navigation.set` on every navigation
+- `entry-standalone.tsx`: reads `window.location.search` and renders into `#app`
 - `router.tsx:watchEngine`: calls `setupEngineReachability(apiBase)` from `@conciv/client` and subscribes to the trust of the connection it holds through `browserRpcConnection(apiBase)` from `@conciv/contract`, releasing it when the watch stops
 - `runtime/plugin/plugin-boundary.tsx:reportCrash`: `console.error` with the crashed plugin's name and the error
 

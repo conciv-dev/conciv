@@ -30,19 +30,23 @@ import {createClientSettings} from '@conciv/contract'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import {createRoot, createSignal, type JSX} from 'solid-js'
 import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
-import {createShadowRoot} from '../src/lib/shadow.js'
 import {render} from '@solidjs/testing-library'
-import '../src/lib/api-base.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
 import type {Grab, GrabProvider} from '@conciv/grab'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../src/app/pane-context.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
 import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
-import {RouterProvider, createMemoryHistory, createRootRoute, createRouter} from '@tanstack/solid-router'
-import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  type AnyRouter,
+} from '@tanstack/solid-router'
+import {ConcivApp, type Platform} from '../src/index.js'
+import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {createBrowserDraftStore} from '../src/runtime/persistence/drafts.js'
-import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
 import {afterAll, afterEach, beforeAll, expect} from 'vitest'
 import {VIRTUALIZE_THRESHOLD} from '@conciv/ui-kit-chat'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -397,7 +401,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
 }
 
 export type ShellMountOptions = {
-  host?: Record<string, unknown>
+  host?: ConcivSettingsInit
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
@@ -405,57 +409,26 @@ export type ShellMountOptions = {
   plugins?: readonly ComposedPlugin[]
 }
 
-function shellLogin(
-  options: ShellMountOptions['login'],
-  onDispose: (dispose: () => void) => void,
-): ReturnType<typeof createEngineLogin> | undefined {
-  if (!options) return undefined
-  const login = createRoot((dispose) => {
-    onDispose(dispose)
-    return createEngineLogin({apiBase: () => options.apiBase, tokenSource: options.tokenSource})
-  })
-  void startEngineLogin(login)
-  return login
+function agentTokenSource(base: string): EngineTokenSource | undefined {
+  const token = /^\/t\/([^/]+)\/?$/.exec(new URL(base).pathname)?.[1]
+  return token === undefined ? undefined : () => Promise.resolve(token)
 }
 
-function mountConcivRoot(inShadow: boolean): {
-  root: ShadowRoot | undefined
-  container: HTMLDivElement
-  dispose: () => void
-} {
-  const inner = document.createElement('div')
-  inner.setAttribute('data-conciv-root', '')
-  document.body.append(inner)
-  if (!inShadow) return {root: undefined, container: inner, dispose: () => inner.remove()}
-  const shadow = createShadowRoot(inner)
+function shellEngine(options: ShellMountOptions, base: () => string): Platform['engine'] {
+  const login = options.login
+  if (options.plugins) return () => ({kind: 'servers'})
+  if (login) return () => ({kind: 'bound', apiBase: login.apiBase, token: login.tokenSource})
+  const token = agentTokenSource(base())
+  const apiBase = options.apiBase ?? base
+  return () => ({kind: 'bound', apiBase: apiBase(), token})
+}
+
+function shellRoot(inner: HTMLElement, inShadow: boolean): {root: ShadowRoot | Document; container: HTMLElement} {
+  if (!inShadow) return {root: document, container: inner}
+  const root = inner.attachShadow({mode: 'open'})
   const container = document.createElement('div')
-  shadow.root.append(container)
-  return {
-    root: shadow.root,
-    container,
-    dispose: () => {
-      shadow.dispose()
-      inner.remove()
-    },
-  }
-}
-
-function boundShellRpc(apiBase: string, session: () => string | null) {
-  return {client: makeBrowserRpcClient(apiBase, {session}), apiBase: () => apiBase, bindApiBase: undefined}
-}
-
-function connectShellRpc(session: () => string | null) {
-  const client = makeBrowserRpcClient(() => null, {session})
-  const [apiBase, setApiBase] = createSignal('')
-  const bindApiBase = (next: string) => {
-    client.bind(next)
-    setApiBase(next)
-  }
-  return {client, apiBase, bindApiBase}
-}
-
-function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
-  return options.plugins ? connectShellRpc(session) : boundShellRpc(apiBase, session)
+  root.append(container)
+  return {root, container}
 }
 
 type ShellHarness = {
@@ -467,62 +440,34 @@ type ShellHarness = {
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
-  const mounted: {
-    router: ReturnType<typeof createConcivRouter> | null
-    disposeLogin: () => void
-    unmount: () => void
-    closeRpc: () => void
-    removeRoot: () => void
-  } = {
-    router: null,
-    disposeLogin: () => {},
+  const mounted: {router: AnyRouter | undefined; unmount: () => void; removeRoot: () => void} = {
+    router: undefined,
     unmount: () => {},
-    closeRpc: () => {},
     removeRoot: () => {},
   }
 
   const mountShell = (entry: string | string[], options: ShellMountOptions = {}): void => {
-    const apiBase = options.login?.apiBase ?? base()
-    const login = shellLogin(options.login, (dispose) => {
-      mounted.disposeLogin = dispose
-    })
-    const activeSession: {read: () => string | null} = {read: () => null}
-    const session = () => activeSession.read()
-    const shellRpc = shellRpcFor(options, apiBase, session)
-    const client = shellRpc.client
-    mounted.closeRpc = client.close
-    const shell = mountConcivRoot(options.shadow ?? false)
-    mounted.removeRoot = shell.dispose
-    const router = createConcivRouter({
-      rpc: client.rpc,
-      history: createMemoryHistory({initialEntries: [entry].flat()}),
-      environment: {rootNode: shell.root ?? document, document},
-      settings: parseConcivSettings(JSON.stringify(options.host ?? {})),
-      apiBase: options.apiBase ?? shellRpc.apiBase,
-      connected: () => (login ? engineConnected(login.status()) : client.bound()),
-      bindApiBase: shellRpc.bindApiBase,
-      connectionGeneration: () => 0,
+    const inner = document.createElement('div')
+    inner.setAttribute('data-conciv-root', '')
+    document.body.append(inner)
+    mounted.removeRoot = () => inner.remove()
+    const {root, container} = shellRoot(inner, options.shadow ?? false)
+    const platform: Platform = {
+      engine: shellEngine(options, base),
+      navigation: {memory: entry},
+      root,
+      settings: options.host,
       plugins: options.plugins,
-      servers: options.plugins !== undefined,
-      login,
       grabProvider: options.grabProvider,
-      bindActiveSession: (read) => {
-        activeSession.read = read
-      },
-    })
-    mounted.router = router
-    mounted.unmount = render(() => <RouterProvider router={router} />, {container: shell.container}).unmount
+    }
+    mounted.unmount = render(() => <ConcivApp platform={platform} />, {container}).unmount
+    mounted.router = window.__TSR_ROUTER__
   }
 
   const dispose = (): void => {
-    if (mounted.router) disposeConcivRouter(mounted.router)
-    mounted.router = null
+    mounted.router = undefined
     mounted.unmount()
     mounted.unmount = () => {}
-    mounted.disposeLogin()
-    mounted.disposeLogin = () => {}
-    mounted.closeRpc()
-    mounted.closeRpc = () => {}
     mounted.removeRoot()
     mounted.removeRoot = () => {}
     window.dispatchEvent(new Event('online'))

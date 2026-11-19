@@ -5575,15 +5575,15 @@ module.exports = {default: {setup(ctx) {
 
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
-      const [connection, setConnection] = createStore({apiBase: coreBase()})
-      const turn = await mountHeldTurn(running, {apiBase: () => connection.apiBase})
+      const rebind = (apiBase: string) => window.dispatchEvent(new CustomEvent('conciv:rebind', {detail: {apiBase}}))
+      const turn = await mountHeldTurn(running)
 
       await switchToOther(titles)
-      setConnection('apiBase', UNREACHABLE_BASE)
+      rebind(UNREACHABLE_BASE)
       await coreControl.releaseTurn()
       await turn.awaitTurnEnd()
       turn.close()
-      setConnection('apiBase', coreBase())
+      rebind(coreBase())
 
       await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
       await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
