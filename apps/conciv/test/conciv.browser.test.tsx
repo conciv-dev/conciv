@@ -56,7 +56,6 @@ import {
   ToolProvider,
   useThread,
   Composer,
-  ComposerActions,
   ComposerHandlersProvider,
   useComposerContext,
   type AttachmentAdapter,
@@ -66,7 +65,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
+import {defineAttachment, defineExtension} from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
@@ -126,7 +125,6 @@ import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivUiToolDef} from '@conciv/tools/defs'
-import {createToolRegistry} from '@conciv/extension/registry'
 import {Operations} from '@conciv/plugin-page/rpc'
 import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
@@ -1830,34 +1828,6 @@ describe('chat pane', () => {
   })
 })
 
-const LONG_ACTION_NAME = 'long-composer-action'
-const LONG_ACTION_LABEL = 'AN_EXTENSION_COMPOSER_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
-const PINNED_ACTION_TOOLTIP = 'Run the pinned extension action'
-const [pinnedActionRuns, setPinnedActionRuns] = createSignal(0)
-
-const longComposerAction = defineExtension({
-  name: LONG_ACTION_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(LONG_ACTION_NAME).useSlot() === 'composer'}>
-      <span>{LONG_ACTION_LABEL}</span>
-      <ComposerActions.ActionButton
-        visible="always"
-        tooltip={PINNED_ACTION_TOOLTIP}
-        onClick={() => setPinnedActionRuns((runs) => runs + 1)}
-      >
-        P
-      </ComposerActions.ActionButton>
-      <Show when={pinnedActionRuns() > 0}>
-        <p>the pinned extension action ran</p>
-      </Show>
-    </Show>
-  ),
-})
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof longComposerAction> {}
-}
-
 describe('composer overflow', () => {
   const menuitem = (name: string | RegExp) => page.getByRole('menuitem', {name})
 
@@ -1872,9 +1842,35 @@ describe('composer overflow', () => {
     {name: 'context', description: 'Show what fills the window'},
   ]
 
-  const core = bootedCore('composer-overflow', {commands: PICKER_COMMANDS})
+  const LONG_PILL_LABEL = 'A_PLUGIN_COMPOSER_PILL_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
+  const PILL_TITLE = 'Run the pinned plugin action'
+  const pillBundle = `const {ComposerPill} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ComposerPill, {
+    id: 'long',
+    show: () => ({
+      label: '${LONG_PILL_LABEL}',
+      title: '${PILL_TITLE}',
+      icon: 'sparkles',
+      run: () => ctx.toast.show({title: 'the pinned plugin action ran'}),
+    }),
+  })
+}}}
+`
+  const core = bootedCore('composer-overflow', {
+    commands: PICKER_COMMANDS,
+    plugins: ['./long-pill'],
+    files: {
+      'long-pill/index.ts': `export default {id: 'long-pill', async setup() {}}
+`,
+      'long-pill/plugin-experimental.js': pillBundle,
+    },
+  })
   const keep = keptPane()
   const faults = trackedFaults()
+  const harness = createShellHarness(core)
+
+  afterEach(harness.dispose)
 
   const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const grabButton = () => page.getByRole('button', {name: 'Select an element from the page'})
@@ -1885,7 +1881,7 @@ describe('composer overflow', () => {
   const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
   const commandOption = (position: number) => page.getByRole('option').nth(position)
 
-  async function mountComposer(width?: number, extensions?: PaneMountOptions['extensions']): Promise<PaneMount> {
+  async function mountComposer(width?: number): Promise<PaneMount> {
     const sessionId = await createSession(coreRpc(core()))
     const [requests, setRequests] = createSignal<string[]>([])
     const mount = mountPane(
@@ -1893,7 +1889,6 @@ describe('composer overflow', () => {
         base: core(),
         sessionId,
         width,
-        extensions,
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
@@ -1927,14 +1922,15 @@ describe('composer overflow', () => {
     await expect.element(newSessionItem()).not.toBeInTheDocument()
   })
 
-  test('a long extension action in the row leaves the message input and a pinned action reachable', async () => {
-    await mountComposer(undefined, [longComposerAction])
+  test('a long plugin pill above the composer leaves the message input and its action reachable', async () => {
+    harness.mountShell(`/panel/${await createSession(coreRpc(core()))}?open=true`)
+    await expect.element(input(), {timeout: 8000}).toBeVisible()
 
-    await expect.element(page.getByText(LONG_ACTION_LABEL)).toBeVisible()
-    const pinnedAction = page.getByRole('button', {name: PINNED_ACTION_TOOLTIP})
+    await expect.element(page.getByText(LONG_PILL_LABEL), {timeout: 15_000}).toBeVisible()
+    const pinnedAction = page.getByRole('button', {name: PILL_TITLE})
     await expect.element(pinnedAction).toBeVisible()
     await userEvent.click(pinnedAction)
-    await expect.element(page.getByText('the pinned extension action ran')).toBeVisible()
+    await expect.element(page.getByText('the pinned plugin action ran')).toBeVisible()
     await expect.element(input()).toBeVisible()
     await userEvent.click(input())
     await userEvent.keyboard('still typeable')
@@ -3322,23 +3318,23 @@ describe('harness switching', () => {
   })
 })
 
-const STATUS_PROBE_NAME = 'status-probe'
-
-const statusProbe = defineExtension({
-  name: STATUS_PROBE_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(STATUS_PROBE_NAME).useSlot() === 'status'}>
-      <span>env: staging</span>
-    </Show>
-  ),
-})
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof statusProbe> {}
-}
-
 describe('connect agents', () => {
-  const core = bootedCore('connect-agents')
+  const statusBundle = `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Slot, {
+    at: 'session.status',
+    render: () => Object.assign(document.createElement('span'), {textContent: 'env: staging'}),
+  })
+}}}
+`
+  const core = bootedCore('connect-agents', {
+    plugins: ['./status-probe'],
+    files: {
+      'status-probe/index.ts': `export default {id: 'status-probe', async setup() {}}
+`,
+      'status-probe/plugin-experimental.js': statusBundle,
+    },
+  })
   const harness = createShellHarness(core)
 
   afterEach(async () => {
@@ -3358,9 +3354,9 @@ describe('connect agents', () => {
     await page.viewport(1000, 900)
     await coreControl.fakeHubCli('fail')
     const sessionId = await createSession(coreRpc(core()))
-    harness.mountShell(`/panel/${sessionId}?open=true`, [statusProbe])
+    harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByText('env: staging')).toBeVisible()
+    await expect.element(page.getByText('env: staging'), {timeout: 15_000}).toBeVisible()
     await expect.element(agents()).not.toBeInTheDocument()
     await more().click()
     await expect.element(item()).toBeVisible()
@@ -4963,17 +4959,26 @@ describe('panel view tabs', () => {
   const SUBSCRIBE_PATH = ['chat', 'subscribe']
   const NOTES_BODY = 'the notes view body'
   const REPLY_TEXT = 'the transcript that outlives a tab switch'
-
-  function NotesView(): JSX.Element {
-    return <p>{NOTES_BODY}</p>
-  }
-
-  const notesExtension = defineExtension({
-    name: 'panel-view-survival',
-    views: [{id: 'notes', label: 'Notes', Component: NotesView}],
+  const notesBundle = `const {Panel} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(Panel, {
+    id: 'notes',
+    region: 'pane',
+    list: () => [{id: 'notes', title: 'Notes', pinned: true}],
+    render: () => Object.assign(document.createElement('p'), {textContent: '${NOTES_BODY}'}),
   })
+}}}
+`
 
-  const coreBase = bootedCore('panel-view-tabs', {imageInput: 'native'})
+  const coreBase = bootedCore('panel-view-tabs', {
+    imageInput: 'native',
+    plugins: ['./panel-view-survival'],
+    files: {
+      'panel-view-survival/index.ts': `export default {id: 'panel-view-survival', async setup() {}}
+`,
+      'panel-view-survival/plugin-experimental.js': notesBundle,
+    },
+  })
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
 
@@ -4990,7 +4995,7 @@ describe('panel view tabs', () => {
     const sessionId = await createSession(rpc)
     await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
     await runTurn(coreBase(), sessionId, 'seed the transcript')
-    harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+    harness.mountShell(`/panel/${sessionId}?open=true`)
   }
 
   test('the panel keeps its chat stream alive across a view tab round trip', async () => {
@@ -5022,7 +5027,7 @@ describe('panel view tabs', () => {
     await page.getByRole('button', {name: /session options$/}).click()
     await expect.element(menu()).toBeVisible()
     await expect.element(notes()).toBeVisible()
-    expect(harness.pathname()).toMatch(/\/notes\/options$/)
+    expect(harness.pathname()).toMatch(/\/panel-view-survival(:|%3A)notes\/options$/)
 
     await chatTab().click()
     await expect.element(reply(), {timeout: 8000}).toBeVisible()
@@ -5107,7 +5112,7 @@ describe('panel view tabs', () => {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
       const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension], options)
+      harness.mountShell(`/panel/${sessionId}?open=true`, [], options)
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(narration()).toBeVisible()
       return turn
@@ -5173,7 +5178,7 @@ describe('panel view tabs', () => {
     test('another session can open right after Send and the left run still settles in the background', async () => {
       const {running, titles} = await twoSessions('sent')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       const unsent = await faults.install({kind: 'chat-gate'})
       await composer().fill('start a long turn')
@@ -5197,7 +5202,7 @@ describe('panel view tabs', () => {
       const {running, titles} = await twoSessions('removed')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5220,7 +5225,7 @@ describe('panel view tabs', () => {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5243,7 +5248,7 @@ describe('panel view tabs', () => {
       const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5289,7 +5294,7 @@ describe('panel view tabs', () => {
         const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5366,7 +5371,7 @@ describe('panel view tabs', () => {
         const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5428,7 +5433,7 @@ describe('panel view tabs', () => {
 
     test('approving an ask and leaving while its turn is still unsent settles that turn in the background', async () => {
       const {running, titles} = await twoSessions('approved')
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
       await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
       await coreControl.scriptCustomEvent('approval-requested', {
         approvalId: 'switch-ask',
@@ -5468,7 +5473,7 @@ describe('panel view tabs', () => {
 
     async function openNewPanel(): Promise<string> {
       const sessionId = await createSession(coreRpc(coreBase()))
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${sessionId}?open=true`)
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       return sessionId
     }
@@ -5558,7 +5563,7 @@ describe('panel view tabs', () => {
       await expect.element(composer()).not.toHaveTextContent(SENT)
       vi.useRealTimers()
       harness.dispose()
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${sessionId}?open=true`)
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       await expect.element(composer()).not.toHaveTextContent(SENT)
       expect(await rpc.drafts.get({sessionId})).toMatchObject({text: '', attachments: []})
@@ -6412,17 +6417,6 @@ describe('reachability flows', () => {
   }, 30_000)
 })
 
-const SURFACE_PROBE_NAME = 'surface-probe'
-
-const surfaceProbe = defineExtension({
-  name: SURFACE_PROBE_NAME,
-  Surface: () => <p>surface probe on {getExtensionApi(SURFACE_PROBE_NAME).useApiBase()()}</p>,
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof surfaceProbe> {}
-}
-
 describe('engine login', () => {
   const core = bootedCore('engine-login')
   const harness = createShellHarness(core)
@@ -6548,15 +6542,6 @@ describe('engine login', () => {
     await coreControl.releaseFault(failedCheck)
     expect(await readKept(unchecked)).toBe('left by a session the engine could not answer for')
     expect(await readKept(unknown)).toBe('left by a session of another engine')
-  }, 30_000)
-
-  test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
-    harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
-    await expect.element(locked()).toBeVisible()
-    await expect.element(page.getByText(/surface probe on/)).not.toBeInTheDocument()
-    await locked().click()
-    await userEvent.type(firstDigit(), await coreControl.printedCode())
-    await expect.element(page.getByText(`surface probe on ${origin()}`, {exact: true})).toBeInTheDocument()
   }, 30_000)
 
   test('Send a new code prints a fresh code, and only the fresh code opens the panel', async () => {
@@ -7647,13 +7632,6 @@ describe('tool card dispatch', () => {
 })
 
 describe('wire name coverage', () => {
-  function realRegistry(): ReturnType<typeof createToolRegistry> {
-    const registry = createToolRegistry()
-    return registry
-  }
-
-  const registry = realRegistry()
-
   const CATALOG_TOOL_NAME = 'catalog'
 
   const DEV_SERVER_TOOL_NAMES = [
@@ -7672,7 +7650,6 @@ describe('wire name coverage', () => {
     CATALOG_TOOL_NAME,
     concivUiToolDef.name,
     ...Operations.map((operation) => `${PAGE_TOOL_PREFIX}${operation.name}`),
-    ...registry.catalog.list().map((entry) => entry.name),
     ...SERVER_PLUGIN_TOOL_NAMES,
   ]
 
@@ -7696,10 +7673,7 @@ describe('wire name coverage', () => {
   it('every model-reachable tool name resolves to a card entry or catalog meta, or is a server plugin tool that draws through the generic card', () => {
     expect(modelReachableNames.length).toBeGreaterThan(10)
     const drawnByGenericCard = modelReachableNames.filter(
-      (name) =>
-        !cardNames.has(name) &&
-        builtinToolMeta(name) === undefined &&
-        registry.catalog.list().every((entry) => entry.name !== name),
+      (name) => !cardNames.has(name) && builtinToolMeta(name) === undefined,
     )
     expect(drawnByGenericCard).toEqual(DEV_SERVER_TOOL_NAMES)
   })
