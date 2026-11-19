@@ -4388,9 +4388,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab

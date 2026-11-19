@@ -9,7 +9,6 @@ import {
 } from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import {resolveConfig} from '@conciv/core/config'
-import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
@@ -48,7 +47,6 @@ export async function bootCoreKit(
     text?: string
     resume?: boolean
     displayName?: string
-    extensions?: AnyExtension[]
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: FixtureSession[]
@@ -105,7 +103,6 @@ export async function bootCoreKit(
         },
         harness: env.harness,
         harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
-        extensions: opts.extensions,
         allowedOrigins: opts.allowedOrigins,
         staleness: opts.staleness,
         nativePageDir: opts.nativePageDir,

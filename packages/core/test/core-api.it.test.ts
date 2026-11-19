@@ -1945,6 +1945,7 @@ describe('rpc registry catalog cosmetics', () => {
         path: ['acme_beacon'],
         binding: 'server',
         summary: 'Raise the acme beacon over the page.',
+        category: 'acme-beacon',
         mutating: false,
         reachable: true,
         inputSchema: expect.objectContaining({required: ['height']}),

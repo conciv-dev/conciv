@@ -1,6 +1,7 @@
 import {type BootApp, createFakeHarness, createTestkit, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
+import type {Plugin} from '@conciv/plugin'
 import {afterEach, beforeEach, expect, vi} from 'vitest'
 import {execFileSync} from 'node:child_process'
 import {appendFileSync, chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
@@ -15,6 +16,7 @@ import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
+  plugins?: readonly Plugin.Plugin[]
 }
 
 function bootCliApp(extras: BootExtras): BootApp {
@@ -39,6 +41,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       openInEditor: () => {},
       harness: env.harness,
       bridge: extras.bridge,
+      plugins: extras.plugins,
     })
     await awaitActivation()
     return {fetch, dispose, agentToken}

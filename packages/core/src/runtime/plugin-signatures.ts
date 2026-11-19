@@ -73,7 +73,9 @@ function stringPositional(input: ReturnType<typeof cliInput>): string | undefine
   return strings.length === 1 && input.required.length === 1 ? strings[0] : undefined
 }
 
-function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string}): ToolCommandSignature[] {
+function signature(
+  tool: Parameters<typeof ToolRuntime.definition>[0] & {readonly id: string; readonly pluginId?: string},
+): ToolCommandSignature[] {
   const definition = ToolRuntime.definition(tool)
   const operation = pageOperations[tool.id]
   const entry = operation === undefined ? undefined : CliTools[operation.name]
@@ -85,6 +87,7 @@ function signature(tool: Parameters<typeof ToolRuntime.definition>[0] & {readonl
         path: [tool.id],
         binding: 'server',
         summary: tool.description,
+        category: tool.pluginId,
         positional: stringPositional(inputSchema),
         mutating: false,
         reachable: true,

@@ -12,7 +12,7 @@ import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative, resolve as resolvePath} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
+import {Plugin} from '@conciv/plugin'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {Hono} from 'hono'
 import {proxy} from 'hono/proxy'
@@ -122,38 +122,63 @@ function nextServedCall(): {seen: () => SeenQuery | null} {
   return {seen: () => servedCalls[from] ?? null}
 }
 
-const formTools = defineExtension({
-  name: 'acme-form',
-  tools: [
-    defineTool({
-      name: 'acme_click',
-      description: 'Click an element.',
-      inputSchema: z.object(elementTarget),
-      outputSchema: z.object({ok: z.boolean()}),
-      meta: {summary: 'click an element', positional: 'selector', mutating: true},
-    }).server((input) => serve('acme_click', input, {ok: true})),
-    defineTool({
-      name: 'acme_fill',
-      description: 'Type a value into a form field.',
-      inputSchema: z.object({...elementTarget, value: z.string().describe('the value to type')}),
-      outputSchema: z.object({ok: z.boolean()}),
-      meta: {summary: 'type a value into a form field', positional: 'selector', mutating: true},
-    }).server((input) => serve('acme_fill', input, {ok: true})),
-    defineTool({
-      name: 'acme_override',
-      description: 'Patch a slice of a live component.',
-      inputSchema: z.object({
-        ...elementTarget,
-        target: z.enum(['props', 'state', 'hooks', 'context']).describe('which slice to override'),
-        path: z.string().optional().describe('dot-path inside the slice'),
-        hookId: z.coerce.number().optional().describe('hook id from inspect'),
-        json: z.string().optional().describe('new value as JSON'),
-      }),
-      outputSchema: z.object({ok: z.boolean()}),
-      meta: {summary: 'patch a slice of a live component', positional: 'selector', mutating: true},
-    }).server((input) => serve('acme_override', input, {ok: true})),
-  ],
-})
+type PluginTool = Parameters<Parameters<Plugin.Context['tool']['transform']>[0]>[0]['add']
+type PluginToolInfo = Parameters<PluginTool>[0]
+
+function toolsPlugin(id: string, tools: readonly PluginToolInfo[]) {
+  return Plugin.define({
+    id,
+    async setup(ctx) {
+      await ctx.tool.transform((editor) => tools.forEach((tool) => editor.add(tool)))
+    },
+  })
+}
+
+function servedTool<Input extends z.ZodObject, Output extends z.ZodType>(tool: {
+  name: string
+  description: string
+  input: Input
+  output: Output
+  answer: z.infer<Output>
+}): PluginToolInfo {
+  return {
+    name: tool.name,
+    description: tool.description,
+    input: tool.input,
+    output: tool.output,
+    execute: async (input: Record<string, unknown>) => ({output: serve(tool.name, input, tool.answer)}),
+  }
+}
+
+const formTools = toolsPlugin('acme-form', [
+  servedTool({
+    name: 'acme_click',
+    description: 'Click an element.',
+    input: z.object(elementTarget),
+    output: z.object({ok: z.boolean()}),
+    answer: {ok: true},
+  }),
+  servedTool({
+    name: 'acme_fill',
+    description: 'Type a value into a form field.',
+    input: z.object({...elementTarget, value: z.string().describe('the value to type')}),
+    output: z.object({ok: z.boolean()}),
+    answer: {ok: true},
+  }),
+  servedTool({
+    name: 'acme_override',
+    description: 'Patch a slice of a live component.',
+    input: z.object({
+      ...elementTarget,
+      target: z.enum(['props', 'state', 'hooks', 'context']).describe('which slice to override'),
+      path: z.string().optional().describe('dot-path inside the slice'),
+      hookId: z.coerce.number().optional().describe('hook id from inspect'),
+      json: z.string().optional().describe('new value as JSON'),
+    }),
+    output: z.object({ok: z.boolean()}),
+    answer: {ok: true},
+  }),
+])
 
 describe('cli', () => {
   const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
@@ -169,7 +194,7 @@ describe('cli', () => {
 
     describe('conciv CLI argument rejection', () => {
       it('rejects a mistyped flag with the closest known flag and never runs the verb', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         const code = await runCli(cliMain, ['tools', 'acme', 'click', '--refs', 'e12'])
         expect(code).toBe(1)
@@ -180,7 +205,7 @@ describe('cli', () => {
       })
 
       it('rejects a mistyped kebab spelling of a real flag and keeps accepting the real one', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         expect(await runCli(cliMain, ['tools', 'acme', 'override', '#a', '--hook-idx', '2'])).toBe(1)
         expect(failureText()).toContain('--hookId')
         written.length = 0
@@ -206,7 +231,7 @@ describe('cli', () => {
       })
 
       it('rejects an unknown flag placed before the first or a nested subcommand instead of dropping it', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', '--bogus', 'acme', 'click', '#a'])).toBe(1)
         expect(failureText()).toContain('--bogus')
@@ -217,14 +242,14 @@ describe('cli', () => {
       })
 
       it('still accepts an envelope flag placed before a nested subcommand', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', '--json', 'acme', 'click', '#a'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_click'})
       })
 
       it('rejects an unknown subcommand with the closest verb', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         expect(await runCli(cliMain, ['tools', 'acme', 'clik', '#a'])).toBe(1)
         const text = failureText()
         expect(text).toContain('clik')
@@ -232,13 +257,13 @@ describe('cli', () => {
       })
 
       it('rejects a subcommand-less parent instead of printing a bare stack', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         expect(await runCli(cliMain, ['tools', 'acme'])).toBe(1)
         expect(failureText()).toContain('--help')
       })
 
       it('rejects a positional passed as a flag and says how to pass it', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'click', '--selector', '#a'])).toBe(1)
         expect(answer.seen()).toBeNull()
@@ -246,7 +271,7 @@ describe('cli', () => {
       })
 
       it('rejects an extra positional instead of dropping it', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'click', '#a', '#b'])).toBe(1)
         expect(answer.seen()).toBeNull()
@@ -254,7 +279,7 @@ describe('cli', () => {
       })
 
       it('prints usage for --help and exits 0 without touching the rpc', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const logged: string[] = []
         vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
           logged.push(String(line))
@@ -355,34 +380,28 @@ describe('cli', () => {
       return logged.join('\n')
     }
 
-    const beacon = defineTool({
-      name: 'acme_beacon',
-      description: 'Raise the acme beacon over the page.',
-      inputSchema: z.object({height: z.number().int().min(1)}),
-      outputSchema: z.object({raised: z.boolean()}),
-      meta: {
-        summary: 'raise the acme beacon over the page',
-        category: 'act',
-        icon: 'pointer',
-        label: {running: 'Raising the beacon', done: 'Raised the beacon'},
-        mutating: true,
-      },
-    }).server((input) => serve('acme_beacon', input, {raised: true}))
+    const beaconExtension = toolsPlugin('acme-beacon', [
+      servedTool({
+        name: 'acme_beacon',
+        description: 'Raise the acme beacon over the page.',
+        input: z.object({height: z.number().int().min(1)}),
+        output: z.object({raised: z.boolean()}),
+        answer: {raised: true},
+      }),
+    ])
 
-    const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
-
-    const serverStatus = defineTool({
+    const serverStatus = servedTool({
       name: 'server_status',
       description: 'Report the acme status board.',
-      inputSchema: z.object({}),
-      outputSchema: z.object({green: z.boolean()}),
-      meta: {summary: 'report the acme status board', mutating: false},
-    }).server((input) => serve('server_status', input, {green: true}))
+      input: z.object({}),
+      output: z.object({green: z.boolean()}),
+      answer: {green: true},
+    })
 
-    const paint = defineTool({
+    const paint = servedTool({
       name: 'acme_paint',
       description: 'Paint strokes and patch the acme canvas.',
-      inputSchema: z.object({
+      input: z.object({
         patch: z.record(z.string(), z.unknown()),
         strokes: z.array(z.object({x: z.number()}).loose()),
         parts: z.array(z.unknown()).optional(),
@@ -390,11 +409,11 @@ describe('cli', () => {
         colors: z.array(z.string()).optional(),
         image: z.string().meta({format: 'path'}).optional(),
       }),
-      outputSchema: z.object({painted: z.boolean()}),
-      meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
-    }).server((input) => serve('acme_paint', input, {painted: true}))
+      output: z.object({painted: z.boolean()}),
+      answer: {painted: true},
+    })
 
-    const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
+    const acmeExtension = toolsPlugin('acme-tools', [serverStatus, paint])
 
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -413,7 +432,7 @@ describe('cli', () => {
 
     describe('the CLI reads its commands from the tool declarations', () => {
       it('sends every repeat of an array flag to the server as one array', async () => {
-        await bootCli(cleanups, {extensions: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmeExtension]})
         const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
@@ -434,7 +453,7 @@ describe('cli', () => {
       })
 
       it('resolves a relative path flag against the CLI working directory', async () => {
-        await bootCli(cleanups, {extensions: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmeExtension]})
         const answer = nextServedCall()
         const home = process.cwd()
         const dir = tempDir('conciv-path-flag-')
@@ -461,7 +480,7 @@ describe('cli', () => {
       })
 
       it('serves a group from an extension the CLI has never heard of', async () => {
-        await bootCli(cleanups, {extensions: [beaconExtension]})
+        await bootCli(cleanups, {plugins: [beaconExtension]})
         expect(await helpText(['tools', 'acme', '--help'])).toContain('raise the acme beacon over the page')
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
@@ -469,7 +488,7 @@ describe('cli', () => {
       })
 
       it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
-        await bootCli(cleanups, {extensions: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmeExtension]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'server_status'})
@@ -477,7 +496,7 @@ describe('cli', () => {
       })
 
       it('parses object and array-of-object flags as JSON before sending them', async () => {
-        await bootCli(cleanups, {extensions: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmeExtension]})
         const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
@@ -499,7 +518,7 @@ describe('cli', () => {
       })
 
       it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
-        await bootCli(cleanups, {extensions: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmeExtension]})
         const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
@@ -525,7 +544,7 @@ describe('cli', () => {
       })
 
       it('rejects a flag that is not valid JSON with the flag named', async () => {
-        await bootCli(cleanups, {extensions: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmeExtension]})
         expect(await runCli(cliMain, ['tools', 'acme', 'paint', '--patch', '{color', '--strokes', '{"x":1}'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
@@ -534,21 +553,21 @@ describe('cli', () => {
       })
 
       it('clears a field when the value is explicitly empty', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email', '--value', ''])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_fill', input: {selector: '#email', value: ''}})
       })
 
       it('still refuses a required flag that was never passed at all', async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email'])).toBe(1)
         expect(answer.seen()).toBeNull()
       })
 
       it("describes a verb by what it does, never by the verb's own command path", async () => {
-        await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {plugins: [formTools]})
         const help = await helpText(['tools', 'acme', '--help'])
         expect(help).not.toMatch(/acme fill/)
         expect(help).toContain('type a value into a form field')
@@ -1050,7 +1069,6 @@ describe('cli', () => {
     home: string,
     given: {
       shared?: {root: string; sessionId: string}
-      extensions?: Parameters<typeof startEngine>[0]['extensions']
       plugins?: Parameters<typeof startEngine>[0]['plugins']
       bridge?: Parameters<typeof startEngine>[0]['bridge']
       launchEditor?: Parameters<typeof startEngine>[0]['launchEditor']
@@ -1073,7 +1091,6 @@ describe('cli', () => {
       root,
       launchEditor: given.launchEditor ?? (() => {}),
       homeDir: home,
-      extensions: given.extensions,
       plugins: [tabs.plugin, ...(given.plugins ?? [])],
       bridge: given.bridge,
     })
@@ -1348,15 +1365,17 @@ describe('cli', () => {
 
     it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
       const home = tempDir('conciv-home-')
-      const lantern = defineTool({
-        name: 'page_lantern',
-        description: 'Light the lantern over the page.',
-        inputSchema: z.object({brightness: z.number().int().min(1)}),
-        outputSchema: z.object({lit: z.boolean()}),
-        meta: {summary: 'light the lantern over the page', category: 'act', mutating: true},
-      }).server(() => ({lit: true}))
+      const lantern = toolsPlugin('lantern', [
+        {
+          name: 'page_lantern',
+          description: 'Light the lantern over the page.',
+          input: z.object({brightness: z.number().int().min(1)}),
+          output: z.object({lit: z.boolean()}),
+          execute: async () => ({output: {lit: true}}),
+        },
+      ])
       const cwdEngine = await engineWithTab(home)
-      const holder = await engineWithTab(home, {extensions: [defineExtension({name: 'lantern', tools: [lantern]})]})
+      const holder = await engineWithTab(home, {plugins: [lantern]})
       const project = tempDir('conciv-project-')
       mkdirSync(join(project, '.conciv'))
       const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
