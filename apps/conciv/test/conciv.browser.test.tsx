@@ -10702,6 +10702,14 @@ module.exports = {default: {setup(ctx) {
     await userEvent.keyboard('{Enter}')
     await expect.element(fileShown('the lone file body')).toBeVisible()
     await expect.element(sentence()).not.toBeInTheDocument()
+    await expect
+      .poll(async () =>
+        (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user').at(-1),
+      )
+      .toMatchObject({
+        parts: [{type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body/)}],
+        metadata: {comments: {length: 6}},
+      })
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`)
