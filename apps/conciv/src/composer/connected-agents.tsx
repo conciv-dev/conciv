@@ -5,7 +5,7 @@ import X from 'lucide-solid/icons/x'
 import {Clawd} from './clawd/clawd.js'
 import {useHubConnections} from './hub-connections.js'
 
-const ROW = 'contents [&>*+*]:ms-1.5'
+const ROW = 'contents'
 const CHIP_BASE =
   'inline-flex items-center gap-1 min-h-6 ps-1.5 select-none rounded-chat-pill bg-chat-fill text-chat-text-2'
 const CHIP = `${CHIP_BASE} pe-0.5`
