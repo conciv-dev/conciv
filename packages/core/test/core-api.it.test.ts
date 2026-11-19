@@ -1909,38 +1909,49 @@ describe('capability collision', () => {
 })
 
 describe('rpc registry catalog cosmetics', () => {
-  const beacon = defineTool({
-    name: 'acme_beacon',
-    description: 'Raise the acme beacon over the page.',
-    inputSchema: z.object({height: z.number().int().min(1)}),
-    outputSchema: z.object({raised: z.boolean()}),
-    meta: {
-      summary: 'raise the acme beacon',
-      category: 'acme',
-      icon: 'pointer',
-      label: {running: 'Raising the beacon', done: 'Raised the beacon'},
-      mutating: true,
-    },
-  }).server(() => ({raised: true}))
-
-  const acme = defineExtension({name: 'acme-beacon', tools: [beacon]})
-
-  describe('the rpc catalog carries the card cosmetics a widget needs', () => {
-    it('projects icon, label and mutating across the wire', async () => {
-      const kit = await bootKit({extensions: [acme]})
-      try {
-        const catalog = await kit.rpc.registry.catalog(undefined)
-        const entry = catalog.find((signature) => signature.name === 'acme_beacon')
-        expect(entry).toMatchObject({
-          icon: 'pointer',
-          label: {running: 'Raising the beacon', done: 'Raised the beacon'},
-          mutating: true,
+  const beacon = Plugin.define({
+    id: 'acme-beacon',
+    async setup(ctx) {
+      await ctx.tool.transform((tools) => {
+        tools.add({
+          name: 'acme_beacon',
+          description: 'Raise the acme beacon over the page.',
+          input: z.object({height: z.number().int().min(1)}),
+          output: z.object({raised: z.boolean()}),
+          execute: async ({height}) => ({output: {raised: height > 0}}),
         })
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
+      })
+    },
   })
+
+  it('the rpc catalog carries the card cosmetics a widget needs for a page tool, and a server plugin tool is a CLI command answered through the plugin', async () => {
+    const kit = await bootKit({plugins: [beacon]})
+    try {
+      const catalog = await kit.rpc.registry.catalog(undefined)
+      expect(catalog.find((signature) => signature.name === 'page_click')).toMatchObject({
+        binding: 'client',
+        icon: 'pointer',
+        label: {running: 'Clicking', done: 'Clicked'},
+        mutating: true,
+      })
+      const served = catalog.find((signature) => signature.name === 'acme_beacon')
+      expect(served).toMatchObject({
+        name: 'acme_beacon',
+        path: ['acme_beacon'],
+        binding: 'server',
+        summary: 'Raise the acme beacon over the page.',
+        mutating: false,
+        reachable: true,
+        inputSchema: expect.objectContaining({required: ['height']}),
+        errors: [],
+      })
+      expect(served).not.toHaveProperty('icon')
+      expect(served).not.toHaveProperty('label')
+      expect(await registryCall(kit.base, await kit.session())('acme_beacon', {height: 3})).toEqual({raised: true})
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
 })
 
 describe('rpc registry without a dev-server reload', () => {

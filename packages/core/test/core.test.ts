@@ -2915,19 +2915,24 @@ describe('plugin host bus', () => {
     expect(await left()).toBe(0)
   })
 
-  test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
+  test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while the bus tells plugins how each run ended', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
-    const turnEnds: SessionId[] = []
-    const recorder = defineExtension({name: 'turn-ends'}).server(() => ({
-      context: {},
-      turnEnd: (sessionId) => void turnEnds.push(sessionId),
-    }))
     const harness = createTestHarness(requireClaude())
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}}, {extensions: [recorder]})
+    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
     const dispose = onceOnly(() => made.dispose())
     onTestFinished(dispose)
     const id = SessionId.parse('conciv_idle')
     await ensureRow(made.chat.rows, id)
+    const endings: {type: string; data: unknown}[] = []
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) =>
+          Effect.sync(() => {
+            if (event.type.startsWith('session.execution.')) endings.push({type: event.type, data: event.data})
+          }),
+        ),
+      ),
+    )
     const idles: unknown[] = []
     const laterIdles: unknown[] = []
     const idleFailure: {message: string | null} = {message: null}
@@ -2947,12 +2952,17 @@ describe('plugin host bus', () => {
 
     expect(await made.plane.followUp(id, 'finish normally')).toEqual({kind: 'delivered'})
     expect(idles).toEqual([{sessionId: id, background: []}])
-    expect(turnEnds).toEqual([id])
+    expect(endings).toEqual([{type: 'session.execution.succeeded', data: {sessionID: id}}])
 
     harness.script.scriptError('the harness could not launch')
     expect(await made.plane.followUp(id, 'fail to launch')).toMatchObject({kind: 'failed'})
     expect(idles).toHaveLength(1)
-    expect(turnEnds).toEqual([id, id])
+    expect(endings.slice(1)).toEqual([
+      {
+        type: 'session.execution.failed',
+        data: {sessionID: id, error: expect.stringContaining('the harness could not launch')},
+      },
+    ])
 
     harness.script.hold()
     const started = Promise.withResolvers<void>()
@@ -2966,7 +2976,7 @@ describe('plugin host bus', () => {
     harness.script.release()
     expect(await following).toEqual({kind: 'stopped'})
     expect(idles).toHaveLength(1)
-    expect(turnEnds).toEqual([id, id, id])
+    expect(endings.filter((ending) => ending.type === 'session.execution.succeeded')).toHaveLength(1)
 
     const published: ChatEvent[] = []
     onTestFinished(made.runtime.forSession(id).stream.listen((chunk) => void published.push(chunk)))
@@ -3105,18 +3115,8 @@ describe('plugin host bus', () => {
     const ending = SessionId.parse('conciv_deleted_while_its_turn_ends')
     const endingGates: {entered: PromiseWithResolvers<void>; held: PromiseWithResolvers<void>}[] = []
     const endingIdleHolds: Promise<void>[] = []
-    const turnEndHolder = defineExtension({name: 'turn-end-holder'}).server(() => ({
-      context: {},
-      turnEnd: async (sessionId) => {
-        if (sessionId !== ending) return
-        const gate = endingGates.shift()
-        if (gate === undefined) return
-        gate.entered.resolve()
-        await gate.held.promise
-      },
-    }))
     const kit = await createTestkit(harness, async (env) => {
-      const made = await bootMadeApp(env, {extensions: [turnEndHolder]})
+      const made = await bootMadeApp(env)
       booted.push(made)
       return made
     }).setup()
@@ -3161,6 +3161,19 @@ describe('plugin host bus', () => {
             if (event.type === SessionEvent.Deleted.type) idleHeld.resolve()
           }),
         ),
+      ),
+    )
+    await made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.listen((event) => {
+          if (event.type !== SessionEvent.Execution.Succeeded.type) return Effect.void
+          const scoped = scopedEvent.safeParse(event.data)
+          if (!scoped.success || scoped.data.sessionID !== ending) return Effect.void
+          const gate = endingGates.shift()
+          if (gate === undefined) return Effect.void
+          gate.entered.resolve()
+          return Effect.promise(() => gate.held.promise)
+        }),
       ),
     )
     await made.pluginHost.runPromise(
