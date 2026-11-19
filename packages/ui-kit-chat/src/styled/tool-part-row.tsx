@@ -50,11 +50,11 @@ export function ToolPartRow(props: {
   chain: boolean
 }): JSX.Element {
   const status = () => STATUS[toolStatus(props.part, props.result)]
+  const registered = createMemo(() => props.render?.(props.part.name)?.render !== undefined)
   const entry = createMemo(() =>
-    status() === 'error' || props.render?.(props.part.name)?.render !== undefined
-      ? undefined
-      : findToolEntry(props.entries, props.part),
+    status() === 'error' || registered() ? undefined : findToolEntry(props.entries, props.part),
   )
+  const startsOpen = () => status() !== 'error' && registered()
   const settled = () => status() !== 'running' && status() !== 'pending'
   const output = () => (settled() ? toolOutput(props.part, props.result) : undefined)
   const input = createMemo(() => parseInput(ToolInputSchema, props.part) ?? {})
@@ -71,8 +71,8 @@ export function ToolPartRow(props: {
       tag={outsideTag(props.part)}
       status={status()}
       sessionID={props.sessionID}
-      defaultOpen={status() !== 'error'}
-      open={props.disclosure.open(props.part.id) ?? status() !== 'error'}
+      defaultOpen={startsOpen()}
+      open={props.disclosure.open(props.part.id) ?? startsOpen()}
       onOpenChange={(open) => props.disclosure.setOpen(props.part.id, open)}
       render={props.render}
       renderPending={props.renderPending}
