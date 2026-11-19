@@ -53,7 +53,8 @@ function mainAndMore(
   kept: readonly (string | null)[],
 ): [HarnessModelInfo[], HarnessModelInfo[]] {
   if (models.length <= MAIN_ROWS) return [models, []]
-  const newest = models.filter((model) => !kept.includes(model.id)).slice(0, MAIN_ROWS - 1)
+  const keptCount = models.filter((model) => kept.includes(model.id)).length
+  const newest = models.filter((model) => !kept.includes(model.id)).slice(0, MAIN_ROWS - keptCount)
   return partition(models, (model) => kept.includes(model.id) || newest.includes(model))
 }
 

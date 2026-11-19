@@ -1771,6 +1771,44 @@ describe('model selector', () => {
     await userEvent.click(menu().getByRole('option', {name: 'Max'}))
     await expect.element(page.getByRole('button', {name: 'Select model'})).toHaveTextContent('Max')
   })
+
+  it('lists four models before the rest when the default and the picked model are both among the first', async () => {
+    const models = {
+      models: [
+        {id: 'nano', name: 'Nano'},
+        {id: 'mini', name: 'Mini'},
+        {id: 'small', name: 'Small'},
+        {id: 'medium', name: 'Medium'},
+        {id: 'large', name: 'Large'},
+        {id: 'max', name: 'Max'},
+      ],
+      defaultModel: 'nano',
+      harness: {id: 'kit', name: 'Kit', imageInput: false as const, persistentPty: true},
+    }
+    function PillSelector() {
+      const menu = useModelMenu()
+      return (
+        <HarnessModelSelector
+          menu={menu}
+          status="ready"
+          models={models}
+          value="mini"
+          onRetry={() => undefined}
+          onModelChange={() => undefined}
+        />
+      )
+    }
+    mountView(() => <PillSelector />)
+    const menu = () => page.getByRole('dialog', {name: 'Model'})
+
+    await userEvent.click(page.getByRole('button', {name: 'Select model'}))
+    await expect.element(menu().getByRole('option', {name: 'Mini'})).toHaveAttribute('aria-selected', 'true')
+    await expect.element(menu().getByRole('option', {name: 'Nano'})).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Small'})).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Medium'})).toBeVisible()
+    await expect.element(menu().getByRole('option', {name: 'Large'})).not.toBeInTheDocument()
+    await expect.element(menu().getByText('2 more models, type to search')).toBeVisible()
+  })
 })
 
 describe('suggestions', () => {
