@@ -107,7 +107,7 @@ import {InstructionEntry, Location, PluginHost, Session} from '@conciv/plugin-ho
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   readApprovalAsk,
   type ChatEvent,
@@ -1819,7 +1819,13 @@ describe('api page tool capture', () => {
     it('drops a session capture, its unreferenced css bundle, its draft and its page changes when the session is deleted', async () => {
       const {sessionId, call} = await capturing()
       await call('page_fill', {selector: '#email', value: SECRET})
-      await kit().rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+      await kit().rpc.drafts.set({
+        sessionId,
+        text: 'an unsent draft',
+        selectionStart: 0,
+        selectionEnd: 0,
+        updatedAt: Date.now(),
+      })
       expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft'})
       expect(await page('changes', sessionId)).toContainEqual(
         expect.objectContaining({verb: 'page_fill', selector: '#email'}),
@@ -1999,6 +2005,13 @@ describe('rpc wire', () => {
         }
         expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
       })
+
+      it("drafts.set stores the client's updatedAt as sent, so a browser can match the row to the copy it sent", async () => {
+        const sessionId = SessionId.parse(await kit().session())
+        const updatedAt = 1_700_000_000_000
+        await kit().rpc.drafts.set({sessionId, text: 'a stamped draft', selectionStart: 0, selectionEnd: 0, updatedAt})
+        expect(await kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a stamped draft', updatedAt})
+      })
     })
 
     describe('on one app with an editor opener', () => {
@@ -2106,7 +2119,7 @@ describe('rpc wire', () => {
 
     it('server.* round-trips a real bundler bridge', async () => {
       const restarted: boolean[] = []
-      const bridge = defineBundlerBridge({
+      const bridge = Bundler.defineBundlerBridge({
         id: 'wire-test',
         config: () => ({
           root: '/repo',
@@ -2172,7 +2185,13 @@ describe('rpc wire', () => {
     describe('turns', () => {
       it('a message streams its reply in one run under the client ids, and a reload shows the same turn', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         const ended = nextTurnEnd(sessionId)
         const events = await finished(sessionId, 'hello', {runId: 'client-run', messageId: 'client-user'})
         await ended()
@@ -2184,7 +2203,7 @@ describe('rpc wire', () => {
         expect(hydration.messages.map((message) => message.id)).toEqual(['client-user', ...collectAssistantIds(events)])
         expect(hydration).toMatchObject({activeRun: null, lastRun: {runId: 'client-run', phase: 'completed'}})
         expect(await thread(sessionId)).toEqual(hydration.messages)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a saved draft'})
         expect(turnEnds.filter((id) => id === sessionId)).toHaveLength(1)
       })
 
@@ -2725,11 +2744,24 @@ describe('rpc wire', () => {
       })
     })
 
-    describe('models list', () => {
-      it('the widget gets the harness model list', async () => {
+    describe('tools and models list', () => {
+      it('the widget gets every tool with its full description and the harness model list', async () => {
+        const {tools} = await chatKit().rpc.meta.tools({sessionId: await newSession()})
+        expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
+        expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
+        expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
         const models = await chatKit().rpc.meta.models({sessionId: await newSession()})
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
         expect(models.defaultModel).toBe('opus')
+      })
+
+      it('a session whose agent has code mode off is offered no extension tool, since its turn gets none', async () => {
+        const {kit} = await bootWire({
+          extensions: [fixtureExtension()],
+          permissions: [{action: 'execute', resource: '*', effect: 'deny'}],
+        })
+        const {tools} = await kit.rpc.meta.tools({sessionId: await kit.session()})
+        expect(tools.map((tool) => tool.name).filter((name) => FIXTURE_TOOLS.includes(name))).toEqual([])
       })
     })
 
@@ -2747,7 +2779,13 @@ describe('rpc wire', () => {
 
       it('an image is stored exactly as sent, ignores the draft, and stays in history for later turns', async () => {
         const sessionId = await newSession()
-        await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a saved draft',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         await finished(sessionId, {content: [{type: 'text', content: 'what color?'}, IMAGE]})
         await finished(sessionId, 'and the shape?')
         const messages = await thread(sessionId)
@@ -2758,7 +2796,7 @@ describe('rpc wire', () => {
         expect(await threadUserTexts(sessionId)).toEqual(['what color?', 'and the shape?'])
         expect(messages.flatMap((message) => message.parts).filter((part) => part.type === 'image')).toHaveLength(1)
         expect(findLastRun(sessionId).messages).toContain(ONE_PIXEL_PNG)
-        expect(await chatKit().rpc.drafts.get({sessionId})).toBeNull()
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a saved draft'})
       })
     })
 
@@ -2768,6 +2806,13 @@ describe('rpc wire', () => {
         await finished(sessionId, 'one')
         await finished(sessionId, 'two')
         const boundary = (await thread(sessionId)).at(-1)?.id
+        await chatKit().rpc.drafts.set({
+          sessionId,
+          text: 'a draft kept across compaction',
+          selectionStart: 0,
+          selectionEnd: 0,
+          updatedAt: Date.now(),
+        })
         script().hold()
         const compacts = [chatKit().rpc.sessions.compact({sessionId}), chatKit().rpc.sessions.compact({sessionId})]
         await Promise.race(compacts)
@@ -2780,6 +2825,7 @@ describe('rpc wire', () => {
         expect(boundary).toBeDefined()
         expect(await compactMarkers(sessionId)).toEqual([boundary, boundary])
         expect(await threadUserTexts(sessionId)).toEqual(['one', 'two'])
+        expect(await chatKit().rpc.drafts.get({sessionId})).toMatchObject({text: 'a draft kept across compaction'})
       })
 
       it('when the CLI compacts its own transcript the thread is kept and later turns append', async () => {
@@ -2859,7 +2905,7 @@ describe('rpc wire', () => {
         const ended = nextTurnEnd(sessionId)
         const turn = await send(sessionId, 'silence', {runId: 'silent-run'})
         await turn.waitForRunStart({runId: 'silent-run'})
-        const error = turn.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: SILENCE_MS * 2})
+        const error = turn.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR)
         await ended()
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
           runId: 'silent-run',
@@ -3857,7 +3903,9 @@ return seen`
   const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
+  const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
   const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
+  const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
   const IMAGE = {type: 'image', source: {type: 'data', mimeType: 'image/png', value: ONE_PIXEL_PNG}}
   const BIG_IMAGE_BYTES = ONE_PIXEL_PNG.repeat(1_000)
@@ -6575,7 +6623,6 @@ const Seer = {
 export default {
   id: 'seer',
   async setup(ctx) {
-    const mcpUrl = ctx.harness.mcpUrl
     await ctx.tool.transform((tools) => {
       tools.add({
         name: 'seer_echo',
@@ -6621,7 +6668,6 @@ export default {
     })
     const registration = await ctx.rpc.register(Seer, {
       seen: async () => ({
-        mcpUrl,
         app: ctx.app,
         directory: ctx.location.directory,
         servers: ctx.servers.list(),
@@ -6800,7 +6846,6 @@ export default {
 
     const seen = z
       .object({
-        mcpUrl: z.string(),
         app: z.object({name: z.string()}),
         directory: z.string(),
         servers: z.array(z.string()),
@@ -6813,7 +6858,6 @@ export default {
         ),
       })
       .parse(await call(base, 'seer', 'seen'))
-    expect(seen.mcpUrl).toBe(`${base}/api/mcp`)
     expect(seen.app.name).toBe('conciv')
     expect(seen.directory).toBe(root)
     expect(seen.plugins.map((plugin) => plugin.id).toSorted()).toEqual([
@@ -7030,9 +7074,7 @@ export default {
     const again = await bootWithPlugins(home, root)
     onTestFinished(() => again.stop())
     const againBase = `http://127.0.0.1:${again.port}/t/${again.agentToken}`
-    expect(z.object({mcpUrl: z.string()}).parse(await call(againBase, 'seer', 'seen')).mcpUrl).toBe(
-      `${againBase}/api/mcp`,
-    )
+    expect(z.object({directory: z.string()}).parse(await call(againBase, 'seer', 'seen')).directory).toBe(root)
   })
 
   it('an engine with no plugin offers its built-in conciv and report skills and a skill added to the project conciv/skills folder', async () => {
@@ -7653,7 +7695,7 @@ export default {
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method, operate: method},
   events: {},
 }
 
@@ -7747,6 +7789,11 @@ export default {
         await ctx.permission.reply({sessionId, requestId, decision})
         return {}
       },
+      operate: async (input, call) =>
+        page.operate(input, {signal: call.signal}).then(
+          (value) => ({ok: true, value}),
+          (error) => ({ok: false, type: error.type, message: error.message, data: error.data ?? null}),
+        ),
       tool: async ({sessionId, name, input, id}, call) => {
         const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
         try {
@@ -7777,7 +7824,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back, and a plugin operation runs on the tab through page.operate: with no tab a changing one fails, a reading one is resent once to the next tab, its value and raised error come back, and a closed tab or a deleted session ends one in flight as gone', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -7999,6 +8046,48 @@ export default {
     expect(await queued).toMatchObject({ok: false, message: expect.stringContaining('the action may already have run')})
     expect(await granted()).toHaveLength(0)
     expect(await offered()).toEqual({names: [], line: undefined})
+    const operate = (input: Record<string, unknown>) => tabs('operate', {sessionId: session, ...input})
+    expect(await operate({name: 'count', input: {n: 1}, reading: false})).toMatchObject({
+      ok: false,
+      type: 'failed',
+      data: {code: 'disconnected'},
+    })
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_o'})).toEqual({attached: true})
+    const counting = operate({name: 'count', input: {n: 1}, reading: true})
+    const onO = await next('conn_o')
+    expect(onO.command.action).toEqual({type: 'operation', name: 'count', input: {n: 1}})
+    expect(await tabs('close', {connectionId: 'conn_o'})).toEqual({closed: true})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_p'})).toEqual({attached: true})
+    const resentOnP = await next('conn_p')
+    expect(resentOnP.command.action).toEqual({type: 'operation', name: 'count', input: {n: 1}})
+    expect(await tabs('close', {connectionId: 'conn_p'})).toEqual({closed: true})
+    expect(await counting).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_s'})).toEqual({attached: true})
+    const bumping = operate({name: 'bump', input: {by: 2}, reading: false})
+    const onBump = await next('conn_s')
+    await reply('conn_s', onBump.requestId, succeeded({count: 3}))
+    expect(await bumping).toEqual({ok: true, value: {count: 3}})
+    const raising = operate({name: 'bump', input: {by: -1}, reading: false})
+    const onRaise = await next('conn_s')
+    await reply('conn_s', onRaise.requestId, {
+      type: 'failure',
+      code: 'raised',
+      message: 'negative',
+      raised: {code: 'NEGATIVE', message: 'negative'},
+    })
+    expect(await raising).toMatchObject({
+      ok: false,
+      type: 'failed',
+      data: {code: 'raised', raised: {code: 'NEGATIVE', message: 'negative'}},
+    })
+    const denying = operate({name: 'bump', input: {by: 0}, reading: false})
+    const onDeny = await next('conn_s')
+    await reply('conn_s', onDeny.requestId, {type: 'failure', code: 'plugin.denied', message: 'not for this plugin'})
+    expect(await denying).toMatchObject({ok: false, type: 'failed', data: {code: 'plugin.denied'}})
+    const orphaned = operate({name: 'bump', input: {by: 1}, reading: false})
+    await next('conn_s')
+    expect(await tabs('close', {connectionId: 'conn_s'})).toEqual({closed: true})
+    expect(await orphaned).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_d'})).toEqual({attached: true})
     const afterChange = ask({type: 'route'})
     const firstOnD = await next('conn_d')
@@ -8234,8 +8323,12 @@ export default {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     await (await sseTurn(base, session, 'before-delete', 'remember the form')).text()
     expect((await rpc.chat.hydrate({sessionId: session})).messages).not.toEqual([])
+    const deleting = operate({name: 'bump', input: {by: 1}, reading: false})
+    const onDelete = await next('conn_e')
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
+    expect(await deleting).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
+    await tabs('cancels', {requestId: onDelete.requestId})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
       error: `session "${session}" does not exist`,

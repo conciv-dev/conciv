@@ -1,12 +1,12 @@
 import {rmSync} from 'node:fs'
 import {describe, expect, it, onTestFinished} from 'vitest'
-import {quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
+import {drizzleChatStores, quickJSThreadDriver, toolApprovalId} from '@conciv/ai/server'
 import {fakeText} from '@conciv/ai/testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineHarness} from '@conciv/harness'
-import {readApprovalAsk, approvalRequestedEvent} from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
-import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import {readApprovalAsk, approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {Effect, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {z} from 'zod'
 import {defineWebSocketHelper} from 'hono/ws'
@@ -93,11 +93,12 @@ function chatPlane(db: ConcivDb, root: string, overrides: Partial<Parameters<typ
       publish: () => undefined,
       onRunEnd: async () => undefined,
     },
-    toolNames: new Set(),
+    toolNames: async () => new Set(),
     capabilities: async () => [],
     attachmentExpanders: {},
     prompt: async (event) => event,
     promptHooked: async () => false,
+    context: async (_name, request) => request,
     pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
     log: () => undefined,
     driver,
@@ -268,7 +269,8 @@ describe('plugin tools in code mode', () => {
 
     const {root, db} = openDatabase()
     const chat = await chatPlane(db, root, {capabilities: async () => capabilities()})
-    const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), () => undefined)
+    const published: ChatEvent[] = []
+    const runner = await chat.codeRunner(SessionId.parse('conciv_plugin'), (chunk) => published.push(chunk))
     expect(runner?.code?.capabilities.map((capability) => capability.name)).toEqual([
       'unit_taken',
       'unit_shout',
@@ -317,6 +319,20 @@ describe('plugin tools in code mode', () => {
       logs: [],
       files: snapFiles,
     })
+    const snapCall = published.find(
+      (chunk) => chunk.type === ChatEventType.TOOL_CALL_START && chunk.toolCallName === 'unit_snap',
+    )
+    const snapResult = published.find(
+      (chunk) =>
+        chunk.type === ChatEventType.TOOL_CALL_RESULT &&
+        snapCall?.type === ChatEventType.TOOL_CALL_START &&
+        chunk.toolCallId === snapCall.toolCallId,
+    )
+    const snapContent = snapResult?.type === ChatEventType.TOOL_CALL_RESULT ? snapResult.content : null
+    expect(typeof snapContent === 'string' ? JSON.parse(snapContent) : snapContent).toEqual([
+      {type: 'text', content: 'untrusted page data'},
+      ...snapFiles,
+    ])
     await expect(
       runner?.code?.run(
         'await external_unit_snap({}); await external_unit_shout({text: "a"}); return "done"',
@@ -418,6 +434,55 @@ describe('plugin tools in code mode', () => {
     await expect(
       runner?.code?.run('return await external_bulk_zz_quasar({region: "north"})', 'parent'),
     ).resolves.toMatchObject({result: 'bright north'})
+  })
+
+  it('a nested call in a resent unfinished message stays shown but out of what the model reads next', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_nested_history')
+    const chat = await chatPlane(db, root)
+    const read: ModelMessage[][] = []
+    model.setResponses([
+      ({request}) => {
+        read.push(request.messages)
+        return {text: 'read'}
+      },
+    ])
+    const response = await chat.routes(defineWebSocketHelper(async () => undefined)).request(CHAT_SSE_PATH, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: sessionId,
+        runId: 'run-resent',
+        tools: [],
+        context: [],
+        messages: [
+          {
+            id: 'resent-assistant',
+            role: 'assistant',
+            metadata: {tanstack: {toolCallMetadata: {nested_resent: {parentToolCallId: 'call_resent'}}}},
+            toolCalls: [
+              {id: 'call_resent', type: 'function', function: {name: 'execute_typescript', arguments: '{}'}},
+              {id: 'nested_resent', type: 'function', function: {name: 'unit_snap', arguments: '{}'}},
+            ],
+          },
+          {role: 'tool', id: 'tool-nested_resent', toolCallId: 'nested_resent', content: '"page data"'},
+          {role: 'tool', id: 'tool-call_resent', toolCallId: 'call_resent', content: '"snapped"'},
+          {id: 'resent-user', role: 'user', content: 'and again'},
+        ],
+      }),
+    })
+    await response.text()
+    expect(
+      read[0]?.flatMap((message) => [
+        ...(message.toolCalls ?? []).map((call) => call.function.name),
+        ...(message.role === 'tool' ? [JSON.stringify(message.content)] : []),
+      ]),
+    ).toEqual(['execute_typescript', JSON.stringify('"snapped"')])
+    expect(
+      (await chat.history(sessionId)).flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'tool-call' ? [part.name] : [])),
+      ),
+    ).toEqual(['execute_typescript', 'unit_snap'])
   })
 })
 
@@ -844,5 +909,67 @@ describe('stopping a run', () => {
     expect(await chat.stop(sessionId)).toEqual({ok: true, stopped: false})
     await chat.settled(sessionId)
     expect(chat.driving(sessionId)).toBe(false)
+  })
+})
+
+describe('importing the native transcript', () => {
+  it('a message recorded while the import waits on the tool names survives the import', async () => {
+    const {root, db} = openDatabase()
+    const sessionId = SessionId.parse('conciv_importing')
+    const transcript: ChatMessage[] = [
+      {id: 'native-1', role: 'assistant', parts: [{type: 'text', content: 'from the cli'}]},
+    ]
+    const missing = async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}) as const
+    const native = defineHarness({
+      id: 'native',
+      binName: 'true',
+      chatConfig: () => ({adapter: fakeText()}),
+      history: {
+        messages: async () => transcript,
+        tail: async () => ({messages: transcript, earlier: null}),
+        observe: () => ({revision: missing, read: missing, close: () => undefined}),
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
+      },
+      resume: {command: ({nativeId}) => ({bin: 'native', args: [nativeId]})},
+      capabilities: {...harness.capabilities, transcriptHistory: true},
+    })
+    const asked = Promise.withResolvers<void>()
+    const named = Promise.withResolvers<ReadonlySet<string>>()
+    const toolNames = [named.promise]
+    const chat = await chatPlane(db, root, {
+      harnessFor: () => native,
+      sessions: {
+        row: () => ({
+          model: null,
+          effort: null,
+          nativeId: HarnessSessionId.parse('native-session'),
+          cwd: '/workspace',
+          harnessKind: 'native',
+          deletedAt: null,
+        }),
+        ensure: async () => undefined,
+        recordNativeId: async () => undefined,
+        recordUsage: async () => undefined,
+        recordContextTokens: async () => undefined,
+        recordActivity: () => {},
+        onRunStart: async () => undefined,
+        publish: () => undefined,
+        onRunEnd: async () => undefined,
+      },
+      toolNames: async () => {
+        asked.resolve()
+        return toolNames.shift() ?? new Set()
+      },
+    })
+
+    const hydrating = chat.hydrate(sessionId)
+    await asked.promise
+    const writer = drizzleChatStores(db, {readHarness: () => 'native', saved: () => undefined})
+    await writer.messages.saveThread(sessionId, [{id: 'recorded', role: 'user', content: 'recorded meanwhile'}])
+    named.resolve(new Set())
+
+    const {messages} = await hydrating
+    expect(messages.map((message) => message.id)).toEqual(['recorded', 'native-1'])
   })
 })

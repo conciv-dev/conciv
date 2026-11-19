@@ -9,6 +9,7 @@ export default defineConfig({
       entry: {
         index: fileURLToPath(new URL('src/index.tsx', import.meta.url)),
         tools: fileURLToPath(new URL('src/tools.tsx', import.meta.url)),
+        'draft-storage': fileURLToPath(new URL('src/draft-storage.ts', import.meta.url)),
         'theme/fonts': fileURLToPath(new URL('src/theme/fonts.ts', import.meta.url)),
         'theme/code-theme': fileURLToPath(new URL('src/theme/code-theme.ts', import.meta.url)),
       },

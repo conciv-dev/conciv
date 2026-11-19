@@ -7,7 +7,6 @@ import tailwindcss from '@tailwindcss/vite'
 import conciv from '@conciv/it/plugin/vite'
 import recorder from '@conciv/extension-recorder'
 import tanstack from '@conciv/extension-tanstack'
-import terminal from '@conciv/extension-terminal'
 import whiteboard from '@conciv/extension-whiteboard'
 
 const testRunnerPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-test-runner/package.json')))
@@ -26,7 +25,7 @@ export default defineConfig(async () => {
       viteReact(),
       conciv({
         widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: [tanstack(), terminal(), whiteboard(), recorder()],
+        extensions: [tanstack(), whiteboard(), recorder()],
         plugins: [testRunnerPlugin],
       }),
     ],

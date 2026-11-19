@@ -8,7 +8,7 @@ Site helpers: fumadocs source loader, SEO and JSON-LD, OG image rendering, brand
 
 - `source`, `markdownPathToSlugs`, `slugsToMarkdownPath`, `getLLMText` (`source.ts`): fumadocs loader over `content/docs`
 - `getTrySession` (GET), `dismissTry` (POST) (`try-session.functions.ts`): `createServerFn` handlers for the try-it token and dismissal cookies
-- `mountLiveWidget({widgetOpen, router})` (`mount-live-widget.ts`): loads `@conciv/embed`, the terminal and try-it extensions, mounts the widget, and keeps the panel in step with the root `?try` param
+- `mountLiveWidget({widgetOpen, router})` (`mount-live-widget.ts`): loads `@conciv/embed` and composes the try-it plugin with its token, mounts the widget, and keeps the panel in step with the root `?try` param
 - `panelCommands` (`panel-commands.ts`): the site's event-bus client for the widget panel's `open`/`close`/`toggle` commands
 - `shouldAutoOpen`, `shouldDismissOnClose`, `tryButtonLabel` (`try-state.ts`)
 - `pairResponse(token, origin)` (`pair-text.ts`): markdown instructions for `npx @conciv/try --token <token>`

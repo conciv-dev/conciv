@@ -1,4 +1,4 @@
-import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {AppError} from '@conciv/contract'
 
 export type DiagnosticsRing = {
@@ -6,7 +6,7 @@ export type DiagnosticsRing = {
   list: () => AppError[]
 }
 
-type BuildErrorDiagnostic = Extract<BundlerDiagnostic, {kind: 'build-error'}>
+type BuildErrorDiagnostic = Extract<Bundler.Diagnostic, {kind: 'build-error'}>
 
 const DEFAULT_CAPACITY = 50
 

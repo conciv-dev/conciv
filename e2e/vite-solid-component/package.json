@@ -10,7 +10,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/solid": "workspace:*",
     "solid-js": "catalog:"

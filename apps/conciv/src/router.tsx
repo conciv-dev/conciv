@@ -1,4 +1,6 @@
 import {createRouter} from '@tanstack/solid-router'
+import {once, uniq} from 'es-toolkit'
+import {z} from 'zod'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient, setupEngineReachability} from '@conciv/client'
 import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
@@ -6,13 +8,18 @@ import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
 import {routeTree} from './routeTree.gen'
+import {QuickSearchSchema, quickPaneIds} from './lib/quick-search.js'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
-import {becameTrusted, type EngineLogin} from './app/engine-login.js'
+import {becameTrusted, engineLock, engineLocked, type EngineLogin} from './app/engine-login.js'
+import {createBrowserDraftStore, type DraftStore} from './runtime/persistence/drafts.js'
+import {reserveComposedPlugins, type ComposedPlugin} from './runtime/plugin/root.js'
+
+const PaneParamsSchema = z.object({sessionId: z.string()})
 
 export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
@@ -29,9 +36,9 @@ export type ConcivRouterContext = {
   extensions: AnyExtension[]
   instances: ExtensionInstance[]
   connected: () => boolean
-  connectMode: boolean
+  plugins: readonly ComposedPlugin[]
+  servers: boolean
   bindApiBase?: (apiBase: string) => void
-  disconnect?: () => void
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
@@ -52,9 +59,9 @@ export type ConcivRouterConfig = {
   settings: ConcivSettings
   extensions?: AnyExtension[]
   connected?: () => boolean
-  connectMode?: boolean
+  plugins?: readonly ComposedPlugin[]
+  servers?: boolean
   bindApiBase?: (apiBase: string) => void
-  disconnect?: () => void
   grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number
@@ -73,6 +80,15 @@ function disposeExtensionInstances(instances: ExtensionInstance[]): void {
   }
 }
 
+function openDraftStore(writable: () => boolean): DraftStore | null {
+  try {
+    return createBrowserDraftStore({writable})
+  } catch (error) {
+    console.error('[conciv] drafts stay engine-only', error)
+    return null
+  }
+}
+
 function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void): () => void {
   let disposed = false
   return function disposeInstances(): void {
@@ -83,16 +99,28 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
   }
 }
 
-function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
+type TrustHandlers = {rerunRefused: () => void; trusted: () => void; revoked: () => void}
+
+type EngineWatch = {stop: () => void; locked: () => boolean}
+
+function watchEngine(apiBase: string, handlers: TrustHandlers): EngineWatch {
   const stopReachability = setupEngineReachability(apiBase)
   const connection = browserRpcConnection(apiBase)
+  if (connection.trust.isTrusted()) handlers.trusted()
+  if (engineLock(connection.trust.status()) === 'revoked') handlers.revoked()
   const stopTrust = connection.trust.subscribe((status, previous) => {
-    if (becameTrusted(status, previous)) rerunRefused()
+    if (engineLock(status) === 'revoked') handlers.revoked()
+    if (!becameTrusted(status, previous)) return
+    handlers.rerunRefused()
+    handlers.trusted()
   })
-  return () => {
-    stopReachability()
-    stopTrust()
-    connection.release()
+  return {
+    stop: () => {
+      stopReachability()
+      stopTrust()
+      connection.release()
+    },
+    locked: () => engineLocked(connection.trust.status()),
   }
 }
 
@@ -111,19 +139,19 @@ function createPluginPanels(): ConcivRouterContext['pluginPanels'] {
   }
 }
 
-function wireEngine(apiBase: () => string, rerunRefused: () => void): {dispose: () => void} {
+function wireEngine(apiBase: () => string, handlers: TrustHandlers): {dispose: () => void; locked: () => boolean} {
   return createRoot((dispose) => {
     let wiredApiBase = apiBase()
-    let stopWatching = watchEngine(wiredApiBase, rerunRefused)
+    let watching = watchEngine(wiredApiBase, handlers)
     createEffect(() => {
       const nextApiBase = apiBase()
       if (nextApiBase === wiredApiBase) return
-      stopWatching()
+      watching.stop()
       wiredApiBase = nextApiBase
-      stopWatching = watchEngine(nextApiBase, rerunRefused)
+      watching = watchEngine(nextApiBase, handlers)
     })
-    onCleanup(() => stopWatching())
-    return {dispose}
+    onCleanup(() => watching.stop())
+    return {dispose, locked: () => watching.locked()}
   })
 }
 
@@ -131,20 +159,26 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient({
     defaultOptions: {queries: {staleTime: Infinity, refetchOnWindowFocus: 'always'}},
   })
-  const data = makeAppData(config.rpc, queryClient)
+  const lockedOut = (): boolean => engine.locked()
+  const data = makeAppData(
+    config.rpc,
+    queryClient,
+    openDraftStore(() => !lockedOut()),
+    lockedOut,
+  )
   const extensions = config.extensions ?? []
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
-  const engine = wireEngine(apiBase, () => {
-    void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
+  const disposeInstances = makeGuardedDisposer(instances, () => {
+    engine.dispose()
+    data.dispose()
   })
-  const disposeInstances = makeGuardedDisposer(instances, engine.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     return <>{props.children}</>
   }
-  return createRouter({
+  const router = createRouter({
     routeTree,
     history: config.history,
     scrollRestoration: () => false,
@@ -162,9 +196,9 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       extensions,
       instances,
       connected,
-      connectMode: config.connectMode ?? false,
+      plugins: reserveComposedPlugins(config.plugins ?? []),
+      servers: config.servers ?? false,
       bindApiBase: config.bindApiBase,
-      disconnect: config.disconnect,
       grabProvider: config.grabProvider,
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
@@ -175,6 +209,26 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       pluginPanels: createPluginPanels(),
     },
   })
+  const shownSessions = (): string[] =>
+    uniq(
+      router.matchRoutes(router.latestLocation).flatMap((match) => {
+        const shown = match.routeId === '/quick' ? quickPaneIds(QuickSearchSchema.parse(match.search)) : []
+        const opened = PaneParamsSchema.safeParse(match.params).data?.sessionId
+        return opened === undefined ? shown : [opened, ...shown]
+      }),
+    )
+  const engine = wireEngine(apiBase, {
+    rerunRefused: () => {
+      void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
+    },
+    trusted: once(() => {
+      void data.forgetGoneDrafts(shownSessions())
+    }),
+    revoked: () => {
+      void data.forgetLocalDrafts()
+    },
+  })
+  return router
 }
 
 export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {

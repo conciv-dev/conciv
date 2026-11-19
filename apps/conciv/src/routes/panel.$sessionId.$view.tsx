@@ -2,12 +2,11 @@ import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstac
 import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
+import {useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {PluginBoundary} from '../runtime/plugin/plugin-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../pane/pane-grab.js'
-import {appendDraft} from '../pane/draft-storage.js'
 import {useStartSession} from '../app/start-session.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
 import {isPluginView} from '../runtime/plugin/panel-keys.js'
@@ -30,7 +29,6 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
 
 function PanelView(): JSX.Element {
   const params = Route.useParams()
-  const appData = useAppData()
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
@@ -67,11 +65,6 @@ function PanelView(): JSX.Element {
           <HostApiProvider
             sessionId={() => params().sessionId}
             grab={makePaneGrabApi(pane.grabStaging, pane.grabProvider)}
-            insert={(text) =>
-              void appendDraft(appData, params().sessionId, text).catch((error: unknown) => {
-                console.error('[conciv] could not insert into the draft', error)
-              })
-            }
             attach={(file) => pane.attachments.enqueue(file)}
             newSession={newSession}
             viewLock={pane.setLockedFor(params().view)}

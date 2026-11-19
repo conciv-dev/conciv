@@ -45,6 +45,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
   type HeldBrowserRpcLink,
+  type RpcClient,
   type SettingsStore,
   type TrustStatus,
 } from '@conciv/contract'
@@ -65,7 +66,7 @@ import {
   withHomeDb,
   type ConcivDb,
 } from '@conciv/db'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {defineTool, defineExtension, makeExtRpcClient, type AnyExtension, type ExtensionScope} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, listHarnesses, resolveHarnessModels} from '@conciv/harness'
@@ -78,7 +79,7 @@ import {
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {CompactionMetadataSchema, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
@@ -90,7 +91,6 @@ import {
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {ConcivConfigSchema} from '@conciv/protocol/config-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {and, eq, isNull, sql} from 'drizzle-orm'
 import {
   Agent,
@@ -122,7 +122,7 @@ import {
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import {isEqual, once as onceOnly} from 'es-toolkit'
+import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
@@ -165,7 +165,7 @@ import {
   requestPrintedCode,
 } from '@conciv/harness-testkit'
 import {os} from '@orpc/server'
-import {createORPCClient} from '@orpc/client'
+import {createORPCClient, ORPCError} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
@@ -178,7 +178,6 @@ import {
   currentRow,
   ensureRow,
   isDeletedRow,
-  nativeIdFor,
   recordNativeId,
   rowById,
   setMetadata,
@@ -194,7 +193,6 @@ import {
   provideConfiguredPolicies,
   provideExtensionSlugs,
   provideGlobalRoots,
-  provideHarnessSource,
 } from '../src/runtime/plugin-sources.js'
 import {
   answerPermission,
@@ -765,7 +763,7 @@ describe('chat plane', () => {
     expect(runRows()).toEqual(swept)
   })
 
-  it('a push socket that opens while a run is going is told about that run', async () => {
+  it('a chat.events stream that opens on the rpc socket while a run is going is told about that run', async () => {
     const cli = fakeCli('streaming')
     const engine = await bootEngine(tempDir('conciv-core-unit-'), {harness: cliHarness(cli)})
     onTestFinished(async () => {
@@ -779,22 +777,122 @@ describe('chat plane', () => {
       body: turnBody(id, 'late-push-run', 'keep talking'),
     })
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
-    const socket = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${id}`)
-    onTestFinished(() => socket.close())
-    const announced = new Promise<string | null>((resolve) => {
-      socket.addEventListener('message', (event) => {
-        const frame = PushFrameSchema.safeParse(JSON.parse(String(event.data)))
-        if (!frame.success || frame.data.channel !== 'chat') return
-        const run = sessionRunEvent.parse(frame.data.chunk)
-        if (run !== null) resolve(run.runId)
-      })
-      socket.addEventListener('close', () => resolve(null))
-    })
-    socket.addEventListener('open', () =>
-      socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
+    const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`)
+    websocket.addEventListener('open', () =>
+      websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
     )
-    expect(await announced).toBe('late-push-run')
+    const abort = new AbortController()
+    onTestFinished(() => {
+      abort.abort()
+      websocket.close()
+    })
+    const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
+    const events = await rpc.chat.events({sessionId: id}, {signal: abort.signal})
+    const announced = async (): Promise<string | null> => {
+      for await (const chunk of events) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run !== null) return run.runId
+      }
+      return null
+    }
+    expect(await announced()).toBe('late-push-run')
   }, 10_000)
+
+  it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const db = openDatabase(root)
+    const primitives = makeSessionPrimitives({db, root, storeCapture: () => Promise.resolve()})
+    const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
+    const chat = await plane(cliHarness(fakeCli()), root, {
+      db,
+      sessions: {
+        ...sessionPort(),
+        onRunStart: async () => {
+          starting.entered.resolve()
+          await starting.held.promise
+        },
+        publish: (id, chunk) => primitives.stream.publish(id, chunk),
+      },
+    })
+    const runtime = makeCoreRuntime({
+      primitives,
+      plane: chat,
+      db,
+      model: () => null,
+      staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
+      interruptIdle: async () => false,
+      symbolicate: async () => null,
+    })
+    const id = sessionId('registering-as-a-run-starts')
+    const turn = startTurn(chat, id, 'racing-run', 'hi')
+    await starting.entered.promise
+    const abort = new AbortController()
+    onTestFinished(() => abort.abort())
+    const announced: string[] = []
+    const caughtUp = Promise.withResolvers<void>()
+    async function collect(): Promise<void> {
+      for await (const chunk of runtime.forSession(id).stream.events(abort.signal)) {
+        const run = sessionRunEvent.parse(chunk)
+        if (run === null) continue
+        announced.push(run.runId)
+        caughtUp.resolve()
+      }
+    }
+    const collecting = collect()
+
+    await caughtUp.promise
+    expect(announced).toEqual(['racing-run'])
+    starting.held.resolve()
+    expect(await readUntil(await turn, 'end')).toContain(ChatEventType.RUN_FINISHED)
+    abort.abort()
+    await collecting
+    expect(announced).toEqual(['racing-run'])
+  }, 10_000)
+
+  it('a page query goes to the browser tab focused last, each tab learning its id from the ready its stream opens with', async () => {
+    const reader = defineExtension({
+      name: 'focus-probe',
+      tools: [
+        defineTool({
+          name: 'focus_probe_read',
+          description: 'Read which tab answered.',
+          inputSchema: z.object({}),
+          outputSchema: z.object({tab: z.string()}),
+          meta: {summary: 'read which tab answered'},
+        }).client(),
+      ],
+    })
+    const engine = await bootEngine(tempDir('conciv-core-unit-'), {extensions: [reader]})
+    const abort = new AbortController()
+    onTestFinished(async () => {
+      abort.abort()
+      await engine.stop()
+    })
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const {sessionId: id} = await makeRpcClient(base).sessions.create(undefined)
+    const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: id}})
+    const openTab = async (focused: boolean) => {
+      const stream = await rpc.page.queries({focus: {focused, visible: true}}, {signal: abort.signal})
+      const first = await stream.next()
+      if (first.done || first.value.kind !== 'ready') throw new Error('a page query stream opened without its ready')
+      return {stream, browserTab: first.value.browserTab}
+    }
+    const answeredBy = async (tab: Awaited<ReturnType<typeof openTab>>, name: string): Promise<void> => {
+      const next = await tab.stream.next()
+      if (next.done || next.value.kind !== 'query') throw new Error(`tab ${name} got no page query`)
+      await rpc.page.reply({requestId: next.value.requestId, outcome: {ok: true, result: {tab: name}}})
+    }
+    const first = await openTab(true)
+    const second = await openTab(false)
+    expect(first.browserTab).not.toBe(second.browserTab)
+    const toFirst = rpc.registry.call({name: 'focus_probe_read', input: {}})
+    await answeredBy(first, 'first')
+    expect(await toFirst).toEqual({tab: 'first'})
+    expect(await rpc.page.focus({browserTab: second.browserTab, focused: true, visible: true})).toEqual({ok: true})
+    const toSecond = rpc.registry.call({name: 'focus_probe_read', input: {}})
+    await answeredBy(second, 'second')
+    expect(await toSecond).toEqual({tab: 'second'})
+  }, 15_000)
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
 
@@ -904,11 +1002,12 @@ describe('chat plane', () => {
       harnessFor: () => harness,
       systemPrompt: {},
       sessions: sessionPort(),
-      toolNames: new Set(),
+      toolNames: async () => new Set(),
       capabilities: async () => [],
       attachmentExpanders: {},
       prompt: async (event) => event,
       promptHooked: async () => false,
+      context: async (_name, request) => request,
       pluginInstructions: async () => ({initial: '', update: '', told: async () => undefined}),
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
@@ -1486,15 +1585,15 @@ describe('page bus and the session scope', () => {
 
   function queueingTab(
     bus: ReturnType<typeof makePageBus>,
-    focus?: () => {focusedAt: number; visible: boolean},
+    focus?: {focusedAt: number; visible: boolean},
   ): QueueFrame[] {
     return arrivingTab(bus, focus).queued
   }
 
   function arrivingTab(
     bus: ReturnType<typeof makePageBus>,
-    focus?: () => {focusedAt: number; visible: boolean},
-  ): {queued: QueueFrame[]; frame: (index: number) => Promise<QueueFrame>} {
+    focus?: {focusedAt: number; visible: boolean},
+  ): {queued: QueueFrame[]; frame: (index: number) => Promise<QueueFrame>; browserTab: string} {
     const queued: QueueFrame[] = []
     const arrivals = new Map<number, PromiseWithResolvers<QueueFrame>>()
     const arrival = (index: number): PromiseWithResolvers<QueueFrame> => {
@@ -1504,7 +1603,7 @@ describe('page bus and the session scope', () => {
       arrivals.set(index, made)
       return made
     }
-    bus.subscribe(
+    const {browserTab} = bus.subscribe(
       SESSION_A,
       (frame) => {
         const parsed = QueueFrameSchema.safeParse(frame)
@@ -1515,7 +1614,7 @@ describe('page bus and the session scope', () => {
       },
       focus,
     )
-    return {queued, frame: (index) => arrival(index).promise}
+    return {queued, frame: (index) => arrival(index).promise, browserTab}
   }
 
   function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
@@ -2274,14 +2373,14 @@ describe('page bus and the session scope', () => {
 
   it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
     const bus = makePageBus(2000)
-    const focusedAt = {first: 2, second: 1}
-    const first = queueingTab(bus, () => ({focusedAt: focusedAt.first, visible: true}))
-    const second = queueingTab(bus, () => ({focusedAt: focusedAt.second, visible: true}))
+    const first = queueingTab(bus, {focusedAt: 2, visible: true})
+    const secondTab = arrivingTab(bus, {focusedAt: 1, visible: true})
+    const second = secondTab.queued
     const queues = pageQueues(bus)
     const finished = trackFinished(queues)
     const check = [{tool: 'page_check', selector: '#agree'}]
     const earlier = await queues.start(SESSION_A, queueStart(check))
-    focusedAt.second = 3
+    bus.focus(SESSION_A, secondTab.browserTab, {focused: true, visible: true})
     const later = queues.start(SESSION_A, queueStart(check))
     expect(second).toHaveLength(0)
     expect(bus.resolve(SESSION_A, first[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
@@ -2293,7 +2392,7 @@ describe('page bus and the session scope', () => {
   it('a queue waiting behind another plays on the tab that serves the session when its turn comes, though the tab it was queued for closed', async () => {
     const bus = makePageBus(2000)
     const onFirst: z.infer<typeof QueueFrameSchema>[] = []
-    const closeFirst = bus.subscribe(SESSION_A, (frame) => {
+    const {unsubscribe: closeFirst} = bus.subscribe(SESSION_A, (frame) => {
       const parsed = QueueFrameSchema.safeParse(frame)
       if (!parsed.success) return
       onFirst.push(parsed.data)
@@ -2333,7 +2432,7 @@ describe('page bus and the session scope', () => {
   it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
-    const unsubscribe = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const {unsubscribe} = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A})
     bus.subscribe(SESSION_A, () => {})
     unsubscribe()
@@ -2356,7 +2455,7 @@ describe('page bus and the session scope', () => {
 
   it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
     const bus = makePageBus(2000)
-    const lost = bus.subscribe(SESSION_A, () => {})
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
     const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     await setImmediate()
@@ -2368,11 +2467,7 @@ describe('page bus and the session scope', () => {
   it('a reading call that loses its browser tab goes at once to the other tab of the session, focused last', async () => {
     const bus = makePageBus(2000)
     const other = replyingTab(bus, {href: '/other'})
-    const lost = bus.subscribe(
-      SESSION_A,
-      () => {},
-      () => ({focusedAt: 1, visible: true}),
-    )
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {}, {focusedAt: 1, visible: true})
     const answered = bus.ask(SESSION_A, {name: 'fixture_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     expect(await answered).toEqual({result: {href: '/other'}})
@@ -2381,7 +2476,7 @@ describe('page bus and the session scope', () => {
 
   it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
     const bus = makePageBus(100)
-    const lost = bus.subscribe(SESSION_A, () => {})
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
     const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
     lost()
     await expect(answered).rejects.toMatchObject({
@@ -2402,7 +2497,7 @@ describe('page bus and the session scope', () => {
 
   it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
     const bus = makePageBus(2000)
-    const lost = bus.subscribe(SESSION_A, () => {})
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A}, {mutating: true})
     lost()
     await expect(answered).rejects.toMatchObject({
@@ -2418,7 +2513,7 @@ describe('page bus and the session scope', () => {
   it('a call its caller aborts rejects at once, settles nothing later and is never sent again', async () => {
     const bus = makePageBus(60_000)
     const frames: unknown[] = []
-    const lost = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const {unsubscribe: lost} = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const route = {name: 'fixture_read', input: {}, agentId: SESSION_A}
     const waiting = new AbortController()
     const answered = bus.ask(SESSION_A, route, {mutating: false}, waiting.signal)
@@ -2480,7 +2575,7 @@ describe('page bus and the session scope', () => {
         interruptIdle: async () => false,
         symbolicate: async () => null,
       })
-      const unsubscribe = primitives.page.bus.subscribe(SESSION_A, (frame) => {
+      const {unsubscribe} = primitives.page.bus.subscribe(SESSION_A, (frame) => {
         const requestId = readRequestId(frame)
         if (requestId === null) return
         queueMicrotask(() => primitives.page.bus.resolve(SESSION_A, requestId, {ok: true, result: {clicked: 'a'}}))
@@ -2621,7 +2716,7 @@ describe('engine login', () => {
         path: route.path.replaceAll(/:[^/]+|\*/g, 'x'),
       }))
       expect(routes.map((route) => route.path)).toEqual(
-        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', '/push-ws']),
+        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', RPC_WS_PATH]),
       )
       const versions = new Set<string | null>()
       const sent = async (url: string, init: RequestInit = {}) => {
@@ -2660,24 +2755,25 @@ describe('engine login', () => {
       const client = makeExtRpcClient<typeof versionRouter>(`${origin}/t/${made.agentToken}`, 'probe')
       expect(await client.clientVersion()).toBe(coreManifest.version)
       const {sessionId} = await makeRpcClient(`${origin}/t/${made.agentToken}`).sessions.create(undefined)
-      const pushSocket = (frame: string) =>
-        new Promise<string>((resolve) => {
-          const socket = new WebSocket(
-            `${origin.replace('http', 'ws')}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
-          )
-          socket.addEventListener('open', () => {
-            for (const outgoing of [frame, JSON.stringify({channel: 'page-serving', serving: true})])
-              socket.send(outgoing)
-          })
-          socket.addEventListener('message', (event) => {
-            resolve(String(event.data))
-            socket.close()
-          })
-          socket.addEventListener('close', (event) => resolve(`closed ${event.code}`))
-        })
+      const refusedStreams = async (frame: string) => {
+        const websocket = new WebSocket(`${origin.replace('http', 'ws')}${RPC_WS_PATH}`)
+        websocket.addEventListener('open', () => websocket.send(frame))
+        const headers = {[CONCIV_SESSION_HEADER]: sessionId}
+        const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket, headers}))
+        const refusal = (error: unknown) => (error instanceof ORPCError ? error.code : 'not served')
+        const outcomes = await Promise.all([
+          rpc.chat.events({sessionId}).then(() => 'served', refusal),
+          rpc.page.queries({focus: {focused: true, visible: true}}).then(() => 'served', refusal),
+        ])
+        websocket.close()
+        return outcomes
+      }
       const untrusted = JSON.stringify({type: SOCKET_TRUST_FRAME, token: 'not-a-token'})
-      const closed = await Promise.all([pushSocket(untrusted), pushSocket('{"channel":"ready"}')])
-      expect(closed).toEqual(['closed 1008', 'closed 1008'])
+      const streamRefusals = await Promise.all([refusedStreams(untrusted), refusedStreams('{"channel":"ready"}')])
+      expect(streamRefusals).toEqual([
+        ['UNAUTHORIZED', 'UNAUTHORIZED'],
+        ['not served', 'not served'],
+      ])
     } finally {
       await stop()
     }
@@ -3226,7 +3322,13 @@ describe('plugin host bus', () => {
     const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
     const key = sessionKey(served.made)
     const {sessionId} = await rpc.sessions.create(undefined)
-    await rpc.drafts.set({sessionId, text: 'an unsent draft', selectionStart: 0, selectionEnd: 0})
+    await rpc.drafts.set({
+      sessionId,
+      text: 'an unsent draft',
+      selectionStart: 0,
+      selectionEnd: 0,
+      updatedAt: Date.now(),
+    })
     const readBack = () =>
       Promise.all([
         key.run((sessions) =>
@@ -3253,6 +3355,73 @@ describe('plugin host bus', () => {
     const afterDelete = await readBack()
     expect(afterDelete).toEqual([{gone: expect.objectContaining({_tag: 'Session.NotFoundError', sessionId})}, null])
     expect(heardAt).toEqual([afterDelete])
+  })
+
+  test('an engine restart sweeps the sessions that never ran and hold nothing, keeps one that holds a typed draft, and a deleted one stays deleted with its id not taken again', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const first = await serveCore(root, [], {})
+    const firstRpc = makeRpcClient(`${first.origin}/t/${first.made.agentToken}`)
+    const draftFor = (sessionId: SessionId, text: string) => ({
+      sessionId,
+      text,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      updatedAt: Date.now(),
+    })
+    const made = await Promise.all([
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+      firstRpc.sessions.create(undefined),
+    ])
+      .then(async ([deleted, typed, cleared, empty]) => {
+        await firstRpc.sessions.delete({sessionId: deleted.sessionId})
+        await firstRpc.drafts.set(draftFor(typed.sessionId, 'typed before the restart'))
+        await firstRpc.drafts.set(draftFor(cleared.sessionId, ''))
+        return {
+          deleted: deleted.sessionId,
+          typed: typed.sessionId,
+          cleared: cleared.sessionId,
+          empty: empty.sessionId,
+        }
+      })
+      .finally(() => first.stop())
+    const restarted = await serveCore(root, [], {})
+    onTestFinished(() => restarted.stop())
+    const rpc = makeRpcClient(`${restarted.origin}/t/${restarted.made.agentToken}`)
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({id: made.deleted, hidden: true})
+    await expect(rpc.sessions.resolve({id: made.deleted})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.deleted})).toMatchObject({hidden: true})
+    const refusedSend = await fetch(`${restarted.origin}/t/${restarted.made.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: made.deleted,
+        runId: 'sent-after-the-restart',
+        messages: [{id: 'sent-after-the-restart-user', role: 'user', content: 'sent after the restart'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    const refusedFrames = (await refusedSend.text())
+      .split('\n')
+      .flatMap((line) =>
+        line.startsWith('data: ')
+          ? [
+              z
+                .object({type: z.string(), message: z.string().optional(), code: z.string().optional()})
+                .parse(JSON.parse(line.slice('data: '.length))),
+            ]
+          : [],
+      )
+      .filter((frame) => frame.type === ChatEventType.RUN_ERROR)
+    expect(refusedFrames).toEqual([
+      {type: ChatEventType.RUN_ERROR, message: `session "${made.deleted}" does not exist`, code: SESSION_DELETED_CODE},
+    ])
+    await expect(rpc.sessions.get({sessionId: made.empty})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    await expect(rpc.sessions.get({sessionId: made.cleared})).rejects.toMatchObject({code: 'NOT_FOUND'})
+    expect(await rpc.sessions.get({sessionId: made.typed})).toMatchObject({id: made.typed, hidden: false})
+    expect(await rpc.drafts.get({sessionId: made.typed})).toMatchObject({text: 'typed before the restart'})
   })
 
   test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
@@ -3958,6 +4127,11 @@ describe('session.created on the plugin host bus', () => {
   })
 })
 
+const userTexts = (thread: {messages: ChatMessage[]}) =>
+  thread.messages
+    .filter((message) => message.role === 'user')
+    .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
+
 describe('session prompt hook', () => {
   const NOTE = Buffer.from('a note the user attached').toString('base64')
 
@@ -3995,11 +4169,6 @@ describe('session prompt hook', () => {
     if (started) await made.awaitActivation()
     return {kit, made, asked}
   }
-
-  const userTexts = (thread: {messages: ChatMessage[]}) =>
-    thread.messages
-      .filter((message) => message.role === 'user')
-      .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''))
 
   const noted = (text: string) => ({
     role: 'user',
@@ -4293,6 +4462,269 @@ describe('session prompt hook', () => {
 
     expect((await (await kit.turn(grabbed(unreadable), {session})).done()).errors()).toEqual([])
     expect(asked[2]).toEqual([{type: 'text', content: 'look at this'}, sentDocument(unreadable)])
+  })
+})
+
+describe('session context hook', () => {
+  type ModelRequest = {system: string[]; tools: string[]; lastUser: unknown; options: Record<string, unknown>}
+
+  async function contextKit(plugins: Plugin.Plugin[], modelOptions: Record<string, unknown> = {}) {
+    const requests: ModelRequest[] = []
+    const harness = defineHarness({
+      id: 'context-cli',
+      binName: 'true',
+      chatConfig: () => ({
+        modelOptions,
+        adapter: makeTextAdapter('context-cli', async function* (options) {
+          requests.push({
+            system: [...(options.systemPrompts ?? [])].map(String),
+            tools: (options.tools ?? []).map((tool) => tool.name),
+            lastUser: options.messages.findLast((message) => message.role === 'user')?.content,
+            options: structuredClone({...options.modelOptions}),
+          })
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {...NO_CAPABILITIES, transcriptHistory: false},
+    })
+    const booted: MadeApp[] = []
+    const kit = await createTestkit(harness, async (env) => {
+      const made = await bootMadeApp(env, {plugins, systemPromptText: 'the base prompt'})
+      booted.push(made)
+      return made
+    }).setup()
+    onTestFinished(() => kit.cleanup())
+    const made = booted[0]
+    if (made === undefined) throw new Error('the context kit booted no app')
+    await made.awaitActivation()
+    const sent = () => requests.map((request) => request.system)
+    return {kit, made, requests, sent}
+  }
+
+  test('a context hook sees the system prompt and what it appends reaches the model request, and a hook that edits nothing changes nothing', async () => {
+    const seen: Array<{sessionId: string; agent: string; system: string[]}> = []
+    const adding = {text: ''}
+    const plugin = Plugin.define({
+      id: 'context-rules',
+      async setup(ctx) {
+        await ctx.session.hook('context', (event) => {
+          seen.push({sessionId: event.sessionId, agent: event.agent, system: event.system.map((part) => part.text)})
+          if (adding.text !== '') event.system.push({type: 'text', text: adding.text})
+        })
+      },
+    })
+    const {kit, sent} = await contextKit([plugin])
+
+    const untouched = await kit.session()
+    expect((await (await kit.turn('hello', {session: untouched})).done()).errors()).toEqual([])
+    const system = seen.flatMap((event) => event.system)
+    expect(seen).toEqual([{sessionId: untouched, agent: 'build', system}])
+    expect(system).toContain('the base prompt')
+    expect(sent()).toEqual([system])
+
+    adding.text = 'Always-on rules from the plugin.'
+    const told = await kit.session()
+    expect((await (await kit.turn('hello', {session: told})).done()).errors()).toEqual([])
+    expect(seen[1]).toEqual({sessionId: told, agent: 'build', system})
+    expect(sent()[1]).toEqual([...system, 'Always-on rules from the plugin.'])
+  })
+
+  test('a context hook drops a tool, rewrites a message and sets an option, and the model request carries all three while the stored message stays', async () => {
+    const offered: string[][] = []
+    const plugin = Plugin.define({
+      id: 'context-request',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'context_probe',
+            description: 'A tool the context hook may drop',
+            input: z.object({}),
+            output: z.object({}),
+            execute: async () => ({output: {}}),
+          })
+        })
+        await ctx.session.hook('context', (event) => {
+          const names = Object.keys(event.tools)
+          offered.push(names)
+          const [dropped] = names
+          if (dropped !== undefined) delete event.tools[dropped]
+          const lastUser = event.messages.findLastIndex((message) => message.role === 'user')
+          event.messages = event.messages.map((message, index) =>
+            index === lastUser ? {...message, content: 'rewritten by the plugin'} : message,
+          )
+          event.options.contextFlag = 'set by the plugin'
+        })
+        await ctx.session.hook('compaction', (event) => {
+          event.system.push({type: 'text', text: 'compacting with the plugin'})
+        })
+      },
+    })
+    const {kit, made, requests} = await contextKit([plugin])
+    const session = await kit.session()
+
+    expect((await (await kit.turn('the user words', {session})).done()).errors()).toEqual([])
+    const [names = []] = offered
+    expect(names.length).toBeGreaterThan(0)
+    expect(requests).toHaveLength(1)
+    const [request] = requests
+    expect(request?.tools).toEqual(names.slice(1))
+    expect(request?.lastUser).toBe('rewritten by the plugin')
+    expect(request?.options.contextFlag).toBe('set by the plugin')
+    expect(userTexts(await kit.hydrate(session))).toEqual(['the user words'])
+
+    await made.runtime.forSession(SessionId.parse(session)).run.compact()
+    await made.plane.settled(SessionId.parse(session))
+    expect(requests).toHaveLength(2)
+    expect(requests[1]?.system).toContain('compacting with the plugin')
+    expect(offered).toHaveLength(1)
+  })
+
+  test('a compaction hook that sets a result is the compacted session summary and no model request is made for the compact turn', async () => {
+    const plugin = Plugin.define({
+      id: 'compaction-result',
+      async setup(ctx) {
+        await ctx.session.hook('compaction', (event) => {
+          event.result = {
+            summary: 'the summary the plugin wrote',
+            tokens: {input: 40, output: 7, reasoning: 2, cache: {read: 10, write: 1}},
+          }
+        })
+      },
+    })
+    const {kit, made, requests} = await contextKit([plugin])
+    const session = await kit.session()
+
+    expect((await (await kit.turn('words to compact', {session})).done()).errors()).toEqual([])
+    expect(requests).toHaveLength(1)
+
+    await made.runtime.forSession(SessionId.parse(session)).run.compact()
+    await made.plane.settled(SessionId.parse(session))
+    expect(requests).toHaveLength(1)
+    const hydrated = await kit.hydrate(session)
+    const summaries = hydrated.messages.filter(
+      (message) => CompactionMetadataSchema.safeParse(message.metadata).success,
+    )
+    expect(
+      summaries.map((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+      ),
+    ).toEqual(['the summary the plugin wrote'])
+    expect(hydrated.lastRun?.phase).toBe('completed')
+    const [row] = await made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session))
+    expect(row?.usage).toMatchObject({
+      inputTokens: 40,
+      outputTokens: 7,
+      reasoningTokens: 2,
+      cacheReadTokens: 10,
+      cacheWriteTokens: 1,
+    })
+  })
+
+  test('a context hook that edits a tool input schema in place changes that request only, and the next request offers the tool its own schema', async () => {
+    const original = {
+      type: 'object',
+      properties: {query: {type: 'string', description: 'the original query'}},
+      required: ['query'],
+    }
+    const schema = structuredClone(original)
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'context-schema',
+      async setup(ctx) {
+        await ctx.tool.transform((tools) => {
+          tools.add({
+            name: 'context_schema',
+            description: 'A tool whose schema the context hook edits',
+            input: schema,
+            output: z.object({}),
+            options: {codemode: false},
+            execute: async () => ({output: {}}),
+          })
+        })
+        await ctx.session.hook('context', (event) => {
+          const input = event.tools.context_schema?.input
+          seen.push(structuredClone(input))
+          const properties = input?.properties
+          if (isPlainObject(properties) && isPlainObject(properties.query))
+            properties.query.description = 'edited by the plugin'
+          if (Array.isArray(input?.required)) input.required.push('edited')
+        })
+      },
+    })
+    const {kit} = await contextKit([plugin])
+
+    expect((await (await kit.turn('first', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([original])
+    expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([original, original])
+    expect(schema).toEqual(original)
+  })
+
+  test('a context hook that edits a nested model option in place changes that request only, and the next request starts from the harness options', async () => {
+    const harnessOptions = {effort: {levels: ['given']}}
+    const seen: unknown[] = []
+    const plugin = Plugin.define({
+      id: 'context-options',
+      async setup(ctx) {
+        await ctx.session.hook('context', (event) => {
+          seen.push(structuredClone(event.options))
+          const effort = event.options.effort
+          if (isPlainObject(effort) && Array.isArray(effort.levels)) effort.levels.push('pushed by the plugin')
+        })
+      },
+    })
+    const {kit, requests} = await contextKit([plugin], harnessOptions)
+
+    expect((await (await kit.turn('first', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect((await (await kit.turn('second', {session: await kit.session()})).done()).errors()).toEqual([])
+    expect(seen).toEqual([{effort: {levels: ['given']}}, {effort: {levels: ['given']}}])
+    expect(requests.map((request) => request.options)).toEqual([
+      {effort: {levels: ['given', 'pushed by the plugin']}},
+      {effort: {levels: ['given', 'pushed by the plugin']}},
+    ])
+    expect(harnessOptions).toEqual({effort: {levels: ['given']}})
+  })
+
+  test('a stop interrupts the context hook in flight: its edit never reaches the harness and the turn ends', async () => {
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const hookEnded = Promise.withResolvers<void>()
+    const hookTrail: string[] = []
+    const trail = (step: string) =>
+      Effect.sync(() => {
+        hookTrail.push(step)
+        hookEnded.resolve()
+      })
+    const {kit, made, sent} = await contextKit([])
+    await made.pluginHost.runPromise(
+      PluginHooks.Service.use((hooks) =>
+        hooks.register('session', 'context', (event) =>
+          Effect.sync(() => entered.resolve()).pipe(
+            Effect.andThen(Effect.promise(() => held.promise)),
+            Effect.andThen(Effect.sync(() => event.system.push({type: 'text', text: 'never sent'}))),
+            Effect.andThen(trail('context hook resumed')),
+            Effect.onInterrupt(() => trail('context hook interrupted')),
+          ),
+        ),
+      ).pipe(Scope.provide(made.pluginHost.runSync(Scope.make()))),
+    )
+    const session = await kit.session()
+    const runId = randomUUID()
+
+    const turn = await kit.turn('stopped while the context hook runs', {session, runId})
+    await entered.promise
+    await kit.rpc.chat.stop({sessionId: session, runIds: [runId]})
+    const ended = await turn.done()
+    held.resolve()
+    await hookEnded.promise
+
+    expect(hookTrail).toEqual(['context hook interrupted'])
+    expect(sent()).toEqual([])
+    expect(ended.errors()).toEqual([])
+    expect((await kit.hydrate(session)).lastRun?.phase).toBe('aborted')
+    expect(made.plane.driving(SessionId.parse(session))).toBe(false)
   })
 })
 
@@ -4675,7 +5107,7 @@ describe('direct tools on the MCP surface', () => {
   it('a codemode false tool is its own MCP tool that runs without an approval card, an outside run keeps it, and a session that denies execute lists every plugin tool directly and no execute tool', async () => {
     const root = tempDir('conciv-core-unit-')
     const restarts: boolean[] = []
-    const bridge = defineBundlerBridge({
+    const bridge = Bundler.defineBundlerBridge({
       id: 'unit-direct-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4884,8 +5316,7 @@ describe('plugin context keys provided by core', () => {
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
-    const base: {current: string | undefined} = {current: undefined}
-    const devServer = defineBundlerBridge({
+    const devServer = Bundler.defineBundlerBridge({
       id: 'unit-bundler',
       config: () => ({root, base: '/', mode: 'development', aliases: [], plugins: []}),
       resolve: async (spec) => ({id: spec}),
@@ -4899,14 +5330,6 @@ describe('plugin context keys provided by core', () => {
         SkillInstructions.layer,
         SessionProjector.layer,
         provideInstructionEntries,
-        provideHarnessSource({
-          harness: (sessionId) => ({id: `fake-cli:${sessionId}`}),
-          sessions: {
-            resumeToken: (sessionId) => nativeIdFor(db, sessionId),
-            recordToken: (sessionId, token) => recordNativeId(db, sessionId, 'fake-cli', token),
-          },
-          tokenScopedBase: () => base.current,
-        }),
         provideBundlerSource(devServer),
         provideExtensionSlugs(['page']),
         provideApp(),
@@ -4964,14 +5387,6 @@ describe('plugin context keys provided by core', () => {
     expect(await entries((service) => service.list(SessionSchema.Id.make(id)))).toEqual([
       {key: 'brief', value: 'ship it'},
     ])
-
-    const harness = await host.runPromise(PluginHost.HarnessSource)
-    expect(harness.mcpUrl).toBeUndefined()
-    base.current = 'http://127.0.0.1:4100/agent-token'
-    expect(harness.mcpUrl).toBe('http://127.0.0.1:4100/agent-token/api/mcp')
-    expect(harness.get(id).id).toBe(`fake-cli:${id}`)
-    await harness.recordToken(id, HarnessSessionId.parse('native-entries'))
-    expect(await harness.resumeToken(id)).toBe('native-entries')
 
     const bundler = await host.runPromise(PluginHost.BundlerSource)
     expect(bundler?.config().root).toBe(root)
@@ -5354,18 +5769,26 @@ describe('pty sessions', () => {
 
     it('injects into live sinks and the replay buffer', async () => {
       const sessions = make()
-      const session = await sessions.open('s7', BASH, process.cwd(), 'test-tty')
+      const silentUntilInput = {bin: 'cat', args: [], env: {TERM: 'xterm-256color'}}
+      const session = await sessions.open('s7', silentUntilInput, process.cwd(), 'test-tty')
+      const echoed = Promise.withResolvers<string>()
       const injected = Promise.withResolvers<string>()
       const live = collect((update) => {
-        if (update.kind === 'data' && update.text.includes('\r\nconciv marker\r\n')) injected.resolve(update.text)
+        if (update.kind !== 'data') return
+        if (/typed-line\r\n.*typed-line\r\n$/s.test(update.text)) echoed.resolve(update.text)
+        if (update.text.includes('\r\nconciv second marker\r\n')) injected.resolve(update.text)
       })
       const detach = session.attach(live.sink)
       session.inject('conciv marker')
-      expect(await injected.promise).toContain('\r\nconciv marker\r\n')
+      expect(live.chunks.join('')).toBe('conciv marker\r\n')
+      session.write('typed-line\r')
+      expect(await echoed.promise).toMatch(/^conciv marker\r\ntyped-line\r\n.*typed-line\r\n$/s)
+      session.inject('conciv second marker')
+      expect(await injected.promise).toMatch(/typed-line.*\r\nconciv second marker\r\n$/s)
       detach()
       const late = collect()
       session.attach(late.sink)
-      expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+      expect(late.chunks.join('')).toMatch(/^conciv marker\r\n.*typed-line.*\r\nconciv second marker\r\n$/s)
     })
 
     it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {

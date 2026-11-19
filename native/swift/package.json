@@ -9,8 +9,8 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@conciv/extension-ios": "workspace:*",
-    "@conciv/it": "workspace:*"
+    "@conciv/it": "workspace:*",
+    "@conciv/plugin-ios": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

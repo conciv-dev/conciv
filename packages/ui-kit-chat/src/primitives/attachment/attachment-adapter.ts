@@ -17,6 +17,7 @@ export type BaseAttachment = {
   type: 'image' | 'document' | 'file' | (string & {})
   name: string
   contentType?: string
+  blob?: {id: string; url: string}
 }
 
 export type PendingAttachment = BaseAttachment & {

@@ -1,5 +1,6 @@
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import {
+  type HarnessCapabilities,
   type HarnessCommand,
   type HarnessConnectContext,
   type HarnessHistory,
@@ -29,7 +30,6 @@ const BASE_CAPABILITIES = {
   compaction: false,
   systemPrompt: 'none',
   mcp: 'none',
-  imageInput: false,
   init: 'none',
 } as const
 
@@ -88,7 +88,7 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
 
 function buildAdapter(
   shared: SharedFields,
-  base: Omit<typeof BASE_CAPABILITIES, 'resume'> & {resume: boolean},
+  base: Omit<typeof BASE_CAPABILITIES, 'resume'> & Pick<HarnessCapabilities, 'resume' | 'imageInput'>,
   history: HarnessHistory | undefined,
   commands: HarnessCommand[] | undefined,
   resume: HarnessResume,
@@ -135,6 +135,7 @@ export function createFakeHarness(
     history?: FixtureSession[]
     tty?: {command(ctx: HarnessConnectContext): TtyCommand}
     resumeBin?: string
+    imageInput?: HarnessCapabilities['imageInput']
   } = {},
 ): FakeHarness {
   const id = opts.id ?? 'fake-harness'
@@ -147,7 +148,7 @@ export function createFakeHarness(
     models: opts.models,
     tty: opts.tty,
   }
-  const capabilities = {...BASE_CAPABILITIES, resume: opts.resume ?? false}
+  const capabilities = {...BASE_CAPABILITIES, resume: opts.resume ?? false, imageInput: opts.imageInput ?? false}
   const transcripts = makeTranscriptHold()
   const adapter = buildAdapter(
     shared,

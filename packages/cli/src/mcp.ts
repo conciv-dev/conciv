@@ -1,15 +1,27 @@
 import {z} from 'zod'
-import {argument, command, description, name, route, schema} from '@bomb.sh/router'
+import {argument, command, description, name, option, route, schema} from '@bomb.sh/router'
 import {concivHome} from '@conciv/db'
-import {createHubConnections} from '@conciv/harness-init/hub'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {HubAgentSchema} from './hub-agent.js'
-import {serveCommand} from './hub.js'
 import {handler} from './router/handler.js'
 import {serveArgv} from './serve-argv.js'
 
 const AgentModelSchema = z.object({agent: HubAgentSchema})
+
+const serveCommand = command(
+  name('serve'),
+  description('Serve conciv to an outside agent over MCP stdio, through the running conciv dev server.'),
+  option(
+    name('agent'),
+    description('the agent this server answers for (claude, codex, gemini-cli, opencode)'),
+    schema(HubAgentSchema),
+  ),
+  handler(async (model) => {
+    const {runHub} = await import('./hub.js')
+    return runHub(process.env, AgentModelSchema.parse(model).agent)
+  }),
+)
 
 const agentArgument = argument(
   name('agent'),
@@ -24,7 +36,7 @@ const connectCommand = command(
   envelopeFlag,
   handler(async (model) => {
     const {agent} = AgentModelSchema.parse(model)
-    return settled(await connections().connect(agent, serveArgv(agent)), {connected: agent})
+    return settled(await (await connections()).connect(agent, serveArgv(agent)), {connected: agent})
   }),
 )
 
@@ -35,7 +47,7 @@ const disconnectCommand = command(
   envelopeFlag,
   handler(async (model) => {
     const {agent} = AgentModelSchema.parse(model)
-    return settled(await connections().disconnect(agent), {disconnected: agent})
+    return settled(await (await connections()).disconnect(agent), {disconnected: agent})
   }),
 )
 
@@ -43,7 +55,7 @@ const listCommand = command(
   name('list'),
   description('The agents connected to conciv.'),
   envelopeFlag,
-  handler(() => ({report: 'json', data: connections().list()})),
+  handler(async () => ({report: 'json', data: (await connections()).list()})),
 )
 
 export const mcpRoute = route(
@@ -56,7 +68,8 @@ export const mcpRoute = route(
   listCommand,
 )
 
-function connections() {
+async function connections() {
+  const {createHubConnections} = await import('@conciv/harness-init/hub')
   return createHubConnections(concivHome({env: process.env}))
 }
 

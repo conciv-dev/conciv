@@ -53,6 +53,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/page": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-chat-tools": "workspace:^",

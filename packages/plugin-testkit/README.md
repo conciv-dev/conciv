@@ -2,7 +2,7 @@
 
 ## Overview
 
-Private dev-only package that boots the real engine and widget with the fake model chat for widget and plugin tests. The root holds the manifest and the typecheck and test configs.
+Published test package that boots the real engine and widget with the fake model chat for widget and plugin tests. The root holds the manifest and the typecheck and test configs.
 
 ## Product path
 
@@ -10,8 +10,8 @@ The testkit runs the real product path: the page under test uses the same transp
 
 ## Interface
 
-- `exports` subpaths (`package.json`): ./connect-handshake, ./core-kit, ./host/grab, ./widget-suite, ./page-plane, ./listen-local, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./push-wire, ./rpc-fault, ./rpc-socket, ./rpc-observer, ./chat-fault
-- `scripts` (`package.json`): typecheck, lint, test
+- `exports` subpaths (`package.json`): ./connect-handshake, ./core-kit, ./host/grab, ./widget-suite, ./page-plane, ./listen-local, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./rpc-fault, ./rpc-socket, ./rpc-observer, ./chat-fault
+- `scripts` (`package.json`): build, typecheck, lint, test, publint, attw
 - `vitest.config.ts`: project 'plugin-testkit', node env, test/**/*.test.ts
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - core kit, wire observers and fault injectors
@@ -19,7 +19,7 @@ The testkit runs the real product path: the page under test uses the same transp
 ## Invariants
 
 - `vitest.config.ts`: `fileParallelism: false`, `testTimeout` 60s
-- `package.json`: exports point at TypeScript source, so consumers need a TS-aware loader
+- `package.json`: exports point at the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`
 
 ## Verification
 

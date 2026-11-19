@@ -111,6 +111,20 @@
         "reason": "copied from opencode packages/app/src/runtime/persistence/persist-machine.ts: transitionPersistStore keeps the source's shape; Day ruling 113"
       },
       {
+        "files": ["apps/conciv/src/runtime/persistence/drafts-machine.ts"],
+        "functions": ["transitionDraftRetention"],
+        "maxCognitive": 20,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/drafts-machine.ts: transitionDraftRetention keeps the source's shape; draft local-first plan, ported whole by ruling"
+      },
+      {
+        "files": ["apps/conciv/src/runtime/persistence/drafts.ts"],
+        "functions": ["encode", "decode"],
+        "maxCyclomatic": 20,
+        "maxCognitive": 23,
+        "maxCrap": 107,
+        "reason": "copied from opencode packages/app/src/runtime/persistence/drafts.ts: encode and decode keep the source's shape; draft local-first plan, ported whole by ruling"
+      },
+      {
         "files": ["apps/conciv/src/runtime/persistence/persist.browser.test.ts"],
         "functions": ["describe(\"persistStore\")"],
         "maxUnitSize": 203,
@@ -516,7 +530,6 @@
     "@conciv/client",
     "@conciv/embed",
     "@conciv/extension-compiler",
-    "@conciv/extension-try-it",
     "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/mascot",
@@ -549,6 +562,7 @@
     "@conciv/unplugin",
     "@conciv/plugin",
     "@conciv/plugin-host",
+    "@conciv/plugin-ios",
     "@conciv/plugin-page",
     "@conciv/plugin-recorder",
     "@conciv/plugin-test-runner",
@@ -860,10 +874,10 @@
     "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
+    "packages/ui-kit-chat/src/draft-storage.ts",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
     "packages/extensions/tanstack/test/host/main.tsx",
-    "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",

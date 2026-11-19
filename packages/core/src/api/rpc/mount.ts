@@ -3,6 +3,7 @@ import {contract} from '@conciv/contract'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
+import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
 import type {CompositeRpcRouter as ExtensionCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
@@ -77,6 +78,7 @@ export type ChatContext = {
 
 export type RpcDeps = {
   chat: ChatContext
+  tools: (sessionId: SessionId) => Promise<ChatTool[]>
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>

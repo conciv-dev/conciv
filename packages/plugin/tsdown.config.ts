@@ -19,6 +19,7 @@ export default defineConfig({
     'experimental/page': 'src/experimental/page.ts',
     'promise/adapter': 'src/promise/adapter.ts',
     'schema/agent': 'src/schema/agent.ts',
+    'schema/bundler': 'src/schema/bundler.ts',
     'schema/event': 'src/schema/event.ts',
     'schema/event-manifest': 'src/schema/event-manifest.ts',
     'schema/identifier': 'src/schema/identifier.ts',

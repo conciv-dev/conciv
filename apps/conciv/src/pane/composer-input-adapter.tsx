@@ -7,6 +7,7 @@ export type SelectionOffsets = {start: number; end: number}
 
 export type ComposerInputHandle = {
   focus: () => void
+  focused: () => boolean
   insert: (text: string) => void
   append: (text: string) => void
   select: (offsets: SelectionOffsets) => void
@@ -21,6 +22,7 @@ export type ComposerInputAdapterProps = {
   placeholder: string
   inputLabel: string
   editableClass?: string
+  disabled?: boolean
   addAttachmentOnPaste?: boolean
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
@@ -73,6 +75,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onSelectionChange={props.onSelectionChange}
         placeholder={props.placeholder}
         label={props.inputLabel}
+        disabled={props.disabled}
         editableClass={props.editableClass}
         onPaste={consumeFilePaste}
         onBackspaceAtStart={removeLastAttachment}
@@ -82,6 +85,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onReady={(handle) => {
           props.onReady?.({
             focus: () => handle.focus(),
+            focused: () => wrapper?.matches(':focus-within') === true,
             insert: (text) => handle.insertText(text),
             append: (text) => handle.appendText(composer.text() === '' ? text : `\n${text}`),
             select: (offsets) => handle.select(offsets),

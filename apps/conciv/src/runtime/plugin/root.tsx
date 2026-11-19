@@ -10,7 +10,8 @@ import {
   untrack,
   type ParentProps,
 } from 'solid-js'
-import type {Entry} from '@conciv/plugin/experimental/host'
+import {pluginIdAvailable, type Entry} from '@conciv/plugin/experimental/host'
+import type {PluginOptions} from '@conciv/plugin/experimental'
 import type {ConcivClient} from '@conciv/plugin'
 import {useRouteContext} from '@tanstack/solid-router'
 import {useApiBase, useAppData} from '../../app/context'
@@ -21,6 +22,7 @@ import {PluginHostProvider, usePluginHost} from './host'
 import type {InstalledSource} from './startup'
 import {createPluginAttachment, createHostApis, PluginAttachmentProvider} from './host-apis'
 import {HostApisProvider, useHostApis} from './host-apis-context'
+import {PluginServersProvider} from './servers'
 import {createContext, useContext} from 'solid-js'
 
 const PluginsContext = createContext<{
@@ -66,11 +68,26 @@ export function usePluginsKnown() {
   })
 }
 
-export function PluginRoot(props: ParentProps) {
+export type ComposedPlugin = readonly [plugin: Entry, options: PluginOptions]
+
+export function reserveComposedPlugins(composed: readonly ComposedPlugin[]): readonly ComposedPlugin[] {
+  composed.reduce<readonly Entry[]>((taken, [plugin]) => {
+    if (!pluginIdAvailable(plugin.id, taken)) throw new Error(`The plugin id "${plugin.id}" is already taken`)
+
+    return [...taken, plugin]
+  }, builtins)
+
+  return composed
+}
+
+export function PluginRoot(props: ParentProps<{composed: readonly ComposedPlugin[]; servers: boolean}>) {
   const apis = createHostApis()
-  const apiBase = untrack(useApiBase())
+  const apiBase = useApiBase()
+  const bound = createMemo(() => !props.servers || apiBase() !== '')
   const appData = useAppData()
   const login = useRouteContext({strict: false, select: (context) => context.login})
+  const composed = untrack(() => props.composed)
+  const local = [...builtins, ...composed.map(([plugin]) => plugin)]
   const trusted = createMemo(() => {
     const engine = login()
 
@@ -84,10 +101,10 @@ export function PluginRoot(props: ParentProps) {
   first.promise.catch(() => undefined)
 
   const bundle = createMemo(
-    on(trusted, (isTrusted) => {
-      if (!isTrusted) return
+    on([trusted, bound], ([isTrusted, isBound]) => {
+      if (!isTrusted || !isBound) return
 
-      const created = createBundleSource({client: apis.engine.client, apiBase})
+      const created = createBundleSource({client: apis.engine.client, apiBase, builtins: local})
 
       first.resolve(created)
       onCleanup(created.manager.on((message) => listeners.forEach((listener) => listener(message))))
@@ -106,8 +123,16 @@ export function PluginRoot(props: ParentProps) {
   )
 
   const installed: InstalledSource = {
-    initial: first.promise.then((created) => created.manager.initial),
-    list: async () => (untrack(bundle) ?? (await first.promise)).manager.list(),
+    ...(props.servers ? {} : {initial: first.promise.then((created) => created.manager.initial)}),
+    list: async () => {
+      const current = untrack(bundle)
+
+      if (current) return current.manager.list()
+
+      if (props.servers) return []
+
+      return (await first.promise).manager.list()
+    },
     on(listener) {
       listeners.add(listener)
 
@@ -133,14 +158,14 @@ export function PluginRoot(props: ParentProps) {
   }>({settled: false, plugins: [], reserved: []})
 
   const definitions = createMemo<readonly Entry[]>(
-    () => [...builtins, ...loaded().plugins.map((plugin) => plugin.definition)],
+    () => [...local, ...loaded().plugins.map((plugin) => plugin.definition)],
     [],
     {
       equals: (a, b) => a.length === b.length && a.every((definition, index) => definition === b[index]),
     },
   )
 
-  const builtinIds = new Set(builtins.map((builtin) => builtin.id))
+  const builtinIds = new Set(local.map((builtin) => builtin.id))
 
   return (
     <HostApisProvider value={apis}>
@@ -167,6 +192,8 @@ export function PluginRoot(props: ParentProps) {
           definitions={definitions}
           installed={installed}
           builtins={builtinIds}
+          servers={props.servers}
+          options={(id) => composed.find(([plugin]) => plugin.id === id)?.[1]}
           apis={apis.apis}
           whenMounted={apis.whenMounted}
           plugin={(id) => loaded().plugins.find((plugin) => plugin.definition.id === id)}
@@ -177,7 +204,7 @@ export function PluginRoot(props: ParentProps) {
               <PluginHotReload />
             </Suspense>
           )}
-          {props.children}
+          <PluginServersProvider servers={props.servers}>{props.children}</PluginServersProvider>
         </PluginHostProvider>
       </PluginsContext.Provider>
     </HostApisProvider>
@@ -200,8 +227,8 @@ export function PluginAttachment(props: ParentProps) {
           />
         )}
       </Show>
-      <Show when={host.ready()}>
-        <MountedInterface attach={attachment.attach} />
+      <Show when={host.ready() ? attachment.root() : undefined}>
+        {(root) => <MountedInterface attach={() => attachment.attach(root())} />}
       </Show>
       {props.children}
     </PluginAttachmentProvider>

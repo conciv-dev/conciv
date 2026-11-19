@@ -1,8 +1,8 @@
 import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {engineHeaders, makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {acquirePushChannel} from '@conciv/client'
+import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
+import {pageQueries} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -18,9 +18,8 @@ import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
 import {createEngineLogin, engineConnected, startEngineLogin} from '@conciv/app/engine-login'
-import {engineAddress} from './agent-base.js'
 import {makeNavigationStorage} from './navigation-storage.js'
-import type {ConcivInit} from './mount.js'
+import type {ConcivInit, PluginEntry} from './mount.js'
 
 type RebindDetail = {apiBase?: string}
 
@@ -52,14 +51,6 @@ function connectPath(settings: {defaultOpen: boolean}): string {
   return settings.defaultOpen ? '/panel/connect?open=true' : '/panel/connect'
 }
 
-function makeDisconnect(getApiBase: () => string | undefined): () => void {
-  return () => {
-    const base = getApiBase()
-    if (base) void fetch(`${base}/api/shutdown`, {method: 'POST', headers: engineHeaders(base)}).catch(() => {})
-    setTimeout(() => window.location.reload(), 150)
-  }
-}
-
 function runDisposers(disposers: Array<() => void>): void {
   for (const dispose of disposers) {
     try {
@@ -86,15 +77,14 @@ function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => 
       const sessionId = config.session()
       const apiBase = config.apiBase()
       if (!sessionId || apiBase === '' || !config.trusted()) return
-      const channel = acquirePushChannel({apiBase, sessionId})
       const plane = startPagePlane({
-        source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
+        source: {
+          queries: (signal) => pageQueries(config.rpc, signal),
+          reply: (input) => config.rpc.page.reply(input),
+        },
         driver: config.driver(),
       })
-      onCleanup(() => {
-        plane.dispose()
-        channel.dispose()
-      })
+      onCleanup(() => plane.dispose())
     })
     return {dispose}
   })
@@ -124,10 +114,10 @@ function makeActiveSessionBinding(
 type BootNormalConfig = {
   root: ShadowRoot
   extensions: AnyExtension[]
+  plugins: readonly PluginEntry[]
   settings: ConcivSettings
   apiBase: string
   grabProvider?: GrabProvider
-  connectMode?: boolean
   engineToken?: () => Promise<string>
 }
 
@@ -181,9 +171,8 @@ function bootNormal(config: BootNormalConfig): BootResult {
     environment: {rootNode: config.root, document},
     settings: config.settings,
     extensions: config.extensions,
+    plugins: config.plugins,
     connected: () => engineConnected(login.status()),
-    connectMode: config.connectMode,
-    disconnect: config.connectMode ? makeDisconnect(apiBase) : undefined,
     grabProvider: config.grabProvider,
     apiBase,
     connectionGeneration,
@@ -240,16 +229,16 @@ function bootNormal(config: BootNormalConfig): BootResult {
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
 }
 
-type BootConnectConfig = {
+type BootServersConfig = {
   root: ShadowRoot
   extensions: AnyExtension[]
+  plugins: readonly PluginEntry[]
   settings: ConcivSettings
   grabProvider?: GrabProvider
 }
 
-function bootConnect(config: BootConnectConfig): BootResult {
+function bootServers(config: BootServersConfig): BootResult {
   const deferred = makeBrowserRpcClient(() => null, {session: () => activeSession.read()})
-  let boundApiBase: string | undefined
   const [apiBase, setApiBase] = createSignal('')
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
@@ -262,7 +251,6 @@ function bootConnect(config: BootConnectConfig): BootResult {
     }),
   )
   const bindApiBase = (nextApiBase: string) => {
-    boundApiBase = nextApiBase
     deferred.bind(nextApiBase)
     setApiBase(nextApiBase)
   }
@@ -274,10 +262,10 @@ function bootConnect(config: BootConnectConfig): BootResult {
     environment: {rootNode: config.root, document},
     settings: config.settings,
     extensions: config.extensions,
+    plugins: config.plugins,
+    servers: true,
     connected: deferred.bound,
-    connectMode: true,
     bindApiBase,
-    disconnect: makeDisconnect(() => boundApiBase),
     grabProvider: config.grabProvider,
     apiBase,
     bindActiveSession: activeSession.bind,
@@ -304,16 +292,13 @@ function bootConnect(config: BootConnectConfig): BootResult {
 
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
+  const plugins = init.plugins ?? []
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
   const engineToken = init.engineToken
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider, engineToken})
-  const gate = extensions.find((extension) => extension.connectGate)
-  if (!gate?.connectGate) return bootNormal({root, extensions, settings, apiBase, grabProvider})
-  const found = await gate.connectGate.preflight()
-  if (found) return bootNormal({root, extensions, settings, ...engineAddress(found), grabProvider, connectMode: true})
-  return bootConnect({root, extensions, settings, grabProvider})
+  if (!apiBase && plugins.length > 0) return bootServers({root, extensions, plugins, settings, grabProvider})
+  return bootNormal({root, extensions, plugins, settings, apiBase, grabProvider, engineToken})
 }
 
 function initSettings(init: ConcivInit): ConcivSettings {

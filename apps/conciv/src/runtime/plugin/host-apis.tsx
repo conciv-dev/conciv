@@ -46,13 +46,14 @@ import {
   useConnected,
   useHostTheme,
   useInstances,
+  useLiveSessions,
   useRpc,
 } from '../../app/context'
 import {collectViews} from '../../extension/extension-views'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../../lib/media-query'
 import {quickPaneIds, quickSearchFor} from '../../lib/quick-search'
 import type {ComposerInputHandle} from '../../pane/composer-input-adapter'
-import {appendDraft} from '../../pane/draft-storage'
+import {appendDraft, settleKeptSave} from '../../pane/draft-storage'
 import {engineOlderThanWidget, engineVersionQueryOptions} from '../../shell/engine-notice'
 import {useNotices} from '../../shell/notice-context'
 import type {NoticeTone} from '../../shell/notices'
@@ -72,7 +73,7 @@ import {createMobileViews} from './mobile'
 import {mountOverlay} from './overlay'
 import {isPluginView, panelKey} from './panel-keys'
 import type {Region} from './panels'
-import {deferredHandle, globalStoreTarget, persistedHandle, storeImports, storeName} from './stores'
+import {deferredHandle, globalStoreTarget, persistedHandle, projectStoreTarget, storeImports, storeName} from './stores'
 import {ui} from './ui'
 
 type Attached = {
@@ -91,6 +92,7 @@ type Attached = {
   path: Accessor<string>
   servers: Accessor<readonly string[]>
   server: (id: string) => ServerRef | undefined
+  directory: string
 }
 
 export type ComposerBinding = {
@@ -125,6 +127,7 @@ function openInput(file: string, position: {line: number; column?: number} | und
 export function createHostApis() {
   const rpc = useRpc()
   const apiBase = useApiBase()
+  const connected = useConnected()
   const notices = useNotices()
   const theme = useHostTheme()
   const systemDark = createMediaQuery('(prefers-color-scheme: dark)')
@@ -133,10 +136,10 @@ export function createHostApis() {
   const memory = new Map<string, ReturnType<Storage['memory']>>()
   const current = () => attached()
   const located = createLocatedWrites()
-  const client = Conciv.make(rpc)
+  const client = useAppData().client
   const unavailable = Conciv.make(createORPCClient<RpcClient>({call: () => Promise.reject(new Error(UNAVAILABLE))}))
 
-  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
   const engineStream = from<ClientConnectionStatus>((set) => {
     set(client.connection.status())
     return client.connection.on(set)
@@ -192,11 +195,13 @@ export function createHostApis() {
   const target = (
     plugin: string,
     key: string,
-    scope: Exclude<StorageScope, 'global' | 'project'>,
+    scope: Exclude<StorageScope, 'global'>,
     from: StoreFrom | readonly StoreFrom[] | undefined,
     connected: Attached,
   ) => {
     const name = storeName(plugin, key)
+
+    if (scope === 'project') return projectStoreTarget(plugin, key, from, connected.directory)
 
     if ('session' in scope) {
       const location = scope.session.location
@@ -208,7 +213,7 @@ export function createHostApis() {
 
     if (!connected.server(scope.server)) throw new Error(`Server ${scope.server} is unavailable`)
 
-    return {...Persist.project(name), copyFrom: storeImports(from)}
+    return {...Persist.server(name), copyFrom: storeImports(from)}
   }
 
   const apis: HostApiFactories = {
@@ -223,13 +228,12 @@ export function createHostApis() {
         const scope = options.scope
 
         return runWithOwner(getOwner() ?? owner, () => {
-          if (!scope || scope === 'global' || scope === 'project')
-            return open(globalStoreTarget(plugin, key, options.from, scope ?? 'global'))
+          if (!scope || scope === 'global') return open(globalStoreTarget(plugin, key, options.from))
 
           const scoped = (connected: Attached | undefined) =>
             connected && open(target(plugin, key, scope, options.from, connected))
 
-          if (!('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
+          if (scope === 'project' || !('session' in scope)) return deferredHandle(createMemo(on(attached, scoped)))
 
           const directory = createMemo(() => scope.session.location?.directory)
 
@@ -258,13 +262,16 @@ export function createHostApis() {
       remove(key, options) {
         const scope = options?.scope
 
-        if (!scope || scope === 'global' || scope === 'project')
-          return removePersisted(globalStoreTarget(plugin, key, options?.from, scope ?? 'global'), rpc)
+        if (!scope || scope === 'global') return removePersisted(globalStoreTarget(plugin, key, options?.from), rpc)
 
         const run = (connected: Attached) => removePersisted(target(plugin, key, scope, options?.from, connected), rpc)
 
         write((connected) => {
-          if (!('session' in scope) || (scope.session.location && !located.pending(scope.session.key)))
+          if (
+            scope === 'project' ||
+            !('session' in scope) ||
+            (scope.session.location && !located.pending(scope.session.key))
+          )
             return run(connected)
           located.hold(scope.session, () => write(run))
         })
@@ -438,6 +445,7 @@ export function createPluginAttachment(apis: HostApis) {
   const host = usePluginHost()
   const rpc = useRpc()
   const appData = useAppData()
+  const {keepDraft} = useLiveSessions()
   const queryClient = useAppQueryClient()
   const connection = useConnected()
   const theme = useHostTheme()
@@ -576,13 +584,13 @@ export function createPluginAttachment(apis: HostApis) {
             `[plugin] ${plugin}: a draft runs in ${listed.root} on the server "${engine.id}", not in ${input.directory} on "${input.server}"`,
           )
         const {sessionId} = await rpc.sessions.create(undefined)
-        await appendDraft(appData, sessionId, input.prompt)
+        settleKeptSave(appData, keepDraft, sessionId, await appendDraft(appData, keepDraft, sessionId, input.prompt))
         void appData.invalidateSession(sessionId)
         await router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })
       .catch((cause: unknown) => console.error(`[plugin] ${plugin}: the draft did not open`, cause))
 
-  const mounted: Attached = {
+  const mounted: Omit<Attached, 'directory'> = {
     sessions,
     current,
     tabs: shell,
@@ -637,8 +645,9 @@ export function createPluginAttachment(apis: HostApis) {
 
   return {
     engine,
-    attach: () => {
-      const detach = apis.attach(mounted)
+    root: () => (project.isSuccess ? project.data?.project.root : undefined),
+    attach: (directory: string) => {
+      const detach = apis.attach({...mounted, directory})
 
       recheckPluginView()
 
