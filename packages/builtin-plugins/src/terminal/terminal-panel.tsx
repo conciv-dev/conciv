@@ -36,7 +36,7 @@ export function TerminalPanel(props: {session: MountedSession; terminal: Termina
       <Show
         when={failure()}
         fallback={
-          <Show when={props.terminal.ready(props.session.id)}>
+          <Show when={props.terminal.ready(props.session)}>
             <Show keyed when={key()}>
               {(current) => (
                 <ErrorBoundary

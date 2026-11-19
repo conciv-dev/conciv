@@ -85,7 +85,7 @@ export default function TerminalSurface(props: {
     url: () => connection.url,
     socket: engineWebSocket(server.url),
     beforeConnect: async (terminal) => {
-      const request = {sessionId, terminal, model: untrack(() => props.terminal.spawnModel(sessionId))}
+      const request = {sessionId, terminal, model: untrack(() => props.terminal.spawnModel(props.session))}
       const pty = await openPty(server, request).catch((cause: unknown) => {
         console.error('[terminal] opening the session terminal failed', cause)
         ctx.toast.show({title: OPEN_FAILED, variant: 'error'})

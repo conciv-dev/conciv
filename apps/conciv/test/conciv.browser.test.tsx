@@ -7652,13 +7652,18 @@ describe('terminal panel', () => {
     await expect.element(page.getByRole('tabpanel', {name: 'Terminal'}), {timeout: 15_000}).toBeVisible()
     await coreControl.awaitFaultPending(modelsRead, 1)
     await faults.releaseAll()
-    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
-    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('First model')
+    await expect.element(output('model first-model'), {timeout: 15_000}).toBeInTheDocument()
     await expect.element(output('model none')).not.toBeInTheDocument()
+    await pick('Busy model')
+    await expect.element(output('model busy-model'), {timeout: 15_000}).toBeInTheDocument()
 
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
     await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(picker(), {timeout: 15_000}).toHaveTextContent('Calm model')
+    await expect.element(output('model calm-model')).toBeInTheDocument()
+    await expect.element(output('model busy-model')).not.toBeInTheDocument()
 
     await newTerminal().click()
     await expect.element(output('25'), {timeout: 15_000}).not.toBeInTheDocument()
@@ -7877,17 +7882,19 @@ describe('terminal panel', () => {
 
   test('a CLI that started while the model list failed restarts with the saved pick once Retry lists the models', async () => {
     const picker = () => bar().getByRole('button', {name: 'Select model'})
-    const saved = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(saved))
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
     await picker().click()
     await page.getByRole('option', {name: 'Calm model'}).click()
     await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
 
-    const sessionId = await createSession(coreRpc(coreBase()))
     const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await newTerminal().click()
     const retry = () =>
       page
         .getByRole('dialog', {name: 'Model'})
@@ -7917,17 +7924,18 @@ describe('terminal panel', () => {
   test('a CLI that was busy when Retry listed the models restarts with the saved pick once it is idle', async () => {
     const picker = () => bar().getByRole('button', {name: 'Select model'})
     const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
-    const saved = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(saved))
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId))
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
     await picker().click()
     await page.getByRole('option', {name: 'Calm model'}).click()
     await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
 
-    const sessionId = await createSession(coreRpc(coreBase()))
     const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await newTerminal().click()
     const retry = () =>
       page
         .getByRole('dialog', {name: 'Model'})

@@ -2,7 +2,7 @@ import {createMemo, untrack} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {ORPCError} from '@orpc/client'
 import {createTanstackQueryUtils, useQuery} from '@conciv/client'
-import {createKeyed, type MountedSession, type SetupContext} from '@conciv/plugin/experimental'
+import {createKeyed, type MountedSession, type SessionRef, type SetupContext} from '@conciv/plugin/experimental'
 import type {terminalDeclarations} from './stores.js'
 
 export const PANEL_KEY = 'terminal:terminal'
@@ -67,15 +67,15 @@ export function createTerminalState(ctx: TerminalContext) {
 
   const locked = (sessionId: string) => run.restarting || busy(sessionId)
 
-  const spawnModel = (sessionId: string) => {
-    const picked = ctx.stores.prefs.value.model
-    if (picked !== null && models(sessionId).some((model) => model.id === picked)) return picked
-    return meta(sessionId)?.defaultModel ?? undefined
+  const spawnModel = (session: SessionRef) => {
+    const picked = ctx.stores.prefs(session).value?.model ?? null
+    if (picked !== null && models(session.id).some((model) => model.id === picked)) return picked
+    return meta(session.id)?.defaultModel ?? undefined
   }
 
-  const shownModel = (sessionId: string) => {
-    const live = run.live?.key === key(sessionId) && !run.restarting ? run.live : null
-    return live ? live.model : spawnModel(sessionId)
+  const shownModel = (session: SessionRef) => {
+    const live = run.live?.key === key(session.id) && !run.restarting ? run.live : null
+    return live ? live.model : spawnModel(session)
   }
 
   const restart = async (session: MountedSession): Promise<void> => {
@@ -97,8 +97,8 @@ export function createTerminalState(ctx: TerminalContext) {
       const session = ctx.sessions.current()
       const live = run.live
       if (!session || live?.key !== key(session.id) || meta(session.id) === undefined) return undefined
-      if (locked(session.id)) return undefined
-      const model = spawnModel(session.id)
+      if (locked(session.id) || !ctx.stores.prefs(session).ready()) return undefined
+      const model = spawnModel(session)
       return model === live.model ? undefined : {session, key: live.key, model}
     },
     (behind) => void restart(behind.session),
@@ -107,8 +107,9 @@ export function createTerminalState(ctx: TerminalContext) {
 
   return {
     supported: (sessionId: string) => meta(sessionId)?.harness.persistentPty,
-    ready: (sessionId: string) => {
-      const known = meta(sessionId)
+    ready: (session: SessionRef) => {
+      if (!ctx.stores.prefs(session).ready()) return false
+      const known = meta(session.id)
       return known ? known.harness.persistentPty === true : read.errorUpdateCount > 0
     },
     meta,
@@ -129,8 +130,8 @@ export function createTerminalState(ctx: TerminalContext) {
     retry: () => setRun({generation: run.generation + 1, failure: null}),
     restart,
     pick: (session: MountedSession, model: string) => {
-      if (locked(session.id) || model === shownModel(session.id)) return
-      ctx.stores.prefs.set({model})
+      if (locked(session.id) || model === shownModel(session)) return
+      ctx.stores.prefs(session).set({model})
       void restart(session)
     },
   }
