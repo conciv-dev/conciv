@@ -170,6 +170,36 @@ describe('terminal primitives', () => {
     host.remove()
   })
 
+  it('a screen that gets its size after mounting fits without a resize observer loop', async () => {
+    const loopErrors: string[] = []
+    const collect = (event: ErrorEvent): void => {
+      if (event.message.includes('ResizeObserver loop')) loopErrors.push(event.message)
+    }
+    window.addEventListener('error', collect)
+    const host = document.createElement('div')
+    const shadow = host.attachShadow({mode: 'open'})
+    const container = document.createElement('div')
+    container.style.cssText = 'width:640px;height:320px;display:flex'
+    shadow.appendChild(container)
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const dispose = render(
+      () => (
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+        </TerminalPrimitive.Root>
+      ),
+      {container},
+    ).unmount
+    const state = mount(() => <ModelState model={model} label="late size state" />)
+    document.body.appendChild(host)
+    await expect.element(region('late size state')).toMatchTextContent('status=connecting')
+    window.removeEventListener('error', collect)
+    expect(loopErrors).toEqual([])
+    state.dispose()
+    dispose()
+    host.remove()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = controlModel()
     const {host, dispose} = mount(() => (
@@ -292,14 +322,13 @@ describe('terminal size the engine takes', () => {
     const model = engineSizedModel('short')
     const {host, dispose} = mount(() => (
       <>
-        <style>{'.engine-sized, .engine-sized [data-terminal-screen] {height: 100%}'}</style>
-        <TerminalPrimitive.Root model={model} class="engine-sized">
-          <TerminalPrimitive.Screen />
-        </TerminalPrimitive.Root>
         <SessionLog model={model} label="short log" />
         <ModelState model={model} label="short state" />
       </>
     ))
+    model.terminal.open(host)
+    model.fit()
+    model.connect()
     await expect.element(region('short log')).toMatchTextContent('short-1')
     const shrunk = new Promise<void>((resolve) => {
       const listener = model.terminal.onResize(({rows}) => {
@@ -309,12 +338,15 @@ describe('terminal size the engine takes', () => {
       })
     })
     host.style.height = '8px'
+    model.fit()
     await shrunk
     dropConnection(model)
     await expect.element(region('short state')).toMatchTextContent('status=connecting')
     host.style.height = '320px'
+    model.fit()
     await expect.element(region('short log'), {timeout: 5000}).toMatchTextContent('short-2')
     await expect.element(region('short state')).toMatchTextContent('status=open')
+    model.disconnect()
     dispose()
   })
 
