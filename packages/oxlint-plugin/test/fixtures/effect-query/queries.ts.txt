@@ -1,0 +1,18 @@
+import {Effect} from 'effect'
+import {eq} from 'drizzle-orm'
+import {sessions, table} from './schema'
+
+export async function awaited(renaming, db, client, title, sessionId) {
+  await renaming.db.update(sessions).set({title}).where(eq(sessions.id, sessionId))
+  await db.select().from(table)
+  await db.insert(table).values({id: sessionId})
+  await db.delete(table).where(eq(table.id, sessionId))
+  await Effect.runPromise(db.update(table).set({title}))
+  await Effect.runPromise(renaming.db.delete(table)).then(() => title)
+  await client.select().from(table)
+  await db.$client.execute('select 1')
+}
+
+export function* yielded(db) {
+  return yield* db.select().from(table)
+}

@@ -560,3 +560,47 @@ describe('no hand-made temp dir', () => {
     expect.soft(testkit[0]).toContain('pass it in')
   })
 })
+
+describe('no await effect query', () => {
+  const cases = [
+    {line: 6, flagged: true, source: 'await renaming.db.update(sessions).set(...).where(...)'},
+    {line: 7, flagged: true, source: 'await db.select().from(table)'},
+    {line: 8, flagged: true, source: 'await db.insert(table).values(...)'},
+    {line: 9, flagged: true, source: 'await db.delete(table).where(...)'},
+    {line: 10, flagged: false, source: 'await Effect.runPromise(db.update(table).set(...))'},
+    {line: 11, flagged: false, source: 'await Effect.runPromise(renaming.db.delete(table)).then(...)'},
+    {line: 12, flagged: false, source: 'await client.select().from(table)'},
+    {line: 13, flagged: false, source: "await db.$client.execute('select 1')"},
+    {line: 17, flagged: false, source: 'yield* db.select().from(table)'},
+  ]
+
+  test.each(cases)('line $line, $source, flagged: $flagged', async ({line, flagged}) => {
+    const diagnostics = await lintDiagnostics(
+      'test/oxlintrc-effect-query.json',
+      'test/fixtures/effect-query/queries.ts',
+    )
+    const flaggedLines = diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-await-effect-query)')
+      .map((diagnostic) => readLine(diagnostic))
+    expect(flaggedLines.includes(line)).toBe(flagged)
+  })
+
+  test('the message says to run the query with Effect.runPromise or yield it', async () => {
+    const diagnostics = await lintDiagnostics(
+      'test/oxlintrc-effect-query.json',
+      'test/fixtures/effect-query/queries.ts',
+    )
+    const messages = diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(no-await-effect-query)')
+      .map((diagnostic) => String(diagnostic.message))
+    expect(messages).toHaveLength(4)
+    expect(messages[0]).toContain('Effect.runPromise')
+    expect(messages[0]).toContain('yield*')
+  })
+})
+
+function readLine(diagnostic: Record<string, unknown>): number | undefined {
+  const [label] = Array.isArray(diagnostic.labels) ? diagnostic.labels : []
+  if (!isRecord(label) || !isRecord(label.span)) return undefined
+  return typeof label.span.line === 'number' ? label.span.line : undefined
+}
