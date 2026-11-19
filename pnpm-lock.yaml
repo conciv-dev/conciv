@@ -4153,6 +4153,9 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tanstack/solid-query':
+        specifier: 'catalog:'
+        version: 5.107.1(patch_hash=6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f)(solid-js@1.9.17)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -4514,6 +4517,9 @@ importers:
       '@conciv/browser-fixture':
         specifier: workspace:*
         version: link:../../browser-fixture
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../../client
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../embed
@@ -4830,6 +4836,9 @@ importers:
       '@conciv/browser-fixture':
         specifier: workspace:*
         version: link:../../browser-fixture
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../../client
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../embed

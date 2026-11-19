@@ -17,6 +17,7 @@ const modules = {
   'solid-js': () => import('solid-js'),
   'solid-js/web': () => import('solid-js/web'),
   'solid-js/store': () => import('solid-js/store'),
+  '@conciv/client': () => import('@conciv/client'),
   '@conciv/plugin/experimental/page': () => import('@conciv/plugin/experimental/page'),
   '@conciv/plugin/experimental/grab': () => import('@conciv/plugin/experimental/grab'),
   '@conciv/ui-kit-tap': () => import('@conciv/ui-kit-tap'),

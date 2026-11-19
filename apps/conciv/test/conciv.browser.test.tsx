@@ -8624,13 +8624,13 @@ describe('plugin enable state', () => {
   const coreBase = bootedCore('plugin-enable-state')
 
   test('a plugin disabled through one store reads back disabled, in a fresh store and in a following one', async () => {
-    const store = createManager(Conciv.make(coreRpc(coreBase())), [])
+    const store = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     const fresh = await store.read()
     expect(fresh).toEqual([])
     expect(pluginEnabled({id: 'x', builtin: false}, fresh)).toBe(true)
     expect(await store.enabled('y')).toBe(true)
 
-    const follower = createManager(Conciv.make(coreRpc(coreBase())), [])
+    const follower = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     const followed: (readonly EnableState[])[] = []
     onTestFinished(follower.on((state) => followed.push(state)))
     await expect.poll(() => followed.at(-1)).toEqual([])
@@ -8648,7 +8648,7 @@ describe('plugin enable state', () => {
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: true}])
 
     await store.setEnabled('x', false)
-    const reloaded = createManager(Conciv.make(coreRpc(coreBase())), [])
+    const reloaded = createManager(Conciv.make(coreRpc(coreBase()), {server: coreBase}), [])
     expect(await reloaded.read()).toEqual([{id: 'x', enabled: false}])
     expect(await reloaded.enabled('x')).toBe(false)
     await expect.poll(() => followed.at(-1)).toEqual([{id: 'x', enabled: false}])
@@ -8716,7 +8716,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base, builtins})
+  return createBundleSource({client: Conciv.make(coreRpc(base), {server: () => base}), apiBase: () => base, builtins})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
@@ -9067,6 +9067,103 @@ module.exports = {default: {setup(ctx) {
     await expect.element(page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})).toBeVisible()
     await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
     await expect.element(page.getByText('Staged 1', {exact: true})).toBeVisible()
+  }, 30_000)
+})
+
+describe('a plugin view reads through the host query cache', () => {
+  const tallyDefinition = `{
+  id: 'tally',
+  methods: {
+    count: {input: {type: 'object'}, output: {type: 'object'}},
+    bump: {input: {type: 'object'}, output: {type: 'object'}},
+  },
+  events: {bumped: {schema: {type: 'object'}}},
+}`
+  const tallyEngine = `const Tally = ${tallyDefinition}
+export default {
+  id: 'tally',
+  async setup(ctx) {
+    const tally = {count: 0}
+    const registration = await ctx.rpc.register(Tally, {
+      count: async () => ({count: tally.count}),
+      bump: async () => {
+        tally.count += 1
+        await registration.events.emit('bumped', {count: tally.count})
+        return {count: tally.count}
+      },
+    })
+  },
+}
+`
+  const tallyBundle = `const {Panel} = require('@conciv/plugin/experimental')
+const {useMutation, useQuery, useQueryClient} = require('@conciv/client')
+const {createComponent, insert} = require('solid-js/web')
+const Tally = ${tallyDefinition}
+module.exports = {default: {setup(ctx) {
+  const tally = () => ctx.client.rpc(Tally)
+  const queryClient = useQueryClient()
+  tally().events.on('bumped', () => queryClient.invalidateQueries({queryKey: tally().count.key()}), {signal: ctx.signal})
+  function TallyView() {
+    const count = useQuery(() => tally().count.queryOptions({input: {}}))
+    const bump = useMutation(() => tally().bump.mutationOptions())
+    const canvas = useQuery(() => ({queryKey: ['plugin', 'tally', 'canvas'], queryFn: async () => () => 'Tally canvas, first revision'}))
+    const body = document.createElement('div')
+    const shown = document.createElement('p')
+    const drawn = document.createElement('p')
+    insert(shown, () => (count.isSuccess ? 'Tally ' + count.data.count : 'Counting'))
+    insert(drawn, () => (canvas.isSuccess ? canvas.data() : 'Drawing'))
+    insert(body, [createComponent(ctx.ui.Button, {onClick: () => bump.mutate({}), children: 'Bump the tally'}), shown, drawn, Object.assign(document.createElement('p'), {textContent: 'Tally view, first revision'})])
+    return body
+  }
+  ctx.add(Panel, {
+    id: 'tally',
+    region: 'pane',
+    list: () => [{id: 'tally', title: 'Tally', pinned: true}],
+    render: () => createComponent(TallyView, {}),
+  })
+}}}
+`
+  const coreBase = bootedCore('plugin-view-query', {
+    plugins: ['./tally'],
+    files: {'tally/index.ts': tallyEngine, 'tally/plugin-experimental.js': tallyBundle},
+  })
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  test('a plugin view reads its engine method through queryOptions, writes through mutationOptions, and shows the fresh value each time the engine announces a change', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const tab = page.getByRole('tab', {name: 'Tally', exact: true})
+    await expect.element(tab, {timeout: 15_000}).toBeVisible()
+    await tab.click()
+    await expect.element(page.getByText('Tally 0', {exact: true})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Bump the tally', exact: true}).click()
+    await expect.element(page.getByText('Tally 1', {exact: true})).toBeVisible()
+
+    await rpc.plugin.call({rpcId: 'tally', method: 'bump', input: {}})
+    await expect.element(page.getByText('Tally 2', {exact: true})).toBeVisible()
+  }, 30_000)
+
+  test("a reloaded plugin runs its new revision's code, not the old revision's cached in the host's query cache", async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    const tab = page.getByRole('tab', {name: 'Tally', exact: true})
+    await expect.element(tab, {timeout: 15_000}).toBeVisible()
+    await tab.click()
+    await expect.element(page.getByText('Tally canvas, first revision', {exact: true})).toBeVisible()
+
+    await coreControl.writeProjectFile(
+      'tally/plugin-experimental.js',
+      tallyBundle.replaceAll('first revision', 'second revision'),
+    )
+    await expect.element(page.getByText('Tally view, second revision', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Tally canvas, second revision', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Tally canvas, first revision', {exact: true})).not.toBeInTheDocument()
   }, 30_000)
 })
 

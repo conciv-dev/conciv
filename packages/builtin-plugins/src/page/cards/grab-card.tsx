@@ -1,7 +1,8 @@
-import {createResource, Show, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import CornerDownRight from 'lucide-solid/icons/corner-down-right'
+import {useQuery} from '@conciv/client'
 import {isCompleteAttachment, useAttachment, type AttachmentCardProps} from '@conciv/ui-kit-chat'
 import {Button, Dialog, Loader} from '@conciv/ui-kit-system'
 import {parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
@@ -138,10 +139,14 @@ function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Elem
 
 export function GrabCard(props: AttachmentCardProps): JSX.Element {
   const attachment = useAttachment()
-  const [payload] = createResource(() => resolvePayload(attachment))
+  const payload = useQuery(() => ({
+    queryKey: ['grab-card', 'attachment', attachment.id],
+    queryFn: () => resolvePayload(attachment),
+    retry: false,
+  }))
   return (
     <Show
-      when={payload.state === 'ready' || payload.state === 'errored'}
+      when={!payload.isPending}
       fallback={
         <div class={CARD} aria-busy="true">
           <div class={LOADING_ROW}>
@@ -154,7 +159,7 @@ export function GrabCard(props: AttachmentCardProps): JSX.Element {
       }
     >
       <Show
-        when={payload()}
+        when={payload.data}
         fallback={
           <div class={CARD} role="status">
             <span class={AGENT_TEXT}>Grabbed element could not be read</span>
