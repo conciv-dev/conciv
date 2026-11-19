@@ -99,7 +99,8 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
 
   const putOnComposer = async (entry: StagedEntry, composer: ComposerGrabPort): Promise<void> => {
     try {
-      const prepared = await fitted(entry.grounded ?? entry.grab)
+      const placed = entry.grounded ?? entry.grab
+      const prepared = await fitted(placed)
       if (!isLive(entry, composer)) return
       const id = await composer.addAttachment(grabToFile(prepared))
       if (!isLive(entry, composer)) {
@@ -109,6 +110,10 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
       entry.id = id
       if (id) remember(id, grabToPayload(prepared))
       if (entry.grounded === null) return
+      if (id && placed !== entry.grounded) {
+        await settle(entry)
+        return
+      }
       drop(entry)
     } finally {
       if (entry.id === null) entry.placing = null
