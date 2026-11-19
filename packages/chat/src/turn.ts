@@ -13,7 +13,7 @@ import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message
 import type {Turn, TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
-import {isEqual} from 'es-toolkit'
+import {isEqual, once} from 'es-toolkit'
 import {
   ChatContentPartSchema,
   isHarnessSessionId,
@@ -37,12 +37,12 @@ export type SessionRow = {
 }
 
 export type SessionPort = {
-  row: (sessionId: SessionId) => SessionRow | null
+  row: (sessionId: SessionId) => Promise<SessionRow | null>
   ensure: (sessionId: SessionId) => Promise<void>
   recordNativeId: (sessionId: SessionId, harnessId: string, nativeId: HarnessSessionId) => Promise<void>
   recordUsage: (sessionId: SessionId, usage: UsageSnapshot) => Promise<void>
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
-  recordActivity: (sessionId: SessionId, title: string, at: number) => void
+  recordActivity: (sessionId: SessionId, title: string, at: number) => Promise<void>
   onRunStart: (sessionId: SessionId) => Promise<void>
   onRunEnd: (sessionId: SessionId, run: RunLifecycle) => Promise<void>
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
@@ -69,11 +69,11 @@ export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) 
 
 export type TurnDeps = {
   cwd: string
-  harnessFor: (sessionId: SessionId) => HarnessAdapter
+  harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
   systemPrompt: SystemPromptSources
   sessions: SessionPort
-  toolNames: ReadonlySet<string>
+  toolNames: (sessionId: SessionId) => Promise<ReadonlySet<string>>
   capabilities: (sessionId: SessionId) => Promise<CodeCapability[]>
   attachmentExpanders: AttachmentExpanders
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>
@@ -256,9 +256,9 @@ export function firstUserTitle(messages: readonly ModelMessage[]): string {
 }
 
 async function countContextTokens(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
-  const harness = deps.harnessFor(sessionId)
+  const harness = await deps.harnessFor(sessionId)
   const history = harness.history
-  const row = deps.sessions.row(sessionId)
+  const row = await deps.sessions.row(sessionId)
   const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
   if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
   const path = transcriptPathWithin(history, deps.cwd, nativeId)
@@ -271,8 +271,8 @@ async function recordContext(deps: TurnDeps, sessionId: SessionId): Promise<void
   if (contextTokens !== undefined) await deps.sessions.recordContextTokens(sessionId, contextTokens)
 }
 
-export function sessionDeleted(sessions: SessionPort, sessionId: SessionId): boolean {
-  const row = sessions.row(sessionId)
+export async function sessionDeleted(sessions: SessionPort, sessionId: SessionId): Promise<boolean> {
+  const row = await sessions.row(sessionId)
   return row !== null && row.deletedAt !== null
 }
 
@@ -288,22 +288,22 @@ export function turnHooks(
   deps: TurnDeps,
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
-  const normalize = toolNameNormalizer(deps.toolNames)
   return {
     admit: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
-      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
+      if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
     },
-    plan: (turn) => {
+    plan: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
-      const harness = deps.harnessFor(sessionId)
+      const harness = await deps.harnessFor(sessionId)
       const systemText = buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
-      const row = deps.sessions.row(sessionId)
+      const row = await deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null
       const resumeSessionId = resumableToken(deps, harness, row)
       const reset: InstructionReset = turn.kind === 'compact' || resumeSessionId === null ? 'reset' : 'keep'
       const instructions = Promise.withResolvers<PluginInstructions>()
+      const normalizer = once(async () => toolNameNormalizer(await deps.toolNames(sessionId)))
       const toolSet = async () =>
         chatToolSet(await deps.capabilities(sessionId), {sessionId, agentId: sessionId, model}, context.codeMode)
       const config = harness.chatConfig({
@@ -347,6 +347,7 @@ export function turnHooks(
           await context.transcripts.sync(sessionId)
           const approvals = await context.approvals.forRun(sessionId)
           const {inventory} = await toolSet()
+          await normalizer()
           instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
           return approvals
         },
@@ -372,7 +373,8 @@ export function turnHooks(
           return config.prepareMessages?.(told) ?? told
         },
         chunk: async (chunk) => {
-          const shaped = normalizedChunk(chunk, normalize)
+          const shaped =
+            chunk.type === ChatEventType.TOOL_CALL_START ? normalizedChunk(chunk, await normalizer()) : chunk
           if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
           if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
             await recordContext(deps, sessionId)
@@ -395,7 +397,8 @@ export function turnHooks(
       const sessionId = SessionId.parse(turn.threadId)
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
-      const modelId = deps.sessions.row(sessionId)?.model ?? deps.harnessFor(sessionId).defaultModel ?? null
+      const modelId =
+        (await deps.sessions.row(sessionId))?.model ?? (await deps.harnessFor(sessionId)).defaultModel ?? null
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage, modelId ?? undefined),
         ...(modelId === null ? {} : {modelId}),

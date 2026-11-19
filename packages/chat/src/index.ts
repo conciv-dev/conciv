@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {eq} from 'drizzle-orm'
+import {and, eq, isNotNull} from 'drizzle-orm'
+import {Effect} from 'effect'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -13,7 +14,7 @@ import {
   type CodeDriver,
 } from '@conciv/ai/server'
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
-import {chatRuns, markers, type ConcivDb} from '@conciv/db'
+import {chatRuns, markers, sessions, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
@@ -130,11 +131,11 @@ type PermissionAsk = Omit<ApprovalAsked, 'runId' | 'permission'> & {permission: 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const followingUp = new Map<SessionId, {answered: Promise<FollowUpOutcome>; ending: AbortController}>()
   const stores = drizzleChatStores(deps.db, {
-    readHarness: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
-    saved: (threadId, messages, at) => {
+    readHarness: async (threadId) => (await deps.harnessFor(SessionId.parse(threadId))).id,
+    saved: async (threadId, messages, at) => {
       if (!isSessionId(threadId)) return
       try {
-        deps.sessions.recordActivity(threadId, firstUserTitle(messages), at)
+        await deps.sessions.recordActivity(threadId, firstUserTitle(messages), at)
       } catch (error) {
         deps.log(`[conciv] recording the activity of session ${threadId} failed: ${String(error)}`)
       }
@@ -154,8 +155,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     stores,
     toolNames: deps.toolNames,
     log: deps.log,
-    native: (sessionId) => {
-      const row = deps.sessions.row(sessionId)
+    native: async (sessionId) => {
+      const row = await deps.sessions.row(sessionId)
       return row === null || row.nativeId === null
         ? null
         : {nativeId: row.nativeId, cwd: row.cwd, harnessKind: row.harnessKind}
@@ -171,10 +172,9 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     log: deps.log,
     driver: deps.driver,
   })
-  const normalize = toolNameNormalizer(deps.toolNames)
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
-    if (deps.sessions.row(sessionId) === null || sessionDeleted(deps.sessions, sessionId)) {
+    if ((await deps.sessions.row(sessionId)) === null || (await sessionDeleted(deps.sessions, sessionId))) {
       return {reason: 'missing', message: missingSession(sessionId)}
     }
     const approvalId = toolApprovalId(call.toolName)
@@ -200,14 +200,17 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
-      if (window?.before === undefined && !sessionDeleted(deps.sessions, sessionId)) await transcripts.sync(sessionId)
+      if (window?.before === undefined && !(await sessionDeleted(deps.sessions, sessionId)))
+        await transcripts.sync(sessionId)
     }
     const thread = await server.hydrate(sessionId, window)
-    const messages = normalizedMessages(thread.messages, normalize)
-    const runs = await deps.db
-      .select({runId: chatRuns.runId, harnessId: chatRuns.harnessId})
-      .from(chatRuns)
-      .where(eq(chatRuns.threadId, sessionId))
+    const messages = normalizedMessages(thread.messages, toolNameNormalizer(await deps.toolNames(sessionId)))
+    const runs = await Effect.runPromise(
+      deps.db
+        .select({runId: chatRuns.runId, harnessId: chatRuns.harnessId})
+        .from(chatRuns)
+        .where(eq(chatRuns.threadId, sessionId)),
+    )
     return {
       messages,
       messageHarness: messageHarnesses(messages, Object.fromEntries(runs.map((run) => [run.runId, run.harnessId]))),
@@ -220,7 +223,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   }
 
   const driveFollowUp = async (sessionId: SessionId, input: string, ended: AbortSignal): Promise<FollowUpOutcome> => {
-    if (sessionDeleted(deps.sessions, sessionId)) return {kind: 'failed', error: missingSession(sessionId)}
+    if (await sessionDeleted(deps.sessions, sessionId)) return {kind: 'failed', error: missingSession(sessionId)}
     if ((await stores.runs.findActiveRun(sessionId)) !== null) return {kind: 'busy'}
     if (ended.aborted) return {kind: 'stopped'}
     const runId = randomUUID()
@@ -265,16 +268,29 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return {ok: true, stopped}
     },
     compact: async (sessionId) => {
-      if (sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
+      if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
       const afterMessageId = messages.at(-1)?.id ?? null
-      await deps.db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
+      const marked = await Effect.runPromise(
+        deps.db.transaction((tx) =>
+          Effect.gen(function* () {
+            const tombstone = yield* tx
+              .select({id: sessions.id})
+              .from(sessions)
+              .where(and(eq(sessions.id, sessionId), isNotNull(sessions.deletedAt)))
+            if (tombstone.length > 0) return false
+            yield* tx.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
+            return true
+          }),
+        ),
+      )
+      if (!marked) throw deletedSessionError(sessionId)
       await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
     },
     clear: async (sessionId) => {
       await endRuns(sessionId)
-      clearThread(deps.db, sessionId)
+      await clearThread(deps.db, sessionId)
     },
     endRuns,
     endAllRuns: () => server.endAllRuns(),
@@ -315,7 +331,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       return answered
     },
     codeRunner: async (sessionId, publish, given) => {
-      const model = deps.sessions.row(sessionId)?.model ?? null
+      const model = (await deps.sessions.row(sessionId))?.model ?? null
       const capabilities = given ?? (await deps.capabilities(sessionId))
       const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model}, deps.driver !== null)
       const runner = server.codeRunner(toolSet.codeMode, toolSet.search)

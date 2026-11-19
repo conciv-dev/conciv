@@ -1,6 +1,7 @@
 import bannedVocabulary from './banned-vocabulary.js'
 import corePurity from './core-purity.js'
 import lucidePerIcon from './lucide-per-icon.js'
+import noAwaitEffectQuery from './no-await-effect-query.js'
 import noComments from './no-comments.js'
 import noDelegatedFocus from './no-delegated-focus.js'
 import noHandMadeTempDir from './no-hand-made-temp-dir.js'
@@ -20,6 +21,7 @@ export default {
     'banned-vocabulary': bannedVocabulary,
     'core-purity': corePurity,
     'lucide-per-icon': lucidePerIcon,
+    'no-await-effect-query': noAwaitEffectQuery,
     'no-comments': noComments,
     'no-delegated-focus': noDelegatedFocus,
     'no-hand-made-temp-dir': noHandMadeTempDir,

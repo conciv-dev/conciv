@@ -569,7 +569,7 @@ describe('api extension server surfaces', () => {
       })
 
       expect(server.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
-      const surface = server.harness(sessionId)
+      const surface = await server.harness(sessionId)
       expect(surface.id).toBe('claude')
       expect(typeof surface.ttyCommand).toBe('function')
       const noSuchToken = HarnessSessionId.parse('no-such-token')
@@ -929,7 +929,7 @@ describe('api claude turns', () => {
 
   async function cliRun(sessionId: string, model: string, effort: 'high' | null) {
     if (made.app === null) throw new Error('the app did not boot')
-    made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)))
     await runTurn(kit(), `run ${model}`, sessionId)
     const args = readFileSync(join(bin, 'args'), 'utf8').split('\n')
     return {
@@ -1017,7 +1017,7 @@ describe('api harness switching', () => {
   }
 
   function row(sessionId: string) {
-    return db().select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    return Effect.runPromise(db().select().from(sessions).where(eq(sessions.id, sessionId)).get())
   }
 
   async function turn(sessionId: string, text: string): Promise<SeenTurn> {
@@ -1065,49 +1065,75 @@ describe('api harness switching', () => {
   it('a switch that names a model leaves the session on that model and clears the effort, the next turn runs it', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'first question')
-    db().update(sessions).set({effort: 'high'}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(db().update(sessions).set({effort: 'high'}).where(eq(sessions.id, sessionId)))
 
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'b-model'})).toEqual({
       harnessId: 'beta',
     })
 
-    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: 'b-model', effort: null})
+    expect(await row(sessionId)).toMatchObject({
+      harnessKind: 'beta',
+      harnessSessionId: null,
+      model: 'b-model',
+      effort: null,
+    })
     expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'beta', model: 'b-model'})
+  })
+
+  it('a switch whose row write fails is refused and leaves the session on its harness', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'stay on alpha when the write fails')
+    const before = await row(sessionId)
+    await Effect.runPromise(
+      db().$client.unsafe(`CREATE TRIGGER switch_write_fails BEFORE UPDATE OF harness_kind ON sessions
+      BEGIN SELECT RAISE(ABORT, 'switch write failed'); END`).raw,
+    )
+    onTestFinished(async () => {
+      await Effect.runPromise(db().$client.unsafe('DROP TRIGGER switch_write_fails').raw)
+    })
+
+    await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+    })
+
+    expect(await row(sessionId)).toEqual(before)
   })
 
   it('rejects a switch naming a model the target harness does not list, and changes nothing', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'stay on alpha')
-    const before = row(sessionId)
+    const before = await row(sessionId)
 
     await expect(
       kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'a-model'}),
     ).rejects.toMatchObject({code: 'UNKNOWN_MODEL'})
 
-    expect(row(sessionId)).toEqual(before)
+    expect(await row(sessionId)).toEqual(before)
   })
 
   it('a switch resets the session, the next turn replays the whole chat, and each reply keeps its harness', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await kit().rpc.sessions.model({sessionId, model: 'a-model'})
     expect(await turn(sessionId, 'first question')).toMatchObject({harness: 'alpha', resumeSessionId: null})
-    const native = row(sessionId)?.harnessSessionId
+    const native = (await row(sessionId))?.harnessSessionId
     expect(native).toBeTruthy()
     expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'alpha', resumeSessionId: native})
-    db()
-      .insert(chatMetadata)
-      .values({namespace: TRANSCRIPT_NAMESPACE, key: anchorKey(sessionId), valueJson: {nativeId: 'alpha-tail'}})
-      .run()
+    await Effect.runPromise(
+      db()
+        .insert(chatMetadata)
+        .values({namespace: TRANSCRIPT_NAMESPACE, key: anchorKey(sessionId), valueJson: {nativeId: 'alpha-tail'}}),
+    )
 
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).toEqual({harnessId: 'beta'})
 
-    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: null})
+    expect(await row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: null})
     expect(
-      db()
-        .select()
-        .from(chatMetadata)
-        .where(eq(chatMetadata.key, anchorKey(sessionId)))
-        .all(),
+      await Effect.runPromise(
+        db()
+          .select()
+          .from(chatMetadata)
+          .where(eq(chatMetadata.key, anchorKey(sessionId))),
+      ),
     ).toEqual([])
     const models = await kit().rpc.meta.models({sessionId})
     expect(models.harness.id).toBe('beta')
@@ -1123,7 +1149,7 @@ describe('api harness switching', () => {
     expect(replayed.sent).toContain('second question')
     expect(await turn(sessionId, 'fourth question')).toMatchObject({
       harness: 'beta',
-      resumeSessionId: row(sessionId)?.harnessSessionId,
+      resumeSessionId: (await row(sessionId))?.harnessSessionId,
     })
 
     const hydration = await kit().hydrate(sessionId)
@@ -1134,20 +1160,21 @@ describe('api harness switching', () => {
       'beta',
       'beta',
     ])
-    const runs = db()
-      .select({harnessId: chatRuns.harnessId})
-      .from(chatRuns)
-      .where(eq(chatRuns.threadId, sessionId))
-      .orderBy(asc(chatRuns.startedAt))
-      .all()
+    const runs = await Effect.runPromise(
+      db()
+        .select({harnessId: chatRuns.harnessId})
+        .from(chatRuns)
+        .where(eq(chatRuns.threadId, sessionId))
+        .orderBy(asc(chatRuns.startedAt)),
+    )
     expect(runs.map((run) => run.harnessId)).toEqual(['alpha', 'alpha', 'beta', 'beta'])
   })
 
   it('a turn never resumes a native session that belongs to another harness', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'remember this')
-    expect(row(sessionId)?.harnessSessionId).toBeTruthy()
-    db().update(sessions).set({harnessKind: 'uninstalled'}).where(eq(sessions.id, sessionId)).run()
+    expect((await row(sessionId))?.harnessSessionId).toBeTruthy()
+    await Effect.runPromise(db().update(sessions).set({harnessKind: 'uninstalled'}).where(eq(sessions.id, sessionId)))
     const next = await turn(sessionId, 'and now?')
     expect(next).toMatchObject({harness: 'alpha', resumeSessionId: null})
     expect(next.sent).toContain('remember this')
@@ -1168,7 +1195,7 @@ describe('api harness switching', () => {
       await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
         code: 'SESSION_RUNNING',
       })
-      expect(row(sessionId)?.harnessKind).toBe('alpha')
+      expect((await row(sessionId))?.harnessKind).toBe('alpha')
     } finally {
       alpha.script.release()
       await running.done()
@@ -1178,16 +1205,16 @@ describe('api harness switching', () => {
   it('switching to the current harness changes nothing', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'stay')
-    const before = row(sessionId)
+    const before = await row(sessionId)
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})).toEqual({harnessId: 'alpha'})
-    expect(row(sessionId)).toEqual(before)
+    expect(await row(sessionId)).toEqual(before)
   })
 
   it('a native transcript a session owned before a switch never lists as a separate session, and never resumes', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     await turn(sessionId, 'written into a beta transcript')
-    const owned = row(sessionId)?.harnessSessionId
+    const owned = (await row(sessionId))?.harnessSessionId
     if (!owned) throw new Error('the beta turn recorded no native session')
     betaTranscripts.push({
       id: HarnessSessionId.parse(owned),
@@ -1236,11 +1263,11 @@ describe('api harness switching', () => {
 
     await kit().rpc.sessions.delete({sessionId})
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect((await row(sessionId))?.deletedAt).not.toBeNull()
     expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
-    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    expect(await row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
     await kit().rpc.sessions.restore({sessionId})
-    expect(row(sessionId)).toMatchObject({deletedAt: null})
+    expect(await row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1274,9 +1301,9 @@ describe('api harness switching', () => {
       sessions.create({id, title: 'A new session on an old id', location}).pipe(Effect.flip),
     )
     expect(refused).toMatchObject({_tag: 'Session.NotFoundError', sessionId: id})
-    expect(row(sessionId)?.deletedAt).not.toBeNull()
-    expect(row(sessionId)?.title).not.toBe('A new session on an old id')
-    expect(row(sessionId)).toMatchObject({
+    expect((await row(sessionId))?.deletedAt).not.toBeNull()
+    expect((await row(sessionId))?.title).not.toBe('A new session on an old id')
+    expect(await row(sessionId)).toMatchObject({
       metadata: {ticket: 7},
       permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
     })
@@ -1284,7 +1311,7 @@ describe('api harness switching', () => {
     expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
     expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
-    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    expect(await row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -1320,7 +1347,7 @@ describe('api harness switching', () => {
       kit: racedKit,
       row: (sessionId: string) => {
         if (raced.app === null) throw new Error('the app did not boot')
-        return raced.app.chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+        return Effect.runPromise(raced.app.chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get())
       },
       whileListingSlowModels: async (change: Promise<unknown>, sessionId: SessionId) => {
         const settled = change.then(
@@ -1344,7 +1371,7 @@ describe('api harness switching', () => {
         sessionId,
       )
       expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNKNOWN_MODEL'}})
-      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+      expect(await raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
     })
   })
 
@@ -1357,7 +1384,7 @@ describe('api harness switching', () => {
         sessionId,
       )
       expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNSUPPORTED_EFFORT'}})
-      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+      expect(await raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
     })
   })
 })
@@ -2746,13 +2773,22 @@ describe('rpc wire', () => {
 
     describe('tools and models list', () => {
       it('the widget gets every tool with its full description and the harness model list', async () => {
-        const {tools} = await chatKit().rpc.meta.tools(undefined)
+        const {tools} = await chatKit().rpc.meta.tools({sessionId: await newSession()})
         expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
         expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
         const models = await chatKit().rpc.meta.models({sessionId: await newSession()})
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
         expect(models.defaultModel).toBe('opus')
+      })
+
+      it('a session whose agent has code mode off is offered no extension tool, since its turn gets none', async () => {
+        const {kit} = await bootWire({
+          extensions: [fixtureExtension()],
+          permissions: [{action: 'execute', resource: '*', effect: 'deny'}],
+        })
+        const {tools} = await kit.rpc.meta.tools({sessionId: await kit.session()})
+        expect(tools.map((tool) => tool.name).filter((name) => FIXTURE_TOOLS.includes(name))).toEqual([])
       })
     })
 
@@ -5556,7 +5592,7 @@ describe('session activity recorded with its chat messages', () => {
 
   async function staleSession(): Promise<SessionId> {
     const sessionId = SessionId.parse((await kit().rpc.sessions.create()).sessionId)
-    made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)))
     return sessionId
   }
 
@@ -5595,20 +5631,24 @@ describe('session activity recorded with its chat messages', () => {
     expect((await kit().rpc.sessions.get({sessionId})).title).toBe('kept')
     const native = await staleSession()
     const nativeId = HarnessSessionId.parse(randomUUID())
-    made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)).run()
+    await Effect.runPromise(
+      made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)),
+    )
     const before = Date.now()
     await runTurn(kit(), 'a message to a native session', native)
-    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get()
+    const row = await Effect.runPromise(made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get())
     expect(row?.title).toBeNull()
     expect(row?.updatedAt).toBeGreaterThanOrEqual(before)
   })
 
   it('importing a transcript stamps lastActive with its newest message time, not the time it was opened', async () => {
     const sessionId = await staleSession()
-    made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(
+      made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)),
+    )
     await kit().hydrate(sessionId)
     const reopened = await kit().hydrate(sessionId)
-    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    const row = await Effect.runPromise(made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get())
     expect(reopened.messages.map((message) => message.id)).toEqual(['imported-user', 'imported-reply'])
     expect(row).toMatchObject({title: null, updatedAt: WRITTEN_AT})
   })
@@ -5618,7 +5658,7 @@ describe('session activity recorded with its chat messages', () => {
     expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
   })
 
-  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', () => {
+  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', async () => {
     const stateRoot = tempDir('conciv-activity-fixup-')
     const stateDir = join(stateRoot, '.conciv')
     mkdirSync(stateDir, {recursive: true})
@@ -5651,13 +5691,16 @@ describe('session activity recorded with its chat messages', () => {
       )
     }
     client.close()
-    const db = openDb(stateRoot)
-    const repaired = db
-      .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
-      .from(sessions)
-      .orderBy(asc(sessions.id))
-      .all()
-    db.$client.close()
+    const repaired = await Effect.runPromise(
+      Effect.scoped(
+        Effect.flatMap(openDb(stateRoot), (db) =>
+          db
+            .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
+            .from(sessions)
+            .orderBy(asc(sessions.id)),
+        ),
+      ),
+    )
     expect(repaired).toEqual([
       {id: 'conciv_native', title: null, updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
       {id: 'conciv_quiet', title: null, updatedAt: ROW_AT},
