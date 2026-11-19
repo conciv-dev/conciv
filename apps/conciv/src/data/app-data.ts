@@ -80,9 +80,10 @@ export function makeAppData(
   queryClient: QueryClient,
   drafts: DraftStore | null,
   lockedOut: () => boolean,
+  server: () => string,
 ): AppData {
   const utils = makeQueryUtils(rpc)
-  const client = Conciv.make(rpc)
+  const client = Conciv.make(rpc, {server})
   const listKeys = [utils.sessions.list.key(), utils.sessions.search.key()]
   for (const queryKey of [...listKeys, utils.sessions.get.key()]) {
     queryClient.setQueryDefaults(queryKey, {refetchOnWindowFocus: false})

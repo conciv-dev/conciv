@@ -30,7 +30,7 @@ function connect(apiBase: string, tooOld: (apiBase: string) => void): ServerRef[
         }),
     ],
   })
-  return Conciv.make(client)
+  return Conciv.make(client, {server: () => apiBase})
 }
 
 async function checked(home: string): Promise<Snapshot> {
