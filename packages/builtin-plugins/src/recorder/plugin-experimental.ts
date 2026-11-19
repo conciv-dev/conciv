@@ -3,6 +3,6 @@ import {recorderCards} from './cards.js'
 
 export default Plugin.define({
   setup(ctx) {
-    Object.entries(recorderCards).forEach(([name, render]) => ctx.add(ToolRegistry, {name, render}))
+    Object.entries(recorderCards).forEach(([name, entry]) => ctx.add(ToolRegistry, {name, ...entry}))
   },
 })

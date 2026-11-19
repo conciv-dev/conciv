@@ -2,7 +2,7 @@ import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {BasicTool, Chip} from '@conciv/ui-kit-chat/tools'
+import {BasicTool, Chip, ErrorBlock} from '@conciv/ui-kit-chat/tools'
 import {countLabel} from '../page/cards/shared.js'
 import {parseOutput, readInput} from '../tanstack/card-shared.js'
 
@@ -104,7 +104,17 @@ function RecordingCard(props: ToolProps): JSX.Element {
   )
 }
 
+function RecordingFailedCard(props: ToolProps): JSX.Element {
+  return (
+    <BasicTool {...props} status="error" trigger={{title: props.tool}} hasContent={true}>
+      <ErrorBlock message={props.error ?? ''} />
+    </BasicTool>
+  )
+}
+
 export const recordingCard: ToolComponent = RecordingCard
+
+export const recordingFailedCard: ToolComponent = RecordingFailedCard
 
 function readCaptureId(recording: Recording): string | undefined {
   return recording.kind === 'started' ? recording.captureId : undefined

@@ -2550,9 +2550,7 @@ describe('the recorder cards', () => {
   const keyframe = {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}}
   const log = '+0.0s [click] button "Save"\n+2.5s [navigation] /settings\n+4.1s [console] error: boom'
 
-  const lookupRecorderCard = (name: string) => ({
-    render: Object.entries(recorderCards).find(([tool]) => tool === name)?.[1],
-  })
+  const lookupRecorderCard = (name: string) => Object.entries(recorderCards).find(([tool]) => tool === name)?.[1]
 
   function RecorderCard(props: {tool: Tool; input: Record<string, unknown>; output: string; failed?: boolean}) {
     return (
@@ -2595,9 +2593,11 @@ describe('the recorder cards', () => {
     cleanup()
 
     mountCard('recording_stop', {captureId: 'cap_9', keyframes: 0}, 'no active capture cap_9', true)
-    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'failed'})).toBeVisible()
     await header('recording_stop').click()
+    await expect.element(page.getByText('Error', {exact: true})).toBeVisible()
     await expect.element(page.getByText('no active capture cap_9')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Copy error'})).not.toBeInTheDocument()
     cleanup()
 
     render(() => (
