@@ -126,6 +126,9 @@ catalogs:
     '@silvia-odwyer/photon-node':
       specifier: 0.3.4
       version: 0.3.4
+    '@solid-primitives/autofocus':
+      specifier: ^0.1.5
+      version: 0.1.5
     '@solid-primitives/date':
       specifier: ^2.1.8
       version: 2.1.8
@@ -814,6 +817,9 @@ importers:
       '@conciv/plugin-testkit':
         specifier: workspace:^
         version: link:../../packages/plugin-testkit
+      '@conciv/plugin-try-it':
+        specifier: workspace:*
+        version: link:../../packages/plugins/try-it
       '@conciv/storage-history':
         specifier: workspace:^
         version: link:../../packages/storage-history
@@ -1038,15 +1044,18 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../packages/embed
-      '@conciv/extension-try-it':
-        specifier: workspace:*
-        version: link:../../packages/extensions/try-it
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
       '@conciv/mascot-react':
         specifier: workspace:*
         version: link:../../packages/mascot-react
+      '@conciv/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
+      '@conciv/plugin-try-it':
+        specifier: workspace:*
+        version: link:../../packages/plugins/try-it
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -5014,6 +5023,79 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
+  packages/plugins/try-it:
+    dependencies:
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../../ui-kit-system
+      '@solid-primitives/autofocus':
+        specifier: 'catalog:'
+        version: 0.1.5(solid-js@1.9.17)
+      '@solid-primitives/event-listener':
+        specifier: 'catalog:'
+        version: 2.4.6(solid-js@1.9.17)
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.0
+      lucide-solid:
+        specifier: 'catalog:'
+        version: 1.66.0(solid-js@1.9.17)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@conciv/browser-fixture':
+        specifier: workspace:*
+        version: link:../../browser-fixture
+      '@conciv/embed':
+        specifier: workspace:^
+        version: link:../../embed
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../plugin
+      '@conciv/plugin-testkit':
+        specifier: workspace:^
+        version: link:../../plugin-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../../vitest-config
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -11857,6 +11939,11 @@ packages:
 
   '@solid-primitives/active-element@2.1.6':
     resolution: {integrity: sha512-kChC9c21g+/n0bfy2b5pkcGAgfiA4G/wcCSxVbrCXlnHfROw9PJi8x4ilYxOYSAnWvpI5pZXvK2McPXYE0y0oA==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
+  '@solid-primitives/autofocus@0.1.5':
+    resolution: {integrity: sha512-6wXoS9GlvSz8KEyJVlKUTsCKtoMS01vb2rUIQxd5LxwyWgfnaQqjVWSNIj1vRXEhX2vrMezk8YNFAHVUI3k4WQ==}
     peerDependencies:
       solid-js: ^1.6.12
 
@@ -25484,6 +25571,11 @@ snapshots:
   '@solid-primitives/active-element@2.1.6(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
+
+  '@solid-primitives/autofocus@0.1.5(solid-js@1.9.17)':
+    dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
       solid-js: 1.9.17
 

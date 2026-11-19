@@ -31,6 +31,7 @@ import {createClientSettings} from '@conciv/contract'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 import {createRoot, createSignal, type JSX} from 'solid-js'
+import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {createShadowRoot} from '../src/lib/shadow.js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
@@ -68,6 +69,8 @@ declare module 'vitest/internal/browser' {
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
+    forwardConnectPort: () => Promise<number>
+    closeConnectForward: () => Promise<void>
     pagePluginPaths: () => Promise<{engine: string; rpc: string}>
     writeProjectFile: (path: string, content: string) => Promise<void>
     projectFileExists: (path: string) => Promise<boolean>
@@ -256,7 +259,6 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
     connected,
     arrivedFromConnect: () => false,
     connectBind: async () => '',
-    connectMode: false,
     connectionGeneration: () => 0,
     apiBase: () => options.base,
     notifyInteractive: () => {},
@@ -360,7 +362,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
           <NoticeContextProvider>
             <DialogProvider>
-              <PluginRoot>
+              <PluginRoot composed={[]} servers={false}>
                 <PluginAttachment>
                   <PaneContext.Provider value={pane}>
                     <HostApiProvider
@@ -414,6 +416,26 @@ export type ShellMountOptions = {
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
   connect?: boolean
+  plugins?: readonly ComposedPlugin[]
+}
+
+function shellLogin(
+  options: ShellMountOptions['login'],
+  onDispose: (dispose: () => void) => void,
+): ReturnType<typeof createEngineLogin> | undefined {
+  if (!options) return undefined
+  const login = createRoot((dispose) => {
+    onDispose(dispose)
+    return createEngineLogin({apiBase: () => options.apiBase, tokenSource: options.tokenSource})
+  })
+  void startEngineLogin(login)
+  return login
+}
+
+function shellSettings(options: ShellMountOptions) {
+  return parseConcivSettings(
+    JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
+  )
 }
 
 function mountConcivRoot(inShadow: boolean): {
@@ -453,7 +475,7 @@ function connectShellRpc(session: () => string | null) {
 }
 
 function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
-  return options.connect ? connectShellRpc(session) : boundShellRpc(apiBase, session)
+  return options.connect || options.plugins ? connectShellRpc(session) : boundShellRpc(apiBase, session)
 }
 
 type ShellHarness = {
@@ -485,14 +507,9 @@ export function createShellHarness(base: () => string): ShellHarness {
     options: ShellMountOptions = {},
   ): void => {
     const apiBase = options.login?.apiBase ?? base()
-    const loginOptions = options.login
-    const login =
-      loginOptions &&
-      createRoot((disposeLogin) => {
-        mounted.disposeLogin = disposeLogin
-        return createEngineLogin({apiBase: () => apiBase, tokenSource: loginOptions.tokenSource})
-      })
-    if (login) void startEngineLogin(login)
+    const login = shellLogin(options.login, (dispose) => {
+      mounted.disposeLogin = dispose
+    })
     const activeSession: {read: () => string | null} = {read: () => null}
     const session = () => activeSession.read()
     const shellRpc = shellRpcFor(options, apiBase, session)
@@ -504,15 +521,14 @@ export function createShellHarness(base: () => string): ShellHarness {
       rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: shell.root ?? document, document},
-      settings: parseConcivSettings(
-        JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
-      ),
+      settings: shellSettings(options),
       apiBase: options.apiBase ?? shellRpc.apiBase,
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
-      connectMode: options.connect,
       bindApiBase: shellRpc.bindApiBase,
       connectionGeneration: () => 0,
       extensions,
+      plugins: options.plugins,
+      servers: options.plugins !== undefined,
       login,
       bindActiveSession: (read) => {
         activeSession.read = read
