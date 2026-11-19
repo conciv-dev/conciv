@@ -27,6 +27,7 @@ export type ComposerInputAdapterProps = {
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
+  menuBoundary?: () => Element | undefined
 }
 
 export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Element {
@@ -80,6 +81,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onBackspaceAtStart={removeLastAttachment}
         slashTrigger={props.triggers?.slash}
         mentionTrigger={props.triggers?.mention}
+        menuBoundary={props.menuBoundary}
         onReady={(handle) => {
           props.onReady?.({
             focus: () => handle.focus(),

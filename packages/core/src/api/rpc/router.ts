@@ -9,7 +9,7 @@ import type {Router} from '@orpc/server'
 import {Cause, Effect, Exit, Option, Result, Stream} from 'effect'
 import {OUTPUT_CAPACITY, ptyOutput, type PtyOutputEvent} from '../../pty/pty-output.js'
 import type {TtySession} from '../../pty/pty-sessions.js'
-import {Event, Location, Plugin, Rpc, Tool} from '@conciv/plugin-host'
+import {Agent, Event, FileSystem, Location, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
 import {EventFeed} from '../../event-feed.js'
 import {
   cappedText,
@@ -252,7 +252,7 @@ async function* relayEvents<Value>(events: AsyncIterator<Value>, signal: AbortSi
   }
 }
 
-function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plugin.Interface>) {
+function locationResponse<Data, Failure, Services>(data: Effect.Effect<Data, Failure, Services>) {
   return Effect.gen(function* () {
     const location = yield* Location.Service
     return {location: {directory: location.directory}, data: yield* data}
@@ -261,6 +261,18 @@ function locationResponse<Data, Failure>(data: Effect.Effect<Data, Failure, Plug
 
 function pluginList(host: PluginHost, signal: AbortSignal | undefined) {
   return host.runPromise(locationResponse(Plugin.Service.use((plugins) => plugins.list())), {signal})
+}
+
+function skillList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Skill.Service.use((skill) => skill.list())), {signal})
+}
+
+function agentList(host: PluginHost, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(Agent.Service.use((agent) => agent.list())), {signal})
+}
+
+function fsFind(host: PluginHost, input: FileSystem.FindInput, signal: AbortSignal | undefined) {
+  return host.runPromise(locationResponse(FileSystem.Service.use((files) => files.find(input))), {signal})
 }
 
 function pluginExperimental(host: PluginHost, id: string, signal: AbortSignal | undefined) {
@@ -405,6 +417,15 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
             if (trace.hub !== null) await deps.code.hubReplied(context.session.id, new Set([trace.callId]))
           })
       }),
+    },
+    skill: {
+      list: os.skill.list.handler(({signal}) => skillList(deps.pluginHost, signal)),
+    },
+    agent: {
+      list: os.agent.list.handler(({signal}) => agentList(deps.pluginHost, signal)),
+    },
+    fs: {
+      find: os.fs.find.handler(({input, signal}) => fsFind(deps.pluginHost, input, signal)),
     },
     plugin: {
       call: os.plugin.call.handler(async ({input, errors, signal}) => {

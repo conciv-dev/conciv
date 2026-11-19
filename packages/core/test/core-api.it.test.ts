@@ -7206,6 +7206,26 @@ export default {
     expect(await call(base, 'embedded', 'counted')).toBe(1)
     await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
     expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.skill.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.agent.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.fs.find({query: 'seer'})).rejects.toMatchObject(pluginRefusal)
+    const found = await makeRpcClient(base).fs.find({query: 'seer', type: 'file'})
+    expect(found.location).toEqual({directory: root})
+    expect(found.data).toContainEqual({path: 'conciv/plugins/seer.ts', type: 'file'})
+    const skills = await makeRpcClient(base).skill.list()
+    expect(skills.location).toEqual({directory: root})
+    expect(skills.data.find((skill) => skill.id === 'seer-look')).toMatchObject({
+      name: 'seer-look',
+      description: 'How the seer looks',
+      content: 'Look twice.',
+    })
+    const agents = await makeRpcClient(base).agent.list()
+    expect(agents.location).toEqual({directory: root})
+    expect(agents.data.find((agent) => agent.id === 'build')).toMatchObject({
+      name: 'build',
+      mode: 'primary',
+      hidden: false,
+    })
     await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
     await expect(outside.plugin.experimentalChunk({id: 'configured', file: 'x.cjs'})).rejects.toMatchObject(
       pluginRefusal,

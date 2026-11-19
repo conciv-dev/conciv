@@ -28,6 +28,7 @@ import type {
   Agent,
   Bus,
   Database,
+  FileSystem,
   InstructionEntry,
   KV,
   Location,
@@ -60,7 +61,8 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Location.Interface
   | Plugin.Interface
   | Database.Interface
-  | EventFeed.Interface,
+  | EventFeed.Interface
+  | FileSystem.Interface,
   never
 >
 
@@ -166,7 +168,15 @@ const EVENT_PROCEDURES = new Set(['event.subscribe'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
-const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental', 'plugin.experimentalChunk'])
+const PLUGIN_PROCEDURES = new Set([
+  'plugin.call',
+  'plugin.list',
+  'plugin.experimental',
+  'plugin.experimentalChunk',
+  'skill.list',
+  'agent.list',
+  'fs.find',
+])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 
