@@ -33,7 +33,10 @@ type BrowserName = 'chromium' | 'firefox'
 
 const TIMEZONE = 'Pacific/Kiritimati'
 const PERMISSIONS: Record<BrowserName, string[]> = {chromium: ['clipboard-read', 'clipboard-write'], firefox: []}
-const LAUNCH_ARGS: Record<BrowserName, string[]> = {chromium: ['--disable-lcd-text'], firefox: []}
+const LAUNCH_ARGS: Record<BrowserName, string[]> = {
+  chromium: ['--disable-lcd-text', '--disable-partial-raster'],
+  firefox: [],
+}
 
 function browserProject(
   name: string,

@@ -99,10 +99,10 @@ const PAGE_SESSION: PageSessionConfig = {
 }
 
 const ABOVE_COMPOSER =
-  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden py-2 pe-5 ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug gap-2'
+  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto pe-5 ps-5 gap-x-2 [background:var(--chat-queue-bg)] [box-shadow:inset_0_1px_0_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug'
 const STATUS_TEXTS =
-  'flex flex-row flex-wrap items-center min-w-0 empty:hidden [&>*+*]:before:content-["·"] [&>*+*]:before:px-1 [&>*+*]:before:[color:var(--chat-separator)]'
-const PILL_GROUP = 'flex flex-row flex-wrap items-center gap-1.5 min-w-0 empty:hidden'
+  'flex flex-row flex-wrap items-center min-w-0 py-2 empty:hidden [&>*+*]:before:content-["·"] [&>*+*]:before:px-1 [&>*+*]:before:[color:var(--chat-separator)]'
+const PILL_GROUP = 'flex flex-row flex-wrap items-center gap-1.5 min-w-0 py-2 empty:hidden'
 const NOW_ROW = 'shrink-0 self-stretch min-w-0'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'

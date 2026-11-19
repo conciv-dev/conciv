@@ -8381,6 +8381,8 @@ describe('settings page', () => {
     harness.dispose()
     harness.mountShell(reloadAt)
     await expect.element(allProjects(), {timeout: 8000}).toBeChecked()
+    await scopeLabel().click()
+    await expect.element(allProjects()).not.toBeChecked()
 
     await resetAll().click()
     await expect.element(resetDialog()).toBeVisible()
