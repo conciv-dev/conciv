@@ -134,10 +134,11 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       const anchor = await loadAnchor(sessionId)
       const anchored = anchor === null ? -1 : transcript.findIndex((message) => message.id === anchor.nativeId)
       const fresh = anchor !== null && anchored === -1 ? [] : transcript.slice(anchored + 1)
+      const normalize = toolNameNormalizer(await source.toolNames(sessionId))
       const stored = await stores.messages.loadThread(sessionId)
       const known = new Set(stored.flatMap((message) => ('id' in message && message.id ? [message.id] : [])))
       const harnessId = source.harnessFor(sessionId).id
-      const novel = normalizedMessages(fresh, toolNameNormalizer(await source.toolNames(sessionId)))
+      const novel = normalizedMessages(fresh, normalize)
         .filter((message) => !known.has(message.id))
         .map((message) => stampedImport(message, harnessId))
       if (novel.length > 0) await stores.messages.saveThread(sessionId, [...stored, ...toModelMessages(novel)])
