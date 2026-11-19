@@ -1,4 +1,5 @@
 import {and, eq, sql} from 'drizzle-orm'
+import {Effect} from 'effect'
 import {toModelMessages, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import {ChatHistorySchema} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from './db.js'
@@ -15,19 +16,18 @@ type MetadataRow = {namespace: string; key: string; valueJson: unknown}
 
 const historyModelMessages = (messages: unknown[]): ModelMessage[] => toModelMessages(ChatHistorySchema.parse(messages))
 
-function alreadyImported(db: ConcivDb): boolean {
-  const rows = db
+function alreadyImported(db: ConcivDb) {
+  return db
     .select({key: chatMetadata.key})
     .from(chatMetadata)
     .where(and(eq(chatMetadata.namespace, CHAT_MIGRATION_NAMESPACE), eq(chatMetadata.key, CHAT_IMPORT_KEY)))
-    .all()
-  return rows.length > 0
+    .pipe(Effect.map((rows) => rows.length > 0))
 }
 
-export function importLegacyThreads(db: ConcivDb, now: number): void {
-  if (alreadyImported(db)) return
-  const historyRows = db.select().from(sessionHistory).all()
-  const pendingRows = db.select().from(runMessages).all()
+export const importLegacyThreads = Effect.fn('importLegacyThreads')(function* (db: ConcivDb, now: number) {
+  if (yield* alreadyImported(db)) return
+  const historyRows = yield* db.select().from(sessionHistory)
+  const pendingRows = yield* db.select().from(runMessages)
   const historyBySession = Object.fromEntries(historyRows.map((row) => [row.sessionId, row]))
   const pendingBySession = Object.fromEntries(pendingRows.map((row) => [row.sessionId, row]))
   const sessionIds = [...new Set([...Object.keys(historyBySession), ...Object.keys(pendingBySession)])]
@@ -69,16 +69,18 @@ export function importLegacyThreads(db: ConcivDb, now: number): void {
       : []),
   ])
 
-  db.transaction((tx) => {
-    threads.forEach((thread) =>
-      tx.run(
-        sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${thread.threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(thread.messages)}) WHERE true ON CONFLICT DO NOTHING`,
-      ),
-    )
-    if (metadata.length > 0) tx.insert(chatMetadata).values(metadata).onConflictDoNothing().run()
-    tx.insert(chatMetadata)
-      .values({namespace: CHAT_MIGRATION_NAMESPACE, key: CHAT_IMPORT_KEY, valueJson: now})
-      .onConflictDoNothing()
-      .run()
-  })
-}
+  yield* db.transaction((tx) =>
+    Effect.gen(function* () {
+      yield* Effect.forEach(threads, (thread) =>
+        tx.run(
+          sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${thread.threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(thread.messages)}) WHERE true ON CONFLICT DO NOTHING`,
+        ),
+      )
+      if (metadata.length > 0) yield* tx.insert(chatMetadata).values(metadata).onConflictDoNothing()
+      yield* tx
+        .insert(chatMetadata)
+        .values({namespace: CHAT_MIGRATION_NAMESPACE, key: CHAT_IMPORT_KEY, valueJson: now})
+        .onConflictDoNothing()
+    }),
+  )
+})

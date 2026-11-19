@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
+    "@effect/sql-sqlite-node": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "env-paths": "catalog:",

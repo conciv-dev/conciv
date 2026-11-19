@@ -1,20 +1,23 @@
 import {eq} from 'drizzle-orm'
+import {Effect} from 'effect'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
 import {runMessages} from './run-schema.js'
 
-type QueryHandle = Pick<ConcivDb, 'select' | 'insert' | 'delete'>
-
-export function readModel(db: ConcivDb, id: string): string | null {
-  const rows = db.select({model: sessions.model}).from(sessions).where(eq(sessions.id, id)).all()
+export async function readModel(db: ConcivDb, id: string): Promise<string | null> {
+  const rows = await Effect.runPromise(db.select({model: sessions.model}).from(sessions).where(eq(sessions.id, id)))
   return rows[0]?.model ?? null
 }
 
-export function runMessagesFor(db: QueryHandle, id: string): {messages: unknown[]; updatedAt: number} | null {
-  const rows = db
-    .select({messages: runMessages.messages, updatedAt: runMessages.updatedAt})
-    .from(runMessages)
-    .where(eq(runMessages.sessionId, id))
-    .all()
+export async function runMessagesFor(
+  db: ConcivDb,
+  id: string,
+): Promise<{messages: unknown[]; updatedAt: number} | null> {
+  const rows = await Effect.runPromise(
+    db
+      .select({messages: runMessages.messages, updatedAt: runMessages.updatedAt})
+      .from(runMessages)
+      .where(eq(runMessages.sessionId, id)),
+  )
   return rows[0] ?? null
 }

@@ -52,7 +52,6 @@ export type SessionRun = {
 
 export type SessionScope = {
   readonly id: SessionId
-  readonly model: string | null
   tools: SessionTools
   stream: SessionStream
   asks: SessionAsks

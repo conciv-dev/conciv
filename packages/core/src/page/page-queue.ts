@@ -39,7 +39,7 @@ export async function startQueueFollowUp(
   queues: QueueDelivery,
   plane: Pick<ChatPlane, 'live' | 'followUp'>,
   sessionId: SessionId,
-  deleted: (sessionId: SessionId) => boolean,
+  deleted: (sessionId: SessionId) => Promise<boolean>,
 ): Promise<void> {
   if (!(await owesFollowUp(queues, sessionId)) || (await plane.live(sessionId))) return
   const owed = await queues.owed(sessionId, true)
@@ -47,7 +47,7 @@ export async function startQueueFollowUp(
   const notices = owed.map((queue) => queueNotice(queue.result)).join('\n\n')
   const followUp = asyncRetry(
     async (): Promise<FollowUpOutcome> => {
-      if (deleted(sessionId)) return {kind: 'stopped'}
+      if (await deleted(sessionId)) return {kind: 'stopped'}
       const attempt = await plane.followUp(sessionId, notices)
       if (attempt.kind === 'failed') throw new Error(attempt.error)
       return attempt
