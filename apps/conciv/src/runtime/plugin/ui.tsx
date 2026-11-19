@@ -435,7 +435,7 @@ function MenuItem(props: UiMenuItem) {
   const value = createUniqueId()
 
   return (
-    <Menu.Item value={value} disabled={props.disabled} onSelect={() => props.onSelect()}>
+    <Menu.Item value={value} valueText={props.label} disabled={props.disabled} onSelect={() => props.onSelect()}>
       <Show when={props.icon}>{(icon) => <Icon name={icon()} size="small" class={MUTED_ICON} />}</Show>
       <span class="min-w-0 truncate">{props.label}</span>
       <Show when={props.keys?.length}>
@@ -446,12 +446,18 @@ function MenuItem(props: UiMenuItem) {
 }
 
 function MenuRadioGroup(props: UiMenuRadioGroup): JSX.Element {
+  const scope = `${createUniqueId()}:`
+  const scoped = (value: string) => `${scope}${value}`
+
   return (
-    <Menu.RadioItemGroup value={props.value} onValueChange={(details) => props.onValueChange(details.value)}>
+    <Menu.RadioItemGroup
+      value={scoped(props.value)}
+      onValueChange={(details) => props.onValueChange(details.value.slice(scope.length))}
+    >
       <Show when={props.label}>{(label) => <Menu.ItemGroupLabel>{label()}</Menu.ItemGroupLabel>}</Show>
       <For each={props.items}>
         {(item) => (
-          <Menu.RadioItem value={item.value} disabled={item.disabled} class={MENU_ITEM}>
+          <Menu.RadioItem value={scoped(item.value)} valueText={item.label} disabled={item.disabled} class={MENU_ITEM}>
             <MenuItemCheck />
             <Menu.ItemText class="min-w-0 truncate">{item.label}</Menu.ItemText>
           </Menu.RadioItem>
@@ -467,6 +473,7 @@ function MenuCheckbox(props: UiMenuCheckbox): JSX.Element {
   return (
     <Menu.CheckboxItem
       value={value}
+      valueText={props.label}
       checked={props.checked}
       disabled={props.disabled}
       onCheckedChange={(checked) => props.onCheckedChange(checked)}
