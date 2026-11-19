@@ -113,7 +113,7 @@ export type ServerApi<Config, SettingsValue extends object = Record<never, never
   basePath: string
   stateDir: string
   sessions: ServerSessions
-  harness: (sessionId: SessionId) => ServerHarness
+  harness: (sessionId: SessionId) => Promise<ServerHarness>
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: Bundler.BundlerBridge
   nativeUrl: () => string | undefined

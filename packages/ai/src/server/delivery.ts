@@ -5,6 +5,7 @@ import {
   toServerSentEventsResponse,
   type DebugConfig,
 } from '@tanstack/ai'
+import {InMemoryLockStore} from '@tanstack/ai/locks'
 import {withEventMeta} from '@orpc/server'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
@@ -30,7 +31,7 @@ type DeliveryDeps = {
     messages: Array<ChatMessage | ModelMessage>,
     controller: AbortController,
   ) => AsyncIterable<ChatEvent>
-  seenRun: (runId: string) => boolean
+  seenRun: (runId: string) => Promise<boolean>
   debug: DebugConfig
   log: (message: string) => void
 }
@@ -77,6 +78,8 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     await response.text()
   }
 
+  const starts = new InMemoryLockStore()
+
   async function* join({runId, lastEventId}: ChatJoin, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
     for await (const {offset, chunk} of memoryStream({runId}).read(lastEventId ?? FROM_START, signal)) {
       yield withEventMeta(chunk, {id: offset})
@@ -91,12 +94,13 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
       tools: [],
       context: [],
     })
-    if (!seenRun(params.runId)) {
+    await starts.withLock(params.runId, async () => {
+      if (await seenRun(params.runId)) return
       IdentifiedMessagesSchema.parse(params.messages)
       drive({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages).catch((error: unknown) =>
         log(`[ai] run ${params.runId} failed outside its stream: ${String(error)}`),
       )
-    }
+    })
     yield* join(request, signal)
   }
 

@@ -1,4 +1,5 @@
 import {asc, eq} from 'drizzle-orm'
+import {Effect} from 'effect'
 import type {ConcivDb} from './db.js'
 import {pageChanges} from './schema.js'
 
@@ -17,28 +18,28 @@ export async function appendPageChange(
   entry: Omit<PageChangeEntry, 'seq' | 'ts'>,
   ts: number,
 ): Promise<PageChangeEntry> {
-  const rows = await db
-    .insert(pageChanges)
-    .values({
-      sessionId,
-      verb: entry.verb,
-      ref: entry.ref ?? null,
-      selector: entry.selector ?? null,
-      args: entry.args,
-      createdAt: ts,
-    })
-    .returning({id: pageChanges.id})
+  const rows = await Effect.runPromise(
+    db
+      .insert(pageChanges)
+      .values({
+        sessionId,
+        verb: entry.verb,
+        ref: entry.ref ?? null,
+        selector: entry.selector ?? null,
+        args: entry.args,
+        createdAt: ts,
+      })
+      .returning({id: pageChanges.id}),
+  )
   const inserted = rows[0]
   if (!inserted) throw new Error('the page change insert reported no row')
   return {seq: inserted.id, ts, verb: entry.verb, ref: entry.ref, selector: entry.selector, args: entry.args}
 }
 
 export async function pageChangesFor(db: ConcivDb, sessionId: string): Promise<PageChangeEntry[]> {
-  const rows = await db
-    .select()
-    .from(pageChanges)
-    .where(eq(pageChanges.sessionId, sessionId))
-    .orderBy(asc(pageChanges.id))
+  const rows = await Effect.runPromise(
+    db.select().from(pageChanges).where(eq(pageChanges.sessionId, sessionId)).orderBy(asc(pageChanges.id)),
+  )
   return rows.map((row) => ({
     seq: row.id,
     ts: row.createdAt,
@@ -50,5 +51,5 @@ export async function pageChangesFor(db: ConcivDb, sessionId: string): Promise<P
 }
 
 export async function clearPageChanges(db: ConcivDb, sessionId: string): Promise<void> {
-  await db.delete(pageChanges).where(eq(pageChanges.sessionId, sessionId))
+  await Effect.runPromise(db.delete(pageChanges).where(eq(pageChanges.sessionId, sessionId)))
 }
