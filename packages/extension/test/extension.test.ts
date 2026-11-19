@@ -229,12 +229,6 @@ describe('define extension', () => {
     expect(defineExtension({name: 'y'}).parseConfig(undefined)).toEqual({})
   })
 
-  test('carries connectGate through defineExtension', () => {
-    const gate = {preflight: async () => null}
-    const ext = defineExtension({name: 'gate-test', connectGate: gate})
-    expect(ext.connectGate).toBe(gate)
-  })
-
   test('server factory receives api and returns context + app + dispose', () => {
     const tool = defineTool({
       name: 'mul',

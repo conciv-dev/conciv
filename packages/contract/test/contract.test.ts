@@ -8,7 +8,9 @@ import {createHash} from 'node:crypto'
 import {EventEmitter, once} from 'node:events'
 import type {Duplex} from 'node:stream'
 import type {IncomingMessage} from 'node:http'
-import {decodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
+import {decodeRequestMessage, encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
+import {ORPCError} from '@orpc/client'
+import {browserRpcConnection} from '../src/browser-transport.js'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import contractManifest from '../package.json' with {type: 'json'}
@@ -340,6 +342,49 @@ describe('browser rpc frames that cannot be delivered or read', () => {
   }, 15_000)
 })
 
+describe('browser rpc streams after the token is replaced', () => {
+  it('a stream opened before the token was replaced that the engine refuses shows the log-in notice with no socket close', async () => {
+    const peer = await closingHandshakeServer()
+    const client = makeBrowserRpcClient(peer.base)
+    const {trust, release} = browserRpcConnection(peer.base)
+    const answerTrust = async (count: number): Promise<void> => {
+      const id = await peer.requestId('/auth/trust', count)
+      const body = {json: {trusted: true}, meta: []}
+      await peer.reply(id, encodeResponseMessage(id, MessageType.RESPONSE, {status: 200, headers: {}, body}))
+    }
+    try {
+      const first = trust.requestTrustWithToken('first')
+      await answerTrust(1)
+      expect(await first).toBe(true)
+      const events = client.rpc.chat.events({sessionId: 'session'})
+      const streamId = await peer.requestId('/chat/events', 1)
+      await peer.reply(
+        streamId,
+        encodeResponseMessage(streamId, MessageType.RESPONSE, {status: 200, headers: {}, body: noEvents()}),
+      )
+      const stream = await events
+      const second = trust.requestTrustWithToken('second')
+      await answerTrust(2)
+      expect(await second).toBe(true)
+      const next = stream.next()
+      await peer.reply(
+        streamId,
+        encodeResponseMessage(streamId, MessageType.EVENT_ITERATOR, {
+          event: 'error',
+          data: {json: {defined: false, code: 'UNAUTHORIZED', status: 401, message: 'no longer trusted'}, meta: []},
+        }),
+      )
+
+      await expect(next).rejects.toBeInstanceOf(ORPCError)
+      expect(trust.status()).toBe('revoked')
+    } finally {
+      release()
+      client.close()
+      await peer.close()
+    }
+  }, 15_000)
+})
+
 const TEXT_OPCODE = 1
 const CLOSE_OPCODE = 8
 const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
@@ -356,8 +401,12 @@ type ClosingHandshakeServer = {
   releaseUpgrades: () => void
   requestSeen: (path: string) => Promise<void>
   requestPaths: () => readonly string[]
+  requestId: (path: string, count: number) => Promise<string>
+  reply: (id: string, message: Promise<string | ArrayBufferLike | Uint8Array>) => Promise<void>
   close: () => Promise<void>
 }
+
+type SeenRequest = {path: string; id: string; socket: Duplex}
 
 type MaskedFrame = {opcode: number; payload: Buffer}
 
@@ -366,18 +415,18 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
   const seen: number[] = []
   const sockets: Duplex[] = []
   const answer: {text: string | undefined} = {text: undefined}
-  const requests: string[] = []
+  const requests: SeenRequest[] = []
   const failures: unknown[] = []
   const decoding = {tail: Promise.resolve()}
   const upgrades: {held: boolean; waiting: (() => void)[]} = {held: false, waiting: []}
-  const recordRequest = (payload: Buffer): void => {
+  const recordRequest = (payload: Buffer, socket: Duplex): void => {
     const text = payload.toString()
     decoding.tail = decoding.tail
       .then(async () => {
         if (SocketTrustFrameSchema.safeParse(JSON.parse(text)).success) return
         const message = await decodeRequestMessage(text)
         if (message[1] !== MessageType.REQUEST) return
-        requests.push(message[2].url.pathname)
+        requests.push({path: message[2].url.pathname, id: message[0], socket})
         frames.emit('request')
       })
       .catch((error: unknown) => {
@@ -401,13 +450,13 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
       pending.buffer = Buffer.concat([pending.buffer, chunk])
       for (const {opcode, payload} of takeMaskedFrames(pending)) {
         seen.push(opcode)
-        if (opcode === TEXT_OPCODE) recordRequest(payload)
+        if (opcode === TEXT_OPCODE) recordRequest(payload, socket)
         if (
           answer.text !== undefined &&
           opcode === TEXT_OPCODE &&
           seen.filter((each) => each === TEXT_OPCODE).length > 1
         ) {
-          socket.write(Buffer.concat([Buffer.from([0x81, Buffer.byteLength(answer.text)]), Buffer.from(answer.text)]))
+          socket.write(textFrame(answer.text))
         }
         frames.emit('frame')
       }
@@ -426,6 +475,15 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : 0
+  const requestSeen = async (path: string, count: number): Promise<SeenRequest> => {
+    for (;;) {
+      const failure = decodeFailure()
+      if (failure) throw failure
+      const found = requests.filter((each) => each.path.endsWith(path))[count - 1]
+      if (found) return found
+      await once(frames, 'request')
+    }
+  }
   const framesSeen = async (opcode: number, count: number): Promise<void> => {
     while (seen.filter((each) => each === opcode).length < count) await once(frames, 'frame')
   }
@@ -452,22 +510,37 @@ async function closingHandshakeServer(): Promise<ClosingHandshakeServer> {
       for (const release of upgrades.waiting.splice(0)) release()
     },
     requestSeen: async (path) => {
-      while (!requests.some((each) => each.endsWith(path))) {
-        const failure = decodeFailure()
-        if (failure) throw failure
-        await once(frames, 'request')
-      }
+      await requestSeen(path, 1)
     },
     requestPaths: () => {
       const failure = decodeFailure()
       if (failure) throw failure
-      return requests
+      return requests.map((each) => each.path)
+    },
+    requestId: async (path, count) => (await requestSeen(path, count)).id,
+    reply: async (id, message) => {
+      const encoded = await message
+      if (typeof encoded !== 'string') throw new Error('the test server writes text frames only')
+      const request = requests.find((each) => each.id === id)
+      if (!request) throw new Error(`the test server saw no request ${id}`)
+      request.socket.write(textFrame(encoded))
     },
     close: async () => {
       for (const socket of sockets) socket.destroy()
       await new Promise((resolve) => server.close(resolve))
     },
   }
+}
+
+async function* noEvents(): AsyncGenerator<never> {}
+
+function textFrame(text: string): Buffer {
+  const payload = Buffer.from(text)
+  const length =
+    payload.length < 126
+      ? Buffer.from([payload.length])
+      : Buffer.from([126, payload.length >> 8, payload.length & 0xff])
+  return Buffer.concat([Buffer.from([0x81]), length, payload])
 }
 
 function takeMaskedFrames(pending: {buffer: Buffer}): MaskedFrame[] {

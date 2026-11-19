@@ -7670,7 +7670,7 @@ export default {
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method, operate: method},
   events: {},
 }
 
@@ -7764,6 +7764,11 @@ export default {
         await ctx.permission.reply({sessionId, requestId, decision})
         return {}
       },
+      operate: async (input, call) =>
+        page.operate(input, {signal: call.signal}).then(
+          (value) => ({ok: true, value}),
+          (error) => ({ok: false, type: error.type, message: error.message, data: error.data ?? null}),
+        ),
       tool: async ({sessionId, name, input, id}, call) => {
         const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
         try {
@@ -7794,7 +7799,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back, and a plugin operation runs on the tab through page.operate: with no tab a changing one fails, a reading one is resent once to the next tab, its value and raised error come back, and a closed tab or a deleted session ends one in flight as gone', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -8016,6 +8021,48 @@ export default {
     expect(await queued).toMatchObject({ok: false, message: expect.stringContaining('the action may already have run')})
     expect(await granted()).toHaveLength(0)
     expect(await offered()).toEqual({names: [], line: undefined})
+    const operate = (input: Record<string, unknown>) => tabs('operate', {sessionId: session, ...input})
+    expect(await operate({name: 'count', input: {n: 1}, reading: false})).toMatchObject({
+      ok: false,
+      type: 'failed',
+      data: {code: 'disconnected'},
+    })
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_o'})).toEqual({attached: true})
+    const counting = operate({name: 'count', input: {n: 1}, reading: true})
+    const onO = await next('conn_o')
+    expect(onO.command.action).toEqual({type: 'operation', name: 'count', input: {n: 1}})
+    expect(await tabs('close', {connectionId: 'conn_o'})).toEqual({closed: true})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_p'})).toEqual({attached: true})
+    const resentOnP = await next('conn_p')
+    expect(resentOnP.command.action).toEqual({type: 'operation', name: 'count', input: {n: 1}})
+    expect(await tabs('close', {connectionId: 'conn_p'})).toEqual({closed: true})
+    expect(await counting).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_s'})).toEqual({attached: true})
+    const bumping = operate({name: 'bump', input: {by: 2}, reading: false})
+    const onBump = await next('conn_s')
+    await reply('conn_s', onBump.requestId, succeeded({count: 3}))
+    expect(await bumping).toEqual({ok: true, value: {count: 3}})
+    const raising = operate({name: 'bump', input: {by: -1}, reading: false})
+    const onRaise = await next('conn_s')
+    await reply('conn_s', onRaise.requestId, {
+      type: 'failure',
+      code: 'raised',
+      message: 'negative',
+      raised: {code: 'NEGATIVE', message: 'negative'},
+    })
+    expect(await raising).toMatchObject({
+      ok: false,
+      type: 'failed',
+      data: {code: 'raised', raised: {code: 'NEGATIVE', message: 'negative'}},
+    })
+    const denying = operate({name: 'bump', input: {by: 0}, reading: false})
+    const onDeny = await next('conn_s')
+    await reply('conn_s', onDeny.requestId, {type: 'failure', code: 'plugin.denied', message: 'not for this plugin'})
+    expect(await denying).toMatchObject({ok: false, type: 'failed', data: {code: 'plugin.denied'}})
+    const orphaned = operate({name: 'bump', input: {by: 1}, reading: false})
+    await next('conn_s')
+    expect(await tabs('close', {connectionId: 'conn_s'})).toEqual({closed: true})
+    expect(await orphaned).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_d'})).toEqual({attached: true})
     const afterChange = ask({type: 'route'})
     const firstOnD = await next('conn_d')
@@ -8251,8 +8298,12 @@ export default {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     await (await sseTurn(base, session, 'before-delete', 'remember the form')).text()
     expect((await rpc.chat.hydrate({sessionId: session})).messages).not.toEqual([])
+    const deleting = operate({name: 'bump', input: {by: 1}, reading: false})
+    const onDelete = await next('conn_e')
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
+    expect(await deleting).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
+    await tabs('cancels', {requestId: onDelete.requestId})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
       error: `session "${session}" does not exist`,

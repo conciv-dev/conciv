@@ -13,9 +13,7 @@ import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 export type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 export type {ToolRequest} from '@conciv/protocol/tool-call-types'
 
-export type ExtensionSlot = 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
-
-export type ConnectGate = {preflight: () => Promise<string | null>}
+export type ExtensionSlot = 'composer' | 'empty' | 'status' | 'widget' | 'surface'
 
 export type ExtensionView = {
   id: string

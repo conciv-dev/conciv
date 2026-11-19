@@ -4,9 +4,11 @@ import {readFile, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, extname, join} from 'node:path'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
+import {Effect} from 'effect'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {SessionId} from '@conciv/protocol/chat-types'
+import {Tool} from '@conciv/plugin/schema/tool'
 import * as PageMachine from '../src/machine.js'
 import * as PageQueue from '../src/queue.js'
 import * as Page from '../src/rpc.js'
@@ -134,9 +136,6 @@ describe('page skill', () => {
 const sessionId = SessionId.parse('conciv_page')
 const other = SessionId.parse('conciv_other')
 const tab: Page.Tab = {id: tabId, url: 'https://example.com/', title: 'Example', focused: true, visible: true}
-const command: Page.Command = {action: {type: 'tabs.list'}, agentId: 'agent', timeoutMs: 5000}
-const success = z.parse(Page.Outcome, {type: 'success', result: {value: {ok: true}, files: []}})
-const failure = z.parse(Page.Outcome, {type: 'failure', code: 'navigation', message: 'Blocked'})
 
 type MachineEvent = PageMachine.ConnectionEvent
 
@@ -176,22 +175,10 @@ function controls(effects: readonly PageMachine.ConnectionEffect[]) {
   return effects.flatMap((effect) => (effect.type === 'emit-control' ? [effect.control] : []))
 }
 
-function settlements(effects: readonly PageMachine.ConnectionEffect[]) {
-  return effects.flatMap((effect) => (effect.type === 'settle-request' ? [effect.settlement] : []))
-}
-
-function message(settlement: PageMachine.RequestSettlement | undefined) {
-  return settlement?.ok === false ? settlement.error.message : undefined
-}
-
 function attached(connectionId = 'conn_1') {
   const initial = PageMachine.createConnectionState()
   const first = run(initial, opening(initial, connectionId))
   return run(first.state, synced(lastSync(first.effects).attempt)).state
-}
-
-function started(requestId: string, connectionId = 'conn_1'): MachineEvent {
-  return {type: 'request.started', sessionId, connectionId, requestId, command}
 }
 
 function reported(connectionId: string, report: Page.Tab): MachineEvent {
@@ -211,16 +198,15 @@ describe('page machine: one attachment per tab', () => {
     const closed = run(second.state, {type: 'attach.closed', sessionId, attempt: 1})
     expect(closed.effects).toEqual([{type: 'close-attachment', attempt: 1, outcome: 'closed'}])
     expect(PageMachine.isAttachedConnection(closed.state, sessionId, 'conn_1')).toBe(false)
-    expect(PageMachine.selectTarget(closed.state, sessionId, {type: 'route'})).toMatchObject({
+    expect(PageMachine.selectTarget(closed.state, sessionId, undefined)).toMatchObject({
       ok: true,
       connectionId: 'conn_2',
     })
   })
 
   it('a tab that attaches again replaces its own earlier attachment', () => {
-    const live = run(attached(), started('req_1'))
-    const again = run(live.state, opening(live.state, 'conn_1'))
-    expect(message(settlements(again.effects)[0])).toContain('the action may already have run')
+    const live = attached()
+    const again = run(live, opening(live, 'conn_1'))
     expect(again.effects).toContainEqual({type: 'close-attachment', attempt: 1, outcome: 'replaced'})
     expect(controls(again.effects)).toEqual([{type: 'attached', connectionId: 'conn_1', version: 1}])
     expect(syncs(again.effects)).toEqual([])
@@ -252,7 +238,7 @@ describe('page machine: one attachment per tab', () => {
     const closed = run(attached(), {type: 'attach.closed', sessionId, attempt: 1})
     const reopened = run(closed.state, opening(closed.state, 'conn_2'))
     expect(entry(reopened.state)).toMatchObject({status: 'attaching', sync: {allow: false}})
-    expect(PageMachine.selectTarget(reopened.state, sessionId, {type: 'route'})).toEqual({
+    expect(PageMachine.selectTarget(reopened.state, sessionId, undefined)).toEqual({
       ok: false,
       error: expect.objectContaining({
         message:
@@ -281,25 +267,20 @@ describe('page machine: handshake', () => {
     const initial = PageMachine.createConnectionState()
     const first = run(initial, opening(initial, 'conn_1'))
     expect(controls(first.effects)).toEqual([])
-    expect(PageMachine.selectTarget(first.state, sessionId, {type: 'tabs.list'})).toMatchObject({
+    expect(PageMachine.selectTarget(first.state, sessionId, undefined)).toMatchObject({
       ok: false,
       error: {message: expect.stringContaining('still connecting')},
     })
-
-    const early = PageMachine.transitionConnection(first.state, started('req_1'))
-    expect(early.state).toBe(first.state)
-    expect(early.effects).toEqual([
-      {type: 'settle-request', requestId: 'req_1', settlement: {ok: false, error: expect.anything()}},
-    ])
 
     const report = PageMachine.transitionConnection(first.state, reported('conn_1', tab))
     expect(report.state).toBe(first.state)
 
     const done = run(first.state, synced(lastSync(first.effects).attempt))
     expect(controls(done.effects)).toEqual([{type: 'attached', connectionId: 'conn_1', version: 1}])
-    expect(PageMachine.selectTarget(done.state, sessionId, {type: 'tabs.list'})).toMatchObject({
+    expect(PageMachine.selectTarget(done.state, sessionId, undefined)).toMatchObject({
       ok: true,
       connectionId: 'conn_1',
+      attempt: 1,
     })
   })
 
@@ -320,16 +301,14 @@ describe('page machine: handshake', () => {
     expect(done.effects).toEqual([])
   })
 
-  it('a request for a tab that closed after the tool selected it is never sent', () => {
+  it('a request for a tab that closed after the tool selected it is never sent: its attempt closes and no tab serves it', () => {
     const first = attached()
     const both = run(first, opening(first, 'conn_2')).state
-    expect(PageMachine.selectTarget(both, sessionId, {type: 'route'})).toMatchObject({ok: true})
-    const closed = run(both, {type: 'attach.closed', sessionId, attempt: 1}).state
-
-    const late = PageMachine.transitionConnection(closed, started('req_1', 'conn_1'))
-    expect(late.state).toBe(closed)
-    expect(late.effects).toHaveLength(1)
-    expect(message(settlements(late.effects)[0])).toContain('no action ran')
+    expect(PageMachine.selectTarget(both, sessionId, undefined)).toMatchObject({ok: true, attempt: 3})
+    const closed = run(both, {type: 'attach.closed', sessionId, attempt: 3})
+    expect(closed.effects).toEqual([{type: 'close-attachment', attempt: 3, outcome: 'closed'}])
+    expect(PageMachine.isAttachedConnection(closed.state, sessionId, 'conn_2')).toBe(false)
+    expect(PageMachine.selectTarget(closed.state, sessionId, undefined)).toMatchObject({ok: true, attempt: 1})
   })
 })
 
@@ -406,81 +385,6 @@ describe('page machine: reconcilePagePermissions', () => {
   })
 })
 
-describe('page machine: requests', () => {
-  const live = () => run(attached(), started('req_1'))
-
-  it('a started request dispatches once and keeps its command for the page', () => {
-    const next = live()
-    expect(next.effects).toEqual([{type: 'dispatch-command', sessionId, connectionId: 'conn_1', requestId: 'req_1'}])
-    expect(PageMachine.selectPendingCommand(next.state, sessionId, 'conn_1', 'req_1')).toBe(command)
-    expect(PageMachine.selectPendingCommand(next.state, sessionId, 'conn_2', 'req_1')).toBeUndefined()
-  })
-
-  it.each([
-    {outcome: success, expected: {ok: true, result: {value: {ok: true}, files: []}}},
-    {outcome: failure, expected: {ok: false, error: expect.objectContaining({message: '[page.navigation] Blocked'})}},
-  ])('a result settles the request ($outcome.type)', ({outcome, expected}) => {
-    const next = run(live().state, {
-      type: 'request.settled',
-      sessionId,
-      connectionId: 'conn_1',
-      requestId: 'req_1',
-      outcome,
-    })
-    expect(next.effects).toEqual([{type: 'settle-request', requestId: 'req_1', settlement: expected}])
-    expect(PageMachine.selectPendingCommand(next.state, sessionId, 'conn_1', 'req_1')).toBeUndefined()
-  })
-
-  it('a failed dispatch settles without a cancel', () => {
-    const next = run(live().state, {
-      type: 'request.dispatch-failed',
-      sessionId,
-      connectionId: 'conn_1',
-      requestId: 'req_1',
-      error: new Error('bus closed'),
-    })
-    expect(controls(next.effects)).toEqual([])
-    expect(message(settlements(next.effects)[0])).toContain('Could not dispatch page.tabs.list')
-  })
-
-  it('a timeout settles with the call timeout and cancels on the page', () => {
-    const next = run(live().state, {type: 'request.timed-out', sessionId, connectionId: 'conn_1', requestId: 'req_1'})
-    expect(message(settlements(next.effects)[0])).toContain(
-      '[page.timeout] page.tabs.list did not finish within 5 seconds',
-    )
-    expect(controls(next.effects)).toEqual([{type: 'cancel', connectionId: 'conn_1', requestId: 'req_1'}])
-  })
-
-  it('an interrupted caller cancels on the page without a settlement', () => {
-    const next = run(live().state, {type: 'request.cancelled', sessionId, connectionId: 'conn_1', requestId: 'req_1'})
-    expect(next.effects).toEqual([
-      {type: 'emit-control', control: {type: 'cancel', connectionId: 'conn_1', requestId: 'req_1'}},
-    ])
-  })
-
-  it('a close fails pending requests as possibly run, without a cancel', () => {
-    const next = run(live().state, {type: 'attach.closed', sessionId, attempt: 1})
-    expect(controls(next.effects)).toEqual([])
-    expect(message(settlements(next.effects)[0])).toContain('the action may already have run')
-  })
-
-  it('late results after a settlement change nothing', () => {
-    const target = {sessionId, connectionId: 'conn_1', requestId: 'req_1'}
-    const settled = run(live().state, {type: 'request.settled', ...target, outcome: success}).state
-    const late: MachineEvent[] = [
-      {type: 'request.settled', ...target, outcome: success},
-      {type: 'request.timed-out', ...target},
-      {type: 'request.cancelled', ...target},
-      {type: 'request.dispatch-failed', ...target, error: undefined},
-    ]
-    for (const event of late) {
-      const next = PageMachine.transitionConnection(settled, event)
-      expect(next.state).toBe(settled)
-      expect(next.effects).toEqual([])
-    }
-  })
-})
-
 describe('page machine: tab state', () => {
   it('a tab ID resolves to the tab that reported it, a call without one goes to the tab focused last', () => {
     const second = `tab_${crypto.randomUUID()}`
@@ -488,21 +392,21 @@ describe('page machine: tab state', () => {
     const both = run(first, opening(first, 'conn_2')).state
     const stale = PageMachine.transitionConnection(both, {...reported('conn_9', tab)})
     expect(stale.state).toBe(both)
-    expect(PageMachine.selectTarget(both, sessionId, {type: 'route', tabId})).toMatchObject({
+    expect(PageMachine.selectTarget(both, sessionId, tabId)).toMatchObject({
       ok: false,
       error: {message: expect.stringContaining('[page.tab_unavailable]')},
     })
-    expect(PageMachine.selectTarget(both, sessionId, {type: 'route'})).toMatchObject({connectionId: 'conn_2'})
+    expect(PageMachine.selectTarget(both, sessionId, undefined)).toMatchObject({connectionId: 'conn_2'})
 
     const focusedFirst = run(
       both,
       reported('conn_2', {...tab, id: second, focused: false}),
       reported('conn_1', tab),
     ).state
-    expect(PageMachine.selectTarget(focusedFirst, sessionId, {type: 'route', tabId: second})).toMatchObject({
+    expect(PageMachine.selectTarget(focusedFirst, sessionId, second)).toMatchObject({
       connectionId: 'conn_2',
     })
-    expect(PageMachine.selectTarget(focusedFirst, sessionId, {type: 'route'})).toMatchObject({
+    expect(PageMachine.selectTarget(focusedFirst, sessionId, undefined)).toMatchObject({
       ok: true,
       connectionId: 'conn_1',
       tab,
@@ -513,9 +417,9 @@ describe('page machine: tab state', () => {
     })
 
     const blurred = run(focusedFirst, reported('conn_1', {...tab, focused: false})).state
-    expect(PageMachine.selectTarget(blurred, sessionId, {type: 'route'})).toMatchObject({connectionId: 'conn_1'})
+    expect(PageMachine.selectTarget(blurred, sessionId, undefined)).toMatchObject({connectionId: 'conn_1'})
     const focusedSecond = run(blurred, reported('conn_2', {...tab, id: second, focused: true})).state
-    expect(PageMachine.selectTarget(focusedSecond, sessionId, {type: 'route'})).toMatchObject({
+    expect(PageMachine.selectTarget(focusedSecond, sessionId, undefined)).toMatchObject({
       connectionId: 'conn_2',
     })
   })
@@ -540,13 +444,6 @@ describe('page machine: session lifecycle', () => {
       {type: 'close-attachment', attempt: 3, outcome: 'closed'},
     ])
     expect(entry(next.state)).toBeUndefined()
-  })
-
-  it('deleting a session while a queued action plays cancels it on the page and settles it as possibly run', () => {
-    const next = run(run(attached(), started('req_1')).state, {type: 'session.deleted', sessionId})
-    expect(controls(next.effects)).toEqual([{type: 'cancel', connectionId: 'conn_1', requestId: 'req_1'}])
-    expect(message(settlements(next.effects)[0])).toContain('the action may already have run')
-    expect(next.effects.at(-1)).toEqual({type: 'close-attachment', attempt: 1, outcome: 'closed'})
   })
 
   it('deleting an attaching session ends after its grant settles, without a revoke', () => {
@@ -576,7 +473,7 @@ describe('page machine: disposal', () => {
     expect(disposed.effects).toContainEqual({type: 'close-attachment', attempt: 1, outcome: 'closed'})
     expect(disposed.effects).toContainEqual({type: 'close-attachment', attempt: 3, outcome: 'closed'})
     expect(disposed.effects).not.toContainEqual({type: 'notify-drained'})
-    expect(PageMachine.selectTarget(disposed.state, sessionId, {type: 'tabs.list'}).ok).toBe(false)
+    expect(PageMachine.selectTarget(disposed.state, sessionId, undefined).ok).toBe(false)
     expect(PageMachine.isAttachedConnection(disposed.state, sessionId, 'conn_1')).toBe(false)
 
     const revoke = lastSync(disposed.effects)
@@ -595,9 +492,10 @@ describe('page machine: disposal', () => {
 
   it('a disposed plugin rejects requests and ignores attachments', () => {
     const disposed = run(PageMachine.createConnectionState(), {type: 'disposed'}).state
-    const request = PageMachine.transitionConnection(disposed, started('req_1'))
-    expect(request.state).toBe(disposed)
-    expect(message(settlements(request.effects)[0])).toContain('no action ran')
+    expect(PageMachine.selectTarget(disposed, sessionId, undefined)).toMatchObject({
+      ok: false,
+      error: {message: expect.stringContaining('[page.disconnected]')},
+    })
     const late = PageMachine.transitionConnection(disposed, opening(disposed, 'conn_1'))
     expect(late.state).toBe(disposed)
     expect(late.effects).toEqual([])
@@ -690,17 +588,9 @@ describe('page queue: where it started', () => {
   })
 
   it('a queued action whose command never reached the page counts as lost, not played', async () => {
-    const live = run(attached(), started('req_1')).state
-    const [notDispatched] = settlements(
-      run(live, {
-        type: 'request.dispatch-failed',
-        sessionId,
-        connectionId: 'conn_1',
-        requestId: 'req_1',
-        error: new Error('bus closed'),
-      }).effects,
-    )
-    if (notDispatched === undefined) throw new Error('the failed dispatch settled nothing')
+    const message =
+      '[page.not_dispatched] Could not dispatch page.click; it did not run. Check that the page is open and call page.tabs.list({}) before deciding whether to retry.'
+    const notDispatched: PageQueue.RequestSettlement = {ok: false, error: Tool.toolError({message})}
     const queues = PageQueue.fromPlay({
       play: (_sessionId, play) => play.actions.map(async () => notDispatched),
       journal: async () => {},
@@ -727,9 +617,8 @@ describe('page tools', () => {
     })
     const PageFiles = await import('../src/files.js')
     const root = tempDir('conciv-page-')
-    const saved = await PageFiles.save(
-      [file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')],
-      root,
+    const saved = await Effect.runPromise(
+      PageFiles.save([file('..'), file('.'), file('CON.txt'), file('lpt1'), file('report.html')], root),
     )
     const screenshots = join('.conciv', 'tmp', 'screenshots')
     expect(saved.map((capture) => dirname(capture.path))).toEqual(saved.map(() => screenshots))
