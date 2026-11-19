@@ -910,6 +910,7 @@ describe('the comments of the whiteboard plugin', () => {
       const opus = inbox.getByRole('button', {name: /^Opus/})
       const sonnet = inbox.getByRole('button', {name: /^Sonnet/})
       await expect(feed).toHaveText([/second inbox note/, /first inbox note/])
+      await expect(composer).toBeHidden()
       await expect(opus).toHaveAccessibleName(/unread/)
       await expect(opus).not.toContainText(/repl/)
       await sonnet.click()

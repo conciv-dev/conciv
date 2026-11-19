@@ -6,7 +6,7 @@ import type {CommentRow} from '../shared/rows.js'
 import {useComments} from './model/comments.js'
 
 const PANEL =
-  'fixed inset-y-3 end-3 w-96 max-w-full pointer-events-auto flex flex-col bg-chat-panel text-chat-text border border-chat-line rounded-chat-surface-lg shadow-chat-lg overflow-hidden anim-presence-in'
+  'fixed top-16 bottom-3 end-3 w-96 max-w-full pointer-events-auto flex flex-col bg-chat-panel text-chat-text border border-chat-line rounded-chat-surface-lg shadow-chat-lg overflow-hidden anim-presence-in'
 const TOGGLE = 'fixed top-4 start-16 pointer-events-auto shadow-chat-lg'
 const FEED_ITEM = 'w-full h-auto justify-start text-start px-3 py-2.5 rounded-none'
 
