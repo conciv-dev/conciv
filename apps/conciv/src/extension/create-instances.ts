@@ -1,5 +1,10 @@
 import type {AnyExtension} from '@conciv/extension'
-import type {ExtensionInstance} from './extension-slots.js'
+
+export type ExtensionInstance = {
+  extension: AnyExtension
+  clientValue: object
+  dispose: () => void
+}
 
 export function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
   return extensions.flatMap((extension) => {
@@ -9,7 +14,6 @@ export function createInstances(extensions: AnyExtension[]): ExtensionInstance[]
         {
           extension,
           clientValue: result?.value ?? {},
-          effects: result?.effects ?? [],
           dispose: result?.dispose ?? (() => {}),
         },
       ]

@@ -11,8 +11,6 @@ export type PendingAttachmentQueue = {
 export type PaneContextValue = {
   sessionId: Accessor<string>
   running: Accessor<boolean>
-  viewLocked: Accessor<boolean>
-  setLockedFor: (id: string) => (locked: boolean) => void
   slideClass: Accessor<string>
   resetSlide: () => void
   grabStaging: GrabStaging

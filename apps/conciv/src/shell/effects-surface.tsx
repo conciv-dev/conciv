@@ -5,7 +5,7 @@ import {MountedSurface} from '@conciv/extension/client'
 import {useConnectionGeneration, useHostTheme} from '../app/context.js'
 import {applySchemeClass, applySkinClass, themeClasses} from '../lib/color-scheme.js'
 import {PluginBoundary} from '../runtime/plugin/plugin-boundary.js'
-import type {ExtensionInstance} from '../extension/extension-slots.js'
+import type {ExtensionInstance} from '../extension/create-instances.js'
 import {widgetSheet} from '../lib/widget-styles.js'
 
 function decorateHost(element: HTMLDivElement): void {

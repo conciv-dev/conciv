@@ -4,9 +4,9 @@ import {AttachmentUI, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
 import {ErrorScreen} from '../../shell/error-screen.js'
 
-export type PluginFallback = 'silent' | 'tab' | 'card' | 'chip'
+type PluginFallback = 'silent' | 'card' | 'chip'
 
-export function reportCrash(name: string, error: unknown): void {
+function reportCrash(name: string, error: unknown): void {
   console.error(`[conciv] extension "${name}" crashed`, error)
 }
 
@@ -54,13 +54,10 @@ export function PluginBoundary(props: {
   name: string
   fallback: PluginFallback
   onRemove?: (id: string) => void
-  focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
-  const tabCrash = createTabCrash(() => props.focusAfterRetry?.())
-  const fallback = (error: unknown, reset: () => void): JSX.Element => {
+  const fallback = (error: unknown): JSX.Element => {
     reportCrash(props.name, error)
-    if (props.fallback === 'tab') return tabCrash(`The ${props.name} extension crashed`, reset)
     if (props.fallback === 'card') return <CardFallback name={props.name} />
     if (props.fallback === 'chip') return <ChipFallback name={props.name} onRemove={props.onRemove} />
     return null

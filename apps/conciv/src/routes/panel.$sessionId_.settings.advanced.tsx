@@ -1,23 +1,15 @@
 import {Link, Outlet, createFileRoute} from '@tanstack/solid-router'
-import {For, Show, type JSX} from 'solid-js'
+import {For, type JSX} from 'solid-js'
 import {useMutation} from '@conciv/client'
 import RotateCcw from 'lucide-solid/icons/rotate-ccw'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import type {AnyExtension} from '@conciv/extension'
-import type {RpcClient, SettingsScope} from '@conciv/contract'
-import {useAnnounce, usePreferences, useRpc} from '../app/context.js'
+import {useAnnounce, usePreferences} from '../app/context.js'
 import type {PreferenceKey} from '../settings/preferences-schema.js'
 import {ActionRow, BUTTON_DANGER_FILL, BUTTON_WARN, Group} from '../settings/settings-ui.js'
 import {writeLastTab} from '../settings/last-tab.js'
 import {SCOPE_NAMES} from '../settings/scope-names.js'
 
 const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[]}[] = [
-  {
-    label: 'Views',
-    hint: 'Show every view again, in the default order.',
-    action: 'Reset views',
-    keys: ['docksHidden', 'docksPinned', 'docksCustomOrder'],
-  },
   {label: 'Shortcuts', hint: 'Back to the default keys.', action: 'Reset shortcuts', keys: ['commandShortcuts']},
 ]
 
@@ -29,14 +21,9 @@ export const Route = createFileRoute('/panel/$sessionId_/settings/advanced')({
 function AdvancedSettings(): JSX.Element {
   const preferences = usePreferences()
   const announce = useAnnounce()
-  const rpc = useRpc()
   const search = Route.useSearch()
-  const configurable = Route.useRouteContext()().extensions.filter((extension) => extension.settings)
   const reset = useMutation(() => ({
-    mutationFn: (target: PreferenceKey[] | 'extensions') =>
-      target === 'extensions'
-        ? clearExtensionSettings(rpc, search().scope, configurable)
-        : preferences.reset(search().scope, target),
+    mutationFn: (keys: PreferenceKey[]) => preferences.reset(search().scope, keys),
     onSuccess: () => announce('Settings reset'),
     onError: () => announce('Could not reset the settings', true),
   }))
@@ -58,19 +45,6 @@ function AdvancedSettings(): JSX.Element {
             </ActionRow>
           )}
         </For>
-        <Show when={configurable.length > 0}>
-          <ActionRow label="Extensions" hint="Every extension's settings back to its defaults.">
-            <button
-              type="button"
-              class={BUTTON_WARN}
-              disabled={reset.isPending}
-              onClick={() => reset.mutate('extensions')}
-            >
-              <RotateCcw class="size-3.25" aria-hidden="true" />
-              Reset extension settings
-            </button>
-          </ActionRow>
-        </Show>
       </Group>
       <Group
         danger
@@ -93,19 +67,5 @@ function AdvancedSettings(): JSX.Element {
       </Group>
       <Outlet />
     </div>
-  )
-}
-
-async function clearExtensionSettings(
-  rpc: RpcClient,
-  scope: SettingsScope,
-  extensions: readonly AnyExtension[],
-): Promise<void> {
-  await Promise.all(
-    extensions.map(async (extension) => {
-      const target = {scope, namespace: extension.name}
-      const stored = await rpc.settings.all(target)
-      await Promise.all(Object.keys(stored.value).map((key) => rpc.settings.delete({...target, key})))
-    }),
   )
 }

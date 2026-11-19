@@ -29,19 +29,15 @@ import {parseConcivSettings} from '../src/data/settings.js'
 import {createPreferences} from '../src/settings/create-preferences.js'
 import {createClientSettings} from '@conciv/contract'
 import {makeLayerStack} from '../src/shell/dialogs.js'
-import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 import {createRoot, createSignal, type JSX} from 'solid-js'
 import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {createShadowRoot} from '../src/lib/shadow.js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
-import {HostApiProvider} from '@conciv/extension/host'
-import {Dialog} from '@conciv/ui-kit-system'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../src/app/pane-context.js'
-import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
 import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
@@ -217,7 +213,6 @@ type AppContextValueOptions = {
   base: string
   sessionId?: string
   announce?: (message: string) => void
-  instances?: ExtensionInstance[]
   transport?: ChatTransportPreference
   engineOnlyDrafts?: boolean
 }
@@ -256,7 +251,6 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
       top: 'calc(100% - 4.5rem)',
     }),
     panelWidthCap: () => document.documentElement.clientWidth - 40,
-    instances: options.instances ?? [],
     connected,
     arrivedFromConnect: () => false,
     connectBind: async () => '',
@@ -278,7 +272,6 @@ export type PaneMountOptions = {
   base: string
   sessionId: string
   grabProvider?: GrabProvider
-  extensions?: AnyExtension[]
   ground?: (grab: Grab) => Promise<Grab | null>
   width?: number
   transport?: ChatTransportPreference
@@ -307,7 +300,6 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 }
 
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
   const client = makeBrowserRpcClient(options.base, {session: () => options.sessionId})
@@ -317,7 +309,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
         base: options.base,
         sessionId: options.sessionId,
         announce: (message) => setAnnounced((entries) => [...entries, message]),
-        instances,
         transport: options.transport,
         engineOnlyDrafts: options.engineOnlyDrafts,
       },
@@ -336,12 +327,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     return {app, chat, coordinator, dispose: disposeChat}
   })
   const {app} = chatRoot
-  const {rpc, data, queryClient} = app
+  const {data, queryClient} = app
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,
-    viewLocked: () => false,
-    setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
     grabStaging: makeGrabStaging({
@@ -369,18 +358,11 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
               <PluginRoot composed={[]} servers={false}>
                 <PluginAttachment>
                   <PaneContext.Provider value={pane}>
-                    <HostApiProvider
-                      rpc={rpc}
-                      apiBase={() => options.base}
-                      toast={(message) => app.announce(message)}
-                      dialog={app.layers.track(Dialog)}
-                    >
-                      <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
-                        {view(pane)}
-                        <NoticeSurface />
-                      </div>
-                      <AnnounceLog entries={announced} />
-                    </HostApiProvider>
+                    <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
+                      {view(pane)}
+                      <NoticeSurface />
+                    </div>
+                    <AnnounceLog entries={announced} />
                   </PaneContext.Provider>
                 </PluginAttachment>
               </PluginRoot>
@@ -398,7 +380,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   return {
     dispose: () => {
       mounted.unmount()
-      for (const instance of instances) instance.dispose()
       chatRoot.app.data.dispose()
       chatRoot.dispose()
       reachabilityRoot.dispose()

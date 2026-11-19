@@ -45,11 +45,9 @@ import {
   useAppQueryClient,
   useConnected,
   useHostTheme,
-  useInstances,
   useLiveSessions,
   useRpc,
 } from '../../app/context'
-import {collectViews} from '../../extension/extension-views'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../../lib/media-query'
 import {quickPaneIds, quickSearchFor} from '../../lib/quick-search'
 import type {ComposerInputHandle} from '../../pane/composer-input-adapter'
@@ -450,7 +448,6 @@ export function createPluginAttachment(apis: HostApis) {
   const connection = useConnected()
   const theme = useHostTheme()
   const router = useRouter()
-  const instances = useInstances()
   const route = useRoutedSessions()
   const engine = apis.engine
   const [screen, setScreen] = createSignal<SessionScreen>()
@@ -637,9 +634,8 @@ export function createPluginAttachment(apis: HostApis) {
     const views = router
       .matchRoutes(location.pathname, location.search)
       .flatMap((match) => (match.routeId === '/panel/$sessionId/$view' ? [match.params.view] : []))
-    const extensionViews = collectViews(instances)
 
-    if (!views.some((view) => isPluginView(view, extensionViews))) return
+    if (!views.some(isPluginView)) return
     void router.invalidate().catch((cause: unknown) => console.error('[plugin] Route check failed', cause))
   }
 

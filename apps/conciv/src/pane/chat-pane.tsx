@@ -41,10 +41,9 @@ import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
-import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
-import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import type {PaneDraftSinks} from '../app/live-sessions.js'
@@ -52,10 +51,7 @@ import {usePane} from '../app/pane-context.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
-import {EmptyStateSlot} from '../shell/empty-state.js'
-import {guardedToolCards} from '../extension/extension-boundary.js'
-import {ExtensionSurface} from '../extension/extension-slots.js'
-import {makePaneGrabApi} from './pane-grab.js'
+import {EmptyState} from '../shell/empty-state.js'
 import {ComposerActions} from '../composer/actions.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
@@ -236,7 +232,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   const appData = useAppData()
   const announce = useAnnounce()
   const {reachability, notices} = useEngineNotices()
-  const instances = useInstances()
   const pane = usePane()
   const liveSessions = useLiveSessions()
   const sessionId = untrack(() => props.sessionId)
@@ -286,14 +281,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     addResult: messaging.onAnswer,
   })
 
-  const extensionToolCards = guardedToolCards(instances.map((instance) => instance.extension))
   const toolRender = createToolRender()
-  const tools = (): ToolCardEntry[] => [
-    ...extensionToolCards,
-    ...concivToolCards,
-    ...coreToolCards,
-    ...builtinToolCards,
-  ]
+  const tools = (): ToolCardEntry[] => [...concivToolCards, ...coreToolCards, ...builtinToolCards]
 
   const compacting = messaging.compacting
 
@@ -326,13 +315,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     focusInput()
   }
   const imageInput = () => harness()?.imageInput
-  const attachments = createMemo(() =>
-    paneAttachments(
-      instances.map((instance) => instance.extension),
-      imageInput(),
-      appData.drafts,
-    ),
-  )
+  const attachments = createMemo(() => paneAttachments(imageInput(), appData.drafts))
   const PaneAttachment = (slotProps: {onRemove?: (id: string) => void}): JSX.Element => (
     <AttachmentByMime cards={attachments().chips} onRemove={slotProps.onRemove} />
   )
@@ -340,7 +323,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     pane.grabStaging.stage(grab)
     focusInput()
   }
-  const paneGrab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const markerRowsAfter = markersAfter(chat, () => (markers.isPending ? [] : (markers.data ?? [])))
@@ -414,7 +396,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <OlderMessages sessionId={sessionId} chat={chat} />
                     <Show when={!chat.loadFailed()}>
                       <Thread.Welcome>
-                        <EmptyStateSlot onStarter={sendFromButton} instances={instances} />
+                        <EmptyState onStarter={sendFromButton} />
                       </Thread.Welcome>
                     </Show>
                     <Thread.Messages
@@ -467,7 +449,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <Suspense>
                     <ConnectedAgents onDisconnected={focusInput} />
                   </Suspense>
-                  <ExtensionSurface name="status" instances={instances} />
                   <SessionStatusSlot pane={pluginSession} />
                   <SessionComposerPills pane={pluginSession} />
                 </div>
@@ -513,7 +494,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                         onNewSession={() => pane.newSession()}
                         onStageGrab={stageGrab}
                       />
-                      <ExtensionSurface name="composer" instances={instances} />
                       <ComposerWiring
                         onReady={(api) => {
                           composerApi.current = api
@@ -531,26 +511,24 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
 
   return (
-    <HostApiProvider sessionId={() => sessionId} grab={paneGrab} attach={attach} newSession={() => pane.newSession()}>
-      <ChatProvider chat={chat}>
-        <ToolProvider value={toolCtx}>
-          <ComposerHandlersProvider
-            value={{
-              onSend: sendOrRunCommand,
-              onSendError: messaging.onSendError,
-              onSteer: messaging.onSteer,
-              onSteerError: messaging.onSteerError,
-              onCancel: () => {
-                returnQueueToDraft(chat, {insert, addFile: attach})
-                void chat.stop()
-              },
-            }}
-          >
-            <PaneBody />
-          </ComposerHandlersProvider>
-        </ToolProvider>
-      </ChatProvider>
-    </HostApiProvider>
+    <ChatProvider chat={chat}>
+      <ToolProvider value={toolCtx}>
+        <ComposerHandlersProvider
+          value={{
+            onSend: sendOrRunCommand,
+            onSendError: messaging.onSendError,
+            onSteer: messaging.onSteer,
+            onSteerError: messaging.onSteerError,
+            onCancel: () => {
+              returnQueueToDraft(chat, {insert, addFile: attach})
+              void chat.stop()
+            },
+          }}
+        >
+          <PaneBody />
+        </ComposerHandlersProvider>
+      </ToolProvider>
+    </ChatProvider>
   )
 }
 

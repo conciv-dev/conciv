@@ -6,7 +6,6 @@ import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
 import type {ConcivEnvironment} from '../router.js'
 import type {LayerStack} from '../shell/dialogs.js'
-import type {ExtensionInstance} from '../extension/extension-slots.js'
 import type {LiveSessions} from './live-sessions.js'
 import type {WarmSession} from './warm-session.js'
 import type {HostTheme} from '../lib/color-scheme.js'
@@ -26,7 +25,6 @@ export type AppContextValue = {
   suppressed: () => '' | undefined
   fabAnchor: Accessor<LauncherAnchor>
   panelWidthCap: Accessor<number>
-  instances: ExtensionInstance[]
   connected: () => boolean
   arrivedFromConnect: () => boolean
   connectBind: (apiBase: string) => Promise<string>
@@ -96,10 +94,6 @@ export function useFabAnchor(): Accessor<LauncherAnchor> {
 
 export function usePanelWidthCap(): Accessor<number> {
   return useAppScope('usePanelWidthCap', (app) => app.panelWidthCap)
-}
-
-export function useInstances(): ExtensionInstance[] {
-  return useAppScope('useInstances', (app) => app.instances)
 }
 
 export function useConnected(): () => boolean {

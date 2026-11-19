@@ -62,10 +62,13 @@ import {
   type SessionStatus,
   useComposer,
   createTextAttachmentAdapter,
+  createDocumentAttachmentAdapter,
+  composeAttachmentAdapters,
 } from '@conciv/ui-kit-chat'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
-import {defineAttachment, defineExtension} from '@conciv/extension'
+import {collectAttachmentCards, defineAttachment, defineExtension} from '@conciv/extension'
+import {guardPluginAttachmentCard} from '../src/runtime/plugin/plugin-boundary.js'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
@@ -84,7 +87,6 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {getHostApi} from '@conciv/extension/host'
 import {compose} from '@conciv/plugin/experimental/host'
 import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental'
 import tryIt from '@conciv/plugin-try-it'
@@ -432,8 +434,14 @@ describe('attachment widget', () => {
     const calm = defineAttachment({mime: 'application/x-fixture'})
     calm.card(() => <span>calm player</span>)
     const extension = defineExtension({name: 'crash-attachment', attachments: [crashing, calm]})
+    const guarded = (fallback: 'card' | 'chip') =>
+      collectAttachmentCards([extension]).map((entry) => guardPluginAttachmentCard(extension.name, fallback, entry))
     return {
-      ...paneAttachments([extension], false, null),
+      cards: guarded('card'),
+      chips: guarded('chip'),
+      adapter: composeAttachmentAdapters(
+        [crashing, calm].map((attachment) => createDocumentAttachmentAdapter(attachment.mime)),
+      ),
       crashingFile: new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'}),
       calmFile: new File(['{}'], 'calm.bin', {type: 'application/x-fixture'}),
     }
@@ -5255,59 +5263,6 @@ module.exports = {default: {setup(ctx) {
     expect(harness.pathname()).not.toMatch(/options$/)
   }, 30_000)
 
-  test('a locked view opens and closes its own session menu, and a session pick never leaves it', async () => {
-    const LOCKED_BODY = 'the locked view body'
-    const TITLE = 'the locked session'
-    const OTHER = 'the session a lock keeps away'
-    function LockedView(): JSX.Element {
-      const lock = getHostApi().useViewLock()
-      onMount(() => lock(true))
-      return <p>{LOCKED_BODY}</p>
-    }
-    const lockedExtension = defineExtension({
-      name: 'panel-view-lock',
-      views: [{id: 'locked', label: 'Locked', Component: LockedView}],
-    })
-    const menu = () => page.getByRole('dialog', {name: 'Session options'})
-    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
-    const lockedBody = () => page.getByText(LOCKED_BODY)
-    const rpc = coreRpc(coreBase())
-    const otherId = await createSession(rpc)
-    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
-    const sessionId = await createSession(rpc)
-    await rpc.sessions.rename({sessionId, title: TITLE})
-    harness.mountShell(
-      [`/panel/${otherId}?open=true`, `/panel/${sessionId}?open=true`, `/panel/${sessionId}/locked?open=true`],
-      [lockedExtension],
-    )
-
-    await expect.element(lockedBody(), {timeout: 8000}).toBeVisible()
-    await expect.element(chatTab()).toBeDisabled()
-
-    await titleButton().click()
-    await expect.element(menu()).toBeVisible()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
-    await userEvent.keyboard('{Escape}')
-    await expect.element(menu()).not.toBeInTheDocument()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
-
-    await titleButton().click()
-    await expect.element(menu()).toBeVisible()
-    await menu()
-      .getByRole('button', {name: `Session: ${TITLE}`})
-      .click()
-    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
-    await expect.element(menu()).toBeVisible()
-    await expect.element(lockedBody()).toBeVisible()
-    await expect.element(titleButton()).toBeVisible()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
-
-    await userEvent.keyboard('{Escape}')
-    await expect.element(menu()).not.toBeInTheDocument()
-    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
-    await expect.element(lockedBody()).toBeVisible()
-  }, 30_000)
-
   describe('during a running turn', () => {
     const STREAMED_TEXT = 'the reply that streams while the notes tab is open'
     const HYDRATE_PATH = ['chat', 'hydrate']
@@ -7749,7 +7704,6 @@ describe('status bar', () => {
         views={[{id: 'chat', label: 'Chat'}]}
         activeView="chat"
         onSelectView={() => {}}
-        disabled={false}
       />
     ))
     return setStatus
@@ -7762,30 +7716,6 @@ describe('status bar', () => {
       setStatus({kind: 'done', label: 'DONE'})
       await expect.element(page.getByText('DONE', {exact: true})).toBeVisible()
       expect(page.getByText('RUNNING', {exact: true}).elements()).toHaveLength(0)
-    })
-
-    function mountViews(activeView: string, onSelectView: (id: string) => void = () => {}, disabled = false) {
-      render(() => (
-        <StatusBar
-          status={{kind: 'done', label: 'DONE'}}
-          elapsedLabel="00:12"
-          diff={{files: 0, adds: 0, dels: 0}}
-          views={[
-            {id: 'chat', label: 'Chat'},
-            {id: 'board', label: 'Board'},
-          ]}
-          activeView={activeView}
-          onSelectView={onSelectView}
-          disabled={disabled}
-        />
-      ))
-    }
-
-    it('locks the tabs a view lock blocks while keeping the active one reachable', async () => {
-      mountViews('chat', () => {}, true)
-
-      await expect.element(page.getByRole('tab', {name: 'Board'})).toBeDisabled()
-      await expect.element(page.getByRole('tab', {name: 'Chat'})).not.toBeDisabled()
     })
   })
 })
@@ -8219,34 +8149,6 @@ describe('tool outcomes', () => {
 })
 
 describe('settings page', () => {
-  const probeSettingsSchema = z.object({
-    wrap: z.boolean().default(false).meta({title: 'Wrap lines', description: 'Long lines wrap instead of scrolling.'}),
-    density: z.enum(['compact', 'cozy']).default('cozy').meta({title: 'Density'}),
-    theme: z.enum(['plain', 'ocean', 'forest', 'dusk']).default('plain').meta({title: 'Theme'}),
-    fontSize: z.number().int().min(10).max(24).default(13).meta({title: 'Font size'}),
-    greeting: z.string().default('').meta({title: 'Greeting', description: 'Shown above the notes.'}),
-  })
-
-  function SchemeProbe(): JSX.Element {
-    const scheme = getHostApi().useColorScheme()
-    const settings = settingsProbe.useSettings()
-    return (
-      <>
-        <p>Widget colors: {scheme()}</p>
-        <p>
-          {`Probe settings: wrap=${settings().wrap} density=${settings().density} theme=${settings().theme} fontSize=${settings().fontSize} greeting=${settings().greeting}`}
-        </p>
-      </>
-    )
-  }
-
-  const settingsProbe = defineExtension({
-    name: 'settings-probe',
-    settings: probeSettingsSchema,
-    Surface: SchemeProbe,
-    views: [{id: 'notes', label: 'Notes', Component: () => <p>the notes view</p>}],
-  }).client(() => ({value: {}}))
-
   const coreBase = bootedCore('settings-page')
   const harness = createShellHarness(coreBase)
 
@@ -8261,18 +8163,11 @@ describe('settings page', () => {
   const sections = () => page.getByRole('tablist', {name: 'Settings sections'})
   const widthHandle = () => page.getByRole('separator', {name: 'Resize chat width'})
   const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
-  const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
-  const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
-  const notesShown = () => page.getByRole('checkbox', {name: /^Notes/})
   const command = (label: string) => page.getByRole('button', {name: label, exact: true})
   const clash = () => page.getByRole('status').getByText(/is also/)
   const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
-  const probeValues = (values: string) => page.getByText(`Probe settings: ${values}`, {exact: true})
-  const PROBE_DEFAULTS = 'wrap=false density=cozy theme=plain fontSize=13 greeting='
-  const PROBE_CHANGED = 'wrap=true density=compact theme=ocean fontSize=16 greeting=hi'
   const allProjects = () => page.getByRole('switch', {name: 'All projects'})
   const scopeLabel = () => page.getByText('All projects', {exact: true})
-  const PROBE_WRAPPED = 'wrap=true density=cozy theme=plain fontSize=13 greeting='
   const recordGlobalToggle = async (key: string) => {
     await scopeLabel().click()
     await command('Open or close conciv').click()
@@ -8281,9 +8176,6 @@ describe('settings page', () => {
     await scopeLabel().click()
     await expect.element(allProjects()).not.toBeChecked()
   }
-  const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
-  const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
-  const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
   const skin = (name: string) => page.getByRole('radio', {name, exact: true})
   const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
   const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
@@ -8312,7 +8204,7 @@ describe('settings page', () => {
     await expect.element(tab('Advanced')).toBeVisible()
     await tab('General').click()
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(allProjects()).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}')
@@ -8320,9 +8212,9 @@ describe('settings page', () => {
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}')
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '548')
     await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
-    await tab('Views').click()
+    await tab('Shortcuts').click()
     await userEvent.keyboard('{ArrowDown}')
-    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
     await tab('General').click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
@@ -8342,10 +8234,8 @@ describe('settings page', () => {
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '936')
     localStorage.removeItem('conciv-modal-width')
     harness.dispose()
-    harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
+    harness.mountShell(`/panel/${sessionId}?open=true`, [])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
-    await expect.element(probe('light')).toBeInTheDocument()
-    await expect.element(notesTab()).toBeVisible()
     await renameTo('renamed before settings')
     const firstVisit = await coreControl.rpcStartedOnceServed(RENAME_PATH, 1, MOUNT_READS)
 
@@ -8356,18 +8246,16 @@ describe('settings page', () => {
 
     const tabPaths: Record<string, string> = {
       General: 'general',
-      Views: 'views',
       Shortcuts: 'shortcuts',
       Plugins: 'plugins',
-      'Settings probe': 'extensions/settings-probe',
       Advanced: 'advanced',
     }
-    for (const name of ['Views', 'Shortcuts', 'Plugins', 'Settings probe', 'Advanced']) {
+    for (const name of ['Shortcuts', 'Plugins', 'Advanced']) {
       await tab(name).click()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
       expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
     }
-    for (const name of ['Settings probe', 'Plugins', 'Shortcuts', 'Views', 'General']) {
+    for (const name of ['Plugins', 'Shortcuts', 'General']) {
       await userEvent.keyboard('{ArrowUp}')
       await expect.element(tab(name)).toHaveFocus()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
@@ -8375,18 +8263,14 @@ describe('settings page', () => {
     }
 
     await colorMode().getByText('Dark', {exact: true}).click()
-    await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
 
-    await tab('Views').click()
-    await expect.element(notesShown()).toBeChecked()
-    await page.getByText(/^Notes/).click()
-    await expect.element(notesShown()).not.toBeChecked()
+    await tab('Plugins').click()
 
     await back().click()
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(gear()).toHaveFocus()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
-    await expect.element(notesTab()).not.toBeInTheDocument()
     await renameTo('renamed after settings')
     const returned = await coreControl.rpcStartedOnceServed(RENAME_PATH, 2, MOUNT_READS)
     expect(returned).toEqual(firstVisit)
@@ -8399,73 +8283,28 @@ describe('settings page', () => {
     await expect.element(titled('renamed after settings')).toBeVisible()
 
     await gear().click()
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('views'))
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('plugins'))
     await tab('Shortcuts').click()
     await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
     harness.back()
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('views'))
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('plugins'))
     await back().click()
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await gear().click()
-    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('views'))
+    await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('plugins'))
 
     harness.dispose()
     document.documentElement.style.setProperty('--conciv-skin', 'terminal')
-    harness.mountShell(`${settingsPath('general')}?open=true`, [settingsProbe])
+    harness.mountShell(`${settingsPath('general')}?open=true`, [])
     await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
-    await expect.element(probe('dark')).toBeInTheDocument()
     await expect.element(page.getByText('Set by the page in --conciv-skin')).toBeVisible()
     await expect.element(skin('Terminal')).toBeChecked()
     document.documentElement.style.removeProperty('--conciv-skin')
     await expect.element(page.getByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
     await expect.element(skin('Conciv')).toBeChecked()
-
-    await tab('Settings probe').click()
-    await expect.element(page.getByRole('heading', {name: 'Settings probe'})).toBeVisible()
-    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
-    await page.getByText('Wrap lines', {exact: true}).click()
-    await expect.element(wrapLines()).toBeChecked()
-    await page.getByRole('radiogroup', {name: 'Density'}).getByText('Compact', {exact: true}).click()
-    await page.getByRole('combobox', {name: 'Theme'}).click()
-    await expect.element(page.getByRole('option', {name: 'Ocean'})).toBeVisible()
-    await coreRpc(coreBase()).settings.set({scope: 'project', namespace: 'settings-probe', key: 'fontSize', value: 15})
-    await expect.element(probeValues('wrap=true density=compact theme=plain fontSize=15 greeting=')).toBeInTheDocument()
-    await expect.element(page.getByRole('option', {name: 'Ocean'})).toBeVisible()
-    await page.getByRole('option', {name: 'Ocean'}).click()
-    await fontSize().click()
-    await userEvent.keyboard('{End}{Backspace}{Backspace}16{Enter}')
-    await greeting().click()
-    await userEvent.keyboard('h')
-    await expect
-      .element(probeValues('wrap=true density=compact theme=ocean fontSize=16 greeting=h'))
-      .toBeInTheDocument()
-    await expect.element(greeting()).toHaveFocus()
-    await userEvent.keyboard('i')
-    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
-    await expect.element(greeting()).toHaveFocus()
-    await expect.element(greeting()).toHaveValue('hi')
-
-    harness.dispose()
-    harness.mountShell(`/panel/${sessionId}/settings?open=true`, [settingsProbe])
-    await expect.element(tab('Settings probe'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('extensions/settings-probe'))
-    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
-    await expect.element(wrapLines()).toBeChecked()
-    await expect
-      .element(page.getByRole('radiogroup', {name: 'Density'}).getByRole('radio', {name: 'Compact'}))
-      .toBeChecked()
-    await expect.element(page.getByRole('combobox', {name: 'Theme'})).toHaveTextContent('Ocean')
-    await expect.element(fontSize()).toHaveValue('16')
-    await expect.element(greeting()).toHaveValue('hi')
-
-    harness.dispose()
-    harness.mountShell(`${settingsPath('extensions/nothing-here')}?open=true`, [settingsProbe])
-    await expect.element(tab('General'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
-    expect(harness.pathname()).toBe(settingsPath('general'))
-
     await tab('Shortcuts').click()
     await recordGlobalToggle('o')
     await command('Quick terminal').click()
@@ -8504,14 +8343,12 @@ describe('settings page', () => {
       .toHaveTextContent(`Split pane${formatForDisplay('Control+Shift+J')}`)
 
     harness.dispose()
-    harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
-    await expect.element(probeValues(PROBE_CHANGED), {timeout: 8000}).toBeInTheDocument()
-    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
-    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+    harness.mountShell(`${settingsPath('advanced')}?open=true`, [])
+    await expect.element(tab('Advanced'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
 
     await tab('General').click()
     await colorMode().getByText('Light', {exact: true}).click()
-    await expect.element(probe('light')).toBeInTheDocument()
+    await expect.element(colorMode().getByRole('radio', {name: 'Light'})).toBeChecked()
     await scopeLabel().click()
     await expect.element(allProjects()).toBeChecked()
     await expect.element(colorMode().getByRole('radio', {name: 'Auto'})).toBeChecked()
@@ -8522,22 +8359,8 @@ describe('settings page', () => {
     await expect.element(allProjects()).toBeChecked()
     const reloadAt = harness.href()
     harness.dispose()
-    harness.mountShell(reloadAt, [settingsProbe])
+    harness.mountShell(reloadAt, [])
     await expect.element(allProjects(), {timeout: 8000}).toBeChecked()
-    await expect.element(probe('light')).toBeInTheDocument()
-    await tab('Settings probe').click()
-    await page.getByText('Wrap lines', {exact: true}).click()
-    await expect.element(wrapLines()).toBeChecked()
-    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
-    await scopeLabel().click()
-    await expect.element(allProjects()).not.toBeChecked()
-    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
-    await page.getByText('Wrap lines', {exact: true}).click()
-    await expect.element(wrapLines()).not.toBeChecked()
-    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
-    await tab('Advanced').click()
-    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
-    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
 
     await resetAll().click()
     await expect.element(resetDialog()).toBeVisible()
@@ -8546,14 +8369,12 @@ describe('settings page', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
-    await expect.element(probe('light')).toBeInTheDocument()
 
     await resetAll().click()
     await resetDialog().getByRole('button', {name: 'Reset everything'}).click()
     await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
     await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
-    await expect.element(probe('dark')).toBeInTheDocument()
     await tab('General').click()
     await expect.element(colorMode().getByRole('radio', {name: 'Dark'})).toBeChecked()
     await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
@@ -8561,10 +8382,9 @@ describe('settings page', () => {
     await tab('Advanced').click()
     await userEvent.keyboard('{Escape}')
     await expect.element(gear()).toHaveFocus()
-    await expect.element(notesTab()).toBeVisible()
 
     harness.dispose()
-    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [settingsProbe], {
+    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [], {
       host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
     })
     await expect.element(command('New quick terminal pane'), {timeout: 8000}).toBeVisible()
@@ -12280,7 +12100,7 @@ describe('the local draft store', () => {
     return (
       <ChatProvider chat={chat}>
         <ComposerHandlersProvider value={{onSend: () => {}, onCancel: () => {}}}>
-          <Composer attachmentAdapter={paneAttachments([], 'native', props.store).adapter} />
+          <Composer attachmentAdapter={paneAttachments('native', props.store).adapter} />
         </ComposerHandlersProvider>
       </ChatProvider>
     )

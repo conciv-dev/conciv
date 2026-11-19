@@ -1,6 +1,5 @@
 import {For, type JSX} from 'solid-js'
 import {Button} from '@conciv/ui-kit-system'
-import {ExtensionSurface, type ExtensionInstance} from '../extension/extension-slots.js'
 import {useArrivedFromConnect} from '../app/context.js'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
@@ -8,19 +7,7 @@ const CONNECT_HEADLINE = 'Agent connected. It’s driving this page from your ma
 const DEFAULT_HEADLINE = 'How can I help you today?'
 const STARTER = 'rounded-chat-pill anim-rise'
 
-export function EmptyStateSlot(props: {
-  onStarter: (text: string) => void
-  instances: ExtensionInstance[]
-}): JSX.Element {
-  return (
-    <>
-      <ExtensionSurface name="empty" instances={props.instances} />
-      <EmptyState onStarter={props.onStarter} />
-    </>
-  )
-}
-
-function EmptyState(props: {onStarter: (text: string) => void}): JSX.Element {
+export function EmptyState(props: {onStarter: (text: string) => void}): JSX.Element {
   const arrivedFromConnect = useArrivedFromConnect()
   return (
     <div class="m-auto text-center">

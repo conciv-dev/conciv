@@ -20,18 +20,13 @@ type RouteTabs = Parameters<typeof createRegion>[0]['tabs']
 
 const viewRoute = getRouteApi('/panel/$sessionId/$view')
 
-export function createPluginTabs(input: {
-  view: Accessor<string>
-  extensionViews: Accessor<readonly {readonly id: string}[]>
-  chat: () => void
-  show: (view: string) => void
-}) {
+export function createPluginTabs(input: {view: Accessor<string>; chat: () => void; show: (view: string) => void}) {
   const attachment = usePluginAttachment()
 
   const routed = () => {
     const view = input.view()
 
-    return isPluginView(view, input.extensionViews()) ? view : undefined
+    return isPluginView(view) ? view : undefined
   }
 
   const tabs = {

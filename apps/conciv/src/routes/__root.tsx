@@ -10,7 +10,8 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
 import {Dialog, EnvironmentProvider} from '@conciv/ui-kit-system'
-import {HostApiProvider, getHostApi} from '@conciv/extension/host'
+import {HostApiProvider} from '@conciv/extension/host'
+import {createClientSettings} from '@conciv/contract'
 import {showToast} from '@conciv/page'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
@@ -82,15 +83,6 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
 
 function RootComponent() {
   const app = Route.useRouteContext()()
-  return (
-    <HostApiProvider rpc={app.rpc}>
-      <AppRoot />
-    </HostApiProvider>
-  )
-}
-
-function AppRoot() {
-  const app = Route.useRouteContext()()
   const panelParams = useParams({from: '/panel/$sessionId', shouldThrow: false})
   const pipParams = useParams({from: '/pip/$sessionId', shouldThrow: false})
   const quickSearch = useSearch({from: '/quick', shouldThrow: false})
@@ -139,8 +131,10 @@ function AppRoot() {
     announce,
   })
   const rootNode = app.environment.rootNode
+  const followingSettings = new AbortController()
+  onCleanup(() => followingSettings.abort())
   const preferences = createPreferences({
-    settings: getHostApi().useScope('conciv').settings,
+    settings: createClientSettings(app.rpc, 'conciv', followingSettings.signal),
     data: app.data,
     queryClient: app.queryClient,
     connected: app.connected,
@@ -162,7 +156,6 @@ function AppRoot() {
     suppressed,
     fabAnchor: fab.anchor,
     panelWidthCap: fab.panelWidthCap,
-    instances: app.instances,
     connected: app.connected,
     arrivedFromConnect,
     connectBind,
@@ -198,26 +191,26 @@ function AppRoot() {
                 <PluginRoot composed={app.plugins} servers={app.servers}>
                   <PluginAttachment>
                     <PluginPanelKeys />
-                    <HostApiProvider
-                      rpc={app.rpc}
-                      apiBase={app.apiBase}
-                      toast={showToast}
-                      registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-                      dialog={layers.track(Dialog)}
-                      sessionId={activeSession}
-                      colorScheme={colorScheme}
-                    >
-                      <RootChrome
-                        fab={fab}
-                        activeSession={activeSession}
-                        politeMessage={politeMessage}
-                        assertiveMessage={assertiveMessage}
-                      />
-                      <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                    <RootChrome
+                      fab={fab}
+                      activeSession={activeSession}
+                      politeMessage={politeMessage}
+                      assertiveMessage={assertiveMessage}
+                    />
+                    <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                      <HostApiProvider
+                        rpc={app.rpc}
+                        apiBase={app.apiBase}
+                        toast={showToast}
+                        registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+                        dialog={layers.track(Dialog)}
+                        sessionId={activeSession}
+                        colorScheme={colorScheme}
+                      >
                         <EffectsSurface instances={app.instances} />
-                      </Show>
-                      <PluginOverlay />
-                    </HostApiProvider>
+                      </HostApiProvider>
+                    </Show>
+                    <PluginOverlay />
                   </PluginAttachment>
                 </PluginRoot>
               </DialogProvider>
