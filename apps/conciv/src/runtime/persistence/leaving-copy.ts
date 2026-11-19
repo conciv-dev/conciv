@@ -71,3 +71,15 @@ export function settleLeavingCopy(name: string, writtenAt: number): void {
   if (parsed.success && parsed.data.stamp >= writtenAt) return
   dropLeavingCopy(name)
 }
+
+export function dropLeavingCopies(): void {
+  try {
+    const storage = readSessionStorage()
+    if (!storage) return
+    Array.from({length: storage.length}, (_, index) => storage.key(index))
+      .filter((key): key is string => key?.startsWith(LEAVING_COPY_PREFIX) ?? false)
+      .forEach((key) => storage.removeItem(key))
+  } catch (error) {
+    console.error('[persistence] could not drop the leaving copies of the drafts', error)
+  }
+}
