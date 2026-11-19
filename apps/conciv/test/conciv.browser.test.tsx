@@ -242,7 +242,7 @@ describe('approval replay', () => {
     keep(await attachedPane(sessionId))
     const waiting = coreControl.hubExecute(sessionId, 'return 7')
     await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
-    await faults.install({kind: 'detached-sockets'})
+    await faults.install({kind: 'gate', path: ['chat', 'events']})
     const other = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
     onTestFinished(() => other.dispose())
     await expect.element(permissionRequest().nth(1), {timeout: 15_000}).toBeVisible()
