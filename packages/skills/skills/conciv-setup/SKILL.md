@@ -1,6 +1,6 @@
 ---
 name: conciv-setup
-description: Use when installing or mounting the conciv dev-agent widget in an app: adding @conciv/it to a Vite/webpack/Rspack/Next.js/Rollup/esbuild build, wiring a manual createConciv/mountConciv setup for a bundler with no plugin, choosing/configuring a harness (claude/codex), or setting the conciv() / ConcivSettingsInit config surface. Covers first install through a working chat button in dev.
+description: 'Use when installing or mounting the conciv dev-agent widget in an app: adding @conciv/it to a Vite/webpack/Rspack/Next.js/Rollup/esbuild build, wiring a manual createConciv/mountConciv setup for a bundler with no plugin, choosing/configuring a harness (claude/codex), or setting the conciv() / ConcivSettingsInit config surface. Covers first install through a working chat button in dev.'
 metadata:
   package: '@conciv/skills'
 ---

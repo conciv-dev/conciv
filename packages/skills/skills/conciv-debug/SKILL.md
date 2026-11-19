@@ -1,6 +1,6 @@
 ---
 name: conciv-debug
-description: Use when a conciv integration misbehaves at runtime: the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or plugin authoring (see conciv-develop).
+description: 'Use when a conciv integration misbehaves at runtime: the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call is refused pending approval or a command waits on an approval card, an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/approval/SSE runtime, not initial install (see conciv-setup) or plugin authoring (see conciv-develop).'
 metadata:
   package: '@conciv/skills'
 ---
