@@ -2,7 +2,7 @@
 
 ## Overview
 
-Published package that ships agent skill markdown, discovered through @tanstack/intent, for conciv setup, extension development, harness adapters and debugging. A dev-only `check:refs` script checks file and line citations in the skill docs.
+Published package that ships agent skill markdown, discovered through @tanstack/intent, for conciv setup, plugin development, harness adapters and debugging. A dev-only `check:refs` script checks file and line citations in the skill docs.
 
 ## Interface
 
@@ -15,7 +15,7 @@ Published package that ships agent skill markdown, discovered through @tanstack/
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - citation checker behind `check:refs`
   - conciv-setup: [./skills/conciv-setup/SKILL.md](./skills/conciv-setup/SKILL.md) - installing or mounting the widget
-  - conciv-develop: [./skills/conciv-develop/SKILL.md](./skills/conciv-develop/SKILL.md) - building extensions
+  - conciv-develop: [./skills/conciv-develop/SKILL.md](./skills/conciv-develop/SKILL.md) - building plugins
   - conciv-harness: [./skills/conciv-harness/SKILL.md](./skills/conciv-harness/SKILL.md) - harness adapters
   - conciv-debug: [./skills/conciv-debug/SKILL.md](./skills/conciv-debug/SKILL.md) - runtime debugging
 

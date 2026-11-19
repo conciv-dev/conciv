@@ -1,6 +1,5 @@
-import {createMemo, createUniqueId, For, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
-import {createStore, reconcile, unwrap} from 'solid-js/store'
-import {createKeyed, Plugin, ToolRegistry, type Context, type ToolComponent, type Ui} from '@conciv/plugin/experimental'
+import {createMemo, createUniqueId, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {Plugin, ToolRegistry, type Context, type ToolComponent, type Ui} from '@conciv/plugin/experimental'
 import {BasicTool, StatusVisual} from '@conciv/ui-kit-chat/tools'
 import {
   countLabel,
@@ -10,17 +9,18 @@ import {
   failureLocation,
   fixPrompt,
   fileGroup,
-  followTestRun,
-  initialRunState,
+  followRunView,
+  initialRunView,
   parseRunResult,
   pathTail,
   relativePath,
   shortDuration,
   STATE_LABEL,
   testFiles,
-  transitionRun,
+  selectSummary,
+  selectTests,
   type FileGroup,
-  type RunAction,
+  type RunView,
   type Summary,
   type TestError,
   type TestRow,
@@ -184,13 +184,13 @@ function FileSection(props: Actions & {group: FileGroup; accordion: string}): JS
   )
 }
 
-type RunView = {
+type RunCardView = {
   readonly summary: Summary
   readonly tests: readonly TestRow[]
   readonly running: boolean
 }
 
-function RunCard(props: Actions & RunView): JSX.Element {
+function RunCard(props: Actions & RunCardView): JSX.Element {
   const accordion = createUniqueId()
   const sentence = () => `${props.running ? 'Test run in progress' : 'Test run finished'}: ${counts(props.summary)}`
   return (
@@ -225,29 +225,38 @@ function RunCard(props: Actions & RunView): JSX.Element {
 type Client = Context['client']
 
 function LiveRunCard(props: Actions & {client: () => Client | undefined}): JSX.Element {
-  const [run, setRun] = createStore(initialRunState)
-  const dispatch = (action: RunAction) => setRun(reconcile(transitionRun(unwrap(run), action), {key: 'id'}))
-
-  createKeyed(
-    () => props.client(),
-    (client) => {
-      const controller = new AbortController()
-      onCleanup(() => controller.abort())
-      void followTestRun(client, controller.signal, dispatch)
-    },
-  )
+  const follow = createMemo(() => {
+    const client = props.client()
+    return client ? followRunView(client) : undefined
+  })
+  const run = (): RunView => follow()?.() ?? initialRunView
+  const unavailable = () => {
+    const view = run()
+    return view.status === 'unavailable' ? view : undefined
+  }
 
   return (
-    <Switch fallback={<RunCard {...props} summary={run.summary} tests={run.tests} running={run.phase === 'running'} />}>
-      <Match when={run.phase === 'unavailable'}>
-        <div class="flex flex-col gap-1">
-          <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
-            The test runner is unavailable
-          </p>
-          <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{run.reason}</p>
-        </div>
+    <Switch
+      fallback={
+        <RunCard
+          {...props}
+          summary={selectSummary(run())}
+          tests={selectTests(run())}
+          running={run().status === 'running'}
+        />
+      }
+    >
+      <Match when={unavailable()}>
+        {(view) => (
+          <div class="flex flex-col gap-1">
+            <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
+              The test runner is unavailable
+            </p>
+            <p class="text-chat-xs text-chat-text-2 font-chat-mono whitespace-pre-wrap break-words">{view().reason}</p>
+          </div>
+        )}
       </Match>
-      <Match when={run.phase === 'idle'}>
+      <Match when={run().status === 'idle'}>
         <p role="status" aria-live="polite" class="text-chat-sm text-chat-text-2">
           No test run yet
         </p>
