@@ -1,4 +1,4 @@
-import {expect, expectTypeOf, test as baseTest, describe, it, test} from 'vitest'
+import {expect, expectTypeOf, test as baseTest, describe, it, test, vi} from 'vitest'
 import {Plugin, type SetupContext} from '@conciv/plugin/experimental'
 import {defineInternalPlugin, isInternalPlugin} from '@conciv/plugin-internal'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
@@ -287,6 +287,32 @@ describe('draft storage', () => {
       text: 'after the outage',
       selectionStart: 16,
       selectionEnd: 16,
+    })
+  })
+
+  describe('a query reset', () => {
+    test('a draft read the reset cancels is not logged as a failure', async ({kit, core, sessionId}) => {
+      await seedDraft(kit.rpc, sessionId, {text: 'kept through the rebind'})
+      const queryClient = new QueryClient()
+      const app = makeAppData(
+        makeRpcClient(core.base),
+        queryClient,
+        null,
+        () => false,
+        () => core.base,
+      )
+      const errors = vi.spyOn(console, 'error')
+      const draftStorage = makeDraftStorage(app, makeDraftWriteChain(), sessionId)
+
+      const restoring = draftStorage.restore(() => {}, new AbortController().signal)
+      await queryClient.resetQueries()
+      await restoring
+
+      const logged = [...errors.mock.calls]
+      errors.mockRestore()
+      app.dispose()
+
+      expect(logged).toEqual([])
     })
   })
 })

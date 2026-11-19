@@ -3,6 +3,7 @@ export * from './reachability.js'
 export {
   QueryClient,
   QueryClientProvider,
+  isCancelledError,
   keepPreviousData,
   MutationObserver as QueryMutationObserver,
   useInfiniteQuery,

@@ -11,6 +11,7 @@ import MessageCircle from 'lucide-solid/icons/message-circle'
 import {Command} from '@conciv/plugin/experimental'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
 import type {RpcClient} from '@conciv/contract'
+import {isCancelledError} from '@conciv/client'
 import type {InferClientOutputs} from '@orpc/client'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
 import {useAppData, useAppQueryClient} from '../app/context.js'
@@ -195,7 +196,7 @@ function settledEntries<Value>(
   toEntries: (value: Value) => RichTextFieldTriggerItem[],
 ): RichTextFieldTriggerItem[] {
   if (result.status === 'fulfilled') return toEntries(result.value)
-  console.error(`[conciv] the @ list could not read ${catalog}`, result.reason)
+  if (!isCancelledError(result.reason)) console.error(`[conciv] the @ list could not read ${catalog}`, result.reason)
   return []
 }
 

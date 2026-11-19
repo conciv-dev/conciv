@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {differenceBy, intersectionBy, isEqual, keyBy, union, uniqBy} from 'es-toolkit'
 import {untrack} from 'solid-js'
 import {createStore, unwrap} from 'solid-js/store'
+import {isCancelledError} from '@conciv/client'
 import type {DraftRow} from '@conciv/contract'
 import {DraftItemSchema, type DraftItem} from '@conciv/protocol/chat-types'
 import type {AttachmentState, ComposerDraft, ComposerDraftWriter} from '@conciv/ui-kit-chat'
@@ -520,7 +521,7 @@ type ReadRow = (appData: AppData, sessionId: string) => Promise<DraftRow | null>
 
 const readRowOrNone: ReadRow = (appData, sessionId) =>
   appData.readDraft(sessionId).catch((error: unknown) => {
-    console.error('[conciv] could not read the saved draft', error)
+    if (!isCancelledError(error)) console.error('[conciv] could not read the saved draft', error)
     return null
   })
 
@@ -709,7 +710,8 @@ async function readStoredMoved(appData: AppData, sessionId: string, stored: Loca
     unfiled.length === 0
       ? null
       : await appData.readDraft(sessionId).catch((error: unknown) => {
-          console.error('[conciv] could not read the saved images of the deleted session draft', error)
+          if (!isCancelledError(error))
+            console.error('[conciv] could not read the saved images of the deleted session draft', error)
           return null
         })
   const encoded = sendableAttachments(stored, files, await encodeAttachments(files), row)
@@ -899,7 +901,8 @@ export function makeDraftStorage(appData: AppData, keep: DraftWriteChain, sessio
     appData.readDraft(sessionId).then(
       (row) => ({row}),
       (error: unknown) => {
-        if (!signal.aborted) console.error('[conciv] could not read the saved draft, the local draft stays', error)
+        if (!signal.aborted && !isCancelledError(error))
+          console.error('[conciv] could not read the saved draft, the local draft stays', error)
         return undefined
       },
     )
