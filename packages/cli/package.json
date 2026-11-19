@@ -37,35 +37,36 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.51.0",
+    "@ast-grep/napi": "^0.51.0"
+  },
+  "devDependencies": {
     "@bomb.sh/router": "catalog:",
     "@clack/prompts": "catalog:",
     "@conciv/contract": "workspace:^",
-    "@conciv/db": "workspace:^",
-    "@conciv/harness-init": "workspace:^",
-    "@conciv/plugin-page": "workspace:^",
-    "@conciv/protocol": "workspace:^",
-    "@orpc/client": "catalog:",
-    "@tanstack/ai-mcp": "catalog:",
-    "diff": "^9.0.0",
-    "es-toolkit": "catalog:",
-    "nypm": "^0.6.12",
-    "picocolors": "^1.1.1",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
+    "@conciv/harness-init": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-page-testkit": "workspace:*",
+    "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "diff": "^9.0.0",
+    "es-toolkit": "catalog:",
     "hono": "catalog:",
+    "nypm": "^0.6.12",
+    "picocolors": "^1.1.1",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }

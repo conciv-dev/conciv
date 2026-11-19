@@ -1,4 +1,6 @@
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import type {JsonSchema} from 'effect'
 import type {RequestOptions} from '../client/promise/generated/client.js'
 import type {
   InstructionEntryInfo,
@@ -57,6 +59,36 @@ export interface SessionPrompt {
   delivery: SessionInboxDelivery
 }
 
+export interface SystemPart {
+  type: 'text'
+  text: string
+  metadata?: Record<string, unknown>
+}
+
+export type SessionRequestOptions = Record<string, unknown>
+
+export interface SessionRequest {
+  readonly sessionId: SessionId
+  readonly model: Ref
+  system: Array<SystemPart>
+  messages: Array<ModelMessage>
+  options: SessionRequestOptions
+}
+
+export interface SessionContext extends SessionRequest {
+  readonly agent: string
+  tools: Record<string, {description: string; input: JsonSchema.JsonSchema}>
+}
+
+export interface SessionCompactionResult {
+  summary: string
+  tokens?: TokenUsageInfo
+}
+
+export interface SessionCompaction extends SessionContext {
+  result?: SessionCompactionResult
+}
+
 export type SessionIdleBackground =
   | {
       readonly kind: 'shell'
@@ -85,6 +117,8 @@ export interface SessionIdle {
 
 export interface SessionHooks {
   readonly prompt: SessionPrompt
+  readonly context: SessionContext
+  readonly compaction: SessionCompaction
   readonly 'experimental.idle': SessionIdle
 }
 

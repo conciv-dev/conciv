@@ -1,5 +1,21 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, getTableColumns, inArray, isNotNull, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
+import {Effect} from 'effect'
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  max,
+  ne,
+  notExists,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -25,7 +41,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, chatRuns, drafts, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -74,47 +90,56 @@ function sessionRecord(row: StoredSessionRow): SessionRecord {
   return SessionRecordSchema.parse(withReadablePermissions(row))
 }
 
-export function storedSessionRules(db: ConcivDb, id: SessionId): StoredRules | null {
-  const row = db.select({permissions: sessionColumns.permissions}).from(sessions).where(eq(sessions.id, id)).get()
-  return row === undefined ? null : decodeStoredRules(row.permissions)
+export function storedSessionRules(db: ConcivDb, id: SessionId) {
+  return db
+    .select({permissions: sessionColumns.permissions})
+    .from(sessions)
+    .where(eq(sessions.id, id))
+    .get()
+    .pipe(Effect.map((row) => (row === undefined ? null : decodeStoredRules(row.permissions))))
 }
 
 export async function rowById(db: ConcivDb, id: SessionId): Promise<SessionRecord | null> {
-  const rows = await db.select(sessionColumns).from(sessions).where(eq(sessions.id, id))
+  const rows = await Effect.runPromise(db.select(sessionColumns).from(sessions).where(eq(sessions.id, id)))
   return rows[0] ? sessionRecord(rows[0]) : null
 }
 
-export function isDeletedRow(db: ConcivDb, id: SessionId): boolean {
-  return (
+export async function isDeletedRow(db: ConcivDb, id: SessionId): Promise<boolean> {
+  const row = await Effect.runPromise(
     db
       .select({id: sessions.id})
       .from(sessions)
       .where(and(eq(sessions.id, id), isNotNull(sessions.deletedAt)))
-      .get() !== undefined
+      .get(),
   )
+  return row !== undefined
 }
 
-export function currentRow(db: ConcivDb, id: SessionId): SessionRecord | null {
-  const row = db.select(sessionColumns).from(sessions).where(eq(sessions.id, id)).get()
+export async function currentRow(db: ConcivDb, id: SessionId): Promise<SessionRecord | null> {
+  const row = await Effect.runPromise(db.select(sessionColumns).from(sessions).where(eq(sessions.id, id)).get())
   return row === undefined ? null : sessionRecord(row)
 }
 
 export async function rowByNativeId(db: ConcivDb, nativeId: HarnessSessionId): Promise<SessionRecord | null> {
-  const rows = await db.select(sessionColumns).from(sessions).where(eq(sessions.harnessSessionId, nativeId))
+  const rows = await Effect.runPromise(
+    db.select(sessionColumns).from(sessions).where(eq(sessions.harnessSessionId, nativeId)),
+  )
   return rows[0] ? sessionRecord(rows[0]) : null
 }
 
 export async function rowByNativeRef(db: ConcivDb, ref: NativeSessionRef): Promise<SessionRecord | null> {
-  const rows = await db
-    .select(sessionColumns)
-    .from(sessions)
-    .where(
-      and(
-        eq(sessions.harnessKind, ref.harnessKind),
-        eq(sessions.cwd, ref.cwd),
-        eq(sessions.harnessSessionId, ref.nativeId),
+  const rows = await Effect.runPromise(
+    db
+      .select(sessionColumns)
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.harnessKind, ref.harnessKind),
+          eq(sessions.cwd, ref.cwd),
+          eq(sessions.harnessSessionId, ref.nativeId),
+        ),
       ),
-    )
+  )
   return rows[0] ? sessionRecord(rows[0]) : null
 }
 
@@ -126,11 +151,13 @@ function freshRecord(input: FreshRowInput): SessionRecord {
 }
 
 async function insertBorn(scope: RowScope, record: SessionRecord): Promise<void> {
-  const born = await scope.db
-    .insert(sessions)
-    .values(record)
-    .onConflictDoNothing({target: [sessions.harnessKind, sessions.cwd, sessions.harnessSessionId]})
-    .returning({id: sessions.id})
+  const born = await Effect.runPromise(
+    scope.db
+      .insert(sessions)
+      .values(record)
+      .onConflictDoNothing({target: [sessions.harnessKind, sessions.cwd, sessions.harnessSessionId]})
+      .returning({id: sessions.id}),
+  )
   if (born.length > 0) await scope.publishCreated(record)
 }
 
@@ -174,10 +201,12 @@ export async function recordNativeId(
   harnessKind: string,
   nativeId: HarnessSessionId,
 ): Promise<void> {
-  await db
-    .update(sessions)
-    .set({harnessSessionId: nativeId, updatedAt: Date.now()})
-    .where(and(eq(sessions.id, id), eq(sessions.harnessKind, harnessKind)))
+  await Effect.runPromise(
+    db
+      .update(sessions)
+      .set({harnessSessionId: nativeId, updatedAt: Date.now()})
+      .where(and(eq(sessions.id, id), eq(sessions.harnessKind, harnessKind))),
+  )
 }
 
 export async function ensureRow(scope: RowScope, id: SessionId): Promise<void> {
@@ -200,12 +229,16 @@ const LATEST_ROW_WINDOW = 50
 const cwdSpellings = (cwd: string): string[] => [...new Set([cwd, realpathOrSelf(cwd)])]
 
 async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
-  const rows = await scope.db
-    .select(sessionColumns)
-    .from(sessions)
-    .where(and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat'), inArray(sessions.cwd, cwdSpellings(scope.cwd))))
-    .orderBy(desc(sessions.updatedAt))
-    .limit(LATEST_ROW_WINDOW)
+  const rows = await Effect.runPromise(
+    scope.db
+      .select(sessionColumns)
+      .from(sessions)
+      .where(
+        and(isNull(sessions.deletedAt), eq(sessions.origin, 'chat'), inArray(sessions.cwd, cwdSpellings(scope.cwd))),
+      )
+      .orderBy(desc(sessions.updatedAt))
+      .limit(LATEST_ROW_WINDOW),
+  )
   const mine = rows.map(sessionRecord).find((row) => sameCwd(row.cwd, scope.cwd))
   return mine ?? null
 }
@@ -241,19 +274,23 @@ export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Pro
 }
 
 export async function tombstoneRow(db: ConcivDb, id: SessionId): Promise<void> {
-  await db.update(sessions).set({deletedAt: Date.now(), updatedAt: Date.now()}).where(eq(sessions.id, id))
+  await Effect.runPromise(
+    db.update(sessions).set({deletedAt: Date.now(), updatedAt: Date.now()}).where(eq(sessions.id, id)),
+  )
 }
 
 export async function restoreRow(db: ConcivDb, id: SessionId): Promise<void> {
-  await db.update(sessions).set({deletedAt: null, updatedAt: Date.now()}).where(eq(sessions.id, id))
+  await Effect.runPromise(db.update(sessions).set({deletedAt: null, updatedAt: Date.now()}).where(eq(sessions.id, id)))
 }
 
 export async function setPermissions(db: ConcivDb, id: SessionId, rules: PermissionRule[]): Promise<void> {
-  await db.update(sessions).set({permissions: rules, updatedAt: Date.now()}).where(eq(sessions.id, id))
+  await Effect.runPromise(
+    db.update(sessions).set({permissions: rules, updatedAt: Date.now()}).where(eq(sessions.id, id)),
+  )
 }
 
 export async function setMetadata(db: ConcivDb, id: SessionId, metadata: SessionMetadata): Promise<void> {
-  await db.update(sessions).set({metadata, updatedAt: Date.now()}).where(eq(sessions.id, id))
+  await Effect.runPromise(db.update(sessions).set({metadata, updatedAt: Date.now()}).where(eq(sessions.id, id)))
 }
 
 export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId): Promise<SessionRecord> {
@@ -279,77 +316,106 @@ export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
 }
 
 export async function anonymousExternalRow(scope: RowScope): Promise<SessionId> {
-  const rows = await scope.db
-    .select(sessionColumns)
-    .from(sessions)
-    .where(
-      and(
-        eq(sessions.origin, 'external'),
-        eq(sessions.harnessKind, scope.harnessKind),
-        isNull(sessions.harnessSessionId),
-        isNull(sessions.deletedAt),
-        inArray(sessions.cwd, cwdSpellings(scope.cwd)),
-      ),
-    )
-    .orderBy(desc(sessions.createdAt))
-    .limit(1)
+  const rows = await Effect.runPromise(
+    scope.db
+      .select(sessionColumns)
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.origin, 'external'),
+          eq(sessions.harnessKind, scope.harnessKind),
+          isNull(sessions.harnessSessionId),
+          isNull(sessions.deletedAt),
+          inArray(sessions.cwd, cwdSpellings(scope.cwd)),
+        ),
+      )
+      .orderBy(desc(sessions.createdAt))
+      .limit(1),
+  )
   const existing = rows[0]
   if (existing) return sessionRecord(existing).id
   return mintExternalRow(scope)
 }
 
-export function recordActivity(db: ConcivDb, sessionId: SessionId, title: string, at: number): void {
-  db.update(sessions)
-    .set({
-      updatedAt: sql`max(${sessions.updatedAt}, ${at})`,
-      title: sql`coalesce(${sessions.title}, iif(${sessions.harnessSessionId} is null, ${title === '' ? null : title}, null))`,
-    })
-    .where(and(eq(sessions.id, sessionId), isNull(sessions.deletedAt)))
-    .run()
+export async function recordActivity(db: ConcivDb, sessionId: SessionId, title: string, at: number): Promise<void> {
+  await Effect.runPromise(
+    db
+      .update(sessions)
+      .set({
+        updatedAt: sql`max(${sessions.updatedAt}, ${at})`,
+        title: sql`coalesce(${sessions.title}, iif(${sessions.harnessSessionId} is null, ${title === '' ? null : title}, null))`,
+      })
+      .where(and(eq(sessions.id, sessionId), isNull(sessions.deletedAt))),
+  )
 }
 
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
-  await db
-    .delete(sessions)
-    .where(
-      and(inArray(sessions.origin, ['chat', 'external']), isNull(sessions.harnessSessionId), isNull(sessions.title)),
-    )
+  await Effect.runPromise(
+    db.delete(sessions).where(
+      and(
+        inArray(sessions.origin, ['chat', 'external']),
+        isNull(sessions.harnessSessionId),
+        isNull(sessions.title),
+        isNull(sessions.deletedAt),
+        notExists(
+          db
+            .select({sessionId: drafts.sessionId})
+            .from(drafts)
+            .where(
+              and(
+                eq(drafts.sessionId, sessions.id),
+                or(ne(drafts.text, ''), sql`json_array_length(${drafts.attachments}) > 0`),
+              ),
+            ),
+        ),
+      ),
+    ),
+  )
 }
 
 const EARLIER_NATIVES_NAMESPACE = 'conciv.session.earlierNatives'
 
 const EarlierNativesSchema = z.array(z.object({harnessKind: z.string(), nativeId: HarnessSessionIdSchema})).catch([])
 
-export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: string, model: string | null): void {
-  db.transaction((tx) => {
-    const outgoing = tx
-      .select({harnessKind: sessions.harnessKind, nativeId: sessions.harnessSessionId})
-      .from(sessions)
-      .where(eq(sessions.id, id))
-      .get()
-    if (outgoing?.nativeId) {
-      const stored = tx
-        .select({valueJson: chatMetadata.valueJson})
-        .from(chatMetadata)
-        .where(and(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE), eq(chatMetadata.key, id)))
-        .get()
-      const valueJson = [
-        ...EarlierNativesSchema.parse(stored?.valueJson),
-        {harnessKind: outgoing.harnessKind, nativeId: outgoing.nativeId},
-      ]
-      tx.insert(chatMetadata)
-        .values({namespace: EARLIER_NATIVES_NAMESPACE, key: id, valueJson})
-        .onConflictDoUpdate({target: [chatMetadata.namespace, chatMetadata.key], set: {valueJson}})
-        .run()
-    }
-    tx.update(sessions)
-      .set({harnessKind, harnessSessionId: null, model, effort: null, updatedAt: Date.now()})
-      .where(eq(sessions.id, id))
-      .run()
-    tx.delete(chatMetadata)
-      .where(and(eq(chatMetadata.namespace, TRANSCRIPT_NAMESPACE), eq(chatMetadata.key, anchorKey(id))))
-      .run()
-  })
+export async function switchRowHarness(
+  db: ConcivDb,
+  id: SessionId,
+  harnessKind: string,
+  model: string | null,
+): Promise<void> {
+  await Effect.runPromise(
+    db.transaction((tx) =>
+      Effect.gen(function* () {
+        const outgoing = yield* tx
+          .select({harnessKind: sessions.harnessKind, nativeId: sessions.harnessSessionId})
+          .from(sessions)
+          .where(eq(sessions.id, id))
+          .get()
+        if (outgoing?.nativeId) {
+          const stored = yield* tx
+            .select({valueJson: chatMetadata.valueJson})
+            .from(chatMetadata)
+            .where(and(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE), eq(chatMetadata.key, id)))
+            .get()
+          const valueJson = [
+            ...EarlierNativesSchema.parse(stored?.valueJson),
+            {harnessKind: outgoing.harnessKind, nativeId: outgoing.nativeId},
+          ]
+          yield* tx
+            .insert(chatMetadata)
+            .values({namespace: EARLIER_NATIVES_NAMESPACE, key: id, valueJson})
+            .onConflictDoUpdate({target: [chatMetadata.namespace, chatMetadata.key], set: {valueJson}})
+        }
+        yield* tx
+          .update(sessions)
+          .set({harnessKind, harnessSessionId: null, model, effort: null, updatedAt: Date.now()})
+          .where(eq(sessions.id, id))
+        yield* tx
+          .delete(chatMetadata)
+          .where(and(eq(chatMetadata.namespace, TRANSCRIPT_NAMESPACE), eq(chatMetadata.key, anchorKey(id))))
+      }),
+    ),
+  )
 }
 
 export type Found = Pick<SessionHit, 'excerpt' | 'matched'>
@@ -361,7 +427,6 @@ const NOT_FOUND: Found = {excerpt: null, matched: []}
 type MetaContext = {
   db: ConcivDb
   running: ReadonlySet<string>
-  model: (sessionId: SessionId) => string | null
 }
 
 export type SessionListInput = MetaContext & {
@@ -413,11 +478,13 @@ export async function buildSessionMeta(context: MetaContext, session: ListedSess
 
 async function lastRunStarts(db: ConcivDb, sessionIds: readonly string[]): Promise<Record<string, number>> {
   if (sessionIds.length === 0) return {}
-  const newest = await db
-    .select({threadId: chatRuns.threadId, startedAt: max(chatRuns.startedAt)})
-    .from(chatRuns)
-    .where(inArray(chatRuns.threadId, [...sessionIds]))
-    .groupBy(chatRuns.threadId)
+  const newest = await Effect.runPromise(
+    db
+      .select({threadId: chatRuns.threadId, startedAt: max(chatRuns.startedAt)})
+      .from(chatRuns)
+      .where(inArray(chatRuns.threadId, [...sessionIds]))
+      .groupBy(chatRuns.threadId),
+  )
   const started = newest.flatMap(({threadId, startedAt}) => (startedAt === null ? [] : [{threadId, startedAt}]))
   return mapValues(
     keyBy(started, (run) => run.threadId),
@@ -438,25 +505,27 @@ function nativeEntries(pages: NativePage[]): PageEntry[] {
 async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> {
   const after = input.page.after
   const listingKinds = input.nativePages.map(({harnessKind}) => harnessKind)
-  const rows = await input.db
-    .select(sessionColumns)
-    .from(sessions)
-    .where(
-      and(
-        inArray(sessions.cwd, cwdSpellings(input.cwd)),
-        or(isNull(sessions.harnessSessionId), notInArray(sessions.harnessKind, listingKinds)),
-        input.includeHidden ? undefined : isNull(sessions.deletedAt),
-        input.search === null ? undefined : sql`${sessions.title} like ${likePattern(input.search)} escape '\\'`,
-        after === null
-          ? undefined
-          : or(
-              lt(sessions.updatedAt, after.updatedAt),
-              and(eq(sessions.updatedAt, after.updatedAt), lt(sessions.id, after.id)),
-            ),
-      ),
-    )
-    .orderBy(desc(sessions.updatedAt), desc(sessions.id))
-    .limit(input.page.limit + 1)
+  const rows = await Effect.runPromise(
+    input.db
+      .select(sessionColumns)
+      .from(sessions)
+      .where(
+        and(
+          inArray(sessions.cwd, cwdSpellings(input.cwd)),
+          or(isNull(sessions.harnessSessionId), notInArray(sessions.harnessKind, listingKinds)),
+          input.includeHidden ? undefined : isNull(sessions.deletedAt),
+          input.search === null ? undefined : sql`${sessions.title} like ${likePattern(input.search)} escape '\\'`,
+          after === null
+            ? undefined
+            : or(
+                lt(sessions.updatedAt, after.updatedAt),
+                and(eq(sessions.updatedAt, after.updatedAt), lt(sessions.id, after.id)),
+              ),
+        ),
+      )
+      .orderBy(desc(sessions.updatedAt), desc(sessions.id))
+      .limit(input.page.limit + 1),
+  )
   return rowsInCwd(rows, input.cwd).map((row) => ({
     kind: 'row',
     row,
@@ -509,15 +578,17 @@ function olderThan(cursor: HarnessListCursor, other: HarnessListCursor): boolean
 async function currentOwners(input: SessionListInput, natives: NativeSession[]): Promise<Map<string, SessionRecord>> {
   if (natives.length === 0) return new Map()
   const homes = resolveHomes(natives, input)
-  const rows = await input.db
-    .select(sessionColumns)
-    .from(sessions)
-    .where(
-      inArray(
-        sessions.harnessSessionId,
-        natives.map(({meta}) => meta.id),
+  const rows = await Effect.runPromise(
+    input.db
+      .select(sessionColumns)
+      .from(sessions)
+      .where(
+        inArray(
+          sessions.harnessSessionId,
+          natives.map(({meta}) => meta.id),
+        ),
       ),
-    )
+  )
   return new Map(
     validRows(SessionRecordSchema, rows.map(withReadablePermissions), 'a session row')
       .filter((row): row is SessionRecord & {harnessSessionId: HarnessSessionId} => row.harnessSessionId !== null)
@@ -536,25 +607,29 @@ async function earlierOwners(input: SessionListInput, natives: NativeSession[]):
   if (natives.length === 0) return new Map()
   const wanted = new Set(natives.map(buildNativeKey))
   const nativeId = sql`json_extract(earlier.value, '$.nativeId')`
-  const found = await input.db.all(
-    sql`select ${chatMetadata.key} as ownerId, json_extract(earlier.value, '$.harnessKind') as harnessKind, ${nativeId} as nativeId from ${chatMetadata}, json_each(${chatMetadata.valueJson}) as earlier where ${eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE)} and ${inArray(
-      nativeId,
-      natives.map(({meta}) => meta.id),
-    )}`,
+  const found = await Effect.runPromise(
+    input.db.all(
+      sql`select ${chatMetadata.key} as ownerId, json_extract(earlier.value, '$.harnessKind') as harnessKind, ${nativeId} as nativeId from ${chatMetadata}, json_each(${chatMetadata.valueJson}) as earlier where ${eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE)} and ${inArray(
+        nativeId,
+        natives.map(({meta}) => meta.id),
+      )}`,
+    ),
   )
   const claims = validRows(EarlierOwnerSchema, found, 'an earlier native session claim').filter((claim) =>
     wanted.has(nativeKey(claim.harnessKind, claim.nativeId)),
   )
   if (claims.length === 0) return new Map()
-  const ownerRows = await input.db
-    .select(sessionColumns)
-    .from(sessions)
-    .where(
-      inArray(
-        sessions.id,
-        claims.map(({ownerId}) => ownerId),
+  const ownerRows = await Effect.runPromise(
+    input.db
+      .select(sessionColumns)
+      .from(sessions)
+      .where(
+        inArray(
+          sessions.id,
+          claims.map(({ownerId}) => ownerId),
+        ),
       ),
-    )
+  )
   const owners = validRows(SessionRecordSchema, ownerRows.map(withReadablePermissions), 'a session row')
   const homes = resolveHomes(natives, input)
   const ownerById = keyBy(owners, (owner) => owner.id)
@@ -640,7 +715,7 @@ function rowMeta(session: ListedSession, context: MetaContext, lastRunAt: number
     running: context.running.has(row.id),
     origin: row.origin === 'external' ? 'external' : 'conciv',
     usage: row.usage,
-    model: context.model(row.id) ?? row.model,
+    model: row.model,
     effort: row.effort,
     hidden: row.deletedAt !== null,
     native: readNativeRef(row),

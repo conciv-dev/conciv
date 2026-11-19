@@ -1,17 +1,20 @@
 import {Outlet, createFileRoute, redirect, useBlocker, useRouter} from '@tanstack/solid-router'
-import {Show, createMemo, createSignal, type JSX} from 'solid-js'
+import {For, Show, createMemo, createSignal, createUniqueId, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useConnectionGeneration, useInstances} from '../app/context.js'
+import {AttachmentByMime, AttachmentProvider, type AttachmentState} from '@conciv/ui-kit-chat'
+import type {Grab} from '@conciv/grab'
+import {GRAB_MIME, grabToFile} from '@conciv/grab/grab-attachment'
+import {useConnectionGeneration, useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
-import {PluginBoundary} from '../runtime/plugin/plugin-boundary.js'
+import {PluginBoundary, guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../pane/pane-grab.js'
-import {appendDraft} from '../pane/draft-storage.js'
 import {useStartSession} from '../app/start-session.js'
 import {viewTabPanelAttributes} from '../pane/view-tab-ids.js'
 import {isPluginView} from '../runtime/plugin/panel-keys.js'
 import {PluginTabContent} from '../shell/plugin-surfaces.js'
+import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({
   beforeLoad: ({context, params}) => {
@@ -28,9 +31,39 @@ export const Route = createFileRoute('/panel/$sessionId/$view')({
   component: PanelView,
 })
 
+const STAGED_GRAB_CARDS = pageAttachmentCards.map((card) => guardPluginAttachmentCard('page', 'chip', card))
+
+function stagedGrabAttachment(grab: Grab): AttachmentState {
+  const file = grabToFile(grab)
+  return {
+    id: `staged-grab-${createUniqueId()}`,
+    type: 'document',
+    name: file.name,
+    contentType: GRAB_MIME,
+    file,
+    status: {type: 'requires-action', reason: 'composer-send'},
+  }
+}
+
+function StagedGrabStrip(): JSX.Element {
+  const pane = usePane()
+  return (
+    <Show when={pane.grabStaging.staged().length > 0}>
+      <div class="px-3 pt-2 flex flex-wrap gap-1">
+        <For each={pane.grabStaging.staged()}>
+          {(grab) => (
+            <AttachmentProvider value={stagedGrabAttachment(grab)}>
+              <AttachmentByMime cards={STAGED_GRAB_CARDS} onRemove={() => pane.grabStaging.remove(grab)} />
+            </AttachmentProvider>
+          )}
+        </For>
+      </div>
+    </Show>
+  )
+}
+
 function PanelView(): JSX.Element {
   const params = Route.useParams()
-  const appData = useAppData()
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
@@ -62,16 +95,12 @@ function PanelView(): JSX.Element {
 
   return (
     <>
+      <StagedGrabStrip />
       <Show when={mountKey()} keyed>
         {(mount) => (
           <HostApiProvider
             sessionId={() => params().sessionId}
             grab={makePaneGrabApi(pane.grabStaging, pane.grabProvider)}
-            insert={(text) =>
-              void appendDraft(appData, params().sessionId, text).catch((error: unknown) => {
-                console.error('[conciv] could not insert into the draft', error)
-              })
-            }
             attach={(file) => pane.attachments.enqueue(file)}
             newSession={newSession}
             viewLock={pane.setLockedFor(params().view)}

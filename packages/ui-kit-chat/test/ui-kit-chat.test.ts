@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+import {encodeAttachments} from '../src/draft-storage.js'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {ChatPart, ChatMessage, ToolCallPart} from '@conciv/protocol/chat-message-types'
@@ -212,7 +213,7 @@ describe('attachment adapter', () => {
       })
       const complete = await adapter.send(pending)
       expect(complete.status).toEqual({type: 'complete'})
-      expect(complete.content).toEqual([{type: 'text', content: 'Attachment recording.txt:\nline one\nline two'}])
+      expect(complete.content).toEqual([{type: 'text', content: '\n\nAttachment recording.txt:\nline one\nline two'}])
     })
 
     it('composes adapters and routes add/send/remove to the adapter matching the file type', async () => {
@@ -223,7 +224,7 @@ describe('attachment adapter', () => {
       if (Symbol.asyncIterator in textPending) throw new Error('Expected a promise attachment')
       expect(textPending.type).toBe('document')
       const textComplete = await composed.send(textPending)
-      expect(textComplete.content).toEqual([{type: 'text', content: 'Attachment notes.txt:\nhi'}])
+      expect(textComplete.content).toEqual([{type: 'text', content: '\n\nAttachment notes.txt:\nhi'}])
 
       const imagePending = await composed.add({file: new File([new Uint8Array([1])], 'dot.png', {type: 'image/png'})})
       if (Symbol.asyncIterator in imagePending) throw new Error('Expected a promise attachment')
@@ -462,6 +463,27 @@ describe('grouping diff', () => {
       const asking = groupParts([act('approval-requested')], grouper, {})
       const approved = shareGroupNodes(asking, groupParts([act('input-complete')], grouper, {}))
       expect(approved[0]).toMatchObject({type: 'group', key: PAGE_SESSION_GROUP_KEY})
+    })
+  })
+})
+
+describe('the draft-storage entry', () => {
+  it('encodes a real file to the stored shape, skips an entry with no file, and keeps the stored total under its budget', async () => {
+    const note = new File(['a kept note'], 'note.txt', {type: 'text/plain'})
+    const big = new File([new Uint8Array(600_000)], 'big.png', {type: 'image/png'})
+    const encoded = await encodeAttachments([
+      {id: 'note', type: 'document', name: 'note.txt', file: note},
+      {id: 'gone', type: 'image', name: 'gone.png'},
+      {id: 'big', type: 'image', name: 'big.png', file: big},
+      {id: 'again', type: 'image', name: 'again.png', file: big},
+    ])
+    expect(encoded.map((attachment) => attachment.id)).toEqual(['note', 'big'])
+    expect(encoded[0]).toEqual({
+      id: 'note',
+      type: 'document',
+      name: 'note.txt',
+      contentType: 'text/plain',
+      data: btoa('a kept note'),
     })
   })
 })

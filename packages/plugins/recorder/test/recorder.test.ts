@@ -10,8 +10,30 @@ import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {createFlusher} from '../src/client/flusher.js'
-import {MAX_FLUSH_BYTES} from '../src/protocol.js'
+import {FlushFailed, makeFlusher} from '../src/flusher.js'
+import {MAX_FLUSH_BYTES, type RecorderConfig} from '../src/rpc.js'
+import {Deferred, Effect, Exit, Fiber, Layer, Option, Path, Queue, Ref, Scope, Stream, SubscriptionRef} from 'effect'
+import {TestClock} from 'effect/testing'
+import * as CaptureControlModel from '../src/capture-control.js'
+import * as ClientRingsModel from '../src/rings.js'
+import * as RendererCacheModel from '../src/renderer-cache.js'
+import {RenderFailed, RendererUnavailable, launchChromiumRenderer, type KeyframeRenderer} from '../src/render.js'
+import {pullWindow} from '../src/runtime.js'
+import {
+  initialCaptureControl,
+  transitionCaptureControl,
+  type CaptureControlState,
+} from '../src/capture-control-machine.js'
+import {initialBoot, transitionBoot} from '../src/boot-machine.js'
+import {initialCaptureSession, transitionCaptureSession} from '../src/capture-session-machine.js'
+import {initialFlusher, transitionFlusher, type FlusherState} from '../src/flusher-machine.js'
+import {initialPanel, transitionPanel} from '../src/panel-machine.js'
+import {initialVisibilityPause, transitionVisibilityPause} from '../src/visibility-pause-machine.js'
+import {runBoot} from '../src/boot.js'
+import {openCaptureSession} from '../src/capture-session.js'
+import {openPanel} from '../src/panel.js'
+import {FollowFailed, followRecording} from '../src/player-follow.js'
+import {runVisibilityPause} from '../src/visibility-pause.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -487,6 +509,7 @@ describe('the recording tools', () => {
       'external_recording_stop',
       'external_recording_pull',
     ])
+    for (const tool of discovered.tools) expect(tool.description).toContain('recording')
 
     expect(await toolFailure(useTool(kit, 'start'))).toBe(
       'no page client attached within 5s; the app page with the widget must be open to record',
@@ -574,6 +597,56 @@ describe('the recording tools', () => {
           : [],
       ),
     )
+  })
+})
+
+describe('a keyframe render with no full snapshot', () => {
+  it('renders no keyframes from a stream that holds no full snapshot', async () => {
+    const events = [
+      {type: 4, data: {href: 'http://localhost/app', width: 640, height: 480}, timestamp: 1000},
+      {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+    ]
+    const frames = await Effect.gen(function* () {
+      const renderer = yield* launchChromiumRenderer
+      return yield* renderer.render(events, [2000])
+    }).pipe(Effect.provide(Path.layer), Effect.scoped, Effect.runPromise)
+    expect(frames).toEqual([])
+  })
+})
+
+describe('a recording pulled with no renderer', () => {
+  it('holds the text log and no image when the renderer fails', async () => {
+    const failingRenderer: KeyframeRenderer = {
+      render: () => Effect.fail(RenderFailed.make({cause: new Error('no browser to render with')})),
+      renderVideo: () => Effect.fail(RenderFailed.make({cause: new Error('no browser to render with')})),
+    }
+    const parts = await runTimed(
+      Layer.mergeAll(ringsLayer, RendererCacheModel.rendererCacheLayer(Effect.succeed(failingRenderer))),
+      Effect.gen(function* () {
+        const rings = yield* ClientRingsModel.ClientRings
+        yield* rings.append('no-renderer', [
+          {type: 4, data: {href: 'https://example.test/app', width: 640, height: 480}, timestamp: 1000},
+          {type: 2, data: {node: pageFixture([buttonFixture(4, 5, 'Buy')])}, timestamp: 1001},
+          {type: 3, data: {source: 2, type: 2, id: 4}, timestamp: 2000},
+        ])
+        return yield* pullWindow(0, 3000, 2)
+      }),
+    )
+    expect(parts.output).toContain('Buy')
+    expect(parts.output).toMatch(/\(keyframes skipped: no renderer available\)$/)
+    expect(parts.content.every((part) => part.type === 'text')).toBe(true)
+  })
+})
+
+describe('a saved recording that fits the size cap', () => {
+  it('is kept whole, also with a fresh full snapshot at its tail', async () => {
+    const kit = await bootRecorder()
+    const base = Date.now()
+    const snapshot = (timestamp: number): RrwebEvent => ({type: 2, data: {node: pageFixture([])}, timestamp})
+    const click = (timestamp: number): RrwebEvent => ({type: 3, data: {source: 2, type: 2, id: 3}, timestamp})
+    const events = [snapshot(base), click(base + 1), click(base + 2), snapshot(base + 3)]
+    const saved = await flushAndSave(kit, 'tail-snapshot', events)
+    expect(await call(kit, 'recordings.get', {recordingId: saved.recordingId})).toEqual({events})
   })
 })
 
@@ -710,11 +783,15 @@ describe('the page flusher', () => {
     const kit = await bootRecorder()
     const sent = {flushes: 0}
     const flusherFor = (clientId: string) =>
-      createFlusher({
-        send: async (events) => {
-          sent.flushes += 1
-          await call(kit, 'flush', {clientId, events})
-        },
+      makeFlusher({
+        send: (events) =>
+          Effect.tryPromise({
+            try: async () => {
+              sent.flushes += 1
+              await call(kit, 'flush', {clientId, events: [...events]})
+            },
+            catch: (cause) => FlushFailed.make({cause}),
+          }),
       })
     const padded = (timestamp: number, bytes: number): RrwebEvent => ({
       type: 3,
@@ -724,24 +801,28 @@ describe('the page flusher', () => {
     const deliveredCount = async (clientId: string): Promise<number> =>
       EventWindowSchema.parse(await call(kit, 'since', {clientId, cursor: 0})).events.length
 
-    const burst = flusherFor('burst')
-    onTestFinished(() => burst.dispose())
-    const base = Date.now()
-    for (let index = 0; index < 6; index += 1) burst.push(padded(base + index, 900 * 1024))
-    await burst.flushNow()
-    expect(sent.flushes).toBeGreaterThan(1)
-    expect(await deliveredCount('burst')).toBe(6)
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const burst = yield* flusherFor('burst')
+          const base = Date.now()
+          for (let index = 0; index < 6; index += 1) yield* burst.push(padded(base + index, 900 * 1024))
+          yield* burst.flushNow
+          expect(sent.flushes).toBeGreaterThan(1)
+          expect(yield* Effect.promise(() => deliveredCount('burst'))).toBe(6)
 
-    const capped = flusherFor('capped')
-    onTestFinished(() => capped.dispose())
-    sent.flushes = 0
-    capped.push(padded(base + 10, MAX_FLUSH_BYTES + 1024))
-    await capped.flushNow()
-    expect(sent.flushes).toBe(0)
-    capped.push(padded(base + 11, MAX_FLUSH_BYTES - 4096))
-    await capped.flushNow()
-    expect(sent.flushes).toBe(1)
-    expect(await deliveredCount('capped')).toBe(1)
+          const capped = yield* flusherFor('capped')
+          sent.flushes = 0
+          yield* capped.push(padded(base + 10, MAX_FLUSH_BYTES + 1024))
+          yield* capped.flushNow
+          expect(sent.flushes).toBe(0)
+          yield* capped.push(padded(base + 11, MAX_FLUSH_BYTES - 4096))
+          yield* capped.flushNow
+          expect(sent.flushes).toBe(1)
+          expect(yield* Effect.promise(() => deliveredCount('capped'))).toBe(1)
+        }),
+      ),
+    )
   })
 })
 
@@ -854,7 +935,7 @@ describe('the recorder across a reload and an unload', () => {
 })
 
 describe('the recorder failure shapes', () => {
-  it('hands the agent a refused stop as a tool error, and the caller a render failure and a handler throw as plugin rpc errors', async () => {
+  it('hands the agent a refused stop as a tool error, and the caller a render failure and an unreadable video as plugin rpc errors', async () => {
     const folder = tempDir('conciv-recorder-failures-')
     const recordingsDir = join(folder, '.conciv', 'recorder', 'recordings')
     await mkdir(recordingsDir, {recursive: true})
@@ -883,10 +964,10 @@ describe('the recorder failure shapes', () => {
     })
 
     expect(await rpcFailure(call(kit, 'recordings.exportVideo', {clientId: 'locked', id: locked, offset: 0}))).toEqual({
-      code: 'PLUGIN_RPC_INTERNAL',
-      status: 500,
-      message: 'RPC call failed',
-      data: {type: 'rpc.internal', message: 'RPC call failed'},
+      code: 'PLUGIN_RPC',
+      status: 400,
+      message: `The video of the recording ${locked} could not be read`,
+      data: {type: 'unreadable', message: `The video of the recording ${locked} could not be read`},
     })
   })
 })
@@ -919,5 +1000,552 @@ describe('the recorder capture sweep', () => {
     expect(await call(kit, 'presence', {viewerId: 'returning', live: true})).toEqual({ok: true})
     expect(await nextEvent()).toEqual(control({live: false}))
     expect(await nextEvent()).toEqual(control({live: true}))
+  })
+})
+
+describe('the capture control machine', () => {
+  it('claims and releases captures and viewer leases, expires both by the clock on any event, and ignores everything once disposed', () => {
+    const started = transitionCaptureControl(initialCaptureControl, {
+      type: 'capture.started',
+      captureId: 'one',
+      now: 1000,
+    })
+    expect(started.state.status).toBe('live')
+    expect(started.effects).toEqual([{type: 'emit', control: {live: true, snapshot: true, flush: true}}])
+
+    const joined = transitionCaptureControl(started.state, {type: 'viewer.renewed', viewerId: 'v', now: 2000})
+    expect(joined.effects).toEqual([{type: 'emit', control: {snapshot: true, flush: true}}])
+    const renewed = transitionCaptureControl(joined.state, {type: 'viewer.renewed', viewerId: 'v', now: 3000})
+    expect(renewed.effects).toEqual([])
+
+    const stopped = transitionCaptureControl(renewed.state, {type: 'capture.stopped', captureId: 'one', now: 4000})
+    expect(stopped.effects).toEqual([
+      {type: 'emit', control: {flush: true, live: true}},
+      {type: 'answer-stop', captureId: 'one', range: {startTs: 1000, stopTs: 4000}},
+    ])
+    expect(
+      transitionCaptureControl(stopped.state, {type: 'capture.stopped', captureId: 'one', now: 4500}).effects,
+    ).toEqual([{type: 'answer-stop', captureId: 'one', range: undefined}])
+
+    const quiet = transitionCaptureControl(stopped.state, {type: 'clock.ticked', now: 22_999})
+    expect(quiet.state).toBe(stopped.state)
+    const lapsed = transitionCaptureControl(stopped.state, {type: 'clock.ticked', now: 23_000})
+    expect(lapsed.state).toEqual({status: 'idle'})
+    expect(lapsed.effects).toEqual([{type: 'emit', control: {live: false}}])
+
+    const alone = transitionCaptureControl(initialCaptureControl, {type: 'viewer.renewed', viewerId: 'w', now: 0})
+    expect(alone.effects).toEqual([
+      {type: 'emit', control: {live: true}},
+      {type: 'emit', control: {snapshot: true, flush: true}},
+    ])
+    expect(transitionCaptureControl(alone.state, {type: 'viewer.dropped', viewerId: 'w', now: 1}).effects).toEqual([
+      {type: 'emit', control: {live: false}},
+    ])
+    const restarted = transitionCaptureControl(alone.state, {type: 'capture.started', captureId: 'two', now: 30_000})
+    expect(restarted.effects).toEqual([
+      {type: 'emit', control: {live: false}},
+      {type: 'emit', control: {live: true, snapshot: true, flush: true}},
+    ])
+
+    const ttl: CaptureControlState = restarted.state
+    const expired = transitionCaptureControl(ttl, {
+      type: 'capture.stopped',
+      captureId: 'two',
+      now: 30_000 + 10 * 60_000,
+    })
+    expect(expired.effects).toEqual([
+      {type: 'emit', control: {live: false}},
+      {type: 'answer-stop', captureId: 'two', range: undefined},
+    ])
+
+    const disposed = transitionCaptureControl(ttl, {type: 'disposed'})
+    expect(disposed.state).toEqual({status: 'disposed'})
+    const after = transitionCaptureControl(disposed.state, {type: 'viewer.renewed', viewerId: 'late', now: 0})
+    expect(after).toEqual({state: disposed.state, effects: []})
+  })
+})
+
+describe('the visibility pause machine', () => {
+  it('pauses after the hidden wait elapses, cancels the wait when shown first, ignores a stale wait, resumes when shown after a pause, and stops on dispose', () => {
+    const hidden = transitionVisibilityPause(initialVisibilityPause, {type: 'hidden'})
+    expect(hidden.effects).toEqual([{type: 'wait', attempt: 1}])
+    const shown = transitionVisibilityPause(hidden.state, {type: 'shown'})
+    expect(shown.effects).toEqual([{type: 'cancel-wait'}])
+    expect(transitionVisibilityPause(shown.state, {type: 'hide.elapsed', attempt: 1}).state).toBe(shown.state)
+
+    const again = transitionVisibilityPause(shown.state, {type: 'hidden'})
+    expect(again.effects).toEqual([{type: 'wait', attempt: 2}])
+    expect(transitionVisibilityPause(again.state, {type: 'hide.elapsed', attempt: 1}).state).toBe(again.state)
+    const paused = transitionVisibilityPause(again.state, {type: 'hide.elapsed', attempt: 2})
+    expect(paused.effects).toEqual([{type: 'pause'}])
+    expect(transitionVisibilityPause(paused.state, {type: 'hidden'}).state).toBe(paused.state)
+    expect(transitionVisibilityPause(paused.state, {type: 'shown'}).effects).toEqual([{type: 'resume'}])
+
+    const disposed = transitionVisibilityPause(again.state, {type: 'disposed'})
+    expect(disposed.effects).toEqual([{type: 'cancel-wait'}])
+    expect(transitionVisibilityPause(disposed.state, {type: 'hidden'}).state).toBe(disposed.state)
+  })
+})
+
+describe('the capture session machine', () => {
+  it('stops on pause, reads the config again on resume and starts with it, drops a config read made stale by a later pause, fails on a failed read and can resume from there, and detaches once', () => {
+    const config: RecorderConfig = {windowMinutes: 5, masking: 'inputs', console: true}
+    const paused = transitionCaptureSession(initialCaptureSession, {type: 'paused'})
+    expect(paused.effects).toEqual([{type: 'stop-record'}, {type: 'flush'}])
+    const resuming = transitionCaptureSession(paused.state, {type: 'resumed'})
+    expect(resuming.effects).toEqual([{type: 'read-config', attempt: 2}])
+
+    const pausedAgain = transitionCaptureSession(resuming.state, {type: 'paused'})
+    expect(pausedAgain.effects).toEqual([{type: 'flush'}])
+    expect(transitionCaptureSession(pausedAgain.state, {type: 'config.read', attempt: 2, config}).state).toBe(
+      pausedAgain.state,
+    )
+
+    const resumed = transitionCaptureSession(pausedAgain.state, {type: 'resumed'})
+    const capturing = transitionCaptureSession(resumed.state, {type: 'config.read', attempt: 4, config})
+    expect(capturing.state.status).toBe('capturing')
+    expect(capturing.effects).toEqual([{type: 'start-record', config}])
+
+    const failing = transitionCaptureSession(resumed.state, {type: 'config.failed', attempt: 4, error: 'offline'})
+    expect(failing.state.status).toBe('failed')
+    expect(failing.effects).toEqual([{type: 'report-failed', error: 'offline'}])
+    expect(transitionCaptureSession(failing.state, {type: 'resumed'}).state.status).toBe('resuming')
+
+    const finished = transitionCaptureSession(capturing.state, {type: 'disposed'})
+    expect(finished.effects).toEqual([{type: 'stop-record'}, {type: 'detach'}])
+    expect(transitionCaptureSession(finished.state, {type: 'disposed'}).effects).toEqual([])
+  })
+})
+
+describe('the boot machine', () => {
+  it('follows the live state, starts a session per selector, ignores a start made stale by a newer selector, fails and recovers, and finishes on dispose', () => {
+    const live = transitionBoot<string>(initialBoot, {type: 'live.read', live: true})
+    expect(live.state.live).toBe(true)
+    expect(transitionBoot<string>(live.state, {type: 'live.read', live: true}).state).toBe(live.state)
+
+    const first = transitionBoot<string>(live.state, {type: 'selector.set', selector: '.a'})
+    expect(first.effects).toEqual([{type: 'finish-session'}, {type: 'prepare', attempt: 1, selector: '.a'}])
+    const second = transitionBoot<string>(first.state, {type: 'selector.set', selector: '.b'})
+    expect(transitionBoot<string>(second.state, {type: 'prepared', attempt: 1, prepared: 'stale'}).state).toBe(
+      second.state,
+    )
+    const opened = transitionBoot<string>(second.state, {type: 'prepared', attempt: 2, prepared: 'ready'})
+    expect(opened.effects).toEqual([{type: 'open-session', attempt: 2, prepared: 'ready'}])
+
+    const sessionFailed = transitionBoot<string>(opened.state, {type: 'session.failed', attempt: 2})
+    expect(sessionFailed.state.status).toBe('failed')
+    expect(transitionBoot<string>(sessionFailed.state, {type: 'selector.cleared'}).state.status).toBe('failed')
+
+    const retried = transitionBoot<string>(sessionFailed.state, {type: 'selector.set', selector: '.c'})
+    const startFailed = transitionBoot<string>(retried.state, {type: 'start.failed', attempt: 3, error: 'no rrweb'})
+    expect(startFailed.state.status).toBe('failed')
+    expect(startFailed.effects).toEqual([{type: 'report-start-failed', error: 'no rrweb'}])
+
+    const disposed = transitionBoot<string>(opened.state, {type: 'disposed'})
+    expect(disposed.effects).toEqual([{type: 'finish-session'}])
+    expect(transitionBoot<string>(disposed.state, {type: 'selector.set', selector: '.d'}).effects).toEqual([])
+  })
+})
+
+describe('the flusher machine', () => {
+  it('splits the queue into posts under the cap, requeues a failed post at the front, ignores a stale result, keeps the last snapshot when trimming, and drains once on dispose', () => {
+    const big = (timestamp: number, type = 3) => ({type, data: {padding: 'x'.repeat(600 * 1024)}, timestamp})
+    const pushAll = (state: FlusherState, events: ReturnType<typeof big>[]): FlusherState =>
+      events.reduce((current, event) => transitionFlusher(current, {type: 'pushed', event}).state, state)
+
+    const queued = pushAll(initialFlusher, [big(1), big(2), big(3)])
+    expect(queued.queue).toHaveLength(3)
+    const first = transitionFlusher(queued, {type: 'drain.requested'})
+    expect(first.effects).toEqual([{type: 'send', attempt: 1, events: [big(1)]}])
+    expect(transitionFlusher(first.state, {type: 'drain.requested'}).state).toBe(first.state)
+    expect(transitionFlusher(first.state, {type: 'chunk.sent', attempt: 0}).state).toBe(first.state)
+
+    const second = transitionFlusher(first.state, {type: 'chunk.sent', attempt: 1})
+    expect(second.effects).toEqual([{type: 'send', attempt: 2, events: [big(2)]}])
+    const failed = transitionFlusher(second.state, {type: 'chunk.failed', attempt: 2})
+    expect(failed.state.status).toBe('waiting')
+    expect(failed.state.queue.map((item) => item.event.timestamp)).toEqual([2, 3])
+    expect(failed.effects).toEqual([{type: 'arm', live: false}, {type: 'settled'}])
+
+    const live = transitionFlusher(failed.state, {type: 'live.changed', live: true})
+    expect(live.effects).toEqual([{type: 'arm', live: true}])
+
+    const oversized = transitionFlusher(initialFlusher, {
+      type: 'pushed',
+      event: {type: 3, data: {padding: 'x'.repeat(MAX_FLUSH_BYTES)}, timestamp: 1},
+    })
+    expect(oversized.state).toBe(initialFlusher)
+
+    const trimmed = pushAll(initialFlusher, [
+      ...Array.from({length: 8}, (_, index) => big(index)),
+      big(8, 2),
+      ...Array.from({length: 6}, (_, index) => big(9 + index)),
+    ])
+    expect(trimmed.queueBytes).toBeLessThanOrEqual(8 * 1024 * 1024)
+    expect(trimmed.queue[0]?.event.timestamp).toBe(2)
+    const anchored = pushAll(initialFlusher, [big(0, 2), ...Array.from({length: 14}, (_, index) => big(1 + index))])
+    expect(anchored.queue).toHaveLength(15)
+
+    const closing = transitionFlusher(second.state, {type: 'disposed'})
+    expect(closing.state.status).toBe('closing')
+    expect(closing.effects).toEqual([{type: 'cancel-arm'}])
+    expect(transitionFlusher(closing.state, {type: 'pushed', event: big(9)}).state).toBe(closing.state)
+    const last = transitionFlusher(closing.state, {type: 'chunk.sent', attempt: 2})
+    expect(last.effects).toEqual([{type: 'send', attempt: 3, events: [big(3)]}])
+    const closed = transitionFlusher(last.state, {type: 'chunk.failed', attempt: 3})
+    expect(closed.state.status).toBe('disposed')
+    expect(closed.effects).toEqual([{type: 'settled'}])
+  })
+})
+
+describe('the panel machine', () => {
+  it('runs one export or reset at a time, reports a failure once, and ignores a result after dispose', () => {
+    const exporting = transitionPanel(initialPanel, {type: 'export.requested'})
+    expect(exporting.effects).toEqual([{type: 'export', attempt: 1}])
+    expect(transitionPanel(exporting.state, {type: 'reset.requested'}).state).toBe(exporting.state)
+    const failed = transitionPanel(exporting.state, {type: 'failed', attempt: 1})
+    expect(failed.state.status).toBe('idle')
+    expect(failed.effects).toEqual([{type: 'report-export-failed'}])
+    expect(transitionPanel(failed.state, {type: 'settled', attempt: 1}).state).toBe(failed.state)
+
+    const resetting = transitionPanel(failed.state, {type: 'reset.requested'})
+    expect(resetting.effects).toEqual([{type: 'reset', attempt: 2}])
+    expect(transitionPanel(resetting.state, {type: 'failed', attempt: 2}).effects).toEqual([
+      {type: 'report-reset-failed'},
+    ])
+    const disposed = transitionPanel(resetting.state, {type: 'disposed'})
+    expect(transitionPanel(disposed.state, {type: 'settled', attempt: 2}).state).toBe(disposed.state)
+  })
+})
+
+function runTimed<Value, Failure, Services>(
+  layer: Layer.Layer<Services, never, Scope.Scope>,
+  body: Effect.Effect<Value, Failure, Services | Scope.Scope>,
+): Promise<Value> {
+  return body.pipe(Effect.provide(Layer.provideMerge(layer, TestClock.layer())), Effect.scoped, Effect.runPromise)
+}
+
+const ringsLayer = ClientRingsModel.clientRingsLayer({windowMs: 60_000})
+
+describe('the client rings', () => {
+  it('keeps the eight most recently touched clients and drops a client idle for thirty minutes on the next append', async () => {
+    await runTimed(
+      ringsLayer,
+      Effect.gen(function* () {
+        const rings = yield* ClientRingsModel.ClientRings
+        yield* Effect.forEach(
+          Array.from({length: 9}, (_, index) => `client-${index}`),
+          (clientId) => Effect.andThen(TestClock.adjust('1 second'), rings.append(clientId, fixtureStream(0))),
+        )
+        expect((yield* rings.clients).map((client) => client.id)).toEqual(
+          Array.from({length: 8}, (_, index) => `client-${index + 1}`),
+        )
+        yield* TestClock.adjust('31 minutes')
+        yield* rings.append('fresh', fixtureStream(0))
+        expect((yield* rings.clients).map((client) => client.id)).toEqual(['fresh'])
+        expect(yield* rings.head('fresh')).toBe(30)
+      }),
+    )
+  })
+})
+
+describe('the capture control model', () => {
+  it('announces a lapsed viewer lease once from its own tick, and answers an append wait when an append lands or when the wait runs out', async () => {
+    await runTimed(
+      CaptureControlModel.captureControlLayer.pipe(Layer.provideMerge(ringsLayer)),
+      Effect.gen(function* () {
+        const captureControl = yield* CaptureControlModel.CaptureControl
+        const rings = yield* ClientRingsModel.ClientRings
+        const announced = yield* captureControl.controls.pipe(
+          Stream.take(3),
+          Stream.runCollect,
+          Effect.forkScoped({startImmediately: true}),
+        )
+        yield* captureControl.renewViewer('viewer')
+        yield* TestClock.adjust('19 seconds')
+        yield* TestClock.adjust('6 seconds')
+        expect(yield* Fiber.join(announced)).toEqual([{live: true}, {snapshot: true, flush: true}, {live: false}])
+
+        const timedOut = yield* Effect.forkScoped(captureControl.awaitAppendAfter(0, 1500), {startImmediately: true})
+        yield* TestClock.adjust('1500 millis')
+        expect(yield* Fiber.join(timedOut)).toBe(false)
+        const appended = yield* Effect.forkScoped(captureControl.awaitAppendAfter(0, 1500), {startImmediately: true})
+        yield* rings.append('page', fixtureStream(0))
+        expect(yield* Fiber.join(appended)).toBe(true)
+      }),
+    )
+  })
+})
+
+describe('the renderer cache', () => {
+  it('shares one renderer between uses, disposes it after five idle minutes and not before, and launches again after a failed launch', async () => {
+    const renderer: KeyframeRenderer = {
+      render: () => Effect.succeed([]),
+      renderVideo: () => Effect.fail(RenderFailed.make({cause: 'no video in the fake'})),
+    }
+    const launches = Effect.runSync(Ref.make(0))
+    const disposals = Effect.runSync(Ref.make(0))
+    const failNext = Effect.runSync(Ref.make(true))
+    const launch = Effect.gen(function* () {
+      if (yield* Ref.getAndSet(failNext, false))
+        return yield* Effect.fail(RendererUnavailable.make({cause: 'no chromium'}))
+      yield* Ref.update(launches, (count) => count + 1)
+      yield* Effect.addFinalizer(() => Ref.update(disposals, (count) => count + 1))
+      return renderer
+    })
+    await runTimed(
+      RendererCacheModel.rendererCacheLayer(launch),
+      Effect.gen(function* () {
+        const cache = yield* RendererCacheModel.RendererCache
+        expect(yield* cache.use((current) => current.render([], []))).toEqual(Option.none())
+        expect(yield* cache.use((current) => current.render([], []))).toEqual(Option.some([]))
+        yield* cache.use((current) => current.render([], []))
+        expect(yield* Ref.get(launches)).toBe(1)
+        yield* TestClock.adjust('4 minutes')
+        expect(yield* Ref.get(disposals)).toBe(0)
+        yield* TestClock.adjust('1 minute')
+        expect(yield* Ref.get(disposals)).toBe(1)
+        yield* cache.use((current) => current.render([], []))
+        expect(yield* Ref.get(launches)).toBe(2)
+      }),
+    )
+  })
+})
+
+function awaitState<State>(ref: SubscriptionRef.SubscriptionRef<State>, matches: (state: State) => boolean) {
+  return SubscriptionRef.changes(ref).pipe(Stream.filter(matches), Stream.runHead, Effect.asVoid)
+}
+
+const flushedEvent = (timestamp: number): RrwebEvent => ({type: 3, data: {}, timestamp})
+
+describe('the flusher model', () => {
+  it('sends on its cadence, backs off 1, 2 and 4 seconds up to a 30 second cap, makes a flush during backoff wait for the running retry, and sends a last chunk on dispose', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const attempts = yield* Ref.make(0)
+        const failuresLeft = yield* Ref.make(0)
+        const send = () =>
+          Effect.andThen(
+            Ref.update(attempts, (count) => count + 1),
+            Effect.flatMap(
+              Ref.getAndUpdate(failuresLeft, (left) => Math.max(left - 1, 0)),
+              (left) => (left > 0 ? Effect.fail(FlushFailed.make({cause: 'offline'})) : Effect.void),
+            ),
+          )
+        const flusher = yield* makeFlusher({send})
+        yield* flusher.push(flushedEvent(1))
+        yield* TestClock.adjust('5 seconds')
+        yield* awaitState(flusher.state, (state) => state.status === 'waiting' && state.queue.length === 0)
+        expect(yield* Ref.get(attempts)).toBe(1)
+
+        yield* Ref.set(failuresLeft, 7)
+        yield* flusher.push(flushedEvent(2))
+        yield* TestClock.adjust('5 seconds')
+        const flushed = yield* Effect.forkScoped(flusher.flushNow, {startImmediately: true})
+        expect(yield* Ref.get(attempts)).toBe(2)
+        yield* TestClock.adjust('1 second')
+        expect(yield* Ref.get(attempts)).toBe(3)
+        yield* TestClock.adjust('2 seconds')
+        expect(yield* Ref.get(attempts)).toBe(4)
+        yield* TestClock.adjust('4 seconds')
+        expect(yield* Ref.get(attempts)).toBe(5)
+        yield* TestClock.adjust('24 seconds')
+        expect(yield* Ref.get(attempts)).toBe(7)
+        yield* TestClock.adjust('29 seconds')
+        expect(yield* Ref.get(attempts)).toBe(7)
+        yield* TestClock.adjust('1 second')
+        expect(yield* Ref.get(attempts)).toBe(8)
+        yield* TestClock.adjust('30 seconds')
+        yield* Fiber.join(flushed)
+        expect(yield* Ref.get(attempts)).toBe(9)
+
+        const inner = yield* Scope.make()
+        const closing = yield* makeFlusher({send}).pipe(Scope.provide(inner))
+        yield* closing.push(flushedEvent(3))
+        yield* Scope.close(inner, Exit.void)
+        expect((yield* SubscriptionRef.get(closing.state)).status).toBe('disposed')
+        expect(yield* Ref.get(attempts)).toBe(10)
+      }),
+    )
+  })
+})
+
+describe('the visibility pause model', () => {
+  it('pauses after 30 hidden seconds, not after 29, resumes when shown, and never pauses once disposed', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const hidden = yield* Queue.unbounded<boolean>()
+        const calls = yield* SubscriptionRef.make<readonly string[]>([])
+        const inner = yield* Scope.make()
+        const state = yield* runVisibilityPause({
+          hidden: Stream.fromQueue(hidden),
+          pause: SubscriptionRef.update(calls, (current) => [...current, 'pause']),
+          resume: SubscriptionRef.update(calls, (current) => [...current, 'resume']),
+        }).pipe(Scope.provide(inner))
+        yield* Queue.offer(hidden, true)
+        yield* awaitState(state, (current) => current.status === 'hiding')
+        yield* TestClock.adjust('29 seconds')
+        yield* Queue.offer(hidden, false)
+        yield* awaitState(state, (current) => current.status === 'visible')
+        expect(yield* SubscriptionRef.get(calls)).toEqual([])
+        yield* Queue.offer(hidden, true)
+        yield* awaitState(state, (current) => current.status === 'hiding')
+        yield* TestClock.adjust('30 seconds')
+        yield* awaitState(calls, (current) => current.length === 1)
+        yield* Queue.offer(hidden, false)
+        yield* awaitState(calls, (current) => current.length === 2)
+        expect(yield* SubscriptionRef.get(calls)).toEqual(['pause', 'resume'])
+        yield* Queue.offer(hidden, true)
+        yield* awaitState(state, (current) => current.status === 'hiding')
+        yield* Scope.close(inner, Exit.void)
+        yield* TestClock.adjust('30 seconds')
+        expect(yield* SubscriptionRef.get(calls)).toEqual(['pause', 'resume'])
+        expect((yield* SubscriptionRef.get(state)).status).toBe('disposed')
+      }),
+    )
+  })
+})
+
+const recorderConfigFixture: RecorderConfig = {masking: 'none', windowMinutes: 10, console: true}
+
+describe('the capture session model', () => {
+  it('never starts a recording from a config read that lands after the page was paused again', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const hidden = yield* Queue.unbounded<boolean>()
+        const starts = yield* Ref.make(0)
+        const stops = yield* Ref.make(0)
+        const configRead = yield* Deferred.make<RecorderConfig>()
+        const flusher = yield* makeFlusher({send: () => Effect.void})
+        const state = yield* openCaptureSession({
+          config: recorderConfigFixture,
+          record: () =>
+            Effect.acquireRelease(
+              Ref.update(starts, (count) => count + 1),
+              () => Ref.update(stops, (count) => count + 1),
+            ),
+          takeSnapshot: Effect.void,
+          reloadConfig: Deferred.await(configRead),
+          flusher,
+          controls: Stream.empty,
+          flushCues: Stream.empty,
+          hidden: Stream.fromQueue(hidden),
+          onFailed: Effect.void,
+        })
+        yield* Queue.offer(hidden, true)
+        yield* TestClock.adjust('30 seconds')
+        yield* awaitState(state, (current) => current.status === 'paused')
+        yield* Queue.offer(hidden, false)
+        yield* awaitState(state, (current) => current.status === 'resuming')
+        yield* Queue.offer(hidden, true)
+        yield* TestClock.adjust('30 seconds')
+        yield* awaitState(state, (current) => current.status === 'paused')
+        yield* Deferred.succeed(configRead, recorderConfigFixture)
+        yield* Effect.yieldNow
+        expect((yield* SubscriptionRef.get(state)).status).toBe('paused')
+        expect(yield* Ref.get(starts)).toBe(1)
+        expect(yield* Ref.get(stops)).toBe(1)
+      }),
+    )
+  })
+})
+
+describe('the boot model', () => {
+  it('opens the session of the latest selector and ignores a prepare that lands after the selector moved on', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const selectors = yield* Queue.unbounded<string | undefined>()
+        const slowPrepare = yield* Deferred.make<string>()
+        const opened = yield* Ref.make<readonly string[]>([])
+        const state = yield* runBoot({
+          connected: Stream.make(true),
+          readLive: Effect.succeed(true),
+          controls: Stream.empty,
+          selector: Stream.fromQueue(selectors),
+          prepare: (selector) => (selector === 'first' ? Deferred.await(slowPrepare) : Effect.succeed(selector)),
+          open: (prepared) => Ref.update(opened, (current) => [...current, prepared]),
+        })
+        yield* awaitState(state, (current) => current.live)
+        yield* Queue.offer(selectors, 'first')
+        yield* awaitState(state, (current) => current.status === 'starting')
+        yield* Queue.offer(selectors, 'second')
+        yield* awaitState(state, (current) => current.status === 'capturing')
+        yield* Deferred.succeed(slowPrepare, 'first')
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(opened)).toEqual(['second'])
+        expect((yield* SubscriptionRef.get(state)).status).toBe('capturing')
+      }),
+    )
+  })
+})
+
+describe('the player follow model', () => {
+  it('subscribes again after a dropped feed, one second later, and reads from the cursor it reached', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const subscriptions = yield* Ref.make(0)
+        const cues = Stream.unwrap(
+          Effect.map(
+            Ref.updateAndGet(subscriptions, (count) => count + 1),
+            (count) => (count === 1 ? Stream.fail(FollowFailed.make({cause: 'dropped'})) : Stream.make('cue')),
+          ),
+        )
+        const followed = yield* Effect.forkScoped(
+          followRecording({
+            cursor: 4,
+            cues,
+            readSince: (cursor) => Effect.succeed({events: [], cursor: cursor + 1}),
+          }).pipe(Stream.take(1), Stream.runCollect),
+          {startImmediately: true},
+        )
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(subscriptions)).toBe(1)
+        yield* TestClock.adjust('999 millis')
+        expect(yield* Ref.get(subscriptions)).toBe(1)
+        yield* TestClock.adjust('1 millis')
+        expect(yield* Fiber.join(followed)).toEqual([{events: [], cursor: 5}])
+        expect(yield* Ref.get(subscriptions)).toBe(2)
+      }),
+    )
+  })
+})
+
+describe('the panel model', () => {
+  it('renews the viewer lease every 7 seconds until closed, drops it on close, and runs export and reset one at a time', async () => {
+    await runTimed(
+      Layer.empty,
+      Effect.gen(function* () {
+        const leases = yield* Ref.make<readonly boolean[]>([])
+        const exported = yield* Deferred.make<void>()
+        const resets = yield* Ref.make(0)
+        const inner = yield* Scope.make()
+        const panel = yield* openPanel({
+          presence: (live) => Ref.update(leases, (current) => [...current, live]),
+          exportRecording: Deferred.await(exported),
+          reset: Ref.update(resets, (count) => count + 1),
+          report: () => Effect.void,
+        }).pipe(Scope.provide(inner))
+        yield* Effect.yieldNow
+        expect(yield* Ref.get(leases)).toEqual([true])
+        yield* TestClock.adjust('7 seconds')
+        expect(yield* Ref.get(leases)).toEqual([true, true])
+
+        yield* panel.requestExport
+        yield* panel.requestReset
+        expect((yield* SubscriptionRef.get(panel.state)).status).toBe('exporting')
+        yield* Deferred.succeed(exported, undefined)
+        yield* awaitState(panel.state, (current) => current.status === 'idle')
+        expect(yield* Ref.get(resets)).toBe(0)
+
+        yield* Scope.close(inner, Exit.void)
+        yield* TestClock.adjust('14 seconds')
+        expect(yield* Ref.get(leases)).toEqual([true, true, false])
+      }),
+    )
   })
 })

@@ -3,7 +3,6 @@ import {z} from 'zod'
 import {defineExtension} from '../src/define-extension.js'
 import {getExtensionApi, type ExtensionApi} from '../src/extension-api.js'
 import {getHostApi, HostApiProvider} from '../src/host.js'
-import type {ConnectHostApi, HostWiring} from '../src/host.js'
 
 const extension = defineExtension({name: 'canvas'})
   .client(() => {
@@ -18,11 +17,10 @@ const extension = defineExtension({name: 'canvas'})
 function ProbeComponent() {
   const host = getHostApi()
   const slot: string = host.useSlot()
-  const insert: (text: string) => void = host.useComposerInsert()
   const selection: Accessor<string | null> = extension.useContext((context) => context.selection)
   const full = extension.useContext()
   const fullSelection: Accessor<string | null> = full.selection
-  return {slot, insert, selection, fullSelection}
+  return {slot, selection, fullSelection}
 }
 
 const reversedOrder = defineExtension({name: 'reversed'})
@@ -36,9 +34,7 @@ function ReversedProbe() {
 
 function HostSurfaceProbe() {
   const provider: typeof HostApiProvider = HostApiProvider
-  const wiring: Pick<HostWiring, 'connect'> = {connect: {origin: '', found: () => {}}}
-  const connect: ConnectHostApi = wiring.connect
-  return {provider, connect}
+  return {provider}
 }
 
 function ExtensionSurfaceProbe() {
@@ -86,11 +82,8 @@ const rootHidesHostValues: Same<Extract<RootValueExports, 'getHostApi' | 'HostAp
 
 // @ts-expect-error HostWiring is host-only surface, not part of the extension barrel
 import type {HostWiring as RootHostWiring} from '../src/index.js'
-// @ts-expect-error ConnectHostApi is host-only surface, not part of the extension barrel
-import type {ConnectHostApi as RootConnectHostApi} from '../src/index.js'
 
 type RootHostWiringProbe = RootHostWiring
-type RootConnectHostApiProbe = RootConnectHostApi
 
 export {
   SettingsProbe,
@@ -102,4 +95,4 @@ export {
   extensionApiIsHostApiPlusContext,
   rootHidesHostValues,
 }
-export type {RootHostWiringProbe, RootConnectHostApiProbe}
+export type {RootHostWiringProbe}

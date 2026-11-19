@@ -1,8 +1,8 @@
 export * as PluginInternal from './internal.js'
 
-import type {Plugin} from '@conciv/plugin/effect/plugin'
+import type {Plugin, Services, TaggedError} from '@conciv/plugin/effect/plugin'
 import type {Generation} from './service.js'
-import {Context, Effect, Scope} from 'effect'
+import {Context, Effect} from 'effect'
 import {FSUtil} from '../../util/fs-util.js'
 import {ConfigAgentPlugin} from '../config/plugin/agent.js'
 import {ConfigPluginSource} from '../config/plugin/source.js'
@@ -11,7 +11,7 @@ import {ConfigSkillPlugin} from '../config/plugin/skill.js'
 import {Watcher} from '../filesystem/watcher.js'
 import {Location} from '../location.js'
 import {Permission} from '../permission.js'
-import {EditorSource} from './host.js'
+import {BundlerSource, EditorSource} from './host.js'
 import {Skill} from '../skill.js'
 import {SkillPlugin} from './skill.js'
 import {ServerTools} from '../tool/plugin/server.js'
@@ -21,6 +21,7 @@ import {Tool} from '../tool.js'
 const services = [
   ConfigAgentPlugin.ConfiguredPermissions,
   ConfigPluginSource.ConfiguredPlugins,
+  BundlerSource,
   EditorSource,
   FSUtil.Service,
   Global.Service,
@@ -33,7 +34,7 @@ const services = [
 
 export type Requirements = Context.Service.Identifier<(typeof services)[number]>
 
-export type InternalPlugin = Plugin<Requirements | Scope.Scope>
+export type InternalPlugin = Plugin<Requirements | Services, TaggedError>
 
 const pre = [SkillPlugin.Plugin, SkillTool.Plugin, ServerTools.Plugin] as const satisfies readonly InternalPlugin[]
 

@@ -247,7 +247,11 @@ describe('live connect', () => {
       const before = await panel.elementHandle()
       engine = await runConnect({
         token,
-        harnessAdapter: createFakeHarness({id: 'fake-e2e', text: 'hello from e2e'}),
+        harnessAdapter: createFakeHarness({
+          id: 'fake-e2e',
+          text: 'hello from e2e',
+          tty: {command: () => ({bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color'}})},
+        }),
         origin: site.origin,
       })
 
@@ -267,6 +271,9 @@ describe('live connect', () => {
       await input.fill('hello')
       await input.press('Enter')
       await expectLocator(page.getByText('hello from e2e').first()).toBeVisible({timeout: 30_000})
+
+      await panel.getByRole('tab', {name: 'Terminal'}).click({timeout: 30_000})
+      await expectLocator(panel.getByRole('button', {name: 'New terminal'})).toBeVisible({timeout: 30_000})
 
       await page.reload({waitUntil: 'domcontentloaded'})
       const inputAfterReload = page.getByRole('textbox', {name: 'Message the conciv agent'})

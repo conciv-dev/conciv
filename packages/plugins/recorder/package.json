@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "effect": "catalog:",
-    "p-queue": "catalog:",
+    "es-toolkit": "catalog:",
     "playwright-core": "catalog:",
     "rrweb": "catalog:",
     "zod": "catalog:"
@@ -67,7 +67,6 @@
     "@conciv/vitest-config": "workspace:*",
     "@rrweb/rrweb-plugin-console-record": "catalog:",
     "@rrweb/types": "catalog:",
-    "@solid-primitives/timer": "catalog:",
     "@types/node": "catalog:",
     "playwright": "catalog:",
     "rrweb-player": "catalog:",

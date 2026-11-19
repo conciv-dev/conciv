@@ -10,9 +10,8 @@ import {build} from 'vite'
 import * as Zod from 'zod'
 import * as Effect from 'effect'
 import {z} from 'zod'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {StandardSchemaV1} from '@standard-schema/spec'
-import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {
   Agent,
   Plugin,
@@ -34,8 +33,6 @@ import {
   type Transform,
 } from '../src/promise/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
-import type {ToolCall} from '../src/experimental/builtin.js'
-import type {ToolCardView} from '@conciv/protocol/tool-view-types'
 import type * as SessionMessage from '../src/schema/session-message.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
@@ -99,9 +96,6 @@ describe('define', () => {
         const sessionId = SessionId.parse('conciv_session')
         await context.permission.assert({sessionId, action: 'acme', resources: ['page']})
         const registration = await context.rpc.register(Echo, {echo: async (input) => ({text: input.text})})
-        const token = await context.harness.resumeToken(sessionId)
-        if (token) await context.harness.recordToken(sessionId, token)
-        expectTypeOf(context.harness.mcpUrl).toEqualTypeOf<string | undefined>()
         return () => registration.dispose()
       },
     })
@@ -118,9 +112,6 @@ describe('define', () => {
     expectTypeOf<ReturnType<Hooks<{readonly ping: {readonly count: number}}>>>().toEqualTypeOf<Promise<Registration>>()
     expectTypeOf<Agent.Info['permissions']>().toEqualTypeOf<Ruleset>()
     expectTypeOf<Ruleset[number]>().toEqualTypeOf<Rule>()
-    expectTypeOf<Plugin.Context['harness']['resumeToken']>().returns.toEqualTypeOf<Promise<HarnessSessionId | null>>()
-    expectTypeOf<Plugin.Context['harness']['recordToken']>().parameter(1).toEqualTypeOf<HarnessSessionId>()
-    expectTypeOf<Plugin.Context['harness']['mcpUrl']>().toEqualTypeOf<string | undefined>()
     expectTypeOf<Awaited<ReturnType<Plugin.Context['permission']['get']>>['resources']>().toEqualTypeOf<
       readonly string[]
     >()
@@ -160,7 +151,7 @@ describe('define', () => {
     }
     expectTypeOf<Parameters<Info['execute']>[1]['signal']>().toEqualTypeOf<AbortSignal>()
     expectTypeOf<ToolContext['sessionId']>().toEqualTypeOf<SessionId>()
-    expectTypeOf<Plugin.Context['bundler']>().toEqualTypeOf<BundlerBridge | undefined>()
+    expectTypeOf<Plugin.Context>().not.toHaveProperty('bundler')
     expectTypeOf<Omit<ToolContext, 'signal' | 'progress'>>().toEqualTypeOf<Omit<Tool.Context, 'progress' | 'cancel'>>()
     expectTypeOf<ToolContext['messageId']>().toEqualTypeOf<SessionMessage.Id | undefined>()
     expect(tool.name).toBe('wait')
@@ -387,18 +378,6 @@ describe('experimental', () => {
     stores: {prefs: Store.global(z.object({items: z.array(z.object({shown: z.boolean()}))}), {items: []})},
   })
   const Fixture = App.define({})
-
-  it('a ToolCall either draws a finished call body or a whole tool card', () => {
-    expectTypeOf<{
-      readonly tools: readonly string[]
-      readonly card: ToolCardView
-      readonly streamTitle: string
-      readonly display: 'standalone'
-    }>().toExtend<ToolCall>()
-    expectTypeOf<{readonly tools: readonly string[]; readonly card: ToolCardView}>().toExtend<ToolCall>()
-    expectTypeOf<{readonly tools: readonly string[]; render(): undefined}>().toExtend<ToolCall>()
-    expectTypeOf<{readonly tools: readonly string[]}>().not.toExtend<ToolCall>()
-  })
 
   it('tokens carry their kind and id', () => {
     expect(Registry.define<{readonly label: string}>('details.badge')).toEqual({kind: 'registry', id: 'details.badge'})
@@ -978,7 +957,7 @@ describe('experimental() build', () => {
 
   const bundle = (root: string) => build({root, configFile: false, logLevel: 'silent', plugins: experimental()})
 
-  const provided: Record<PluginModule, object> = {
+  const provided: Record<Exclude<PluginModule, '@conciv/ui-kit-tap'>, object> = {
     '@conciv/plugin/experimental': Experimental,
     '@conciv/plugin/rpc': RpcEntry,
     effect: Effect,
@@ -992,7 +971,7 @@ describe('experimental() build', () => {
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 
   it('the preset writes a CommonJS entry, a chunk for each import() and the manifest, requiring only what the app provides', async () => {
-    const hosted = [...pluginSharedModules, ...pluginWindowModules]
+    const hosted = [...pluginSharedModules, ...pluginWindowModules].filter((name) => name !== '@conciv/ui-kit-tap')
     const root = await project({
       'src/plugin-experimental.tsx': [
         ...hosted.map((name, index) => `import * as m${index} from "${name}"`),
@@ -1020,6 +999,22 @@ describe('experimental() build', () => {
     expect(await dist(chunk)).toContain('Notes')
     expect([...required].toSorted()).toEqual([...hosted, 'node:fs', `./${chunk}`].toSorted())
     expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
+  }, 60_000)
+
+  it("the preset keeps @conciv/ui-kit-tap external, so a plugin uses the app's MentionField and its bundle carries no editor of its own", async () => {
+    const root = await project({
+      'src/plugin-experimental.tsx': [
+        'import { MentionField } from "@conciv/ui-kit-tap"',
+        'export default { id: "acme", MentionField, setup() {} }',
+      ].join('\n'),
+    })
+
+    await bundle(root)
+    const code = await readFile(path.join(root, 'dist', 'plugin-experimental.cjs'), 'utf8')
+    const required = Array.from(code.matchAll(/require\("([^"]+)"\)/g), (match) => match[1])
+
+    expect(required).toEqual(['@conciv/ui-kit-tap'])
+    expect(code).not.toMatch(/tiptap|prosemirror/i)
   }, 60_000)
 
   it('the preset fails the build on an Effect, conciv or Solid module the app does not provide', async () => {

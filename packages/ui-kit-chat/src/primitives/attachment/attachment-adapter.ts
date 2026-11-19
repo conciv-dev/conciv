@@ -17,6 +17,7 @@ export type BaseAttachment = {
   type: 'image' | 'document' | 'file' | (string & {})
   name: string
   contentType?: string
+  blob?: {id: string; url: string}
 }
 
 export type PendingAttachment = BaseAttachment & {
@@ -215,7 +216,7 @@ export function createTextAttachmentAdapter(): AttachmentAdapter {
       return {
         ...attachment,
         status: {type: 'complete'},
-        content: [{type: 'text', content: `Attachment ${attachment.name}:\n${await attachment.file.text()}`}],
+        content: [{type: 'text', content: `\n\nAttachment ${attachment.name}:\n${await attachment.file.text()}`}],
       }
     },
   }

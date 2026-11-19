@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {readFileSync, writeFileSync} from 'node:fs'
 import {expect, test, type ConsoleMessage, type Page} from '@playwright/test'
 import {magicLink, recordedEngineBase, trustedBrowserToken} from '@conciv/harness-testkit/login'
 import {e2eConfigDir, e2eServerLog} from './config.js'
@@ -133,4 +133,33 @@ export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promi
   await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
   await expect.poll(() => printedCodes(logPath).length).toBeGreaterThan(seen)
   return printedCodes(logPath).at(-1) ?? ''
+}
+
+export async function expectPluginBundleReloadsInPlace(
+  page: Page,
+  failures: PageFailures,
+  bundlePath: string,
+): Promise<void> {
+  const launcher = page.getByRole('button', {name: /conciv chat$/})
+  await expect(launcher).toBeVisible()
+  if ((await launcher.getAttribute('aria-expanded')) !== 'true') await launcher.click()
+  await page.getByRole('tab', {name: 'Chat'}).click()
+  await expectWidgetBoots(page, failures)
+  const original = readFileSync(bundlePath, 'utf8')
+  const draft = 'a draft the reload keeps'
+  const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+  try {
+    await expect(page.getByText('live line first')).toBeVisible()
+    await composer.click()
+    await composer.pressSequentially(draft)
+    await expect(composer).toHaveText(draft)
+    await page.evaluate(() => Reflect.set(globalThis, 'concivLiveEditMarker', 'kept'))
+    writeFileSync(bundlePath, original.replace('live line first', 'live line second'))
+    await expect(page.getByText('live line second')).toBeVisible()
+    await expect(page.getByText('live line first')).toHaveCount(0)
+    await expect(composer).toHaveText(draft)
+    expect(await page.evaluate(() => Reflect.get(globalThis, 'concivLiveEditMarker'))).toBe('kept')
+  } finally {
+    writeFileSync(bundlePath, original)
+  }
 }

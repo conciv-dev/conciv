@@ -2,7 +2,7 @@ import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart} from '@conciv/protocol/chat-message-types'
 import type {AnyRouter, ErrorMap, Meta, Middleware, ORPCErrorConstructorMap} from '@orpc/server'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
@@ -13,9 +13,7 @@ import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 export type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
 export type {ToolRequest} from '@conciv/protocol/tool-call-types'
 
-export type ExtensionSlot = 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
-
-export type ConnectGate = {preflight: () => Promise<string | null>}
+export type ExtensionSlot = 'composer' | 'empty' | 'status' | 'widget' | 'surface'
 
 export type ExtensionView = {
   id: string
@@ -47,8 +45,6 @@ export type ToolRenderer = Component<ToolCardProps>
 
 export type ToolCard = ToolCardView
 
-export type ServerToolPageAccess = {call: (name: string, input: Record<string, unknown>) => Promise<unknown>}
-
 export type ServerToolRegistryAccess = {call: (name: string, input: unknown) => Promise<unknown>}
 
 export type ExtensionTool = {
@@ -64,7 +60,6 @@ export type ExtensionTool = {
     input: unknown,
     ctx: unknown,
     request: ToolRequest,
-    page: ServerToolPageAccess,
     tools: ServerToolRegistryAccess,
   ) => Promise<unknown>
   __render?: ToolCard
@@ -115,9 +110,9 @@ export type ServerApi<Config, SettingsValue extends object = Record<never, never
   basePath: string
   stateDir: string
   sessions: ServerSessions
-  harness: (sessionId: SessionId) => ServerHarness
+  harness: (sessionId: SessionId) => Promise<ServerHarness>
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
-  bundler?: BundlerBridge
+  bundler?: Bundler.BundlerBridge
   nativeUrl: () => string | undefined
   upgradeWebSocket: UpgradeWebSocket
 }

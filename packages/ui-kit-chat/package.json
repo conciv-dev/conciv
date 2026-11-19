@@ -32,6 +32,10 @@
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js"
     },
+    "./draft-storage": {
+      "types": "./dist/draft-storage.d.ts",
+      "import": "./dist/draft-storage.js"
+    },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/fonts": {
       "types": "./dist/theme/fonts.d.ts",
@@ -56,6 +60,7 @@
   "dependencies": {
     "@ark-ui/solid": "catalog:",
     "@chenglou/pretext": "1.0.0",
+    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",

@@ -65,6 +65,8 @@
     "@tanstack/ai-solid": "catalog:",
     "@tanstack/store": "catalog:",
     "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "es-toolkit": "catalog:",
     "piscina": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"

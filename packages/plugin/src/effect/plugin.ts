@@ -1,10 +1,9 @@
 import type {Location} from '../schema/location.js'
 import type {Plugin as PluginSchema} from '../schema/plugin.js'
-import type {Effect, Scope} from 'effect'
+import type {Effect, FileSystem, Path, Scope} from 'effect'
+import type {ChildProcessSpawner} from 'effect/process'
 import type {App} from '../app.js'
 import type {PluginOptions} from '../options.js'
-import type {BundlerDomain} from '../promise/bundler.js'
-import type {HarnessDomain} from '../promise/harness.js'
 import type {Servers} from '../promise/servers.js'
 import type {AgentDomain} from './agent.js'
 import type {EventDomain} from './event.js'
@@ -41,15 +40,20 @@ export interface Context {
   readonly storage: StorageDomain
   readonly tool: ToolDomain
   readonly servers: Servers
-  readonly harness: HarnessDomain
-  readonly bundler: BundlerDomain | undefined
 }
 
-export interface Plugin<R = Scope.Scope> {
+export type Services = Scope.Scope | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+
+export interface TaggedError {
+  readonly _tag: string
+  readonly message?: string
+}
+
+export interface Plugin<R = Scope.Scope, E extends TaggedError = never> {
   readonly id: string
-  readonly effect: (context: Context) => Effect.Effect<void, never, R>
+  readonly effect: (context: Context) => Effect.Effect<void, E, R>
 }
 
-export function define<R = Scope.Scope>(plugin: Plugin<R>) {
+export function define<R = Scope.Scope, E extends TaggedError = never>(plugin: Plugin<R, E>) {
   return plugin
 }

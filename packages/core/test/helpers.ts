@@ -19,7 +19,7 @@ import {
   createTestHarness,
   type TestHarness,
 } from '@conciv/harness-testkit'
-import {type BundlerBridge} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {HarnessSessionId, type HubAccess, SessionId} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
@@ -145,7 +145,7 @@ export type BootOverrides = {
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number, column?: number) => void
-  bridge?: BundlerBridge
+  bridge?: Bundler.BundlerBridge
   firstChunkTimeoutMs?: number
   pageReplyTimeoutMs?: number
   queuedActionTimeoutMs?: number
@@ -155,6 +155,7 @@ export type BootOverrides = {
   home?: string
   plugins?: readonly Plugin.Plugin[]
   configPlugins?: ResolvedConcivConfig['plugins']
+  permissions?: ResolvedConcivConfig['permissions']
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -181,7 +182,7 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     hubAccess: overrides.hubAccess ?? 'session',
     plugins: overrides.configPlugins ?? [],
     policies: [],
-    permissions: [],
+    permissions: overrides.permissions ?? [],
   }
   const made = await makeApp({
     print: env.print,

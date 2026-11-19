@@ -22,7 +22,7 @@ type TicketScope = {ptyId: string; origin: string | null}
 type CreateInput = {sessionId: SessionId; size?: PtySize; model?: string}
 
 type PersistentPtyDeps = {
-  harness: (sessionId: SessionId) => ServerHarness
+  harness: (sessionId: SessionId) => Promise<ServerHarness>
   sessions: Pick<ServerSessions, 'resumeToken' | 'recordToken' | 'model'>
   cwd: string
   stateDir: string
@@ -61,19 +61,19 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     )
 
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
-    const owner = ownerKey(deps.harness(sessionId).id, await deps.sessions.resumeToken(sessionId))
+    const owner = ownerKey((await deps.harness(sessionId)).id, await deps.sessions.resumeToken(sessionId))
     const alive = ttys.get(sessionId)
     if (alive === undefined || alive.owner === owner) return alive
     ttys.close(sessionId)
     return undefined
   }
 
-  const mintToken = async (sessionId: SessionId): Promise<HarnessSessionId> => {
+  const mintToken = async (sessionId: SessionId): Promise<{token: HarnessSessionId; minted: boolean}> => {
     const existing = await deps.sessions.resumeToken(sessionId)
-    if (existing) return existing
-    const minted = HarnessSessionId.parse(randomUUID())
-    await deps.sessions.recordToken(sessionId, minted)
-    return minted
+    if (existing) return {token: existing, minted: false}
+    const token = HarnessSessionId.parse(randomUUID())
+    await deps.sessions.recordToken(sessionId, token)
+    return {token, minted: true}
   }
 
   const resizeTo = (session: TtySession, size: PtySize | undefined): void => {
@@ -83,13 +83,13 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   const connectContext = async (
     input: CreateInput,
     harness: ServerHarness,
-    token: HarnessSessionId,
+    {token, minted}: {token: HarnessSessionId; minted: boolean},
   ): Promise<HarnessConnectContext> => ({
     cwd: deps.cwd,
     stateDir: deps.stateDir,
     concivSessionId: input.sessionId,
     harnessSessionId: token,
-    resume: harness.transcriptExists?.(token) ?? true,
+    resume: !minted && (harness.transcriptExists?.(token) ?? true),
     owned: true,
     model: input.model ?? (await deps.sessions.model(input.sessionId)),
     mcpUrl: deps.mcpUrl(),
@@ -97,16 +97,16 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   })
 
   const spawnFresh = async (input: CreateInput, harness: ServerHarness, command: TtyLauncher): Promise<TtySession> => {
-    const token = await mintToken(input.sessionId)
-    const context = await connectContext(input, harness, token)
-    const session = await ttys.open(input.sessionId, command(context), deps.cwd, ownerKey(harness.id, token))
+    const owner = await mintToken(input.sessionId)
+    const context = await connectContext(input, harness, owner)
+    const session = await ttys.open(input.sessionId, command(context), deps.cwd, ownerKey(harness.id, owner.token))
     resizeTo(session, input.size)
     if (context.resume) session.inject(RESUMED_BANNER)
     return session
   }
 
   const create = async (input: CreateInput): Promise<PersistentPtyInfo | null> => {
-    const harness = deps.harness(input.sessionId)
+    const harness = await deps.harness(input.sessionId)
     const command = harness.ttyCommand
     if (command === undefined) return null
     const alive = await live(input.sessionId)

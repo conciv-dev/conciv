@@ -1,6 +1,8 @@
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
+import {uniq} from 'es-toolkit'
+import {z} from 'zod'
 import {e2eConfigDir, harnessHome} from '@conciv/e2e-utils/config'
 import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 
@@ -48,7 +50,7 @@ const START_LIBRARIES = [
   'zod',
 ]
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+const ViteMetadataSchema = z.object({optimized: z.record(z.string(), z.object({file: z.string(), src: z.string()}))})
 
 function libraryInPath(path: string): string | undefined {
   const parts = path.split('/node_modules/')
@@ -59,17 +61,10 @@ function libraryInPath(path: string): string | undefined {
 }
 
 function optimizedSources(configDir: string): Map<string, string> {
-  const metadata: unknown = JSON.parse(
-    readFileSync(join(configDir, 'node_modules', '.vite', 'deps', '_metadata.json'), 'utf8'),
+  const metadata = ViteMetadataSchema.parse(
+    JSON.parse(readFileSync(join(configDir, 'node_modules', '.vite', 'deps', '_metadata.json'), 'utf8')),
   )
-  const optimized = isRecord(metadata) && isRecord(metadata.optimized) ? Object.values(metadata.optimized) : []
-  return new Map(
-    optimized.flatMap((entry): [string, string][] =>
-      isRecord(entry) && typeof entry.file === 'string' && typeof entry.src === 'string'
-        ? [[entry.file, entry.src]]
-        : [],
-    ),
-  )
+  return new Map(Object.values(metadata.optimized).map((entry) => [entry.file, entry.src]))
 }
 
 function requestedLibraries(paths: readonly string[], sources: Map<string, string>): string[] {
@@ -79,7 +74,7 @@ function requestedLibraries(paths: readonly string[], sources: Map<string, strin
     const library = source === undefined ? undefined : libraryInPath(source)
     return library === undefined ? [] : [library]
   })
-  return [...new Set(libraries)].toSorted()
+  return uniq(libraries).toSorted()
 }
 
 test('the widget start requests only the libraries every session needs', async ({page}) => {

@@ -19,7 +19,7 @@ import {
 } from 'effect'
 import {z} from 'zod'
 import {TestClock} from 'effect/testing'
-import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
 import {Agent} from '../../../src/core/agent.js'
 import {Bus} from '../../../src/core/bus.js'
 import {Watcher} from '../../../src/core/filesystem/watcher.js'
@@ -456,7 +456,7 @@ describe('PluginSupervisor reload', () => {
 
 const restarts: boolean[] = []
 
-const bundler = defineBundlerBridge({
+const bundler = Bundler.defineBundlerBridge({
   id: 'later-agent-bundler',
   config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
   resolve: async () => ({id: null}),
