@@ -1,20 +1,16 @@
 import {type JSX} from 'solid-js'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {parseInput} from '@conciv/ui-kit-chat/tools'
-import {InspectionCard, actionCardBody, tanstackOperation, resultOk} from './card-shared.js'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {InspectionCard, tanstackOperation, resultOk, readInput} from './card-shared.js'
 
 const KeyInputSchema = tanstackOperation('query_refetch').input.pick({key: true})
 
-function QueryRefetchCard(props: ToolCardProps): JSX.Element {
+function QueryRefetchCard(props: ToolProps): JSX.Element {
   const summary = () => {
-    if (!resultOk(props.result)) return ''
-    const input = parseInput(KeyInputSchema, props.part)
-    return `refetched ${input?.key ?? ''}`.trimEnd()
+    if (!resultOk(props.output)) return ''
+    const input = readInput(KeyInputSchema, props.input)
+    return input?.key ?? ''
   }
   return <InspectionCard {...props} summary={summary()} />
 }
 
-export const queryRefetchCard: ToolCardView = {
-  render: QueryRefetchCard,
-  hasEmbeddedBody: actionCardBody,
-}
+export const queryRefetchCard: ToolComponent = QueryRefetchCard

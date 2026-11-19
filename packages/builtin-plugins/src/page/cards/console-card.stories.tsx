@@ -1,42 +1,29 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {consoleCard} from './console-card.js'
-import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
-
-const ConsoleCard = consoleCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/ConsoleCard'}
 export default meta
 type Story = StoryObj
-
-const consoleMeta: ToolViewMeta = {
-  summary: 'read the buffered browser console output',
-  category: 'read',
-  icon: 'read',
-  label: {running: 'Reading the console', done: 'Read the console'},
-  mutating: false,
-  inputSchema: {type: 'object', properties: {since: {type: 'number'}}, required: []},
-  outputSchema: {type: 'object', properties: {entries: {type: 'array'}}},
-}
 
 const NOON = Date.UTC(2026, 7, 8, 12, 0, 0)
 
 export const LogLines: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ConsoleCard
-        part={storyPart('page_console', {})}
-        result={storyResult({
-          entries: [
-            {level: 'log', ts: NOON, text: 'checkout mounted'},
-            {level: 'warn', ts: NOON + 1200, text: 'slow response from /api/cart'},
-            {level: 'error', ts: NOON + 2400, text: 'TypeError: cart.items is undefined'},
-          ],
-        })}
-        ctx={storyCtx({page_console: consoleMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_console',
+          {},
+          {
+            entries: [
+              {level: 'log', ts: NOON, text: 'checkout mounted'},
+              {level: 'warn', ts: NOON + 1200, text: 'slow response from /api/cart'},
+              {level: 'error', ts: NOON + 2400, text: 'TypeError: cart.items is undefined'},
+            ],
+          },
+        )}
       />
     </div>
   ),
@@ -53,12 +40,7 @@ export const LogLines: Story = {
 export const NoOutput: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <ConsoleCard
-        part={storyPart('page_console', {})}
-        result={storyResult({entries: []})}
-        ctx={storyCtx({page_console: consoleMeta})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_console', {}, {entries: []})} />
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -68,26 +50,26 @@ export const NoOutput: Story = {
   },
 }
 
-const consoleTool: ToolCardEntry = {names: ['page_console'], ...consoleCard}
-
 export const Trace: Story = {
   render: () =>
     traceGallery('1 log', [
       traceRow(
-        consoleTool,
-        storyPart('page_console', {}),
-        storyResult({
-          entries: [
-            {level: 'log', ts: NOON, text: 'checkout mounted'},
-            {level: 'warn', ts: NOON + 1200, text: 'slow response from /api/cart'},
-            {level: 'error', ts: NOON + 2400, text: 'TypeError: cart.items is undefined'},
-          ],
-        }),
+        storyCall(
+          'page_console',
+          {},
+          {
+            entries: [
+              {level: 'log', ts: NOON, text: 'checkout mounted'},
+              {level: 'warn', ts: NOON + 1200, text: 'slow response from /api/cart'},
+              {level: 'error', ts: NOON + 2400, text: 'TypeError: cart.items is undefined'},
+            ],
+          },
+        ),
       ),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('log')).toBeVisible()
+    await expect(canvas.getByText('Read the console')).toBeVisible()
     await expect(canvas.getAllByText('3 lines').length).toBeGreaterThan(0)
   },
 }
