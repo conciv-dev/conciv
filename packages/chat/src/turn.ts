@@ -372,7 +372,8 @@ export function turnHooks(
           return config.prepareMessages?.(told) ?? told
         },
         chunk: async (chunk) => {
-          const shaped = normalizedChunk(chunk, await normalizer())
+          const shaped =
+            chunk.type === ChatEventType.TOOL_CALL_START ? normalizedChunk(chunk, await normalizer()) : chunk
           if (chunk.type === ChatEventType.RUN_FINISHED) await (await instructions.promise).told()
           if (chunk.type === ChatEventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
             await recordContext(deps, sessionId)
