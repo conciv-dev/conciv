@@ -80,7 +80,6 @@ const PermissionShortSchema = z.union([
 
 export const ConcivConfigSchema = z.object({
   enabled: z.boolean().optional(),
-  extensions: z.array(ExtensionPackageSchema).readonly().optional(),
   plugins: z.array(PluginEntrySchema).readonly().optional(),
   policies: z.array(PolicyStatementSchema).readonly().optional(),
   permission: PermissionShortSchema.optional(),
