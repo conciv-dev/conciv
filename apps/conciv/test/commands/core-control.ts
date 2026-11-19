@@ -4,7 +4,7 @@ import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-po
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import type {EngineStaleness} from '@conciv/contract'
+import {REVOKED_SOCKET_CLOSE_CODE, type EngineStaleness} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {
   CHAT_SSE_PATH,
@@ -14,7 +14,6 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
-import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {
   HarnessCapabilities,
@@ -28,7 +27,6 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness, EditorOpen} from '@conciv/plugin-testkit/core-kit'
-import type {PushWireWatch} from '@conciv/plugin-testkit/push-wire'
 import type {RpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 
 export type BootCoreInput = {
@@ -85,7 +83,6 @@ export type FaultSpec =
   | {kind: 'chat-refused'; status?: number}
   | {kind: 'offline'}
   | {kind: 'handshake-hold'}
-  | {kind: 'push-handshake-hold'}
   | {kind: 'late-close'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
@@ -112,7 +109,6 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   hubCli: {current: HubCliState}
-  push: PushWireWatch | null
   rpcCalls: RpcCallCursor | null
   forward: {server: TcpServer; sockets: Set<Socket>} | null
 }
@@ -126,6 +122,8 @@ const FRESH: EngineStaleness = {
 }
 
 const AWAIT_RPC_TIMEOUT_MS = 15_000
+
+const CHAT_EVENTS_PATH: readonly string[] = ['chat', 'events']
 
 const files = new Map<string, FileState>()
 
@@ -144,7 +142,6 @@ function ensureState(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     hubCli: {current: null},
-    push: null,
     rpcCalls: null,
     forward: null,
   }
@@ -158,12 +155,6 @@ function requireKit(ctx: BrowserCommandContext): CoreKit {
   return kit
 }
 
-function requirePush(ctx: BrowserCommandContext): PushWireWatch {
-  const push = ensureState(ctx).push
-  if (!push) throw new Error('no core is booted for this test file; call bootCore first')
-  return push
-}
-
 function requireFault(ctx: BrowserCommandContext, handle: string): Fault {
   const fault = ensureState(ctx).faults.get(handle)
   if (!fault) throw new Error(`no fault is installed under the handle "${handle}"`)
@@ -174,7 +165,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const state = ensureState(ctx)
   if (state.kit) throw new Error('a core is already booted for this test file; call closeCore first')
   const startedAt = Date.now()
-  const {bootCoreKit, watchPushWire, rpcSocketFor, rpcCallCursor} = await importTestkit(ctx)
+  const {bootCoreKit, rpcSocketFor, rpcCallCursor} = await importTestkit(ctx)
   await rpcSocketFor(ctx.page).installed
   state.rpcCalls = rpcCallCursor(ctx.page)
   const kit = await bootCoreKit({
@@ -196,7 +187,6 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
-  state.push = watchPushWire(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
 }
 
@@ -247,7 +237,6 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.faults.clear()
   state.staleness.value = FRESH
   restoreHubCli(state)
-  state.push = null
   state.rpcCalls = null
   const kit = state.kit
   state.kit = null
@@ -270,9 +259,10 @@ const writeProjectFile: BrowserCommand<[string, string]> = (ctx, path, content):
 const projectFileExists: BrowserCommand<[string]> = (ctx, path): boolean =>
   existsSync(join(requireKit(ctx).stateRoot, path))
 
-const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => requirePush(ctx).opened()
+const chatStreamsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).startedSince(CHAT_EVENTS_PATH)
 
-const pushSocketsLive: BrowserCommand<[]> = (ctx): number => requirePush(ctx).liveSockets()
+const rpcSocketsRevoked: BrowserCommand<[]> = async (ctx): Promise<number> =>
+  (await importTestkit(ctx)).rpcSocketFor(ctx.page).engineCloses(REVOKED_SOCKET_CLOSE_CODE)
 
 const rpcSocketsOpened: BrowserCommand<[]> = (ctx): number => requireCalls(ctx).socketsSince()
 
@@ -528,42 +518,6 @@ async function holdEngineHandshakes(ctx: BrowserCommandContext): Promise<Fault> 
   }
 }
 
-async function holdPushHandshakes(ctx: BrowserCommandContext): Promise<Fault> {
-  const host = new URL(requireKit(ctx).origin).host
-  const held: {open: boolean; handshakes: (() => void)[]; waiters: {count: number; deliver: () => void}[]} = {
-    open: false,
-    handshakes: [],
-    waiters: [],
-  }
-  await ctx.page.routeWebSocket(
-    (url) => url.host === host && url.pathname.endsWith(PUSH_WS_PATH),
-    async (socket) => {
-      if (!held.open) {
-        await new Promise<void>((resolve) => {
-          held.handshakes.push(resolve)
-          for (const waiter of held.waiters.filter((entry) => held.handshakes.length >= entry.count)) waiter.deliver()
-        })
-      }
-      socket.connectToServer()
-    },
-  )
-  const open = (): Promise<void> => {
-    held.open = true
-    for (const handshake of held.handshakes.splice(0)) handshake()
-    return Promise.resolve()
-  }
-  return {
-    pending: () => held.handshakes.length,
-    awaitCaptured: (count) =>
-      held.handshakes.length >= count
-        ? Promise.resolve()
-        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
-    answered: () => Promise.reject(new Error('a held push handshake fault has no single call to await')),
-    release: open,
-    dispose: open,
-  }
-}
-
 async function holdEngineCloses(ctx: BrowserCommandContext): Promise<Injector> {
   const rpcSocket = (await importTestkit(ctx)).rpcSocketFor(ctx.page)
   await rpcSocket.installed
@@ -795,7 +749,6 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
-  if (spec.kind === 'push-handshake-hold') return holdPushHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'late-close') return trackedFault(handle, spec.kind, await holdEngineCloses(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
@@ -847,11 +800,18 @@ const awaitFaultPending: BrowserCommand<[string, number, number?]> = (
       `the fault "${handle}" captured ${requireFault(ctx, handle).pending()} of ${count} pending requests within ${timeoutMs}ms`,
   )
 
-const awaitPushSocketLive: BrowserCommand<[]> = (ctx): Promise<void> =>
+const awaitRpcSocketLive: BrowserCommand<[]> = async (ctx): Promise<void> =>
   withinDeadline(
-    requirePush(ctx).awaitLive(),
+    (await importTestkit(ctx)).rpcSocketFor(ctx.page).awaitLive(),
     AWAIT_RPC_TIMEOUT_MS,
-    () => `no push socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+    () => `no rpc socket was live within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+  )
+
+const awaitRpcSocketsRevoked: BrowserCommand<[number]> = async (ctx, count): Promise<void> =>
+  withinDeadline(
+    (await importTestkit(ctx)).rpcSocketFor(ctx.page).awaitEngineCloses(REVOKED_SOCKET_CLOSE_CODE, count),
+    AWAIT_RPC_TIMEOUT_MS,
+    () => `the engine did not close ${count} rpc sockets as revoked within ${AWAIT_RPC_TIMEOUT_MS}ms`,
   )
 
 const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
@@ -954,9 +914,10 @@ export const coreCommands = {
   pagePluginPaths,
   writeProjectFile,
   projectFileExists,
-  pushSocketsOpened,
-  pushSocketsLive,
-  awaitPushSocketLive,
+  chatStreamsOpened,
+  rpcSocketsRevoked,
+  awaitRpcSocketsRevoked,
+  awaitRpcSocketLive,
   rpcSocketsOpened,
   printedCode,
   requestCode,

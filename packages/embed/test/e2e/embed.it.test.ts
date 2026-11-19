@@ -697,11 +697,14 @@ test.describe('element capture', () => {
       expect(JSON.stringify(stored)).not.toContain(PASSWORD)
     })
 
-    test('hands the harness a result with no capture in it', async ({page}) => {
+    test('hands the harness a result with no capture in it, over the rpc and chat sockets only', async ({page}) => {
       test.setTimeout(90_000)
+      const socketPaths = new Set<string>()
+      page.on('websocket', (socket) => socketPaths.add(new URL(socket.url()).pathname))
       const chatSessionId = await openSessionPanel(page, 'harness result')
       const result = await runInChat(page, chatSessionId, "return await external_page_click({selector: '#cta'})")
       expect(result).toContain('"success":true')
+      expect([...socketPaths].toSorted()).toEqual([CHAT_WS_PATH, RPC_WS_PATH].toSorted())
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
