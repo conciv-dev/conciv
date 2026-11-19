@@ -1,6 +1,6 @@
 import 'virtual:uno.css'
 import {page, userEvent} from 'vitest/browser'
-import {expect, it, describe} from 'vitest'
+import {expect, it, describe, onTestFinished, vi} from 'vitest'
 import {
   type JSX,
   createSignal,
@@ -367,6 +367,7 @@ describe('attachment image viewer', () => {
   it('a refused image says why on its chip, by name and by a tooltip that opens on hover and keyboard focus and never blocks the input', async () => {
     const tooLarge = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'huge.png', {type: 'image/png'})
     const reason = `huge.png exceeds the ${MAX_ATTACHMENT_RAW_BYTES / (1024 * 1024)}MB image limit`
+    const tooltipCloseDelay = 80
     mountComposer([])
 
     await userEvent.upload(page.getByRole('button', {name: 'Choose File'}), [tooLarge])
@@ -375,8 +376,13 @@ describe('attachment image viewer', () => {
     await expect.element(refused).toBeVisible()
     await refused.hover()
     await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
+    onTestFinished(() => vi.useRealTimers())
     await page.getByRole('textbox', {name: 'Message'}).click()
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveFocus()
+    vi.advanceTimersByTime(tooltipCloseDelay)
+    vi.useRealTimers()
+    await expect.element(page.getByRole('tooltip').filter({hasText: reason})).not.toBeInTheDocument()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
     await expect.element(page.getByRole('button', {name: 'Remove huge.png'})).toHaveFocus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
