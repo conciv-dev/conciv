@@ -302,6 +302,11 @@ describe('the test card of the test-runner plugin', () => {
       await page.routeWebSocket(recordOldChatPath, (route) => route.close())
       await page.route(recordOldChatPath, (route) => route.abort())
       const slowJoin = Promise.withResolvers<void>()
+      const heldJoins: string[] = []
+      const stopListening = rpcSocketFor(page).listen((event) => {
+        if (event.kind === 'request' && event.path.join('.') === 'chat.join') heldJoins.push(event.requestId)
+        if (event.kind === 'abort' && heldJoins.includes(event.requestId)) slowJoin.resolve()
+      })
       const holdJoin = rpcSocketFor(page).rule((call) => {
         if (call.path.join('.') !== 'chat.join') return 'pass'
         void slowJoin.promise.then(call.forward)
@@ -313,7 +318,7 @@ describe('the test card of the test-runner plugin', () => {
         page.getByRole('status').getByText('Test run finished: 4 passed, 1 failed, 0 skipped', {exact: true}),
       ).toBeAttached({timeout: 30_000})
       holdJoin()
-      slowJoin.resolve()
+      stopListening()
       expect(oldChatRequests).toEqual([])
       await expect(page.getByText('this fails on purpose', {exact: true})).toBeVisible()
       await expect(page.getByText('The run has one failing test', {exact: true})).toBeHidden()
