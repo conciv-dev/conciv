@@ -12,6 +12,8 @@ import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {reconcileDraft} from '../src/pane/draft-reconcile.js'
 import {parseConcivSettings} from '../src/data/settings.js'
+import {contextItemKey, durableNote} from '../src/composer/note-schema.js'
+import {formatNoteComment, noteComment, promptWithNotes, readPromptPresentation} from '../src/composer/comment-note.js'
 import {
   clamp,
   cornerAt,
@@ -58,8 +60,14 @@ describe('draft storage', () => {
     },
   })
 
-  function composerDraft(text: string): string {
-    return JSON.stringify({text, quote: null, attachments: []})
+  function draftApp(base: string): AppData {
+    return makeAppData(makeRpcClient(base), new QueryClient(), null, () => false)
+  }
+
+  type ComposerItem = {key: string; value: unknown}
+
+  function composerDraft(text: string, items: ComposerItem[] = []): string {
+    return JSON.stringify({text, quote: null, attachments: [], items})
   }
 
   async function storedDraft(rpc: RpcClient, sessionId: string): Promise<StoredDraft | null> {
@@ -150,6 +158,93 @@ describe('draft storage', () => {
     })
   })
 
+  test('two kept drafts written at once both stay, in the order they were kept', async ({kit, core, sessionId}) => {
+    const appData = draftApp(core.base)
+    const keep = makeDraftWriteChain()
+    const note = {key: 'note:fixture:c=1', value: {comment: 'kept with the second line'}}
+
+    await Promise.all([
+      appendDraft(appData, keep, sessionId, 'a first line').then((kept) => kept.saving),
+      appendDraft(appData, keep, sessionId, 'a second line', [note]).then((kept) => kept.saving),
+    ])
+
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({
+      text: 'a first line\na second line',
+      items: [note],
+    })
+  })
+
+  test('the composer items reach the server draft, outlive an appended line and come back on a reload', async ({
+    kit,
+    core,
+    sessionId,
+  }) => {
+    const staged = [{key: 'note:grab:c=1', value: {comment: 'make it blue', nested: {tags: ['a'], done: false}}}]
+    const updated = [
+      {key: 'note:grab:c=1', value: {comment: 'make it red'}},
+      {key: 'toString', value: {comment: 'an item whose key an object inherits'}},
+    ]
+    const draftStorage = makeDraftStorage(draftApp(core.base), makeDraftWriteChain(), sessionId)
+    await draftStorage.restore(() => {}, new AbortController().signal)
+
+    draftStorage.storage.setItem('any', composerDraft('a noted draft', staged))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a noted draft', items: staged})
+
+    draftStorage.storage.setItem('any', composerDraft('', staged))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    draftStorage.storage.setItem('any', composerDraft('', updated))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: '', items: updated})
+
+    await (
+      await appendDraft(draftApp(core.base), makeDraftWriteChain(), sessionId, 'a queued line')
+    ).saving
+    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'a queued line', items: updated})
+
+    const restored: RestoredDraft[] = []
+    await makeDraftStorage(draftApp(core.base), makeDraftWriteChain(), sessionId).restore(
+      (draft) => restored.push(draft),
+      new AbortController().signal,
+    )
+    expect(restored.map((draft) => JSON.parse(draft.snapshot.getItem('any') ?? 'null'))).toEqual([
+      {text: 'a queued line', quote: null, attachments: [], items: updated},
+    ])
+  })
+
+  test('a staged note read back from the server draft drops its live part', async ({kit, core, sessionId}) => {
+    const note = {
+      type: 'note',
+      origin: 'fixture',
+      commentId: 'c1',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      live: {subject: 'the live subject'},
+      comment: 'make it blue',
+    }
+    const other = {key: 'file:a', value: {live: 'kept'}}
+    await kit.rpc.drafts.set({
+      sessionId,
+      text: 'noted',
+      selectionStart: 5,
+      selectionEnd: 5,
+      attachments: [],
+      items: [{key: 'note:fixture:c=c1', value: note}, other],
+      updatedAt: Date.now(),
+    })
+
+    const restored: RestoredDraft[] = []
+    await makeDraftStorage(draftApp(core.base), makeDraftWriteChain(), sessionId).restore(
+      (draft) => restored.push(draft),
+      new AbortController().signal,
+    )
+
+    expect(restored.map((draft) => JSON.parse(draft.snapshot.getItem('any') ?? 'null').items)).toEqual([
+      [{key: 'note:fixture:c=c1', value: {...note, live: undefined}}, other],
+    ])
+  })
+
   test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId, app}) => {
     await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
     core.fail(DRAFTS_GET_PATH)
@@ -172,6 +267,91 @@ describe('draft storage', () => {
       text: 'after the outage',
       selectionStart: 16,
       selectionEnd: 16,
+    })
+  })
+})
+
+describe('composer notes', () => {
+  const item = {
+    type: 'note' as const,
+    origin: 'fixture',
+    commentId: 'c1',
+    label: 'Fixture note',
+    icon: 'terminal',
+    subject: 'the fixture subject',
+    comment: ' make it blue ',
+  }
+
+  test('a note is keyed, sent, read and worded as the source', () => {
+    expect(contextItemKey(item)).toBe('note:fixture:c=c1')
+
+    const sent = noteComment(item, 'make it blue')
+    expect(sent).toEqual({
+      type: 'note',
+      origin: 'fixture',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment: 'make it blue',
+    })
+    const full = noteComment(
+      {...item, title: 'A title', subtitle: 'A subtitle', href: '', live: {subject: 'the live subject'}},
+      '',
+    )
+    expect(full).toEqual({
+      ...sent,
+      title: 'A title',
+      subtitle: 'A subtitle',
+      live: {subject: 'the live subject'},
+      comment: '',
+    })
+    expect(durableNote(full)).toEqual({...sent, title: 'A title', subtitle: 'A subtitle', comment: ''})
+
+    expect(formatNoteComment(sent)).toBe(
+      'The user made the following comment regarding the fixture subject: make it blue',
+    )
+    expect(formatNoteComment({...sent, comment: '  '})).toBe('The user referenced the fixture subject.')
+    expect(formatNoteComment(full)).toBe('The user referenced the live subject.')
+
+    expect(readPromptPresentation({displayText: 'typed'})).toBeUndefined()
+    expect(readPromptPresentation(undefined)).toBeUndefined()
+    expect(
+      readPromptPresentation({
+        displayText: 'typed',
+        comments: [sent, {type: 'note', origin: 'fixture'}, 'not a note'],
+        attachments: [{name: 'a.txt', mime: 'text/plain', path: '/workspace/a.txt'}, {name: 'broken'}],
+        conciv: {kept: true},
+      }),
+    ).toEqual({
+      displayText: 'typed',
+      comments: [sent],
+      attachments: [{name: 'a.txt', mime: 'text/plain', path: '/workspace/a.txt'}],
+    })
+    expect(readPromptPresentation({displayText: '', comments: []})).toEqual({
+      displayText: '',
+      comments: [],
+      attachments: [],
+    })
+  })
+
+  test('a string the composer hands over is the text sent and shown, not the draft it came from', () => {
+    const draft = {
+      draft: 'the draft as typed',
+      attachments: [],
+      quote: null,
+      items: [{key: contextItemKey(item), value: item}],
+    }
+
+    expect(promptWithNotes('the content handed over', draft)).toEqual({
+      content: [
+        'the content handed over',
+        'The user made the following comment regarding the fixture subject: make it blue',
+      ].join('\n'),
+      metadata: {
+        displayText: 'the content handed over',
+        comments: [noteComment(item, 'make it blue')],
+        attachments: [],
+      },
     })
   })
 })
@@ -256,6 +436,24 @@ describe('send checks', () => {
       message: 'Too many attachments. Remove some and send again.',
       tone: 'warn',
     })
+
+    const note = {
+      type: 'note' as const,
+      origin: 'fixture',
+      commentId: 'c1',
+      label: 'Fixture note',
+      icon: 'terminal',
+      subject: 'the fixture subject',
+      comment: 'make it blue',
+    }
+    const image = {type: 'image' as const, source: {type: 'data' as const, mimeType: 'image/png', value: 'AA=='}}
+    const withNote = (attachments: number) =>
+      promptWithNotes(
+        {content: [{type: 'text', content: 'typed'}, ...Array.from({length: attachments}, () => image)]},
+        {draft: 'typed', attachments: [], quote: null, items: [{key: contextItemKey(note), value: note}]},
+      )
+    expect(checkSend(withNote(MAX_CONTENT_PARTS - 1), ready)).toEqual({ok: true})
+    expect(checkSend(withNote(MAX_CONTENT_PARTS), ready)).toEqual(verdict)
   })
 
   test('turns down a message whose payload would blow the ws frame limit', () => {

@@ -60,7 +60,6 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
   'packages/extension/src/hooks.tsx',
   'packages/extension/src/host-context.ts',
   'packages/extension-testkit/src/host/host-runtime.tsx',
-  'packages/extensions/recorder/src/',
 ]
 
 const PRE_REWRITE_ATTACH_PATHS = [
@@ -82,7 +81,6 @@ const PREEXISTING_TERM_SITES = [
     term: 'presence',
     paths: [
       'packages/ui-kit-system/src/',
-      'packages/extensions/recorder/src/',
       'packages/plugins/recorder/src/',
       'packages/extensions/whiteboard/src/tool/comment/server.ts',
     ],

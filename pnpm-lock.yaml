@@ -935,9 +935,6 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension-recorder':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/recorder
       '@conciv/extension-tanstack':
         specifier: workspace:*
         version: link:../../../packages/extensions/tanstack
@@ -947,6 +944,9 @@ importers:
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
+      '@conciv/plugin-recorder':
+        specifier: workspace:*
+        version: link:../../../packages/plugins/recorder
       '@conciv/plugin-test-runner':
         specifier: workspace:*
         version: link:../../../packages/plugins/test-runner
@@ -2272,9 +2272,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -3000,9 +2997,6 @@ importers:
       '@conciv/cli':
         specifier: workspace:*
         version: link:../cli
-      '@conciv/extension-recorder':
-        specifier: workspace:^
-        version: link:../extensions/recorder
       '@conciv/extension-try-it':
         specifier: workspace:*
         version: link:../extensions/try-it
@@ -3434,118 +3428,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vite-plugin-solid:
-        specifier: 'catalog:'
-        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-
-  packages/extensions/recorder:
-    dependencies:
-      '@conciv/client':
-        specifier: workspace:^
-        version: link:../../client
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../extension
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
-      '@conciv/ui-kit-chat':
-        specifier: workspace:*
-        version: link:../../ui-kit-chat
-      '@conciv/ui-kit-system':
-        specifier: workspace:^
-        version: link:../../ui-kit-system
-      '@orpc/server':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
-      '@rrweb/rrweb-plugin-console-record':
-        specifier: 'catalog:'
-        version: 2.2.0(@rrweb/utils@2.2.0)(rrweb@2.2.0)
-      '@rrweb/types':
-        specifier: 'catalog:'
-        version: 2.2.0
-      '@solid-primitives/timer':
-        specifier: 1.4.4
-        version: 1.4.4(solid-js@1.9.17)
-      lucide-solid:
-        specifier: 'catalog:'
-        version: 1.66.0(solid-js@1.9.17)
-      playwright-core:
-        specifier: 'catalog:'
-        version: 1.64.1
-      rrweb:
-        specifier: 'catalog:'
-        version: 2.2.0
-      rrweb-player:
-        specifier: 'catalog:'
-        version: 2.2.0
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@conciv/ai':
-        specifier: workspace:*
-        version: link:../../ai
-      '@conciv/core':
-        specifier: workspace:^
-        version: link:../../core
-      '@conciv/extension-testkit':
-        specifier: workspace:^
-        version: link:../../extension-testkit
-      '@conciv/harness':
-        specifier: workspace:*
-        version: link:../../harness
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
-      '@conciv/plugin-testkit':
-        specifier: workspace:^
-        version: link:../../plugin-testkit
-      '@conciv/serve':
-        specifier: workspace:^
-        version: link:../../serve
-      '@conciv/tsconfig':
-        specifier: workspace:*
-        version: link:../../tsconfig
-      '@conciv/uno-preset':
-        specifier: workspace:*
-        version: link:../../uno-preset
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../../vitest-config
-      '@solidjs/testing-library':
-        specifier: 'catalog:'
-        version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      '@vitest/browser-playwright':
-        specifier: 'catalog:'
-        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
-      storybook:
-        specifier: 'catalog:'
-        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      storybook-solidjs-vite:
-        specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      unocss:
-        specifier: 'catalog:'
-        version: 66.13.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.13.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)

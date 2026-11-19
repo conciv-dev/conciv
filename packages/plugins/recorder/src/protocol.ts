@@ -1,7 +1,5 @@
 import {z} from 'zod'
 
-export const RECORDER_NAME = 'recorder'
-
 export const recorderConfig = z.object({
   masking: z.enum(['none', 'inputs', 'sensitive']).default('none'),
   windowMinutes: z.number().int().positive().max(60).default(10),
@@ -63,11 +61,12 @@ export function decodeRecordingRef(value: string): RecordingRef | null {
   }
 }
 
-export function recordingPoster(entries: ActionLogEntry[]): string {
+export function recordingSummary(entries: ActionLogEntry[]): string {
   const first = entries[0]?.ts ?? 0
   const last = entries.at(-1)?.ts ?? first
   const seconds = Math.max(0, Math.round((last - first) / 1000))
-  return `Screen recording · ${entries.length} action${entries.length === 1 ? '' : 's'} · ${seconds}s`
+  const word = new Intl.PluralRules('en').select(entries.length) === 'one' ? 'action' : 'actions'
+  return `${entries.length} ${word} · ${seconds}s`
 }
 
 export type Keyframe = {ts: number; pngBase64: string}

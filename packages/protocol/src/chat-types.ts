@@ -20,6 +20,10 @@ export const CONCIV_NAMED_TAB_HEADER = 'conciv-named-tab'
 
 export const OUTSIDE_SESSION_TARGET = 'outside-session'
 
+export const DraftItemSchema = z.object({key: z.string(), value: z.json()})
+
+export type DraftItem = z.infer<typeof DraftItemSchema>
+
 export const HubAccessSchema = z.enum(['open', 'session', 'project'])
 
 export type HubAccess = z.infer<typeof HubAccessSchema>

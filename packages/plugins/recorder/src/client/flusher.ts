@@ -27,7 +27,7 @@ export function createFlusher(opts: {
   let backoffMs = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   let disposed = false
-  let draining = false
+  let running: Promise<void> | undefined
 
   const enqueue = (event: RrwebEvent): void => {
     const bytes = jsonByteLength(event)
@@ -60,26 +60,27 @@ export function createFlusher(opts: {
     return chunk
   }
 
-  const drain = async (): Promise<void> => {
-    if (draining) return
-    draining = true
-    try {
-      while (queue.length > 0) {
-        const chunk = takeChunk()
-        try {
-          await opts.send(chunk.map((item) => item.event))
-          backoffMs = 0
-        } catch {
-          queue = [...chunk, ...queue]
-          for (const item of chunk) queueBytes += item.bytes
-          backoffMs = backoffMs === 0 ? BACKOFF_START_MS : Math.min(backoffMs * 2, BACKOFF_MAX_MS)
-          return
-        }
+  const sendQueued = async (): Promise<void> => {
+    while (queue.length > 0) {
+      const chunk = takeChunk()
+      try {
+        await opts.send(chunk.map((item) => item.event))
+        backoffMs = 0
+      } catch {
+        queue = [...chunk, ...queue]
+        for (const item of chunk) queueBytes += item.bytes
+        backoffMs = backoffMs === 0 ? BACKOFF_START_MS : Math.min(backoffMs * 2, BACKOFF_MAX_MS)
+        return
       }
-    } finally {
-      draining = false
-      schedule()
     }
+  }
+
+  const drain = (): Promise<void> => {
+    running ??= sendQueued().finally(() => {
+      running = undefined
+      schedule()
+    })
+    return running
   }
 
   const schedule = (): void => {

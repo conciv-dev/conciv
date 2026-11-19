@@ -557,7 +557,9 @@ describe('experimental', () => {
         entries: [{id: 'ios', name: 'iOS', state: 'starting', reconnect: async () => ({url})}],
       })
     }
-    expectTypeOf<Experimental.NoteCardProps['note']>().toEqualTypeOf<Experimental.ComposerNote>()
+    expectTypeOf<Experimental.NoteCardProps['note']>().toEqualTypeOf<
+      Omit<Experimental.ComposerNote, 'commentId'> & {readonly commentId?: string}
+    >()
     expectTypeOf<Experimental.NoteCardProps['session']>().toEqualTypeOf<Experimental.MountedSession | undefined>()
     expectTypeOf<Experimental.ComposerNote['origin']>().toEqualTypeOf<string>()
     expect(typeof codeBlocks).toBe('function')
@@ -582,6 +584,8 @@ describe('experimental', () => {
     expectTypeOf<undefined>().toExtend<Experimental.Desktop['reveal']>()
     expectTypeOf<undefined>().toExtend<Experimental.Layout['scroll']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Composer['setText']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Composer['update']>()
+    expectTypeOf<undefined>().not.toExtend<Experimental.Composer['detach']>()
     expectTypeOf<undefined>().toExtend<Experimental.Tabs['move']>()
     expectTypeOf<undefined>().not.toExtend<Experimental.Links['exists']>()
   })

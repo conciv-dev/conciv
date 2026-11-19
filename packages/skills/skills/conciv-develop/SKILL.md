@@ -239,11 +239,6 @@ installable packages: [tool-contract](references/tool-contract.md).
 the composer/thread, `.server(expand)` turns the raw document part into `ContentPart[]` the model
 sees.
 
-```ts title="packages/extensions/recorder/src/shared/attachment.ts"
-import {defineAttachment} from '@conciv/extension'
-export const recordingAttachment = defineAttachment<{recorder: RecorderRuntime}>({mime: RECORDER_MIME})
-```
-
 Register it on the extension's `attachments` array; the `Ctx` generic ties `.server(expand)`'s
 second argument to whatever your extension's `.server(...)` factory context provides, the same way
 tool `.server` handlers get typed context.
@@ -312,11 +307,6 @@ const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'wh
 For a push stream (SSE, a subscription) from a plain callback-based source, `subscriptionIterator`
 turns an `emit`-style subscribe function into an `AsyncGenerator`, which oRPC's `eventIterator`
 output type expects directly:
-
-```ts title="packages/extensions/recorder/src/server.ts:5,6"
-import {eventIterator, os} from '@orpc/server'
-import {subscriptionIterator} from '@conciv/extension'
-```
 
 Deeper RPC and streaming patterns (custom Hono routes vs. an oRPC router, `subscriptionIterator`'s
 exact signature): [rpc-and-testing](references/rpc-and-testing.md).
@@ -404,8 +394,6 @@ non-installed extensions).
 - `packages/extensions/tanstack/src/tool/server.ts`
 - `packages/extensions/tanstack/src/tool/client.ts`
 - `packages/extensions/tanstack/test/helpers.ts`
-- `packages/extensions/recorder/src/shared/attachment.ts`
-- `packages/extensions/recorder/src/server.ts`
 - `packages/extensions/whiteboard/test/canvas-it-helpers.ts`
 - `apps/site/content/docs/extending/index.mdx`
 - `apps/site/content/docs/extending/your-first-extension.mdx`

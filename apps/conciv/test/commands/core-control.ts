@@ -81,7 +81,7 @@ export type FaultSpec =
   | {kind: 'chat-gate'}
   | {kind: 'chat-frame-gate'; onRelease: 'deliver' | 'fail'}
   | {kind: 'project-socket-gate'; socket: string}
-  | {kind: 'cut-on-release'; path: string[]}
+  | {kind: 'cut-on-release'; path: string[]; input?: unknown}
   | {kind: 'pre-version-engine'}
 
 type Fault = {
@@ -576,8 +576,8 @@ async function gateProjectSocket(root: string, name: string): Promise<Fault> {
   }
 }
 
-async function cutOnRelease(ctx: BrowserCommandContext, path: string[]): Promise<Fault> {
-  return (await importTestkit(ctx)).gateRpcCalls(ctx.page, {path, onRelease: 'cut'})
+async function cutOnRelease(ctx: BrowserCommandContext, path: string[], input: unknown): Promise<Fault> {
+  return (await importTestkit(ctx)).gateRpcCalls(ctx.page, {path, input, onRelease: 'cut'})
 }
 
 function pathOptions(path: string[] | undefined): {path?: string[]} {
@@ -604,7 +604,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'chat-gate') return gateChatSends(ctx, 'deliver')
   if (spec.kind === 'chat-frame-gate') return gateChatSends(ctx, spec.onRelease)
   if (spec.kind === 'project-socket-gate') return gateProjectSocket(requireKit(ctx).stateRoot, spec.socket)
-  if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
+  if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path, spec.input)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'handshake-hold') return holdEngineHandshakes(ctx)
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))

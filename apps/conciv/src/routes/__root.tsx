@@ -48,7 +48,7 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
-import {NoticeContextProvider} from '../shell/notice-context.js'
+import {NoticeContextProvider, useNotices} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -84,7 +84,9 @@ function RootComponent() {
   const app = Route.useRouteContext()()
   return (
     <HostApiProvider rpc={app.rpc}>
-      <AppRoot />
+      <NoticeContextProvider>
+        <AppRoot />
+      </NoticeContextProvider>
     </HostApiProvider>
   )
 }
@@ -94,6 +96,7 @@ function AppRoot() {
   const panelParams = useParams({from: '/panel/$sessionId', shouldThrow: false})
   const pipParams = useParams({from: '/pip/$sessionId', shouldThrow: false})
   const quickSearch = useSearch({from: '/quick', shouldThrow: false})
+  const notices = useNotices()
 
   const [politeMessage, setPoliteMessage] = createSignal('')
   const [assertiveMessage, setAssertiveMessage] = createSignal('')
@@ -136,6 +139,7 @@ function AppRoot() {
     appData: app.data,
     queryClient: app.queryClient,
     announce,
+    notify: notices.notify,
   })
   const rootNode = app.environment.rootNode
   const preferences = createPreferences({
@@ -193,35 +197,33 @@ function AppRoot() {
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
           <EngineReachabilityContext.Provider value={reachability}>
-            <NoticeContextProvider>
-              <DialogProvider>
-                <PluginRoot>
-                  <PluginAttachment>
-                    <PluginPanelKeys />
-                    <HostApiProvider
-                      rpc={app.rpc}
-                      apiBase={app.apiBase}
-                      toast={showToast}
-                      registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-                      dialog={layers.track(Dialog)}
-                      sessionId={activeSession}
-                      colorScheme={colorScheme}
-                    >
-                      <RootChrome
-                        fab={fab}
-                        activeSession={activeSession}
-                        politeMessage={politeMessage}
-                        assertiveMessage={assertiveMessage}
-                      />
-                      <Show when={app.login === undefined || engineConnected(app.login.status())}>
-                        <EffectsSurface instances={app.instances} />
-                      </Show>
-                      <PluginOverlay />
-                    </HostApiProvider>
-                  </PluginAttachment>
-                </PluginRoot>
-              </DialogProvider>
-            </NoticeContextProvider>
+            <DialogProvider>
+              <PluginRoot>
+                <PluginAttachment>
+                  <PluginPanelKeys />
+                  <HostApiProvider
+                    rpc={app.rpc}
+                    apiBase={app.apiBase}
+                    toast={showToast}
+                    registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+                    dialog={layers.track(Dialog)}
+                    sessionId={activeSession}
+                    colorScheme={colorScheme}
+                  >
+                    <RootChrome
+                      fab={fab}
+                      activeSession={activeSession}
+                      politeMessage={politeMessage}
+                      assertiveMessage={assertiveMessage}
+                    />
+                    <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                      <EffectsSurface instances={app.instances} />
+                    </Show>
+                    <PluginOverlay />
+                  </HostApiProvider>
+                </PluginAttachment>
+              </PluginRoot>
+            </DialogProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>
       </QueryClientProvider>

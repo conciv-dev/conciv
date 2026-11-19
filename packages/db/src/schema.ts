@@ -1,6 +1,7 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {Brand, Schema} from 'effect'
 import type {
+  DraftItem,
   NavigationEntry,
   PermissionRule,
   ReasoningEffort,
@@ -42,6 +43,7 @@ export const drafts = sqliteTable('drafts', {
   selectionStart: integer('selection_start').notNull(),
   selectionEnd: integer('selection_end').notNull(),
   attachments: text('attachments', {mode: 'json'}).$type<PersistedAttachment[]>(),
+  items: text('items', {mode: 'json'}).$type<DraftItem[]>(),
   updatedAt: integer('updated_at').notNull(),
 })
 

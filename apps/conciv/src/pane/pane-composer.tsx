@@ -37,7 +37,8 @@ export type PaneComposerProps = {
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
   attachmentAdapter?: AttachmentAdapter
-  AttachmentComponent?: Component<{removable?: boolean}>
+  AttachmentComponent?: Component<{onRemove?: (id: string) => void}>
+  notes?: JSX.Element
 }
 
 const GHOST =
@@ -68,7 +69,8 @@ function ComposerSendControl(): JSX.Element {
   const reachability = useEngineReachability()
   const locked = () => lockedMessage(reachability.locked())
   const blocked = () => !reachability.online() || locked() !== null
-  const idle = () => composer.isEmpty() || composer.isStopping() || blocked() || context.sendingAttachments()
+  const empty = () => composer.isEmpty() && context.staged() === 0
+  const idle = () => empty() || composer.isStopping() || blocked() || context.sendingAttachments()
   const sendLabel = (): string => {
     const lockedLabel = locked()
     if (lockedLabel !== null) return lockedLabel
@@ -112,6 +114,16 @@ function composerPlaceholder(locked: boolean, running: boolean, queued: boolean,
   return idle
 }
 
+function StagedAttachment(props: {component?: Component<{onRemove?: (id: string) => void}>}): JSX.Element {
+  const context = useComposerContext()
+  const remove = (id: string) => void context.removeAttachment(id)
+  return (
+    <Show when={props.component} fallback={<AttachmentUI onRemove={remove} />}>
+      {(component) => <Dynamic component={component()} onRemove={remove} />}
+    </Show>
+  )
+}
+
 export function PaneComposer(props: PaneComposerProps): JSX.Element {
   let inputHandle: ComposerInputHandle | undefined
   const receiveInputHandle = (handle: ComposerInputHandle): void => {
@@ -133,14 +145,9 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
       draftKey={props.draftKey}
       class="flex flex-col relative shrink-0 [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >
-      <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
-        <ComposerPrimitive.Attachments
-          component={() => (
-            <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
-              {(component) => <Dynamic component={component()} removable />}
-            </Show>
-          )}
-        />
+      <div class="flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-2 pt-2 pb-1 shrink-0 empty:hidden">
+        {props.notes}
+        <ComposerPrimitive.Attachments component={() => <StagedAttachment component={props.AttachmentComponent} />} />
       </div>
       <div class="flex flex-wrap items-center gap-[10px] min-h-9 pe-2 ps-5">
         <Show

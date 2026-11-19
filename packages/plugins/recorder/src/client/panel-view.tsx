@@ -2,18 +2,23 @@ import {Match, Show, Switch, createResource, onCleanup, untrack, type JSX} from 
 import {createStore} from 'solid-js/store'
 import {z} from 'zod'
 import {makeTimer} from '@solid-primitives/timer'
-import {usePlugin} from '@conciv/plugin/experimental'
+import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {Recorder} from '../rpc.js'
 import {REPLAY_MIN_EVENTS, type RrwebEvent} from '../protocol.js'
 import type {CaptureState} from './boot.js'
-import {saveFileToDisk} from './download.js'
+import {ExportVideoButton} from './export-video-button.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
-import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
+import {mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
+import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 
 const VIEWER_RENEW_MS = 7000
 
-const SavedRecording = z.object({recordingId: z.string()})
+const SAVE_FAILURES = {
+  empty: 'Nothing to save yet: interact with the page first.',
+  'too-large': 'The recording is too large to save. Start a new recording.',
+  'io-error': 'Could not write the recording to the project folder. Try again.',
+}
 
 const AppendedHere = z.object({clientId: z.string()})
 
@@ -26,16 +31,12 @@ function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplayS
   return recording
 }
 
-function base64Bytes(data: string): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(atob(data), (character) => character.charCodeAt(0))
-}
-
-export function RecorderPanel(props: {clientId: string; capture: CaptureState}): JSX.Element {
+export function RecorderPanel(props: {clientId: string; capture: CaptureState; panel: PanelProps}): JSX.Element {
   const ctx = usePlugin()
   const page = ctx.use(Page)
   const recorder = () => ctx.client.rpc(Recorder)
   const viewerId = crypto.randomUUID()
-  const [state, setState] = createStore({live: true, exporting: false, resetting: false})
+  const [state, setState] = createStore({live: true, resetting: false, sending: false})
 
   const presence = (live: boolean): Promise<void> =>
     recorder()
@@ -67,8 +68,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
   )
   onCleanup(stopWatching)
 
-  const [playerKit] = createResource(loadPlayerKit)
-  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
+  const playerKit = usePlayerKit()
 
   const readSince = (cursor: number, signal: AbortSignal): Promise<ReplaySource | undefined> =>
     recorder()
@@ -109,32 +109,49 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
     })
   }
 
-  const exportFailed = (): void =>
-    void ctx.toast.show({title: 'Could not export the recording. Try again.', variant: 'error'})
+  const sendFailed = (): void =>
+    void ctx.toast.show({title: 'Could not save the recording. Try again.', variant: 'error'})
 
-  const readVideo = async (id: string): Promise<File> => {
-    const read = async (offset: number, parts: Uint8Array<ArrayBuffer>[]): Promise<File> => {
-      const piece = await recorder()['recordings.exportVideo']({clientId: props.clientId, id, offset})
-      const bytes = base64Bytes(piece.data)
-      if (piece.eof) return new File([...parts, bytes], piece.name, {type: piece.mime})
-      return read(offset + bytes.length, [...parts, bytes])
-    }
-    return read(0, [])
+  const saveFailed = (failure: keyof typeof SAVE_FAILURES): void =>
+    void ctx.toast.show({title: SAVE_FAILURES[failure], variant: 'error'})
+
+  const save = async () => {
+    await props.capture.flushNow()
+    return recorder()['recordings.save']({clientId: props.clientId})
   }
 
-  const downloadVideo = async (): Promise<void> => {
-    setState('exporting', true)
+  const saveForExport = async (): Promise<string | undefined> => {
+    const stored = await save()
+    if (stored.saved) return stored.recordingId
+    saveFailed(stored.error)
+    return undefined
+  }
+
+  const sendToAgent = async (): Promise<void> => {
+    setState('sending', true)
     try {
-      const saved = SavedRecording.safeParse(await recorder()['recordings.save']({clientId: props.clientId}))
-      if (!saved.success) {
-        exportFailed()
+      const stored = await save()
+      if (!stored.saved) {
+        saveFailed(stored.error)
         return
       }
-      saveFileToDisk(await readVideo(saved.data.recordingId))
+      const {recordingId, summary} = stored
+      props.panel.screen.composer.attach({
+        type: 'note',
+        origin: ctx.id,
+        commentId: crypto.randomUUID(),
+        label: 'Screen recording',
+        subtitle: summary,
+        icon: 'clapperboard',
+        subject: `the screen recording ${recordingId} (Screen recording · ${summary})`,
+        href: recordingId,
+        comment: '',
+      })
+      ctx.layout.hide(`${ctx.id}:${props.panel.tab.id}`, props.panel.session)
     } catch {
-      exportFailed()
+      sendFailed()
     } finally {
-      setState('exporting', false)
+      setState('sending', false)
     }
   }
 
@@ -171,17 +188,21 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
         <Match keyed when={recordingWithEnoughEvents(recording.latest)}>
           {(source) => (
             <>
-              <Switch fallback={<RecorderNotice text="Loading player…" />}>
-                <Match when={playerKit.error}>
-                  <RecorderErrorNotice retry={() => location.reload()} text="Could not load the player." />
-                </Match>
-                <Match keyed when={loadedPlayerKit()}>
-                  {(kit) => (
-                    <div ref={replayRef(kit, source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
-                  )}
-                </Match>
-              </Switch>
+              <PlayerKitSwitch kit={playerKit}>
+                {(kit) => (
+                  <div ref={replayRef(kit, source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
+                )}
+              </PlayerKitSwitch>
               <div class="flex gap-2 items-center">
+                <ctx.ui.Button
+                  variant="contrast"
+                  size="small"
+                  disabled={state.sending}
+                  busy={state.sending}
+                  onClick={() => void sendToAgent()}
+                >
+                  Send to agent
+                </ctx.ui.Button>
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
@@ -191,15 +212,7 @@ export function RecorderPanel(props: {clientId: string; capture: CaptureState}):
                 >
                   New recording
                 </ctx.ui.Button>
-                <ctx.ui.Button
-                  variant="neutral"
-                  size="small"
-                  disabled={state.exporting}
-                  busy={state.exporting}
-                  onClick={() => void downloadVideo()}
-                >
-                  {state.exporting ? 'Exporting…' : 'Export video'}
-                </ctx.ui.Button>
+                <ExportVideoButton clientId={props.clientId} recordingId={saveForExport} />
                 <div class="ml-auto flex gap-2 items-center">
                   <Show
                     when={state.live}

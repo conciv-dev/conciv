@@ -1162,6 +1162,180 @@ describe('composer completion', () => {
     await expect.element(page.getByText('send failed: the run failed')).toBeVisible()
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
   })
+
+  function ItemsProbe(props: {onReady: (context: ComposerContextValue) => void}): JSX.Element {
+    const context = useComposerContext()
+    untrack(() => props.onReady(context))
+    const shown = () =>
+      context
+        .items()
+        .map((item) => `${item.key}=${JSON.stringify(item.value)}`)
+        .join(' ')
+    return <p>items: {shown() || 'none'}</p>
+  }
+
+  function mountItemsComposer(
+    storage: WebStorage,
+    handlers: ComposerHandlers,
+  ): {
+    composer: ComposerContextValue
+    unmount: () => void
+  } {
+    let captured: ComposerContextValue | undefined
+    const mounted = render(() => (
+      <ChatHost handlers={handlers}>
+        <ComposerPrimitive.Root draftStorage={storage} draftKey={DRAFT_KEY}>
+          <ComposerPrimitive.Input aria-label="Message" />
+          <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
+          <ItemsProbe
+            onReady={(context) => {
+              captured = context
+            }}
+          />
+        </ComposerPrimitive.Root>
+      </ChatHost>
+    ))
+    if (!captured) throw new Error('expected the composer context to be captured')
+    return {composer: captured, unmount: mounted.unmount}
+  }
+
+  it('attaching the same key twice keeps the first, the items outlive a restore, a failed send and a reload, and a draft of items alone is sent with them', async () => {
+    const probe = createProbeStorage()
+    const [sendError, setSendError] = createSignal('')
+    const [sent, setSent] = createSignal('nothing')
+    const handlers: ComposerHandlers = {
+      onSend: () => Promise.reject(new Error('the server rejected the send')),
+      onSendError: (error) => setSendError(error instanceof Error ? error.message : String(error)),
+    }
+    mountView(() => (
+      <>
+        <p>send failed: {sendError() || 'not yet'}</p>
+        <p>persisted: {probe.written() ?? 'nothing'}</p>
+        <p>sent: {sent()}</p>
+      </>
+    ))
+    const first = mountItemsComposer(probe.storage, handlers)
+
+    first.composer.addItem({key: 'note:grab:c=1', value: {comment: 'make it blue'}})
+    first.composer.addItem({key: 'note:grab:c=1', value: {comment: 'make it red'}})
+    first.composer.addItem({key: 'note:recorder:c=2', value: ['a', 1, null]})
+    await expect
+      .element(page.getByText('items: note:grab:c=1={"comment":"make it blue"} note:recorder:c=2=["a",1,null]'))
+      .toBeVisible()
+
+    first.composer.updateItem('note:grab:c=1', {comment: 'make it green'})
+    first.composer.removeItem('note:recorder:c=2')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    const snapshot = first.composer.snapshotDraft()
+    first.composer.clearDraft()
+    await expect.element(page.getByText('items: none')).toBeVisible()
+    first.composer.restoreDraft(snapshot)
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    await page.getByRole('textbox', {name: 'Message'}).fill('a message the server refuses')
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect.element(page.getByText('send failed: the server rejected the send')).toBeVisible()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the server refuses')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    await expect
+      .element(
+        page.getByText(
+          /persisted: .*"text":"a message the server refuses".*"items":\[\{"key":"note:grab:c=1","value":\{"comment":"make it green"\}\}\]/,
+        ),
+      )
+      .toBeVisible()
+    first.unmount()
+    mountItemsComposer(probe.storage, {
+      onSend: (content, draft) => {
+        setSent(`${JSON.stringify(content)} with ${JSON.stringify(draft.items)}`)
+      },
+    })
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the server refuses')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"make it green"}')).toBeVisible()
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('{ControlOrMeta>}a{/ControlOrMeta}{Backspace}')
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
+    await expect.element(page.getByRole('button', {name: 'Send'})).toBeEnabled()
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect
+      .element(page.getByText('sent: "" with [{"key":"note:grab:c=1","value":{"comment":"make it green"}}]'))
+      .toBeVisible()
+    await expect.element(page.getByText('items: none')).toBeVisible()
+  })
+
+  it('a note staged while the attachments finish stays staged after the send', async () => {
+    const held = Promise.withResolvers<void>()
+    const text = createTextAttachmentAdapter()
+    const adapter: AttachmentAdapter = {...text, send: (attachment) => held.promise.then(() => text.send(attachment))}
+    const [sent, setSent] = createSignal('nothing')
+    let captured: ComposerContextValue | undefined
+    mountView(() => (
+      <ChatHost
+        handlers={{
+          onSend: (_content, draft) => {
+            setSent(JSON.stringify(draft.items))
+          },
+        }}
+      >
+        <ComposerPrimitive.Root attachmentAdapter={adapter}>
+          <ComposerPrimitive.Input aria-label="Message" />
+          <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
+          <ItemsProbe
+            onReady={(context) => {
+              captured = context
+            }}
+          />
+        </ComposerPrimitive.Root>
+        <p>sent: {sent()}</p>
+      </ChatHost>
+    ))
+    if (!captured) throw new Error('expected the composer context to be captured')
+    const composer = captured
+
+    composer.addItem({key: 'note:grab:c=1', value: {comment: 'sent with the message'}})
+    await composer.addAttachment(new File(['body'], 'held.txt', {type: 'text/plain'}))
+    await page.getByRole('textbox', {name: 'Message'}).fill('a message with a held attachment')
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect.element(page.getByRole('button', {name: 'Send'})).toBeDisabled()
+
+    composer.addItem({key: 'note:grab:c=2', value: {comment: 'staged while it finished'}})
+    held.resolve()
+
+    await expect
+      .element(page.getByText('sent: [{"key":"note:grab:c=1","value":{"comment":"sent with the message"}}]'))
+      .toBeVisible()
+    await expect.element(page.getByText('items: note:grab:c=2={"comment":"staged while it finished"}')).toBeVisible()
+  })
+
+  it('a stored item that does not decode leaves the others, and with no send handler the items stay staged and alone cannot be sent', async () => {
+    const probe = createProbeStorage(
+      JSON.stringify({
+        text: 'restored text',
+        quote: null,
+        attachments: [],
+        items: [
+          {key: 'note:grab:c=1', value: {comment: 'kept'}},
+          {key: 1, value: 'a numeric key'},
+        ],
+      }),
+    )
+    mountItemsComposer(probe.storage, {})
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('restored text')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"kept"}')).toBeVisible()
+
+    await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
+    await userEvent.keyboard('{ControlOrMeta>}a{/ControlOrMeta}{Backspace}')
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
+    await expect.element(page.getByRole('button', {name: 'Send'})).toBeDisabled()
+
+    await userEvent.keyboard('a typed line')
+    await page.getByRole('button', {name: 'Send'}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('')
+    await expect.element(page.getByText('items: note:grab:c=1={"comment":"kept"}')).toBeVisible()
+  })
 })
 
 describe('composer send morph', () => {
