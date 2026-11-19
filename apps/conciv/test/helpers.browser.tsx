@@ -415,7 +415,6 @@ export type ShellMountOptions = {
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
   shadow?: boolean
-  connect?: boolean
   plugins?: readonly ComposedPlugin[]
 }
 
@@ -475,7 +474,7 @@ function connectShellRpc(session: () => string | null) {
 }
 
 function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () => string | null) {
-  return options.connect || options.plugins ? connectShellRpc(session) : boundShellRpc(apiBase, session)
+  return options.plugins ? connectShellRpc(session) : boundShellRpc(apiBase, session)
 }
 
 type ShellHarness = {

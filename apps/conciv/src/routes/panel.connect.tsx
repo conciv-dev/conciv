@@ -1,11 +1,9 @@
-import {HostApiProvider} from '@conciv/extension/host'
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation} from '@conciv/client'
 import {resetBrowserRpcConnection} from '@conciv/contract'
 import {Show, type JSX} from 'solid-js'
 import {createKeyed} from '@conciv/plugin/experimental'
-import {useConnectBinding, useInstances} from '../app/context.js'
-import {ExtensionSurface} from '../extension/extension-slots.js'
+import {useConnectBinding} from '../app/context.js'
 import {ErrorScreen} from '../shell/error-screen.js'
 import {classifyRpcError} from '../shell/rpc-error-message.js'
 import {usePluginServers} from '../runtime/plugin/servers.js'
@@ -16,7 +14,6 @@ const GENERIC_ERROR_MESSAGE = 'Something went wrong connecting to that workspace
 export const Route = createFileRoute('/panel/connect')({component: ConnectRoute})
 
 function ConnectRoute(): JSX.Element {
-  const instances = useInstances()
   const binding = useConnectBinding()
   const router = useRouter()
 
@@ -35,19 +32,13 @@ function ConnectRoute(): JSX.Element {
   }
 
   return (
-    <HostApiProvider connect={{origin: window.location.origin, found: (apiBase) => bind.mutate(apiBase)}}>
-      <Show
-        when={bind.isError ? bind.variables : undefined}
-        fallback={<ExtensionSurface name="connect" instances={instances} />}
-        keyed
-      >
-        {(apiBase) => (
-          <ErrorScreen
-            message={classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).message}
-            onRetry={() => retry(apiBase)}
-          />
-        )}
-      </Show>
-    </HostApiProvider>
+    <Show when={bind.isError ? bind.variables : undefined} keyed>
+      {(apiBase) => (
+        <ErrorScreen
+          message={classifyRpcError(bind.error, BIND_FAILED_MESSAGE, GENERIC_ERROR_MESSAGE).message}
+          onRetry={() => retry(apiBase)}
+        />
+      )}
+    </Show>
   )
 }
