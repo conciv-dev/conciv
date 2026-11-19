@@ -2,7 +2,8 @@ import {observable, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {AsyncRetryer, Batcher} from '@tanstack/pacer'
 import type {Transaction} from '@tanstack/solid-db'
-import {Component, createElement, useSyncExternalStore, type PropsWithChildren, type ReactNode} from 'react'
+import {createElement, useSyncExternalStore, type ReactNode} from 'react'
+import {ErrorBoundary} from 'react-error-boundary'
 import {createRoot, type Root} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
 import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
@@ -60,19 +61,7 @@ const CANVAS = 'fixed inset-0 pointer-events-auto'
 const reportMountError = (error: unknown): void =>
   console.error(`[whiteboard] the excalidraw canvas failed to mount: ${String(error)}`)
 
-class IslandBoundary extends Component<PropsWithChildren<{onError: (error: unknown) => void}>, {failed: boolean}> {
-  override state = {failed: false}
-  static getDerivedStateFromError(): {failed: boolean} {
-    return {failed: true}
-  }
-  override componentDidCatch(error: unknown): void {
-    this.props.onError(error)
-  }
-  override render(): ReactNode {
-    if (this.state.failed) return createElement('div', {'data-whiteboard-error': ''}, 'canvas failed')
-    return this.props.children
-  }
-}
+const mountFailedFallback = createElement('div', {'data-whiteboard-error': ''}, 'canvas failed')
 
 function toBase64(bytes: Uint8Array): string {
   let binary = ''
@@ -336,8 +325,8 @@ export function Island(props: {
     root = createRoot(container)
     root.render(
       createElement(
-        IslandBoundary,
-        {onError: reportMountError},
+        ErrorBoundary,
+        {fallback: mountFailedFallback, onError: reportMountError},
         createElement(ThemedExcalidraw, {
           initialData: {elements: []},
           zenModeEnabled: true,

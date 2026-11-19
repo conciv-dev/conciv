@@ -498,6 +498,9 @@ catalogs:
     react-dom:
       specifier: ^19.3.1
       version: 19.3.1
+    react-error-boundary:
+      specifier: ^6.1.6
+      version: 6.1.6
     react-grab:
       specifier: 0.2.0
       version: 0.2.0
@@ -5086,6 +5089,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      react-error-boundary:
+        specifier: 'catalog:'
+        version: 6.1.6(@types/react@19.3.0)(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -18713,6 +18719,15 @@ packages:
     resolution: {integrity: sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==}
     peerDependencies:
       react: ^19.3.1
+
+  react-error-boundary@6.1.6:
+    resolution: {integrity: sha512-CDXPnXDGyFIbkwaaJ6u+xgsRmJhSi6YdgUDW1vnyKHfXp1a9pfAlM+ZET2CDu80/A+8iRcmXN0NSY9BCCoWP5A==}
+    peerDependencies:
+      '@types/react': ^18.0.0 || ^19.0.0
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   react-grab@0.2.0:
     resolution: {integrity: sha512-ohhsfXD4qN0j6cMQd56aaVJBPDF3kUdviF/Od1Eak/rEIXQ3svQ4gjkwTfuTZwTBnxHRL16p9JqdlVQO5nUHqA==}
@@ -33955,6 +33970,12 @@ snapshots:
     dependencies:
       react: 19.3.1
       scheduler: 0.28.0
+
+  react-error-boundary@6.1.6(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   react-grab@0.2.0(patch_hash=e0153f2086f0d5b49d6b4f9c136b305de38b4544ec7db4e3748a2d0db72f8d57)(react@19.3.1):
     dependencies:
