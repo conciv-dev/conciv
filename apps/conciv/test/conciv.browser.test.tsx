@@ -9552,8 +9552,12 @@ describe('terminal panel', () => {
 
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
     const pageScheme = document.documentElement.classList
-    onTestFinished(() => pageScheme.remove('dark'))
-    const shot = () => terminalPanel().getByRole('list').screenshot({save: false})
+    onTestFinished(async () => {
+      pageScheme.remove('dark')
+      await cdp().send('Emulation.setEmulatedMedia', {features: []})
+    })
+    await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
+    const shot = () => terminalPanel().screenshot({save: false})
     const sessionId = await createSession(coreRpc(coreBase()))
     const mountSettled = async () => {
       harness.dispose()
