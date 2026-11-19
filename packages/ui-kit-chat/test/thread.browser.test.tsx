@@ -890,6 +890,14 @@ describe('thread session log', () => {
 
     await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
     await expect.element(page.getByText('checking the event listeners first'), {timeout: 3000}).toBeVisible()
+
+    const row = page.getByRole('button', {name: /Called bash/})
+    await expect.element(row).toBeVisible()
+    await expect.element(page.getByText('src/watcher.ts:12')).not.toBeInTheDocument()
+
+    await userEvent.click(row)
+
+    await expect.element(page.getByText('src/watcher.ts:12')).toBeVisible()
   })
 
   function messagesWithTwoSegments(): ChatMessage[] {
@@ -1023,8 +1031,11 @@ describe('thread session log', () => {
     await page.getByRole('button', {name: 'outside agent drives the tab'}).click()
 
     await expect.element(page.getByText('It echoed three routes.'), {timeout: 3000}).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: /echo route 1/}))
     await expect.element(page.getByText('route answer 1')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: /echo route 2/}))
     await expect.element(page.getByText('route answer 2')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: /echo route 3/}))
     await expect.element(page.getByText('route answer 3')).toBeVisible()
     await expect.element(page.getByText('from claude').nth(0)).toBeVisible()
     await expect.element(page.getByText('from claude').nth(1)).toBeVisible()

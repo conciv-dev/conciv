@@ -114,6 +114,7 @@ import {
   pageQueueEvent,
   runLifecycleEvent,
   sessionRunEvent,
+  toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -213,6 +214,13 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     return held.kit
   }
 }
+
+const FINISHED_CALL_TIME = {start: expect.any(Number), end: expect.any(Number)}
+
+const HubCardTimeSchema = z.object({
+  conciv: z.object({origin: z.literal('hub')}),
+  time: z.object({start: z.number(), end: z.number()}),
+})
 
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const ONE_PIXEL_WEBP =
@@ -2516,9 +2524,14 @@ describe('rpc wire', () => {
         await sessionStream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, GUARD)
         const cards = toolCallParts(foldChatEvents(seen))
         const execute = cards.findLast((part) => part.name === 'execute_typescript')
-        expect(cardMetadata(cards.findLast((part) => part.name === 'fixture_echo'))).toMatchObject({
+        const child = cards.findLast((part) => part.name === 'fixture_echo')
+        expect(cardMetadata(child)).toMatchObject({
           parentToolCallId: execute?.id,
+          time: {start: expect.any(Number)},
         })
+        expect(seen.map((chunk) => toolTimeEvent.parse(chunk)?.toolCallId)).toContain(child?.id)
+        const stored = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId: app.mcpSession})).messages)
+        expect(cardMetadata(stored.findLast((part) => part.id === child?.id))).toMatchObject({time: FINISHED_CALL_TIME})
         expect(
           seen
             .filter(isTurnBoundary)
@@ -2535,16 +2548,28 @@ describe('rpc wire', () => {
         const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
         withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
         const call = executeOverMcp(chatKit().base, hub, 'return 1')
-        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
-          timeout: 3000,
-        })
+        const approval = {at: 0}
+        await vi.waitFor(
+          async () => {
+            approval.at = Date.now()
+            expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1)
+          },
+          {timeout: 3000},
+        )
         await call
         script().release()
         await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
         expect(cards.map(cardMetadata)).toContainEqual({
           conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: FINISHED_CALL_TIME,
         })
+        const hubStarts = cards.flatMap((part) => {
+          const timed = HubCardTimeSchema.safeParse(cardMetadata(part))
+          return timed.success ? [timed.data.time.start] : []
+        })
+        expect(hubStarts).toHaveLength(1)
+        expect(hubStarts[0]).toBeGreaterThanOrEqual(approval.at)
       })
 
       it('a hub registry call runs under the call id of its one hub card', async () => {
@@ -2559,7 +2584,9 @@ describe('rpc wire', () => {
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages).filter(
           (part) => part.name === 'fixture_quiet',
         )
-        expect(cards.map(cardMetadata)).toEqual([{conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}}])
+        expect(cards.map(cardMetadata)).toEqual([
+          {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}, time: FINISHED_CALL_TIME},
+        ])
         expect(quietCallIds.at(-1)).toBe(cards[0]?.id)
       })
 
@@ -3793,8 +3820,10 @@ return seen`
         expect(toolRuns.echo).toBe(ran + 2)
         const children = toolCallParts(await thread(sessionId)).filter((part) => part.name !== 'execute_typescript')
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
-          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
+          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent, time: FINISHED_CALL_TIME}]),
         )
+        const script = toolCallParts(await thread(sessionId)).find((part) => part.id === parent)
+        expect(cardMetadata(script)).toMatchObject({time: FINISHED_CALL_TIME})
         expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = collectResults(await thread(sessionId))
         expect(results).toContain('Input validation failed for tool fixture_echo')
@@ -5445,7 +5474,10 @@ export default {
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
-        metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
+        metadata: {
+          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: {start: expect.any(Number)},
+        },
       }),
     ])
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>

@@ -1,12 +1,11 @@
 import {Show, createMemo, type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Plus from 'lucide-solid/icons/plus'
 import {
   ComposerActions,
   ComposerActionsHost,
   ComposerPrimitive,
-  AttachmentUI,
+  ComposerAttachment,
   useChatContext,
   useComposer,
   useComposerContext,
@@ -23,6 +22,7 @@ import {
   type SelectionOffsets,
 } from './composer-input-adapter.js'
 import {lockedMessage} from '../shell/engine-lock-messages.js'
+import {useReportFailure} from '../shell/notice-context.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
@@ -62,6 +62,7 @@ const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
 const STOPPING_LABEL = 'Stopping the run'
 const MAX_INLINE_AUTO_ACTIONS = 0
+const REMOVE_FAILED = 'Could not remove the attachment.'
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
@@ -114,16 +115,6 @@ function composerPlaceholder(locked: boolean, running: boolean, queued: boolean,
   return idle
 }
 
-function StagedAttachment(props: {component?: Component<{onRemove?: (id: string) => void}>}): JSX.Element {
-  const context = useComposerContext()
-  const remove = (id: string) => void context.removeAttachment(id)
-  return (
-    <Show when={props.component} fallback={<AttachmentUI onRemove={remove} />}>
-      {(component) => <Dynamic component={component()} onRemove={remove} />}
-    </Show>
-  )
-}
-
 export function PaneComposer(props: PaneComposerProps): JSX.Element {
   let inputHandle: ComposerInputHandle | undefined
   const receiveInputHandle = (handle: ComposerInputHandle): void => {
@@ -132,6 +123,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
   }
   const composer = useComposer()
   const chat = useChatContext()
+  const reportFailure = useReportFailure()
   const reachability = useEngineReachability()
   const locked = createMemo(() => reachability.locked() !== null)
   const placeholder = createMemo(() =>
@@ -147,7 +139,14 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
     >
       <div class="flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-2 pt-2 pb-1 shrink-0 empty:hidden">
         {props.notes}
-        <ComposerPrimitive.Attachments component={() => <StagedAttachment component={props.AttachmentComponent} />} />
+        <ComposerPrimitive.Attachments
+          component={() => (
+            <ComposerAttachment
+              component={props.AttachmentComponent}
+              onRemoveFailed={(error) => reportFailure(REMOVE_FAILED, error)}
+            />
+          )}
+        />
       </div>
       <div class="flex flex-wrap items-center gap-[10px] min-h-9 pe-2 ps-5">
         <Show

@@ -2,7 +2,6 @@
 '@conciv/embed': patch
 '@conciv/core': patch
 '@conciv/ui-kit-chat': patch
-'@conciv/extension-terminal': patch
 '@conciv/skills': patch
 ---
 

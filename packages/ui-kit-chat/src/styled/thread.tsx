@@ -14,6 +14,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createStore} from 'solid-js/store'
 import {Key} from '@solid-primitives/keyed'
 import {isEqual, sumBy, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
@@ -24,7 +25,7 @@ import {
   type ChatPart,
   type ToolCallPart,
 } from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -76,8 +77,7 @@ import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {primeHighlightWorkerPool} from '@conciv/solid-diffs'
 import {HighlightedText, Markdown, warmHighlighter} from './markdown.js'
 import {codeTheme} from '../theme/code-theme.js'
-import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
-import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
+import {ToolPartRow, type ToolDisclosure, type ToolRender} from './tool-part-row.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
 import {TraceRunRow} from './trace/trace-row.js'
 import {TraceBodyFrame} from './trace/output-block.js'
@@ -86,7 +86,6 @@ import {FOCUS} from './classes.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
-  ToolFallback?: ToolCardView
 }
 
 export type TurnPrefixSource = {key: string; role: Turn['role']; turn: Accessor<Turn>}
@@ -94,8 +93,11 @@ export type TurnPrefixSource = {key: string; role: Turn['role']; turn: Accessor<
 export type ThreadRootProps = ParentProps<{class?: string}>
 
 export type ThreadMessagesProps = {
+  sessionID?: string
   components?: ThreadComponents
   tools?: ToolCardEntry[]
+  render?: ToolRender
+  renderPending?: boolean
   turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
   promptSuffix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
@@ -213,13 +215,9 @@ function TurnFrame(props: ParentProps): JSX.Element {
   return <div class={lead() ? `${TURN_FRAME_CLASS} ${TURN_LEAD_CLASS}` : TURN_FRAME_CLASS}>{props.children}</div>
 }
 
-function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Accessor<number | undefined> {
-  return createMemo(() => (callId === undefined ? undefined : ctx.durationFor?.(callId)))
-}
-
 function AssistantTurn(props: {
   entries: ToolCardEntry[]
-  fallback: ToolCardView
+  render: ToolRender | undefined
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
@@ -230,6 +228,11 @@ function AssistantTurn(props: {
   const config = useContext(ThreadConfigContext)
   const parts = () => message.message().parts
   const turnParts = message.parts
+  const [opened, setOpened] = createStore<Record<string, boolean>>({})
+  const disclosure: ToolDisclosure = {
+    open: (partId) => opened[partId],
+    setOpen: (partId, open) => setOpened(partId, open),
+  }
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
   const lastPartIndex = createMemo(() => turnParts.items().length - 1)
   const runActive = () => thread.isRunning && message.isLast()
@@ -275,7 +278,6 @@ function AssistantTurn(props: {
           const current = call()
           return current !== null && resolveRowMark(current, result()) === 'run'
         })
-        const durationMs = createCallDuration(callId, ctx)
         return {
           key: item.key,
           get live() {
@@ -297,14 +299,17 @@ function AssistantTurn(props: {
             ) : (
               <Show when={call()}>
                 {(callPart) => (
-                  <ToolTraceRow
+                  <ToolPartRow
                     part={callPart()}
                     result={result()}
                     ctx={ctx}
-                    durationMs={durationMs()}
-                    tools={() => props.entries}
-                    fallback={props.fallback}
+                    entries={props.entries}
+                    render={props.render}
+                    renderPending={config.renderPending()}
+                    disclosure={disclosure}
+                    sessionID={config.sessionID()}
                     ring={branch.ring}
+                    chain
                   />
                 )}
               </Show>
@@ -358,15 +363,17 @@ function AssistantTurn(props: {
               {(part) => {
                 const callId = untrack(part).id
                 const result = createMemo(() => turnParts.resultFor(callId))
-                const durationMs = createCallDuration(callId, ctx)
                 return (
-                  <ToolCallCard
+                  <ToolPartRow
                     part={part()}
                     result={result()}
                     ctx={ctx}
-                    durationMs={durationMs()}
-                    tools={() => props.entries}
-                    fallback={props.fallback}
+                    entries={props.entries}
+                    render={props.render}
+                    renderPending={config.renderPending()}
+                    disclosure={disclosure}
+                    sessionID={config.sessionID()}
+                    chain={false}
                   />
                 )
               }}
@@ -387,6 +394,7 @@ function AssistantTurn(props: {
                 node={group()}
                 parts={parts}
                 resultFor={turnParts.resultFor}
+                sessionID={config.sessionID()}
                 streaming={nodeLive(group())}
                 folded={folded()}
               >
@@ -431,12 +439,15 @@ function sentNoteCount(turn: Turn): number {
 function messagePromptText(message: ChatMessage): string[] {
   const display = PromptPresentationSchema.safeParse(message.metadata)
   if (display.success) return display.data.displayText.trim() ? [display.data.displayText] : []
-  return message.parts
+  const text = message.parts
     .filter(
       (part): part is Extract<ChatPart, {type: 'text'}> =>
         part.type === 'text' && part.content.trim().length > 0 && !partIsModelOnly(part),
     )
     .map((part) => part.content)
+    .join('')
+    .trim()
+  return text ? [text] : []
 }
 
 function collectPromptText(turn: Turn): string {
@@ -495,8 +506,10 @@ function UserTurn(): JSX.Element {
 }
 
 type ThreadConfig = {
+  sessionID: () => string | undefined
   entries: () => ToolCardEntry[]
-  fallback: () => ToolCardView
+  render: () => ToolRender | undefined
+  renderPending: () => boolean
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   promptSuffix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
@@ -509,8 +522,10 @@ type ThreadConfig = {
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
+  sessionID: () => undefined,
   entries: () => [],
-  fallback: () => toolFallbackCardView,
+  render: () => undefined,
+  renderPending: () => false,
   assistant: () => undefined,
   turnPrefix: () => undefined,
   promptSuffix: () => undefined,
@@ -552,7 +567,7 @@ function AssistantMessageView(): JSX.Element {
         fallback={
           <AssistantTurn
             entries={config.entries()}
-            fallback={config.fallback()}
+            render={config.render()}
             pageSession={config.pageSession()}
             grouping={config.grouping()}
             groupEntries={config.groupEntries()}
@@ -636,8 +651,10 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   return (
     <ThreadConfigContext.Provider
       value={{
+        sessionID: () => props.sessionID,
         entries: () => props.tools ?? [],
-        fallback: () => props.components?.ToolFallback ?? toolFallbackCardView,
+        render: () => props.render,
+        renderPending: () => props.renderPending ?? false,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
         promptSuffix: () => props.promptSuffix,

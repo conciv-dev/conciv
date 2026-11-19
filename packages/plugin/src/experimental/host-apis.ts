@@ -803,7 +803,64 @@ export interface UiMenuGroup {
   readonly items: readonly UiMenuItem[]
 }
 
-export type UiMenuEntry = UiMenuItem | UiMenuSeparator | UiMenuGroup
+export interface UiMenuRadioItem {
+  readonly value: string
+  readonly label: string
+  readonly disabled?: boolean
+}
+
+/**
+ * Rows of a menu of which one is picked, as radio buttons are: the picked row shows a check, and picking another calls
+ * `onValueChange` with its value. The menu closes on a pick.
+ *
+ * @example
+ * ```tsx
+ * <ctx.ui.Menu
+ *   label="View"
+ *   items={[
+ *     {
+ *       type: "radio-group",
+ *       label: "Density",
+ *       value: density(),
+ *       onValueChange: setDensity,
+ *       items: [
+ *         { value: "comfortable", label: "Comfortable" },
+ *         { value: "compact", label: "Compact" },
+ *       ],
+ *     },
+ *   ]}
+ * />
+ * ```
+ */
+export interface UiMenuRadioGroup {
+  readonly type: 'radio-group'
+  readonly label?: string
+  readonly value: string
+  readonly items: readonly UiMenuRadioItem[]
+  onValueChange(value: string): void
+}
+
+/**
+ * A menu row that is on or off, as a checkbox is: it shows a check while `checked`, and picking it calls
+ * `onCheckedChange` with the other state. The menu closes on a pick.
+ *
+ * @example
+ * ```tsx
+ * <ctx.ui.Menu
+ *   label="View"
+ *   items={[{ type: "checkbox", label: "Show resolved", checked: resolved(), onCheckedChange: setResolved }]}
+ * />
+ * ```
+ */
+export interface UiMenuCheckbox {
+  readonly type: 'checkbox'
+  readonly label: string
+  readonly checked: boolean
+  readonly disabled?: boolean
+  onCheckedChange(checked: boolean): void
+}
+
+export type UiMenuEntry = UiMenuItem | UiMenuSeparator | UiMenuGroup | UiMenuRadioGroup | UiMenuCheckbox
 
 export interface UiMenuProps {
   readonly label: string

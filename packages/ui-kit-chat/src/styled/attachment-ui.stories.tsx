@@ -30,7 +30,9 @@ const SEED: CompleteAttachment[] = [
 
 function Frame(): JSX.Element {
   const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
-  const remove = (id: string) => setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+  const remove = (id: string): void => {
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+  }
   return (
     <ComposerProvider
       value={{
@@ -39,9 +41,7 @@ function Frame(): JSX.Element {
         addAttachment: async () => null,
         hasAttachment: () => false,
         replaceAttachment: async () => null,
-        removeAttachment: async (id) => {
-          setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
-        },
+        removeAttachment: async (id) => remove(id),
         sendingAttachments: () => false,
         snapshotDraft: () => ({draft: '', attachments: [], quote: null, items: []}),
         restoreDraft: () => {},
@@ -76,6 +76,7 @@ export const ImageAndFileTiles: Story = {
   render: () => <Frame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
 
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
@@ -86,7 +87,6 @@ export const ImageAndFileTiles: Story = {
     expect(c.getByRole('button', {name: 'Remove diagram.png'}).matches(':focus-visible')).toBe(true)
     await waitFor(() => expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeVisible())
 
-    const page = within(canvasElement.ownerDocument.body)
     await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
     const viewer = await page.findByRole('dialog', {name: 'diagram.png'})
     await expect(within(viewer).getByRole('button', {name: 'Show actual size'})).toBeVisible()
