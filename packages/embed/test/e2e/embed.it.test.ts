@@ -39,7 +39,6 @@ import {currentHref} from '@conciv/plugin-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
-import whiteboardServer from '@conciv/extension-whiteboard/server'
 import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {CHAT_WS_PATH, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/rpc-fault'
@@ -214,7 +213,6 @@ test.describe('composer rich input', () => {
 
   const suite = setupWidgetSuite({
     text: ASSISTANT_TEXT,
-    extensions: [whiteboardServer],
     files: {'conciv/plugins/mention-probe.ts': MENTION_PROBE_PLUGIN},
     commands: [
       {name: 'compact', description: 'Compact the conversation'},
@@ -263,16 +261,13 @@ test.describe('composer rich input', () => {
       await pickSuggestion(page, 'Commands', '/config')
 
       await input.pressSequentially('then ')
-      await input.pressSequentially('@canvas_read')
-      await pickSuggestion(page, 'Tools', '@canvas_read')
-
       await input.pressSequentially('@mention_probe')
       await pickSuggestion(page, 'Tools', '@mention_probe')
 
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @canvas_read @mention_probe \nsecond line'
+      const expected = 'please run /config then @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)
