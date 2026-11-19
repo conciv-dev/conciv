@@ -347,6 +347,15 @@ describe('chat connection', () => {
       }
     }, 10_000)
 
+    it('aborting a live subscription ends it cleanly, with no error', async () => {
+      const {sessionId, connection} = await opened()
+      const watcher = watch(connection)
+      await sendTurn(connection, sessionId, 'abort-1')
+      await watcher.finished
+      watcher.abort()
+      await expect(watcher.ended).resolves.toBeUndefined()
+    }, 30_000)
+
     it('a run the chat client gave up on is followed by the subscription until the user leaves, never after', async () => {
       const threadId = 'conciv_handed_over'
       const joins = Array.from({length: 3}, () => Promise.withResolvers<{runId: string; response: ServerResponse}>())
