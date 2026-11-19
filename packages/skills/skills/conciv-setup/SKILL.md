@@ -100,7 +100,7 @@ integration instead (`apps/site/content/docs/quick-start/rollup.mdx:21-23`,
 Use this when no `@conciv/it` plugin boots the widget for you, or when you are wiring a
 framework-specific wrapper. `createConciv` returns a handle you mount into an element and tear down
 yourself; `mountConciv` is the one-shot, fire-and-forget version that appends its own root div to
-`document.body` (`packages/embed/src/mount.ts:36-121`, `packages/embed/src/mount.ts:131-144`). Gate the
+`document.body` (`packages/embed/src/mount.ts:32-117`, `packages/embed/src/mount.ts:127-140`). Gate the
 mount call yourself the same way a plugin's `enabled` option would:
 
 ```ts
@@ -137,7 +137,7 @@ mountConciv()
 For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv`:
 `@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears
 down on unmount, and remounts only when its config actually changes
-(`packages/react/src/index.ts:8-23`).
+(`packages/react/src/index.ts:8-22`).
 
 ## Connecting a harness
 
