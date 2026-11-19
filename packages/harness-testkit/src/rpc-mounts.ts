@@ -1,7 +1,6 @@
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import type {AnyRouter} from '@orpc/server'
-import {makeCompositeRpcRouter} from '@conciv/extension/rpc-mount'
 import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {serveHono, upgradeWebSocket} from '@conciv/serve'
@@ -34,16 +33,4 @@ export async function serveRpcRouter(options: {router: AnyRouter; app?: Hono}): 
     },
     close: served.close,
   }
-}
-
-export async function serveExtensionRpc(options: {
-  slug: string
-  router: AnyRouter
-  app?: Hono
-}): Promise<ServedRpcRouter> {
-  const composite = makeCompositeRpcRouter({}, [
-    {slug: options.slug, extensionName: options.slug, router: options.router},
-  ])
-  const served = await serveRpcRouter({router: composite, app: options.app})
-  return {...served, rpcUrl: `${served.base}${RPC_PREFIX}/ext/${options.slug}`}
 }
