@@ -10,12 +10,15 @@ import {createStore} from './server/db/store.js'
 import {enrichComments} from './server/enrich-worker.js'
 import {whiteboardHandlers} from './server/rpc-handlers.js'
 import {info} from './skill.js'
+import {makeAgentCursor} from './tool/comment/agent-cursor.js'
 import {CONFIRMATION_RULES} from './tool/refusal.js'
 import {register} from './tools.js'
 
 const DRAW_DEADLINE_MS = 8_000
+const AGENT_CURSOR_MS = 50
 const WhiteboardOptions = z.object({
   drawDeadlineMs: z.number().positive().default(DRAW_DEADLINE_MS).catch(DRAW_DEADLINE_MS),
+  agentCursorMs: z.number().positive().default(AGENT_CURSOR_MS).catch(AGENT_CURSOR_MS),
 })
 
 type Announcement = Rpc.EventInput<typeof Whiteboard>
@@ -36,7 +39,7 @@ export default Plugin.define({
   effect: (ctx) =>
     Effect.gen(function* () {
       const directory = ctx.location.directory
-      const {drawDeadlineMs} = yield* Effect.sync(() => WhiteboardOptions.parse(ctx.options))
+      const {drawDeadlineMs, agentCursorMs} = yield* Effect.sync(() => WhiteboardOptions.parse(ctx.options))
       const store = yield* Effect.acquireRelease(
         Effect.promise(() => createStore(databaseDirectory(ctx.location))),
         (opened) => Effect.sync(() => opened.close()),
@@ -65,7 +68,7 @@ export default Plugin.define({
       yield* ctx.agent.transform((editor) =>
         editor.list().forEach((agent) => agent.permissions.push(...CONFIRMATION_RULES)),
       )
-      yield* register(ctx, store, directory, drawDeadlineMs)
+      yield* register(ctx, store, directory, drawDeadlineMs, yield* makeAgentCursor(ctx.session, store, agentCursorMs))
       yield* ctx.skill.transform((editor) => editor.add(info))
       yield* ctx.session.hook('experimental.idle', ({sessionId}) =>
         Effect.promise(() => autoCommitDraft(store, sessionId)),

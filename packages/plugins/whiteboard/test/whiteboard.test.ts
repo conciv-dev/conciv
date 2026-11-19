@@ -102,8 +102,15 @@ const ConflictSchema = z.object({
 
 type Change = z.infer<typeof ChangeSchema>
 
-async function boot(files?: Record<string, string>): Promise<{kit: CoreKit; room: string}> {
-  const kit = await bootCoreKit({id: 'fake', plugins: [PACKAGE_DIR], ...(files === undefined ? {} : {files})})
+async function boot(
+  files?: Record<string, string>,
+  options?: {agentCursorMs: number},
+): Promise<{kit: CoreKit; room: string}> {
+  const kit = await bootCoreKit({
+    id: 'fake',
+    plugins: [options === undefined ? PACKAGE_DIR : [PACKAGE_DIR, options]],
+    ...(files === undefined ? {} : {files}),
+  })
   onTestFinished(() => kit.cleanup())
   return {kit, room: await kit.session()}
 }
@@ -160,6 +167,14 @@ async function askedTool(
 
 function denial(name: string): string {
   return `The user denied running tool "${name}". Do not retry it; continue without it.`
+}
+
+async function nextCursor(cursors: AsyncIterator<{type: string}>): Promise<unknown> {
+  for (;;) {
+    const delivered = await cursors.next()
+    if (delivered.done) throw new Error('the cursor events ended')
+    if (delivered.value.type !== 'server.heartbeat') return delivered.value
+  }
 }
 
 function useTool(kit: CoreKit, name: string, input: unknown = {}): Promise<unknown> {
@@ -520,8 +535,8 @@ describe('the whiteboard store and its rpc', () => {
     expect(existsSync(join(folder, '.conciv', 'whiteboard', 'whiteboard.db'))).toBe(true)
   })
 
-  it('announces each stored change as ids and a per-room cursor, answers the missed changes since a cursor, and broadcasts a live cursor to the room without storing it', async () => {
-    const {kit, room} = await boot()
+  it('announces each stored change as ids and a per-room cursor, answers the missed changes since a cursor, broadcasts a live cursor to the room without storing it, and moves the agent cursor at most once per throttle window', async () => {
+    const {kit, room} = await boot(undefined, {agentCursorMs: 60_000})
     const seen: Change[] = []
     const settled = Promise.withResolvers<void>()
     const stop = await followChanges(kit, (change) => {
@@ -565,13 +580,21 @@ describe('the whiteboard store and its rpc', () => {
       lastSeen: 1,
     }
     expect(await call(kit, 'cursor.move', {room, cursor: drawing})).toEqual({ok: true})
-    for await (const delivered of cursors) {
-      if (delivered.type === 'server.heartbeat') continue
-      expect(delivered).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, room}})
-      break
-    }
-    closing.abort()
+    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, room}})
     expect(await since(kit, room, 3)).toEqual({changes: [], cursor: 3})
+
+    const parts = [{type: 'text', text: 'here'}]
+    expect(
+      await useTool(kit, 'comment_create', {cid: 'a1', kind: 'floating', parts, x: 7, y: 8, authorKind: 'ai'}),
+    ).toEqual({cid: 'a1'})
+    expect(await nextCursor(cursors)).toMatchObject({
+      type: 'rpc.whiteboard.cursor',
+      data: {room, kind: 'agent', color: '#19c3b2', x: 7, y: 8},
+    })
+    expect(await useTool(kit, 'comment_move', {cid: 'a1', x: 70, y: 80})).toEqual({cid: 'a1', x: 70, y: 80})
+    expect(await call(kit, 'cursor.move', {room, cursor: {...drawing, x: 9}})).toEqual({ok: true})
+    expect(await nextCursor(cursors)).toMatchObject({type: 'rpc.whiteboard.cursor', data: {...drawing, x: 9, room}})
+    closing.abort()
   })
 })
 
@@ -671,8 +694,16 @@ describe('the whiteboard canvas tools', () => {
 })
 
 describe('the whiteboard comment tools', () => {
-  it('creates, replies to, reads, lists and moves comments, sets pin state, and asks before deleting, clearing, resolving or removing', async () => {
-    const {kit, room} = await boot()
+  it('creates, replies to, reads, lists and moves comments with the agent cursor at each spot, sets pin state, and asks before deleting, clearing, resolving or removing', async () => {
+    const {kit, room} = await boot(undefined, {agentCursorMs: 1})
+    const closing = new AbortController()
+    onTestFinished(() => closing.abort())
+    const cursors = await kit.rpc.event.subscribe({types: ['rpc.whiteboard.cursor']}, {signal: closing.signal})
+    expect(await cursors.next()).toMatchObject({done: false, value: {type: 'server.connected'}})
+    const agentAt = (x: number, y: number) => ({
+      type: 'rpc.whiteboard.cursor',
+      data: {room, peerId: 'agent:ai', kind: 'agent', name: 'AI', color: '#19c3b2', x, y},
+    })
     expect(
       await useTool(kit, 'comment_create', {
         cid: 'root',
@@ -689,10 +720,12 @@ describe('the whiteboard comment tools', () => {
         .parse(await call(kit, 'pins.list', {room}))
         .map(({cid, x, y}) => ({cid, x, y})),
     ).toEqual([{cid: 'root', x: 5, y: 6}])
+    expect(await nextCursor(cursors)).toMatchObject(agentAt(5, 6))
 
     const reply = z
       .object({cid: z.string()})
       .parse(await useTool(kit, 'comment_reply', {cid: 'root', parts: [{type: 'text', text: 'agreed'}]}))
+    expect(await nextCursor(cursors)).toMatchObject(agentAt(5, 6))
     const read = z
       .object({comment: CommentSchema, replies: z.array(CommentSchema)})
       .parse(await useTool(kit, 'comment_read', {cid: 'root'}))
@@ -708,6 +741,7 @@ describe('the whiteboard comment tools', () => {
     ).toEqual(['root'])
 
     expect(await useTool(kit, 'comment_move', {cid: 'root', x: 50, y: 60})).toEqual({cid: 'root', x: 50, y: 60})
+    expect(await nextCursor(cursors)).toMatchObject(agentAt(50, 60))
     expect(await useTool(kit, 'pin_set_state', {cid: 'root', pinState: 'offset'})).toEqual({
       cid: 'root',
       pinState: 'offset',
