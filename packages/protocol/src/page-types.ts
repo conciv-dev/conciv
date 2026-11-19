@@ -16,7 +16,6 @@ export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handl
 export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
 export const PAGE_ERROR_CODES = [...PAGE_REPORTED_ERROR_CODES, ...PAGE_TRANSPORT_ERROR_CODES] as const
 export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
-export type PageReportedErrorCode = (typeof PAGE_REPORTED_ERROR_CODES)[number]
 export const PageRaisedErrorSchema = z.object({
   code: z.string().min(1),
   message: z.string(),

@@ -188,7 +188,7 @@ function topLevelModuleStatements(root: SgNode): SgNode[] {
   return root.children().filter((child) => child.kind() === 'import_statement' || child.kind() === 'export_statement')
 }
 
-export type ModuleStyle = 'cjs' | 'esm' | 'ambiguous'
+type ModuleStyle = 'cjs' | 'esm' | 'ambiguous'
 
 export function moduleStyle(source: string): ModuleStyle {
   const root = parse(Lang.TypeScript, source).root()

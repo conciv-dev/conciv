@@ -2,7 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {Agent, Bus, Event, Plugin} from '@conciv/plugin-host'
 import {Deferred, Effect, Exit, Fiber, Layer, Option, Schema, type Scope, Stream} from 'effect'
 import {TestClock, TestConsole} from 'effect/testing'
-import {EventFeed} from '../src/event-feed.js'
+import * as EventFeed from '../src/event-feed.js'
 
 const testEnvironment = Layer.mergeAll(TestConsole.layer, TestClock.layer())
 

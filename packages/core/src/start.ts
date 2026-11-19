@@ -8,20 +8,76 @@ import type {HarnessAdapter} from '@conciv/harness'
 import type {Plugin} from '@conciv/plugin'
 import {makeApp, type MadeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
-
-export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
-import {createConcivStateDir} from '@conciv/protocol/state-types'
-import {statePaths} from './lib/state-paths.js'
-import {writeText} from './lib/fs.js'
+import {createConcivStateDir, concivStateDir} from '@conciv/protocol/state-types'
 import {requireHarness} from './lib/require-harness.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
-import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {BrowserRequester} from '@conciv/protocol/engine-trust'
+import {mkdirSync, writeFileSync, readFileSync, rmSync} from 'node:fs'
+import {dirname, join} from 'node:path'
+
+const serverStateSchema = z.object({port: z.number().int().min(1).max(65535)})
+
+function readPersistedPort(file: string): number | undefined {
+  try {
+    const parsed = serverStateSchema.safeParse(JSON.parse(readFileSync(file, 'utf8')))
+    return parsed.success ? parsed.data.port : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return z.object({code: z.literal(code)}).safeParse(error).success
+}
+
+function readOptionalText(file: string): string | undefined {
+  try {
+    return readFileSync(file, 'utf8')
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return undefined
+    throw error
+  }
+}
+
+function writePersistedPort(file: string, state: {port: number; token: string}): () => void {
+  const previous = readOptionalText(file)
+  const written = `${JSON.stringify(state, null, 2)}\n`
+  writePrivateFile(file, written)
+  return () => {
+    if (readOptionalText(file) !== written) return
+    if (previous === undefined) rmSync(file, {force: true})
+    else writePrivateFile(file, previous)
+  }
+}
+
+function isAddressInUse(error: unknown): boolean {
+  return hasErrorCode(error, 'EADDRINUSE')
+}
+
+type StatePaths = {
+  dir: string
+  systemPrompt: string
+  server: string
+}
+
+export function statePaths(stateRoot: string): StatePaths {
+  const dir = concivStateDir(stateRoot)
+  return {
+    dir,
+    systemPrompt: join(dir, 'chat-system-prompt.txt'),
+    server: join(dir, 'server.json'),
+  }
+}
+
+function writeText(path: string, text: string): void {
+  mkdirSync(dirname(path), {recursive: true})
+  writeFileSync(path, text)
+}
 
 export type PortRequest = {exact: number} | {preferred: number}
 

@@ -6,14 +6,15 @@ A wrapper over `@hono/node-server`'s `serve()` that listens with WebSocket suppo
 
 ## Interface
 
-- `serve.ts:serveHono` - starts the server and resolves `{server, wss, port, close}` once it is listening.
-- `serve.ts:ServeHonoOptions` - `fetch`, `port` (default 0), `hostname` (default `127.0.0.1`), `maxPayload` (default `WS_MAX_PAYLOAD_BYTES`), `gracefulCloseMs` (default 2000).
+- `serve.ts:serveHono` - starts the server and resolves `{server, port, close}` once it is listening.
+- `serve.ts:ServeHonoOptions` - `fetch`, `port` (default 0), `maxPayload` (default `WS_MAX_PAYLOAD_BYTES`), `gracefulCloseMs` (default 2000).
 - `serve.ts:ServedHono` / `ServeFetch` - exported types.
 - `serve.ts:upgradeWebSocket` - re-exported from `@hono/node-server`.
 - `rpc.ts:rpcFetchMiddleware` / `rpcWebsocketRoute` / `RpcSocketGate` / `UpgradeWebSocket` / `RPC_PREFIX` ('/rpc') - the oRPC transport, the `./rpc` export; the socket path is `RPC_WS_PATH` from `@conciv/protocol/rpc-types`; both give each call `RpcContext.replied`: `rpcFetchMiddleware` from the node response (`c.env.outgoing`) `close` and its `writableFinished` (absent when the request has no node response), `rpcWebsocketRoute` per request frame, true once oRPC settled that frame without error
 
 ## Invariants
 
+- `serve.ts:serveHono` - binds `127.0.0.1` only.
 - `serve.ts:serveHono` - passes `overrideGlobalObjects: false`, so the host's global `Request` and `Response` are not replaced.
 - `serve.ts:serveHono` - rejects if the server emits `error` before `listening`.
 - `rpc.ts:rpcHandlerOptions` - refuses a call with `UNAUTHORIZED` when the context's `socket` trust does not allow its path; merges the request headers over the context headers (a socket's context starts with its upgrade request's `user-agent`) and sets `clientVersion` from `x-conciv-version` when it is a semver string (zod; anything else leaves it unset), for the HTTP and the websocket handler alike

@@ -9,10 +9,10 @@ Entry modules of `@conciv/tools`. They define the `conciv_ui` agent tool (with `
 - `ConcivToolContext` `{askUi: () => Promise<UiAnswer>}`, `ConcivServerTool` `{name, description, inputSchema, execute(input)}` (`types.ts`).
 - `concivUiToolDef` (`ui.ts`): tool `conciv_ui`, input `UiInputSchema`, output `UiAnswerSchema` (`@conciv/protocol/ui-types`).
 - `concivSandboxTools(ctx)` and `concivSandboxToolNames()` (`['conciv_ui']`) (`server.ts`).
-- `tools.ts` (export `.`): `ConcivServerTool`, `ConcivToolContext`, `concivSandboxTools`, `concivSandboxToolNames`, `concivUiToolDef`.
+- `tools.ts` (export `.`): `ConcivServerTool`, `ConcivToolContext`, `concivSandboxTools`, `concivSandboxToolNames`.
 - `defs.ts` (export `./defs`): `concivUiToolDef`.
-- `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard`) and re-exports of the two cards.
-- [builtins/README.md](./builtins/README.md): `OpenInput` for the `open` card.
+- `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard`).
+- `OpenInput` (`cards.tsx`): `{file: string (min 1), line?: coerced int >= 1, column?: coerced int >= 1}`; a column without a line is dropped; the `open` card parses a call's input with it.
 - [cards/README.md](./cards/README.md): card renderers.
 
 ## Invariants

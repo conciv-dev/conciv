@@ -232,10 +232,6 @@ function refusedStatus(token: string | undefined): TrustStatus {
   return token === undefined || token === '' ? 'untrusted' : 'revoked'
 }
 
-function bearer(token: string | undefined): Record<string, string> {
-  return token === undefined ? {} : {authorization: `Bearer ${token}`}
-}
-
 function sessionHeaders(options: ClientOptions<RpcClientContext>): Record<string, string> {
   const id = options.context.concivSessionId
   return id ? {[CONCIV_SESSION_HEADER]: id} : {}
@@ -551,11 +547,6 @@ export function resetBrowserRpcConnection(apiBase: string): void {
   connections().get(normalizeApiBase(apiBase))?.reconnect()
 }
 
-export function engineHeaders(apiBase: string): Record<string, string> {
-  const key = normalizeApiBase(apiBase)
-  return bearer(connections().get(key)?.state.token ?? readStoredToken(key))
-}
-
 function trustingWebSocket(
   currentToken: () => string | undefined,
   revoked: (sent: string | undefined) => void,
@@ -574,23 +565,6 @@ function trustingWebSocket(
       return socket
     },
   })
-}
-
-function forgetRevoked(key: string, sent: string | undefined): void {
-  const entry = connections().get(key)
-  if (entry) {
-    distrust(entry.state, sent)
-    return
-  }
-  if (sent !== undefined && readStoredToken(key) === sent) writeStoredToken(key, undefined)
-}
-
-export function engineWebSocket(apiBase: string): typeof WebSocket {
-  const key = normalizeApiBase(apiBase)
-  return trustingWebSocket(
-    () => connections().get(key)?.state.token ?? readStoredToken(key),
-    (sent) => forgetRevoked(key, sent),
-  )
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'

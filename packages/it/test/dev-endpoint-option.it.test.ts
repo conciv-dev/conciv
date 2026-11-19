@@ -19,7 +19,7 @@ async function bootDevServer(root: string, devEndpointDir: string | undefined): 
     configFile: false,
     logLevel: 'silent',
     server: {host: '127.0.0.1', port: 0},
-    plugins: [unplugin.vite({stateRoot: root, harnessBin: 'true', systemPrompt: false, widget: false, devEndpointDir})],
+    plugins: [unplugin.vite({stateRoot: root, systemPrompt: false, widget: false, devEndpointDir})],
   })
   state.server = server
   await server.listen()

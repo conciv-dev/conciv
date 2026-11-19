@@ -4,15 +4,33 @@ import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {handler} from './router/handler.js'
 import type {InitOptions, InitResult, InitRuntime} from './init/pipeline.js'
+import type {InitOutput} from './init/wizard.js'
 
-export type InitCommandOptions = InitOptions & {json: boolean}
+function silentOutput(): InitOutput {
+  const quiet = () => {}
+  return {
+    intro: quiet,
+    spinner: () => ({stop: quiet, fail: quiet}),
+    plan: quiet,
+    step: () => ({line: quiet, settle: quiet}),
+    note: quiet,
+    line: quiet,
+    success: quiet,
+    warn: quiet,
+    error: quiet,
+    cancelled: quiet,
+    outro: quiet,
+    failure: quiet,
+  }
+}
+
+type InitCommandOptions = InitOptions & {json: boolean}
 
 export async function runInitCommand(
   options: InitCommandOptions,
   overrides: Partial<InitRuntime> = {},
 ): Promise<CliOutcome> {
   const {runInit} = await import('./init/pipeline.js')
-  const {silentOutput} = await import('./init/silent.js')
   const quiet: Partial<InitRuntime> = options.json ? {output: silentOutput(), interactive: () => false} : {}
   const result = await runInit(options, {...quiet, ...overrides})
   return initOutcome(result, options.json)

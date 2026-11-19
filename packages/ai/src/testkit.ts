@@ -6,12 +6,7 @@ import {getToolBridgeProvisioner} from '@tanstack/ai-sandbox'
 import {z} from 'zod'
 import type {TextAdapter} from './adapters/adapters.js'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
-import {
-  approvalRequestedEvent,
-  ChatEventType,
-  type ChatCustomEvent,
-  type ChatEvent,
-} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export {ChatClient} from '@tanstack/ai-client'
 export {fakeText} from '@tanstack/ai/testing'
@@ -200,10 +195,6 @@ export function createToolCallChunks(name: string, input: unknown, options?: Too
         }),
   ]
   return chunks.filter(present)
-}
-
-export function createApprovalChunk(name: string, input: unknown, options?: {approvalId?: string}): ChatCustomEvent {
-  return approvalRequestedEvent.create({approvalId: options?.approvalId ?? `conciv:tool:${name}`, title: name, input})
 }
 
 export async function runAdapterTurn(adapter: TextAdapter, messages: ModelMessage[]): Promise<ChatEvent[]> {

@@ -125,18 +125,21 @@ import {resolveConfig} from '../src/config.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
-import {withSavedModels} from '../src/lib/saved-models.js'
-import {statePaths} from '../src/lib/state-paths.js'
 import {owesFollowUp, startQueueFollowUp, type QueueDelivery} from '../src/page/page-queue.js'
 import type {PageQueueResult} from '@conciv/protocol/page-types'
 import {makePagePlugin} from '../src/page/page-plugin.js'
 import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
-import {provideHarnessModels} from '../src/runtime/harness-models.js'
+import {
+  provideHarnessModels,
+  provideApp,
+  provideBundlerSource,
+  provideConfiguredPolicies,
+  provideGlobalRoots,
+} from '../src/runtime/plugin-runtime.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
-import {start} from '../src/start.js'
-import {makeApp} from '../src/app.js'
-import {outsideRunCapabilities} from '../src/api/outside-run.js'
+import {start, statePaths} from '../src/start.js'
+import {makeApp, withSavedModels, outsideRunCapabilities} from '../src/app.js'
 import mcpApp, {type McpVars} from '../src/api/mcp.js'
 import {
   CODE_LIFETIME_MS,
@@ -168,7 +171,7 @@ import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {until} from '@conciv/harness-testkit/until'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/pty/pty-sessions.js'
-import {ptyOutput} from '../src/pty/pty-output.js'
+import {ptyOutput} from '../src/api/rpc/router.js'
 import coreManifest from '../package.json' with {type: 'json'}
 import {
   currentRow,
@@ -183,12 +186,6 @@ import {provideInstructionEntries} from '../src/runtime/instruction-entries.js'
 import {provideSessions} from '../src/runtime/plugin-sessions.js'
 import {deleteSession} from '../src/sessions/session-actions.js'
 import {createSessionSearch} from '../src/sessions/session-search.js'
-import {
-  provideApp,
-  provideBundlerSource,
-  provideConfiguredPolicies,
-  provideGlobalRoots,
-} from '../src/runtime/plugin-sources.js'
 import {
   answerPermission,
   decidePermissionCard,
@@ -214,7 +211,7 @@ const JSON_TYPE = {'content-type': 'application/json'}
 const UNSTOPPED = new AbortController().signal
 
 function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]> = {}) {
-  const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
+  const options = {stateRoot: root, systemPrompt: false}
   return start({options, root, launchEditor: () => {}, ...overrides})
 }
 
@@ -1000,16 +997,15 @@ describe('config', () => {
     process.env = {...saved}
   })
 
-  it('defaults to claude under the root, options win over env, and the deprecated CONCIV_CLAUDE_* aliases resolve', () => {
+  it('defaults to claude under the root, options win over env, and the deprecated CONCIV_CLAUDE_SESSION_ID alias resolves', () => {
     const defaults = resolveConfig({}, '/root')
     expect(defaults).toMatchObject({harness: 'claude', stateRoot: '/root', systemPrompt: expect.any(String)})
     process.env.CONCIV_HARNESS = 'codex'
-    process.env.CONCIV_HARNESS_BIN = 'codex-bin'
     process.env.CONCIV_SESSION_ID = 'conciv_env-sess'
-    const fromEnv = {harness: 'claude', harnessBin: 'codex-bin', sessionId: 'conciv_env-sess'}
+    const fromEnv = {harness: 'claude', sessionId: 'conciv_env-sess'}
     expect(resolveConfig({harness: 'claude'}, '/root')).toMatchObject(fromEnv)
-    process.env = {...saved, CONCIV_CLAUDE_PATH: 'old-claude', CONCIV_CLAUDE_SESSION_ID: 'old-sess'}
-    expect(resolveConfig({}, '/root')).toMatchObject({harnessBin: 'old-claude', harnessSessionId: 'old-sess'})
+    process.env = {...saved, CONCIV_CLAUDE_SESSION_ID: 'old-sess'}
+    expect(resolveConfig({}, '/root')).toMatchObject({harnessSessionId: 'old-sess'})
   })
 
   it('reads the plugins list from JSON with both entry forms and a remove entry, and resolveConfig keeps it', () => {
@@ -1052,7 +1048,7 @@ describe('config', () => {
     const root = tempDir('conciv-core-unit-')
     const stopIfStarted = (booting: Promise<Awaited<ReturnType<typeof start>>>) =>
       onTestFinished(() => booting.then((engine) => engine.stop()).catch(() => {}))
-    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
+    const options = {stateRoot: root, systemPrompt: false, harness: 'no-such-harness'}
     const fromOptions = bootEngine(root, {port: {exact: port}, options})
     stopIfStarted(fromOptions)
     await expect(fromOptions).rejects.toThrow(refusal('no-such-harness'))
@@ -1255,7 +1251,7 @@ describe('engine start keeps .conciv out of git', () => {
       .toSorted()
   }
 
-  it('a fresh project shows only .conciv/.gitignore, then the shareable settings and harnesses.json, and a user-edited .gitignore stays byte for byte', async () => {
+  it('a fresh project shows only .conciv/.gitignore, then the shareable settings, and a user-edited .gitignore stays byte for byte', async () => {
     const root = tempDir('conciv-core-unit-')
     execFileSync('git', ['init', '--quiet'], {cwd: root})
     const engine = await bootEngine(root)
@@ -1263,12 +1259,7 @@ describe('engine start keeps .conciv out of git', () => {
     expect(untrackedStateFiles(root)).toEqual(['?? .conciv/.gitignore'])
     mkdirSync(join(statePaths(root).dir, 'settings'), {recursive: true})
     writeFileSync(join(statePaths(root).dir, 'settings', 'conciv.json'), '{}\n')
-    writeFileSync(join(statePaths(root).dir, 'harnesses.json'), '{"harnesses":[]}\n')
-    expect(untrackedStateFiles(root)).toEqual([
-      '?? .conciv/.gitignore',
-      '?? .conciv/harnesses.json',
-      '?? .conciv/settings/conciv.json',
-    ])
+    expect(untrackedStateFiles(root)).toEqual(['?? .conciv/.gitignore', '?? .conciv/settings/conciv.json'])
 
     const edited = tempDir('conciv-core-unit-')
     execFileSync('git', ['init', '--quiet'], {cwd: edited})
@@ -1940,7 +1931,7 @@ describe('system prompt', () => {
   it('the engine writes the configured system prompt as its own file, and none when the config has no prompt', async () => {
     const [prompted, unprompted] = [tempDir('conciv-core-unit-'), tempDir('conciv-core-unit-')]
     const engine = await bootEngine(prompted, {
-      options: {harnessBin: 'true', stateRoot: prompted, systemPrompt: 'base prompt'},
+      options: {stateRoot: prompted, systemPrompt: 'base prompt'},
     })
     const bare = await bootEngine(unprompted)
     try {

@@ -2,7 +2,7 @@ import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 
 export type FileBackup = {path: string; content: string | null}
 
-export type BackupGuard = {remember: (file: FileBackup) => void; restore: () => void; release: () => void}
+type BackupGuard = {remember: (file: FileBackup) => void; restore: () => void; release: () => void}
 
 export function captureFile(path: string): FileBackup {
   if (!existsSync(path)) return {path, content: null}

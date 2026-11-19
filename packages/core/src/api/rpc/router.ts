@@ -1,17 +1,15 @@
 import {z} from 'zod'
-import {ORPCError, withEventMeta} from '@orpc/server'
+import {ORPCError, withEventMeta, type Router} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, PAGE_ERROR_CODES, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isToolError, type RegistryCallGate} from '@conciv/protocol/tool-call-types'
-import {resolveHarnessModels} from '@conciv/harness'
+import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {drafts, markers} from '@conciv/db'
-import type {Router} from '@orpc/server'
-import {Cause, Effect, Exit, Option, Result, Schema, Stream} from 'effect'
-import {OUTPUT_CAPACITY, ptyOutput, type PtyOutputEvent} from '../../pty/pty-output.js'
+import {Cause, Effect, Exit, Option, Result, Schema, Stream, Queue} from 'effect'
 import type {TtySession} from '../../pty/pty-sessions.js'
 import {Agent, Event, FileSystem, Location, Permission, Plugin, Rpc, Skill, Tool} from '@conciv/plugin-host'
 import {approvalDenied} from '@conciv/ai/server'
-import {EventFeed} from '../../event-feed.js'
+import * as EventFeed from '../../event-feed.js'
 import {
   cappedText,
   PluginExperimentalBundleSchema,
@@ -21,9 +19,7 @@ import {
   type RegistryCallErrorName,
 } from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
-import {listCommands} from '../../sessions/commands.js'
 import {rowById} from '../../sessions/session-rows.js'
-import {chatRouter} from './chat.js'
 import {buildHarnessMenuEntry, buildHarnessMeta, sessionsRouter} from './sessions.js'
 import {
   admitOutsideCall,
@@ -33,14 +29,125 @@ import {
   os,
   type PluginHost,
   type RpcDeps,
+  type SessionOs,
 } from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
-import {settlingAsks} from '../../runtime/permission-cards.js'
-import type {SessionId} from '@conciv/protocol/chat-types'
+import {settlingAsks, decidePermissionCard} from '../../runtime/permission-cards.js'
+import type {SessionId, ChatCommand, ChatCommands} from '@conciv/protocol/chat-types'
+import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+
+function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof contract.chat, RpcContext> {
+  return {
+    events: os.chat.events.handler(({input, signal}) =>
+      deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
+    ),
+    send: os.chat.send.handler(({input, signal, lastEventId}) =>
+      deps.chat.plane.send(
+        {threadId: input.sessionId, runId: input.runId, messages: input.messages, lastEventId},
+        signal,
+      ),
+    ),
+    join: os.chat.join.handler(({input, signal, lastEventId}) =>
+      deps.chat.plane.join({runId: input.runId, lastEventId: lastEventId ?? input.lastEventId}, signal),
+    ),
+    hydrate: os.chat.hydrate.handler(({input}) =>
+      deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
+    ),
+    stop: os.chat.stop.handler(async ({input}) => {
+      await deps.runtime.forSession(input.sessionId).run.stop(input.runIds)
+      return {ok: true}
+    }),
+    permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
+      const decided = await decidePermissionCard(
+        {
+          answer: deps.answerPermission,
+          publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
+        },
+        context.session.id,
+        input,
+      )
+      if (!decided) throw errors.UNKNOWN_REQUEST()
+      return {ok: true as const}
+    }),
+    uiReply: os.chat.uiReply.handler(({input, errors}) => {
+      if (!deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value)) {
+        throw errors.UNKNOWN_REQUEST()
+      }
+      return {ok: true as const}
+    }),
+  }
+}
+
+type CommandSource = {
+  harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
+  cwd: string
+  basePath: string
+}
+
+function mcpUrlFor(deps: CommandSource, origin: string): string {
+  return `${origin}${deps.basePath}/api/mcp`
+}
+
+function commandSource(name: string): ChatCommand['source'] {
+  if (name.startsWith('mcp__')) return 'mcp'
+  if (name.includes(':')) return 'plugin'
+  return 'harness'
+}
+
+async function listCommands(deps: CommandSource, opts: {sessionId: SessionId; origin: string}): Promise<ChatCommands> {
+  const harness = await deps.harnessFor(opts.sessionId)
+  const commands = harness.commands
+  if (!commands) return {commands: []}
+  const mcpUrl = harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.origin) : undefined
+  const list = await commands({cwd: deps.cwd, sessionId: opts.sessionId, mcpUrl})
+  return {
+    commands: list.map((command) => ({
+      name: command.name,
+      description: command.description ?? '',
+      ...(command.argumentHint ? {argumentHint: command.argumentHint} : {}),
+      source: commandSource(command.name),
+    })),
+  }
+}
+
+const OUTPUT_CAPACITY = 1024
+
+type PtyOutputItem = {type: 'output'; data: string} | {type: 'meta'; cursor: number} | TtyServerControl
+
+type PtyOutputEvent = {item: PtyOutputItem; cursor: number | null}
+
+type PtyOutputOptions<Failure> = {cursor?: number; capacity?: number; overflow: () => Failure}
+
+export function ptyOutput<Failure>(
+  session: TtySession,
+  options: PtyOutputOptions<Failure>,
+): Stream.Stream<PtyOutputEvent, Failure> {
+  const subscribe = Effect.gen(function* () {
+    const queue = yield* Queue.dropping<PtyOutputEvent, Failure>(options.capacity ?? OUTPUT_CAPACITY)
+    const offer = (event: PtyOutputEvent): void => {
+      if (!Queue.offerUnsafe(queue, event)) Queue.failCauseUnsafe(queue, Cause.fail(options.overflow()))
+    }
+    const detach = session.attach(
+      {
+        data: (data, end) => offer({item: {type: 'output', data}, cursor: end}),
+        control: (frame) => offer({item: frame, cursor: null}),
+      },
+      options.cursor,
+    )
+    const cursor = session.cursor()
+    offer({item: {type: 'meta', cursor}, cursor})
+    return {queue, detach}
+  })
+  return Stream.unwrap(
+    Effect.acquireRelease(subscribe, ({queue, detach}) =>
+      Effect.sync(detach).pipe(Effect.andThen(Queue.shutdown(queue)), Effect.asVoid),
+    ).pipe(Effect.map(({queue}) => Stream.fromQueue(queue))),
+  )
+}
 
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',

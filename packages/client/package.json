@@ -47,7 +47,6 @@
     "@tanstack/pacer": "catalog:",
     "@tanstack/query-core": "catalog:",
     "@tanstack/solid-query": "catalog:",
-    "partysocket": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {

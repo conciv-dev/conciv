@@ -22,7 +22,7 @@ import {
   registerHarness,
   type HarnessAdapter,
 } from '../src/registry.js'
-import {claude} from '../src/claude/index.js'
+import {claude, claudeTtyCommand, CHAT_SYSTEM_PROMPT} from '../src/claude/index.js'
 import {
   readFileSync,
   readdirSync,
@@ -40,9 +40,7 @@ import {
 import {homedir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
-import {CLAUDE_ASK_RULES} from '../src/claude/ask-rules.js'
-import {CHAT_SYSTEM_PROMPT} from '../src/claude/system-prompt.js'
+import {claudeChatConfig, claudeExecutable, CLAUDE_ASK_RULES} from '../src/claude/chat.js'
 import {
   parseHistory,
   parseSessionMeta,
@@ -55,10 +53,8 @@ import {
 } from '../src/claude/history.js'
 import {claudeMcpArgs, mcpServerConfig} from '../src/claude/args.js'
 import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
-import {claudeTtyCommand} from '../src/claude/tty.js'
-import {codex} from '../src/codex/index.js'
+import {codex, codexRunAdapter} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
-import {codexRunAdapter} from '../src/codex/run-adapter.js'
 import {mkdir, open, readFile, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
@@ -425,10 +421,8 @@ describe('claude terminal command', () => {
     concivSessionId: CONCIV_SESSION,
     harnessSessionId: HarnessSessionId.parse('tok-1'),
     resume: false,
-    owned: true,
     model: null,
     mcpUrl: null,
-    hookUrl: null,
     ...over,
   })
 
@@ -763,22 +757,6 @@ describe('claude history', () => {
     })
   })
 
-  describe('claudeHistory.nameFromTranscript', () => {
-    it('returns the last summary record', () => {
-      const jsonl = [
-        JSON.stringify({type: 'summary', summary: 'First guess'}),
-        JSON.stringify({type: 'user', message: {content: 'hi'}}),
-        JSON.stringify({type: 'summary', summary: 'Fix the checkout layout bug'}),
-      ].join('\n')
-      expect(claudeHistory.nameFromTranscript?.(jsonl)).toBe('Fix the checkout layout bug')
-    })
-
-    it('returns null when there is no summary', () => {
-      const jsonl = JSON.stringify({type: 'user', message: {content: 'hi'}})
-      expect(claudeHistory.nameFromTranscript?.(jsonl)).toBeNull()
-    })
-  })
-
   describe('listSessions', () => {
     it('lists newest first under the Claude config dir, titled and sized the way Claude shows them', async () => {
       const cwd = '/proj/x'
@@ -928,10 +906,8 @@ describe('claude tty', () => {
     concivSessionId: SessionId.parse('conciv_tty_test'),
     harnessSessionId: HarnessSessionId.parse('abc-123'),
     resume: false,
-    owned: true,
     model: null,
     mcpUrl: null,
-    hookUrl: null,
     ...over,
   })
 
@@ -2645,7 +2621,6 @@ describe('transcript handles', () => {
       const raw = fixture('claude-transcript.jsonl')
       expect(claudeParse(raw)).toEqual(expected.messages)
       expect(parseSessionMeta('fixture', '/proj/fixture', raw, 1785417797467)).toEqual(expected.meta)
-      expect(claudeHistory.nameFromTranscript?.(raw)).toEqual(expected.name)
       expect(claudeHistory.contextTokens?.(raw)).toEqual(expected.contextTokens)
 
       const path = seed('equivalence', '')
@@ -3190,77 +3165,5 @@ describe('resume.command', () => {
   ])('$harness.id resumes a session by its native id', ({harness, argv}) => {
     const command = harness.resume.command(input)
     expect([command.bin, ...command.args]).toEqual(argv)
-  })
-})
-
-describe('claude transcript usage', () => {
-  const cwd = tempDir('conciv-usage-')
-  const elsewhere = tempDir('conciv-usage-elsewhere-')
-  const readUsage = (nativeId: string) =>
-    claude.history?.transcriptUsage?.({cwd, nativeId: HarnessSessionId.parse(nativeId)})
-
-  const user = (timestamp: string) =>
-    JSON.stringify({type: 'user', timestamp, message: {role: 'user', content: 'build the page'}})
-  const assistant = (id: string, model: string, usage: Record<string, number>) =>
-    JSON.stringify({
-      type: 'assistant',
-      message: {id, model, role: 'assistant', content: [{type: 'text', text: 'ok'}], usage},
-    })
-  const result = (cost: number) => JSON.stringify({type: 'result', total_cost_usd: cost})
-  const write = (project: string, id: string, lines: string[]) => {
-    mkdirSync(transcriptRoot(project), {recursive: true})
-    writeFileSync(transcriptPath(project, id), lines.join('\n'))
-  }
-  const firstTurn = {input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 20}
-
-  beforeAll(() => {
-    write(cwd, 'other-run', [user('2026-11-10T10:45:00.000Z'), assistant('o1', 'claude-opus-4-5', {input_tokens: 9})])
-    write(elsewhere, 'agent-elsewhere', [
-      user('2026-11-10T09:00:00.000Z'),
-      assistant('e1', 'claude-opus-4-5', {input_tokens: 9}),
-    ])
-    write(cwd, 'only-synthetic', [assistant('s1', '<synthetic>', {input_tokens: 0})])
-    write(cwd, 'the-run', [
-      user('2026-11-10T10:30:00.000Z'),
-      assistant('a1', 'claude-sonnet-4-5', firstTurn),
-      assistant('a1', 'claude-sonnet-4-5', firstTurn),
-      assistant('a2', 'claude-sonnet-4-5', {input_tokens: 3, output_tokens: 7, cache_read_input_tokens: 200}),
-      assistant('a3', 'claude-haiku-4-5', {input_tokens: 1, output_tokens: 1}),
-      result(0.5),
-      result(0.25),
-    ])
-  })
-
-  afterAll(() => {
-    rmSync(transcriptRoot(cwd), {recursive: true, force: true})
-    rmSync(transcriptRoot(elsewhere), {recursive: true, force: true})
-  })
-
-  it('sums the usage of the transcript the native id names, by the model of most messages', async () => {
-    expect(await readUsage('the-run')).toEqual({
-      nativeId: 'the-run',
-      model: 'claude-sonnet-4-5',
-      usage: {
-        promptTokens: 334,
-        completionTokens: 13,
-        totalTokens: 347,
-        promptTokensDetails: {cachedTokens: 300, cacheWriteTokens: 20},
-        cost: 0.75,
-      },
-      cost: 0.75,
-    })
-  })
-
-  it('finds the transcript of an agent that ran in another project folder by its id', async () => {
-    expect(await readUsage('agent-elsewhere')).toEqual({
-      nativeId: 'agent-elsewhere',
-      model: 'claude-opus-4-5',
-      usage: {promptTokens: 9, completionTokens: 0, totalTokens: 9},
-    })
-  })
-
-  it('answers null when no transcript has the id or it holds no real assistant message', async () => {
-    expect(await readUsage('never-ran')).toBeNull()
-    expect(await readUsage('only-synthetic')).toBeNull()
   })
 })

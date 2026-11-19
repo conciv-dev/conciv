@@ -12,12 +12,12 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `defaultDevEndpointDir` / `writePrivateFile` / `writeDevEndpoint` / `readDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): `<dir>/dev-endpoint.json`, default dir ~/.conciv
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
 - `runInOrder` / `ShutdownStep` (`shutdown.ts`): runs steps one after another, keeps going past failures, rethrows them as one `AggregateError`
-- `writeText` (`fs.ts`): mkdir -p then write
+- `writeText` (`../start.ts`): mkdir -p then write
 - `homeDbReads(folder, signal, read)` (`home-db-watch.ts`): an async generator that yields `read()` at once, then checks the home db's `PRAGMA data_version` every second and yields `read()` again whenever another connection committed and the value differs (`isEqual`); while `home.db` is absent it waits for the file to appear. It ends when `signal` aborts. Used by `meta.hubAgents` (`api/rpc/hub.ts`) and the plugin servers list (`runtime/servers-source.ts`)
-- `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`server-port.ts`)
+- `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`../start.ts`)
 - `requireHarness(id)` (`require-harness.ts`): the registered harness with that id, or a throw naming the id and every registered id
-- `withSavedModels(adapter, stateDir, signal)` (`saved-models.ts`): wraps a harness whose `models` is a function so it answers from `<stateDir>/<harness id>-models.json` at once and refreshes the live list once per process in the background, handing the listing the engine's `signal` (whatever signal a caller passes to the wrapped `models` is not used: the refresh is shared and lives as long as the engine); with nothing saved it waits for the live list. It returns `{harness, settled}`: `settled()` resolves once the refresh in flight, if any, has settled, which `makeApp`'s dispose awaits after aborting `signal`, for at most `GROUP_EXIT_TIMEOUT_MS` (5 s, from `@conciv/ai/server`) per harness
-- `statePaths` / `StatePaths` (`state-paths.ts`): {dir, systemPrompt: chat-system-prompt.txt, server: server.json} under `concivStateDir(stateRoot)`
+- `withSavedModels(adapter, stateDir, signal)` (`../app.ts`): wraps a harness whose `models` is a function so it answers from `<stateDir>/<harness id>-models.json` at once and refreshes the live list once per process in the background, handing the listing the engine's `signal` (whatever signal a caller passes to the wrapped `models` is not used: the refresh is shared and lives as long as the engine); with nothing saved it waits for the live list. It returns `{harness, settled}`: `settled()` resolves once the refresh in flight, if any, has settled, which `makeApp`'s dispose awaits after aborting `signal`, for at most `GROUP_EXIT_TIMEOUT_MS` (5 s, from `@conciv/ai/server`) per harness
+- `statePaths` / `StatePaths` (`../start.ts`): {dir, systemPrompt: chat-system-prompt.txt, server: server.json} under `concivStateDir(stateRoot)`
 
 ## Invariants
 
@@ -26,9 +26,9 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `readDevEndpoint` (`dev-endpoint.ts`): null on a missing file, bad JSON or schema failure
 - `removeDevEndpoint` (`dev-endpoint.ts`): deletes only when the file is absent or invalid or its pid matches the caller
 - `writePrivateFile` (`dev-endpoint.ts`): mode 0600, temp file plus rename; removes the temp file on failure
-- `readPersistedPort` (`server-port.ts`): an integer 1-65535 or undefined
-- `writePersistedPort` (`server-port.ts`): returns a step that puts back the record it replaced (or removes the file when there was none), only while the file still holds what this write put there, so it never touches a record another engine wrote since
-- `withSavedModels` (`saved-models.ts`): a saved file is used only when it parses as a model list; every successful live list overwrites it, an empty one included (a harness with nothing usable, such as OpenCode with no credentials, stops offering models), while a failed probe never replaces a good list; once `signal` is aborted no refresh starts, a listing that answers anyway is not saved, and its failure is not logged as a failed refresh; a static `models` array passes through untouched
+- `readPersistedPort` (`../start.ts`): an integer 1-65535 or undefined
+- `writePersistedPort` (`../start.ts`): returns a step that puts back the record it replaced (or removes the file when there was none), only while the file still holds what this write put there, so it never touches a record another engine wrote since
+- `withSavedModels` (`../app.ts`): a saved file is used only when it parses as a model list; every successful live list overwrites it, an empty one included (a harness with nothing usable, such as OpenCode with no credentials, stops offering models), while a failed probe never replaces a good list; once `signal` is aborted no refresh starts, a listing that answers anyway is not saved, and its failure is not logged as a failed refresh; a static `models` array passes through untouched
 - `makeStalenessProbe` (`engine-stamp.ts`): the fingerprint is the first 12 hex chars of sha256 over current digests
 
 ## Side Effects
@@ -36,7 +36,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `logError` (`debug.ts`): writes to process.stderr
 - `writeDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): write or delete files under ~/.conciv by default
 - `engine-stamp.ts`: on load resolves modules with `import.meta.resolve` and hashes them; each `engineStaleness` call re-reads them
-- `writeText` (`fs.ts`), `writePersistedPort` (`server-port.ts`): write files
+- `writeText` (`../start.ts`), `writePersistedPort` (`../start.ts`): write files
 - `homeDbReads` (`home-db-watch.ts`): never creates `home.db`; once the file exists each call holds its own connection to it and a one-second timer until `signal` aborts or the caller stops reading
 
 ## Verification

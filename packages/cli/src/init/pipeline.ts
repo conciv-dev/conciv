@@ -5,13 +5,10 @@ import {createHubConnections} from '@conciv/harness-init/hub'
 import {initContributions} from '@conciv/harness-init/registry'
 import {CONCIV_BIN} from '@conciv/harness-init/agent-guide'
 import {detectProject, type Detected} from './detect.js'
-import {execFileOutcome, type CommandOutcome} from './exec.js'
 import {detectHarnesses, type FoundHarness} from '@conciv/harness-init/detect'
 import {harnessFileInits, harnessIds, type HarnessId} from './harness-detect.js'
-import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
-import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
-import {emitOutro} from './outro.js'
-import {preflight} from './preflight.js'
+import {guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan, StepStatus} from './ledger.js'
 import {docsPackStep} from './steps/docs-pack.js'
 import {fallbackStep} from './steps/framework/fallback.js'
 import {nextjsStep} from './steps/framework/nextjs.js'
@@ -19,7 +16,6 @@ import {viteStep} from './steps/framework/vite.js'
 import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
 import {connectAgentStep} from './steps/harness/connect-agent.js'
-import {consentFiles, writeConsent} from './steps/harness/consent.js'
 import {harnessInitStep} from './steps/harness/install-harness.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
 import {
@@ -34,6 +30,143 @@ import {
   type PlanPrompts,
   type PlanRow,
 } from './wizard.js'
+import {execFile, spawn} from 'node:child_process'
+import {existsSync} from 'node:fs'
+import {join} from 'node:path'
+import {promisify} from 'node:util'
+
+type CommandOutcome = {code: number; output: string}
+
+export function execFileOutcome(
+  bin: string,
+  args: string[],
+  options: {cwd: string; env?: NodeJS.ProcessEnv; timeout?: number; started?: (pid: number) => string | null},
+  onLine: (line: string) => void,
+): Promise<CommandOutcome> {
+  return new Promise((settle, reject) => {
+    const child = spawn(bin, args, {
+      cwd: options.cwd,
+      env: options.env,
+      timeout: options.timeout,
+      killSignal: 'SIGKILL',
+    })
+    const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
+    if (refused !== null) {
+      child.kill('SIGKILL')
+      settle({code: 1, output: refused})
+      return
+    }
+    let output = ''
+    let pending = ''
+    const consume = (chunk: Buffer): void => {
+      const text = chunk.toString()
+      output += text
+      pending += text
+      const lines = pending.split('\n')
+      pending = lines.pop() ?? ''
+      for (const line of lines) onLine(line)
+    }
+    child.stdout?.on('data', consume)
+    child.stderr?.on('data', consume)
+    child.on('error', reject)
+    child.on('close', (code, signal) => {
+      if (pending.length > 0) onLine(pending)
+      if (code === null) {
+        const note = signal ? `terminated by ${signal}` : 'terminated without exit code'
+        settle({code: 1, output: output.length > 0 ? `${output}\n${note}` : note})
+        return
+      }
+      settle({code, output})
+    })
+  })
+}
+
+const quickStartDocs = 'https://conciv.dev/docs/quick-start'
+
+export function emitOutro(output: InitOutput, entries: LedgerEntry[], next: string[]): void {
+  const cards = entries.flatMap((entry) => entry.cards)
+  for (const card of cards) output.note({title: card.title, body: cardBody(card)})
+  if (cards.length > 0) {
+    output.warn(summaryLine(entries))
+    output.outro(nextLine([...next, `docs: ${quickStartDocs}`]))
+    return
+  }
+  output.success(summaryLine(entries))
+  output.outro(nextLine(next))
+}
+
+function cardBody(card: ManualCard): string {
+  if (card.snippet === undefined) return card.body
+  return `${card.body}\n\n${card.snippet}`
+}
+
+function summaryLine(entries: LedgerEntry[]): string {
+  const counted = (status: StepStatus) => entries.filter((entry) => entry.status === status).length
+  const manual = counted('manual')
+  const parts = [
+    ...countPart(counted('done'), 'wired'),
+    ...countPart(counted('already'), 'already wired'),
+    ...countPart(manual, manual === 1 ? 'manual step below' : 'manual steps below'),
+    ...countPart(counted('skipped'), 'skipped'),
+  ]
+  if (parts.length === 0) return 'nothing to do'
+  return parts.join(' · ')
+}
+
+function countPart(count: number, label: string): string[] {
+  if (count === 0) return []
+  return [`${count} ${label}`]
+}
+
+function nextLine(next: string[]): string {
+  if (next.length === 0) return 'conciv init finished.'
+  return `Next steps — ${next.join(' · ')}`
+}
+
+const run = promisify(execFile)
+
+type PreflightResult = {ok: true} | {ok: false; reason: string}
+
+type TreeState = {kind: 'clean'} | {kind: 'dirty'} | {kind: 'no-repository'} | {kind: 'unreadable'; detail: string}
+
+const NO_REPOSITORY = 'not a git repository'
+
+export async function preflight(cwd: string, force: boolean): Promise<PreflightResult> {
+  if (!existsSync(join(cwd, 'package.json'))) {
+    return {ok: false, reason: 'no package.json here — run init from your app directory'}
+  }
+  if (force) return {ok: true}
+  const tree = await gitTreeState(cwd)
+  if (tree.kind === 'dirty') return {ok: false, reason: 'uncommitted changes — commit first or pass --force'}
+  if (tree.kind === 'unreadable') {
+    return {ok: false, reason: `git status failed here (${tree.detail}) — fix it or pass --force`}
+  }
+  return {ok: true}
+}
+
+async function gitTreeState(cwd: string): Promise<TreeState> {
+  try {
+    const status = await run('git', ['status', '--porcelain'], {cwd, env: {...process.env, LC_ALL: 'C'}})
+    return status.stdout.trim().length > 0 ? {kind: 'dirty'} : {kind: 'clean'}
+  } catch (error) {
+    const detail = gitFailureDetail(error)
+    if (detail.toLowerCase().includes(NO_REPOSITORY)) return {kind: 'no-repository'}
+    return {kind: 'unreadable', detail}
+  }
+}
+
+function gitFailureDetail(error: unknown): string {
+  if (typeof error !== 'object' || error === null) return String(error)
+  const stderr = 'stderr' in error ? error.stderr : undefined
+  if (typeof stderr === 'string' && stderr.trim().length > 0) return firstTrimmedLine(stderr)
+  const message = 'message' in error ? error.message : undefined
+  if (typeof message === 'string' && message.length > 0) return firstTrimmedLine(message)
+  return 'git could not be run'
+}
+
+function firstTrimmedLine(text: string): string {
+  return text.trim().split('\n')[0]?.trim() ?? ''
+}
 
 export type RunSettings = {
   cwd: string
@@ -232,8 +365,6 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return {outcome: 'planned', plan: approved.plan}
   }
   const backups = guardBackups()
-  for (const file of consentFiles(options.cwd)) backups.remember(captureFile(file))
-  writeConsent(options.cwd, approved.selections.harnesses)
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,

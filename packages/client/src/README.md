@@ -2,17 +2,17 @@
 
 ## Overview
 
-Source for @conciv/client: oRPC TanStack Query utils, a chat connection that carries every turn on `rpc.chat.send` and every rejoin on `rpc.chat.join` over the browser rpc socket and merges three event sources (its turns' subscription and two `rpc.chat.events` streams), the page plane's `rpc.page.queries` stream, and engine reachability tracking wired into TanStack's onlineManager.
+Source for @conciv/client: oRPC TanStack Query utils, a chat connection that carries every turn on `rpc.chat.send` and every rejoin on `rpc.chat.join` over the browser rpc socket and merges three event sources (its turns' subscription and two `rpc.chat.events` streams), and engine reachability tracking wired into TanStack's onlineManager.
 
 ## Interface
 
-- `makeQueryUtils` / `QueryUtils` (`query-utils.ts`): `createTanstackQueryUtils(client)` for an `RpcClient`
+- `makeQueryUtils` / `QueryUtils` (`index.ts`): `createTanstackQueryUtils(client)` for an `RpcClient`
 - `chatConnection` (`chat-connection.ts`): one session's chat over the rpc socket of the api base it is given: subscribe, send, joinRun, hydrate, refresh, close; `refresh` hydrates the newest `CHAT_HISTORY_PAGE_SIZE` messages
 - `ChatConnectionOptions` (`chat-connection.ts`)
-- `useChatSession(options)` (`use-chat-session.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
-- `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` / `subscribeEngineOnline` (`reachability.ts`)
+- `useChatSession(options)` (`index.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
+- `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` (`reachability.ts`)
 - `ENGINE_OFFLINE_GRACE_MS` = 1000 (`reachability.ts`)
-- `index.ts`: re-exports the modules above; `stream-relay.ts` helpers are internal
+- `index.ts`: re-exports the modules above; `chat-connection.ts` helpers are internal
 
 ## Invariants
 
@@ -22,7 +22,6 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 - `finishedOnItsLifecycle` (`chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own `aborted` run lifecycle (a stopped run, which has no `RUN_FINISHED`/`RUN_ERROR`) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating; a completed or failed run ends on its own `RUN_FINISHED`/`RUN_ERROR`, which the server sends after the lifecycle
 - `merged` (`chat-connection.ts`): aborts all sources when any finishes
 - `sessionEvents` (`chat-connection.ts`): an `rpc.chat.events` stream the engine refuses with `UNAUTHORIZED` (opened while logged out, or failed by a revoke) is not a chat error: it waits until the api base's trust is `trusted` again and subscribes anew, as the push socket's reconnect did
-- `pageQueries` (`page-queries.ts`): opens `rpc.page.queries` with the tab's focus (`document.hasFocus()`, `visibilityState`), drops the stream's `ready` and sends `rpc.page.focus` for its browser tab on every `ready` (a resubscribe after a reconnect gets a new tab id) and on every window focus, blur and visibility change, so the engine sends each page query to the tab focused last; it ends quietly when its signal aborts
 - `registerReachabilitySource` (`reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects
@@ -30,7 +29,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 - `close` (`chat-connection.ts`): aborts every stream the connection opened
 - `hydrate` (`chat-connection.ts`): the `rpc.chat.hydrate` RPC
 - `setupEngineReachability` (`reachability.ts`): sets the onlineManager event listener and window online/offline listeners
-- `useChatSession` (`use-chat-session.ts`): calls `rpc.chat.stop` and `rpc.chat.permissionDecision`
+- `useChatSession` (`index.ts`): calls `rpc.chat.stop` and `rpc.chat.permissionDecision`
 
 ## Verification
 

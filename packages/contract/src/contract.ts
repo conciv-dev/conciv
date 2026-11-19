@@ -212,8 +212,6 @@ export const SocketTrustFrameSchema = z.object({
   token: z.string().max(ENGINE_TOKEN_MAX_LENGTH),
 })
 
-export type SocketTrustFrame = z.infer<typeof SocketTrustFrameSchema>
-
 const CodeSessionInput = z.object({sessionId: SessionId.optional()})
 
 const CodeDelivery = {

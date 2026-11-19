@@ -47,7 +47,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/tools": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

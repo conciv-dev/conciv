@@ -148,16 +148,15 @@ opencode's own text adapter respectively (`packages/harness/src/gemini-cli/index
 `packages/harness/src/opencode/index.ts`). Only `pi` is a stub: its `chatConfig` always returns a
 "not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/_shared/stub.ts:10-17`,
 wired at `packages/harness/src/pi/index.ts:20`) even though its `history` sidecar is real
-(`packages/protocol/src/config-types.ts:35-36` for the `harness`/`harnessBin` fields):
+(`packages/protocol/src/config-types.ts` for the `harness` field):
 
 ```ts
-conciv({harness: 'codex', harnessBin: '/usr/local/bin/codex'})
+conciv({harness: 'codex'})
 ```
 
-`harnessBin` overrides the binary resolved from `PATH`: set it when the CLI isn't on the default
-`PATH` the dev server sees, or to pin a specific install. `claudePath`/`claudeSessionId` are
-deprecated aliases for `harnessBin`/`sessionId`
-(`apps/site/content/docs/configuration.mdx:54`, `packages/protocol/src/config-types.ts:44-45`).
+The adapter runs its CLI from the `PATH` the dev server sees. `claudeSessionId` is a deprecated alias
+for `sessionId`
+(`apps/site/content/docs/configuration.mdx`, `packages/protocol/src/config-types.ts`).
 
 To drive a conciv tab from an agent session outside the browser (any directory), pick "Connect <harness>"
 in the composer's "Connect agents" menu (or run `conciv mcp connect <harness>`; `conciv init` offers it for
@@ -175,7 +174,6 @@ values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/c
 | -------------- | --------------- | ----------------------------------------------------------------------------- |
 | `enabled`      | `true`          | gate to dev: `enabled: process.env.NODE_ENV !== 'production'`                 |
 | `harness`      | `'claude'`      | pick the agent CLI                                                            |
-| `harnessBin`   | adapter default | non-`PATH` binary location                                                    |
 | `port`         | auto            | fix the engine port (required, not just preferred, on Next.js/webpack/Rspack) |
 | `systemPrompt` | built-in        | a string here REPLACES the built-in prompt, it does not append to it          |
 | `widget`       | both layouts on | `{modal, quickTerminal}`: position/hotkey or disable a layout                 |

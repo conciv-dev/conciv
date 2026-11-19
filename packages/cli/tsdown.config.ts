@@ -7,7 +7,7 @@ export default defineConfig({
   dts: false,
   deps: {
     neverBundle: [
-      /^@conciv\/(harness|claude-connect)(\/|$)/,
+      /^@conciv\/harness(\/|$)/,
       /^@conciv\/extension(\/|-|$)/,
       /^@anthropic-ai\/claude-agent-sdk/,
       /^@opencode-ai\/sdk/,

@@ -14,6 +14,7 @@ import {
   type RunRecord,
   type RunStore,
   type TokenUsage,
+  type ToolCall,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
 import {getPendingTurn} from '@tanstack/ai/adapter-internals'
@@ -24,6 +25,7 @@ import {
   provideToolBridgeProvisioner,
   ToolBridgeProvisionerCapability,
   withSandbox,
+  isSandboxToolCall,
 } from '@tanstack/ai-sandbox'
 import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
@@ -33,20 +35,130 @@ import {
   type ChatEvent,
   type RunLifecycle,
   type RunPhase,
+  ChatEventType,
+  toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
-import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
+import {type ChatMessage, type ModelMessage, CompactionMetadataSchema} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {askingToolProvisioner, type AskPermission} from './image-tool-results.js'
 import {childCards, withoutChildCalls} from './child-cards.js'
-import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
 import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, readTerminalPhase, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
-import {toolHistory} from './tool-history.js'
 import {answeredAdapter, answeredMetadata, hookedRequest, type RequestHook} from './model-request.js'
 import {cloneDeepWith, isPlainObject} from 'es-toolkit'
+
+const COMPACTION: z.infer<typeof CompactionMetadataSchema> = {conciv: {compaction: true}}
+
+const RunTagSchema = z.object({tanstack: z.object({run: z.object({id: z.string()})})})
+
+const ConcivBagSchema = z.object({conciv: z.record(z.string(), z.unknown())})
+
+function compactionStamp(messages: MessageStore) {
+  return defineChatMiddleware({
+    name: 'conciv-compaction-stamp',
+    onChunk: (_ctx, chunk) => {
+      if (
+        chunk.type !== ChatEventType.TEXT_MESSAGE_START &&
+        chunk.type !== ChatEventType.REASONING_MESSAGE_START &&
+        chunk.type !== ChatEventType.RUN_FINISHED
+      ) {
+        return undefined
+      }
+      return {...chunk, metadata: stamped(chunk.metadata)}
+    },
+    onFinish: async (ctx) => {
+      const stored = await messages.loadThread(ctx.threadId)
+      if (!stored.some((message) => ranIn(message, ctx.runId))) return
+      await messages.saveThread(
+        ctx.threadId,
+        stored.map((message) =>
+          ranIn(message, ctx.runId) ? {...message, metadata: stamped(message.metadata)} : message,
+        ),
+      )
+    },
+  })
+}
+
+function stamped(metadata: Record<string, unknown> | undefined): Record<string, unknown> {
+  const bag = ConcivBagSchema.safeParse(metadata)
+  const conciv = bag.success ? bag.data.conciv : {}
+  return {...metadata, conciv: {...conciv, ...COMPACTION.conciv}}
+}
+
+function ranIn(message: ModelMessage, runId: string): boolean {
+  const tag = RunTagSchema.safeParse(message.metadata)
+  return message.role === 'assistant' && tag.success && tag.data.tanstack.run.id === runId
+}
+
+type RecordedCall = {metadata: Record<string, unknown> | undefined; failed: boolean; startedAt?: number}
+
+type Recorded = Map<string, RecordedCall>
+
+const FailedResultSchema = z.union([
+  z.looseObject({state: z.literal('output-error')}),
+  z.looseObject({metadata: z.looseObject({tanstack: z.looseObject({state: z.literal('output-error')})})}),
+])
+
+const MetadataSchema = z.record(z.string(), z.unknown()).catch({})
+
+function toolHistory() {
+  const recorded: Recorded = new Map()
+  const restore = (ctx: {messages: ReadonlyArray<ModelMessage>}) => {
+    ctx.messages = ctx.messages.map((message) => restored(message, recorded))
+  }
+  return defineChatMiddleware({
+    name: 'conciv-tool-history',
+    onChunk: (ctx, chunk) => {
+      if (chunk.type === ChatEventType.TOOL_CALL_START) {
+        const startedAt = Date.now()
+        const metadata = {...MetadataSchema.parse(chunk.metadata), time: {start: startedAt}}
+        recorded.set(chunk.toolCallId, {metadata, failed: false, startedAt})
+        return [{...chunk, metadata}]
+      }
+      if (chunk.type === ChatEventType.TOOL_CALL_END) {
+        restore(ctx)
+        return
+      }
+      if (chunk.type !== ChatEventType.TOOL_CALL_RESULT) return
+      const call = recorded.get(chunk.toolCallId)
+      const end = Date.now()
+      const time = call?.startedAt === undefined ? {end} : {start: call.startedAt, end}
+      recorded.set(chunk.toolCallId, {
+        metadata: {...call?.metadata, time},
+        failed: FailedResultSchema.safeParse(chunk).success,
+        startedAt: call?.startedAt,
+      })
+      restore(ctx)
+      return [chunk, toolTimeEvent.create({toolCallId: chunk.toolCallId, time})]
+    },
+    onIteration: restore,
+  })
+}
+
+function restored(message: ModelMessage, recorded: Recorded): ModelMessage {
+  if (message.role === 'tool') return restoredResult(message, recorded)
+  const calls = message.toolCalls ?? []
+  const [first] = calls
+  if (first === undefined) return message
+  const toolCalls = calls.map((call) => withRecordedMetadata(call, recorded))
+  if (!calls.every(isSandboxToolCall)) return {...message, toolCalls}
+  return {...message, id: message.id ?? `${first.id}-call`, toolCalls}
+}
+
+function restoredResult(message: ModelMessage, recorded: Recorded): ModelMessage {
+  if (message.error !== undefined || message.toolCallId === undefined) return message
+  if (recorded.get(message.toolCallId)?.failed !== true || typeof message.content !== 'string') return message
+  return {...message, error: message.content}
+}
+
+function withRecordedMetadata(call: ToolCall, recorded: Recorded): ToolCall {
+  const metadata = recorded.get(call.id)?.metadata
+  if (metadata === undefined) return call
+  return {...call, metadata: {...MetadataSchema.parse(call.metadata), ...metadata}}
+}
 
 function requestOptions(options: Record<string, unknown> | undefined): Record<string, unknown> {
   return cloneDeepWith(options ?? {}, (value) => (Array.isArray(value) || isPlainObject(value) ? undefined : value))

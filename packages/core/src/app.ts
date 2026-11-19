@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {accessSync, constants, existsSync} from 'node:fs'
+import {accessSync, constants, existsSync, readFileSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {Hono} from 'hono'
@@ -7,7 +7,7 @@ import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
-import type {HarnessAdapter} from '@conciv/harness'
+import {type HarnessAdapter, resolveHarnessModels} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {idleFailedEvent, type ChatEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
@@ -17,16 +17,22 @@ import type {
   HarnessPermissionVerdict,
   ServerHarness,
   ServerSessions,
+  HarnessModel,
 } from '@conciv/protocol/harness-types'
-import {assertToolName} from '@conciv/protocol/tool-call-types'
+import {assertToolName, toolError} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {requireHarness} from './lib/require-harness.js'
-import {withSavedModels, type SavedModelsHarness} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import {type ChatTool, type HarnessSessionId, type SessionId, type SessionRecord} from '@conciv/protocol/chat-types'
+import {
+  type ChatTool,
+  type HarnessSessionId,
+  type SessionId,
+  type SessionRecord,
+  HarnessModelSchema,
+} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
@@ -59,13 +65,12 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
 import {createTabs} from './api/tabs.js'
-import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makePagePlugin, type QueueFinished} from './page/page-plugin.js'
 import {holdForNextReply, owesFollowUp, pageQueueChunks, startQueueFollowUp} from './page/page-queue.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
-import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.js'
+import {createPersistentPtys} from './pty/persistent-ptys.js'
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
@@ -82,8 +87,7 @@ import type {CoreRuntime, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {rpcSessionMeta} from './api/rpc/sessions.js'
-import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute, type UpgradeWebSocket} from '@conciv/serve/rpc'
-import {grabExpander} from './page/grab-expander.js'
+import {RPC_PREFIX, rpcFetchMiddleware, rpcWebsocketRoute} from '@conciv/serve/rpc'
 import {logError} from './lib/debug.js'
 import {GROUP_EXIT_TIMEOUT_MS, loadIsolateDriver} from '@conciv/ai/server'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
@@ -95,13 +99,95 @@ import {
   makeConnectionTrust,
   makeEngineGate,
   rpcSocketGate,
-  trustingUpgrade,
   watchTrustedBrowsers,
   type ConnectionTrust,
   type GatedFetch,
   type TrustedBrowsers,
 } from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
+import type {AttachmentDocumentPart, ContentPart} from '@conciv/protocol/chat-message-types'
+import {GRAB_MIME, parseGrabPayload} from '@conciv/grab/grab-attachment'
+import {writePrivateFile} from './lib/dev-endpoint.js'
+
+const NO_TAB_MESSAGE = 'pass tab to execute_typescript; list_tabs lists the open tabs'
+
+export function outsideRunCapabilities(capabilities: readonly CodeCapability[]): CodeCapability[] {
+  return capabilities.map((capability): CodeCapability => {
+    if (capability.direct === true) return capability
+    return {
+      ...capability,
+      errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
+      execute: () => {
+        throw toolError('NO_TAB', {message: NO_TAB_MESSAGE})
+      },
+    }
+  })
+}
+
+const SavedModelsSchema = z.array(HarnessModelSchema)
+
+type SavedModelsHarness = {harness: HarnessAdapter; settled: () => Promise<void>}
+
+function readSaved(path: string): HarnessModel[] | null {
+  try {
+    const parsed = SavedModelsSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+function writeSaved(path: string, models: HarnessModel[]): void {
+  try {
+    writePrivateFile(path, JSON.stringify(models))
+  } catch (error) {
+    logError(`[core] the model list could not be saved: ${String(error)}`)
+  }
+}
+
+export function withSavedModels(adapter: HarnessAdapter, stateDir: string, signal: AbortSignal): SavedModelsHarness {
+  if (typeof adapter.models !== 'function') return {harness: adapter, settled: () => Promise.resolve()}
+  const path = join(stateDir, `${adapter.id}-models.json`)
+  const state: {saved: HarnessModel[] | null; refreshing?: Promise<HarnessModel[]>} = {saved: readSaved(path)}
+  async function listLive(): Promise<HarnessModel[]> {
+    signal.throwIfAborted()
+    return resolveHarnessModels(adapter, {signal})
+  }
+  function refresh(): Promise<HarnessModel[]> {
+    state.refreshing ??= listLive()
+      .then((listed) => {
+        signal.throwIfAborted()
+        state.saved = listed
+        writeSaved(path, listed)
+        return listed
+      })
+      .catch((error: unknown) => {
+        delete state.refreshing
+        throw error
+      })
+    return state.refreshing
+  }
+  function models(): Promise<HarnessModel[]> {
+    const fresh = refresh()
+    if (state.saved === null) return fresh
+    fresh.catch((error: unknown) => {
+      if (!signal.aborted) logError(`[core] the model list could not be refreshed: ${String(error)}`)
+    })
+    return Promise.resolve(state.saved)
+  }
+  async function settled(): Promise<void> {
+    await Promise.allSettled([state.refreshing])
+  }
+  return {harness: {...adapter, models}, settled}
+}
+
+async function expandGrab(part: AttachmentDocumentPart): Promise<readonly ContentPart[]> {
+  const payload = parseGrabPayload(Buffer.from(part.source.value, 'base64').toString('utf8'))
+  if (!payload || payload.text === '') return []
+  return [{type: 'text', content: payload.text}]
+}
+
+const grabExpander = {[GRAB_MIME]: expandGrab}
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
@@ -133,7 +219,6 @@ export type MakeAppOpts = {
   pageReplyTimeoutMs?: number
 
   queuedActionTimeoutMs?: number
-  permissionSyncTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -180,11 +265,7 @@ async function recordSessionUsage(db: ConcivDb, sessionId: SessionId, usage: Usa
   await Effect.runPromise(db.update(sessions).set({usage, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)))
 }
 
-function sessionPort(
-  db: ConcivDb,
-  rows: RowScope,
-  hooks: Pick<SessionPort, 'onRunStart' | 'onRunEnd' | 'publish'>,
-): SessionPort {
+function sessionPort(db: ConcivDb, rows: RowScope, hooks: Pick<SessionPort, 'onRunEnd' | 'publish'>): SessionPort {
   return {
     row: async (sessionId) => {
       const row = await currentRow(db, sessionId)
@@ -207,7 +288,7 @@ function sessionPort(
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
     recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
-    onRunStart: hooks.onRunStart,
+    onRunStart: async () => undefined,
     onRunEnd: hooks.onRunEnd,
     publish: hooks.publish,
   }
@@ -234,19 +315,16 @@ const HealthSchema = z.object({
   id: z.string(),
 })
 
-export type CoreVars = CorsVars & {harnessId: string} & McpVars
+export type CoreVars = CorsVars & McpVars
 
 function composeRoutes(
-  vars: CoreVars,
+  vars: CoreVars & {harnessId: string},
   rpc: ReturnType<typeof makeRpcRouter>,
   deps: {
     engineId: string
     staleness: () => EngineStaleness
     onShutdown?: () => void
-    plane: ChatPlane
-    upgrade: UpgradeWebSocket
     trust: ConnectionTrust
-    ptys: PersistentPtys
   },
 ) {
   return new Hono<{Variables: CoreVars}>()
@@ -257,7 +335,6 @@ function composeRoutes(
     })
     .use(async (c, next) => {
       c.set('cors', vars.cors)
-      c.set('harnessId', vars.harnessId)
       c.set('mcp', vars.mcp)
       await next()
     })
@@ -310,7 +387,6 @@ function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness 
     id: harness.id,
     ttyCommand: harness.tty?.command,
     transcriptExists: history?.transcriptPath ? transcriptExists : undefined,
-    transcriptMessages: history ? (token) => history.messages(cwd, token) : undefined,
   }
 }
 
@@ -352,7 +428,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const basePath = agentPath(agentToken)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
-  const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
   const listings = availableHarnesses(boot, opts, stateDir, engineLife.signal)
   const harnesses = listings.map((listing) => listing.harness)
   const print = opts.print ?? ((text: string) => console.log(text))
@@ -380,7 +455,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const db = await Effect.runPromise(openDb(opts.cfg.stateRoot).pipe(Scope.provide(dbScope))).catch(failedStart([]))
   const planeRef: {current: ChatPlane | null} = {current: null}
 
-  const runStartListeners: ((sessionId: SessionId) => void)[] = []
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const pagePlugin = makePagePlugin(() => pluginHost)
@@ -405,9 +479,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureRow(rows, sessionId)
       await recordNativeId(db, sessionId, (await harnessFor(sessionId)).id, token)
     },
-    chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => readModel(db, sessionId),
-    onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const serverHarness = async (sessionId: SessionId): Promise<ServerHarness> =>
     makeServerHarness(await harnessFor(sessionId), opts.cwd)
@@ -486,7 +558,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
                 {
                   pageReplyTimeoutMs: opts.pageReplyTimeoutMs,
                   queuedActionTimeoutMs: opts.queuedActionTimeoutMs,
-                  permissionSyncTimeoutMs: opts.permissionSyncTimeoutMs,
                 },
                 isNotNil,
               ),
@@ -580,9 +651,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     db,
     sessions: sessionPort(db, rows, {
-      onRunStart: async (sessionId) => {
-        runStartListeners.forEach((listener) => listener(sessionId))
-      },
       onRunEnd,
       publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
     }),
@@ -738,10 +806,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       engineId,
       staleness,
       onShutdown: opts.onShutdown,
-      plane,
-      upgrade: socketUpgrade,
       trust,
-      ptys,
     },
   )
 

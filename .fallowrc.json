@@ -460,7 +460,6 @@
     "@parcel/watcher-linux-x64-musl",
     "@parcel/watcher-win32-arm64",
     "@parcel/watcher-win32-x64",
-    "@tanstack/ai-mcp",
     "@tanstack/ai-event-client",
     "@tanstack/store",
     "@oxlint/plugins",
@@ -493,7 +492,7 @@
     "bippy",
     "react-grab"
   ],
-  "ignoreUnresolvedImports": ["collections/*"],
+  "ignoreUnresolvedImports": ["collections/*", "./migrations.gen.js", "./home-migrations.gen.js"],
   "publicPackages": [
     "@conciv/harness-init",
     "@conciv/core",

@@ -23,7 +23,45 @@ import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {tailLines} from '../_shared/tail-lines.js'
-import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
+import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from '@conciv/harness-init/claude/names'
+
+const TextBlock = z.object({type: z.literal('text'), text: z.string()})
+const ThinkingBlock = z.object({type: z.literal('thinking'), thinking: z.string()})
+const ToolUseBlock = z.object({
+  type: z.literal('tool_use'),
+  id: z.string(),
+  name: z.string(),
+  input: z.unknown().optional(),
+})
+const ToolResultBlock = z.object({
+  type: z.literal('tool_result'),
+  tool_use_id: z.string(),
+  content: z.unknown().optional(),
+  is_error: z.boolean().optional(),
+})
+
+const CONCIV_MCP_PREFIXES = [
+  `mcp__${CLAUDE_CONNECT_MCP_SERVER}__`,
+  `mcp__plugin_${CLAUDE_CONNECT_PLUGIN}_${CLAUDE_CONNECT_MCP_SERVER}__`,
+]
+
+function canonicalToolName(name: string): string {
+  const prefix = CONCIV_MCP_PREFIXES.find((candidate) => name.startsWith(candidate))
+  return prefix === undefined ? name : name.slice(prefix.length)
+}
+
+const TextContentPart = z.object({type: z.literal('text'), text: z.string()})
+function contentText(raw: unknown): string {
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) {
+    const texts = raw.flatMap((p) => {
+      const part = TextContentPart.safeParse(p)
+      return part.success ? [part.data.text] : []
+    })
+    if (texts.length > 0) return texts.join('\n')
+  }
+  return JSON.stringify(raw ?? '')
+}
 
 function encodeProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
@@ -348,21 +386,6 @@ export function contextTokensFromTranscript(jsonl: string): number | undefined {
   return (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
 }
 
-const SummaryRecordSchema = z.object({type: z.literal('summary'), summary: z.string()}).loose()
-
-export function nameFromTranscript(jsonl: string): string | null {
-  let name: string | null = null
-  for (const line of jsonl.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    try {
-      const parsed = SummaryRecordSchema.safeParse(JSON.parse(trimmed))
-      if (parsed.success && parsed.data.summary) name = parsed.data.summary
-    } catch {}
-  }
-  return name
-}
-
 function metaFromFold(id: string, cwd: string, state: ClaudeFold, mtime: number, jsonl: string): HarnessSessionMeta {
   return {
     id: HarnessSessionId.parse(id),
@@ -487,7 +510,6 @@ export const claudeHistory: HarnessHistory = {
   transcriptPath,
   transcriptRoot,
   withinProject,
-  nameFromTranscript,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
   meta: sessionMeta,

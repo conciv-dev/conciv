@@ -17,14 +17,13 @@ import {createFakeHarness} from '../src/create-fake-harness.js'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {type HarnessConnectContext, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {createTestHarness} from '../src/create-test-harness.js'
-import {harnessModes} from '../src/harness-modes.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatPart} from '@conciv/protocol/chat-message-types'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {makeRunStream} from '../src/run-stream.js'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
-import {until as testkitUntil} from '../src/testkit.js'
+import {until as testkitUntil, harnessModes} from '../src/testkit.js'
 import {until} from '../src/until.js'
 import {makeRpcClient, type RpcClient} from '../src/session.js'
 import {implement} from '@orpc/server'
@@ -312,10 +311,8 @@ describe('create fake harness', () => {
     concivSessionId: SessionId.parse('conciv_fake_harness'),
     harnessSessionId: HarnessSessionId.parse('s'),
     resume: false,
-    owned: true,
     model: null,
     mcpUrl: null,
-    hookUrl: null,
   }
 
   describe('createFakeHarness transcript history', () => {

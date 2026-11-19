@@ -16,9 +16,9 @@ const PageUrlSchema = z
     message: 'expected an http or https page URL',
   })
 
-export type RevokeOptions = {id?: string; all: boolean; cwd: string}
+type RevokeOptions = {id?: string; all: boolean; cwd: string}
 
-export type LinkOptions = {url: string; cwd: string}
+type LinkOptions = {url: string; cwd: string}
 
 function localEngine(cwd: string): NonNullable<ReturnType<typeof discoveredEngine>> {
   const engine = discoveredEngine(cwd)

@@ -1,6 +1,6 @@
 import {eq, sql} from 'drizzle-orm'
 import {Effect} from 'effect'
-import {chatMessages, chatMetadata, chatRuns, runMessages, runs, sessionHistory, type ConcivDb} from '@conciv/db'
+import {chatMessages, chatMetadata, chatRuns, type ConcivDb} from '@conciv/db'
 
 export async function runningThreadIds(db: ConcivDb): Promise<ReadonlySet<string>> {
   const rows = await Effect.runPromise(
@@ -14,11 +14,8 @@ export async function clearThread(db: ConcivDb, threadId: string): Promise<void>
   await Effect.runPromise(
     db.transaction((tx) =>
       Effect.gen(function* () {
-        yield* tx.delete(runs).where(eq(runs.sessionId, threadId))
         yield* tx.delete(chatRuns).where(eq(chatRuns.threadId, threadId))
         yield* tx.delete(chatMessages).where(eq(chatMessages.threadId, threadId))
-        yield* tx.delete(runMessages).where(eq(runMessages.sessionId, threadId))
-        yield* tx.delete(sessionHistory).where(eq(sessionHistory.sessionId, threadId))
         yield* tx.delete(chatMetadata).where(sql`substr(${chatMetadata.key}, 1, ${owned.length}) = ${owned}`)
       }),
     ),

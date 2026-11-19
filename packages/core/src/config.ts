@@ -15,7 +15,6 @@ export interface ResolvedConcivConfig {
   enabled: boolean
   stateRoot: string
   harness: string
-  harnessBin: string | undefined
   sessionId: SessionId | undefined
   harnessSessionId: HarnessSessionId | undefined
   systemPrompt: string
@@ -71,8 +70,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     enabled: options.enabled ?? true,
     stateRoot: options.stateRoot ?? env.CONCIV_STATE_ROOT ?? root,
     harness: options.harness ?? env.CONCIV_HARNESS ?? 'claude',
-    harnessBin:
-      options.harnessBin ?? options.claudePath ?? env.CONCIV_HARNESS_BIN ?? env.CONCIV_CLAUDE_PATH ?? undefined,
     sessionId: resolveSessionId([options.sessionId, env.CONCIV_SESSION_ID]),
     harnessSessionId: resolveHarnessSessionId([options.claudeSessionId, env.CONCIV_CLAUDE_SESSION_ID]),
     systemPrompt: resolveSystemPrompt(options.systemPrompt),

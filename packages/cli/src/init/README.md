@@ -13,18 +13,18 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `renderPlan(rows, harnesses)` (`wizard.ts`): plan text with one row per step and a Harnesses line
 - `clackOutput` / `clackPrompts` / `interactiveTerminal` (`wizard.ts`): @clack/prompts output and prompts, and the TTY/CI check
 - `detectProject(cwd)` / `detectFramework(cwd)` / `Framework` (`detect.ts`): nextjs, astro, vite, webpack, rspack, rollup, esbuild or unknown
-- `execFileOutcome(bin, args, options, onLine)` (`exec.ts`): spawns a process (SIGKILLed after `options.timeout` when given, so a child that ignores SIGTERM still settles) and resolves {code, output}
+- `execFileOutcome(bin, args, options, onLine)` (`pipeline.ts`): spawns a process (SIGKILLed after `options.timeout` when given, so a child that ignores SIGTERM still settles) and resolves {code, output}
 - `harnessIds` / `harnessFileInits` / `harnessAgentsMdNote` (`harness-detect.ts`): from `@conciv/harness-init/registry`; installed-harness detection is `detectHarnesses` from `@conciv/harness-init/detect`
 - `captureFile` / `guardBackups` / `onInterrupt` (`interrupt.ts`): file backup and restore, and the SIGINT hook
 - `StepStatus`, `ManualCard`, `StepNote`, `StepPlan`, `StepOutcome`, `LedgerEntry` (`ledger.ts`)
-- `emitOutro(output, entries, next)` (`outro.ts`), `preflight(cwd, force)` (`preflight.ts`), `silentOutput()` (`silent.ts`)
+- `emitOutro(output, entries, next)` (`pipeline.ts`), `preflight(cwd, force)` (`pipeline.ts`), `silentOutput()` (`../init.ts`)
 - Subdirectories:
   - steps: [./steps/README.md](./steps/README.md) - the init steps
 
 ## Invariants
 
 - `runInit` (`pipeline.ts`): refuses on a non-interactive terminal unless --yes or --dry-run, and refuses when `preflight` fails, before anything is written
-- `preflight` (`preflight.ts`): needs package.json in cwd; without force, refuses a dirty git tree or an unreadable git status; no repository is allowed
+- `preflight` (`pipeline.ts`): needs package.json in cwd; without force, refuses a dirty git tree or an unreadable git status; no repository is allowed
 - `settleStep` (`pipeline.ts`): detect 'present' records 'already' and skips apply; a detect error counts as missing; dry run calls only plan
 - `settleStep` (`pipeline.ts`): an apply throw, or verify false after apply, makes the step manual with `step.manualCard`
 - `stepList` (`pipeline.ts`): order is install @conciv/it, framework (if selected), AGENTS.md, one step per harness file init, one `connect-<agent>` step per found harness that has a `hub` (already connected ones settle as 'already'), docs pack (if selected)
@@ -32,16 +32,15 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `frameworkStep` (`pipeline.ts`): vite and astro use viteStep, nextjs nextjsStep, webpack and rspack webpackFamilyStep, everything else fallbackStep
 - `approvePlan` (`wizard.ts`): dry run and --yes take the defaults (framework true, every found harness, every connectable agent, docsPack false), so `--dry-run` and `--json` list each `Connect <Name> to conciv` step and `--yes` connects them
 - `detectFramework` (`detect.ts`): rule order sets priority; an invalid manifest gives 'unknown'
-- `execFileOutcome` (`exec.ts`): a signal exit resolves with code 1
+- `execFileOutcome` (`pipeline.ts`): a signal exit resolves with code 1
 - `guardBackups` (`interrupt.ts`): restores in reverse order; a file captured as null is deleted on restore
 
 ## Side Effects
 
-- `runInit` (`pipeline.ts`): `writeConsent` writes .conciv/.gitignore and .conciv/harnesses.json after backing up both
 - `defaultRuntime` (`pipeline.ts`): reads PATH, HOME and the conciv home (`concivHome`, CONCIV_HOME or the platform data folder); calls process.exit(130) on interrupt
 - `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit' and SIGINT listeners and rewrite or delete backed-up files
-- `execFileOutcome` (`exec.ts`): spawns child processes
-- `preflight` (`preflight.ts`): runs `git status --porcelain` with LC_ALL=C
+- `execFileOutcome` (`pipeline.ts`): spawns child processes
+- `preflight` (`pipeline.ts`): runs `git status --porcelain` with LC_ALL=C
 - `detect.ts`: reads package.json and config files; `detectHarnesses` (`@conciv/harness-init/detect`) reads PATH entries and HOME config dirs
 - `clackOutput` / `clackPrompts` (`wizard.ts`): write to the terminal and prompt for input
 

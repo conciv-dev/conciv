@@ -14,7 +14,7 @@ type CreateInput = {sessionId: SessionId; size?: PtySize; model?: string}
 
 type PersistentPtyDeps = {
   harness: (sessionId: SessionId) => Promise<ServerHarness>
-  sessions: Pick<ServerSessions, 'resumeToken' | 'recordToken' | 'model'>
+  sessions: ServerSessions
   cwd: string
   stateDir: string
   mcpUrl: () => string | null
@@ -62,10 +62,8 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     concivSessionId: input.sessionId,
     harnessSessionId: token,
     resume: !minted && (harness.transcriptExists?.(token) ?? true),
-    owned: true,
     model: input.model ?? (await deps.sessions.model(input.sessionId)),
     mcpUrl: deps.mcpUrl(),
-    hookUrl: null,
   })
 
   const spawnFresh = async (input: CreateInput, harness: ServerHarness, command: TtyLauncher): Promise<TtySession> => {

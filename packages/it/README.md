@@ -1,6 +1,6 @@
 # @conciv/it
 
-**Conceive it.** The conciv dev agent, one install. Re-exports the unplugin under conciv/plugin/\* (vite, webpack, rspack, rollup, esbuild, nextjs).
+**Conceive it.** The conciv dev agent, one install. Re-exports the unplugin under `@conciv/it/plugin/*` (vite, webpack, rspack, rollup, esbuild, nextjs).
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
@@ -23,25 +23,18 @@ for `transformIndexHtml`, and the connect-stack response is discarded. So instea
 of editing HTML, conciv appends a dynamic `import` of its virtual widget module (`/@conciv/widget.js`)
 to the framework's client entry and bakes the engine origin into that module
 (`window.__CONCIV_API_BASE__`, the same seam Next.js uses). No user config, no
-fixed port. See `apps/examples/tanstack-start`; its `widget-mount.e2e.test.ts`
-proves the widget mounts on both the classic and nitro stacks (toggle with
+fixed port. See `apps/examples/tanstack-start` (toggle the nitro stack with
 `CONCIV_NITRO=1`).
-
-## Interface
-
-- `package.json:exports` - `./plugin/vite`, `./plugin/webpack`, `./plugin/rspack`, `./plugin/rollup`, `./plugin/esbuild`, `./plugin/nextjs` (with an `edge-light` condition to `nextjs-edge.js`), `./plugin/nextjs/widget`. `./plugin/webpack`, `./plugin/rspack` and the Next.js entries also carry a `default` condition, so a CommonJS config can `require()` them (`require('@conciv/it/plugin/webpack').default()`).
-- `tsdown.config.ts:external` - `@conciv/*`, `unplugin`, `vite`, `launch-editor` and `next` stay external.
-- `vitest.config.ts:projects` - `it` (all `test/**/*.test.ts` except the design test) and `design` (`test/design.it.test.ts`, 120 s timeouts, no file parallelism).
-- Source: [src](./src/README.md).
-- Test fixtures: `test/fixtures/design/` (the design fixture host, provenance components and the target renderer used by `test/design.it.test.ts`).
 
 ## Invariants
 
-- None
+- `./plugin/webpack`, `./plugin/rspack` and the Next.js entries also carry a `default` condition, so a CommonJS config can `require()` them (`require('@conciv/it/plugin/webpack').default()`); `./plugin/nextjs` has an `edge-light` condition to `nextjs-edge.js`.
+- The build bundles nothing of conciv: every `@conciv/*` import stays external (`tsdown.config.ts`), so the plugin is the one `@conciv/unplugin` the host installs.
+- Source: [src](./src/README.md).
 
 ## Side Effects
 
-- The package root (configs and manifest) has none. At runtime package paths are resolved with `import.meta.resolve` at module load; the bundled plugin carries `@conciv/unplugin`'s effects. Full list in [src/README.md](./src/README.md#side-effects).
+- The package root (configs and manifest) has none. At runtime package paths are resolved with `import.meta.resolve` at module load; the re-exported plugin carries `@conciv/unplugin`'s effects. Full list in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

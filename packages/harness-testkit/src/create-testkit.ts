@@ -5,16 +5,50 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/harness'
-import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
-import {makeChatTurns, type TurnMessage} from './chat-turn.js'
+import {ChatContentPartSchema, type ChatContentPart} from '@conciv/protocol/chat-types'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
 import {makeBrowserRpcClient} from '@conciv/contract'
 import type {RpcClient} from './session.js'
-import type {TestHarness} from './create-test-harness.js'
+import {rpcStream} from '@conciv/ai/client'
+import type {ChatMessage as ProtocolChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
-function isTestHarness(harness: HarnessAdapter): harness is TestHarness {
-  return 'script' in harness
+type TurnMessage = {role: 'user'; parts: ProtocolChatMessage['parts']}
+
+type ChatTurns = {
+  turn: (input: {sessionId: string; runId: string; messageId?: string; message: TurnMessage}) => RunStream
+  join: (runId: string) => RunStream
+  closeAll: () => void
+}
+
+async function* streamed(opened: Promise<AsyncIterable<ChatEvent>>): AsyncGenerator<ChatEvent> {
+  yield* await opened
+}
+
+function makeChatTurns(rpc: RpcClient): ChatTurns {
+  const open: AbortController[] = []
+  const opened = (): AbortController => {
+    const abort = new AbortController()
+    open.push(abort)
+    return abort
+  }
+  const turns = rpcStream((_messages, _data, signal, input) =>
+    streamed(rpc.chat.send({sessionId: input.threadId, runId: input.runId, messages: input.messages}, {signal})),
+  )
+  return {
+    turn: ({sessionId, runId, messageId, message}) =>
+      makeRunStream(
+        turns.connect([{id: messageId ?? `${runId}-user`, ...message}], {}, opened().signal, {
+          threadId: sessionId,
+          runId,
+        }),
+      ),
+    join: (runId) => makeRunStream(streamed(rpc.chat.join({runId}, {signal: opened().signal}))),
+    closeAll: () => {
+      for (const abort of open.splice(0)) abort.abort()
+    },
+  }
 }
 
 export type BootEnv = {
@@ -49,9 +83,6 @@ export type Kit = {
   hydrate: (session?: string) => Promise<Awaited<ReturnType<RpcClient['chat']['hydrate']>>>
   events: (session?: string, opts?: {signal?: AbortSignal}) => Promise<RunStream>
   chat: (input: string | ChatMessage, session?: string) => Promise<RunStream>
-  post: (path: string, body: unknown, session?: string) => Promise<Response>
-  get: (path: string, session?: string) => Promise<Response>
-  invokeTool: (name: string, input: unknown, opts: {instruction: string}, session?: string) => Promise<RunStream>
   callTool: (name: string, input: unknown, session?: string) => Promise<unknown>
   restartServer: () => Promise<void>
   cleanup: () => Promise<void>
@@ -133,15 +164,6 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const browser = makeBrowserRpcClient(base, {session: () => activeSession.id || null})
       const {rpc} = browser
 
-      const post = (path: string, body: unknown, session?: string): Promise<Response> =>
-        fetch(`${base}${path}`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            [CONCIV_SESSION_HEADER]: session ?? activeSession.id,
-          },
-          body: JSON.stringify(body),
-        })
       const resolve = async (id?: string): Promise<string> => (await rpc.sessions.resolve(id ? {id} : {})).sessionId
       activeSession.id = await resolve().catch((error: unknown) =>
         abandonSetup(error, [() => browser.close(), () => served.close(), () => app.dispose(), removeOwnedRoot]),
@@ -185,18 +207,6 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           return makeRunStream(await rpc.chat.events({sessionId: id}, {signal}))
         },
         chat: (input, session) => startTurn(input, {session}),
-        post,
-        get: async (path, session) =>
-          fetch(`${base}${path}`, {headers: {[CONCIV_SESSION_HEADER]: session ?? activeSession.id}}),
-        invokeTool: async (name, input, opts, session) => {
-          const id = await sessionFor(session)
-          if (!isTestHarness(harness)) return startTurn(opts.instruction, {session: id})
-          harness.script.hold()
-          const stream = await startTurn('go', {session: id})
-          await callTool(name, input, id)
-          harness.script.release()
-          return stream
-        },
         callTool,
         restartServer: async () => {
           await served.close()

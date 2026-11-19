@@ -6,11 +6,11 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Overview
 
-Package root for the wire types package. It builds 24 ESM entry points from src with tsdown, and tsc emits the declarations.
+Package root for the wire types package. It builds one ESM entry point per subpath from src with tsdown, and tsc emits the declarations.
 
 ## Interface
 
-- `exports` (`package.json`): 23 subpaths: ./chat-types, ./chat-busy, ./chat-message-types, ./chat-event-types, ./chat-tool-types, ./usage-types, ./ui-types, ./editor-types, ./harness-types, ./framework-types, ./rpc-types, ./terminal-types, ./bundler-types, ./config-types, ./page-types, ./element-capture-sanitize, ./element-capture-types, ./page-introspect-types, ./tool-icon-types, ./tool-view-types, ./connect-ports, ./state-types, ./event-bus
+- `exports` (`package.json`): one subpath per src module, no root entry
 - `dependencies` (`package.json`): @tanstack/ai and zod
 - `scripts` (`package.json`): build (`tsdown && tsc -p tsconfig.build.json`), typecheck, lint, test, publint, attw
 - Subdirectories:

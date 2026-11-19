@@ -44,10 +44,6 @@
       "types": "./dist/codex/index.d.ts",
       "import": "./dist/codex/index.js"
     },
-    "./gemini-cli": {
-      "types": "./dist/gemini-cli/index.d.ts",
-      "import": "./dist/gemini-cli/index.js"
-    },
     "./opencode": {
       "types": "./dist/opencode/index.d.ts",
       "import": "./dist/opencode/index.js"
@@ -81,7 +77,6 @@
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",
-    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

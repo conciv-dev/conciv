@@ -10,19 +10,16 @@ import {createRequire} from 'node:module'
 import {asc, eq, is} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {getTableConfig, SQLiteTable} from 'drizzle-orm/sqlite-core'
-import {makeWithDefaults} from 'drizzle-orm/effect-sqlite-node'
-import {SqliteClient} from '@effect/sql-sqlite-node'
-import {Effect, Exit, Layer, Scope} from 'effect'
+import {Effect, Exit, Scope} from 'effect'
 import {describe, expect, it, expectTypeOf, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import * as schema from '../src/schema.js'
 import * as runSchema from '../src/run-schema.js'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
-import {importLegacyThreads} from '../src/chat-thread-import.js'
-import {chatMessages, chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
+import {chatMessages} from '../src/run-schema.js'
 import {drafts, sessions} from '../src/schema.js'
-import {readModel, runMessagesFor} from '../src/run-queries.js'
+import {readModel, checkEngines} from '../src/index.js'
 import {
   closeHomeDb,
   concivHome,
@@ -43,7 +40,6 @@ import {
 import {engines} from '../src/home-schema.js'
 import {homeMigrations} from '../src/home-migrations.gen.js'
 import {migrations} from '../src/migrations.gen.js'
-import {checkEngines} from '../src/engine-check.js'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 function opened(stateRoot: string): Promise<ConcivDb> {
@@ -52,15 +48,7 @@ function opened(stateRoot: string): Promise<ConcivDb> {
   return Effect.runPromise(openDb(stateRoot).pipe(Scope.provide(scope)))
 }
 
-function legacyHistoryRows(db: ConcivDb, sessionId: string) {
-  return Effect.runSync(db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)))
-}
-
 describe('db', () => {
-  function seedRunMessages(db: ConcivDb, sessionId: string, messages: unknown[]): void {
-    Effect.runSync(db.insert(runMessages).values({sessionId, messages, updatedAt: 1}))
-  }
-
   const record = (id: string) => ({
     id,
     harnessSessionId: null,
@@ -246,40 +234,6 @@ describe('db', () => {
     })
   })
 
-  describe('legacy thread import', () => {
-    it('imports a legacy thread longer than the sqlite variable limit allows in one insert', async () => {
-      const file = join(tempDir('conciv-db-import-'), 'conciv.db')
-      const client = beforeMigration('99999999999999_after_every_migration', file)
-      const pending = Array.from({length: 7000}, (_, index) => ({
-        id: `m${index}`,
-        role: 'user',
-        parts: [{type: 'text', content: `message ${index}`}],
-      }))
-      client
-        .prepare('INSERT INTO run_messages (session_id, messages, updated_at) VALUES (?, ?, ?)')
-        .run('conciv_long', JSON.stringify(pending), 1)
-      client.close()
-
-      const rows = await Effect.runPromise(
-        Effect.gen(function* () {
-          const db = yield* makeWithDefaults().pipe(
-            Effect.provide(yield* Layer.build(SqliteClient.layer({filename: file}))),
-          )
-          yield* importLegacyThreads(db, 1)
-          return yield* db
-            .select()
-            .from(chatMessages)
-            .where(eq(chatMessages.threadId, 'conciv_long'))
-            .orderBy(asc(chatMessages.position))
-        }).pipe(Effect.scoped),
-      )
-
-      const stored = rows.map((row) => row.messageJson)
-      expect(stored).toHaveLength(7000)
-      expect(stored.at(-1)).toMatchObject({id: 'm6999', role: 'user', content: 'message 6999'})
-    })
-  })
-
   describe('chat run harness migration', () => {
     const HARNESS_MIGRATION = '20261105092249_chat_run_harness'
 
@@ -302,21 +256,6 @@ describe('db', () => {
       ])
       expect(() => run.run('run-untagged', 'conciv_codex', 'running', 3)).toThrow()
       client.close()
-    })
-
-    it('imports a legacy run under the harness of its session', async () => {
-      const stateRoot = tempDir('conciv-db-legacy-run-')
-      const first = await opened(stateRoot)
-      Effect.runSync(first.insert(sessions).values({...record('conciv_pi'), harnessKind: 'pi'}))
-      Effect.runSync(
-        first
-          .insert(runs)
-          .values({runId: 'legacy-run', sessionId: 'conciv_pi', phase: 'completed', startedAt: 1, updatedAt: 1}),
-      )
-      const second = await opened(stateRoot)
-      expect(
-        Effect.runSync(second.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns)),
-      ).toEqual([{runId: 'legacy-run', harnessId: 'pi'}])
     })
   })
 
@@ -433,26 +372,6 @@ describe('db', () => {
       expect(Effect.runSync(db.select().from(sessions))[0]?.title).toBe('named')
     })
 
-    it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', async () => {
-      const stateRoot = tempDir('conciv-db-fold-')
-      const first = await opened(stateRoot)
-      const imageTurn = [
-        {
-          id: 'u1',
-          role: 'user',
-          parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}],
-        },
-      ]
-      const textTurn = [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}]
-      seedRunMessages(first, 'conciv_img', imageTurn)
-      seedRunMessages(first, 'conciv_txt', textTurn)
-      const second = await opened(stateRoot)
-      expect((await runMessagesFor(second, 'conciv_img'))?.messages).toEqual(imageTurn)
-      expect((await runMessagesFor(second, 'conciv_txt'))?.messages).toEqual(textTurn)
-      expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
-      expect(legacyHistoryRows(second, 'conciv_txt')).toEqual([])
-    })
-
     it('two connections on one stateRoot interleave writes (WAL + busy timeout)', async () => {
       const stateRoot = tempDir('conciv-db-multi-')
       const first = await opened(stateRoot)
@@ -494,8 +413,6 @@ describe('run queries', () => {
     it('reads fall back safely for unknown sessions', async () => {
       const db = await fresh()
       expect(await readModel(db, 'missing')).toBeNull()
-      expect(await runMessagesFor(db, 'missing')).toBeNull()
-      expect(legacyHistoryRows(db, 'missing')).toEqual([])
     })
 
     it('readModel reads the sessions row', async () => {

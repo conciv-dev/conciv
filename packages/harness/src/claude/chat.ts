@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto'
+import {randomUUID, createHash} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
@@ -8,8 +8,47 @@ import {FILE_REF_PREFIX, type HarnessChatDeps, type HarnessImage} from '@conciv/
 import {type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
-import {claudeAskSettingsFile} from './ask-rules.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
+import {tmpdir} from 'node:os'
+
+const GIT_RISKS = [
+  'push --force*',
+  'push * --force*',
+  'push -f*',
+  'push * -f*',
+  'push --delete*',
+  'push * --delete*',
+  'push -d*',
+  'push * -d *',
+  'push * :**',
+  'reset --hard*',
+  'reset * --hard*',
+  'clean*',
+  'branch -D*',
+  'branch * -D*',
+  'gc --prune*',
+  'gc * --prune*',
+]
+
+export const CLAUDE_ASK_RULES = [
+  ...GIT_RISKS.flatMap((risk) => [`Bash(git ${risk})`, `Bash(git * ${risk})`]),
+  'Bash(rm -r*)',
+  'Bash(rm -fr*)',
+  'Bash(rm -R*)',
+  'Bash(rm -fR*)',
+  'Bash(rm * -r*)',
+  'Bash(chmod -R*)',
+  'Bash(chown -R*)',
+  'Bash(sudo *)',
+]
+
+function claudeAskSettingsFile(): string {
+  const settings = JSON.stringify({permissions: {ask: CLAUDE_ASK_RULES}})
+  const digest = createHash('sha256').update(settings).digest('hex').slice(0, 16)
+  const path = join(tmpdir(), `conciv-claude-settings-${digest}.json`)
+  writeFileSync(path, settings)
+  return path
+}
 
 const MCP_TOOL_TIMEOUT_MS = 3_600_000
 

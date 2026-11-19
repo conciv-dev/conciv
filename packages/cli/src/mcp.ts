@@ -3,9 +3,14 @@ import {argument, command, description, name, option, route, schema} from '@bomb
 import {concivHome} from '@conciv/db'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
-import {HubAgentSchema} from './hub-agent.js'
 import {handler} from './router/handler.js'
 import {serveArgv} from './serve-argv.js'
+import {initContributions} from '@conciv/harness-init/registry'
+import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
+
+const HubAgentSchema = z
+  .enum(INIT_HARNESS_IDS)
+  .refine((id) => initContributions[id].hub !== undefined, {message: 'this agent has no conciv hub connection'})
 
 const AgentModelSchema = z.object({agent: HubAgentSchema})
 

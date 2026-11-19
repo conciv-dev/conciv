@@ -2,9 +2,117 @@ import {randomUUID} from 'node:crypto'
 import type {IPty} from '@lydell/node-pty'
 import {once} from 'es-toolkit'
 import type {TtyCommand, TtyServerControl} from '@conciv/protocol/terminal-types'
-import {createOscBusyTracker, type OscBusyTracker} from './osc-busy.js'
-import {createFrameInjector, type FrameInjector} from './frame-injector.js'
-import {ensureSpawnHelperExecutable} from './spawn-helper-fix.js'
+import {accessSync, chmodSync, existsSync, constants} from 'node:fs'
+import {dirname, join} from 'node:path'
+import {createRequire} from 'node:module'
+
+const SEQUENCE = /\u001b\]9;4;(\d+)[^\u0007\u001b]*(?:\u0007|\u001b\\)/g
+const OSC_CARRY_MAX = 64
+
+type OscBusyTracker = {
+  feed(chunk: string): void
+  busy(): boolean
+  onChange(cb: (busy: boolean) => void): void
+}
+
+function createOscBusyTracker(): OscBusyTracker {
+  const state = {carry: '', busy: false}
+  const listeners: ((busy: boolean) => void)[] = []
+
+  const set = (busy: boolean): void => {
+    if (busy === state.busy) return
+    state.busy = busy
+    for (const cb of listeners) cb(busy)
+  }
+
+  const feed = (chunk: string): void => {
+    const text = state.carry + chunk
+    const cursor = {end: 0}
+    for (const match of text.matchAll(SEQUENCE)) {
+      set(match[1] !== '0')
+      cursor.end = match.index + match[0].length
+    }
+    const rest = text.slice(cursor.end)
+    const tail = rest.lastIndexOf('\u001b')
+    state.carry = tail >= 0 && rest.length - tail <= OSC_CARRY_MAX ? rest.slice(tail) : ''
+  }
+
+  return {
+    feed,
+    busy: () => state.busy,
+    onChange: (cb) => listeners.push(cb),
+  }
+}
+
+const MARKER = /\u001b\[\?2026([hl])/g
+const FRAME_CARRY_MAX = 16
+const ANSI_SEQUENCE = /\u001b\[[0-9;?]*[a-zA-Z]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b./g
+const SGR = /^\u001b\[[0-9;]*m$/
+
+type FrameInjector = {
+  feed(chunk: string): void
+  inject(text: string): void
+}
+
+function sanitizeInjection(text: string): string {
+  return text.replaceAll(ANSI_SEQUENCE, (sequence) => (SGR.test(sequence) ? sequence : ''))
+}
+
+function createFrameInjector(write: (chunk: string) => void): FrameInjector {
+  const queue: string[] = []
+  const state = {carry: '', inFrame: false, queue, written: false}
+
+  const flush = (): void => {
+    for (const text of state.queue.splice(0)) {
+      write(`${state.written ? '\r\n' : ''}${text}\r\n`)
+      state.written = true
+    }
+  }
+
+  const feed = (chunk: string): void => {
+    write(chunk)
+    state.written ||= chunk.length > 0
+    const text = state.carry + chunk
+    const cursor = {end: 0}
+    for (const match of text.matchAll(MARKER)) {
+      state.inFrame = match[1] === 'h'
+      cursor.end = match.index + match[0].length
+    }
+    const rest = text.slice(cursor.end)
+    const tail = rest.lastIndexOf('\u001b')
+    state.carry = tail >= 0 && rest.length - tail <= FRAME_CARRY_MAX ? rest.slice(tail) : ''
+    if (!state.inFrame) flush()
+  }
+
+  const inject = (text: string): void => {
+    state.queue.push(sanitizeInjection(text))
+    if (!state.inFrame) flush()
+  }
+
+  return {feed, inject}
+}
+
+function ensureSpawnHelperExecutable(): void {
+  if (process.platform !== 'darwin') return
+  const helper = resolveSpawnHelper()
+  if (!helper || !existsSync(helper)) return
+  try {
+    accessSync(helper, constants.X_OK)
+  } catch {
+    chmodSync(helper, 0o755)
+  }
+}
+
+function resolveSpawnHelper(): string | null {
+  try {
+    const require = createRequire(import.meta.url)
+    const platformRequire = createRequire(require.resolve('@lydell/node-pty'))
+    const packageRoot = dirname(platformRequire.resolve(`@lydell/node-pty-darwin-${process.arch}/package.json`))
+    return join(packageRoot, 'spawn-helper')
+  } catch {
+    return null
+  }
+}
 
 const INTERRUPT_BYTE = String.fromCharCode(3)
 const INTERRUPT_DEBOUNCE_MS = 1000
@@ -78,9 +186,8 @@ function replayTo(entry: Entry, sink: TtySink, from: number | undefined): void {
   }
 }
 
-export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: number}): TtySessions {
+export function createTtySessions(opts?: {idleEvictMs?: number}): TtySessions {
   const idleEvictMs = opts?.idleEvictMs ?? IDLE_EVICT_MS
-  const replayCap = opts?.replayCap ?? REPLAY_CAP
   const entries = new Map<string, Entry>()
 
   const drop = (sessionId: string): void => {
@@ -105,7 +212,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     entry.written += chunk.length
     entry.replay.push(chunk)
     entry.replaySize += chunk.length
-    while (entry.replaySize > replayCap && entry.replay.length > 1) {
+    while (entry.replaySize > REPLAY_CAP && entry.replay.length > 1) {
       const head = entry.replay.shift()
       if (head) entry.replaySize -= head.length
     }

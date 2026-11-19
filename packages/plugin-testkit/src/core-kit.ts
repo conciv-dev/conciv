@@ -88,7 +88,6 @@ export async function bootCoreKit(
           enabled: true,
           stateRoot: env.stateRoot,
           harness: env.harness.id,
-          harnessBin: undefined,
           sessionId: undefined,
           harnessSessionId: undefined,
           systemPrompt: '',

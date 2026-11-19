@@ -8,8 +8,6 @@ export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
 export const CHAT_HISTORY_PAGE_SIZE = 50
 
-export const CHAT_DELIVERY_HEADERS = ['x-run-id', 'last-event-id'] as const
-
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
 
 export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
@@ -26,7 +24,6 @@ export const HubAccessSchema = z.enum(['open', 'project'])
 
 export type HubAccess = z.infer<typeof HubAccessSchema>
 
-export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
 export const CODE_MODE_EXTERNAL_PREFIX = 'external_'
 
 export const CODE_MODE_TIMEOUT_MS = 150_000
@@ -199,7 +196,6 @@ export const ChatHarnessesSchema = z.object({
   harnesses: z.array(HarnessMenuEntrySchema),
   defaultHarness: z.string(),
 })
-export type ChatHarnesses = z.infer<typeof ChatHarnessesSchema>
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>
 
@@ -219,7 +215,6 @@ export const ChatToolSchema = z.object({
 })
 export const ChatToolsSchema = z.object({tools: z.array(ChatToolSchema)})
 export type ChatTool = z.infer<typeof ChatToolSchema>
-export type ChatTools = z.infer<typeof ChatToolsSchema>
 
 export const ChatHistorySchema = z.array(z.custom<ChatMessage>((v) => v !== null && typeof v === 'object'))
 export type ChatHistory = z.infer<typeof ChatHistorySchema>
@@ -233,22 +228,7 @@ export const ChatSessionMetaSchema = z.object({
   origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
 })
-export const ChatSessionsSchema = z.object({sessions: z.array(ChatSessionMetaSchema)})
 export type ChatSessionMeta = z.infer<typeof ChatSessionMetaSchema>
-export type ChatSessions = z.infer<typeof ChatSessionsSchema>
-
-export const RenameSessionSchema = z.object({sessionId: SessionId, title: z.string().max(120)})
-export type RenameSession = z.infer<typeof RenameSessionSchema>
-
-export const ChatLaunchRequestSchema = z.object({model: z.string().optional()})
-export type ChatLaunchRequest = z.infer<typeof ChatLaunchRequestSchema>
-
-export const ChatLaunchSchema = z.object({
-  supported: z.boolean(),
-  opened: z.boolean(),
-  command: z.string().nullable(),
-})
-export type ChatLaunch = z.infer<typeof ChatLaunchSchema>
 
 const TabPageSchema = z.object({href: z.string(), title: z.string(), state: z.enum(['visible', 'hidden'])}).nullable()
 
@@ -299,5 +279,3 @@ export const TabsListingSchema = z.object({
   unreachable: z.array(z.object({root: z.string(), error: z.string()})),
 })
 export type TabsListing = z.infer<typeof TabsListingSchema>
-
-export type RequestMeta = Record<string, unknown>

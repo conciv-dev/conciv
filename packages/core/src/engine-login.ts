@@ -2,9 +2,9 @@ import {randomInt, timingSafeEqual} from 'node:crypto'
 import {unwatchFile, watchFile} from 'node:fs'
 import {join} from 'node:path'
 import {Hono} from 'hono'
-import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
-import {REVOKED_SOCKET_CLOSE_CODE, SocketTrustFrameSchema, type ExchangeRefusal} from '@conciv/contract'
-import {RPC_PREFIX, type RpcSocketGate, type UpgradeWebSocket} from '@conciv/serve/rpc'
+import type {WSContext} from 'hono/ws'
+import {REVOKED_SOCKET_CLOSE_CODE, type ExchangeRefusal} from '@conciv/contract'
+import {RPC_PREFIX, type RpcSocketGate} from '@conciv/serve/rpc'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {createConcivStateDir} from '@conciv/protocol/state-types'
 import {
@@ -197,7 +197,6 @@ export type ConnectionTrust = {
   trusts: (token: string) => boolean
   isEngine: (token: string) => boolean
   trustConnection: (socket: EngineSocket, token: string) => (() => void) | null
-  refuseUntrusted: (socket: EngineSocket) => void
 }
 
 export function makeConnectionTrust(agentToken: string, browsers: TrustedBrowsers): ConnectionTrust {
@@ -207,60 +206,7 @@ export function makeConnectionTrust(agentToken: string, browsers: TrustedBrowser
     trusts,
     isEngine,
     trustConnection: (socket, token) => (trusts(token) ? browsers.hold(socket, token) : null),
-    refuseUntrusted: (socket) => socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is not trusted'),
   }
-}
-
-function parsedFrame(data: WSMessageReceive): unknown {
-  if (typeof data !== 'string') return null
-  try {
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
-}
-
-export function trustingUpgrade(upgrade: UpgradeWebSocket, trust: ConnectionTrust): UpgradeWebSocket {
-  return (createEvents) =>
-    upgrade((c) => {
-      const events: WSEvents = createEvents(c)
-      const presented = BEARER.exec(c.req.header('authorization') ?? '')?.[1]
-      const connection: {opened: Event | null; release: (() => void) | null} = {opened: null, release: null}
-      const admit = (token: string, ws: WSContext): void => {
-        connection.release = trust.trustConnection(ws, token)
-        if (connection.release === null) {
-          trust.refuseUntrusted(ws)
-          return
-        }
-        events.onOpen?.(connection.opened ?? new Event('open'), ws)
-      }
-      return {
-        onOpen: (event, ws) => {
-          connection.opened = event
-          if (presented !== undefined) admit(presented, ws)
-        },
-        onMessage: (event, ws) => {
-          const frame = SocketTrustFrameSchema.safeParse(parsedFrame(event.data))
-          if (connection.release !== null) {
-            if (!frame.success) events.onMessage?.(event, ws)
-            return
-          }
-          if (!frame.success) {
-            trust.refuseUntrusted(ws)
-            return
-          }
-          admit(frame.data.token, ws)
-        },
-        onClose: (event, ws) => {
-          if (connection.release === null) return
-          connection.release()
-          events.onClose?.(event, ws)
-        },
-        onError: (event, ws) => {
-          if (connection.release !== null) events.onError?.(event, ws)
-        },
-      }
-    })
 }
 
 function isAuthProcedure(path: readonly string[]): boolean {

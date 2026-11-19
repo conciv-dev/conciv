@@ -93,9 +93,3 @@ export function sustainedEngineOffline(graceMs = ENGINE_OFFLINE_GRACE_MS): Acces
   onCleanup(() => offlineDebouncer.cancel())
   return sustained
 }
-
-export function subscribeEngineOnline(listener: () => void): () => void {
-  return onlineManager.subscribe((online) => {
-    if (online) listener()
-  })
-}

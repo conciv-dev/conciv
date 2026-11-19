@@ -7,7 +7,7 @@ SolidJS tool-card renderers for the chat thread. `UiCard` renders interactive pr
 ## Interface
 
 - `UiCard(props: ToolCardProps)` (`ui-card.tsx`): header `Rendered <kind>` with a status dot; renders Choices (buttons, or a form when `multiSelect` / `allowOther`), Confirm (Approve `'yes'` / Deny `'no'`), Diff (Apply `'apply'` / Reject `'reject'`) or Form (text/select fields to a record); shows the answer once settled.
-- `OpenCard(props: ToolCardProps)` (`open-card.tsx`): titled `Open in editor`, subtitle is the last 2 path segments (prefixed `…/`) plus `:line`.
+- `OpenCard(props: ToolCardProps)` (`../cards.tsx`): titled `Open in editor`, subtitle is the last 2 path segments (prefixed `…/`) plus `:line`.
 
 ## Invariants
 

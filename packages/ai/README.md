@@ -5,17 +5,15 @@ TanStack AI.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
-## Interface
+## Overview
 
-- `package.json:exports` - `./server` (`dist/server.js`), `./client` (`dist/client.js`), `./testkit` (`dist/testkit.js`).
-- `tsdown.config.ts` - two builds, both ESM with type declarations: one for `src/server.ts`, `src/testkit.ts` and the QuickJS worker, one for `src/client.ts` alone.
-- `vitest.config.ts` - spreads `ciTest()` from `@conciv/vitest-config`.
-- Source: [src](./src/README.md).
+- `./server` runs chat turns and holds the harness text adapters, `./client` is the browser chat session, `./testkit` scripts chat event streams for tests and stories. Source: [src](./src/README.md).
+- `tsdown.config.ts` has two ESM builds (`dts: false`; `tsc -p tsconfig.build.json` emits the declarations): one for `src/server.ts`, `src/testkit.ts` and the QuickJS worker, one for `src/client.ts` alone.
 
 ## Invariants
 
 - `package.json:type` - ESM only (`"module"`); the `attw` script checks the `esm-only` profile.
-- `tsdown.config.ts:noExternal` - the server build bundles the `@tanstack/ai-(acp|claude-code|code-mode|codex|opencode|sandbox|sandbox-local-process)` packages into the output.
+- The server build bundles nothing: every `@tanstack/ai-*` package stays a dependency the consumer resolves.
 - The client build bundles `@tanstack/ai-client` and `@tanstack/ai-solid` with `NODE_ENV` fixed to `production`, so their devtools bridge is the no-op one even in a development Vite host. `solid-js`, `@tanstack/ai`, `@tanstack/ai-event-client` and `@tanstack/store` stay external, so the page loads one copy of each.
 
 ## Side Effects

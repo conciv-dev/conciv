@@ -192,7 +192,6 @@ function expectCommonOutcome(cloneDir: string, outcome: {code: number; output: s
   expectClosingOutro(outcome.output)
   expect(readFileSync(join(cloneDir, 'package.json'), 'utf8')).not.toContain('@conciv/it')
   expect(readFileSync(join(cloneDir, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
-  expect(JSON.parse(readFileSync(join(cloneDir, '.conciv', 'harnesses.json'), 'utf8'))).toEqual({harnesses: []})
 }
 
 describe('conciv init against consumer-app clones', () => {

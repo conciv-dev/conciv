@@ -12,14 +12,12 @@ export type ServeFetch = (request: Request, env: HttpBindings | Http2Bindings) =
 export type ServeHonoOptions = {
   fetch: ServeFetch
   port?: number
-  hostname?: string
   maxPayload?: number
   gracefulCloseMs?: number
 }
 
 export type ServedHono = {
   server: ServerType
-  wss: WebSocketServer
   port: number
   close: () => Promise<void>
 }
@@ -58,7 +56,7 @@ export async function serveHono(options: ServeHonoOptions): Promise<ServedHono> 
   const server = serve({
     fetch: options.fetch,
     port: requestedPort,
-    hostname: options.hostname ?? '127.0.0.1',
+    hostname: '127.0.0.1',
     websocket: {server: wss},
     overrideGlobalObjects: false,
   })
@@ -76,7 +74,6 @@ export async function serveHono(options: ServeHonoOptions): Promise<ServedHono> 
   })
   return {
     server,
-    wss,
     port: boundPort(server, requestedPort),
     close: closeServer(server, wss, options.gracefulCloseMs ?? GRACEFUL_SOCKET_CLOSE_MS),
   }

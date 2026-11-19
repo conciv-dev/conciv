@@ -12,7 +12,6 @@ import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import type {RowScope} from '../../sessions/session-rows.js'
-import {runWithSession} from '../../runtime/session-context.js'
 import {callTrace} from '../call-trace.js'
 import type {AuthRouter} from '../../engine-login.js'
 import type {createSessionSearch} from '../../sessions/session-search.js'
@@ -40,7 +39,7 @@ import type {
   Tool,
 } from '@conciv/plugin-host'
 import type {PermissionAnswer} from '../../runtime/permission-cards.js'
-import type {EventFeed} from '../../event-feed.js'
+import type * as EventFeed from '../../event-feed.js'
 import type {PersistentPtys} from '../../pty/persistent-ptys.js'
 
 export type PluginHost = ManagedRuntime.ManagedRuntime<
@@ -128,14 +127,14 @@ export function makeSessionOs(deps: RpcDeps): SessionOs {
   return os.use(async ({context, next, signal}) => {
     const scope = callerScope(deps, context)
     await admitHubCaller(deps, context, scope, signal)
-    return runWithSession(scope, () => next({context: {session: scope}}))
+    return next({context: {session: scope}})
   })
 }
 
 export function makeToolCallOs(deps: RpcDeps): SessionOs {
   return os.use(({context, next}) => {
     const scope = callerScope(deps, context)
-    return runWithSession(scope, () => next({context: {session: scope}}))
+    return next({context: {session: scope}})
   })
 }
 

@@ -23,7 +23,7 @@ import {
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
-import {makeQueryUtils} from '../src/query-utils.js'
+import {makeQueryUtils} from '../src/index.js'
 import {getEventMeta, ORPCError} from '@orpc/client'
 import {onlineManager} from '@tanstack/query-core'
 import {isReachabilityError, setupEngineReachability} from '../src/reachability.js'

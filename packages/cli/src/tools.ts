@@ -3,14 +3,38 @@ import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
 import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
 import {concivHome} from '@conciv/db'
-import {envelopeFlag} from './envelope.js'
+import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {listTabs} from './engine-read.js'
 import {pageChangesCommand} from './page.js'
 import {handler} from './router/handler.js'
 import {runRpc, type CliTarget} from './request.js'
 import {tabFlag} from './tab-flag.js'
 import {wireToolCommand} from './tool-command.js'
-import {toolGroupRoute} from './tool-group.js'
+
+type ToolGroup = {
+  name: string
+  description: string
+  signatures: readonly ToolCommandSignature[]
+  call: (signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) => Promise<CliOutcome>
+  extra: readonly AnyRoute[]
+}
+
+function toolGroupRoute(group: ToolGroup) {
+  return route(
+    name(group.name),
+    description(group.description),
+    envelopeFlag,
+    tabFlag,
+    extend(...group.signatures.map((signature) => verbCommand(group, signature)), ...group.extra),
+  )
+}
+
+function verbCommand(group: ToolGroup, signature: ToolCommandSignature) {
+  return wireToolCommand(signature, {
+    name: signature.name.slice(signature.name.indexOf('_') + 1),
+    run: (input, target) => group.call(signature, input, target),
+  })
+}
 
 const PAGE_GROUP = 'page'
 

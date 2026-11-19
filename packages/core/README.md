@@ -1,6 +1,6 @@
 # @conciv/core
 
-The conciv engine: a Hono server (served through `@conciv/serve`) exposing `/health`, `/rpc/*`, `/api/mcp` and the chat routes, with a harness registry seam.
+The conciv engine: a Hono server (served through `@conciv/serve`) exposing `/health`, `/rpc/*`, `/rpc-ws` and `/api/mcp`, with a harness registry seam.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
@@ -16,7 +16,7 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 - `peerDependencies` (`package.json`): solid-js
 - `scripts` (`package.json`): build (`tsdown && vite build && tsc -p tsconfig.build.json`), typecheck (`tsconfig.json`, which covers the Solid card `.tsx` too), lint, test, publint, attw
 - Subdirectories:
-  - src: [./src/README.md](./src/README.md) - engine entry, app composition, page bus, tool registry
+  - src: [./src/README.md](./src/README.md) - engine entry and app composition
   - `test/rpc/`: type test for the page error map (`page-error-map.test-d.ts`)
   - `test/core-api.it.test.ts`: `ONE_PIXEL_WEBP` is a real 1x1 WebP (base64), encoded once by headless Chromium's `canvas.toDataURL('image/webp')`, the page screenshots' fixture
 
@@ -24,13 +24,13 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 
 - `entry` (`tsdown.config.ts`): only src/start.ts, config.ts, app.ts and runtime.ts are Node entries, plus src/sessions/search-index-worker.ts built as dist/search-index-worker.js, the session search index's `node:worker_threads` entry
 - `build.lib` (`vite.config.ts`): src/cards.tsx builds to cards.js with `emptyOutDir: false` so it does not wipe tsdown output
-- `rollupOptions.external` (`vite.config.ts`): solid-js, zod, @conciv/_, lucide-solid, rrweb_, @tanstack/* and @orpc/* stay external
+- `rollupOptions.external` (`vite.config.ts`): solid-js, zod, @conciv/_, @tanstack/* and @orpc/* stay external
 - `test.include` (`vitest.config.ts`): only `test/**/*.test.ts`, run with `--expose-gc`
 
 ## Side Effects
 
 - `build` (`package.json`): writes dist/
-- `uno.config.ts`: scans src/**/*.{ts,tsx} with `presetConciv`
+- `uno.config.ts`: scans src/**/*.{ts,tsx} with `presetConciv` (read by the lint's UnoCSS plugin; the widget's CSS comes from the app's own config)
 
 ## Verification
 

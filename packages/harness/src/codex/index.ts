@@ -1,11 +1,30 @@
 import {randomUUID} from 'node:crypto'
-import {type TextAdapter} from '@conciv/ai/server'
+import {type TextAdapter, codex as codexAdapter} from '@conciv/ai/server'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
-import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {codexHistory} from './history.js'
-import {codexDefaultModel, codexModels} from './models.js'
-import {codexRunAdapter} from './run-adapter.js'
+import {codexDefaultModel, codexModels, codexHome} from './models.js'
+import {definedEntries} from '../_shared/env.js'
+
+const TANSTACK_MCP_SERVER_NAME = 'tanstack'
+
+const approveTanstackToolsConfig = {
+  [`mcp_servers.${TANSTACK_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"',
+}
+
+function effortConfig(effort: string | undefined): Record<string, string> {
+  return effort === undefined ? {} : {model_reasoning_effort: `"${effort}"`}
+}
+
+export function codexRunAdapter(deps: HarnessChatDeps, toolCount: number): TextAdapter {
+  return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'never',
+    config: {...(toolCount > 0 ? approveTanstackToolsConfig : {}), ...effortConfig(deps.effort)},
+    env: definedEntries(deps.env),
+  })
+}
 
 const RUN_SCOPED_FIELDS = ['toolCallId', 'messageId', 'parentMessageId'] as const
 

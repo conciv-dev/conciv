@@ -2,7 +2,7 @@
 
 ## Overview
 
-Top-level sources of `@conciv/harness-init`: the init-contribution registry for all five harnesses, the shared agent-guide text, init contributions with `init: 'none'` for codex, gemini-cli, opencode and pi, and small JSON and path helpers. Each file is its own export subpath.
+Top-level sources of `@conciv/harness-init`: the init-contribution registry for all five harnesses, the shared agent-guide text, init contributions with `init: 'none'` for codex, gemini-cli, opencode and pi, and small JSON and path helpers. The per-harness contributions are reached through `./registry`; they have no export subpath of their own.
 
 ## Interface
 
@@ -11,10 +11,10 @@ Top-level sources of `@conciv/harness-init`: the init-contribution registry for 
 - `hub.name` / `hub.shellEnv` on each hub contribution: the display name and the env var that agent CLI sets for its shell commands (claude `CLAUDECODE`, codex `CODEX_THREAD_ID`, gemini-cli `GEMINI_CLI`, opencode `OPENCODE`, read from the CLI builds pinned in CI)
 - `hub.add(command)` on the claude, codex, gemini-cli and opencode contributions: the argv that registers `conciv-hub` as a user-scope stdio MCP server in that CLI (pi has none); `hub.remove` on claude, codex and gemini-cli is the argv that drops an existing `conciv-hub` so the installer can re-add it with this engine's `CONCIV_HOME` (opencode has no non-interactive remove, so an existing entry there stays as is).
 - `CONCIV_BIN` = `'.conciv/bin/conciv'`, `CONCIV_RANKING_SENTENCE`, `CONCIV_COMMAND_GUIDE` (`agent-guide.ts`, export `./agent-guide`): text telling agents to prefer `conciv tools page|react|design|server` over browser MCP. The `AGENTS.md` write itself happens in the CLI (`packages/cli/src/init/steps/harness/agents-md.ts`).
-- `codexInit` (`codex.ts`): detection `{bin: 'codex', configDir: ['.codex']}`, `init: 'none'`.
-- `geminiCliInit` (`gemini-cli.ts`): detection `{bin: 'gemini', configDir: ['.gemini']}`, `init: 'none'`.
-- `opencodeInit` (`opencode.ts`): detection `{bin: 'opencode', configDir: ['.config', 'opencode']}`, `init: 'none'`.
-- `piInit` (`pi.ts`): detection `{bin: 'pi', configDir: ['.pi']}`, `init: 'none'`.
+- `codexInit` (`registry.ts`): detection `{bin: 'codex', configDir: ['.codex']}`, `init: 'none'`.
+- `geminiCliInit` (`registry.ts`): detection `{bin: 'gemini', configDir: ['.gemini']}`, `init: 'none'`.
+- `opencodeInit` (`registry.ts`): detection `{bin: 'opencode', configDir: ['.config', 'opencode']}`, `init: 'none'`.
+- `piInit` (`registry.ts`): detection `{bin: 'pi', configDir: ['.pi']}`, `init: 'none'`.
 - `detectHarnesses(env)` / `FoundHarness` (`detect.ts`, export `./detect`): installed harnesses by an executable on PATH or a config dir under HOME, from each contribution's `detection`; the cli uses it for `conciv init`, core for the set of harnesses a session can switch to.
 - `parseJsonOrNull(raw)` (`json.ts`, export `./json`).
 - `inside(parent, child)`, `realpathOrSelf(path)`, `sameCwd(a, b)` (`paths.ts`, export `./paths`).

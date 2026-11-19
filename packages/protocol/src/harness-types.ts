@@ -2,7 +2,6 @@ import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
 import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
-import type {TokenUsage} from './usage-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -50,10 +49,8 @@ export type HarnessConnectContext = {
   concivSessionId: SessionId
   harnessSessionId: HarnessSessionId | null
   resume: boolean
-  owned: boolean
   model: string | null
   mcpUrl: string | null
-  hookUrl: string | null
 }
 
 export type HarnessConnectFile = {path: string; contents: string; mode?: number}
@@ -185,33 +182,21 @@ export type HarnessHistory = HarnessTranscriptPaths & {
 
   withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
 
-  nameFromTranscript?(raw: string): string | null
-
   contextTokens?(raw: string): number | undefined
 
   list(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage>
 
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
-
-  transcriptUsage?(query: TranscriptUsageQuery): Promise<TranscriptUsage | null>
 }
-
-export type TranscriptUsageQuery = {cwd: string; nativeId: HarnessSessionId}
-
-export type TranscriptUsage = {nativeId: HarnessSessionId; model: string; usage: TokenUsage; cost?: number}
 
 export type ServerSessions = {
   resumeToken(sessionId: SessionId): Promise<HarnessSessionId | null>
   recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
-  chatBusy(sessionId: SessionId): Promise<boolean>
   model(sessionId: SessionId): Promise<string | null>
-  onChatTurn(listener: (sessionId: SessionId) => void): void
 }
 
 export type ServerHarness = {
   id: string
   ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
-  release?: (sessionId: SessionId) => void
   transcriptExists?: (token: HarnessSessionId) => boolean
-  transcriptMessages?: (token: HarnessSessionId) => Promise<ChatMessage[]>
 }

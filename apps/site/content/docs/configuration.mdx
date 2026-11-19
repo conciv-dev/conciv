@@ -21,7 +21,6 @@ conciv({
   type={{
     enabled: {type: 'boolean', default: 'true', description: 'Mount the agent. Gate it on dev mode in real apps.'},
     harness: {type: 'string', default: '"claude"', description: 'Harness adapter id, such as claude or codex.'},
-    harnessBin: {type: 'string', default: 'adapter default', description: 'Override the harness binary on PATH.'},
     systemPrompt: {type: 'string', default: 'built-in', description: 'Appended to each agent turn.'},
     previewId: {type: 'string', default: '"local"', description: 'Correlates a resumable session.'},
     sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
@@ -45,7 +44,7 @@ conciv({
   }}
 />
 
-<Callout>`claudePath` and `claudeSessionId` are deprecated. Use `harnessBin` and `sessionId`.</Callout>
+<Callout>`claudeSessionId` is deprecated. Use `sessionId`.</Callout>
 
 ## Common tasks
 
@@ -79,12 +78,6 @@ conciv({widget: false}) // no widget on the page, the engine still starts
 `modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left`,
 `bottom-right` (default), and the button is also draggable. See the
 [Quick Terminal](/docs/usage/quick-terminal) guide for the drop-down layout.
-
-### Override the binary
-
-```ts
-conciv({harnessBin: '/usr/local/bin/claude'})
-```
 
 ### Custom system prompt
 

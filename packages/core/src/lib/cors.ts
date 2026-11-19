@@ -1,6 +1,6 @@
 import {cors} from 'hono/cors'
 import type {MiddlewareHandler} from 'hono'
-import {CHAT_DELIVERY_HEADERS, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import coreManifest from '../../package.json' with {type: 'json'}
 
@@ -63,13 +63,7 @@ export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
       origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: [
-        'content-type',
-        'authorization',
-        CONCIV_SESSION_HEADER,
-        CONCIV_VERSION_HEADER,
-        ...CHAT_DELIVERY_HEADERS,
-      ],
+      allowHeaders: ['content-type', 'authorization', CONCIV_SESSION_HEADER, CONCIV_VERSION_HEADER],
       exposeHeaders: [CONCIV_VERSION_HEADER],
     })
     return corsHandler(c, next)

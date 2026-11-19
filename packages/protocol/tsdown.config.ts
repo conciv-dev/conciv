@@ -9,7 +9,6 @@ export default defineConfig({
     'src/chat-tool-types.ts',
     'src/usage-types.ts',
     'src/ui-types.ts',
-    'src/editor-types.ts',
     'src/harness-types.ts',
     'src/rpc-types.ts',
     'src/terminal-types.ts',

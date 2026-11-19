@@ -14,11 +14,7 @@ export type TriggerPosition = z.infer<typeof TriggerPositionSchema>
 
 const ModalConfigSchema = z.object({position: TriggerPositionSchema.optional()})
 
-export type ModalConfig = z.infer<typeof ModalConfigSchema>
-
 const QuickTerminalConfigSchema = z.object({hotkey: z.union([z.string(), z.array(z.string())]).optional()})
-
-export type QuickTerminalConfig = z.infer<typeof QuickTerminalConfigSchema>
 
 export type ConcivSurface = 'page' | 'dock'
 
@@ -87,14 +83,12 @@ export const ConcivConfigSchema = z.object({
   widget: z.union([WidgetConfigSchema, z.literal(false)]).optional(),
   stateRoot: z.string().optional(),
   harness: z.string().optional(),
-  harnessBin: z.string().optional(),
   sessionId: z.string().optional(),
   port: z.number().optional(),
   devEndpointDir: z.string().optional(),
   homeDir: z.string().optional(),
   hubAccess: HubAccessSchema.optional(),
   systemPrompt: z.union([z.string(), z.boolean()]).optional(),
-  claudePath: z.string().optional(),
   claudeSessionId: z.string().optional(),
 })
 

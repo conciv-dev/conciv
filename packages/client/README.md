@@ -2,7 +2,7 @@
 
 ## Overview
 
-Client data layer used inside @conciv/it: typed oRPC query utilities, a chat connection, and push and reachability helpers, with no UI. It ships `dist` and `skills`.
+Client data layer used inside @conciv/it: typed oRPC query utilities, a chat connection and reachability helpers, with no UI. It ships `dist` and `skills`.
 
 ## Interface
 
@@ -11,7 +11,7 @@ Client data layer used inside @conciv/it: typed oRPC query utilities, a chat con
 - `src/index.ts` re-exports the TanStack Query surface the widget and plugins use (useQuery, useInfiniteQuery, useMutation, useMutationState, useQueryClient, useIsFetching, QueryClient, QueryClientProvider, keepPreviousData, QueryMutationObserver, CreateMutationResult, QueryKey) and `createTanstackQueryUtils`
 - `vitest.config.ts`: node project `client` over test/**/*.test.ts
 - Subdirectories:
-  - src: [./src/README.md](./src/README.md) - query utils, chat connection, page queries, reachability
+  - src: [./src/README.md](./src/README.md) - query utils, chat connection, reachability
   - solid-query skill: [./skills/client/solid-query/SKILL.md](./skills/client/solid-query/SKILL.md) - @tanstack/solid-query and oRPC usage rules
 
 ## Invariants

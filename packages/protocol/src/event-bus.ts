@@ -273,8 +273,3 @@ export type WidgetPanelToggledDetail = {
   connected: boolean
   mascotRect: {x: number; y: number; width: number; height: number} | null
 }
-
-export type WidgetStatusEventMap = {
-  [CONNECTION_CHANGED_EVENT]: WidgetConnectionChangedDetail
-  [PANEL_TOGGLED_EVENT]: WidgetPanelToggledDetail
-}

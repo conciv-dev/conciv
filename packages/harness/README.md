@@ -1,25 +1,18 @@
 # @conciv/harness
 
-Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.
+Harness adapters (claude, codex, gemini-cli, opencode, pi) behind the @conciv/protocol HarnessAdapter contract.
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Overview
 
-Coding-agent harness adapters behind the `HarnessAdapter` contract (`src/_shared/contract.ts`, built on `@conciv/protocol` types): `claude`, `codex`, `gemini-cli`, `opencode` and `pi`. Of these, only `pi` uses the stub chat config (`unsupportedChatConfig`); `gemini-cli` chats over ACP and `opencode` is a full adapter with history. `package.json` describes the package as internal to `@conciv/it`. ESM only, no bin entries.
-
-## Interface
-
-- [src/README.md](./src/README.md): `registerHarness`, `getHarness`, `listHarnesses`, `resolveHarnessModels` and the adapter subdirectories.
-- `exports["."]` -> `dist/registry.js`; `exports["./cwd"]` -> `dist/_shared/cwd.js` (`inside`, `realpathOrSelf`, `sameCwd`); `exports["./claude" | "./codex" | "./gemini-cli" | "./opencode" | "./pi"]` -> `dist/<id>/index.js` (`package.json`).
-- tsdown entries match the exports map, `format: 'esm'`, `dts: true`, and bundle `@tanstack/ai-(acp|claude-code|codex|opencode)` through `noExternal` (`tsdown.config.ts`).
-- Dependencies: `@anthropic-ai/claude-agent-sdk`, `@conciv/ai`, `@conciv/harness-init`, `@conciv/protocol`, `zod`. `files`: `dist`, `plugins`.
-- Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`--profile esm-only`). `vitest.config.ts` spreads `ciTest()`.
+Coding-agent harness adapters behind the `HarnessAdapter` contract (`src/_shared/contract.ts`, built on `@conciv/protocol` types): `claude`, `codex`, `gemini-cli`, `opencode` and `pi`. Only `pi` uses the stub chat config (`unsupportedChatConfig`); `gemini-cli` chats over ACP; `claude`, `codex` and `opencode` are full adapters with history. Each adapter's purpose and invariants live in its folder's README under [src/](./src/README.md).
 
 ## Invariants
 
-- `tsconfig.json` sets `noEmit: true`; only tsdown emits output.
-- ESM only: `"type": "module"`, exports carry only `import` and `types` conditions (`package.json`).
+- ESM only: `"type": "module"`, exports carry only `import` and `types` conditions; tsdown emits the JavaScript (`dts: false`) and `tsc -p tsconfig.build.json` emits the declarations.
+- tsdown bundles `@tanstack/ai-(acp|claude-code|codex|opencode)` through `noExternal`, so consumers do not resolve those adapters themselves.
+- Adapters never spawn or decode a CLI on their own: turns go through `chat()` with a published `@tanstack/ai-*` text adapter.
 
 ## Side Effects
 

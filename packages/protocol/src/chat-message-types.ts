@@ -1,6 +1,5 @@
 import {
   isContentPartArray,
-  modelMessagesToUIMessages,
   uiMessageToModelMessages,
   type ContentPart as LibraryContentPart,
   type MessagePart,
@@ -71,16 +70,10 @@ export const PromptPresentationSchema = z.object({
   attachments: decodedList(PromptAttachmentReferenceSchema).catch([]),
 })
 
-export type PromptPresentation = z.infer<typeof PromptPresentationSchema>
-
 export type QueuedMessage = {id: string; content: string | SendContent; createdAt: number}
 
 export function toModelMessages(messages: readonly ChatMessage[]): ModelMessage[] {
   return messages.flatMap(uiMessageToModelMessages)
-}
-
-export function toChatMessages(messages: ModelMessage[]): ChatMessage[] {
-  return modelMessagesToUIMessages(messages)
 }
 
 export function isContentParts(value: unknown): value is ContentPart[] {

@@ -14,7 +14,6 @@ export async function bootClientKit(opts: {plugins?: AppPlugins} = {}): Promise<
         enabled: true,
         stateRoot: env.stateRoot,
         harness: env.harness.id,
-        harnessBin: undefined,
         sessionId: undefined,
         harnessSessionId: undefined,
         systemPrompt: '',

@@ -42,18 +42,6 @@ export type ToolCardProps = {
   durationMs?: number
 }
 
-export type ToolRenderResultOptions = {expanded: boolean; isPartial: boolean}
-
-export type ToolRenderContext<TArgs = unknown> = ToolViewCtx & {
-  args: TArgs
-  part: ToolCallPart
-  toolCallId: string
-  durationMs?: number
-  expanded: boolean
-  isPartial: boolean
-  isError: boolean
-}
-
 export type ToolUIComponent = Component<ToolCardProps>
 
 export type ToolBodyPredicate = (part: ToolCallPart, result: ToolResultPart | undefined, ctx: ToolViewCtx) => boolean

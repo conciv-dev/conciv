@@ -1,5 +1,3 @@
-export * as EventFeed from './event-feed.js'
-
 import {Bus, Event, EventManifest, Rpc} from '@conciv/plugin-host'
 import {EventEnvelopeSchema} from '@conciv/contract'
 import {Cause, Context, Effect, Layer, Queue, Schema, Scope, Stream} from 'effect'

@@ -1,7 +1,7 @@
 {
   "name": "@conciv/tools",
   "version": "0.0.22",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv agent tools: the conciv_ui tool and the Solid cards for conciv_ui and open.",
   "keywords": [
     "ai-tools",
     "conciv",
@@ -53,7 +53,6 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "@conciv/solid-diffs": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "lucide-solid": "catalog:",

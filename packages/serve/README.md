@@ -2,18 +2,12 @@
 
 ## Overview
 
-Package root for `@conciv/serve`, internal to `@conciv/it`. Builds `src/serve.ts` and `src/rpc.ts` with tsdown.
-
-## Interface
-
-- `package.json:exports["."]` - `dist/serve.js` with types in `dist/serve.d.ts`.
-- `package.json:exports["./rpc"]` - `dist/rpc.js` with types in `dist/rpc.d.ts`.
-- `tsdown.config.ts:entry` - `src/serve.ts` and `src/rpc.ts`, ESM, with type declarations.
-- Source: [src](./src/README.md).
+The engine's HTTP and WebSocket server: a `@hono/node-server` `serve()` wrapper that always binds `127.0.0.1`, keeps the host's global `Request`/`Response`, and closes live sockets gracefully, plus the oRPC transport the engine serves its router over. Installed with `@conciv/it`, not directly. Source: [src](./src/README.md).
 
 ## Invariants
 
-- None
+- The server binds `127.0.0.1` only; there is no option to bind another interface.
+- tsdown emits the JavaScript (`dts: false`); `tsc -p tsconfig.build.json` emits the declarations.
 
 ## Side Effects
 

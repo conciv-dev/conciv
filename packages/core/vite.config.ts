@@ -13,17 +13,7 @@ export default defineConfig({
     rollupOptions: {
       external: (source) =>
         !source.includes('.css') &&
-        [
-          /^solid-js/,
-          /^zod/,
-          /^@conciv\//,
-          /^lucide-solid/,
-          /^rrweb($|\/)/,
-          /^rrweb-player($|\/)/,
-          /^@rrweb\//,
-          /^@tanstack\//,
-          /^@orpc\//,
-        ].some((pattern) => pattern.test(source)),
+        [/^solid-js/, /^zod/, /^@conciv\//, /^@tanstack\//, /^@orpc\//].some((pattern) => pattern.test(source)),
     },
     emptyOutDir: false,
     sourcemap: true,

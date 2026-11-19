@@ -4,7 +4,7 @@ import {structuredPatch} from 'diff'
 import picocolors from 'picocolors'
 import type {InitContext} from '../../pipeline.js'
 
-export type ConfigFile = {name: string; path: string; content: string}
+type ConfigFile = {name: string; path: string; content: string}
 
 export function readConfig(cwd: string, configFile: string | null): ConfigFile | null {
   if (configFile === null) return null

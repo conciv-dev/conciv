@@ -15,10 +15,7 @@ export {createFakeHarness, type FakeHarness, type FixtureSession} from './create
 export type {PacedRelease, PacedText, ScriptedRun, ScriptedTurn, ScriptedTurnToolCall} from './scripted-run.js'
 export {harnessAvailable} from './harness-available.js'
 export {
-  autoApprove,
   approvePending,
-  makeApprovingCallTool,
-  makeApprovingRegistryCall,
   makeCallTool,
   makeDiscoverTools,
   makeRunTypescript,
@@ -29,8 +26,24 @@ export {
   type RunTypescript,
 } from './call-tool.js'
 export {connectMcpClient, type McpClient, type McpContentPart, type McpTool} from './mcp-client.js'
-export {approvalIds} from './run-events.js'
-export {makeRpcClient, resolveSession, type RpcClient} from './session.js'
-export {harnessModes, type HarnessMode} from './harness-modes.js'
+export {makeRpcClient, type RpcClient} from './session.js'
 export type {RunStream} from './run-stream.js'
 export type {RunEvents, SeenToolCall} from './run-events.js'
+import type {HarnessAdapter} from '@conciv/harness'
+import {createTestHarness, type TestHarness} from './create-test-harness.js'
+import {harnessAvailable} from './harness-available.js'
+
+export type HarnessMode =
+  | {name: 'fake'; harness: TestHarness; run: true}
+  | {name: 'real'; harness: HarnessAdapter; run: boolean}
+
+function isCI(): boolean {
+  return Boolean(process.env.CI)
+}
+
+export function harnessModes(real: HarnessAdapter): HarnessMode[] {
+  return [
+    {name: 'fake', harness: createTestHarness(real), run: true},
+    {name: 'real', harness: real, run: !isCI() && harnessAvailable(real)},
+  ]
+}

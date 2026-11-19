@@ -7,7 +7,6 @@ export default defineConfig({
     'src/_shared/page.ts',
     'src/claude/index.ts',
     'src/codex/index.ts',
-    'src/gemini-cli/index.ts',
     'src/opencode/index.ts',
     'src/pi/index.ts',
   ],

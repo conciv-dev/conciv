@@ -1547,7 +1547,7 @@ describe('api native page', () => {
       writeFileSync(join(nativeDir, 'secret.txt'), 'outside the chunk dir')
       const token = '9bfa1f66-6060-4c6e-8a2e-4a0e0c3d5b1a'
       const engine = await start({
-        options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
+        options: {stateRoot: root, systemPrompt: false},
         root,
         launchEditor: () => {},
         accessToken: token,
@@ -4639,7 +4639,7 @@ return seen`
 describe('token charset', () => {
   test('an invalid token refuses to boot with a constraint-naming error', async () => {
     const root = tempDir('conciv-token-charset-')
-    const options = {harnessBin: 'true', stateRoot: root}
+    const options = {stateRoot: root}
     const booted = start({options, root, launchEditor: () => {}, accessToken: ':a'}).then((engine) => engine.stop())
     await expect(booted).rejects.toThrow('accessToken must be a UUID pairing token')
     rmSync(root, {recursive: true, force: true})

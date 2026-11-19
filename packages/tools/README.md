@@ -1,28 +1,25 @@
 # @conciv/tools
 
-conciv agent tools: `conciv_ui`, the `tabs` tool and `open`, plus their Solid tool cards.
-Tools are declared with `defineTool` (`@conciv/protocol/chat-tool-types`).
+The `conciv_ui` agent tool and the Solid tool cards for `conciv_ui` and `open` (the `open` tool itself
+comes from the engine's server plugin). Tools are declared with `defineTool` (`@conciv/protocol/chat-tool-types`).
 
 Part of [conciv](https://github.com/conciv-dev/conciv).
 
-## Interface
+## Overview
 
 - [src/README.md](./src/README.md): tool definitions, sandbox wrappers and the card registry.
-- [src/builtins/README.md](./src/builtins/README.md): `OpenInput` for the `open` card.
 - [src/cards/README.md](./src/cards/README.md): `UiCard`, `OpenCard`.
-- Exports (`package.json`): `.` -> `dist/tools.js`, `./defs` -> `dist/defs.js`, `./cards` -> `dist/cards.js` (`browser` and `import` conditions), `./package.json`. No bin.
-- Dependencies: `@conciv/protocol`, `@conciv/solid-diffs`, `@conciv/ui-kit-chat`, `@conciv/ui-kit-system`, `lucide-solid`, `zod`; peer `solid-js` ^1.9.13.
-- Scripts: `build` (`tsdown && vite build && tsc -p tsconfig.build.json`), `typecheck` (`tsconfig.json`), `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`--profile esm-only`).
 
 ## Invariants
 
 - ESM only (`"type": "module"`, attw `esm-only`); only `dist` is published (`files`).
-- `vite.config.ts` uses `emptyOutDir: false` because tsdown writes `dist/` first in the `build` script.
+- `vite.config.ts` uses `emptyOutDir: false` because tsdown writes `dist/` first in the `build` script; the cards build keeps `solid-js`, `zod`, `lucide-solid` and every `@conciv/*` import external.
+- `uno.config.ts` serves the UnoCSS lint rules only; the hosts that render the cards (the widget, storybook) scan `src/**` with their own uno config.
 - `tsconfig.json` extends the Solid preset, so card `.tsx` code is type-checked with the DOM lib and Solid JSX alongside `src/**/*.ts` and `test/**/*.ts`.
 
 ## Side Effects
 
-- `build` writes `dist/`. Tool runtime effects are in [src/README.md](./src/README.md) and [src/builtins/README.md](./src/builtins/README.md).
+- `build` writes `dist/`. Tool runtime effects are in [src/README.md](./src/README.md).
 
 ## Verification
 

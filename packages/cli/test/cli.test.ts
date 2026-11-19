@@ -41,7 +41,6 @@ import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
-import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
 import {CONCIV_BIN, CONCIV_COMMAND_GUIDE} from '@conciv/harness-init/agent-guide'
@@ -51,15 +50,21 @@ import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type Pla
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
 import {writeOutcome} from '../src/envelope.js'
 import type {LedgerEntry} from '../src/init/ledger.js'
-import {emitOutro} from '../src/init/outro.js'
-import {type InitContext, type InitStep, runInit, type RunSettings, runSteps} from '../src/init/pipeline.js'
-import {preflight} from '../src/init/preflight.js'
+import {
+  type InitContext,
+  type InitStep,
+  runInit,
+  type RunSettings,
+  runSteps,
+  preflight,
+  emitOutro,
+  execFileOutcome,
+} from '../src/init/pipeline.js'
 import {
   CLAUDE_CONNECT_PLUGIN_VERSION,
   claudeConnectDir,
   claudeConnectPluginFiles,
 } from '@conciv/harness-init/claude/files'
-import {writeConsent} from '../src/init/steps/harness/consent.js'
 import {dlxCommand} from 'nypm'
 import {docsPackStep} from '../src/init/steps/docs-pack.js'
 import {stripVTControlCharacters} from 'node:util'
@@ -385,7 +390,7 @@ describe('cli', () => {
       return logged.join('\n')
     }
 
-    const beaconExtension = toolsPlugin('acme-beacon', [
+    const beaconPlugin = toolsPlugin('acme-beacon', [
       servedTool({
         name: 'acme_beacon',
         description: 'Raise the acme beacon over the page.',
@@ -418,7 +423,7 @@ describe('cli', () => {
       answer: {painted: true},
     })
 
-    const acmeExtension = toolsPlugin('acme-tools', [serverStatus, paint])
+    const acmePlugin = toolsPlugin('acme-tools', [serverStatus, paint])
 
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -436,7 +441,7 @@ describe('cli', () => {
 
     describe('the CLI reads its commands from the tool declarations', () => {
       it('sends every repeat of an array flag to the server as one array', async () => {
-        await bootCli(cleanups, {plugins: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmePlugin]})
         const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
@@ -457,7 +462,7 @@ describe('cli', () => {
       })
 
       it('resolves a relative path flag against the CLI working directory', async () => {
-        await bootCli(cleanups, {plugins: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmePlugin]})
         const answer = nextServedCall()
         const home = process.cwd()
         const dir = tempDir('conciv-path-flag-')
@@ -483,16 +488,16 @@ describe('cli', () => {
         expect(answer.seen()).toMatchObject({name: 'acme_paint', input: {image: join(process.cwd(), 'u1.png')}})
       })
 
-      it('serves a group from an extension the CLI has never heard of', async () => {
-        await bootCli(cleanups, {plugins: [beaconExtension]})
+      it('serves a group from a plugin the CLI has never heard of', async () => {
+        await bootCli(cleanups, {plugins: [beaconPlugin]})
         expect(await helpText(['tools', 'acme', '--help'])).toContain('Raise the acme beacon over the page')
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
       })
 
-      it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
-        await bootCli(cleanups, {plugins: [acmeExtension]})
+      it('sends a plugin tool named like a server operation to the plugin, not the dev server', async () => {
+        await bootCli(cleanups, {plugins: [acmePlugin]})
         const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'server_status'})
@@ -500,7 +505,7 @@ describe('cli', () => {
       })
 
       it('parses object and array-of-object flags as JSON before sending them', async () => {
-        await bootCli(cleanups, {plugins: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmePlugin]})
         const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
@@ -522,7 +527,7 @@ describe('cli', () => {
       })
 
       it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
-        await bootCli(cleanups, {plugins: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmePlugin]})
         const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
@@ -548,7 +553,7 @@ describe('cli', () => {
       })
 
       it('rejects a flag that is not valid JSON with the flag named', async () => {
-        await bootCli(cleanups, {plugins: [acmeExtension]})
+        await bootCli(cleanups, {plugins: [acmePlugin]})
         expect(await runCli(cliMain, ['tools', 'acme', 'paint', '--patch', '{color', '--strokes', '{"x":1}'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
@@ -987,7 +992,7 @@ describe('cli', () => {
       const project = projectWith(null)
       const printed: string[] = []
       const engine = await startEngine({
-        options: {harnessBin: 'true', stateRoot: project.root, systemPrompt: false},
+        options: {stateRoot: project.root, systemPrompt: false},
         root: project.root,
         launchEditor: () => {},
         print: (text) => printed.push(text),
@@ -1086,7 +1091,6 @@ describe('cli', () => {
     const tabs = pageTabs()
     const engine = await startEngine({
       options: {
-        harnessBin: 'true',
         stateRoot: root,
         systemPrompt: `the instructions of ${root}`,
         hubAccess: given.hubAccess ?? 'project',
@@ -3301,7 +3305,6 @@ describe('cli', () => {
 
     const BANNED = [
       '@conciv/harness',
-      '@conciv/claude-connect',
       '@anthropic-ai/claude-agent-sdk',
       '@opencode-ai/sdk',
       '@agentclientprotocol/sdk',
@@ -4156,19 +4159,9 @@ describe('init', () => {
   })
 
   describe('init run', () => {
-    function recordedConsent(cwd: string): unknown {
-      return JSON.parse(readFileSync(join(cwd, '.conciv', 'harnesses.json'), 'utf8'))
-    }
-
     const filterPlans = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
 
     const filterSettles = (events: string[]) => events.filter((event) => event.startsWith('settle:'))
-
-    function planLine(plan: string, title: string): string {
-      const line = plan.split('\n').find((row) => row.includes(title))
-      if (line === undefined) throw new Error(`plan has no row for ${title}`)
-      return line
-    }
 
     function acceptWith(selections: ConfirmedSelections): PlanPrompts {
       return {
@@ -4210,7 +4203,6 @@ describe('init', () => {
         expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/it')
         expect(readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')).toContain('@conciv/it/plugin/vite')
         expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
-        expect(recordedConsent(run.cwd)).toEqual({harnesses: ['claude']})
         expect(run.spawned).toEqual([
           `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
           'claude plugin install conciv-connect@conciv --scope local',
@@ -4361,7 +4353,6 @@ describe('init', () => {
           claude: 'skipped',
           'connect-claude': 'skipped',
         })
-        expect(recordedConsent(run.cwd)).toEqual({harnesses: []})
         expect(run.spawned).toEqual([])
       })
 
@@ -4383,31 +4374,6 @@ describe('init', () => {
         expect(plans[1]).toContain('already wired')
         expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
         expect(run.events).toContain('success:5 already wired')
-      })
-
-      it('plans the dry run against this run selections, not the harnesses a previous run recorded', async () => {
-        const run = initFixture()
-        await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-        writeConsent(run.cwd, ['claude', 'codex'])
-        commitAll(run.cwd)
-        const result = await runInit(
-          {yes: false, dryRun: true, force: false, cwd: run.cwd},
-          {
-            ...run.runtime,
-            interactive: () => false,
-            prompts: {
-              selections: async () => {
-                throw new Error('selections must not run under --dry-run')
-              },
-              confirmRun: async () => {
-                throw new Error('confirmRun must not run under --dry-run')
-              },
-            },
-          },
-        )
-        const plan = result.outcome === 'planned' ? result.plan : ''
-        expect(planLine(plan, 'Teach agents the conciv CLI')).toContain('already wired')
-        expect(planLine(plan, 'Teach agents the conciv CLI')).not.toContain('AGENTS.md')
       })
 
       it.each([false, true])('prints the plan and touches nothing with --dry-run (--yes %s)', async (yes) => {

@@ -172,7 +172,6 @@ export async function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): 
     enabled: true,
     stateRoot: env.stateRoot,
     harness: env.harness.id,
-    harnessBin: undefined,
     sessionId: undefined,
     harnessSessionId: undefined,
     systemPrompt: '',

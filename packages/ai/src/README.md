@@ -7,10 +7,9 @@ The three entry modules of `@conciv/ai`. `client.ts` and `server.ts` re-export t
 ## Interface
 
 - `client.ts` - re-exports `createChat`, `createChatSession` and session types from `./session/session.js`, plus `rpcStream` and `StreamReconnectLimitError` from `@tanstack/ai-client`.
-- `server.ts` - re-exports `approvalDenied`, `createChatServer`, `childCardChunks`, `imageToolProvisioner`, `drizzleChatStores` and the `chatMessages` / `chatMetadata` / `chatRuns` tables, and `createMCPServer` from `@tanstack/ai-mcp/server`.
-- `server.ts` - re-exports the adapters `acp`, `claudeCode`, `codex`, `codexModels`, `makeTextAdapter`, `opencode` and the types `TextAdapter`, `Approvals`, `ChatStores`, `TurnHooks` (`admit`, `plan`, `usage`, `end`, `started`; `admit(turn)` runs first and refuses a turn by rejecting).
+- `server.ts` - the chat server (`createChatServer`, `drizzleChatStores`, the asking tool provisioner, code mode drivers), the harness text adapters, and `createMCPServer` / `createMCPClient` from `@tanstack/ai-mcp`. The chat tables live in `@conciv/db`; import them from there. `TurnHooks.admit(turn)` runs first and refuses a turn by rejecting.
 - `testkit.ts:storyConnection` - a `ConnectConnectionAdapter` that yields RUN_STARTED, the scripted chunks, then RUN_FINISHED or RUN_ERROR, or waits until aborted.
-- `testkit.ts:createTextChunks` / `createReasoningChunks` / `createToolCallChunks` / `createToolResultChunk` / `createApprovalChunk` - build scripted chat events.
+- `testkit.ts:createTextChunks` / `createReasoningChunks` / `createToolCallChunks` / `createToolResultChunk` - build scripted chat events.
 - `testkit.ts:runAdapterTurn` - runs `chat()` against an adapter with threadId `testkit` and collects the events.
 - `testkit.ts:foldChatEvents` - folds events into `ChatMessage[]` using `StreamProcessor`.
 - Subdirectories: [adapters](./adapters/README.md), [server](./server/README.md), [session](./session/README.md).

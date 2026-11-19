@@ -40,10 +40,6 @@
       "types": "./dist/claude/init.d.ts",
       "import": "./dist/claude/init.js"
     },
-    "./claude/bridge": {
-      "types": "./dist/claude/bridge.d.ts",
-      "import": "./dist/claude/bridge.js"
-    },
     "./claude/endpoint": {
       "types": "./dist/claude/endpoint.d.ts",
       "import": "./dist/claude/endpoint.js"
@@ -59,22 +55,6 @@
     "./claude/state": {
       "types": "./dist/claude/install-state.d.ts",
       "import": "./dist/claude/install-state.js"
-    },
-    "./codex": {
-      "types": "./dist/codex.d.ts",
-      "import": "./dist/codex.js"
-    },
-    "./gemini-cli": {
-      "types": "./dist/gemini-cli.d.ts",
-      "import": "./dist/gemini-cli.js"
-    },
-    "./opencode": {
-      "types": "./dist/opencode.d.ts",
-      "import": "./dist/opencode.js"
-    },
-    "./pi": {
-      "types": "./dist/pi.d.ts",
-      "import": "./dist/pi.js"
     },
     "./json": {
       "types": "./dist/json.d.ts",

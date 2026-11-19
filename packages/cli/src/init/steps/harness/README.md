@@ -2,7 +2,7 @@
 
 ## Overview
 
-Init steps that connect agent harnesses. They write the consent file .conciv/harnesses.json, add a marked conciv section to AGENTS.md (and CLAUDE.md), and run each harness's file and command plan from the @conciv/harness-init registry.
+Init steps that connect agent harnesses. They add a marked conciv section to AGENTS.md (and CLAUDE.md), and run each harness's file and command plan from the @conciv/harness-init registry.
 
 ## Interface
 
@@ -10,7 +10,6 @@ Init steps that connect agent harnesses. They write the consent file .conciv/har
 - `agentsSection(consented)` (`agents-md.ts`): builds the section between `<!-- conciv:start -->` and `<!-- conciv:end -->`
 - `harnessInitStep(init, consented, io)` (`install-harness.ts`): InitStep with id init.harnessId that writes plan files and runs plan commands
 - `HarnessInitIo` {home, run} (`install-harness.ts`)
-- `consentFiles(cwd)` / `writeConsent(cwd, ids)` (`consent.ts`): the .conciv/.gitignore and .conciv/harnesses.json paths and their writer
 - `connectAgentStep(agent, consented, {concivHome, spawn})` (`connect-agent.ts`): InitStep `connect-<agent>` that connects the agent to conciv through `createHubConnections` (`@conciv/harness-init/hub`), running the agent CLI's `hub.add` with `serveArgv(agent)` through `spawn` with the hub's 30 s per-command timeout; detect is 'present' when the conciv home db already holds the connection; an agent not selected is skipped as 'not selected'; a failing add is manual with a `conciv mcp connect <agent>` card
 
 ## Invariants
@@ -26,7 +25,6 @@ Init steps that connect agent harnesses. They write the consent file .conciv/har
 ## Side Effects
 
 - `agentsMdStep.apply` (`agents-md.ts`): backs up and writes AGENTS.md and CLAUDE.md
-- `writeConsent` (`consent.ts`): creates .conciv (with its .gitignore) and writes harnesses.json
 - `writePlanFiles` (`install-harness.ts`): writes harness plan files, possibly outside cwd (for example under home)
 - `runCommand` (`install-harness.ts`): spawns the harness command through io.run and streams its lines to ctx.feed
 - `applyConnect` (`connect-agent.ts`): edits the agent CLI's user MCP config and records the connection in the conciv home db

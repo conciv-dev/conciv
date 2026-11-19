@@ -9,7 +9,7 @@ dev runs it against a core dev server: `pnpm dev`, then open
 
 Routes are the layout: `/` closed, `/panel/$sessionId/$view` panel, `/quick` quick
 terminal layer, `/pip/$sessionId` picture-in-picture. Embedded runs use
-`@conciv/storage-history` (db-persisted); standalone uses browser history.
+`@conciv/storage-history` (Web-Storage-persisted); standalone uses browser history.
 
 Behavioral coverage lives in `packages/embed`'s real-browser ITs; this package only
 unit-tests pure parsers plus the router-restore path (vitest browser project).

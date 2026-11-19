@@ -49,10 +49,6 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
-    "./editor-types": {
-      "types": "./dist/editor-types.d.ts",
-      "import": "./dist/editor-types.js"
-    },
     "./harness-types": {
       "types": "./dist/harness-types.d.ts",
       "import": "./dist/harness-types.js"

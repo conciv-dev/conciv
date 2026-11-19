@@ -227,7 +227,7 @@ describe('start dev endpoint', () => {
     const endpointDir = tempDir('conciv-endpoint-dir-')
     try {
       const engine = await start({
-        options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
+        options: {stateRoot: root, systemPrompt: false},
         root,
         launchEditor: () => {},
         accessToken: engineCase.accessToken,

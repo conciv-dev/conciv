@@ -23,14 +23,8 @@ import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
 
-export {
-  assistCapabilities,
-  toolDomainCapabilities,
-  type CapabilityResult,
-  type CodeCapability,
-  type ToolDomain,
-} from './code-mode.js'
-export type {AttachmentExpanders, SessionPort} from './turn.js'
+export {assistCapabilities, toolDomainCapabilities, type CodeCapability, type ToolDomain} from './code-mode.js'
+export type {SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 const FIRST_START_TIMEOUT_MS = 30_000

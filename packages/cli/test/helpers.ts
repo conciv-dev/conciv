@@ -25,7 +25,6 @@ function bootCliApp(extras: BootExtras): BootApp {
       enabled: true,
       stateRoot: env.stateRoot,
       harness: env.harness.id,
-      harnessBin: undefined,
       sessionId: undefined,
       harnessSessionId: undefined,
       systemPrompt: '',

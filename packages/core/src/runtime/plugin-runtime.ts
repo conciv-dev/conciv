@@ -3,7 +3,6 @@ import type {Plugin as PluginDefinition} from '@conciv/plugin'
 import type {Plugin as EffectPlugin} from '@conciv/plugin/effect/plugin'
 import {Model} from '@conciv/plugin/schema/model'
 import type {createChatPlane} from '@conciv/chat'
-import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {ConcivDb} from '@conciv/db'
 import {existsSync} from 'node:fs'
 import {dirname, join} from 'node:path'
@@ -42,26 +41,128 @@ import {
   SkillInstructions,
   Tool,
   Watcher,
+  Model as HostModel,
+  App,
+  ConfigAgentPlugin,
+  ConfigPolicy,
+  Global,
+  ManagedPolicy,
+  PluginHost,
 } from '@conciv/plugin-host'
-import {Cause, Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
-import type {PluginHost} from '../api/rpc/mount.js'
+import {Cause, Effect, Exit, Layer, ManagedRuntime, Schema, Scope, Queue, Stream} from 'effect'
+import type {PluginHost as PluginHostRuntime} from '../api/rpc/mount.js'
 import type {ResolvedConcivConfig} from '../config.js'
 import {logError} from '../lib/debug.js'
-import {EventFeed} from '../event-feed.js'
-import {provideHarnessModels} from './harness-models.js'
+import * as EventFeed from '../event-feed.js'
 import {provideInstructionEntries} from './instruction-entries.js'
 import {permissionSessions} from './permission-cards.js'
-import {
-  provideApp,
-  provideBundlerSource,
-  provideConfiguredPermissions,
-  provideConfiguredPolicies,
-  provideEditorSource,
-  provideGlobalRoots,
-  publishBundlerDiagnostics,
-} from './plugin-sources.js'
 import {provideSessions} from './plugin-sessions.js'
 import {provideServersSource} from './servers-source.js'
+import type {HarnessModel} from '@conciv/protocol/harness-types'
+import {uniq} from 'es-toolkit'
+import {buildHarnessMenuEntry} from '../api/rpc/sessions.js'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
+import * as Bundler from '@conciv/plugin/schema/bundler'
+import corePackage from '../../package.json' with {type: 'json'}
+
+export function provideBundlerSource(bundler: Bundler.BundlerBridge | undefined) {
+  return Layer.succeed(PluginHost.BundlerSource, bundler)
+}
+
+function diagnostics(subscribe: NonNullable<Bundler.BundlerBridge['subscribe']>) {
+  return Stream.callback<Bundler.Diagnostic>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() => subscribe((diagnostic) => Queue.offerUnsafe(queue, diagnostic))),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    ),
+  )
+}
+
+export function publishBundlerDiagnostics(bundler: Bundler.BundlerBridge | undefined) {
+  return Layer.effectDiscard(
+    Effect.gen(function* () {
+      const subscribe = bundler?.subscribe?.bind(bundler)
+      if (subscribe === undefined) return
+      const bus = yield* Bus.Service
+      yield* diagnostics(subscribe).pipe(
+        Stream.runForEach((diagnostic) => bus.publish(Bundler.Event.Diagnostic, {diagnostic})),
+        Effect.forkScoped,
+      )
+    }),
+  )
+}
+
+export function provideEditorSource(openInEditor: (file: string, line?: number, column?: number) => void) {
+  return Layer.succeed(PluginHost.EditorSource, openInEditor)
+}
+
+export function provideApp() {
+  return Layer.succeed(App.Service, App.make({version: corePackage.version}))
+}
+
+export function provideConfiguredPolicies(policies: ConcivConfig['policies']) {
+  return Layer.effect(
+    ManagedPolicy.ConfiguredPolicies,
+    Schema.decodeUnknownEffect(Schema.Array(ConfigPolicy.Info))(policies ?? []).pipe(Effect.orDie),
+  )
+}
+
+export function provideConfiguredPermissions(permissions: ResolvedConcivConfig['permissions']) {
+  return Layer.succeed(ConfigAgentPlugin.ConfiguredPermissions, permissions)
+}
+
+export function provideGlobalRoots(home: string) {
+  return Global.layerWith({cache: join(home, 'cache'), config: home, state: join(home, 'state')})
+}
+
+function harnessModelInfo(harnessId: string, model: HarnessModel): HostModel.Info {
+  const defaults = HostModel.Info.default(
+    HostModel.Info.fields.providerId.make(harnessId),
+    HostModel.Info.fields.id.make(model.id),
+  )
+  return {
+    ...defaults,
+    name: model.name,
+    enabled: model.disabled !== true,
+    limit: {context: model.contextWindow ?? defaults.limit.context, output: 0},
+    variants: (model.efforts ?? []).map((effort) => ({
+      id: HostModel.Info.fields.variants.value.fields.id.make(effort),
+      settings: {effort},
+    })),
+  }
+}
+
+function listedModels(harness: HarnessAdapter, signal: AbortSignal) {
+  return Effect.promise(() => buildHarnessMenuEntry(harness, signal)).pipe(
+    Effect.map((entry) => {
+      const all = entry.models.map((model) => harnessModelInfo(harness.id, model))
+      return {all, available: all.filter((model) => model.enabled), defaultModel: entry.defaultModel}
+    }),
+  )
+}
+
+export function provideHarnessModels(harness: HarnessAdapter, signal: AbortSignal) {
+  return Layer.succeed(
+    HostModel.Service,
+    HostModel.Service.of({
+      available: (types) =>
+        listedModels(harness, signal).pipe(
+          Effect.map(({available}) =>
+            types === undefined || types.length === 0
+              ? available
+              : uniq(types).flatMap((type) => available.filter((model) => (model.type ?? 'chat') === type)),
+          ),
+        ),
+      default: () =>
+        listedModels(harness, signal).pipe(
+          Effect.map(({all, available, defaultModel}) => {
+            const requested = all.find((model) => model.id === defaultModel)
+            return requested?.enabled ? requested : available[0]
+          }),
+        ),
+    }),
+  )
+}
 
 export type PluginRuntimeInput = {
   db: ConcivDb
@@ -188,7 +289,7 @@ function modelRef(model: SessionRequest['model']): Model.Ref {
 }
 
 export type PluginRuntime = {
-  runtime: PluginHost
+  runtime: PluginHostRuntime
   supervise: () => Promise<void>
   awaitActivation: () => Promise<void>
   prompt: (event: SessionPrompt, signal: AbortSignal) => Promise<SessionPrompt>

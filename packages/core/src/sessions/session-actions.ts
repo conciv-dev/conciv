@@ -7,7 +7,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
 import {removeInstructionEntries} from '../runtime/instruction-entries.js'
-import {createRow, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
+import {createRow, newSessionId, rowById, tombstoneRow, type FreshRowInput, type RowScope} from './session-rows.js'
 import type {createSessionSearch} from './session-search.js'
 import type {PagePlugin} from '../page/page-plugin.js'
 import type {CoreRuntime} from '../runtime/scope-types.js'
@@ -21,8 +21,6 @@ type SessionDeletion = {
   pluginHost: ManagedRuntime.ManagedRuntime<Bus.Interface | KV.Interface, never>
   queues: Pick<PagePlugin, 'cancelSession'>
 }
-
-export const newSessionId = (): SessionId => SessionId.parse(`conciv_${randomUUID()}`)
 
 function chatRow(scope: RowScope, sessionId: SessionId): FreshRowInput {
   return {

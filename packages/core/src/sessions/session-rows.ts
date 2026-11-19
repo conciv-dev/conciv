@@ -50,12 +50,10 @@ export type RowScope = {
   db: ConcivDb
   harnessKind: string
   cwd: string
-  mintId?: () => SessionId
   publishCreated: (born: SessionRecord) => Promise<void>
 }
 
-const resolveMintId = (scope: RowScope): (() => SessionId) =>
-  scope.mintId ?? (() => SessionIdSchema.parse(`conciv_${randomUUID()}`))
+export const newSessionId = (): SessionId => SessionIdSchema.parse(`conciv_${randomUUID()}`)
 
 const sessionColumns = {...getTableColumns(sessions), permissions: sql<string | null>`${sessions.permissions}`}
 
@@ -120,13 +118,6 @@ export async function currentRow(db: ConcivDb, id: SessionId): Promise<SessionRe
   return row === undefined ? null : sessionRecord(row)
 }
 
-export async function rowByNativeId(db: ConcivDb, nativeId: HarnessSessionId): Promise<SessionRecord | null> {
-  const rows = await Effect.runPromise(
-    db.select(sessionColumns).from(sessions).where(eq(sessions.harnessSessionId, nativeId)),
-  )
-  return rows[0] ? sessionRecord(rows[0]) : null
-}
-
 export async function rowByNativeRef(db: ConcivDb, ref: NativeSessionRef): Promise<SessionRecord | null> {
   const rows = await Effect.runPromise(
     db
@@ -174,7 +165,7 @@ async function claimNativeRow(
 ): Promise<SessionRecord> {
   const now = Date.now()
   const record = SessionRecordSchema.parse({
-    id: resolveMintId(scope)(),
+    id: newSessionId(),
     harnessSessionId: ref.nativeId,
     harnessKind: ref.harnessKind,
     origin,
@@ -244,7 +235,6 @@ async function latestRow(scope: RowScope): Promise<SessionRecord | null> {
 }
 
 export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId} | null> {
-  const mint = resolveMintId(scope)
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
     if (existing) return existing.deletedAt === null ? {sessionId: existing.id} : null
@@ -261,7 +251,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   }
   const latest = await latestRow(scope)
   if (latest) return {sessionId: latest.id}
-  const minted = mint()
+  const minted = newSessionId()
   await ensureRow(scope, minted)
   return {sessionId: minted}
 }
@@ -302,7 +292,7 @@ export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId
 
 export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
   const created = await createRow(scope, {
-    id: resolveMintId(scope)(),
+    id: newSessionId(),
     harnessSessionId: null,
     harnessKind: scope.harnessKind,
     origin: 'external',

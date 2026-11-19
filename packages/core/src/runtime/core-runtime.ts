@@ -7,7 +7,6 @@ import type {ChatPlane} from '@conciv/chat'
 import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
 import type {SessionPrimitives} from './primitives.js'
-import {runWithSession} from './session-context.js'
 import type {CoreRuntime, EngineScope, SessionScope} from './scope-types.js'
 
 const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
@@ -99,31 +98,7 @@ function announcedAgain(event: ChatEvent, caught: ChatEvent[]): boolean {
   return runId !== undefined && caught.some((missed) => sessionRunEvent.parse(missed)?.runId === runId)
 }
 
-function established(raw: SessionScope): SessionScope {
-  const inScope = <Args extends unknown[], Result>(effect: (...args: Args) => Result): ((...args: Args) => Result) => {
-    return (...args) => runWithSession(scope, () => effect(...args))
-  }
-  const scope: SessionScope = {
-    ...raw,
-    stream: {
-      ...raw.stream,
-      publish: inScope(raw.stream.publish),
-      listen: inScope(raw.stream.listen),
-      events: inScope(raw.stream.events),
-    },
-    asks: {ui: inScope(raw.asks.ui)},
-    history: {messages: inScope(raw.history.messages), hydrate: inScope(raw.history.hydrate)},
-    run: {
-      stop: inScope(raw.run.stop),
-      compact: inScope(raw.run.compact),
-      live: raw.run.live,
-      record: inScope(raw.run.record),
-    },
-  }
-  return scope
-}
-
 export function makeCoreRuntime(deps: CoreRuntimeDeps): CoreRuntime {
   const engine = makeEngineScope(deps)
-  return {forSession: (id) => established(makeSessionScope(deps, id)), engine}
+  return {forSession: (id) => makeSessionScope(deps, id), engine}
 }

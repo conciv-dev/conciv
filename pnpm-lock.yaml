@@ -2511,9 +2511,6 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      tsx:
-        specifier: 'catalog:'
-        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2635,9 +2632,6 @@ importers:
       '@tanstack/solid-query':
         specifier: 'catalog:'
         version: 5.107.1(patch_hash=6ca287b8a3085f4433ba1dbacd30d21e25e9c73cb2f279264f59a24b9df6218f)(solid-js@1.9.17)
-      partysocket:
-        specifier: 'catalog:'
-        version: 1.3.0(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2754,9 +2748,6 @@ importers:
       '@conciv/serve':
         specifier: workspace:^
         version: link:../serve
-      '@conciv/solid-diffs':
-        specifier: workspace:^
-        version: link:../solid-diffs
       '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
@@ -2781,9 +2772,6 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.2)
-      '@tanstack/ai-mcp':
-        specifier: 'catalog:'
-        version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/pacer':
         specifier: 'catalog:'
         version: 0.23.1
@@ -2802,9 +2790,6 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.14
-      lucide-solid:
-        specifier: 'catalog:'
-        version: 1.66.0(solid-js@1.9.17)
       unstorage:
         specifier: 'catalog:'
         version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@effect/sql-sqlite-node@4.1.0(effect@4.1.0))(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(effect@4.1.0)(zod@4.6.7)))(ioredis@5.11.1)
@@ -2851,9 +2836,6 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      tsx:
-        specifier: 'catalog:'
-        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3219,9 +3201,6 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
-      tsx:
-        specifier: 'catalog:'
-        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -4800,9 +4779,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@conciv/solid-diffs':
-        specifier: workspace:^
-        version: link:../solid-diffs
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../ui-kit-chat
@@ -5070,9 +5046,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/tools':
-        specifier: workspace:^
-        version: link:../tools
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
