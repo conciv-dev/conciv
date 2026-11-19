@@ -11,10 +11,10 @@ async function shadowText(canvasElement: HTMLElement): Promise<string> {
   return host?.shadowRoot?.textContent ?? ''
 }
 
+const GREET = {name: 'greet.ts', contents: 'export function greet(name: string) {\n  return `hello ${name}`\n}\n'}
+
 export const TypeScript: Story = {
-  args: {
-    file: {name: 'greet.ts', contents: 'export function greet(name: string) {\n  return `hello ${name}`\n}\n'},
-  },
+  render: () => <SolidCodeBlock file={GREET} />,
   play: async ({canvasElement}) => {
     await waitFor(async () => {
       const text = await shadowText(canvasElement)

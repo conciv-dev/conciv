@@ -1,4 +1,5 @@
 import {children, onCleanup, Show, type JSX} from 'solid-js'
+import {unwrap} from 'solid-js/store'
 import {File, type FileContents, type FileOptions} from '@pierre/diffs'
 import {syncRender} from './render-sync.js'
 import {highlightWorkerPool} from './worker-pool.js'
@@ -19,13 +20,13 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
 
   const requestRender = syncRender({
     target: () => instance,
-    payload: () => ({file: props.file}),
+    payload: () => ({file: unwrap(props.file)}),
     options: () => props.options,
   })
 
   const setRef = (node: HTMLElement) => {
     instance = new File(props.options, highlightWorkerPool(props.options), requestRender)
-    void instance.hydrate({file: props.file, fileContainer: node})
+    void instance.hydrate({file: unwrap(props.file), fileContainer: node})
     onCleanup(() => {
       instance?.cleanUp()
       instance = null
