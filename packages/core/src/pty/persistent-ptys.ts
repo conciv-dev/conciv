@@ -20,7 +20,7 @@ type TicketScope = {ptyId: string; origin: string | null}
 type CreateInput = {sessionId: SessionId; size?: PtySize; model?: string}
 
 type PersistentPtyDeps = {
-  harness: (sessionId: SessionId) => ServerHarness
+  harness: (sessionId: SessionId) => Promise<ServerHarness>
   sessions: Pick<ServerSessions, 'resumeToken' | 'recordToken' | 'model'>
   cwd: string
   stateDir: string
@@ -59,7 +59,7 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
     )
 
   const live = async (sessionId: SessionId): Promise<TtySession | undefined> => {
-    const owner = ownerKey(deps.harness(sessionId).id, await deps.sessions.resumeToken(sessionId))
+    const owner = ownerKey((await deps.harness(sessionId)).id, await deps.sessions.resumeToken(sessionId))
     const alive = ttys.get(sessionId)
     if (alive === undefined || alive.owner === owner) return alive
     ttys.close(sessionId)
@@ -109,7 +109,7 @@ export function createPersistentPtys(deps: PersistentPtyDeps) {
   }
 
   const create = async (input: CreateInput): Promise<PersistentPtyInfo | null> => {
-    const harness = deps.harness(input.sessionId)
+    const harness = await deps.harness(input.sessionId)
     const command = harness.ttyCommand
     if (command === undefined) return null
     const alive = await live(input.sessionId)

@@ -19,10 +19,10 @@ Renders a single empty anchor `<div>`; the widget mounts into it inside a shadow
 
 Props (all optional): `extensions` (conciv extensions to load: an array, or a `() => Promise<AnyExtension[]>` loader), `settings` (same shape as the `conciv-widget` meta config), `apiBase` (conciv server URL; defaults to the meta/query resolution). The Terminal panel is built into the widget: no extension is needed for it.
 
-In SSR setups (SolidStart), pass `extensions` as a loader with a dynamic import (the example loads `@conciv/extension-tanstack`, which you install yourself); extension client modules are browser code and must not be imported during the server render:
+In SSR setups (SolidStart), pass `extensions` as a loader with a dynamic import (the example loads `@conciv/extension-whiteboard`, which you install yourself); extension client modules are browser code and must not be imported during the server render:
 
 ```tsx
-const extensions = () => import('@conciv/extension-tanstack/client').then((mod) => [mod.default])
+const extensions = () => import('@conciv/extension-whiteboard/client').then((mod) => [mod.default])
 
 <ConcivWidget extensions={extensions} />
 ```
