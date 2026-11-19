@@ -128,9 +128,9 @@ Extensions are plain Solid JSX (compiled as a Solid zone even inside a React hos
 with a real test harness: [`@conciv/extension-testkit`](./packages/extension-testkit) mounts any
 extension in a real browser against a real spawned server.
 
-Two built-ins show what the contracts can do, the whiteboard extension and the test-runner plugin:
+Two built-ins show what the contracts can do, the whiteboard and test-runner plugins:
 
-- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard): a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted libSQL store (TanStack DB).
+- 🎨 &nbsp;[**Whiteboard**](./packages/plugins/whiteboard): a plugin with a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins kept in the plugin's own storage.
 - 🧪 &nbsp;[**Test runner**](./packages/plugins/test-runner): a plugin that runs your tests (Vitest and Playwright). The Tests tab streams live rows, and a card shows the finished run in the thread.
 
 ## Supported tools
@@ -155,15 +155,14 @@ Install these. Everything else on npm under `@conciv/*` is internal and comes in
 
 Under the hood (installed automatically by `@conciv/it`):
 
-| Package                                                            | What it is                                                                                                               |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| [`@conciv/protocol`](./packages/protocol)                          | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
-| [`@conciv/core`](./packages/core)                                  | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
-| [`@conciv/harness`](./packages/harness)                            | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                           |
-| [`@conciv/unplugin`](./packages/unplugin)                          | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
-| [`@conciv/embed`](./packages/embed)                                | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
-| [`@conciv/cli`](./packages/cli)                                    | The `conciv` CLI the agent calls from Bash: `tools page / test`, `plugin call server`.                                   |
-| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard) | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                                     |
+| Package                                   | What it is                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`@conciv/protocol`](./packages/protocol) | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
+| [`@conciv/core`](./packages/core)         | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
+| [`@conciv/harness`](./packages/harness)   | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                           |
+| [`@conciv/unplugin`](./packages/unplugin) | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
+| [`@conciv/embed`](./packages/embed)       | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
+| [`@conciv/cli`](./packages/cli)           | The `conciv` CLI the agent calls from Bash: `tools page / test`, `plugin call server`.                                   |
 
 ## Documentation
 

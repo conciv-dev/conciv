@@ -4,9 +4,7 @@ The conciv whiteboard plugin. Its engine part keeps a canvas the user and the ag
 comments and pins, in the plugin storage the engine keeps for it, and offers it to the agent and over the plugin's RPC. Its
 browser part opens the Excalidraw canvas from the "Whiteboard" pill above the composer.
 
-Internal until the canvas ships in the widget: the package is private and not published. Until then, the old
-`@conciv/extension-whiteboard` is the whiteboard users have, and the two cannot run together (with the extension
-mounted, the plugin fails to load because its RPC id `whiteboard` is taken).
+The package is private and not published yet. It replaces the old whiteboard extension, which is removed.
 
 What enabling it gives today:
 

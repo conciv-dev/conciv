@@ -154,6 +154,7 @@ export function whiteboardHandlers(store: Store): RpcHandlers<typeof Whiteboard>
       ).pipe(Effect.map((saved) => ({rows: saved}))),
     'elements.bulkDelete': ({room, scope, elementIds}) =>
       unreadable(store.deleteElements(scope, room, elementIds)).pipe(Effect.map((deleted) => ({deleted}))),
+    'cursor.move': ({room, cursor}) => store.cursor({...cursor, room}).pipe(Effect.map((): {ok: true} => ({ok: true}))),
     since: ({room, cursor}) => unreadable(store.since(room, cursor)),
   }
 }

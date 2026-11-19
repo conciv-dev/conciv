@@ -48,6 +48,42 @@ const CATCH_UP_RETRY_MS = 20
 const DRAW_DEADLINE_MS = 2_000
 const SinceRead = z.object({changes: z.array(z.object({key: z.string()}))})
 const PinRows = z.array(z.object({cid: z.string(), pinState: z.string(), x: z.number(), y: z.number()}).loose())
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+const CARD_TURN = {
+  toolCalls: [
+    {name: 'whiteboard_canvas_read', input: {scope: 'live'}, result: {elements: [{}, {}, {}], scope: 'live'}},
+    {
+      name: 'whiteboard_canvas_preview',
+      input: {},
+      result: [
+        {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}},
+        {type: 'text', content: JSON.stringify({elements: 2})},
+      ],
+    },
+    {name: 'whiteboard_canvas_delete', input: {elementId: 'el_9'}, result: {deleted: 'el_9'}},
+    {name: 'whiteboard_canvas_export', input: {}, result: {error: 'export render failed', reason: 'no renderer'}},
+    {
+      name: 'whiteboard_comment_create',
+      input: {
+        cid: 'c_42',
+        kind: 'floating',
+        parts: [{type: 'text', text: 'Looks off-center'}],
+        x: 1,
+        y: 2,
+        authorKind: 'ai',
+      },
+      result: {cid: 'c_42'},
+    },
+    {name: 'whiteboard_comment_list', input: {scope: 'session'}, result: {comments: [{}, {}]}},
+    {name: 'whiteboard_comment_delete', input: {cid: 'c_42'}, result: {cid: 'c_42', deleted: true}},
+    {
+      name: 'whiteboard_pin_set_state',
+      input: {cid: 'c_42', pinState: 'locked'},
+      result: {cid: 'c_42', pinState: 'locked'},
+    },
+  ],
+  text: 'The board is checked',
+}
 const ThreadRead = z.object({
   comment: z.object({status: z.string()}).loose(),
   replies: z.array(z.object({parts: z.array(z.unknown())}).loose()),
@@ -109,6 +145,17 @@ async function approvedTool(kit: CoreKit, name: string, input: unknown): Promise
   const session = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: room}})
   await session.chat.permissionDecision({approvalId: asked.approvalId, approved: true, scope: 'once'})
   return result
+}
+
+async function holdPickerChunk(page: Page): Promise<() => void> {
+  const held = Promise.withResolvers<void>()
+  await page.route('**/widget/dist-*.js', async (route) => {
+    const response = await route.fetch()
+    const body = await response.text()
+    if (body.includes('react-grab-cursor')) await held.promise
+    await route.fulfill({response, body})
+  })
+  return held.resolve
 }
 
 async function openChat(page: Page): Promise<void> {
@@ -648,6 +695,8 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
         await expect(failedToast).toHaveCount(2)
         expect(failureLogs).toHaveLength(2)
+        const commentPill = failing.getByRole('button', {name: 'Comment on an element'})
+        await expect(commentPill).toBeHidden()
         await chunks.dispose()
         const slowChunk = await gateRpcCalls(failing, {path: ['plugin', 'experimentalChunk']})
         await failing.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
@@ -656,6 +705,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
         await slowChunk.dispose()
         await expect(failing.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 10_000})
         await expect(loadingToast).toBeHidden()
+        await expect(commentPill).toBeVisible()
       } finally {
         await failing.close()
       }
@@ -666,7 +716,7 @@ describe('the whiteboard canvas of the whiteboard plugin', () => {
 })
 
 describe('the comments of the whiteboard plugin', () => {
-  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, and Escape on a thread stepped to its first closes only the thread', async ({
+  test('an agent comment becomes an unread pin on the open canvas, clicking the pin marks its thread read, pointer moves over the canvas write nothing, a dragged pin lands on the engine, only comments from others make a thread unread again, Escape on a thread stepped to its first closes only the thread, and the comment pill waits for the page picker to load, a comment the user puts on a page element hides the canvas while picking and composing, brings it back on Escape or with the new thread open, and only toasts while the canvas is closed', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -679,11 +729,19 @@ describe('the comments of the whiteboard plugin', () => {
       const page = widget.page
       const observer = rpcObserverFor(page)
       await rpcSocketFor(page).installed
+      const releasePicker = await holdPickerChunk(page)
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.setViewportSize({width: 1280, height: 800})
       await openChat(page)
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
+      const inboxToggle = page.getByRole('button', {name: /^Comments/})
+      const inbox = page.getByRole('complementary', {name: 'Comments inbox'})
+      await inboxToggle.click()
+      await expect(inbox.getByText('No comments yet')).toBeVisible()
+      await expect(inboxToggle).toBeHidden()
+      await inbox.getByRole('button', {name: 'Close inbox'}).click()
+      await expect(inbox).toBeHidden()
       await page.mouse.click(300, 760)
       await page.keyboard.press('r')
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeChecked()
@@ -822,12 +880,118 @@ describe('the comments of the whiteboard plugin', () => {
       await unread.dragTo(composer)
       await composer.click({timeout: 5_000})
       await expect(composer).toBeFocused()
+
+      const rectangle = page.getByRole('radio', {name: /Rectangle/})
+      const commentPill = page.getByRole('button', {name: 'Comment on an element'})
+      const newComment = page.getByRole('dialog', {name: 'New comment'})
+      const commentField = newComment.getByRole('textbox', {name: 'Comment', exact: true})
+      const pickedElement = page.getByText('page-bus-ok')
+      await expect(commentPill).toBeHidden()
+      releasePicker()
+      await commentPill.click()
+      await expect(rectangle).toBeHidden()
+      await pickedElement.click({force: true})
+      await expect(commentField).toBeFocused()
+      await expect(rectangle).toBeHidden()
+      await page.keyboard.press('Escape')
+      await expect(newComment).toBeHidden()
+      await expect(rectangle).toBeVisible()
+      await commentPill.click()
+      await pickedElement.click({force: true})
+      await expect(commentField).toBeFocused()
+      await page.keyboard.press('Enter')
+      await expect(newComment).toBeHidden()
+      await expect(rectangle).toBeVisible()
+      await commentPill.click()
+      await pickedElement.click({force: true})
+      await commentField.pressSequentially('note over the page')
+      await page.keyboard.press('Enter')
+      await expect(rectangle).toBeVisible()
+      await expect(thread.getByText('note over the page')).toBeVisible()
+      await expect(page.getByRole('button', {name: 'Human comment, open'})).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+      await expect(rectangle).toBeHidden()
+      await commentPill.click()
+      await pickedElement.click({force: true})
+      await commentField.pressSequentially('silent note')
+      await newComment.getByRole('button', {name: 'Add comment'}).click()
+      await expect(page.getByText('Comment added to the whiteboard')).toBeVisible()
+      await expect(rectangle).toBeHidden()
+      await expect(page.getByText('silent note')).toBeHidden()
+
+      await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+      await expect(rectangle).toBeVisible()
+      await approvedTool(widget.kit, 'whiteboard_comment_delete', {cid: 'agent-third'})
+      const farPin = page.getByRole('button', {name: /^AI comment, open/})
+      await expect(farPin).toHaveCount(0)
+      for (const note of [
+        {cid: 'inbox-first', text: 'first inbox note', authorModel: 'Opus', x: 4000, y: 3000},
+        {cid: 'inbox-second', text: 'second inbox note', authorModel: 'Sonnet', x: 640, y: 360},
+      ]) {
+        await widget.kit.callTool('whiteboard_comment_create', {
+          cid: note.cid,
+          kind: 'floating',
+          parts: [{type: 'text', text: note.text}],
+          x: note.x,
+          y: note.y,
+          authorKind: 'ai',
+          authorModel: note.authorModel,
+        })
+      }
+      await expect(inboxToggle).toHaveAccessibleName(/^Comments\s*2/)
+      await inboxToggle.click()
+      const feed = inbox.getByRole('button', {name: /inbox note/})
+      const opus = inbox.getByRole('button', {name: /^Opus/})
+      const sonnet = inbox.getByRole('button', {name: /^Sonnet/})
+      await expect(feed).toHaveText([/second inbox note/, /first inbox note/])
+      await expect(composer).toBeHidden()
+      await expect(opus).toHaveAccessibleName(/unread/)
+      await expect(opus).not.toContainText(/repl/)
+      await sonnet.click()
+      await expect(reply).toBeFocused()
+      await reply.pressSequentially('on it')
+      await page.keyboard.press('Enter')
+      await expect(sonnet).toContainText('1 reply')
+      await expect(sonnet).not.toHaveAccessibleName(/unread/)
+      await page.keyboard.press('Escape')
+      await expect(thread).toBeHidden()
+      const filter = inbox.getByRole('button', {name: 'Filter comments'})
+      await filter.click()
+      await page.getByRole('menuitemradio', {name: 'Sort by unread'}).click()
+      await expect(feed).toHaveText([/first inbox note/, /second inbox note/])
+      await sonnet.click()
+      await page.getByRole('button', {name: 'Resolve thread'}).click()
+      await expect(feed).toHaveText([/first inbox note/])
+      await filter.click()
+      await page.getByRole('menuitemcheckbox', {name: 'Show resolved comments'}).click()
+      await expect(feed).toHaveText([/first inbox note/, /second inbox note/])
+      const search = inbox.getByRole('searchbox', {name: 'Quick search'})
+      await search.click()
+      await search.pressSequentially('zzznomatch')
+      await expect(inbox.getByText('No comments match “zzznomatch”.')).toBeVisible()
+      await search.press('ControlOrMeta+a')
+      await search.press('Backspace')
+      await search.pressSequentially('first')
+      await expect(feed).toHaveText([/first inbox note/])
+      await search.press('ControlOrMeta+a')
+      await search.press('Backspace')
+      await expect(inbox.getByRole('button', {name: /unread/})).toHaveCount(1)
+      await inbox.getByRole('button', {name: 'Mark all as read'}).click()
+      await expect(inbox.getByRole('button', {name: /unread/})).toHaveCount(0)
+      await expect(farPin).not.toBeInViewport()
+      await opus.click()
+      await expect(thread.getByText('first inbox note')).toBeVisible()
+      await expect(farPin).toBeInViewport()
+      await inbox.getByRole('button', {name: 'Close inbox'}).click()
+      await expect(inboxToggle).toHaveAccessibleName('Comments')
     } finally {
       await widget.close()
     }
   }, 120_000)
 
-  test('the thread beside a pin hides the chat while open, takes a reply the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
+  test('the agent whiteboard tool calls show as cards in the chat, the thread beside a pin hides the chat while open, takes a reply with an @mention of a participant the agent reads, closes on Escape with the canvas kept, steps to the next and previous thread, resolves, deletes through its confirm, a dropped source-linked pin asks before it drifts, and an open thread whose root the agent deletes closes', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -843,6 +1007,28 @@ describe('the comments of the whiteboard plugin', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.setViewportSize({width: 1280, height: 800})
       await openChat(page)
+      widget.kit.harness.script.scriptTurn(CARD_TURN)
+      const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composer.click()
+      await composer.pressSequentially('check the board')
+      await composer.press('Enter')
+      await expect(page.getByText('The board is checked', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(page.getByText('whiteboard_canvas_read')).toBeVisible()
+      await expect(page.getByText('3 elements').first()).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_canvas_preview/}).click()
+      await expect(page.getByRole('img', {name: 'canvas preview'})).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_canvas_delete/}).click()
+      await expect(page.getByText('delete el_9')).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_canvas_export/}).click()
+      await expect(page.getByText('export render failed · no renderer')).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_comment_create/}).click()
+      await expect(page.getByText('Looks off-center')).toBeVisible()
+      await expect(page.getByText('c_42').first()).toBeVisible()
+      await expect(page.getByText('2 comments').first()).toBeVisible()
+      await page.getByRole('button', {name: /whiteboard_comment_delete/}).click()
+      await expect(page.getByText('delete', {exact: true}).last()).toBeVisible()
+      await expect(page.getByText('deleted').first()).toBeVisible()
+      await expect(page.getByText('locked').first()).toBeVisible()
       await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click({timeout: 30_000})
       await expect(page.getByRole('radio', {name: /Rectangle/})).toBeVisible({timeout: 60_000})
 
@@ -866,12 +1052,26 @@ describe('the comments of the whiteboard plugin', () => {
       await expect(chat).toBeHidden()
 
       const replied = observer.mark()
-      await reply.pressSequentially('moving it left')
+      await reply.pressSequentially('moving it left @A')
+      const mentionOption = page.getByRole('option', {name: 'AI'})
+      await expect(mentionOption).toBeVisible()
       await page.keyboard.press('Enter')
-      await expect(thread.getByText('moving it left')).toBeVisible()
+      await expect(mentionOption).toBeHidden()
+      await expect(reply.getByText('@AI')).toBeVisible()
+      await page.keyboard.press('Enter')
+      await expect(thread.getByRole('paragraph').filter({hasText: 'moving it left @AI'})).toBeVisible()
+      await expect(reply).toHaveText('')
       await observer.completed(whiteboardCall('comments.insert', replied))
       const read = ThreadRead.parse(await widget.kit.callTool('whiteboard_comment_read', {cid: 'older'}))
-      expect(read.replies).toMatchObject([{parts: [{type: 'text', text: 'moving it left'}]}])
+      expect(read.replies).toMatchObject([
+        {
+          parts: [
+            {type: 'text', text: 'moving it left '},
+            {type: 'mention', id: 'ai:AI', label: 'AI'},
+            {type: 'text', text: ' '},
+          ],
+        },
+      ])
 
       await page.keyboard.press('Escape')
       await expect(thread).toBeHidden()

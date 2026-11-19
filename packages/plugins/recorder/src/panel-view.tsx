@@ -4,6 +4,7 @@ import {useQuery, useQueryClient} from '@conciv/client'
 import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {REPLAY_MIN_EVENTS, Recorder} from './rpc.js'
+import {saveFileToDisk, videoPieceReader} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {followClient} from './page-capture.js'
 import {openPanel, recorderPanelCalls} from './panel.js'
@@ -31,7 +32,6 @@ export function RecorderPanel(props: {
   const runtime = untrack(() => props.runtime)
   const followedClientId = untrack(() => props.clientId)
   const flushNow = untrack(() => props.flushNow)
-
   const queryClient = useQueryClient()
   const recordingKey = () => recorder().window.key({input: {clientId: props.clientId}})
   const refresh = (): Promise<void> => queryClient.invalidateQueries({queryKey: recordingKey()})
@@ -43,8 +43,11 @@ export function RecorderPanel(props: {
         client: () => ctx.client,
         clientId: followedClientId,
         viewerId,
+        refresh,
         flush: flushNow,
-        sendNote: ({recordingId, summary}) => {
+        readPiece: videoPieceReader(ctx, followedClientId),
+        saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
+        noteSaved: ({recordingId, summary}) => {
           props.host.screen.composer.attach({
             type: 'note',
             origin: ctx.id,
@@ -58,7 +61,6 @@ export function RecorderPanel(props: {
           })
           ctx.layout.hide(`${ctx.id}:${props.host.tab.id}`, props.host.session)
         },
-        refresh,
       }),
       report: (title) => Effect.sync(() => void ctx.toast.show({title, variant: 'error'})),
     }),

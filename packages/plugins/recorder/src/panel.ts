@@ -1,6 +1,5 @@
 import {Effect, FiberSet, PubSub, Schedule, Stream, SubscriptionRef, type Scope, Schema} from 'effect'
 import type {Context} from '@conciv/plugin/experimental'
-import {saveFileToDisk} from './download.js'
 import {makeMachineDriver} from './machine-driver.js'
 import {initialPanel, transitionPanel, type PanelEffect, type PanelState, type SaveFailure} from './panel-machine.js'
 import {Recorder} from './rpc.js'
@@ -160,9 +159,11 @@ export function recorderPanelCalls(options: {
   readonly client: () => Context['client']
   readonly clientId: string
   readonly viewerId: string
-  readonly flush: Effect.Effect<void>
-  readonly sendNote: (saved: SavedRecording) => void
   readonly refresh: () => Promise<void>
+  readonly flush: Effect.Effect<void>
+  readonly readPiece: (id: string, offset: number) => Effect.Effect<VideoPiece, ExportFailed>
+  readonly saveFile: (file: File) => Effect.Effect<void>
+  readonly noteSaved: (saved: SavedRecording) => void
 }) {
   const recorder = () => options.client().rpc(Recorder)
   const save = <Failure>(failure: (cause: unknown) => Failure) =>
@@ -183,17 +184,13 @@ export function recorderPanelCalls(options: {
       ),
     exportRecording: exportRecording({
       save: save((cause) => ExportFailed.make({cause})),
-      readPiece: (id, offset) =>
-        Effect.tryPromise({
-          try: () => recorder()['recordings.exportVideo']({clientId: options.clientId, id, offset}),
-          catch: (cause) => ExportFailed.make({cause}),
-        }),
-      saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
+      readPiece: options.readPiece,
+      saveFile: options.saveFile,
     }),
     sendToAgent: save((cause) => SendFailed.make({cause})).pipe(
       Effect.flatMap((saved) =>
         Effect.try({
-          try: () => options.sendNote(saved),
+          try: () => options.noteSaved(saved),
           catch: (cause) => SendFailed.make({cause}),
         }),
       ),

@@ -4,11 +4,19 @@ import {createElement, useSyncExternalStore, type ReactNode} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {createRoot} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
-import type {AppState, ExcalidrawImperativeAPI, ExcalidrawProps} from '@excalidraw/excalidraw/types'
+import type {
+  AppState,
+  Collaborator,
+  ExcalidrawImperativeAPI,
+  ExcalidrawProps,
+  SocketId,
+} from '@excalidraw/excalidraw/types'
 import type {OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
-import {Deferred, Effect, Exit, Ref, Scope} from 'effect'
+import {Deferred, Effect, Exit, Ref, Scope, Stream, SubscriptionRef} from 'effect'
 import {useWhiteboardDb} from './db.js'
+import type {LiveCursors} from './live-cursors.js'
+import type {CursorEvent} from './rows.js'
 import type {Viewport} from './coords.js'
 import {
   makeCanvasPending,
@@ -35,6 +43,25 @@ const mountFailedFallback = createElement('div', {'data-whiteboard-error': ''}, 
 
 type Theme = 'light' | 'dark'
 
+const isSocketId = (id: string): id is SocketId => id.length > 0
+const collaboratorsFrom = (cursors: readonly CursorEvent[]): Map<SocketId, Collaborator> =>
+  new Map(
+    cursors.flatMap((cursor): [SocketId, Collaborator][] =>
+      isSocketId(cursor.peerId)
+        ? [
+            [
+              cursor.peerId,
+              {
+                username: cursor.name,
+                color: {background: cursor.color, stroke: cursor.color},
+                pointer: {x: cursor.x, y: cursor.y, tool: 'pointer'},
+              },
+            ],
+          ]
+        : [],
+    ),
+  )
+
 const keptSidebar = (state: AppState): AppState['openSidebar'] =>
   state.defaultSidebarDockedPreference ? state.openSidebar : null
 
@@ -44,6 +71,8 @@ export function Island(props: {
   theme: Theme
   visible: boolean
   onViewport: (viewport: Viewport) => void
+  registerPan: (pan: (sceneX: number, sceneY: number) => void) => void
+  cursors: LiveCursors
 }): JSX.Element {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
@@ -81,6 +110,7 @@ export function Island(props: {
     render: (elements) =>
       exportToBlob({elements, files: Ref.getUnsafe(attached)?.getFiles() ?? {}, appState: {exportBackground: true}}),
     skipOnPointer,
+    drawAt: (point) => void Effect.runFork(props.cursors.drawAt(point)),
   }
 
   const sceneSubscription = db.canvasElements.subscribeChanges(applyRemote, {includeInitialState: true})
@@ -153,6 +183,23 @@ export function Island(props: {
             pushViewport()
             const unsubscribeScroll = instance.onScrollChange(pushViewport)
             Effect.runSync(Scope.addFinalizer(islandScope, Effect.sync(unsubscribeScroll)))
+            Effect.runFork(
+              Stream.runForEach(SubscriptionRef.changes(props.cursors.cursors), (cursors) =>
+                Effect.sync(() =>
+                  instance.updateScene({collaborators: collaboratorsFrom(cursors), captureUpdate: CAPTURE_NEVER}),
+                ),
+              ).pipe(Effect.forkIn(islandScope)),
+            )
+            props.registerPan((sceneX, sceneY) => {
+              const state = instance.getAppState()
+              instance.updateScene({
+                appState: {
+                  scrollX: state.width / (2 * state.zoom.value) - sceneX,
+                  scrollY: state.height / (2 * state.zoom.value) - sceneY,
+                },
+                captureUpdate: CAPTURE_NEVER,
+              })
+            })
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
           onPointerDown: closeLayersOnCanvasPointer,

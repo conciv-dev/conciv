@@ -83,8 +83,6 @@ pnpm build:affected
   testing stale code: `pnpm turbo run build --filter=@conciv/embed`.
 - Don't add tests under `apps/examples/*`: example apps are demos, not test subjects. Verify
   behavior through the owning package's own tests instead.
-- The whiteboard test suite (`packages/extensions/whiteboard/test`) only runs in CI, never
-  locally.
 
 ## Code style
 

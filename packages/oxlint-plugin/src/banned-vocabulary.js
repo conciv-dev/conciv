@@ -33,7 +33,9 @@ const DEV_BUNDLER_BRIDGE_PATHS = [
 ]
 
 const NATIVE_AND_REACT_BRIDGE_PATHS = [
-  'packages/extensions/ios/',
+  'packages/plugins/ios/src/bridge.ts',
+  'packages/plugins/ios/src/client.tsx',
+  'packages/plugins/ios/src/native/',
   'packages/publish/src/cli.ts',
   'packages/publish/src/swift-mirror.ts',
   'packages/page/src/',
@@ -45,7 +47,6 @@ const PRE_REWRITE_BRIDGE_PATHS = [
   'packages/harness-init/src/',
   'packages/harness/src/claude/',
   'packages/chat/src/tool-names.ts',
-  'packages/extensions/whiteboard/src/client/overlay.tsx',
 ]
 
 const HARNESS_CONNECT_ATTACH_PATHS = [
@@ -78,11 +79,7 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'presence',
-    paths: [
-      'packages/ui-kit-system/src/',
-      'packages/plugins/recorder/src/',
-      'packages/extensions/whiteboard/src/tool/comment/server.ts',
-    ],
+    paths: ['packages/ui-kit-system/src/', 'packages/plugins/recorder/src/'],
   },
   {
     term: 'manager',

@@ -6,8 +6,6 @@
 '@conciv/extension': patch
 '@conciv/extension-compiler': patch
 '@conciv/extension-design': patch
-'@conciv/extension-ios': patch
-'@conciv/extension-whiteboard': patch
 ---
 
 Extensions are opt-in. `@conciv/it` no longer installs any extension: add the ones you want by importing them and
