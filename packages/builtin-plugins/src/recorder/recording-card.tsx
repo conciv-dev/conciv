@@ -1,10 +1,10 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import Clapperboard from 'lucide-solid/icons/clapperboard'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {Chip, ErrorBlock, parseInput, parseResultPayload, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
-import {cardErrorMessage, countLabel} from '../page/cards/shared.js'
+import {BasicTool, Chip, ErrorBlock} from '@conciv/ui-kit-chat/tools'
+import {countLabel} from '../page/cards/shared.js'
+import {parseOutput, readInput} from '../tanstack/card-shared.js'
 
 const ImagePartSchema = z.object({type: z.literal('image')}).loose()
 
@@ -24,7 +24,6 @@ type RecordingAction = {at: string; kind: string; detail: string}
 
 type Recording =
   | {kind: 'running'}
-  | {kind: 'failed'; message: string}
   | {kind: 'started'; captureId: string}
   | {kind: 'window'; actions: RecordingAction[]; keyframes: number}
 
@@ -47,29 +46,22 @@ function readWindow(payload: unknown, text: string): Recording {
   return {kind: 'window', actions: parseActions(log.join('\n')), keyframes}
 }
 
-function readRecording(result: ToolCardProps['result']): Recording {
-  const message = cardErrorMessage(result)
-  if (message !== undefined) return {kind: 'failed', message}
-  const text = resultText(result)
-  if (!text) return {kind: 'running'}
-  const payload = parseResultPayload(result)
+function readRecording(output: string | undefined): Recording {
+  if (!output) return {kind: 'running'}
+  const payload = parseOutput(output) ?? output
   const started = StartedSchema.safeParse(payload)
   if (started.success) return {kind: 'started', captureId: started.data.captureId}
-  return readWindow(payload, text)
+  return readWindow(payload, output)
 }
 
-function summarize(part: ToolCardProps['part'], recording: Recording): string | undefined {
+function summarize(input: Record<string, unknown>, recording: Recording): string | undefined {
   if (recording.kind === 'started') return 'capture started'
   if (recording.kind !== 'window') return undefined
-  const seconds = parseInput(SecondsInput, part)?.secondsBack
+  const seconds = readInput(SecondsInput, input)?.secondsBack
   const window = seconds === undefined ? [] : [`last ${seconds}s`]
   const actions = countLabel(recording.actions.length, 'action', 'actions')
   const keyframes = countLabel(recording.keyframes, 'keyframe', 'keyframes')
   return [...window, actions, keyframes].join(' · ')
-}
-
-function RecorderIcon(): JSX.Element {
-  return <Clapperboard size={14} aria-hidden="true" />
 }
 
 function ActionList(props: {actions: RecordingAction[]}): JSX.Element {
@@ -90,38 +82,39 @@ function ActionList(props: {actions: RecordingAction[]}): JSX.Element {
   )
 }
 
-function RecordingCard(props: ToolCardProps): JSX.Element {
-  const recording = () => readRecording(props.result)
+function RecordingCard(props: ToolProps): JSX.Element {
+  const recording = () => readRecording(props.output)
   return (
-    <ToolCard
-      Icon={RecorderIcon}
-      title={props.part.name}
-      subtitle={summarize(props.part, recording())}
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
+    <BasicTool
+      {...props}
+      trigger={{title: props.tool, subtitle: summarize(props.input, recording())}}
+      hasContent={true}
+      allowOpenWhilePending={true}
     >
       <Switch>
         <Match when={recording().kind === 'running'}>
           <span class={QUIET_CLASS}>recording…</span>
-        </Match>
-        <Match when={readFailure(recording())}>
-          {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
         </Match>
         <Match when={readCaptureId(recording())}>
           {(captureId) => <span class={`${QUIET_CLASS} font-chat-mono`}>{captureId()}</span>}
         </Match>
         <Match when={readActions(recording())}>{(actions) => <ActionList actions={actions()} />}</Match>
       </Switch>
-    </ToolCard>
+    </BasicTool>
   )
 }
 
-export const recordingCard: ToolCardView = {render: RecordingCard, hasEmbeddedBody: () => true}
-
-function readFailure(recording: Recording): string | undefined {
-  return recording.kind === 'failed' ? recording.message : undefined
+function RecordingFailedCard(props: ToolProps): JSX.Element {
+  return (
+    <BasicTool {...props} status="error" trigger={{title: props.tool}} hasContent={true}>
+      <ErrorBlock message={props.error ?? ''} />
+    </BasicTool>
+  )
 }
+
+export const recordingCard: ToolComponent = RecordingCard
+
+export const recordingFailedCard: ToolComponent = RecordingFailedCard
 
 function readCaptureId(recording: Recording): string | undefined {
   return recording.kind === 'started' ? recording.captureId : undefined

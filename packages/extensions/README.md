@@ -7,7 +7,6 @@ Each subdirectory is a separate pnpm package with its own `package.json`, build 
 ## Subdirectories & Boundaries
 
 - [design](./design/README.md): Package root of `@conciv/extension-design`. It holds the build configs for the server/defs/provenance bundles (tsdown), the browser client bundle (vite), the xray Solid page (vite + UnoCSS) and declaration emit.
-- [tanstack](./tanstack/README.md): Package root of `@conciv/extension-tanstack` (v0.0.21), a conciv extension that inspects TanStack Router/Start apps and exposes router state, loader data and the query cache to the widget.
 - [whiteboard](./whiteboard/README.md): Package root of @conciv/extension-whiteboard: build, test, lint and drizzle configs plus package.json for an Excalidraw whiteboard extension with a server entry (src/server.ts) and a browser client entry (src/client.tsx).
 - [terminal](./terminal/README.md): Package root for `@conciv/extension-terminal`, the old terminal extension (a live harness TUI over a server-side pty), kept only until try-it stops using it; the Terminal panel is now built in.
 - [ios](./ios/README.md): Package root for `@conciv/extension-ios`, the WKWebView bridge (protocol schemas, page-side bridge client and the client extension) that `@conciv/embed`'s native page uses. The iOS tools and system prompt live in `@conciv/plugin-ios`.

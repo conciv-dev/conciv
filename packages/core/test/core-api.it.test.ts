@@ -1,6 +1,5 @@
 import {until} from '@conciv/harness-testkit/until'
-import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues} from '../src/page/page-queue.js'
+import {makePagePlugin} from '../src/page/page-plugin.js'
 import {
   rmSync,
   mkdirSync,
@@ -115,6 +114,7 @@ import {
   pageQueueEvent,
   runLifecycleEvent,
   sessionRunEvent,
+  toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -148,7 +148,7 @@ import {
   type HarnessListCursor,
   type HarnessModel,
 } from '@conciv/protocol/harness-types'
-import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PageQueueResultSchema} from '@conciv/protocol/page-types'
 import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -214,6 +214,13 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     return held.kit
   }
 }
+
+const FINISHED_CALL_TIME = {start: expect.any(Number), end: expect.any(Number)}
+
+const HubCardTimeSchema = z.object({
+  conciv: z.object({origin: z.literal('hub')}),
+  time: z.object({start: z.number(), end: z.number()}),
+})
 
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const ONE_PIXEL_WEBP =
@@ -1278,7 +1285,7 @@ describe('api harness switching', () => {
       runtime: app.runtime,
       search,
       pluginHost: app.pluginHost,
-      queues: makePageQueues({bus: makePageBus(), journal: makeJournal(app.chat.db)}),
+      queues: makePagePlugin(() => app.pluginHost),
     }))
     const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
@@ -2009,30 +2016,6 @@ describe('rpc wire', () => {
     describe('on one default app', () => {
       const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
 
-      it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
-        await expect(
-          kit().rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}}),
-        ).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
-      })
-
-      it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
-        const statuses: number[] = []
-        const sessionId = await kit().session()
-        for (const code of PAGE_TRANSPORT_ERROR_CODES) {
-          const response = await fetch(`${kit().base}/rpc/page/reply`, {
-            method: 'POST',
-            headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: sessionId},
-            body: JSON.stringify({
-              json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
-            }),
-          })
-          statuses.push(response.status)
-        }
-        expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
-      })
-
       it("drafts.set stores the client's updatedAt as sent, so a browser can match the row to the copy it sent", async () => {
         const sessionId = SessionId.parse(await kit().session())
         const updatedAt = 1_700_000_000_000
@@ -2517,9 +2500,14 @@ describe('rpc wire', () => {
         await sessionStream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, GUARD)
         const cards = toolCallParts(foldChatEvents(seen))
         const execute = cards.findLast((part) => part.name === 'execute_typescript')
-        expect(cardMetadata(cards.findLast((part) => part.name === 'fixture_echo'))).toMatchObject({
+        const child = cards.findLast((part) => part.name === 'fixture_echo')
+        expect(cardMetadata(child)).toMatchObject({
           parentToolCallId: execute?.id,
+          time: {start: expect.any(Number)},
         })
+        expect(seen.map((chunk) => toolTimeEvent.parse(chunk)?.toolCallId)).toContain(child?.id)
+        const stored = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId: app.mcpSession})).messages)
+        expect(cardMetadata(stored.findLast((part) => part.id === child?.id))).toMatchObject({time: FINISHED_CALL_TIME})
         expect(
           seen
             .filter(isTurnBoundary)
@@ -2536,16 +2524,28 @@ describe('rpc wire', () => {
         const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
         withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
         const call = executeOverMcp(chatKit().base, hub, 'return 1')
-        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
-          timeout: 3000,
-        })
+        const approval = {at: 0}
+        await vi.waitFor(
+          async () => {
+            approval.at = Date.now()
+            expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1)
+          },
+          {timeout: 3000},
+        )
         await call
         script().release()
         await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
         expect(cards.map(cardMetadata)).toContainEqual({
           conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: FINISHED_CALL_TIME,
         })
+        const hubStarts = cards.flatMap((part) => {
+          const timed = HubCardTimeSchema.safeParse(cardMetadata(part))
+          return timed.success ? [timed.data.time.start] : []
+        })
+        expect(hubStarts).toHaveLength(1)
+        expect(hubStarts[0]).toBeGreaterThanOrEqual(approval.at)
       })
 
       it('a hub registry call runs under the call id of its one hub card', async () => {
@@ -2560,7 +2560,9 @@ describe('rpc wire', () => {
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages).filter(
           (part) => part.name === 'fixture_quiet',
         )
-        expect(cards.map(cardMetadata)).toEqual([{conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}}])
+        expect(cards.map(cardMetadata)).toEqual([
+          {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}, time: FINISHED_CALL_TIME},
+        ])
         expect(quietCallIds.at(-1)).toBe(cards[0]?.id)
       })
 
@@ -3794,8 +3796,10 @@ return seen`
         expect(toolRuns.echo).toBe(ran + 2)
         const children = toolCallParts(await thread(sessionId)).filter((part) => part.name !== 'execute_typescript')
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
-          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
+          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent, time: FINISHED_CALL_TIME}]),
         )
+        const script = toolCallParts(await thread(sessionId)).find((part) => part.id === parent)
+        expect(cardMetadata(script)).toMatchObject({time: FINISHED_CALL_TIME})
         expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = collectResults(await thread(sessionId))
         expect(results).toContain('Input validation failed for tool fixture_echo')
@@ -5446,7 +5450,10 @@ export default {
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
-        metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
+        metadata: {
+          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: {start: expect.any(Number)},
+        },
       }),
     ])
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
@@ -6639,6 +6646,190 @@ describe('page action queue delivery', () => {
       activeRun: null,
       lastRun: {runId: 'next-run', phase: 'completed'},
     })
+  })
+
+  const CHECK = [{tool: 'page_check', selector: '#agree'}]
+  const SHORT_REPLY_WINDOW_MS = 1000
+
+  const servedWithShortReplyWindow: ServeEngine = async (home, harness, plugins, root) => {
+    const boot = bootCoreApp({
+      home,
+      cwd: root,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: SHORT_REPLY_WINDOW_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
+
+  async function engineWithTabs(serve: ServeEngine = servedByStart) {
+    const home = tempDir('conciv-queue-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const tabs = pageTabs()
+    const {origin, token} = await serve(home, createFakeHarness(), [tabs.plugin], tempDir('conciv-queue-'), {})
+    const base = `${origin}/t/${token}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const typed = makeRpcClient(base, {headers: HUB})
+    const open = async (focused: boolean) => {
+      const tab = await tabs.open(sessionId, () => undefined, {focused})
+      onTestFinished(() => tab.end())
+      const next = async () => {
+        const requestId = await tab.requested()
+        return {requestId, command: await tab.command(requestId)}
+      }
+      return {...tab, next}
+    }
+    return {
+      open,
+      call: registryCall(base, sessionId),
+      hub: (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code),
+      wait: (queueId: string, waitMs = 0) => typed.page.queue.wait({sessionId, queueId, waitMs}),
+    }
+  }
+
+  const routed = (href: string) => pageSuccess({pathname: href, search: '', href, title: 'Example', state: 'visible'})
+
+  it('queues and calls share each tab in turn: a queue started while another plays or while a changing call is in flight reaches the tab only after it, on the tab serving the session when its turn comes, even once the tab it waited on closes, and a lost tab resends a reading call to the next tab but never a changing one', async () => {
+    const engine = await engineWithTabs()
+    const first = await engine.open(true)
+    const probe = async (tab: Awaited<ReturnType<typeof engine.open>>, href: string) => {
+      const reading = engine.call('page_route', {})
+      const arrived = await tab.next()
+      expect(arrived.command.action).toEqual({type: 'route'})
+      await tab.reply(arrived.requestId, routed(href))
+      expect(await reading).toMatchObject({href})
+    }
+    const accept = async (tab: Awaited<ReturnType<typeof engine.open>>, queueId: string) => {
+      const acceptance = await tab.next()
+      expect(acceptance.command.queued).toEqual({id: queueId, index: -1, of: 1})
+      await tab.reply(acceptance.requestId, pageSuccess({queueId, actions: 1}))
+      const action = await tab.next()
+      expect(action.command.queued).toEqual({id: queueId, index: 0, of: 1})
+      return action.requestId
+    }
+
+    const earlier = parseHandle(await engine.hub(queued(CHECK)))
+    const earlierAction = await accept(first, earlier.queueId)
+    const later = parseHandle(await engine.hub(queued(CHECK)))
+    expect(later).toEqual({queueId: expect.stringMatching(/^q_/), actions: 1})
+    await probe(first, '/while-the-earlier-queue-plays')
+    expect(await engine.wait(later.queueId)).toEqual({queueId: later.queueId, status: 'playing', done: 0, of: 1})
+    await first.reply(earlierAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(earlier.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await first.reply(await accept(first, later.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(later.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const playing = parseHandle(await engine.hub(queued(CHECK)))
+    const playingAction = await accept(first, playing.queueId)
+    const synchronous = engine.hub(`return await external_page_queue({actions: ${JSON.stringify(CHECK)}})`)
+    await probe(first, '/while-the-sync-queue-waits')
+    await first.reply(playingAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(playing.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    const syncAcceptance = await first.next()
+    const syncId = syncAcceptance.command.queued?.id ?? ''
+    expect(syncId).not.toBe(playing.queueId)
+    await first.reply(syncAcceptance.requestId, pageSuccess({queueId: syncId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: false}))
+    expect(JSON.parse(String(await synchronous)).result).toMatchObject({
+      queueId: syncId,
+      status: 'finished',
+      played: 1,
+      failed: 0,
+    })
+
+    const clicking = engine.call('page_click', {selector: '#go'})
+    const click = await first.next()
+    expect(click.command.action).toEqual({type: 'click', selector: '#go'})
+    const behindClick = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(first, '/while-the-click-is-in-flight')
+    await first.reply(click.requestId, pageSuccess({ok: true}))
+    expect(await clicking).toEqual({ok: true})
+    await first.reply(await accept(first, behindClick.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(behindClick.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+
+    const second = await engine.open(false)
+    const beforeFocus = parseHandle(await engine.hub(queued(CHECK)))
+    const beforeFocusAction = await accept(first, beforeFocus.queueId)
+    await second.focus(true)
+    const seenOnFirst = first.seen().length
+    const afterFocus = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(second, '/the-newly-focused-tab')
+    await first.reply(beforeFocusAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(beforeFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await second.reply(await accept(second, afterFocus.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(afterFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    expect(first.seen().slice(seenOnFirst)).toEqual([])
+
+    const blocking = parseHandle(await engine.hub(queued(CHECK)))
+    await accept(second, blocking.queueId)
+    const waiting = parseHandle(await engine.hub(queued(CHECK)))
+    expect(await engine.wait(waiting.queueId)).toEqual({queueId: waiting.queueId, status: 'playing', done: 0, of: 1})
+    second.end()
+    expect(await engine.wait(blocking.queueId, 5000)).toMatchObject({status: 'lost'})
+    const nextOnFirst = first.next()
+    expect(
+      await Promise.race([
+        nextOnFirst.then(({command}) => command.queued),
+        engine.wait(waiting.queueId, WINDOW_LONGER_THAN_THE_CASE_MS),
+      ]),
+    ).toEqual({id: waiting.queueId, index: -1, of: 1})
+    await first.reply((await nextOnFirst).requestId, pageSuccess({queueId: waiting.queueId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(waiting.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const other = await engine.open(false)
+    await first.focus(true)
+    const changing = engine.call('page_click', {selector: '#once'})
+    const changingOnFirst = await first.next()
+    first.end()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    await expect(first.reply(changingOnFirst.requestId, pageSuccess({ok: true}))).rejects.toThrow()
+    await other.focus(true)
+    await probe(other, '/never-the-click-again')
+
+    const focusedLast = await engine.open(true)
+    const snapshotting = engine.call('page_snapshot', {})
+    const lost = await focusedLast.next()
+    focusedLast.end()
+    const resent = await other.next()
+    expect(resent.requestId).not.toBe(lost.requestId)
+    expect(resent.command.action).toEqual({type: 'snapshot'})
+    await other.reply(resent.requestId, pageSuccess({nodes: []}))
+    expect(await snapshotting).toEqual({nodes: []})
+
+    const reading = engine.call('page_route', {})
+    const onlyTab = await other.next()
+    other.end()
+    const returned = await engine.open(true)
+    const again = await returned.next()
+    expect(again.command.action).toEqual({type: 'route'})
+    await returned.reply(again.requestId, routed('/after-the-reload'))
+    expect(await reading).toMatchObject({href: '/after-the-reload'})
+    expect(onlyTab.requestId).not.toBe(again.requestId)
+    expect(returned.seen()).toEqual(['page_route'])
+  })
+
+  it('a call whose tab stays open and never replies times out once and is cancelled on the page, and a reading call whose tab never comes back fails once its own window runs out', async () => {
+    const engine = await engineWithTabs(servedWithShortReplyWindow)
+    const silent = await engine.open(true)
+    const reading = engine.call('page_route', {})
+    const unanswered = await silent.next()
+    await expect(reading).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.route')})
+    await silent.cancelled(unanswered.requestId)
+    const changing = engine.call('page_click', {selector: '#go'})
+    const unansweredClick = await silent.next()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.click')})
+    await silent.cancelled(unansweredClick.requestId)
+    expect(silent.seen()).toEqual(['page_route', 'page_click'])
+
+    const stranded = engine.call('page_route', {})
+    await silent.next()
+    silent.end()
+    await expect(stranded).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    expect(silent.seen()).toEqual(['page_route', 'page_click', 'page_route'])
   })
 })
 

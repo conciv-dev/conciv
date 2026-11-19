@@ -25,7 +25,7 @@ const execFileAsync = promisify(execFile)
 export const ENGINE_PORT = 41750
 const CONCIV_FALLBACK_PORT = 41700
 export const DEV_PORT = 41751
-export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/extension-tanstack', '@conciv/extension-compiler']
+export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/plugin-tanstack', '@conciv/extension-compiler']
 const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.yaml')
 
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
@@ -57,8 +57,9 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     dependencies: {
       '@conciv/it': dep('@conciv/it'),
       '@conciv/extension': dep('@conciv/extension'),
-      '@conciv/extension-tanstack': dep('@conciv/extension-tanstack'),
       '@conciv/extension-compiler': dep('@conciv/extension-compiler'),
+      '@conciv/plugin': dep('@conciv/plugin'),
+      '@conciv/plugin-tanstack': dep('@conciv/plugin-tanstack'),
       next: '16.2.10',
       react: '19.2.4',
       'react-dom': '19.2.4',
@@ -71,8 +72,7 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'next.config.ts'),
     [
       `import {withConciv} from '@conciv/it/plugin/nextjs'`,
-      `import tanstack from '@conciv/extension-tanstack'`,
-      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}, extensions: [tanstack()]})`,
+      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}, plugins: ['./node_modules/@conciv/plugin-tanstack']})`,
       ``,
     ].join('\n'),
   )
@@ -405,10 +405,10 @@ export function prodConcivChunkHits(appDir: string, markers: string[]): string[]
 
 export function packedServerModule(fixture: Fixture): string {
   const base = join(fixture.root, 'node_modules/.pnpm')
-  const dirs = readdirSync(base).filter((name) => name.startsWith('@conciv+extension-tanstack@'))
+  const dirs = readdirSync(base).filter((name) => name.startsWith('@conciv+plugin-tanstack@'))
   for (const dir of dirs) {
-    const serverPath = join(base, dir, 'node_modules/@conciv/extension-tanstack/dist/server.js')
+    const serverPath = join(base, dir, 'node_modules/@conciv/plugin-tanstack/dist/index.js')
     if (existsSync(serverPath)) return readFileSync(serverPath, 'utf8')
   }
-  throw new Error('packed @conciv/extension-tanstack/dist/server.js not found in fixture')
+  throw new Error('packed @conciv/plugin-tanstack/dist/index.js not found in fixture')
 }
