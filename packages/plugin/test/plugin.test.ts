@@ -957,7 +957,7 @@ describe('experimental() build', () => {
 
   const bundle = (root: string) => build({root, configFile: false, logLevel: 'silent', plugins: experimental()})
 
-  const provided: Record<PluginModule, object> = {
+  const provided: Record<Exclude<PluginModule, '@conciv/ui-kit-tap'>, object> = {
     '@conciv/plugin/experimental': Experimental,
     '@conciv/plugin/rpc': RpcEntry,
     effect: Effect,
@@ -971,7 +971,7 @@ describe('experimental() build', () => {
   const real = new Map<string, object>([...Object.entries(provided), ['node:fs', NodeFs]])
 
   it('the preset writes a CommonJS entry, a chunk for each import() and the manifest, requiring only what the app provides', async () => {
-    const hosted = [...pluginSharedModules, ...pluginWindowModules]
+    const hosted = [...pluginSharedModules, ...pluginWindowModules].filter((name) => name !== '@conciv/ui-kit-tap')
     const root = await project({
       'src/plugin-experimental.tsx': [
         ...hosted.map((name, index) => `import * as m${index} from "${name}"`),
@@ -999,6 +999,22 @@ describe('experimental() build', () => {
     expect(await dist(chunk)).toContain('Notes')
     expect([...required].toSorted()).toEqual([...hosted, 'node:fs', `./${chunk}`].toSorted())
     expect(evaluatePluginBundle(code, {require: provider(real)}).setup).toBeTypeOf('function')
+  }, 60_000)
+
+  it("the preset keeps @conciv/ui-kit-tap external, so a plugin uses the app's MentionField and its bundle carries no editor of its own", async () => {
+    const root = await project({
+      'src/plugin-experimental.tsx': [
+        'import { MentionField } from "@conciv/ui-kit-tap"',
+        'export default { id: "acme", MentionField, setup() {} }',
+      ].join('\n'),
+    })
+
+    await bundle(root)
+    const code = await readFile(path.join(root, 'dist', 'plugin-experimental.cjs'), 'utf8')
+    const required = Array.from(code.matchAll(/require\("([^"]+)"\)/g), (match) => match[1])
+
+    expect(required).toEqual(['@conciv/ui-kit-tap'])
+    expect(code).not.toMatch(/tiptap|prosemirror/i)
   }, 60_000)
 
   it('the preset fails the build on an Effect, conciv or Solid module the app does not provide', async () => {
