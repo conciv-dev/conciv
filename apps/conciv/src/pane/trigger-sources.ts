@@ -1,7 +1,7 @@
 import {createMemo} from 'solid-js'
 import {useFilter} from '@ark-ui/solid/locale'
 import {useSearch} from '@tanstack/solid-router'
-import {uniqBy} from 'es-toolkit'
+import {partition, uniqBy} from 'es-toolkit'
 import BookOpen from 'lucide-solid/icons/book-open'
 import Brain from 'lucide-solid/icons/brain'
 import MessageCircle from 'lucide-solid/icons/message-circle'
@@ -310,7 +310,8 @@ export function useComposerTriggerSources(props: PaneCommandProps): PaneCommandS
         const settled = [skills, agents, tools, sessions]
         const failures = settled.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
         if (failures.length === settled.length) throw failures[0]
-        return [...matchingItems(entries, query, matcher()), ...titled]
+        const [headless, headed] = partition(matchingItems(entries, query, matcher()), (entry) => !entry.group)
+        return [...headless, ...titled, ...headed]
       },
     },
   }
