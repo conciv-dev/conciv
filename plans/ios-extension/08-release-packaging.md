@@ -24,7 +24,7 @@ Follow the terminal package precedent exactly (`packages/extensions/terminal/pac
 
 1. **`packages/publish/src/guards.ts` — add to `PUBLIC_PACKAGES`** (line 18 list). Without this,
    `assertPublicSet` aborts the release on drift. Add `'@conciv/extension-ios'`. Note the existing set
-   uses the flattened names `@conciv/extension-terminal` / `@conciv/extension-whiteboard` etc. for the
+   uses the flattened names `@conciv/extension-terminal` / the removed whiteboard extension etc. for the
    `packages/extensions/*` dirs — match that convention (`@conciv/extension-ios`).
 2. **`.fallowrc.json` `publicPackages` — add ONLY if fallow actually flags it (M14).** This list is
    **selective, not "every published package"**: `@conciv/extension-terminal` and

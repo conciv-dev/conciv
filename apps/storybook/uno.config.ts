@@ -13,7 +13,6 @@ export default defineConfig({
       '../../packages/core/src/cards/**/*.{ts,tsx}',
       '../../packages/builtin-plugins/src/**/*.{ts,tsx}',
       '../../packages/extensions/recorder/src/**/*.{ts,tsx}',
-      '../../packages/extensions/whiteboard/src/**/*.{ts,tsx}',
       '../../packages/plugins/test-runner/src/**/*.{ts,tsx}',
     ],
   },
