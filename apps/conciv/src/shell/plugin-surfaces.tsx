@@ -22,6 +22,12 @@ const viewRoute = getRouteApi('/panel/$sessionId/$view')
 
 export function createPluginTabs(input: {view: Accessor<string>; chat: () => void; show: (view: string) => void}) {
   const attachment = usePluginAttachment()
+  const router = useRouter()
+  const pendingView = () =>
+    router
+      .matchRoutes(router.latestLocation)
+      .flatMap((match) => (match.routeId === '/panel/$sessionId/$view' ? [match.params.view] : []))
+      .at(0)
 
   const routed = () => {
     const view = input.view()
@@ -46,7 +52,7 @@ export function createPluginTabs(input: {view: Accessor<string>; chat: () => voi
       if (key === undefined) return
       const next = rewrite(key)
 
-      if (next !== key) input.show(next)
+      if (next !== key && next !== pendingView()) input.show(next)
     },
   }
 
