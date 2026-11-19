@@ -2936,9 +2936,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
@@ -3508,9 +3505,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
