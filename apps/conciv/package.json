@@ -69,6 +69,7 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin-page": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
+    "@conciv/plugin-try-it": "workspace:*",
     "@conciv/storage-history": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",

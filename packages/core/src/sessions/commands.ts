@@ -1,7 +1,11 @@
 import type {ChatCommand, ChatCommands, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 
-export type CommandSource = {harnessFor: (sessionId: SessionId) => HarnessAdapter; cwd: string; basePath: string}
+export type CommandSource = {
+  harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
+  cwd: string
+  basePath: string
+}
 
 export function mcpUrlFor(deps: CommandSource, origin: string): string {
   return `${origin}${deps.basePath}/api/mcp`
@@ -17,7 +21,7 @@ export async function listCommands(
   deps: CommandSource,
   opts: {sessionId: SessionId; origin: string},
 ): Promise<ChatCommands> {
-  const harness = deps.harnessFor(opts.sessionId)
+  const harness = await deps.harnessFor(opts.sessionId)
   const commands = harness.commands
   if (!commands) return {commands: []}
   const mcpUrl = harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.origin) : undefined

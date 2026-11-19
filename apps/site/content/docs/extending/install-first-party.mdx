@@ -3,10 +3,11 @@ title: Install an extension
 description: Add a published extension with one dependency and one entry in the conciv options.
 ---
 
-Extensions ship as their own packages: the [TanStack inspector](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/tanstack),
-the whiteboard, the test runner, the recorder and design. None is on by default. Installing one is two steps that work
-the same on every framework. The Terminal panel is not on this list: it is built into every widget, with nothing to
-install.
+Extensions ship as their own packages:
+the test runner, the recorder and design. None is on by default. Installing one is two steps that work the same on
+every framework. The Terminal panel is not on this list: it is built into every widget, with nothing to install. The
+TanStack inspector is a plugin, not an extension: add `@conciv/plugin-tanstack` and list it as
+`plugins: ['@conciv/plugin-tanstack']` (see [Plugins](/docs/plugins)). The whiteboard is a plugin as well, `@conciv/plugin-whiteboard`.
 
 <Steps>
 
@@ -15,7 +16,7 @@ install.
 ### Add the package
 
 ```bash
-pnpm add @conciv/extension-tanstack
+pnpm add @conciv/extension-recorder
 ```
 
 </Step>
@@ -28,16 +29,16 @@ Each package's default export is a factory. Call it in the `extensions` array:
 
 ```ts title="vite.config.ts"
 import conciv from '@conciv/it/plugin/vite'
-import tanstack from '@conciv/extension-tanstack'
+import recorder from '@conciv/extension-recorder'
 
-export default {plugins: [conciv({extensions: [tanstack()]})]}
+export default {plugins: [conciv({extensions: [recorder()]})]}
 ```
 
 ```ts title="next.config.ts"
 import {withConciv} from '@conciv/it/plugin/nextjs'
-import tanstack from '@conciv/extension-tanstack'
+import recorder from '@conciv/extension-recorder'
 
-export default withConciv({}, {extensions: [tanstack()]})
+export default withConciv({}, {extensions: [recorder()]})
 ```
 
 Extensions with options take them as the factory argument, for example `design({comparator: 'pixelmatch'})`. The
@@ -82,9 +83,8 @@ browser half is prebuilt.
 ## Graceful degradation
 
 An installed extension does not assume your app looks a certain way. It probes the page when a tool
-runs, not at mount. The TanStack inspector, for example, mounts cleanly in a router-less Next.js
-app; its router tools return a typed miss there, while `tanstack_query_cache` still works in any
-app using TanStack Query.
+runs, not at mount, so it mounts cleanly in any app and its tools return a typed miss when what they
+read is not there.
 
 ## Publishing your own installable extension
 

@@ -1,20 +1,31 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultMedia} from '@conciv/ui-kit-chat/tools'
-import {cardErrorMessage} from '../page/cards/shared.js'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {BasicTool, ErrorBlock, parseResultMedia} from '@conciv/ui-kit-chat/tools'
 
 const FailureDetailSchema = z.object({error: z.string(), reason: z.string().optional()}).loose()
 
 export type Failure = z.infer<typeof FailureDetailSchema>
 
-export function readFailure(result: ToolCardProps['result']): Failure | null {
-  const message = cardErrorMessage(result)
-  if (message !== undefined) return {error: message}
-  if (result?.state === 'error') return {error: 'the tool call failed'}
-  const parsed = FailureDetailSchema.safeParse(parseResultMedia(result).json)
+export function readMedia(output: string | undefined): {json: unknown; imageUrl?: string} {
+  if (!output) return {json: undefined}
+  return parseResultMedia({type: 'tool-result', toolCallId: '', content: output, state: 'complete'})
+}
+
+export function readFailure(output: string | undefined): Failure | null {
+  const parsed = FailureDetailSchema.safeParse(readMedia(output).json)
   return parsed.success ? parsed.data : null
 }
+
+function WhiteboardFailedCard(props: ToolProps): JSX.Element {
+  return (
+    <BasicTool {...props} status="error" trigger={{title: props.tool}} hasContent={true}>
+      <ErrorBlock message={props.error || 'the tool call failed'} />
+    </BasicTool>
+  )
+}
+
+export const whiteboardFailedCard: ToolComponent = WhiteboardFailedCard
 
 export function failureMessage(failure: Failure): string {
   return failure.reason ? `${failure.error} · ${failure.reason}` : failure.error

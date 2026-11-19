@@ -1,12 +1,12 @@
 export * as PluginModule from './module.js'
 
-import type {Plugin} from '@conciv/plugin/effect/plugin'
+import type {Plugin, Services, TaggedError} from '@conciv/plugin/effect/plugin'
 import * as Host from '@conciv/plugin/host'
 import {ExperimentalBundle, type Source} from '@conciv/plugin/schema/plugin'
 import {createPluginSources} from '../../plugin/source.js'
 import {Hash} from '../../util/hash.js'
 import {Npm} from '../../util/npm.js'
-import {Deferred, Effect, FiberSet, PubSub, Schema, Stream} from 'effect'
+import {Deferred, Duration, Effect, FiberSet, PubSub, RcMap, Schema, Stream} from 'effect'
 import path from 'path'
 import {existsSync} from 'node:fs'
 import {readFile, stat} from 'node:fs/promises'
@@ -21,26 +21,26 @@ import {Watcher} from '../filesystem/watcher.js'
 export const make = Effect.fn('PluginModule.make')(function* () {
   const policies = yield* ManagedPolicy.ConfiguredPolicies
   const watcher = yield* Watcher.Service
-  const scope = yield* Effect.scope
   const runPromise = yield* FiberSet.makeRuntimePromise()
   const changes = yield* PubSub.unbounded<void>()
-  const watched = new Set<string>()
-  const watch = Effect.fn('PluginModule.watch')(function* (file: string) {
-    if (watched.has(file)) return
-    watched.add(file)
-    const ready = yield* Deferred.make<void>()
-    const target = yield* Effect.promise(() => watchTarget(file))
-    const updates = yield* watcher.subscribe(target, Deferred.succeed(ready, undefined))
-    yield* updates.pipe(
-      Stream.runForEach(() => PubSub.publish(changes, undefined)),
-      Effect.ensuring(Deferred.succeed(ready, undefined)),
-      Effect.forkIn(scope, {startImmediately: true}),
-    )
-    yield* Deferred.await(ready)
+  const watches = yield* RcMap.make({
+    lookup: Effect.fn('PluginModule.watch')(function* (file: string) {
+      const ready = yield* Deferred.make<void>()
+      const target = yield* Effect.promise(() => watchTarget(file))
+      const updates = yield* watcher.subscribe(target, Deferred.succeed(ready, undefined))
+      yield* updates.pipe(
+        Stream.runForEach(() => PubSub.publish(changes, undefined)),
+        Effect.ensuring(Deferred.succeed(ready, undefined)),
+        Effect.forkScoped({startImmediately: true}),
+      )
+      yield* Deferred.await(ready)
+    }),
+    idleTimeToLive: Duration.infinity,
   })
+  const watch = (file: string) => Effect.scoped(RcMap.get(watches, file))
   const sources = yield* Effect.acquireRelease(
     Effect.sync(() => createPluginSources((file) => runPromise(watch(file)))),
-    (sources) => Effect.sync(() => sources.dispose()),
+    (created) => Effect.sync(() => created.dispose()),
   )
   return {
     load: (operation: Extract<ConfigPluginSource.Operation, {type: 'add'}>, options?: {readonly install?: boolean}) =>
@@ -77,7 +77,9 @@ const Module = Schema.Struct({
   default: Schema.Union([
     Schema.Struct({
       id: Schema.String,
-      effect: Schema.declare<Plugin['effect']>((input): input is Plugin['effect'] => typeof input === 'function'),
+      effect: Schema.declare<Plugin<Services, TaggedError>['effect']>(
+        (input): input is Plugin<Services, TaggedError>['effect'] => typeof input === 'function',
+      ),
     }),
     Schema.Struct({
       id: Schema.String,

@@ -22,13 +22,14 @@ Everything else is internal wiring or opt-in authoring surface.
 
 ## Under the hood
 
-| Package                                                                                                     | What it is                                                                               |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`@conciv/unplugin`](https://github.com/conciv-dev/conciv/tree/main/packages/unplugin)                      | The unplugin that boots the engine and injects the widget into your dev build.           |
-| [`@conciv/core`](https://github.com/conciv-dev/conciv/tree/main/packages/core)                              | The framework-free engine: every `/api/*` route, sessions, harness and test registries.  |
-| [`@conciv/embed`](https://github.com/conciv-dev/conciv/tree/main/packages/embed)                            | The browser half: mounts the conciv Solid app in an open shadow DOM, cards, page driver. |
-| [`@conciv/harness`](https://github.com/conciv-dev/conciv/tree/main/packages/harness)                        | Harness adapters: Claude and Codex, plus Gemini CLI, opencode, and Pi stubs.             |
-| [`@conciv/cli`](https://github.com/conciv-dev/conciv/tree/main/packages/cli)                                | The [`conciv` CLI](/docs/cli) the agent calls from Bash.                                 |
-| [`@conciv/protocol`](https://github.com/conciv-dev/conciv/tree/main/packages/protocol)                      | Shared wire types. Zero runtime.                                                         |
-| [`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner) | Plugin: [live test execution](/docs/usage/live-tests).                                   |
-| [`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios)           | Built-in (alpha): drive a [native iOS app](/docs/quick-start/ios) in the simulator.      |
+| Package                                                                                                         | What it is                                                                                |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`@conciv/unplugin`](https://github.com/conciv-dev/conciv/tree/main/packages/unplugin)                          | The unplugin that boots the engine and injects the widget into your dev build.            |
+| [`@conciv/core`](https://github.com/conciv-dev/conciv/tree/main/packages/core)                                  | The framework-free engine: every `/api/*` route, sessions, harness and test registries.   |
+| [`@conciv/embed`](https://github.com/conciv-dev/conciv/tree/main/packages/embed)                                | The browser half: mounts the conciv Solid app in an open shadow DOM, cards, page driver.  |
+| [`@conciv/harness`](https://github.com/conciv-dev/conciv/tree/main/packages/harness)                            | Harness adapters: Claude and Codex, plus Gemini CLI, opencode, and Pi stubs.              |
+| [`@conciv/cli`](https://github.com/conciv-dev/conciv/tree/main/packages/cli)                                    | The [`conciv` CLI](/docs/cli) the agent calls from Bash.                                  |
+| [`@conciv/protocol`](https://github.com/conciv-dev/conciv/tree/main/packages/protocol)                          | Shared wire types. Zero runtime.                                                          |
+| [`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner)     | Plugin: [live test execution](/docs/usage/live-tests).                                    |
+| [`@conciv/plugin-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/ios)                     | Plugin (alpha): build and run a [native iOS app](/docs/quick-start/ios) in the simulator. |
+| [`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios)               | The WKWebView bridge the widget's native page uses inside a native iOS app.               |

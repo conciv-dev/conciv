@@ -46,11 +46,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:packed": "vitest run test/tanstack.test.ts --mode packed --tags-filter=packed",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
-    "@conciv/protocol": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"

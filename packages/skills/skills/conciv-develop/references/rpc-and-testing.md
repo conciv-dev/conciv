@@ -136,9 +136,9 @@ export function bootWhiteboard(): Promise<ExtensionTestApi> {
   code (used when the extension needs to probe a router/query client that only exists inside a real
   app):
 
-```ts title="packages/extensions/tanstack/test/helpers.ts:19-26"
+```ts
 ctx.api = await getExtensionTestApi({
-  server: tanstackExtension,
+  server: myExtension,
   host: async ({apiBase, session}) => {
     const served = await serveDir(hostDist, {apiBase, session})
     ctx.origin = served.origin
@@ -148,8 +148,7 @@ ctx.api = await getExtensionTestApi({
 ```
 
 `serverContext` is exactly what your `.server(...)` factory returned as `context` — reach into it
-when a test needs to assert on server-side state your tools don't expose directly (as
-`tanstackAdapter(api)` does, pulling `context.adapter` back out). `callToolApproved` sends the tool
+when a test needs to assert on server-side state your tools don't expose directly. `callToolApproved` sends the tool
 call and also answers the resulting Approve/Deny prompt, so use it for any tool with `approval:
 'ask'`; plain `callTool` leaves the prompt unanswered.
 

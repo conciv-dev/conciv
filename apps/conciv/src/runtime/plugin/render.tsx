@@ -31,11 +31,16 @@ import {PluginContext} from '@conciv/plugin/experimental/host'
 import {usePluginHost, type Item} from './host'
 import {createLinkCheck} from './link-check'
 
-export function Contribution(props: {plugin: string; failed?: () => void; children: () => JSX.Element}) {
+export function Contribution(props: {
+  plugin: string
+  failed?: () => void
+  fallback?: () => JSX.Element
+  children: () => JSX.Element
+}) {
   const host = usePluginHost()
 
   return (
-    <Show when={host.context(props.plugin)} keyed>
+    <Show when={host.context(props.plugin)} keyed fallback={props.fallback?.()}>
       {(context) => (
         <ErrorBoundary
           fallback={(error) => {
@@ -44,7 +49,7 @@ export function Contribution(props: {plugin: string; failed?: () => void; childr
               props.failed?.()
             })
 
-            return null
+            return props.fallback?.() ?? null
           }}
         >
           <PluginContext.Provider value={context}>{untrack(props.children)}</PluginContext.Provider>

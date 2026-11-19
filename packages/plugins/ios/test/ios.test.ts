@@ -2,7 +2,8 @@ import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {readFile, watch} from 'node:fs/promises'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {Effect, Fiber, Layer} from 'effect'
+import {Deferred, Effect, Fiber, Layer, type FileSystem, type Path} from 'effect'
+import {NodeChildProcessSpawner, NodeFileSystem, NodePath} from '@effect/platform-node'
 import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools, makeRpcClient} from '@conciv/harness-testkit'
@@ -10,12 +11,14 @@ import {readApprovalAsk} from '@conciv/protocol/chat-event-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {build, parseXcodebuildAppPath} from '../src/server/build.js'
-import {IosConfigSchema, type IosConfig} from '../src/server/config.js'
-import {iosSystemPrompt} from '../src/server/prompt.js'
-import type {IosRuntime} from '../src/server/shared.js'
-import * as Simctl from '../src/server/simctl.js'
-import {logs, run, screenshot, type RunFailure} from '../src/server/simulator.js'
+import {makeBuild, parseXcodebuildAppPath} from '../src/build.js'
+import {IosConfigSchema, type IosConfig} from '../src/config.js'
+import {iosSystemPrompt} from '../src/prompt.js'
+import type {IosRuntime} from '../src/config.js'
+import * as Simctl from '../src/simctl.js'
+import {logs, run, screenshot, type RunFailure} from '../src/tools.js'
+
+const platform = Layer.merge(NodeFileSystem.layer, NodePath.layer)
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -23,13 +26,45 @@ const NotConfiguredSchema = z.strictObject({ok: z.literal(false), error: z.strin
 
 const NOT_CONFIGURED = {ok: false, error: 'ios plugin not configured'}
 
-async function boot(options?: Record<string, string>): Promise<CoreKit> {
+const SYSTEM_RECORDER = `import {appendFileSync} from 'node:fs'
+export default {
+  id: 'system-recorder',
+  async setup(ctx) {
+    const hooked = {context: false}
+    await ctx.session.hook('prompt', async () => {
+      if (hooked.context) return
+      hooked.context = true
+      await ctx.session.hook('context', (event) => {
+        appendFileSync(ctx.options.out, JSON.stringify(event.system.map((part) => part.text)) + '\\n')
+      })
+    })
+  },
+}
+`
+
+async function boot(
+  options?: Record<string, string>,
+  recorded?: NonNullable<Parameters<typeof bootCoreKit>[0]['plugins']>,
+): Promise<CoreKit> {
   const kit = await bootCoreKit({
     id: 'fake',
-    plugins: [options === undefined ? PACKAGE_DIR : [PACKAGE_DIR, options]],
+    plugins: [options === undefined ? PACKAGE_DIR : [PACKAGE_DIR, options], ...(recorded ?? [])],
   })
   onTestFinished(() => kit.cleanup())
   return kit
+}
+
+async function systemPromptsSent(options?: Record<string, string>): Promise<{kit: CoreKit; system: string[]}> {
+  const directory = tempDir('conciv-ios-system-')
+  const recorder = join(directory, 'system-recorder')
+  const out = join(directory, 'system.jsonl')
+  mkdirSync(recorder)
+  writeFileSync(join(recorder, 'package.json'), JSON.stringify({type: 'module'}))
+  writeFileSync(join(recorder, 'index.js'), SYSTEM_RECORDER)
+  const kit = await boot(options, [[recorder, {out}]])
+  expect((await (await kit.turn('hello', {session: await kit.session()})).done()).errors()).toEqual([])
+  const [line] = readFileSync(out, 'utf8').trim().split('\n')
+  return {kit, system: z.array(z.string()).parse(JSON.parse(line ?? ''))}
 }
 
 async function directTool(kit: CoreKit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
@@ -92,6 +127,16 @@ describe('the ios plugin in an engine', () => {
     expect(await directTool(kit, 'ios_run')).toEqual(NOT_CONFIGURED)
   })
 
+  it('fails to load with a tagged InvalidOptions naming the bad option when the options do not parse', async () => {
+    const kit = await boot({projectRoot: 'PayApp'})
+
+    const plugin = (await kit.rpc.plugin.list()).data.find((entry) => entry.id === 'ios')
+    expect(plugin?.state).toEqual({
+      status: 'failed',
+      error: expect.stringMatching(/^failed to load plugin: InvalidOptions: .*bundleId/s),
+    })
+  })
+
   it('asks before building or running a configured app, and a denial runs nothing', async () => {
     const kit = await boot({projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'})
 
@@ -102,6 +147,19 @@ describe('the ios plugin in an engine', () => {
     const runAsk = await deniedAsk(kit, 'ios_run')
     expect(runAsk.toolName).toContain('ios_run')
     expect(String(runAsk.failure)).toContain('denied')
+  })
+
+  it('adds the ios rules for the configured app to every model request, and nothing when unconfigured', async () => {
+    const options = {projectRoot: 'PayApp', bundleId: 'dev.conciv.pay', buildMode: 'swiftc'}
+    const configured = await systemPromptsSent(options)
+    const config = IosConfigSchema.parse(options)
+    if (config === undefined) throw new Error('expected the ios options to configure the plugin')
+    const rules = iosSystemPrompt(config, {cwd: configured.kit.stateRoot})
+    expect(configured.system.filter((text) => text === rules)).toHaveLength(1)
+    expect(rules).toContain(`Your working directory is ${configured.kit.stateRoot}`)
+
+    const unconfigured = await systemPromptsSent()
+    expect(unconfigured.system.filter((text) => text.includes('transparent WebView'))).toEqual([])
   })
 })
 
@@ -206,7 +264,7 @@ describe('the real simctl runner', () => {
       Effect.gen(function* () {
         const simctl = yield* Simctl.Service
         return yield* simctl.run(process.execPath, ['-e', script, directory])
-      }).pipe(Effect.provide(Simctl.layer)),
+      }).pipe(Effect.provide(Simctl.layer.pipe(Layer.provide(NodeChildProcessSpawner.layer), Layer.provide(platform)))),
     )
     const pid = await written
     expect(alive(pid)).toBe(true)
@@ -251,12 +309,14 @@ describe('the ios tools against a fake simctl', () => {
 
   function against<Value, Failure>(
     layer: Layer.Layer<Simctl.Interface>,
-    effect: Effect.Effect<Value, Failure, Simctl.Interface>,
+    effect: Effect.Effect<Value, Failure, Simctl.Interface | FileSystem.FileSystem | Path.Path>,
   ): Promise<Value> {
-    return Effect.runPromise(effect.pipe(Effect.provide(layer)))
+    return Effect.runPromise(effect.pipe(Effect.provide(Layer.mergeAll(layer, platform))))
   }
 
   const has = (call: Call, token: string): boolean => call.args.includes(token)
+
+  const build = Effect.runSync(makeBuild)
 
   function runtime(config: IosConfig, cwd: string, concivUrl?: string): IosRuntime {
     return {config, cwd, concivUrl: () => concivUrl}
@@ -343,6 +403,7 @@ describe('the ios tools against a fake simctl', () => {
     const twoRoots = join(parent, 'ConcivDemo')
     mkdirSync(join(twoRoots, 'Sources'), {recursive: true})
     writeFileSync(join(twoRoots, 'Sources', 'App.swift'), 'let app = 1\n')
+    mkdirSync(join(twoRoots, 'Sources', 'Generated.swift'))
     writeFileSync(join(twoRoots, 'Info.plist'), '<plist></plist>')
     const extraSourceDir = join(parent, 'ConcivWidget', 'Sources', 'ConcivWidget')
     mkdirSync(extraSourceDir, {recursive: true})
@@ -353,6 +414,7 @@ describe('the ios tools against a fake simctl', () => {
     const twoRootCompile = extra.calls.find((call) => has(call, 'swiftc'))
     expect(twoRootCompile?.args).toContain(join(twoRoots, 'Sources', 'App.swift'))
     expect(twoRootCompile?.args).toContain(join(extraSourceDir, 'Overlay.swift'))
+    expect(twoRootCompile?.args).not.toContain(join(twoRoots, 'Sources', 'Generated.swift'))
 
     const root = tempSwiftProject()
     const clean = fakeSimctl([SDK])
@@ -369,8 +431,25 @@ describe('the ios tools against a fake simctl', () => {
     const failed = await against(failing.layer, build(runtime(xcodebuildConfig(), '/tmp'), {}))
     expect(failed.ok).toBe(false)
     expect(failed.appPath).toBeNull()
-    expect(failed.diagnostics.length).toBeGreaterThan(0)
+    expect(failed.diagnostics.map((diagnostic) => diagnostic.severity)).toEqual(['error', 'warning'])
     expect(failing.calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
+
+    const unparsed = fakeSimctl([
+      {
+        when: (call) => has(call, 'build'),
+        reply: {
+          code: 1,
+          stderr:
+            "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory is a CLT instance",
+        },
+      },
+    ])
+    const raw = await against(unparsed.layer, build(runtime(xcodebuildConfig(), '/tmp'), {}))
+    expect(raw.ok).toBe(false)
+    expect(raw.diagnostics).toHaveLength(1)
+    expect(raw.diagnostics[0]?.severity).toBe('error')
+    expect(raw.diagnostics[0]?.message).toContain('requires Xcode')
+    expect(unparsed.calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
 
     const passing = fakeSimctl([
       {when: (call) => has(call, '-showBuildSettings'), reply: {stdout: transcript('xcodebuild-settings.json')}},
@@ -544,6 +623,40 @@ describe('the ios tools against a fake simctl', () => {
       output: {ok: true, width: 4, height: 4},
       content: [{type: 'file', uri: `data:image/png;base64,${PNG_RED_4x4_BASE64}`, mime: 'image/png'}],
     })
+  })
+
+  it('runs one build at a time: a second build starts its first command only after the first build finishes', async () => {
+    const firstBuildReleased = Effect.runSync(Deferred.make<void>())
+    const started: string[] = []
+    const gated = Layer.succeed(
+      Simctl.Service,
+      Simctl.Service.of({
+        run: (_command, args) =>
+          Effect.gen(function* () {
+            const scheme = args[args.indexOf('-scheme') + 1] ?? ''
+            started.push(`${scheme} ${args.includes('-showBuildSettings') ? 'settings' : 'build'}`)
+            if (scheme === 'First' && args.includes('build')) yield* Deferred.await(firstBuildReleased)
+            return {code: 0, stdout: new Uint8Array(), stderr: ''}
+          }),
+      }),
+    )
+    const serialBuild = Effect.runSync(makeBuild)
+    await against(
+      gated,
+      Effect.gen(function* () {
+        const first = yield* Effect.forkChild(serialBuild(runtime(xcodebuildConfig({scheme: 'First'}), '/tmp'), {}), {
+          startImmediately: true,
+        })
+        const second = yield* Effect.forkChild(serialBuild(runtime(xcodebuildConfig({scheme: 'Second'}), '/tmp'), {}), {
+          startImmediately: true,
+        })
+        expect(started).toEqual(['First build'])
+        yield* Deferred.succeed(firstBuildReleased, undefined)
+        yield* Fiber.join(first)
+        yield* Fiber.join(second)
+      }),
+    )
+    expect(started).toEqual(['First build', 'First settings', 'Second build', 'Second settings'])
   })
 
   it('reads recent log lines with a window and a limit, and reports a missing simulator or a bad predicate', async () => {

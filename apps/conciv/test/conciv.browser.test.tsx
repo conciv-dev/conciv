@@ -2,7 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
-import {uniq} from 'es-toolkit'
+import {range, uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
 import {installReactBridge} from '@conciv/page'
@@ -69,11 +69,11 @@ import {useChatSession} from '@conciv/client'
 import {defineAttachment, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolDisplay, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {PAGE_TOOL_PREFIX, builtinToolMeta} from '@conciv/builtin-plugins/renderer'
-import {createPluginToolCards} from '../src/pane/plugin-tool-cards.jsx'
+import {createToolRender} from '../src/pane/tool-registry-render.jsx'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
@@ -86,6 +86,10 @@ import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/pane/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {getHostApi} from '@conciv/extension/host'
+import {compose} from '@conciv/plugin/experimental/host'
+import {Server, type Plugin, type ServerEntry} from '@conciv/plugin/experimental'
+import tryIt from '@conciv/plugin-try-it'
+import type {ComposedPlugin} from '../src/runtime/plugin/root.js'
 import {
   createChat,
   createChatSession,
@@ -96,13 +100,19 @@ import {
 } from '@conciv/ai/client'
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
-import {createToolDurations} from '../src/pane/tool-durations.js'
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import {NoticeContextProvider} from '../src/shell/notice-context.js'
 import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {
+  ChatEventType,
+  toolTimeEvent,
+  type ChatEvent,
+  type RunClockSource,
+  type RunLifecycle,
+} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {sessionPickerSearchSchema} from '../src/lib/session-search-schemas.js'
 import {
@@ -122,6 +132,7 @@ import {Conciv} from '@conciv/plugin'
 import {pluginEnabled, type EnableState} from '@conciv/plugin/experimental/host'
 import {createManager} from '../src/runtime/plugin/manager.js'
 import {createBundleSource} from '../src/runtime/plugin/bundle-source.js'
+import {builtins} from '../src/runtime/plugin/builtins.js'
 import {Persist, persisted, removePersisted} from '../src/runtime/persistence/storage.js'
 import {createStartupGate, type InstalledSource} from '../src/runtime/plugin/startup.js'
 import {selectDisabled} from '../src/runtime/plugin/machine.js'
@@ -130,6 +141,9 @@ import {
   type PluginExperimental,
   type PluginExperimentalSource,
 } from '../src/runtime/plugin/plugins.js'
+import {pluginDefinition} from '../src/runtime/plugin/module.js'
+import * as Effect from 'effect'
+import {Command, type Registry} from '@conciv/plugin/experimental'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -161,9 +175,9 @@ describe('approval replay', () => {
   const newSession = () => createSession(coreRpc(core()))
 
   async function attachedPane(sessionId: string): Promise<PaneMount> {
-    const attached = await coreControl.pushSocketsOpened()
+    const attached = await coreControl.chatStreamsOpened()
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
-    await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+    await until(async () => (await coreControl.chatStreamsOpened()) > attached, {hangGuardMs: 20_000})
     return mount
   }
 
@@ -300,14 +314,10 @@ describe('approval replay', () => {
         })
       })
       const ctx = makeToolViewCtx({
-        harnessId: () => 'claude',
         catalog: INERT_TOOL_CTX.catalog,
-        sendMessage: () => undefined,
         decide: session.decide,
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
-        durationFor: () => undefined,
-        captureFor: () => undefined,
       })
       render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
       const callbacks = announced[0]
@@ -372,14 +382,10 @@ describe('approval replay', () => {
         })
       })
       const ctx = makeToolViewCtx({
-        harnessId: () => 'claude',
         catalog: INERT_TOOL_CTX.catalog,
-        sendMessage: () => undefined,
         decide: session.decide,
         onError: () => undefined,
         addResult: INERT_TOOL_CTX.addResult,
-        durationFor: () => undefined,
-        captureFor: () => undefined,
       })
       render(() => <PendingApprovals asks={session.pendingApprovals()} ctx={ctx} />)
       const callbacks = announced[0]
@@ -437,7 +443,7 @@ describe('attachment widget', () => {
 
   function ComposerFixture(props: {
     adapter: AttachmentAdapter
-    AttachmentComponent: Component<{removable?: boolean}>
+    AttachmentComponent: Component<{onRemove?: (id: string) => void}>
     onSend?: (content: unknown) => void
     children: JSX.Element
   }): JSX.Element {
@@ -469,7 +475,7 @@ describe('attachment widget', () => {
               <AttachmentByMime cards={cards} />
             </section>
             <section aria-label="composer chip">
-              <AttachmentByMime cards={chips} removable={slotProps.removable} />
+              <AttachmentByMime cards={chips} onRemove={slotProps.onRemove} />
             </section>
           </>
         )}
@@ -1793,10 +1799,10 @@ describe('chat pane', () => {
     test('a run pushed to a chat whose load failed leaves the failed load in place, so Retry reopens instead of resending', async () => {
       const {rpc, sessionId} = await newSession()
       const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
-      const attached = await coreControl.pushSocketsOpened()
+      const attached = await coreControl.chatStreamsOpened()
       mountChatPane(sessionId)
       await expect.element(retry()).toBeEnabled()
-      await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+      await until(async () => (await coreControl.chatStreamsOpened()) > attached, {hangGuardMs: 20_000})
       await coreControl.releaseFault(broken)
 
       await coreControl.scriptTurn({toolCalls: [], text: 'the reply from the other client'})
@@ -1866,7 +1872,63 @@ describe('composer overflow', () => {
     {name: 'context', description: 'Show what fills the window'},
   ]
 
-  const core = bootedCore('composer-overflow', {commands: PICKER_COMMANDS})
+  const MENTIONS_PLUGIN = `import {join} from 'node:path'
+
+export default {
+  id: 'mentions',
+  async setup(ctx) {
+    await ctx.skill.transform((skills) => {
+      skills.add({
+        id: 'mention-guide',
+        name: 'mention-guide',
+        description: 'How mentions are written',
+        path: join(ctx.location.directory, 'mention-guide', 'SKILL.md'),
+        content: 'Write the mention.',
+      })
+      skills.add({
+        id: 'review-checklist',
+        name: 'review-checklist',
+        description: 'What a change needs before it lands',
+        path: join(ctx.location.directory, 'review-checklist', 'SKILL.md'),
+        content: 'Check the change.',
+      })
+    })
+    await ctx.agent.transform((agents) => {
+      agents.update('reviewer', (agent) => {
+        agent.mode = 'subagent'
+        agent.description = 'Reviews the change'
+      })
+      agents.update('lurker', (agent) => {
+        agent.mode = 'subagent'
+        agent.hidden = true
+      })
+      agents.update('planner', () => {})
+    })
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'mention_probe_tool',
+        description: 'A tool the @ list offers after the agents',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      }),
+    )
+    await ctx.tool.transform((tools) =>
+      tools.add({
+        name: 'written_note_tool',
+        description: 'A tool whose name matches better than the skill description',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'noted'}),
+      }),
+    )
+  },
+}
+`
+
+  const core = bootedCore('composer-overflow', {
+    commands: PICKER_COMMANDS,
+    plugins: ['./mentions'],
+    files: {'mentions/index.ts': MENTIONS_PLUGIN},
+  })
   const keep = keptPane()
   const faults = trackedFaults()
 
@@ -1891,12 +1953,17 @@ describe('composer overflow', () => {
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
-        <>
+        <div class="flex flex-col flex-1 min-h-0 relative">
           <ul>
             <For each={requests()}>{(request) => <li>{`the pane requested ${request}`}</li>}</For>
           </ul>
           <ChatPane sessionId={sessionId} />
-        </>
+          <aside class="absolute start-full bottom-0 flex h-40 w-15">
+            <button type="button" class="flex-1" onClick={() => setRequests((current) => [...current, 'nothing'])}>
+              The neighbour pane
+            </button>
+          </aside>
+        </div>
       ),
     )
     keep(mount)
@@ -1982,6 +2049,148 @@ describe('composer overflow', () => {
     await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
     await expect.element(input().getByText('/context')).toBeVisible()
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
+  })
+
+  test('the @ list offers the skills, then the agents that are neither primary nor hidden, then the other sessions, then the files and folders a typed query finds, then the tools', async () => {
+    const rpc = coreRpc(core())
+    const ledgerId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Review ledger'})
+    const payrollId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: payrollId, title: 'Payroll audit'})
+    await page.viewport(WIDE_PX + 60, 900)
+    onTestFinished(() => page.viewport(1000, 900))
+    const mount = await mountComposer(WIDE_PX)
+    await rpc.sessions.rename({sessionId: mount.pane.sessionId(), title: 'Payroll pane'})
+    const context = () => page.getByRole('listbox', {name: 'Context'})
+    const mention = (label: string) => context().getByRole('option', {name: label})
+
+    await userEvent.click(input())
+    await userEvent.keyboard('@')
+
+    await expect.element(context().getByRole('option').first()).toBeInViewport({ratio: 1})
+    await expect.element(mention('@mention-guide').getByText('How mentions are written')).toBeInViewport({ratio: 1})
+    await userEvent.click(page.getByRole('button', {name: 'The neighbour pane'}), {timeout: 3_000})
+    await expect.element(page.getByText('the pane requested nothing')).toBeVisible()
+    await userEvent.click(input())
+    await expect.element(mention('@mention-guide')).toHaveTextContent('@mention-guideHow mentions are written')
+    await expect.element(mention('@reviewer')).toBeVisible()
+    await expect.element(mention('@mention-guide').getByRole('img', {name: 'Skill'})).toBeVisible()
+    await expect.element(mention('@reviewer').getByRole('img', {name: 'Agent'})).toBeVisible()
+    await expect.element(mention('Payroll audit').getByRole('img', {name: 'Session'})).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
+    await expect.element(context().getByRole('group').first().getByRole('option', {name: '@reviewer'})).toBeVisible()
+    await expect
+      .element(context().getByRole('group').first().getByRole('option').last().getByRole('img', {name: 'Session'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
+    await expect.element(mention('@lurker')).not.toBeInTheDocument()
+    await expect.element(mention('@planner')).not.toBeInTheDocument()
+    await expect.element(mention('@build')).not.toBeInTheDocument()
+    await expect
+      .element(context().getByRole('group', {name: 'Tools'}).getByRole('option', {name: '@mention_probe_tool'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').nth(1)).toHaveAccessibleName('Tools')
+
+    await userEvent.keyboard('review')
+
+    await expect.element(context().getByRole('option').nth(0)).toHaveAccessibleName(/@review-checklist/)
+    await expect.element(context().getByRole('option').nth(1)).toHaveAccessibleName(/@reviewer/)
+    await expect.element(context().getByRole('option').last()).toHaveAccessibleName(/Review ledger/)
+
+    await userEvent.keyboard('er')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName('@reviewer')
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@reviewer')).toBeVisible()
+
+    await userEvent.keyboard('@payroll')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Payroll audit/)
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+    await expect.element(mention('Payroll pane')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
+
+    await userEvent.keyboard('@mention')
+
+    await expect
+      .element(context().getByRole('group').first().getByRole('option', {name: 'mentions/index.ts'}))
+      .toBeVisible()
+    await expect
+      .element(context().getByRole('group').last().getByRole('option', {name: '@mention_probe_tool'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
+
+    await userEvent.keyboard('s')
+
+    await expect
+      .element(context().getByRole('option', {name: 'mentions/', exact: true}).getByRole('img', {name: 'Folder'}))
+      .toBeVisible()
+    await expect.element(mention('mentions/index.ts').getByRole('img', {name: 'File'})).toBeVisible()
+    await expect.element(input().getByText('@reviewer')).toBeVisible()
+    await expect.element(input().getByText('@Payroll audit')).toBeVisible()
+
+    const research = await faults.install({kind: 'gate', path: ['fs', 'find'], input: {query: 'mentions'}})
+    await userEvent.keyboard('{Backspace}s')
+    await coreControl.awaitFaultPending(research, 1)
+    await faults.releaseAll()
+
+    await expect.element(mention('mentions/index.ts')).toBeVisible()
+
+    await userEvent.click(mention('mentions/index.ts'))
+
+    await expect.element(context()).not.toBeInTheDocument()
+    await expect.element(input().getByText('@mentions/index.ts')).toBeVisible()
+
+    await userEvent.keyboard('please read the whole change and tell me what breaks first, then ask ')
+    await userEvent.keyboard('@')
+    await expect.element(mention('@reviewer')).toBeVisible()
+    await userEvent.click(input().getByText('@reviewer'), {timeout: 3_000})
+    await expect.element(context()).not.toBeInTheDocument()
+
+    const reread = await faults.install({kind: 'gate', path: ['skill', 'list']})
+    await userEvent.keyboard('{End} @')
+    await coreControl.awaitFaultPending(reread, 1)
+    await coreControl.releaseFault(reread)
+    await expect.element(mention('@mention-guide')).toBeVisible()
+    await expect.element(mention('Review ledger')).toBeVisible()
+
+    await userEvent.keyboard('written')
+    await expect.element(mention('@reviewer')).not.toBeInTheDocument()
+    await expect.element(mention('@mention_probe_tool')).not.toBeInTheDocument()
+    await expect.element(mention('@written_note_tool')).toBeVisible()
+    await expect
+      .element(context().getByRole('group').first().getByRole('option', {name: '@mention-guide'}))
+      .toBeVisible()
+    await expect.element(context().getByRole('group').last()).toHaveAccessibleName('Tools')
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(context()).not.toBeInTheDocument()
+    await rpc.sessions.rename({sessionId: ledgerId, title: 'Ledger'})
+    await userEvent.keyboard('{End} @')
+
+    await expect.element(context().getByRole('option', {name: /^Ledger/})).toBeVisible()
+    await expect.element(mention('Review ledger')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(context()).not.toBeInTheDocument()
+    await Promise.all(
+      range(31).map(async (index) => {
+        const followUpId = await createSession(rpc)
+        await rpc.sessions.rename({sessionId: followUpId, title: `Ledger follow-up ${index + 1}`})
+      }),
+    )
+    await userEvent.keyboard('{End} @ledger')
+
+    await expect.element(context().getByRole('option').first()).toHaveAccessibleName(/^Ledger(?! follow-up)/)
   })
 })
 
@@ -2467,17 +2676,25 @@ describe('engine staleness', () => {
 describe('engine version', () => {
   const core = bootedCore('engine-version')
   const keep = keptPane()
+  const harness = createShellHarness(core)
 
-  test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
+  afterEach(harness.dispose)
+
+  const outdated = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
+
+  test('an engine from before release versions still answers the widget, and the widget asks to update it, a same-origin engine included', async () => {
+    harness.mountShell('/panel?open=true', [], {apiBase: () => ''})
+
+    await expect
+      .element(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('alert'), {timeout: 10_000})
+      .toHaveTextContent(outdated)
+
+    harness.dispose()
     await coreControl.installFault({kind: 'pre-version-engine'})
     const sessionId = await createSession(coreRpc(core()))
     keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
 
-    await expect
-      .element(page.getByRole('alert'))
-      .toHaveTextContent(
-        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
-      )
+    await expect.element(page.getByRole('alert')).toHaveTextContent(outdated)
   })
 })
 
@@ -2588,6 +2805,54 @@ describe('grab staging', () => {
 
     await expect.element(page.getByText('Couldn’t grab that element. Try again.')).toBeVisible()
     await expect.element(removeGrab()).not.toBeInTheDocument()
+  })
+
+  test('a grab staged in Chat stays in the chat draft when Chat closes mid-placement, and one grounded while it moves into Chat arrives grounded', async () => {
+    const [chatOpen, setChatOpen] = createSignal(true)
+    const chatGrab: Grab = {...HERO_GRAB, text: 'echo "chat[owned]"', source: null}
+    const terminalGrab: Grab = {...HERO_GRAB, text: 'echo "terminal(owned)"', source: null}
+    const groundCalled = Promise.withResolvers<void>()
+    const grounding = Promise.withResolvers<Grab | null>()
+    const ground = async (grab: Grab): Promise<Grab | null> => {
+      if (grab.text !== terminalGrab.text) return null
+      groundCalled.resolve()
+      return grounding.promise
+    }
+    const sessionId = await createSession(coreRpc(core()))
+    const mount = mountPane({base: core(), sessionId, ground}, () => (
+      <Show when={chatOpen()}>
+        <ChatPane sessionId={sessionId} />
+      </Show>
+    ))
+    keep(mount)
+    await expect.element(input()).toBeVisible()
+    const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)
+
+    api.stage(chatGrab)
+    setChatOpen(false)
+
+    await expect.element(input()).not.toBeInTheDocument()
+    expect(api.staged()).toEqual([])
+    api.clear()
+
+    setChatOpen(true)
+
+    await expect.element(input()).toBeVisible()
+    await expect.element(removeGrab()).toBeVisible()
+    expect(api.staged().map((grab) => grab.text)).toEqual([chatGrab.text])
+
+    setChatOpen(false)
+    await expect.element(input()).not.toBeInTheDocument()
+    api.stage(terminalGrab)
+    await groundCalled.promise
+    expect(api.staged().map((grab) => grab.text)).toEqual([terminalGrab.text])
+
+    grounding.resolve({...terminalGrab, source: HERO_GRAB.source})
+    setChatOpen(true)
+
+    await expect.element(input()).toBeVisible()
+    await expect.element(removeGrab().last()).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
   })
 
   test('a grabbed element in a sent message shows its grab card', async () => {
@@ -3822,46 +4087,29 @@ describe('page session card', () => {
   const keep = keptPane()
   const faults = trackedFaults()
 
-  test('a built-in page card wins over builtinToolCards for the same tool', async () => {
+  test('a page call draws the card the page plugin registers, not the generic card', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const click: ToolCallPart = {
-      type: 'tool-call',
-      id: 'd1',
-      name: 'page_click',
-      arguments: JSON.stringify({selector: '#cta'}),
-      input: {selector: '#cta'},
-      state: 'complete',
-    }
     keep(
-      mountPane({base: core(), sessionId}, () => {
-        const pluginCards = createPluginToolCards(() => undefined)
-
-        return (
-          <ToolCallCard
-            part={click}
-            result={undefined}
-            ctx={INERT_TOOL_CTX}
-            tools={() => [...pluginCards(), ...builtinToolCards]}
-          />
-        )
-      }),
+      mountPane({base: core(), sessionId}, () => (
+        <ToolDisplay
+          id="d1"
+          tool="page_click"
+          input={{selector: '#cta'}}
+          metadata={{}}
+          status="completed"
+          sessionID={sessionId}
+          render={createToolRender().render}
+        />
+      )),
     )
 
-    await page.getByRole('button', {name: /^page_click/}).click()
-    await expect.element(page.getByText('#cta')).toBeVisible()
+    await expect.element(page.getByText('Clicked', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('#cta', {exact: true})).toBeVisible()
     expect(document.body.textContent).not.toContain('Called page_click')
   })
 
-  test('a tanstack call draws the card the tanstack plugin claims, not the generic card', async () => {
+  test('a tanstack call draws the card the tanstack plugin registers, not the generic card', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const routerState: ToolCallPart = {
-      type: 'tool-call',
-      id: 't1',
-      name: 'tanstack_router_state',
-      arguments: '{}',
-      input: {},
-      state: 'complete',
-    }
     const match = (routeId: string) => ({
       id: routeId,
       routeId,
@@ -3874,28 +4122,23 @@ describe('page session card', () => {
       updatedAt: null,
       isFetching: false,
     })
-    const result: ToolResultPart = {
-      type: 'tool-result',
-      toolCallId: 't1',
-      content: JSON.stringify({
-        location: {pathname: '/about', search: '', hash: ''},
-        matches: [match('__root__'), match('/about')],
-      }),
-      state: 'complete',
-    }
+    const output = JSON.stringify({
+      location: {pathname: '/about', search: '', hash: ''},
+      matches: [match('__root__'), match('/about')],
+    })
     keep(
-      mountPane({base: core(), sessionId}, () => {
-        const pluginCards = createPluginToolCards(() => undefined)
-
-        return (
-          <ToolCallCard
-            part={routerState}
-            result={result}
-            ctx={INERT_TOOL_CTX}
-            tools={() => [...pluginCards(), ...builtinToolCards]}
-          />
-        )
-      }),
+      mountPane({base: core(), sessionId}, () => (
+        <ToolDisplay
+          id="t1"
+          tool="tanstack_router_state"
+          input={{}}
+          metadata={{}}
+          status="completed"
+          output={output}
+          sessionID={sessionId}
+          render={createToolRender().render}
+        />
+      )),
     )
 
     await expect.element(page.getByText('/about · 2 matches', {exact: true})).toBeVisible()
@@ -4008,6 +4251,159 @@ describe('page session card', () => {
   })
 })
 
+describe('tool registry', () => {
+  const cardBundle = (who: string) => `const {ToolRegistry} = require('@conciv/plugin/experimental')
+const {insert} = require('solid-js/web')
+const {createSignal} = require('solid-js')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ToolRegistry, {
+    name: 'registry_probe',
+    render(props) {
+      const [presses, setPresses] = createSignal(0)
+      const card = document.createElement('p')
+      insert(card, () => '${who} probe card for ' + props.input.target + (props.status === 'completed' ? ', ' + props.output : ', ' + props.status))
+      const press = document.createElement('button')
+      press.type = 'button'
+      press.addEventListener('click', () => {
+        setPresses(presses() + 1)
+        ctx.add(ToolRegistry, {name: '${who}_extra_' + presses(), render: () => document.createElement('span')})
+      })
+      insert(press, () => '${who} presses: ' + presses())
+      return [card, press]
+    },
+  })
+}}}
+`
+  const coreBase = bootedCore('tool-registry', {
+    plugins: ['./earlier-cards', './later-cards', './error-cards'],
+    files: {
+      'error-cards/index.ts': `export default {id: 'error-cards', async setup() {}}
+`,
+      'error-cards/plugin-experimental.js': `const {ToolRegistry} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  ctx.add(ToolRegistry, {
+    name: 'registry_failure',
+    errorComponent(props) {
+      const row = document.createElement('p')
+      row.textContent = 'friendly failure: ' + props.error
+      return row
+    },
+  })
+}}}
+`,
+      'earlier-cards/index.ts': `export default {id: 'earlier-cards', async setup() {}}
+`,
+      'earlier-cards/plugin-experimental.js': cardBundle('Earlier'),
+      'later-cards/index.ts': `export default {id: 'later-cards', async setup() {}}
+`,
+      'later-cards/plugin-experimental.js': cardBundle('Later'),
+    },
+  })
+  const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
+
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.releaseResults()
+    await coreControl.clearScript()
+  })
+
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+
+  test('a plugin draws its registered card in the thread, the later plugin wins a name until it is turned off, an unclaimed call reads Called and an error reads on the error card or on the error row its plugin draws', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.scriptTurn({
+      toolCalls: [
+        {name: 'registry_probe', input: {target: 'hero'}, result: 'drawn'},
+        {name: 'mystery_tool', input: {path: 'src/a.ts', mode: 'fast'}, result: {done: true}},
+        {name: 'registry_probe', input: {target: 'footer'}, error: 'the probe exploded'},
+        {name: 'page_fill', input: {selector: '#name', value: 'Ada'}, result: {ok: true, value: 'Ada'}},
+        {name: 'registry_failure', input: {}, error: 'the friendly one broke'},
+      ],
+      text: 'the registry calls are done',
+    })
+    await coreControl.holdResults()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await editor().click()
+    await userEvent.keyboard('run the registry calls{Enter}')
+    await expect
+      .element(page.getByText('Later probe card for hero, running', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+
+    await coreControl.releaseResults()
+    await expect.element(page.getByText('the registry calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Later probe card for hero, drawn', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Earlier probe card for hero', {exact: false})).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Later presses: 0', exact: true}))
+    await expect.element(page.getByRole('button', {name: 'Later presses: 1', exact: true})).toBeVisible()
+    await expect.element(page.getByText('Later probe card for hero, drawn', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Called mystery_tool', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('mode=fast', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Later probe card for footer', {exact: false})).not.toBeInTheDocument()
+    await page.getByRole('button', {name: /registry_probe/}).click()
+    await expect.element(page.getByText('the probe exploded', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('friendly failure: the friendly one broke', {exact: true})).toBeVisible()
+
+    await page.getByRole('link', {name: 'Settings'}).click()
+    await page.getByRole('tab', {name: 'Plugins', exact: true}).click()
+    const later = page.getByRole('switch', {name: 'later-cards', exact: true})
+    await expect.element(later).toBeChecked()
+    await expect.element(page.getByRole('tab', {name: 'Plugins', exact: true})).toHaveFocus()
+    const tabToLater = async (left: number): Promise<void> => {
+      if (left === 0 || document.activeElement === later.element()) return
+      await userEvent.keyboard('{Tab}')
+      await tabToLater(left - 1)
+    }
+    await tabToLater(16)
+    await expect.element(later).toHaveFocus()
+    await userEvent.keyboard(' ')
+    await expect.element(later).not.toBeChecked()
+    await page.getByRole('button', {name: 'Back to chat'}).click()
+
+    await expect
+      .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(page.getByText('Later probe card for hero', {exact: false})).not.toBeInTheDocument()
+
+    harness.dispose()
+    const reloaded = {generic: false}
+    const watch = new MutationObserver(() => {
+      if (document.body.textContent?.includes('Called registry_probe')) reloaded.generic = true
+    })
+    watch.observe(document.body, {childList: true, subtree: true, characterData: true})
+    onTestFinished(() => watch.disconnect())
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect
+      .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    expect(reloaded.generic).toBe(false)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: new URL(coreBase()).origin}})
+    const loadFailed = page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})
+    await expect.element(loadFailed, {timeout: 15_000}).toBeVisible()
+    await expect.element(loadFailed.getByRole('button', {name: 'Retry', exact: true})).toBeVisible()
+
+    harness.dispose()
+    const reading = await faults.install({kind: 'gate', path: ['plugin', 'experimental']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(reading, 1)
+    await expect
+      .element(page.getByRole('button', {name: 'running registry_probe', exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(page.getByText('the registry calls are done')).toBeVisible()
+    await expect.element(page.getByText('Earlier probe card for hero', {exact: false})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /^Edited the page/})).toBeVisible()
+    await coreControl.releaseFault(reading)
+    await expect
+      .element(page.getByText('Earlier probe card for hero, drawn', {exact: true}), {timeout: 15_000})
+      .toBeVisible()
+    expect(reloaded.generic).toBe(false)
+  }, 90_000)
+})
+
 describe('pane composer stopping', () => {
   function lifecycleSourceAt(phase: RunClockSource['lifecycle']['phase']): RunClockSource {
     return {
@@ -4044,16 +4440,18 @@ describe('pane composer stopping', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={stoppable}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={memoryStorage()}
-              draftKey="test"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-            />
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={stoppable}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={memoryStorage()}
+                draftKey="test"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+              />
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     )
   }
@@ -4104,18 +4502,20 @@ describe('pane composer attachments', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={chat()}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={storage}
-              draftKey="attachments"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-              attachmentAdapter={createTextAttachmentAdapter()}
-              onInputReady={(handle) => inputs.push(handle)}
-            />
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={chat()}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={storage}
+                draftKey="attachments"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+                attachmentAdapter={createTextAttachmentAdapter()}
+                onInputReady={(handle) => inputs.push(handle)}
+              />
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
     const focus = () => {
@@ -4278,29 +4678,22 @@ describe('a Stop pressed while a plugin prepares the prompt', () => {
   })
 })
 
-const FOUND_API_BASE = 'http://found.test'
-const CONNECT_PROBE_NAME = 'connect-probe'
-
-function ConnectProbe(): JSX.Element {
-  const connect = getExtensionApi(CONNECT_PROBE_NAME).useConnect()
-  return (
-    <button type="button" onClick={() => connect.found(FOUND_API_BASE)}>
-      Simulate found
-    </button>
-  )
-}
-
-const connectProbe = defineExtension({
-  name: CONNECT_PROBE_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(CONNECT_PROBE_NAME).useSlot() === 'connect'}>
-      <ConnectProbe />
-    </Show>
-  ),
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof connectProbe> {}
+function foundServerPlugins(id: string, pane: (found: (apiBase: string) => void) => JSX.Element): ComposedPlugin[] {
+  const setup: Plugin.Setup = (ctx) => {
+    const [found, setFound] = createStore<{apiBase?: string}>({})
+    const entry = (apiBase: string | undefined): ServerEntry => ({
+      id: 'found',
+      name: id,
+      state: apiBase ? 'ready' : 'starting',
+      ...(apiBase ? {http: {url: apiBase}} : {}),
+      cover: () => pane((next) => setFound('apiBase', next)),
+    })
+    ctx.add(
+      Server,
+      createMemo(() => ({ready: true, order: 0, entries: [entry(found.apiBase)]})),
+    )
+  }
+  return compose({[id]: {windowEntry: async () => ({default: setup})}}).map((entry): ComposedPlugin => [entry, {}])
 }
 
 describe('panel connect', () => {
@@ -4312,7 +4705,14 @@ describe('panel connect', () => {
 
   afterEach(harness.dispose)
 
-  const mountShell = (): void => harness.mountShell('/panel/connect?open=true', [connectProbe])
+  const mountShell = (): void =>
+    harness.mountShell('/panel/connect?open=true', [], {
+      plugins: foundServerPlugins('connect-probe', (found) => (
+        <button type="button" onClick={() => found(core())}>
+          Simulate found
+        </button>
+      )),
+    })
 
   const simulateFound = () => page.getByRole('button', {name: 'Simulate found'})
   const bindFailure = () => page.getByText(/conciv couldn.t connect to that workspace/)
@@ -4343,6 +4743,129 @@ describe('panel connect', () => {
 
     await expectRetryRecovers(() => coreControl.releaseFault(refused), editor, serverError)
   }, 30_000)
+})
+
+const tryItSetup: Plugin.Setup<typeof tryIt> = (ctx) => tryIt.setup?.(ctx)
+
+function tryItPlugins(token: string, holdMs: number): ComposedPlugin[] {
+  return compose({'try-it': {windowEntry: async () => ({default: tryItSetup})}}).map((entry): ComposedPlugin => [
+    entry,
+    {token, probeMs: 100, holdMs},
+  ])
+}
+
+const LAYOUT_BUNDLE = `const {Slot} = require('@conciv/plugin/experimental')
+module.exports = {default: {setup(ctx) {
+  const shown = document.createElement('p')
+  shown.textContent = 'The layout plugin is running'
+  ctx.add(Slot, {at: 'window.bottom', render: () => shown})
+}}}
+`
+
+describe('server cover', () => {
+  const core = bootedCore('server-cover', {
+    plugins: ['./layout', './engine-try-it'],
+    files: {
+      'layout/index.ts': "export default {id: 'layout', async setup() {}}\n",
+      'layout/plugin-experimental.js': LAYOUT_BUNDLE,
+      'engine-try-it/index.ts': "export default {id: 'try-it', async setup() {}}\n",
+      'engine-try-it/plugin-experimental.js': 'module.exports = {default: {setup() {}}}\n',
+    },
+  })
+  const harness = createShellHarness(core)
+
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.closeConnectForward()
+  })
+
+  const panel = () => page.getByRole('dialog', {name: 'conciv chat agent'})
+  const connectSteps = () => panel().getByText('Drive this page with your agent.')
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const layoutRunning = () => page.getByText('The layout plugin is running', {exact: true})
+  const layoutSwitch = () => page.getByRole('switch', {name: 'layout'})
+  const firstServerCover = () => page.getByText('The first server is starting', {exact: true})
+  const twoServers: Plugin.Setup = (ctx) => {
+    ctx.add(Server, (): Server => ({
+      ready: true,
+      order: 0,
+      entries: [
+        {id: 'first', name: 'first', state: 'starting', cover: () => 'The first server is starting'},
+        {id: 'second', name: 'second', state: 'ready', http: {url: core()}},
+      ],
+    }))
+  }
+
+  test('a composed plugin covers the panel until its server is ready, holds there while it says so, then the panel binds to it in place, keeps its id from the engine, and follows the engine plugin switches', async () => {
+    const token = new URL(core()).pathname.split('/')[2] ?? ''
+    expect(() =>
+      harness.mountShell('/panel/connect?open=true', [], {
+        plugins: [...tryItPlugins(token, 1), ...tryItPlugins(token, 1)],
+      }),
+    ).toThrow('The plugin id "try-it" is already taken')
+    harness.dispose()
+    expect(() =>
+      harness.mountShell('/panel/connect?open=true', [], {
+        plugins: compose({grab: {windowEntry: async () => ({default: tryItSetup})}}).map((entry): ComposedPlugin => [
+          entry,
+          {token},
+        ]),
+      }),
+    ).toThrow('The plugin id "grab" is already taken')
+    harness.dispose()
+
+    await coreRpc(core()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'layout', value: false})
+    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 600_000)})
+
+    await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
+    await expect.element(panel().getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await coreControl.forwardConnectPort()
+
+    await expect.element(panel().getByText('Agent connected', {exact: true}), {timeout: 10_000}).toBeVisible()
+    await expect.element(connectSteps()).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    harness.dispose()
+    await coreControl.closeConnectForward()
+    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 1)})
+
+    await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
+    await expect.element(editor()).not.toBeInTheDocument()
+
+    await coreControl.forwardConnectPort()
+
+    await expect.element(editor(), {timeout: 15_000}).toBeVisible()
+    await expect.element(panel().getByText('Agent connected. It’s driving this page from your machine.')).toBeVisible()
+    await expect.element(connectSteps()).not.toBeInTheDocument()
+    await expect.element(panel()).toBeVisible()
+
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
+    await expect
+      .element(page.getByText('Not loaded. A built-in plugin already uses this ID.'), {timeout: 15_000})
+      .toBeVisible()
+    await expect.element(layoutSwitch(), {timeout: 15_000}).not.toBeChecked()
+    await expect.element(layoutRunning()).not.toBeInTheDocument()
+    await userEvent.click(layoutSwitch(), {force: true})
+    await expect.element(layoutSwitch()).toBeChecked()
+    await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+    await expect.element(editor()).toBeVisible()
+    await expect.element(layoutRunning(), {timeout: 15_000}).toBeVisible()
+
+    harness.dispose()
+    await coreControl.closeConnectForward()
+    harness.mountShell('/panel/connect?open=true', [], {
+      plugins: compose({servers: {windowEntry: async () => ({default: twoServers})}}).map((entry): ComposedPlugin => [
+        entry,
+        {},
+      ]),
+    })
+
+    await expect.element(editor(), {timeout: 15_000}).toBeVisible()
+    await expect.element(firstServerCover()).not.toBeInTheDocument()
+  }, 90_000)
 })
 
 describe('panel escape', () => {
@@ -5526,19 +6049,21 @@ describe('queue strip', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={session}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={memoryStorage()}
-              draftKey="queue-flush"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-              onInputReady={(handle) => inputs.push(handle)}
-            >
-              <DraftOutput />
-            </PaneComposer>
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={session}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={memoryStorage()}
+                draftKey="queue-flush"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+                onInputReady={(handle) => inputs.push(handle)}
+              >
+                <DraftOutput />
+              </PaneComposer>
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
     const sink = {
@@ -6346,20 +6871,17 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, moves focus from the composer to Log in, and the code restores it in place', async () => {
-    const pushHandshake = await faults.install({kind: 'push-handshake-hold'})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    await coreControl.awaitFaultPending(pushHandshake, 1)
-    const pushLive = coreControl.awaitPushSocketLive()
-    await coreControl.releaseFault(pushHandshake)
-    await pushLive
+    await coreControl.awaitRpcSocketLive()
+    const revoked = await coreControl.rpcSocketsRevoked()
     await userEvent.click(editor())
     await expect.element(editor()).toHaveFocus()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(reloginNotice().getByRole('button', {name: 'Log in'})).toHaveFocus()
     await expect.element(editor()).toBeVisible()
-    await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await coreControl.awaitRpcSocketsRevoked(revoked + 1)
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent', disabled: true})).toBeVisible()
     await expect.element(page.getByText('Log in to continue', {exact: true})).toBeVisible()
     await userEvent.click(editor(), {force: true})
@@ -6406,7 +6928,7 @@ describe('engine login', () => {
   test('a revoke while the panel is open empties this browser draft store, refuses typing, the text on screen is not stored again, and the reopened panel shows what the engine holds', async () => {
     await unlockOnNewSession()
     await typeEngineAndLocalDrafts()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
 
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
@@ -6428,21 +6950,25 @@ describe('engine login', () => {
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
-    await coreControl.scriptTurn({toolCalls: [], text: 'Answer before the revoke.'})
+    await coreControl.scriptTurn({
+      toolCalls: [{name: 'mystery_tool', input: {path: 'src/a.ts'}, result: {done: true}}],
+      text: 'Answer before the revoke.',
+    })
     await editor().fill('first question')
     await page.getByRole('button', {name: 'Send message'}).click()
     const earlierAnswer = () => page.getByRole('log').getByText('Answer before the revoke.')
     await expect.element(earlierAnswer()).toBeVisible()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
     await coreControl.revokeBrowsers()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(earlierAnswer()).toBeVisible()
+    await expect.element(page.getByRole('log').getByText('Called mystery_tool', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('status', {name: 'Loading conversation'})).not.toBeInTheDocument()
     await reloginNotice().getByRole('button', {name: 'Log in'}).click()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
     await expect.element(reloginNotice()).not.toBeInTheDocument()
     await expect.element(earlierAnswer()).toBeVisible()
-    await coreControl.awaitPushSocketLive()
+    await coreControl.awaitRpcSocketLive()
     await coreControl.scriptTurn({toolCalls: [], text: 'Answer after the new code.'})
     await editor().fill('second question')
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -6585,7 +7111,7 @@ describe('engine login', () => {
       const lateClose = await faults.install({kind: 'late-close'})
       harness.mountShell('/', [], {login: {apiBase: origin()}})
       await unlock()
-      await coreControl.awaitPushSocketLive()
+      await coreControl.awaitRpcSocketLive()
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
       await coreControl.revokeBrowsers()
       await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
@@ -7073,10 +7599,9 @@ describe('session selector', () => {
     await navigator.clipboard.writeText('')
     await userEvent.click(resumeCopy('Copy resume command'), {position: {x: -6, y: 14}})
     await expect.element(resumeCopy('Copied')).toBeVisible()
-    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
-    await expect.element(preview('the gull census').getByRole('tooltip')).toHaveTextContent('Copied')
-    await expect.element(preview('the gull census').getByRole('tooltip')).toBeVisible()
-    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
+    await expect.element(page.getByRole('tooltip', {name: 'Copied'})).toBeVisible()
+    await expect.element(resumeCopy('Copied')).toHaveAccessibleDescription('Copied')
+    expect(page.getByRole('tooltip').all()).toHaveLength(1)
     await expect
       .element(page.getByRole('log', {name: 'Announcements'}))
       .toMatchTextContent(/puffin notes \| Copied \| Copied \| Copied$/)
@@ -7326,7 +7851,7 @@ describe('tool card dispatch', () => {
 
 describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
-    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+    const registry = createToolRegistry()
     return registry
   }
 
@@ -7558,6 +8083,7 @@ describe('run errors', () => {
 describe('tool durations across row eviction', () => {
   const EARLIER_EXCHANGES = 24
   const PROBE_CALL = 'probe-call'
+  const PROBE_START = 1_700_000_000_000
 
   function ProbeCard(props: ToolCardProps): JSX.Element {
     return <p>{`probe took ${formatDuration(props.durationMs) ?? 'no time yet'}`}</p>
@@ -7583,9 +8109,12 @@ describe('tool durations across row eviction', () => {
       async *connect(_messages, _data, _signal, runContext) {
         const run = {threadId: runContext?.threadId ?? 'durations', runId: runContext?.runId ?? 'durations-run'}
         yield {type: ChatEventType.RUN_STARTED, ...run}
-        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL})
+        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL}).map((chunk) =>
+          chunk.type === ChatEventType.TOOL_CALL_START ? {...chunk, metadata: {time: {start: PROBE_START}}} : chunk,
+        )
         await resultGate
         yield createToolResultChunk(PROBE_CALL, 'probed')
+        yield toolTimeEvent.create({toolCallId: PROBE_CALL, time: {start: PROBE_START, end: PROBE_START + 1500}})
         yield* createTextChunks('probe finished')
         yield {type: ChatEventType.RUN_FINISHED, ...run, finishReason: 'stop'}
       },
@@ -7600,7 +8129,7 @@ describe('tool durations across row eviction', () => {
   function mountProbeThread(resultGate: Promise<void>): void {
     function ProbeThread(): JSX.Element {
       const chat = createChat({threadId: 'tool-durations', connection: gatedProbeRun(resultGate)})
-      const ctx = {...INERT_TOOL_CTX, durationFor: createToolDurations(chat.messages, Date.now)}
+      const ctx = INERT_TOOL_CTX
       onMount(() => {
         chat.setMessages(earlierExchanges())
         void chat.sendMessage('run the probe')
@@ -7624,7 +8153,7 @@ describe('tool durations across row eviction', () => {
   }
 
   const log = () => page.getByRole('log')
-  const probeTook = () => page.getByText(/^probe took \d+(\.\d)?s$/)
+  const probeTook = () => page.getByText('probe took 1.5s', {exact: true})
   const probeCard = () => page.getByText(/^probe took/)
 
   async function scrollAway(): Promise<void> {
@@ -7836,6 +8365,15 @@ describe('settings page', () => {
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '500')
     await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuemin', '448')
+    await userEvent.keyboard('{ArrowRight}'.repeat(4))
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '448')
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuemax', '960')
+    await userEvent.keyboard('{ArrowLeft}'.repeat(25))
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '960')
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '936')
+    localStorage.removeItem('conciv-modal-width')
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
@@ -8178,7 +8716,7 @@ function storeNames(plugins: readonly PluginExperimental[]): string[][] {
 }
 
 function bundleSource(base: string) {
-  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base})
+  return createBundleSource({client: Conciv.make(coreRpc(base)), apiBase: () => base, builtins})
 }
 
 function recordPushes(source: PluginExperimentalSource) {
@@ -8533,41 +9071,21 @@ module.exports = {default: {setup(ctx) {
 })
 
 describe('plugin tool cards', () => {
-  const probeBundle = `const {Registry} = require('@conciv/plugin/experimental')
+  const probeBundle = `const {ToolRegistry} = require('@conciv/plugin/experimental')
 const {insert} = require('solid-js/web')
-const ToolCall = Registry.define('tool-call')
 module.exports = {default: {setup(ctx) {
-  ctx.add(ToolCall, {
-    tools: ['plugin_card_probe'],
-    display: 'standalone',
-    card: {
-      hasEmbeddedBody: () => true,
-      render(props) {
-        const card = document.createElement('p')
-        insert(card, () =>
-          'Probe card ' + (props.result === undefined ? 'running' : 'finished') + ', ' +
-          (props.durationMs === undefined ? 'no time yet' : 'timed'))
-        return card
-      },
-    },
-  })
-  ctx.add(ToolCall, {
-    tools: ['plugin_card_throw_probe'],
-    card: {
-      hasEmbeddedBody: () => true,
-      render() {
-        throw new Error('the probe card render failed')
-      },
-    },
-  })
-  ctx.add(ToolCall, {
-    tools: ['plugin_probe'],
+  ctx.add(ToolRegistry, {
+    name: 'plugin_card_probe',
     render(props) {
-      if (props.input.mode === 'throw') throw new Error('the probe render failed')
-      if (props.input.mode === 'decline') return undefined
-      const body = document.createElement('p')
-      body.textContent = 'Plugin drew ' + props.result.output.drawn
-      return body
+      const card = document.createElement('p')
+      insert(card, () => 'Probe card ' + (props.status === 'completed' ? 'finished' : props.status))
+      return card
+    },
+  })
+  ctx.add(ToolRegistry, {
+    name: 'plugin_card_throw_probe',
+    render() {
+      throw new Error('the probe card render failed')
     },
   })
 }}}
@@ -8591,40 +9109,7 @@ module.exports = {default: {setup(ctx) {
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const probeRow = (meta: string) => page.getByText(meta, {exact: true})
 
-  test('a plugin draws the body of a finished call it claims, and a declined or failed call keeps the default card', async () => {
-    const sessionId = await createSession(coreRpc(coreBase()))
-    await coreControl.scriptTurn({
-      toolCalls: [
-        {name: 'plugin_probe', input: {mode: 'draw'}, result: {drawn: 'the drawn probe'}},
-        {name: 'plugin_probe', input: {mode: 'decline'}, result: {drawn: 'the declined probe'}},
-        {name: 'plugin_probe', input: {mode: 'throw'}, result: {drawn: 'the thrown probe'}},
-      ],
-      text: 'the probes are done',
-    })
-    await coreControl.holdResults()
-    harness.mountShell(`/panel/${sessionId}?open=true`)
-
-    await editor().click()
-    await userEvent.keyboard('run the probes{Enter}')
-    await expect
-      .element(page.getByRole('button', {name: 'running probe draw mode=draw'}), {timeout: 15_000})
-      .toBeVisible()
-    await expect.element(page.getByText('Plugin drew the drawn probe')).not.toBeInTheDocument()
-
-    await coreControl.releaseResults()
-    await expect.element(page.getByText('the probes are done'), {timeout: 15_000}).toBeVisible()
-    await expect.element(probeRow('mode=draw')).toBeVisible()
-    await expect.element(probeRow('mode=decline')).toBeVisible()
-    await expect.element(probeRow('mode=throw')).toBeVisible()
-    await expect.element(page.getByText('Plugin drew the drawn probe')).toBeVisible()
-    await expect.element(page.getByText('Plugin drew the declined probe')).not.toBeInTheDocument()
-    await expect.element(page.getByText('Plugin drew the thrown probe')).not.toBeInTheDocument()
-    await expect.element(page.getByText('"the drawn probe"', {exact: true})).not.toBeInTheDocument()
-    await expect.element(page.getByText('"the declined probe"', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('"the thrown probe"', {exact: true})).toBeVisible()
-  }, 45_000)
-
-  test('a plugin card draws the whole card while the call runs and after, with its duration', async () => {
+  test('a plugin card draws the whole row while the call runs and after', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.scriptTurn({
       toolCalls: [{name: 'plugin_card_probe', input: {mode: 'card'}, result: {drawn: 'the card probe'}}],
@@ -8635,13 +9120,11 @@ module.exports = {default: {setup(ctx) {
 
     await editor().click()
     await userEvent.keyboard('run the card probe{Enter}')
-    await expect
-      .element(page.getByText('Probe card running, no time yet', {exact: true}), {timeout: 15_000})
-      .toBeVisible()
+    await expect.element(page.getByText('Probe card running', {exact: true}), {timeout: 15_000}).toBeVisible()
 
     await coreControl.releaseResults()
     await expect.element(page.getByText('the card probe is done'), {timeout: 15_000}).toBeVisible()
-    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card finished', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Probe card running', {exact: false})).not.toBeInTheDocument()
     await expect.element(page.getByText('"the card probe"', {exact: true})).not.toBeInTheDocument()
   }, 45_000)
@@ -8660,16 +9143,16 @@ module.exports = {default: {setup(ctx) {
     await editor().click()
     await userEvent.keyboard('run the card probes{Enter}')
     await expect.element(page.getByText('the card probes are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('Called plugin_card_throw_probe', {exact: true})).toBeVisible()
     await expect.element(probeRow('mode=broken')).toBeVisible()
-    await expect.element(page.getByText('"the broken card probe"', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('Probe card finished, timed', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('Probe card finished', {exact: true})).toBeVisible()
 
     await userEvent.click(page.getByRole('link', {name: 'Settings'}))
     await userEvent.click(page.getByRole('tab', {name: 'Plugins', exact: true}))
     await expect.element(page.getByText('Error: the probe card render failed', {exact: true})).toBeVisible()
   }, 45_000)
 
-  test('a call no card claims draws the generic card: its row reads the label or first argument with the other arguments beside it, and a call with no input reads its title', async () => {
+  test('a call no card claims draws the generic card: Called and the tool, the label input beside it, then up to three other arguments, and the time the engine took once it finished, also after a reload', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     await coreControl.scriptTurn({
       toolCalls: [
@@ -8679,17 +9162,31 @@ module.exports = {default: {setup(ctx) {
       ],
       text: 'the generic calls are done',
     })
+    await coreControl.holdResults()
     harness.mountShell(`/panel/${sessionId}?open=true`)
+    const resolveRow = () => page.getByRole('button', {name: /Called server_resolve/})
+    const took = /^\d+(\.\d)?s$/
 
     await editor().click()
     await userEvent.keyboard('run the generic calls{Enter}')
+    await expect.element(resolveRow(), {timeout: 15_000}).toBeVisible()
+    await expect.element(resolveRow().getByText(took)).not.toBeInTheDocument()
+
+    await coreControl.releaseResults()
     await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
-    await expect.element(page.getByText('solid-js', {exact: true})).toBeVisible()
+    await expect.element(resolveRow().getByText(took)).toBeVisible()
+    await expect.element(page.getByText('Called server_resolve', {exact: true})).toBeVisible()
     await expect.element(page.getByText('spec=solid-js', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('Called server_resolve', {exact: true})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Called note_open', {exact: true})).toBeVisible()
     await expect.element(page.getByText('src/a.ts', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('line=3 force=true', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('line=3', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('force=true', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Called server_urls', {exact: true})).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(page.getByText('the generic calls are done'), {timeout: 15_000}).toBeVisible()
+    await expect.element(resolveRow().getByText(took)).toBeVisible()
   }, 45_000)
 })
 
@@ -8732,6 +9229,11 @@ describe('terminal panel', () => {
       {id: 'busy-model', name: 'Busy model'},
     ],
     alternates: [{id: 'plain', displayName: 'Plain'}],
+    files: {
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'}),
+    },
   })
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
@@ -8742,7 +9244,8 @@ describe('terminal panel', () => {
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
-  const output = (text: string) => page.getByText(text, {exact: true})
+  const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
+  const connecting = () => terminalPanel().getByRole('status').filter({hasText: 'connecting'})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -8772,6 +9275,37 @@ describe('terminal panel', () => {
       .not.toBeInTheDocument()
     await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
     expect(await coreControl.projectFileExists('terminal-started')).toBe(true)
+    expect(await coreControl.rpcCallCount(['experimental', 'persistentPty', 'write'])).toBeGreaterThan(0)
+
+    const write = ['experimental', 'persistentPty', 'write']
+    const outputPath = ['experimental', 'persistentPty', 'output']
+    const outputStreams = await coreControl.rpcCallCount(outputPath)
+    await faults.install({kind: 'deliver-then-cut', path: write, input: {data: 'Z'}})
+    await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+    await userEvent.keyboard('echo Z')
+    await coreControl.rpcStartedOnceServed(outputPath, outputStreams + 1, [])
+    await expect.element(connecting(), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(output('P> echo Z'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('Z'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcStartedCount(write, {data: 'Z'})).toBe(1)
+    await expect.element(output('ZZ')).not.toBeInTheDocument()
+
+    const offline = await faults.install({kind: 'offline'})
+    await expect.element(connecting(), {timeout: 15_000}).toBeVisible()
+    const handshakes = await faults.install({kind: 'handshake-hold'})
+    await coreControl.releaseFault(offline)
+    await coreControl.awaitFaultPending(handshakes, 1)
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('Q')
+    await coreControl.releaseFault(handshakes)
+    await expect.element(connecting(), {timeout: 15_000}).not.toBeInTheDocument()
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    expect(await coreControl.rpcStartedCount(write, {data: 'Q'})).toBe(0)
 
     harness.dispose()
     harness.mountShell(terminalRoute(sessionId))
@@ -8855,6 +9389,181 @@ describe('terminal panel', () => {
     await expect.element(picker()).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a pick that fails tells the user with a toast', async () => {
+    const failingPick = async (): Promise<Grab | null> => {
+      throw new Error('the page refused the pick')
+    }
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {
+      grabProvider: () => ({pick: failingPick, comment: failingPick, cancel: () => {}, isActive: () => false}),
+    })
+
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+
+    await expect.element(page.getByText('Could not select that element', {exact: true})).toBeVisible()
+  }, 60_000)
+
+  test('a grab picked in the terminal is grounded in place, and its Remove takes it away', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const unsourced: Grab = {...HERO_GRAB, source: null, frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(unsourced)})
+
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('in src/app.tsx:1'), {timeout: 15_000}).toBeVisible()
+
+    await removeGrab().click()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a grab lives in one place: one picked in Chat stays in the chat draft, a waiting one picked in the terminal moves into the chat draft when Chat opens', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const composerInput = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const chatTab = () => bar().getByRole('tab', {name: 'Chat', exact: true})
+    const chatGrab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
+    const terminalGrab = {...HERO_GRAB, text: 'echo "terminal(owned)"'}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
+
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('chat[owned]')).not.toBeInTheDocument()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('terminal(owned)')).not.toBeInTheDocument()
+    await expect.element(output('chat[owned]')).not.toBeInTheDocument()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
+  test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const readsOneLine = {...HERO_GRAB, text: 'read -r line; echo "got[$line]"'}
+    const buttonGrab = {...HERO_GRAB, text: '<button>\nSave\n</button>'}
+    const linkGrab = {...HERO_GRAB, text: '<a>Next</a>'}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {
+      grabProvider: grabProviderFor(readsOneLine, buttonGrab, linkGrab),
+    })
+
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+
+    await pickButton().click()
+    await expect.element(terminalPanel()).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    const imeConfirm = {key: 'Enter', code: 'Enter', isComposing: true, bubbles: true, cancelable: true}
+    terminalInput().element().dispatchEvent(new KeyboardEvent('keydown', imeConfirm))
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('once')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('got[once]'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('got[]')).not.toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await typeLine('read -r line; echo "second($line)"')
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await pickButton().click()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('second(<button> Save </button> <a>Next</a>)'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((5*5))')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('second()')).not.toBeInTheDocument()
+    await expect.element(terminalPanel().getByText(/^bash: /)).not.toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await terminalTab().click()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('exit')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('Terminal session ended', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await pickButton().click()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
+  test('a pick that lands after the user moved to another session stages nothing in that session', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const release: {pick: (grab: Grab) => void} = {pick: () => {}}
+    const held = new Promise<Grab>((resolve) => {
+      release.pick = resolve
+    })
+    const heldPick = () => held
+    const rpc = coreRpc(coreBase())
+    const otherSession = await createSession(rpc)
+    const sessionId = await createSession(rpc)
+    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], [], {
+      grabProvider: () => ({pick: heldPick, comment: heldPick, cancel: () => {}, isActive: () => false}),
+    })
+
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    harness.back()
+    await expect.element(output('42'), {timeout: 15_000}).not.toBeInTheDocument()
+    await terminalPanel().click()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(harness.pathname()).toContain(otherSession)
+
+    release.pick({...HERO_GRAB, text: 'echo "leaked[grab]"'})
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((4*4))')
+    await expect.element(output('16'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('leaked[grab]')).not.toBeInTheDocument()
+  }, 60_000)
+
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
     const pageScheme = document.documentElement.classList
     onTestFinished(() => pageScheme.remove('dark'))
@@ -8926,6 +9635,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('echo $((3*3))')
     await userEvent.keyboard('{Enter}')
     await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).toBeInTheDocument()
     await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
 
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
@@ -9021,38 +9731,22 @@ describe('terminal panel', () => {
   }, 60_000)
 })
 
-const TYPED_CONNECT_PROBE_NAME = 'typed-connect-probe'
-
-function TypedConnectProbe(): JSX.Element {
-  const connect = getExtensionApi(TYPED_CONNECT_PROBE_NAME).useConnect()
-  const [address, setAddress] = createSignal('')
+function TypedConnectForm(props: {found: (apiBase: string) => void}): JSX.Element {
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        connect.found(address())
+        const address = new FormData(event.currentTarget).get('address')
+        props.found(typeof address === 'string' ? address : '')
       }}
     >
       <label>
         Workspace address
-        <input value={address()} onInput={(event) => setAddress(event.currentTarget.value)} />
+        <input name="address" />
       </label>
       <button type="submit">Connect</button>
     </form>
   )
-}
-
-const typedConnectProbe = defineExtension({
-  name: TYPED_CONNECT_PROBE_NAME,
-  Component: () => (
-    <Show when={getExtensionApi(TYPED_CONNECT_PROBE_NAME).useSlot() === 'connect'}>
-      <TypedConnectProbe />
-    </Show>
-  ),
-}).client(() => ({value: {}}))
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionRegistry extends RegisterExtension<typeof typedConnectProbe> {}
 }
 
 const projectNoteBundle = `const {Slot, Store} = require('@conciv/plugin/experimental')
@@ -9145,7 +9839,9 @@ describe('plugins before a core is bound', () => {
       localStorage.removeItem(PREFS_KEY)
     })
     localStorage.removeItem('conciv:settings-tab')
-    harness.mountShell('/panel/connect?open=true', [typedConnectProbe], {connect: true})
+    harness.mountShell('/panel/connect?open=true', [], {
+      plugins: foundServerPlugins('typed-connect-probe', (found) => <TypedConnectForm found={found} />),
+    })
 
     await userEvent.click(page.getByRole('textbox', {name: 'Workspace address'}))
     await userEvent.keyboard(coreBase())
@@ -9999,11 +10695,10 @@ describe('installed plugins in settings', () => {
 describe('a fixture plugin driven like a user', () => {
   const PLUGIN_CALL = ['plugin', 'call']
 
-  const fixtureBundle = `const {Panel, Registry, SettingsPage, Slot, Store, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
+  const fixtureBundle = `const {Panel, SettingsPage, Slot, Store, ToolRegistry, createKeyed, useDrawer, usePanel} = require('@conciv/plugin/experimental')
 const {createComponent, insert} = require('solid-js/web')
 const {createRenderEffect, createSignal} = require('solid-js')
 const {z} = require('zod')
-const ToolCall = Registry.define('tool-call')
 module.exports = {default: {stores: {
   note: Store.session(z.object({text: z.string()}), {text: 'none'}),
   visits: Store.session(z.object({count: z.number()}), {count: 0}),
@@ -10016,28 +10711,14 @@ module.exports = {default: {stores: {
     })
     return shown
   }
-  const asked = {declined: 0, drawn: 0}
-  const askedLine = document.createElement('p')
-  askedLine.textContent = 'Declined call asked: 0'
-  const drawnLine = document.createElement('p')
-  drawnLine.textContent = 'Drawn catalog call asked: 0'
-  ctx.add(ToolCall, {
-    tools: ['fixture_probe', 'page_route'],
+  ctx.add(ToolRegistry, {
+    name: 'fixture_probe',
     render(props) {
-      if (props.tool === 'page_route') {
-        if (props.input.mode === 'decline') return undefined
-        asked.drawn += 1
-        drawnLine.textContent = 'Drawn catalog call asked: ' + asked.drawn
-        return Object.assign(document.createElement('p'), {textContent: 'Fixture read the route for ' + props.input.file})
-      }
-      if (props.input.mode !== 'decline') return Object.assign(document.createElement('p'), {textContent: 'Fixture drew ' + props.result.output.drawn})
-      asked.declined += 1
-      askedLine.textContent = 'Declined call asked: ' + asked.declined
-      return undefined
+      const card = document.createElement('p')
+      insert(card, () => (props.status === 'completed' ? 'Fixture drew ' + JSON.parse(props.output).drawn : 'Fixture probe ' + props.status))
+      return card
     },
   })
-  ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
-  ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
   const engineLine = document.createElement('p')
   const engineAttaches = {count: 0}
   createKeyed(
@@ -10206,6 +10887,12 @@ module.exports = {default: {stores: {
       return [
         createComponent(ctx.ui.Avatar, {name: 'Ada Lovelace'}),
         createComponent(ctx.ui.RelativeTime, {value: new Date(Date.now() - (3 * 24 + 1) * 60 * 60 * 1000)}),
+        createComponent(ctx.ui.Chip, {value: 'Reviewed', tone: 'success', tooltip: 'Ada marked it reviewed'}),
+        createComponent(ctx.ui.Chip, {
+          value: 'Reviewed in full by Ada Lovelace and Alan Turing',
+          tooltip: 'Both reviewers signed off',
+          class: 'max-w-40',
+        }),
         createComponent(ctx.ui.Menu, {
           label: 'View options',
           get items() {
@@ -10489,8 +11176,8 @@ module.exports = {default: {setup(ctx) {
     })
   })
 
-  describe('its ctx.ui.RelativeTime and ctx.ui.Avatar', () => {
-    test('show how long ago a time was and a person by name with their initials when there is no image', async () => {
+  describe('its ctx.ui.RelativeTime, ctx.ui.Avatar and ctx.ui.Chip', () => {
+    test('show how long ago a time was, a person by name with their initials when there is no image, a chip whose tooltip opens on hover, and a clipped chip whose tooltip shows its full value with the tooltip text', async () => {
       const sessionId = await createSession(coreRpc(coreBase()))
       harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
       await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
@@ -10499,6 +11186,57 @@ module.exports = {default: {setup(ctx) {
       await expect.element(page.getByText('3d ago', {exact: true})).toBeVisible()
       await expect.element(page.getByRole('img', {name: 'Ada Lovelace', exact: true})).toBeVisible()
       await expect.element(page.getByText('AL', {exact: true})).toBeVisible()
+      await page.getByRole('button', {name: 'Reviewed', exact: true}).hover()
+      await expect.element(page.getByText('Ada marked it reviewed', {exact: true})).toBeVisible()
+      await page.getByRole('button', {name: 'Reviewed in full by Ada Lovelace and Alan Turing', exact: true}).hover()
+      const tooltip = page.getByRole('tooltip')
+      await expect
+        .element(tooltip.getByText('Reviewed in full by Ada Lovelace and Alan Turing', {exact: true}))
+        .toBeVisible()
+      await expect.element(tooltip.getByText('Both reviewers signed off', {exact: true})).toBeVisible()
+    })
+  })
+
+  describe('its ctx.ui.Menu radio and checkbox entries', () => {
+    test("a radio entry and a checkbox entry stay checked, and the app's MentionField from @conciv/ui-kit-tap sends a mention", async () => {
+      const sessionId = await createSession(coreRpc(coreBase()))
+      const menuButton = () => control('View options')
+      const radio = (name: string) => page.getByRole('menuitemradio', {name, exact: true})
+      const checkbox = () => page.getByRole('menuitemcheckbox', {name: 'Show resolved', exact: true})
+      const field = () => page.getByRole('textbox', {name: 'Reply with a mention', exact: true})
+      harness.mountShell(`/panel/${sessionId}/${encodeURIComponent('fixture:people')}?open=true`)
+      await expect.element(tab('Fixture people'), {timeout: 15_000}).toBeVisible()
+      await tab('Fixture people').click()
+
+      await menuButton().click()
+      await expect.element(page.getByRole('group', {name: 'Density', exact: true})).toBeVisible()
+      await expect.element(radio('Comfortable')).toHaveAttribute('aria-checked', 'true')
+      await expect.element(radio('Compact')).toHaveAttribute('aria-checked', 'false')
+      await radio('Compact').click()
+      await expect.element(page.getByText('Density: compact', {exact: true})).toBeVisible()
+      await menuButton().click()
+      await expect.element(radio('Compact')).toHaveAttribute('aria-checked', 'true')
+      await expect.element(radio('Comfortable')).toHaveAttribute('aria-checked', 'false')
+      await expect.element(checkbox()).toHaveAttribute('aria-checked', 'false')
+      await checkbox().click()
+      await expect.element(page.getByText('Show resolved: true', {exact: true})).toBeVisible()
+      await menuButton().click()
+      await expect.element(checkbox()).toHaveAttribute('aria-checked', 'true')
+      await userEvent.keyboard('{Escape}')
+      await expect.element(checkbox()).not.toBeInTheDocument()
+
+      await field().click()
+      await expect.element(field()).toHaveFocus()
+      await userEvent.keyboard('hi @')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).toBeVisible()
+      await userEvent.keyboard('Ad')
+      await expect.element(page.getByRole('option', {name: 'Alan Turing'})).not.toBeInTheDocument()
+      await page.getByRole('option', {name: 'Ada Lovelace'}).click()
+      await expect.element(page.getByRole('option', {name: 'Ada Lovelace'})).not.toBeInTheDocument()
+      await expect.element(field()).toHaveTextContent('hi @Ada Lovelace')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText('Sent: hi @ada', {exact: true})).toBeVisible()
+      await expect.element(field()).toHaveTextContent('')
     })
   })
 
@@ -10810,10 +11548,7 @@ module.exports = {default: {setup(ctx) {
     const base = coreBase()
     const sessionId = await createSession(coreRpc(base))
     await coreControl.scriptTurn({
-      toolCalls: [
-        {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the drawn probe'}},
-        {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined probe'}},
-      ],
+      toolCalls: [{name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the drawn probe'}}],
       text: 'the fixture probes are done',
     })
     onTestFinished(() => coreControl.clearScript())
@@ -10835,8 +11570,6 @@ module.exports = {default: {setup(ctx) {
 
     await showProbes()
     await expect.element(drawnBody()).toBeVisible()
-    await expect.element(shown('"the declined probe"')).toBeVisible()
-    await expect.element(shown('Declined call asked: 1')).toBeVisible()
 
     await userEvent.wheel(thread(), {delta: {y: 1_000_000}})
     await expect.element(filler(FILLER_TURNS - 1)).toBeInViewport()
@@ -10845,8 +11578,6 @@ module.exports = {default: {setup(ctx) {
 
     await showProbes()
     await expect.element(drawnBody()).toBeVisible()
-    await expect.element(shown('"the declined probe"')).toBeVisible()
-    await expect.element(shown('Declined call asked: 1')).toBeVisible()
 
     await tab('Fixture tools').click()
     await expect.element(shown('Stored note: none')).toBeVisible()
@@ -10869,50 +11600,6 @@ module.exports = {default: {setup(ctx) {
     await expect.element(shown('Stored note: saved note'), {timeout: 15_000}).toBeVisible()
     await expect.element(shown('Visits: 1')).toBeVisible()
   }, 90_000)
-
-  test("the row of a card it draws carries the normal card's header from the catalog, and a catalog that arrives late does not ask it again", async () => {
-    const routeResult = {pathname: '/', search: '', href: 'http://localhost/', title: 'home', state: 'visible'}
-    const base = coreBase()
-    const sessionId = await createSession(coreRpc(base))
-    await coreControl.scriptTurn({
-      toolCalls: [
-        {
-          name: 'page_route',
-          input: {file: 'src/a.ts', mode: 'draw'},
-          result: routeResult,
-        },
-        {
-          name: 'page_route',
-          input: {file: 'src/a.ts', mode: 'decline'},
-          result: routeResult,
-        },
-        {name: 'fixture_probe', input: {mode: 'draw'}, result: {drawn: 'the headline probe'}},
-        {name: 'fixture_probe', input: {mode: 'decline'}, result: {drawn: 'the declined headline probe'}},
-      ],
-      text: 'the headline probes are done',
-    })
-    onTestFinished(() => coreControl.clearScript())
-    await runTurn(base, sessionId, 'run the headline probes')
-
-    const catalogHeld = await faults.install({kind: 'gate', path: ['registry', 'catalog']})
-    harness.mountShell(`/panel/${sessionId}?open=true`)
-    await coreControl.awaitFaultPending(catalogHeld, 1)
-    await expect.element(shown('Drawn catalog call asked: 1'), {timeout: 15_000}).toBeVisible()
-    await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
-
-    await coreControl.releaseFault(catalogHeld)
-    const routeHeader = () => page.getByRole('button', {name: 'succeeded route src/a.ts'})
-    await expect.element(routeHeader().nth(1), {timeout: 15_000}).toBeVisible()
-    await expect.element(routeHeader().first()).toBeVisible()
-    await expect.element(shown('report the current url of the live page')).toBeVisible()
-    await expect.element(shown('Called page_route')).not.toBeInTheDocument()
-    await expect.element(shown('file=src/a.ts mode=draw')).not.toBeInTheDocument()
-    await expect.element(shown('Fixture read the route for src/a.ts')).toBeVisible()
-    await expect.element(shown('Drawn catalog call asked: 1')).toBeVisible()
-    await expect.element(shown('Fixture drew the headline probe')).toBeVisible()
-    await expect.element(shown('mode=draw')).toBeVisible()
-    await expect.element(shown('mode=decline')).toBeVisible()
-  }, 60_000)
 
   test('its tab shows once trusted, through a revoke, a lost connection and trust dropped before its enable state, and its tab and settings page keep their place through a revoke and a reopen', async () => {
     const origin = new URL(coreBase()).origin
@@ -11193,14 +11880,57 @@ export default {
   },
 }
 `
+  const operatorPlugin = (rpcPath: string) => `import {Definition} from '${rpcPath}'
+
+const Operator = {id: 'page-operator', methods: {operate: {input: {type: 'object'}, output: {type: 'object'}}}, events: {}}
+
+export default {
+  id: 'page-operator',
+  async setup(ctx) {
+    const page = ctx.rpc(Definition)
+    await ctx.rpc.register(Operator, {
+      operate: async (input, call) =>
+        page.operate(input, {signal: call.signal}).then(
+          (value) => ({ok: true, value}),
+          (error) => ({ok: false, type: error.type, data: error.data ?? null}),
+        ),
+    })
+  },
+}
+`
+  const operatorBundle = `const {PageOperation} = require('@conciv/plugin/experimental/page')
+module.exports = {default: {setup(ctx) {
+  ctx.add(PageOperation, {
+    name: 'operator.count',
+    run: async (input) => ({count: document.querySelectorAll('[aria-label=Operated] li').length + input.by}),
+  })
+  ctx.add(PageOperation, {
+    name: 'operator.break',
+    run: async () => {
+      throw new Error('the operator broke')
+    },
+  })
+  ctx.add(PageOperation, {
+    name: 'operator.snap',
+    run: () => {
+      throw new Error('the operator snapped before it promised')
+    },
+  })
+}}}
+`
   const core = {base: ''}
   beforeAll(async () => {
     const paths = await coreControl.pagePluginPaths()
     const booted = await coreControl.bootCore({
       id: 'page-plugin-attachment',
       allowedOrigins: [window.location.origin],
-      plugins: ['./page', './driver'],
-      files: {'page/index.ts': `export {default} from '${paths.engine}'\n`, 'driver/index.ts': driverPlugin(paths.rpc)},
+      plugins: ['./page', './driver', './operator'],
+      files: {
+        'page/index.ts': `export {default} from '${paths.engine}'\n`,
+        'driver/index.ts': driverPlugin(paths.rpc),
+        'operator/index.ts': operatorPlugin(paths.rpc),
+        'operator/plugin-experimental.js': operatorBundle,
+      },
     })
     core.base = booted.base
   }, 60_000)
@@ -11386,6 +12116,49 @@ export default {
     await expect(second).rejects.toThrow()
     await expect.element(card()).not.toBeInTheDocument()
   }, 60_000)
+
+  describe('a second plugin runs its own page operation', () => {
+    test('its engine half calls page.operate and its browser half answers on the attached tab, a throw or an unknown name fails, and a changing call with no tab fails', async () => {
+      const sessionId = await createSession(coreRpc(core.base))
+      const operate = (name: string, input: Record<string, unknown>) =>
+        coreRpc(core.base).plugin.call({
+          rpcId: 'page-operator',
+          method: 'operate',
+          input: {sessionId, name, input, reading: false},
+        })
+      expect(await operate('operator.count', {by: 1})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'disconnected'},
+      })
+      onTestFinished(
+        render(() => (
+          <ul aria-label="Operated">
+            <li>one</li>
+            <li>two</li>
+          </ul>
+        )).unmount,
+      )
+      harness.mountShell(panel(sessionId))
+      await attached()
+      expect(await operate('operator.count', {by: 1})).toEqual({ok: true, value: {count: 3}})
+      expect(await operate('operator.break', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'handler-error'},
+      })
+      expect(await operate('operator.snap', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'handler-error'},
+      })
+      expect(await operate('operator.missing', {})).toMatchObject({
+        ok: false,
+        type: 'failed',
+        data: {code: 'unsupported'},
+      })
+    }, 60_000)
+  })
 })
 
 describe('a fixture plugin built into chunks', () => {
@@ -11688,3 +12461,81 @@ function blobToDataUrl(blob: Blob) {
     reader.readAsDataURL(blob)
   })
 }
+
+describe('plugin bundles in the page', () => {
+  const bundle = `
+  const sdk = require("@conciv/plugin/experimental")
+  const solid = require("solid-js")
+  const effect = require("effect")
+  const fs = require("node:fs")
+  const modified = new fs.Stats().mtime.getTime()
+  exports.default = sdk.Plugin.define({
+    setup(ctx) {
+      const [count] = solid.createSignal(1)
+      ctx.add(sdk.Command, { id: "open", title: "Notes" + count(), run: () => effect })
+      return () => ctx.add(sdk.Command, { id: "closed", title: "", run() {} })
+    },
+  })
+  `
+
+  const refuse = (file: string) => Promise.reject(new Error(`no chunk ${file} in this test`))
+
+  test("declare their definition before they start, with the app's module instances and Node built-ins inert", async () => {
+    const definition = await pluginDefinition(
+      'acme',
+      {code: bundle, chunks: [], file: 'plugin-experimental.cjs'},
+      refuse,
+    )
+    const added: {readonly registry: Registry<Command>; readonly item: Command}[] = []
+
+    expect(definition.id).toBe('acme')
+
+    const entry = await definition.windowEntry?.()
+
+    const ctx = {
+      add: (registry: Registry<Command>, item: Command) => void added.push({registry, item}),
+    }
+
+    const cleanup = entry?.default(ctx as never)
+
+    expect(added[0]?.registry).toBe(Command)
+    expect(added[0]?.item).toMatchObject({id: 'open', title: 'Notes1'})
+    expect(added[0]?.item.run()).toBe(Effect)
+    expect(cleanup).toBeTypeOf('function')
+  })
+
+  test('fail only their own entry when they require a module the app does not share', async () => {
+    const definition = await pluginDefinition(
+      'acme',
+      {
+        code: 'require("left-pad"); exports.default = { setup() {} }',
+        chunks: [],
+        file: 'plugin-experimental.cjs',
+      },
+      refuse,
+    )
+    const subpath = await pluginDefinition(
+      'acme',
+      {code: 'require("effect/Schema"); exports.default = { setup() {} }', chunks: [], file: 'plugin-experimental.cjs'},
+      refuse,
+    )
+    const early = await pluginDefinition(
+      'acme',
+      {
+        code: 'exports.default = { setup() {} }',
+        chunks: [{file: 'start-A.cjs', code: 'require("./plugin-experimental.cjs")'}],
+        file: 'plugin-experimental.cjs',
+      },
+      refuse,
+    )
+
+    expect(definition.id).toBe('acme')
+    await expect(definition.windowEntry?.()).rejects.toThrow('left-pad')
+    await expect(subpath.windowEntry?.()).rejects.toThrow(
+      "A plugin's ./plugin-experimental bundle requires a module the app does not share: effect/Schema",
+    )
+    await expect(early.windowEntry?.()).rejects.toThrow(
+      "A plugin's ./plugin-experimental chunk start-A.cjs requires the entry plugin-experimental.cjs before it finished evaluating",
+    )
+  })
+})

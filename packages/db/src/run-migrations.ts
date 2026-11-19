@@ -1,15 +1,17 @@
 import {and, eq, isNull} from 'drizzle-orm'
+import {Effect} from 'effect'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
 import type {RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ConcivDb} from './db.js'
 import {chatRuns, runs} from './run-schema.js'
 import {sessions} from './schema.js'
 
-export function markRunningRunsDetached(db: ConcivDb, now: number): void {
-  db.update(chatRuns)
+export function markRunningRunsDetached(db: ConcivDb, now: number) {
+  return db
+    .update(chatRuns)
     .set({detachedSince: now})
     .where(and(eq(chatRuns.status, 'running'), isNull(chatRuns.detachedSince)))
-    .run()
+    .pipe(Effect.asVoid)
 }
 
 const STATUS_BY_PHASE: Record<RunPhase, RunStatus> = {
@@ -22,12 +24,11 @@ const STATUS_BY_PHASE: Record<RunPhase, RunStatus> = {
 
 const LEGACY_HARNESS_ID = 'claude'
 
-export function importLegacyRuns(db: ConcivDb): void {
-  const legacy = db
+export const importLegacyRuns = Effect.fn('importLegacyRuns')(function* (db: ConcivDb) {
+  const legacy = yield* db
     .select({run: runs, harnessKind: sessions.harnessKind})
     .from(runs)
     .leftJoin(sessions, eq(sessions.id, runs.sessionId))
-    .all()
   if (legacy.length === 0) return
   const values = legacy.map(({run: row, harnessKind}) => ({
     runId: row.runId,
@@ -39,5 +40,5 @@ export function importLegacyRuns(db: ConcivDb): void {
     error: row.error,
     cancelRequested: row.phase === 'stopping' ? true : null,
   }))
-  db.insert(chatRuns).values(values).onConflictDoNothing({target: chatRuns.runId}).run()
-}
+  yield* db.insert(chatRuns).values(values).onConflictDoNothing({target: chatRuns.runId})
+})

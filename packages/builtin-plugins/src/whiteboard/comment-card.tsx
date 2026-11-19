@@ -1,10 +1,10 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import MessageSquare from 'lucide-solid/icons/message-square'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {ErrorBlock, parseInput, parseResultMedia, ToolCard} from '@conciv/ui-kit-chat/tools'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {BasicTool, ErrorBlock} from '@conciv/ui-kit-chat/tools'
 import {countLabel} from '../page/cards/shared.js'
-import {failureMessage, MonoLine, OpTag, readFailure, type FieldTone} from './card-shared.js'
+import {readInput} from '../tanstack/card-shared.js'
+import {failureMessage, MonoLine, OpTag, readFailure, readMedia, type FieldTone} from './card-shared.js'
 
 const TextPartSchema = z.object({type: z.literal('text'), text: z.string()}).loose()
 
@@ -74,8 +74,8 @@ const SUMMARIES: Record<string, (detail: Detail) => string | undefined> = {
   pin: (detail) => detail.pinState,
 }
 
-function summarize(operation: string, part: ToolCardProps['part'], detail: Detail): string {
-  return SUMMARIES[operation]?.(detail) ?? detail.cid ?? parseInput(CidInput, part)?.cid ?? ''
+function summarize(operation: string, input: ToolProps['input'], detail: Detail): string {
+  return SUMMARIES[operation]?.(detail) ?? detail.cid ?? readInput(CidInput, input)?.cid ?? ''
 }
 
 function parseRows(raw: unknown[]): CommentRow[] {
@@ -98,10 +98,6 @@ function authorLabel(row: CommentRow): string {
 
 function readAnchor(row: CommentRow): string | undefined {
   return row.anchorComponent ?? row.anchorFile ?? undefined
-}
-
-function CommentIcon(): JSX.Element {
-  return <MessageSquare size={14} />
 }
 
 const THREAD_TEXT = 'text-chat-sm text-chat-text-2 min-w-0 break-words'
@@ -136,24 +132,22 @@ function ThreadRows(props: {rows: CommentRow[]}): JSX.Element {
   )
 }
 
-function CommentOperationCard(props: ToolCardProps): JSX.Element {
-  const operation = () => readOperation(props.part.name)
+function CommentOperationCard(props: ToolProps): JSX.Element {
+  const operation = () => readOperation(props.tool)
   const detail = (): Detail => {
-    const parsed = DetailSchema.safeParse(parseResultMedia(props.result).json)
+    const parsed = DetailSchema.safeParse(readMedia(props.output).json)
     return parsed.success ? parsed.data : {}
   }
-  const failure = () => readFailure(props.result)
-  const preview = () => readText(parseInput(PartsInput, props.part)?.parts)
-  const summary = () => summarize(operation(), props.part, detail())
+  const failure = () => readFailure(props.output)
+  const preview = () => readText(readInput(PartsInput, props.input)?.parts)
+  const summary = () => summarize(operation(), props.input, detail())
   const tone = (): FieldTone => (DESTRUCTIVE.includes(operation()) ? 'danger' : 'default')
   return (
-    <ToolCard
-      Icon={CommentIcon}
-      title={props.part.name}
-      meta={summary()}
-      part={props.part}
-      result={props.result}
-      status={failure() ? 'error' : undefined}
+    <BasicTool
+      {...props}
+      status={failure() ? 'error' : props.status}
+      trigger={{title: props.tool, subtitle: summary()}}
+      hasContent={true}
     >
       <div class="flex flex-col gap-2 min-w-0">
         <div class="flex gap-2 min-w-0 items-baseline">
@@ -164,8 +158,8 @@ function CommentOperationCard(props: ToolCardProps): JSX.Element {
         <ThreadRows rows={threadRows(detail())} />
         <Show when={failure()}>{(error) => <ErrorBlock message={failureMessage(error())} />}</Show>
       </div>
-    </ToolCard>
+    </BasicTool>
   )
 }
 
-export const commentCard: ToolCardView = {render: CommentOperationCard, hasEmbeddedBody: () => true}
+export const commentCard: ToolComponent = CommentOperationCard

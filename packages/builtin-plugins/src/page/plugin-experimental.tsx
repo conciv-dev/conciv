@@ -1,33 +1,19 @@
+import {Effect, Fiber} from 'effect'
 import {onCleanup} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import utilities from 'virtual:uno.css?inline'
-import {createKeyed, Plugin, Slot, type MountedSession} from '@conciv/plugin/experimental'
-import {ToolCall} from '@conciv/plugin/experimental/builtin'
-import {Page, ReactTree} from '@conciv/plugin/experimental/page'
+import {createKeyed, Plugin, Slot, ToolRegistry} from '@conciv/plugin/experimental'
+import {Page, PageOperation, ReactTree} from '@conciv/plugin/experimental/page'
 import {Definition} from '@conciv/plugin-page/rpc'
-import {openAttachment} from './attachment.js'
+import {keepAttached} from './attachment.js'
 import {makeHighlight} from './highlight.js'
 import {makeReactTree, pageMembers} from './contracts.js'
 import {makePageOperations} from './operations.js'
-import {pageToolCalls} from './cards/page-tool-cards.js'
+import {pageToolCards} from './cards/page-tool-cards.js'
+import {SessionCaptures} from './session-captures.js'
+import {PageFailedTool} from './cards/shared.js'
 import {endRun, endTask, mountSimulator} from './simulator.js'
 import {readTab, reportChanges} from './tab.js'
-
-const WAKE_EVENTS = ['focus', 'pointerdown', 'keydown']
-
-const RETRY_BASE_MS = 1000
-
-const RETRY_MAX_MS = 30_000
-
-function woken(signal: AbortSignal) {
-  const woke = new AbortController()
-  const options = {once: true, signal: AbortSignal.any([signal, woke.signal])}
-
-  return new Promise<void>((resolve) => {
-    WAKE_EVENTS.forEach((type) => window.addEventListener(type, () => resolve(), options))
-    document.addEventListener('visibilitychange', () => resolve(), options)
-    signal.addEventListener('abort', () => resolve(), {once: true, signal: woke.signal})
-  }).finally(() => woke.abort())
-}
 
 export default Plugin.define({
   setup(ctx) {
@@ -51,32 +37,6 @@ export default Plugin.define({
 
     const tab = () => readTab(tabId)
 
-    const keep = async (session: MountedSession, signal: AbortSignal) => {
-      for (let refusals = 0; ;) {
-        const retryMs = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** refusals)
-        const end = await openAttachment({
-          session,
-          connectionId,
-          tab,
-          changed: reportChanges,
-          operations,
-          signal,
-          retryMs,
-        })
-
-        if (signal.aborted) return
-
-        refusals = end.outcome === 'refused' ? refusals + 1 : 0
-
-        if (end.outcome === 'born' || end.outcome === 'refused') continue
-
-        if (end.outcome !== 'closed' || !end.attached) return
-        await woken(signal)
-
-        if (signal.aborted) return
-      }
-    }
-
     createKeyed(
       () => {
         const session = routed()
@@ -84,10 +44,18 @@ export default Plugin.define({
         return session?.server.compatible && session.server.connected ? session : undefined
       },
       (session) => {
-        const controller = new AbortController()
+        const kept = Effect.runFork(
+          keepAttached({
+            session,
+            connectionId,
+            tab,
+            changed: reportChanges,
+            operations,
+            registered: () => ctx.list(PageOperation),
+          }),
+        )
 
-        onCleanup(() => controller.abort())
-        void keep(session, controller.signal)
+        onCleanup(() => void Effect.runFork(Fiber.interrupt(kept)))
       },
     )
 
@@ -126,7 +94,19 @@ export default Plugin.define({
 
     onCleanup(highlight.mount(ctx.overlay({styles: [utilities]}).element))
 
-    pageToolCalls.forEach((call) => ctx.add(ToolCall, call))
+    pageToolCards.forEach(({card, tools}) =>
+      tools.forEach((name) =>
+        ctx.add(ToolRegistry, {
+          name,
+          render: (props) => (
+            <SessionCaptures sessionID={props.sessionID}>
+              <Dynamic component={card} {...props} />
+            </SessionCaptures>
+          ),
+          errorComponent: PageFailedTool,
+        }),
+      ),
+    )
     ctx.provide(Page, {...pageMembers, symbolicate: (input) => symbolicate(input.frames)})
     ctx.provide(ReactTree, makeReactTree())
 

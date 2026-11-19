@@ -28,6 +28,7 @@ import type {
   Agent,
   Bus,
   Database,
+  FileSystem,
   InstructionEntry,
   KV,
   Location,
@@ -60,14 +61,15 @@ export type PluginHost = ManagedRuntime.ManagedRuntime<
   | Location.Interface
   | Plugin.Interface
   | Database.Interface
-  | EventFeed.Interface,
+  | EventFeed.Interface
+  | FileSystem.Interface,
   never
 >
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
   harnesses: readonly HarnessAdapter[]
-  harnessFor: (sessionId: SessionId) => HarnessAdapter
+  harnessFor: (sessionId: SessionId) => Promise<HarnessAdapter>
   cwd: string
   basePath: string
   db: ConcivDb
@@ -78,7 +80,7 @@ export type ChatContext = {
 
 export type RpcDeps = {
   chat: ChatContext
-  tools: ChatTool[]
+  tools: (sessionId: SessionId) => Promise<ChatTool[]>
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
@@ -166,14 +168,25 @@ const EVENT_PROCEDURES = new Set(['event.subscribe'])
 
 const OUTSIDE_EVENT_REFUSAL = "outside agents can't read the engine's event stream"
 
-const PLUGIN_PROCEDURES = new Set(['plugin.call', 'plugin.list', 'plugin.experimental', 'plugin.experimentalChunk'])
+const PLUGIN_PROCEDURES = new Set([
+  'plugin.call',
+  'plugin.list',
+  'plugin.experimental',
+  'plugin.experimentalChunk',
+  'skill.list',
+  'agent.list',
+  'fs.find',
+])
 
 const OUTSIDE_PLUGIN_REFUSAL = "outside agents can't use plugin routes; use the plugin in the tab"
 
 const PTY_PROCEDURES = new Set([
   'experimental.persistentPty.create',
   'experimental.persistentPty.remove',
-  'experimental.persistentPty.connectToken',
+  'experimental.persistentPty.output',
+  'experimental.persistentPty.write',
+  'experimental.persistentPty.resize',
+  'experimental.persistentPty.inject',
 ])
 
 const OUTSIDE_PTY_REFUSAL = "outside agents can't use the session terminal; use it in the tab"

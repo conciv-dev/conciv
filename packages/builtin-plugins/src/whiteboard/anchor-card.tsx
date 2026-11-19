@@ -1,7 +1,8 @@
-import {Show, type JSX} from 'solid-js'
+import {type JSX} from 'solid-js'
 import {z} from 'zod'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {InlineShell, parseInput, parseResultPayload, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {BasicTool} from '@conciv/ui-kit-chat/tools'
+import {parseOutput, readInput} from '../tanstack/card-shared.js'
 
 const InputSchema = z.object({cid: z.string()})
 const AnchorStatus = z.enum(['fresh', 'moved', 'drifted', 'orphaned', 'ambiguous'])
@@ -15,32 +16,32 @@ const STATUS_TONE: Record<z.infer<typeof AnchorStatus>, string> = {
   ambiguous: 'text-chat-warn',
 }
 
-function readStatus(result: ToolCardProps['result']): z.infer<typeof AnchorStatus> | undefined {
-  const parsed = OutputSchema.safeParse(parseResultPayload(result))
-  return parsed.success ? parsed.data.status : undefined
+function readStatus(output: string | undefined): z.infer<typeof AnchorStatus> | undefined {
+  return readInput(OutputSchema, parseOutput(output))?.status
 }
 
-function anchorValue(part: ToolCardProps['part'], result: ToolCardProps['result']): string {
-  if (result?.state === 'error') return result.error ?? resultText(result)
-  const cid = parseInput(InputSchema, part)?.cid ?? ''
-  const resolved = readStatus(result)
+function anchorValue(input: ToolProps['input'], output: string | undefined): string {
+  const cid = readInput(InputSchema, input)?.cid ?? ''
+  const resolved = readStatus(output)
   return resolved === undefined ? cid : `${cid} · ${resolved}`
 }
 
-function AnchorResolveCard(props: ToolCardProps): JSX.Element {
-  const value = () => anchorValue(props.part, props.result)
+function AnchorResolveCard(props: ToolProps): JSX.Element {
   const tone = () => {
-    const resolved = readStatus(props.result)
+    const resolved = readStatus(props.output)
     return resolved ? STATUS_TONE[resolved] : 'text-chat-text-3'
   }
   return (
-    <InlineShell name={props.part.name} status={toolStatus(props.part, props.result)}>
-      <Show when={value()}>{(text) => <span class={`truncate ${tone()}`}>{text()}</span>}</Show>
-    </InlineShell>
+    <BasicTool
+      {...props}
+      trigger={{
+        title: props.tool,
+        subtitle: anchorValue(props.input, props.output) || undefined,
+        subtitleClass: tone(),
+      }}
+      hasContent={false}
+    />
   )
 }
 
-export const anchorCard: ToolCardView = {
-  render: AnchorResolveCard,
-  hasEmbeddedBody: (part, result) => anchorValue(part, result).length > 0,
-}
+export const anchorCard: ToolComponent = AnchorResolveCard

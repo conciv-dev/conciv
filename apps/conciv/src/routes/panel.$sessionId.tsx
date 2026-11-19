@@ -25,7 +25,6 @@ import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
-import Unplug from 'lucide-solid/icons/unplug'
 import {Show, Suspense, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isSessionId} from '@conciv/protocol/chat-types'
@@ -34,7 +33,6 @@ import {
   useAppData,
   useAppQueryClient,
   useChatDeps,
-  useDisconnect,
   useGrabProvider,
   useInstances,
   useLiveSessions,
@@ -43,10 +41,9 @@ import {
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {makeGrabStaging} from '../pane/grab-staging.js'
+import {useGrabStaging} from '../app/use-grab-staging.js'
 import {makePaneGrabApi} from '../pane/pane-grab.js'
 import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
-import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
@@ -285,11 +282,9 @@ function showPopOutLost(lost: () => boolean, popOut: () => void): void {
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
   const appData = useAppData()
-  const {rpc} = useChatDeps()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const instances = useInstances()
-  const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
   const navigate = Route.useNavigate()
@@ -359,9 +354,7 @@ function PanelSession(): JSX.Element {
       })
       .catch(() => undefined)
 
-  const grabStaging = makeGrabStaging({
-    ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
-  })
+  const grabStaging = useGrabStaging()
 
   const paneGrab = makePaneGrabApi(grabStaging, grabProvider)
 
@@ -505,12 +498,6 @@ function PanelSession(): JSX.Element {
                   <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
                   Pop out to a window
                 </Button>
-                <Show when={connectMode && disconnect}>
-                  <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
-                    <Unplug class="size-4 block shrink-0" aria-hidden="true" />
-                    Disconnect this machine
-                  </Button>
-                </Show>
               </div>
             </Popover.Content>
           </Popover.Positioner>

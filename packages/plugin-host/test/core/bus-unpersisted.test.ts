@@ -1,6 +1,7 @@
 import {describe, expect} from 'vitest'
 import {Effect, Layer, Schema, SchemaTransformation} from 'effect'
 import {openDb} from '@conciv/db'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Bus} from '../../src/core/bus.js'
 import {Database} from '../../src/core/database/database.js'
 import {Event} from '@conciv/plugin/schema/event'
@@ -10,11 +11,8 @@ import {testEffect} from './lib/effect'
 const databaseLayer = Layer.unwrap(
   Effect.gen(function* () {
     const tmp = yield* tmpdirScoped()
-    const db = openDb(tmp.path)
-    const file = db.$client.location()
-    db.$client.close()
-    if (!file) return yield* Effect.die(new Error('openDb returned an in-memory database'))
-    return Database.layer({path: file})
+    const db = yield* openDb(tmp.path)
+    return Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))
   }),
 )
 

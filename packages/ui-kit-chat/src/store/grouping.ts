@@ -150,6 +150,7 @@ export type GroupRenderProps = {
   node: GroupNodeGroup
   parts: () => readonly ChatPart[]
   resultFor: (toolCallId: string) => ToolResultPart | undefined
+  sessionID?: string
   streaming: boolean
   folded?: boolean
   children?: JSX.Element

@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@conciv/embed": "workspace:*",
-    "@conciv/extension-tanstack": "workspace:*",
     "@conciv/it": "workspace:*",
+    "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",
     "@conciv/plugin-whiteboard": "workspace:*",
     "next": "catalog:",

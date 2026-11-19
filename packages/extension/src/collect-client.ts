@@ -1,56 +1,6 @@
-import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {AnyExtension} from './define-extension.js'
-import type {ClientToolCtx, ToolMeta} from './define-tool.js'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
-import type {AttachmentCardEntry, ClientEffect} from './types.js'
-
-export type ClientToolEntry = {
-  name: string
-  capture: ToolCaptureMode
-  execute: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
-}
-
-export function resolveCaptureMode(meta: ToolMeta | undefined): ToolCaptureMode {
-  if (meta?.capture !== undefined) return meta.capture
-  return meta?.mutating === true ? 'after' : 'none'
-}
-
-export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] {
-  const seen = new Set<string>()
-  const entries: ClientToolEntry[] = []
-  for (const builder of builders)
-    for (const tool of builder.tools ?? []) {
-      const execute = tool.__clientExecute
-      if (!execute || seen.has(tool.name)) continue
-      seen.add(tool.name)
-      entries.push({
-        name: tool.name,
-        capture: resolveCaptureMode(tool.meta),
-        execute,
-      })
-    }
-  return entries
-}
-
-export function collectClientEffects(
-  instances: readonly {name: string; effects?: readonly ClientEffect[]}[],
-): ClientEffect[] {
-  const owners = new Map<string, string>()
-  const entries: ClientEffect[] = []
-  for (const instance of instances)
-    for (const effect of instance.effects ?? []) {
-      const owner = owners.get(effect.name)
-      if (owner) {
-        console.warn(
-          `[conciv] extension "${instance.name}" declares effect "${effect.name}" already registered by extension "${owner}"; keeping "${owner}"'s effect`,
-        )
-        continue
-      }
-      owners.set(effect.name, instance.name)
-      entries.push(effect)
-    }
-  return entries
-}
+import type {AttachmentCardEntry} from './types.js'
 
 export function collectToolRenderers(builders: AnyExtension[]): ToolCardEntry[] {
   const seen = new Set<string>()
@@ -64,7 +14,6 @@ export function collectToolRenderers(builders: AnyExtension[]): ToolCardEntry[] 
         names: [tool.name],
         render: card.render,
         hasEmbeddedBody: card.hasEmbeddedBody,
-        streamTitle: tool.streamTitle,
         display: tool.display,
       })
     }

@@ -29,6 +29,14 @@ export function NoticeSurface(): JSX.Element {
   return store.Toaster()
 }
 
+export function useReportFailure(): (message: string, error: unknown) => void {
+  const notices = useNotices()
+  return (message, error) => {
+    console.error(`[conciv] ${message}`, error)
+    notices.notify(message, {tone: 'danger', key: message})
+  }
+}
+
 export type EngineNotices = {reachability: EngineReachability; notices: NoticeStore}
 
 export function useEngineNotices(): EngineNotices {

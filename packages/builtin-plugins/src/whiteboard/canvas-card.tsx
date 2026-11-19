@@ -1,12 +1,11 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {groupBy} from 'es-toolkit'
-import Palette from 'lucide-solid/icons/palette'
-import Trash2 from 'lucide-solid/icons/trash'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CodeBlock, ErrorBlock, parseInput, parseResultMedia, ResultImage, ToolCard} from '@conciv/ui-kit-chat/tools'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
+import {BasicTool, CodeBlock, ErrorBlock, ResultImage} from '@conciv/ui-kit-chat/tools'
 import {countLabel} from '../page/cards/shared.js'
-import {failureMessage, FieldRows, MonoLine, readFailure, type Field} from './card-shared.js'
+import {readInput} from '../tanstack/card-shared.js'
+import {failureMessage, FieldRows, MonoLine, readFailure, readMedia, type Field} from './card-shared.js'
 
 const DetailSchema = z
   .object({
@@ -22,6 +21,8 @@ const DetailSchema = z
   .loose()
 
 type Detail = z.infer<typeof DetailSchema>
+
+type ToolInput = ToolProps['input']
 
 const ConnectInput = z.object({fromId: z.string(), toId: z.string()})
 const DrawInput = z.object({elements: z.array(z.unknown())})
@@ -57,38 +58,38 @@ function elementsLabel(count: number): string {
   return countLabel(count, 'element', 'elements')
 }
 
-function countSummary(_part: ToolCardProps['part'], detail: Detail): string {
+function countSummary(_input: ToolInput, detail: Detail): string {
   const count = elementCount(detail.elements)
   return count === null ? '' : elementsLabel(count)
 }
 
-function previewSummary(part: ToolCardProps['part'], detail: Detail): string {
-  return detail.empty ? 'draft is empty' : countSummary(part, detail)
+function previewSummary(input: ToolInput, detail: Detail): string {
+  return detail.empty ? 'draft is empty' : countSummary(input, detail)
 }
 
-function drawSummary(part: ToolCardProps['part']): string {
-  const drawn = parseInput(DrawInput, part)?.elements.length
+function drawSummary(input: ToolInput): string {
+  const drawn = readInput(DrawInput, input)?.elements.length
   return drawn === undefined ? 'to draft' : `${elementsLabel(drawn)} to draft`
 }
 
-function connectSummary(part: ToolCardProps['part']): string {
-  const input = parseInput(ConnectInput, part)
-  return input ? `${input.fromId} → ${input.toId}` : ''
+function connectSummary(input: ToolInput): string {
+  const arrow = readInput(ConnectInput, input)
+  return arrow ? `${arrow.fromId} → ${arrow.toId}` : ''
 }
 
-function updateSummary(part: ToolCardProps['part'], detail: Detail): string {
-  const target = parseInput(TargetInput, part)?.elementId ?? ''
+function updateSummary(input: ToolInput, detail: Detail): string {
+  const target = readInput(TargetInput, input)?.elementId ?? ''
   if (detail.updated === undefined) return target
   return detail.updated ? `updated ${target}` : `${target} not found`
 }
 
-function commitSummary(_part: ToolCardProps['part'], detail: Detail): string {
+function commitSummary(_input: ToolInput, detail: Detail): string {
   if (detail.committed === undefined) return ''
   if (!detail.committed) return detail.reason ?? 'nothing to commit'
   return `${elementCount(detail.elements) ?? ''} published`.trim()
 }
 
-const SUMMARIES: Record<string, (part: ToolCardProps['part'], detail: Detail) => string> = {
+const SUMMARIES: Record<string, (input: ToolInput, detail: Detail) => string> = {
   read: countSummary,
   export: countSummary,
   preview: previewSummary,
@@ -97,14 +98,14 @@ const SUMMARIES: Record<string, (part: ToolCardProps['part'], detail: Detail) =>
   diagram: () => 'mermaid to draft',
   connect: connectSummary,
   update: updateSummary,
-  delete: (part) => parseInput(TargetInput, part)?.elementId ?? '',
-  clear: (_part, detail) => (detail.cleared === undefined ? '' : `${detail.cleared} removed`),
+  delete: (input) => readInput(TargetInput, input)?.elementId ?? '',
+  clear: (_input, detail) => (detail.cleared === undefined ? '' : `${detail.cleared} removed`),
   commit: commitSummary,
-  discard: (_part, detail) => (detail.discarded === undefined ? '' : `${detail.discarded} discarded`),
+  discard: (_input, detail) => (detail.discarded === undefined ? '' : `${detail.discarded} discarded`),
 }
 
-function summarize(operation: string, part: ToolCardProps['part'], detail: Detail): string {
-  return SUMMARIES[operation]?.(part, detail) ?? ''
+function summarize(operation: string, input: ToolInput, detail: Detail): string {
+  return SUMMARIES[operation]?.(input, detail) ?? ''
 }
 
 function parseElements(elements: Detail['elements']): ParsedElement[] {
@@ -147,8 +148,8 @@ function readExportFields(detail: Detail, summary: string): Field[] {
   return [...scope, ...count, ...structureFields(detail.elements)]
 }
 
-function drawFields(part: ToolCardProps['part'], summary: string): Field[] {
-  return [{label: 'draft', value: summary}, ...structureFields(parseInput(DrawInput, part)?.elements)]
+function drawFields(input: ToolInput, summary: string): Field[] {
+  return [{label: 'draft', value: summary}, ...structureFields(readInput(DrawInput, input)?.elements)]
 }
 
 function commitFields(detail: Detail, summary: string): Field[] {
@@ -159,32 +160,24 @@ function singleField(label: string, summary: string): Field[] {
   return summary ? [{label, value: summary}] : []
 }
 
-const OPERATION_FIELDS: Record<string, (part: ToolCardProps['part'], detail: Detail, summary: string) => Field[]> = {
-  read: (_part, detail, summary) => readExportFields(detail, summary),
-  export: (_part, detail, summary) => readExportFields(detail, summary),
-  preview: (_part, _detail, summary) => singleField('draft', summary),
-  draw: (part, _detail, summary) => drawFields(part, summary),
-  connect: (_part, _detail, summary) => singleField('arrow', summary),
-  update: (_part, _detail, summary) => singleField('target', summary),
-  commit: (_part, detail, summary) => commitFields(detail, summary),
-  discard: (_part, _detail, summary) => singleField('discard', summary),
+const OPERATION_FIELDS: Record<string, (input: ToolInput, detail: Detail, summary: string) => Field[]> = {
+  read: (_input, detail, summary) => readExportFields(detail, summary),
+  export: (_input, detail, summary) => readExportFields(detail, summary),
+  preview: (_input, _detail, summary) => singleField('draft', summary),
+  draw: (input, _detail, summary) => drawFields(input, summary),
+  connect: (_input, _detail, summary) => singleField('arrow', summary),
+  update: (_input, _detail, summary) => singleField('target', summary),
+  commit: (_input, detail, summary) => commitFields(detail, summary),
+  discard: (_input, _detail, summary) => singleField('discard', summary),
 }
 
-function operationFields(operation: string, part: ToolCardProps['part'], detail: Detail): Field[] {
-  return OPERATION_FIELDS[operation]?.(part, detail, summarize(operation, part, detail)) ?? []
+function operationFields(operation: string, input: ToolInput, detail: Detail): Field[] {
+  return OPERATION_FIELDS[operation]?.(input, detail, summarize(operation, input, detail)) ?? []
 }
 
-function CanvasIcon(): JSX.Element {
-  return <Palette size={14} />
-}
-
-function DangerIcon(): JSX.Element {
-  return <Trash2 size={14} />
-}
-
-function SourceBlock(props: {part: ToolCardProps['part']; operation: string}): JSX.Element {
-  const svg = () => (props.operation === 'svg' ? parseInput(SvgInput, props.part)?.svg : undefined)
-  const mermaid = () => (props.operation === 'diagram' ? parseInput(DiagramInput, props.part)?.mermaid : undefined)
+function SourceBlock(props: {input: ToolInput; operation: string}): JSX.Element {
+  const svg = () => (props.operation === 'svg' ? readInput(SvgInput, props.input)?.svg : undefined)
+  const mermaid = () => (props.operation === 'diagram' ? readInput(DiagramInput, props.input)?.mermaid : undefined)
   return (
     <>
       <Show when={svg()}>
@@ -197,32 +190,30 @@ function SourceBlock(props: {part: ToolCardProps['part']; operation: string}): J
   )
 }
 
-function CanvasOperationCard(props: ToolCardProps): JSX.Element {
-  const operation = () => readOperation(props.part.name)
-  const media = () => parseResultMedia(props.result)
+function CanvasOperationCard(props: ToolProps): JSX.Element {
+  const operation = () => readOperation(props.tool)
+  const media = () => readMedia(props.output)
   const detail = (): Detail => {
     const parsed = DetailSchema.safeParse(media().json)
     return parsed.success ? parsed.data : {}
   }
-  const failure = () => readFailure(props.result)
+  const failure = () => readFailure(props.output)
   const destructive = () => DESTRUCTIVE.includes(operation())
-  const summary = () => summarize(operation(), props.part, detail())
+  const summary = () => summarize(operation(), props.input, detail())
   return (
-    <ToolCard
-      Icon={destructive() ? DangerIcon : CanvasIcon}
-      title={props.part.name}
-      meta={summary()}
-      part={props.part}
-      result={props.result}
-      status={failure() ? 'error' : undefined}
+    <BasicTool
+      {...props}
+      status={failure() ? 'error' : props.status}
+      trigger={{title: props.tool, subtitle: summary()}}
+      hasContent={true}
     >
       <div class="flex flex-col gap-2 min-w-0">
         <Show
           when={destructive()}
           fallback={
             <>
-              <FieldRows rows={operationFields(operation(), props.part, detail())} />
-              <SourceBlock part={props.part} operation={operation()} />
+              <FieldRows rows={operationFields(operation(), props.input, detail())} />
+              <SourceBlock input={props.input} operation={operation()} />
             </>
           }
         >
@@ -233,8 +224,8 @@ function CanvasOperationCard(props: ToolCardProps): JSX.Element {
         </Show>
         <Show when={failure()}>{(error) => <ErrorBlock message={failureMessage(error())} />}</Show>
       </div>
-    </ToolCard>
+    </BasicTool>
   )
 }
 
-export const canvasCard: ToolCardView = {render: CanvasOperationCard, hasEmbeddedBody: () => true}
+export const canvasCard: ToolComponent = CanvasOperationCard

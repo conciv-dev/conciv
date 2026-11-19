@@ -1,6 +1,5 @@
 import {until} from '@conciv/harness-testkit/until'
-import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues} from '../src/page/page-queue.js'
+import {makePagePlugin} from '../src/page/page-plugin.js'
 import {
   rmSync,
   mkdirSync,
@@ -115,6 +114,7 @@ import {
   pageQueueEvent,
   runLifecycleEvent,
   sessionRunEvent,
+  toolTimeEvent,
 } from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents, webSocket} from '@conciv/ai/client'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -148,7 +148,7 @@ import {
   type HarnessListCursor,
   type HarnessModel,
 } from '@conciv/protocol/harness-types'
-import {PageQueueResultSchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PageQueueResultSchema} from '@conciv/protocol/page-types'
 import {RPC_WS_PATH, type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -214,6 +214,13 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     return held.kit
   }
 }
+
+const FINISHED_CALL_TIME = {start: expect.any(Number), end: expect.any(Number)}
+
+const HubCardTimeSchema = z.object({
+  conciv: z.object({origin: z.literal('hub')}),
+  time: z.object({start: z.number(), end: z.number()}),
+})
 
 const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const ONE_PIXEL_WEBP =
@@ -569,7 +576,7 @@ describe('api extension server surfaces', () => {
       })
 
       expect(server.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
-      const surface = server.harness(sessionId)
+      const surface = await server.harness(sessionId)
       expect(surface.id).toBe('claude')
       expect(typeof surface.ttyCommand).toBe('function')
       const noSuchToken = HarnessSessionId.parse('no-such-token')
@@ -929,7 +936,7 @@ describe('api claude turns', () => {
 
   async function cliRun(sessionId: string, model: string, effort: 'high' | null) {
     if (made.app === null) throw new Error('the app did not boot')
-    made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)))
     await runTurn(kit(), `run ${model}`, sessionId)
     const args = readFileSync(join(bin, 'args'), 'utf8').split('\n')
     return {
@@ -1017,7 +1024,7 @@ describe('api harness switching', () => {
   }
 
   function row(sessionId: string) {
-    return db().select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    return Effect.runPromise(db().select().from(sessions).where(eq(sessions.id, sessionId)).get())
   }
 
   async function turn(sessionId: string, text: string): Promise<SeenTurn> {
@@ -1065,49 +1072,75 @@ describe('api harness switching', () => {
   it('a switch that names a model leaves the session on that model and clears the effort, the next turn runs it', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'first question')
-    db().update(sessions).set({effort: 'high'}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(db().update(sessions).set({effort: 'high'}).where(eq(sessions.id, sessionId)))
 
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'b-model'})).toEqual({
       harnessId: 'beta',
     })
 
-    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: 'b-model', effort: null})
+    expect(await row(sessionId)).toMatchObject({
+      harnessKind: 'beta',
+      harnessSessionId: null,
+      model: 'b-model',
+      effort: null,
+    })
     expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'beta', model: 'b-model'})
+  })
+
+  it('a switch whose row write fails is refused and leaves the session on its harness', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'stay on alpha when the write fails')
+    const before = await row(sessionId)
+    await Effect.runPromise(
+      db().$client.unsafe(`CREATE TRIGGER switch_write_fails BEFORE UPDATE OF harness_kind ON sessions
+      BEGIN SELECT RAISE(ABORT, 'switch write failed'); END`).raw,
+    )
+    onTestFinished(async () => {
+      await Effect.runPromise(db().$client.unsafe('DROP TRIGGER switch_write_fails').raw)
+    })
+
+    await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+    })
+
+    expect(await row(sessionId)).toEqual(before)
   })
 
   it('rejects a switch naming a model the target harness does not list, and changes nothing', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'stay on alpha')
-    const before = row(sessionId)
+    const before = await row(sessionId)
 
     await expect(
       kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'a-model'}),
     ).rejects.toMatchObject({code: 'UNKNOWN_MODEL'})
 
-    expect(row(sessionId)).toEqual(before)
+    expect(await row(sessionId)).toEqual(before)
   })
 
   it('a switch resets the session, the next turn replays the whole chat, and each reply keeps its harness', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await kit().rpc.sessions.model({sessionId, model: 'a-model'})
     expect(await turn(sessionId, 'first question')).toMatchObject({harness: 'alpha', resumeSessionId: null})
-    const native = row(sessionId)?.harnessSessionId
+    const native = (await row(sessionId))?.harnessSessionId
     expect(native).toBeTruthy()
     expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'alpha', resumeSessionId: native})
-    db()
-      .insert(chatMetadata)
-      .values({namespace: TRANSCRIPT_NAMESPACE, key: anchorKey(sessionId), valueJson: {nativeId: 'alpha-tail'}})
-      .run()
+    await Effect.runPromise(
+      db()
+        .insert(chatMetadata)
+        .values({namespace: TRANSCRIPT_NAMESPACE, key: anchorKey(sessionId), valueJson: {nativeId: 'alpha-tail'}}),
+    )
 
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).toEqual({harnessId: 'beta'})
 
-    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: null})
+    expect(await row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: null})
     expect(
-      db()
-        .select()
-        .from(chatMetadata)
-        .where(eq(chatMetadata.key, anchorKey(sessionId)))
-        .all(),
+      await Effect.runPromise(
+        db()
+          .select()
+          .from(chatMetadata)
+          .where(eq(chatMetadata.key, anchorKey(sessionId))),
+      ),
     ).toEqual([])
     const models = await kit().rpc.meta.models({sessionId})
     expect(models.harness.id).toBe('beta')
@@ -1123,7 +1156,7 @@ describe('api harness switching', () => {
     expect(replayed.sent).toContain('second question')
     expect(await turn(sessionId, 'fourth question')).toMatchObject({
       harness: 'beta',
-      resumeSessionId: row(sessionId)?.harnessSessionId,
+      resumeSessionId: (await row(sessionId))?.harnessSessionId,
     })
 
     const hydration = await kit().hydrate(sessionId)
@@ -1134,20 +1167,21 @@ describe('api harness switching', () => {
       'beta',
       'beta',
     ])
-    const runs = db()
-      .select({harnessId: chatRuns.harnessId})
-      .from(chatRuns)
-      .where(eq(chatRuns.threadId, sessionId))
-      .orderBy(asc(chatRuns.startedAt))
-      .all()
+    const runs = await Effect.runPromise(
+      db()
+        .select({harnessId: chatRuns.harnessId})
+        .from(chatRuns)
+        .where(eq(chatRuns.threadId, sessionId))
+        .orderBy(asc(chatRuns.startedAt)),
+    )
     expect(runs.map((run) => run.harnessId)).toEqual(['alpha', 'alpha', 'beta', 'beta'])
   })
 
   it('a turn never resumes a native session that belongs to another harness', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'remember this')
-    expect(row(sessionId)?.harnessSessionId).toBeTruthy()
-    db().update(sessions).set({harnessKind: 'uninstalled'}).where(eq(sessions.id, sessionId)).run()
+    expect((await row(sessionId))?.harnessSessionId).toBeTruthy()
+    await Effect.runPromise(db().update(sessions).set({harnessKind: 'uninstalled'}).where(eq(sessions.id, sessionId)))
     const next = await turn(sessionId, 'and now?')
     expect(next).toMatchObject({harness: 'alpha', resumeSessionId: null})
     expect(next.sent).toContain('remember this')
@@ -1168,7 +1202,7 @@ describe('api harness switching', () => {
       await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
         code: 'SESSION_RUNNING',
       })
-      expect(row(sessionId)?.harnessKind).toBe('alpha')
+      expect((await row(sessionId))?.harnessKind).toBe('alpha')
     } finally {
       alpha.script.release()
       await running.done()
@@ -1178,16 +1212,16 @@ describe('api harness switching', () => {
   it('switching to the current harness changes nothing', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await turn(sessionId, 'stay')
-    const before = row(sessionId)
+    const before = await row(sessionId)
     expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})).toEqual({harnessId: 'alpha'})
-    expect(row(sessionId)).toEqual(before)
+    expect(await row(sessionId)).toEqual(before)
   })
 
   it('a native transcript a session owned before a switch never lists as a separate session, and never resumes', async () => {
     const sessionId = (await kit().rpc.sessions.create()).sessionId
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     await turn(sessionId, 'written into a beta transcript')
-    const owned = row(sessionId)?.harnessSessionId
+    const owned = (await row(sessionId))?.harnessSessionId
     if (!owned) throw new Error('the beta turn recorded no native session')
     betaTranscripts.push({
       id: HarnessSessionId.parse(owned),
@@ -1236,11 +1270,11 @@ describe('api harness switching', () => {
 
     await kit().rpc.sessions.delete({sessionId})
     expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
-    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect((await row(sessionId))?.deletedAt).not.toBeNull()
     expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
-    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    expect(await row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
     await kit().rpc.sessions.restore({sessionId})
-    expect(row(sessionId)).toMatchObject({deletedAt: null})
+    expect(await row(sessionId)).toMatchObject({deletedAt: null})
 
     const app = made.app
     if (app === null) throw new Error('the app did not boot')
@@ -1251,7 +1285,7 @@ describe('api harness switching', () => {
       runtime: app.runtime,
       search,
       pluginHost: app.pluginHost,
-      queues: makePageQueues({bus: makePageBus(), journal: makeJournal(app.chat.db)}),
+      queues: makePagePlugin(() => app.pluginHost),
     }))
     const key = <Success, Failure>(use: (service: Session.Interface) => Effect.Effect<Success, Failure>) =>
       Effect.runPromise(Session.Service.use(use).pipe(Effect.provide(sessionKey)))
@@ -1274,9 +1308,9 @@ describe('api harness switching', () => {
       sessions.create({id, title: 'A new session on an old id', location}).pipe(Effect.flip),
     )
     expect(refused).toMatchObject({_tag: 'Session.NotFoundError', sessionId: id})
-    expect(row(sessionId)?.deletedAt).not.toBeNull()
-    expect(row(sessionId)?.title).not.toBe('A new session on an old id')
-    expect(row(sessionId)).toMatchObject({
+    expect((await row(sessionId))?.deletedAt).not.toBeNull()
+    expect((await row(sessionId))?.title).not.toBe('A new session on an old id')
+    expect(await row(sessionId)).toMatchObject({
       metadata: {ticket: 7},
       permissions: [{action: 'bash', resource: '*', effect: 'deny'}],
     })
@@ -1284,7 +1318,7 @@ describe('api harness switching', () => {
     expect(await key((sessions) => sessions.get(id).pipe(Effect.flip))).toMatchObject({_tag: 'Session.NotFoundError'})
     expect((await kit().rpc.markers.list({sessionId})).map((marker) => marker.id)).toEqual(oldMarkers)
     expect(await listings(false)).toEqual({owner: 0, phantoms: 0})
-    expect(row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
+    expect(await row(sessionId)).toMatchObject({deletedAt: expect.any(Number)})
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
@@ -1320,7 +1354,7 @@ describe('api harness switching', () => {
       kit: racedKit,
       row: (sessionId: string) => {
         if (raced.app === null) throw new Error('the app did not boot')
-        return raced.app.chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+        return Effect.runPromise(raced.app.chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get())
       },
       whileListingSlowModels: async (change: Promise<unknown>, sessionId: SessionId) => {
         const settled = change.then(
@@ -1344,7 +1378,7 @@ describe('api harness switching', () => {
         sessionId,
       )
       expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNKNOWN_MODEL'}})
-      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+      expect(await raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
     })
   })
 
@@ -1357,7 +1391,7 @@ describe('api harness switching', () => {
         sessionId,
       )
       expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNSUPPORTED_EFFORT'}})
-      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+      expect(await raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
     })
   })
 })
@@ -1982,30 +2016,6 @@ describe('rpc wire', () => {
     describe('on one default app', () => {
       const kit = sharedKit(() => bootKit({}, createTestHarness(requireClaude())))
 
-      it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
-        await expect(
-          kit().rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}}),
-        ).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
-      })
-
-      it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
-        const statuses: number[] = []
-        const sessionId = await kit().session()
-        for (const code of PAGE_TRANSPORT_ERROR_CODES) {
-          const response = await fetch(`${kit().base}/rpc/page/reply`, {
-            method: 'POST',
-            headers: {'content-type': 'application/json', [CONCIV_SESSION_HEADER]: sessionId},
-            body: JSON.stringify({
-              json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
-            }),
-          })
-          statuses.push(response.status)
-        }
-        expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
-      })
-
       it("drafts.set stores the client's updatedAt as sent, so a browser can match the row to the copy it sent", async () => {
         const sessionId = SessionId.parse(await kit().session())
         const updatedAt = 1_700_000_000_000
@@ -2490,9 +2500,14 @@ describe('rpc wire', () => {
         await sessionStream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, GUARD)
         const cards = toolCallParts(foldChatEvents(seen))
         const execute = cards.findLast((part) => part.name === 'execute_typescript')
-        expect(cardMetadata(cards.findLast((part) => part.name === 'fixture_echo'))).toMatchObject({
+        const child = cards.findLast((part) => part.name === 'fixture_echo')
+        expect(cardMetadata(child)).toMatchObject({
           parentToolCallId: execute?.id,
+          time: {start: expect.any(Number)},
         })
+        expect(seen.map((chunk) => toolTimeEvent.parse(chunk)?.toolCallId)).toContain(child?.id)
+        const stored = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId: app.mcpSession})).messages)
+        expect(cardMetadata(stored.findLast((part) => part.id === child?.id))).toMatchObject({time: FINISHED_CALL_TIME})
         expect(
           seen
             .filter(isTurnBoundary)
@@ -2509,16 +2524,28 @@ describe('rpc wire', () => {
         const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
         withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
         const call = executeOverMcp(chatKit().base, hub, 'return 1')
-        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
-          timeout: 3000,
-        })
+        const approval = {at: 0}
+        await vi.waitFor(
+          async () => {
+            approval.at = Date.now()
+            expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1)
+          },
+          {timeout: 3000},
+        )
         await call
         script().release()
         await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
         expect(cards.map(cardMetadata)).toContainEqual({
           conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: FINISHED_CALL_TIME,
         })
+        const hubStarts = cards.flatMap((part) => {
+          const timed = HubCardTimeSchema.safeParse(cardMetadata(part))
+          return timed.success ? [timed.data.time.start] : []
+        })
+        expect(hubStarts).toHaveLength(1)
+        expect(hubStarts[0]).toBeGreaterThanOrEqual(approval.at)
       })
 
       it('a hub registry call runs under the call id of its one hub card', async () => {
@@ -2533,7 +2560,9 @@ describe('rpc wire', () => {
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages).filter(
           (part) => part.name === 'fixture_quiet',
         )
-        expect(cards.map(cardMetadata)).toEqual([{conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}}])
+        expect(cards.map(cardMetadata)).toEqual([
+          {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}, time: FINISHED_CALL_TIME},
+        ])
         expect(quietCallIds.at(-1)).toBe(cards[0]?.id)
       })
 
@@ -2746,13 +2775,22 @@ describe('rpc wire', () => {
 
     describe('tools and models list', () => {
       it('the widget gets every tool with its full description and the harness model list', async () => {
-        const {tools} = await chatKit().rpc.meta.tools(undefined)
+        const {tools} = await chatKit().rpc.meta.tools({sessionId: await newSession()})
         expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
         expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
         const models = await chatKit().rpc.meta.models({sessionId: await newSession()})
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
         expect(models.defaultModel).toBe('opus')
+      })
+
+      it('a session whose agent has code mode off is offered no extension tool, since its turn gets none', async () => {
+        const {kit} = await bootWire({
+          extensions: [fixtureExtension()],
+          permissions: [{action: 'execute', resource: '*', effect: 'deny'}],
+        })
+        const {tools} = await kit.rpc.meta.tools({sessionId: await kit.session()})
+        expect(tools.map((tool) => tool.name).filter((name) => FIXTURE_TOOLS.includes(name))).toEqual([])
       })
     })
 
@@ -3758,8 +3796,10 @@ return seen`
         expect(toolRuns.echo).toBe(ran + 2)
         const children = toolCallParts(await thread(sessionId)).filter((part) => part.name !== 'execute_typescript')
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
-          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
+          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent, time: FINISHED_CALL_TIME}]),
         )
+        const script = toolCallParts(await thread(sessionId)).find((part) => part.id === parent)
+        expect(cardMetadata(script)).toMatchObject({time: FINISHED_CALL_TIME})
         expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = collectResults(await thread(sessionId))
         expect(results).toContain('Input validation failed for tool fixture_echo')
@@ -5410,7 +5450,10 @@ export default {
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
-        metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
+        metadata: {
+          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+          time: {start: expect.any(Number)},
+        },
       }),
     ])
     const saved = (await createSessionRpc(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
@@ -5556,7 +5599,7 @@ describe('session activity recorded with its chat messages', () => {
 
   async function staleSession(): Promise<SessionId> {
     const sessionId = SessionId.parse((await kit().rpc.sessions.create()).sessionId)
-    made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)))
     return sessionId
   }
 
@@ -5595,20 +5638,24 @@ describe('session activity recorded with its chat messages', () => {
     expect((await kit().rpc.sessions.get({sessionId})).title).toBe('kept')
     const native = await staleSession()
     const nativeId = HarnessSessionId.parse(randomUUID())
-    made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)).run()
+    await Effect.runPromise(
+      made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)),
+    )
     const before = Date.now()
     await runTurn(kit(), 'a message to a native session', native)
-    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get()
+    const row = await Effect.runPromise(made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get())
     expect(row?.title).toBeNull()
     expect(row?.updatedAt).toBeGreaterThanOrEqual(before)
   })
 
   it('importing a transcript stamps lastActive with its newest message time, not the time it was opened', async () => {
     const sessionId = await staleSession()
-    made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)).run()
+    await Effect.runPromise(
+      made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)),
+    )
     await kit().hydrate(sessionId)
     const reopened = await kit().hydrate(sessionId)
-    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    const row = await Effect.runPromise(made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get())
     expect(reopened.messages.map((message) => message.id)).toEqual(['imported-user', 'imported-reply'])
     expect(row).toMatchObject({title: null, updatedAt: WRITTEN_AT})
   })
@@ -5618,7 +5665,7 @@ describe('session activity recorded with its chat messages', () => {
     expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
   })
 
-  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', () => {
+  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', async () => {
     const stateRoot = tempDir('conciv-activity-fixup-')
     const stateDir = join(stateRoot, '.conciv')
     mkdirSync(stateDir, {recursive: true})
@@ -5651,13 +5698,16 @@ describe('session activity recorded with its chat messages', () => {
       )
     }
     client.close()
-    const db = openDb(stateRoot)
-    const repaired = db
-      .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
-      .from(sessions)
-      .orderBy(asc(sessions.id))
-      .all()
-    db.$client.close()
+    const repaired = await Effect.runPromise(
+      Effect.scoped(
+        Effect.flatMap(openDb(stateRoot), (db) =>
+          db
+            .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
+            .from(sessions)
+            .orderBy(asc(sessions.id)),
+        ),
+      ),
+    )
     expect(repaired).toEqual([
       {id: 'conciv_native', title: null, updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
       {id: 'conciv_quiet', title: null, updatedAt: ROW_AT},
@@ -6597,6 +6647,190 @@ describe('page action queue delivery', () => {
       lastRun: {runId: 'next-run', phase: 'completed'},
     })
   })
+
+  const CHECK = [{tool: 'page_check', selector: '#agree'}]
+  const SHORT_REPLY_WINDOW_MS = 1000
+
+  const servedWithShortReplyWindow: ServeEngine = async (home, harness, plugins, root) => {
+    const boot = bootCoreApp({
+      home,
+      cwd: root,
+      plugins,
+      hubAccess: 'open',
+      pageReplyTimeoutMs: SHORT_REPLY_WINDOW_MS,
+      queuedActionTimeoutMs: WINDOW_LONGER_THAN_THE_CASE_MS,
+    })
+    const kit = await createTestkit(harness, boot).setup()
+    stops.push(kit.cleanup)
+    return {origin: kit.origin, token: kit.token}
+  }
+
+  async function engineWithTabs(serve: ServeEngine = servedByStart) {
+    const home = tempDir('conciv-queue-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const tabs = pageTabs()
+    const {origin, token} = await serve(home, createFakeHarness(), [tabs.plugin], tempDir('conciv-queue-'), {})
+    const base = `${origin}/t/${token}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const typed = makeRpcClient(base, {headers: HUB})
+    const open = async (focused: boolean) => {
+      const tab = await tabs.open(sessionId, () => undefined, {focused})
+      onTestFinished(() => tab.end())
+      const next = async () => {
+        const requestId = await tab.requested()
+        return {requestId, command: await tab.command(requestId)}
+      }
+      return {...tab, next}
+    }
+    return {
+      open,
+      call: registryCall(base, sessionId),
+      hub: (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code),
+      wait: (queueId: string, waitMs = 0) => typed.page.queue.wait({sessionId, queueId, waitMs}),
+    }
+  }
+
+  const routed = (href: string) => pageSuccess({pathname: href, search: '', href, title: 'Example', state: 'visible'})
+
+  it('queues and calls share each tab in turn: a queue started while another plays or while a changing call is in flight reaches the tab only after it, on the tab serving the session when its turn comes, even once the tab it waited on closes, and a lost tab resends a reading call to the next tab but never a changing one', async () => {
+    const engine = await engineWithTabs()
+    const first = await engine.open(true)
+    const probe = async (tab: Awaited<ReturnType<typeof engine.open>>, href: string) => {
+      const reading = engine.call('page_route', {})
+      const arrived = await tab.next()
+      expect(arrived.command.action).toEqual({type: 'route'})
+      await tab.reply(arrived.requestId, routed(href))
+      expect(await reading).toMatchObject({href})
+    }
+    const accept = async (tab: Awaited<ReturnType<typeof engine.open>>, queueId: string) => {
+      const acceptance = await tab.next()
+      expect(acceptance.command.queued).toEqual({id: queueId, index: -1, of: 1})
+      await tab.reply(acceptance.requestId, pageSuccess({queueId, actions: 1}))
+      const action = await tab.next()
+      expect(action.command.queued).toEqual({id: queueId, index: 0, of: 1})
+      return action.requestId
+    }
+
+    const earlier = parseHandle(await engine.hub(queued(CHECK)))
+    const earlierAction = await accept(first, earlier.queueId)
+    const later = parseHandle(await engine.hub(queued(CHECK)))
+    expect(later).toEqual({queueId: expect.stringMatching(/^q_/), actions: 1})
+    await probe(first, '/while-the-earlier-queue-plays')
+    expect(await engine.wait(later.queueId)).toEqual({queueId: later.queueId, status: 'playing', done: 0, of: 1})
+    await first.reply(earlierAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(earlier.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await first.reply(await accept(first, later.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(later.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const playing = parseHandle(await engine.hub(queued(CHECK)))
+    const playingAction = await accept(first, playing.queueId)
+    const synchronous = engine.hub(`return await external_page_queue({actions: ${JSON.stringify(CHECK)}})`)
+    await probe(first, '/while-the-sync-queue-waits')
+    await first.reply(playingAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(playing.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    const syncAcceptance = await first.next()
+    const syncId = syncAcceptance.command.queued?.id ?? ''
+    expect(syncId).not.toBe(playing.queueId)
+    await first.reply(syncAcceptance.requestId, pageSuccess({queueId: syncId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: false}))
+    expect(JSON.parse(String(await synchronous)).result).toMatchObject({
+      queueId: syncId,
+      status: 'finished',
+      played: 1,
+      failed: 0,
+    })
+
+    const clicking = engine.call('page_click', {selector: '#go'})
+    const click = await first.next()
+    expect(click.command.action).toEqual({type: 'click', selector: '#go'})
+    const behindClick = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(first, '/while-the-click-is-in-flight')
+    await first.reply(click.requestId, pageSuccess({ok: true}))
+    expect(await clicking).toEqual({ok: true})
+    await first.reply(await accept(first, behindClick.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(behindClick.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+
+    const second = await engine.open(false)
+    const beforeFocus = parseHandle(await engine.hub(queued(CHECK)))
+    const beforeFocusAction = await accept(first, beforeFocus.queueId)
+    await second.focus(true)
+    const seenOnFirst = first.seen().length
+    const afterFocus = parseHandle(await engine.hub(queued(CHECK)))
+    await probe(second, '/the-newly-focused-tab')
+    await first.reply(beforeFocusAction, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(beforeFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    await second.reply(await accept(second, afterFocus.queueId), pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(afterFocus.queueId, 5000)).toMatchObject({status: 'finished', played: 1})
+    expect(first.seen().slice(seenOnFirst)).toEqual([])
+
+    const blocking = parseHandle(await engine.hub(queued(CHECK)))
+    await accept(second, blocking.queueId)
+    const waiting = parseHandle(await engine.hub(queued(CHECK)))
+    expect(await engine.wait(waiting.queueId)).toEqual({queueId: waiting.queueId, status: 'playing', done: 0, of: 1})
+    second.end()
+    expect(await engine.wait(blocking.queueId, 5000)).toMatchObject({status: 'lost'})
+    const nextOnFirst = first.next()
+    expect(
+      await Promise.race([
+        nextOnFirst.then(({command}) => command.queued),
+        engine.wait(waiting.queueId, WINDOW_LONGER_THAN_THE_CASE_MS),
+      ]),
+    ).toEqual({id: waiting.queueId, index: -1, of: 1})
+    await first.reply((await nextOnFirst).requestId, pageSuccess({queueId: waiting.queueId, actions: 1}))
+    await first.reply((await first.next()).requestId, pageSuccess({ok: true, checked: true}))
+    expect(await engine.wait(waiting.queueId, 5000)).toMatchObject({status: 'finished', played: 1, failed: 0})
+
+    const other = await engine.open(false)
+    await first.focus(true)
+    const changing = engine.call('page_click', {selector: '#once'})
+    const changingOnFirst = await first.next()
+    first.end()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    await expect(first.reply(changingOnFirst.requestId, pageSuccess({ok: true}))).rejects.toThrow()
+    await other.focus(true)
+    await probe(other, '/never-the-click-again')
+
+    const focusedLast = await engine.open(true)
+    const snapshotting = engine.call('page_snapshot', {})
+    const lost = await focusedLast.next()
+    focusedLast.end()
+    const resent = await other.next()
+    expect(resent.requestId).not.toBe(lost.requestId)
+    expect(resent.command.action).toEqual({type: 'snapshot'})
+    await other.reply(resent.requestId, pageSuccess({nodes: []}))
+    expect(await snapshotting).toEqual({nodes: []})
+
+    const reading = engine.call('page_route', {})
+    const onlyTab = await other.next()
+    other.end()
+    const returned = await engine.open(true)
+    const again = await returned.next()
+    expect(again.command.action).toEqual({type: 'route'})
+    await returned.reply(again.requestId, routed('/after-the-reload'))
+    expect(await reading).toMatchObject({href: '/after-the-reload'})
+    expect(onlyTab.requestId).not.toBe(again.requestId)
+    expect(returned.seen()).toEqual(['page_route'])
+  })
+
+  it('a call whose tab stays open and never replies times out once and is cancelled on the page, and a reading call whose tab never comes back fails once its own window runs out', async () => {
+    const engine = await engineWithTabs(servedWithShortReplyWindow)
+    const silent = await engine.open(true)
+    const reading = engine.call('page_route', {})
+    const unanswered = await silent.next()
+    await expect(reading).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.route')})
+    await silent.cancelled(unanswered.requestId)
+    const changing = engine.call('page_click', {selector: '#go'})
+    const unansweredClick = await silent.next()
+    await expect(changing).rejects.toMatchObject({message: expect.stringContaining('[page.timeout] page.click')})
+    await silent.cancelled(unansweredClick.requestId)
+    expect(silent.seen()).toEqual(['page_route', 'page_click'])
+
+    const stranded = engine.call('page_route', {})
+    await silent.next()
+    silent.end()
+    await expect(stranded).rejects.toMatchObject({message: expect.stringContaining('the action may already have run')})
+    expect(silent.seen()).toEqual(['page_route', 'page_click', 'page_route'])
+  })
 })
 
 describe('engine plugins', () => {
@@ -6972,6 +7206,26 @@ export default {
     expect(await call(base, 'embedded', 'counted')).toBe(1)
     await expect(outside.plugin.list()).rejects.toMatchObject(pluginRefusal)
     expect((await makeRpcClient(base).plugin.list()).data.map((plugin) => plugin.id)).toContain('embedded')
+    await expect(outside.skill.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.agent.list()).rejects.toMatchObject(pluginRefusal)
+    await expect(outside.fs.find({query: 'seer'})).rejects.toMatchObject(pluginRefusal)
+    const found = await makeRpcClient(base).fs.find({query: 'seer', type: 'file'})
+    expect(found.location).toEqual({directory: root})
+    expect(found.data).toContainEqual({path: 'conciv/plugins/seer.ts', type: 'file'})
+    const skills = await makeRpcClient(base).skill.list()
+    expect(skills.location).toEqual({directory: root})
+    expect(skills.data.find((skill) => skill.id === 'seer-look')).toMatchObject({
+      name: 'seer-look',
+      description: 'How the seer looks',
+      content: 'Look twice.',
+    })
+    const agents = await makeRpcClient(base).agent.list()
+    expect(agents.location).toEqual({directory: root})
+    expect(agents.data.find((agent) => agent.id === 'build')).toMatchObject({
+      name: 'build',
+      mode: 'primary',
+      hidden: false,
+    })
     await expect(outside.plugin.experimental({id: 'configured'})).rejects.toMatchObject(pluginRefusal)
     await expect(outside.plugin.experimentalChunk({id: 'configured', file: 'x.cjs'})).rejects.toMatchObject(
       pluginRefusal,
@@ -7670,7 +7924,7 @@ export default {
 const method = {input: {type: 'object'}, output: {type: 'object'}}
 const Tabs = {
   id: 'page-tabs',
-  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method},
+  methods: {open: method, close: method, report: method, next: method, reply: method, cancels: method, permissions: method, tool: method, asked: method, waiting: method, decide: method, ended: method, finished: method, operate: method},
   events: {},
 }
 
@@ -7764,6 +8018,11 @@ export default {
         await ctx.permission.reply({sessionId, requestId, decision})
         return {}
       },
+      operate: async (input, call) =>
+        page.operate(input, {signal: call.signal}).then(
+          (value) => ({ok: true, value}),
+          (error) => ({ok: false, type: error.type, message: error.message, data: error.data ?? null}),
+        ),
       tool: async ({sessionId, name, input, id}, call) => {
         const found = (await ctx.tool.list()).find((entry) => [entry.options?.namespace, entry.name].join('.') === 'page.' + name)
         try {
@@ -7794,7 +8053,7 @@ export default {
     z.object({ok: z.literal(false), message: z.string(), metadata: z.unknown()}),
   ])
 
-  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back', async () => {
+  it('tabs attach, a call goes to the tab named or focused last, a lost tab resends only reading calls, timeouts and aborts cancel on the page, changing calls queue, the grant lives while a tab does, a call runs through the page tools, eval asks on every call and an answer saves no rule for a later eval, locate and symbolicate answer with the source file, a declared page error keeps its code, a queue plays its actions as commands of their own before a later call, changing calls journal and captures keep their tool call, the terminal runs an action through registry.call with its own id per call, deleting the session ends its tabs and drops its records, and a tab attaching to a never-seen id is refused and makes no session, then attaches once a first send makes it, while one on a deleted id is refused and nothing comes back, and a plugin operation runs on the tab through page.operate: with no tab a changing one fails, a reading one is resent once to the next tab, its value and raised error come back, and a closed tab or a deleted session ends one in flight as gone', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-page-connection-')]
     const files = {'tabs/server.ts': TAB_FIXTURE, 'conciv/plugins/helper.ts': HELPER_FIXTURE, 'chunk.js': CHUNK}
     for (const [path, content] of Object.entries(files)) {
@@ -8016,6 +8275,48 @@ export default {
     expect(await queued).toMatchObject({ok: false, message: expect.stringContaining('the action may already have run')})
     expect(await granted()).toHaveLength(0)
     expect(await offered()).toEqual({names: [], line: undefined})
+    const operate = (input: Record<string, unknown>) => tabs('operate', {sessionId: session, ...input})
+    expect(await operate({name: 'count', input: {n: 1}, reading: false})).toMatchObject({
+      ok: false,
+      type: 'failed',
+      data: {code: 'disconnected'},
+    })
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_o'})).toEqual({attached: true})
+    const counting = operate({name: 'count', input: {n: 1}, reading: true})
+    const onO = await next('conn_o')
+    expect(onO.command.action).toEqual({type: 'operation', name: 'count', input: {n: 1}})
+    expect(await tabs('close', {connectionId: 'conn_o'})).toEqual({closed: true})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_p'})).toEqual({attached: true})
+    const resentOnP = await next('conn_p')
+    expect(resentOnP.command.action).toEqual({type: 'operation', name: 'count', input: {n: 1}})
+    expect(await tabs('close', {connectionId: 'conn_p'})).toEqual({closed: true})
+    expect(await counting).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
+    expect(await tabs('open', {sessionId: session, connectionId: 'conn_s'})).toEqual({attached: true})
+    const bumping = operate({name: 'bump', input: {by: 2}, reading: false})
+    const onBump = await next('conn_s')
+    await reply('conn_s', onBump.requestId, succeeded({count: 3}))
+    expect(await bumping).toEqual({ok: true, value: {count: 3}})
+    const raising = operate({name: 'bump', input: {by: -1}, reading: false})
+    const onRaise = await next('conn_s')
+    await reply('conn_s', onRaise.requestId, {
+      type: 'failure',
+      code: 'raised',
+      message: 'negative',
+      raised: {code: 'NEGATIVE', message: 'negative'},
+    })
+    expect(await raising).toMatchObject({
+      ok: false,
+      type: 'failed',
+      data: {code: 'raised', raised: {code: 'NEGATIVE', message: 'negative'}},
+    })
+    const denying = operate({name: 'bump', input: {by: 0}, reading: false})
+    const onDeny = await next('conn_s')
+    await reply('conn_s', onDeny.requestId, {type: 'failure', code: 'plugin.denied', message: 'not for this plugin'})
+    expect(await denying).toMatchObject({ok: false, type: 'failed', data: {code: 'plugin.denied'}})
+    const orphaned = operate({name: 'bump', input: {by: 1}, reading: false})
+    await next('conn_s')
+    expect(await tabs('close', {connectionId: 'conn_s'})).toEqual({closed: true})
+    expect(await orphaned).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_d'})).toEqual({attached: true})
     const afterChange = ask({type: 'route'})
     const firstOnD = await next('conn_d')
@@ -8251,8 +8552,12 @@ export default {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     await (await sseTurn(base, session, 'before-delete', 'remember the form')).text()
     expect((await rpc.chat.hydrate({sessionId: session})).messages).not.toEqual([])
+    const deleting = operate({name: 'bump', input: {by: 1}, reading: false})
+    const onDelete = await next('conn_e')
     await rpc.sessions.delete({sessionId: session})
     expect(await ending).toEqual({outcome: 'closed'})
+    expect(await deleting).toMatchObject({ok: false, type: 'tab_gone', data: {dispatched: true}})
+    await tabs('cancels', {requestId: onDelete.requestId})
     expect(await page('captures.list')).toEqual({captures: [], cssBundles: {}})
     expect(await tabs('open', {sessionId: session, connectionId: 'conn_r'})).toEqual({
       error: `session "${session}" does not exist`,
@@ -8354,45 +8659,50 @@ describe('session terminal', () => {
       return false
     }
   }
-  type TerminalSocket = {socket: WebSocket; text: () => string; controls: string[]}
+  type PtyClient = RpcClient['experimental']['persistentPty']
+  type PtyOutput = Awaited<ReturnType<PtyClient['output']>>
+  type PtyItem = PtyOutput extends AsyncIterable<infer Item> ? Item : never
+  type TerminalReader = {items: PtyItem[]; text: () => string; ended: Promise<unknown>; stop: () => void}
 
-  const openTerminalSocket = (url: string, origin?: string): Promise<TerminalSocket> => {
-    const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
-    const received: string[] = []
-    const controls: string[] = []
-    socket.on('message', (data, isBinary) => {
-      if (isBinary) received.push(new TextDecoder().decode(Array.isArray(data) ? Buffer.concat(data) : data))
-      else controls.push(String(data))
-    })
-    return new Promise((resolve, reject) => {
-      socket.once('open', () => resolve({socket, text: () => received.join(''), controls}))
-      socket.once('error', reject)
-    })
+  const REPLAY_PIECE = 64 * 1024
+
+  const drainOutput = async (stream: PtyOutput, items: PtyItem[]): Promise<unknown> => {
+    try {
+      for await (const item of stream) items.push(item)
+      return 'ended'
+    } catch (error) {
+      return error
+    }
   }
 
-  const refusedStatus = (url: string, origin?: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const socket = new WebSocket(url, origin === undefined ? {} : {headers: {origin}})
-      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0))
-      socket.once('open', () => reject(new Error('the upgrade completed without a valid ticket')))
-    })
+  const readTerminal = async (terminal: PtyClient, ptyId: string, cursor?: number): Promise<TerminalReader> => {
+    const stop = new AbortController()
+    const items: PtyItem[] = []
+    const stream = await terminal.output(cursor === undefined ? {ptyId} : {ptyId, cursor}, {signal: stop.signal})
+    const text = () => items.flatMap((item) => (item.type === 'output' ? [item.data] : [])).join('')
+    return {items, text, ended: drainOutput(stream, items), stop: () => stop.abort()}
+  }
 
-  const closeCode = (url: string): Promise<number> =>
-    new Promise((resolve, reject) => {
-      const socket = new WebSocket(url)
-      socket.once('close', (code) => resolve(code))
-      socket.once('error', reject)
-    })
-
-  const shows = async (terminal: TerminalSocket, text: string): Promise<void> => {
+  const shows = async (terminal: TerminalReader, text: string): Promise<void> => {
     await until(() => terminal.text().includes(text))
   }
 
-  const connectUrl = async (base: string, ptyId: string, query = '', origin?: string): Promise<string> => {
-    const client = makeRpcClient(base, origin === undefined ? {} : {headers: {origin}})
-    const {ticket, expiresIn} = await client.experimental.persistentPty.connectToken({ptyId})
-    expect(expiresIn).toBe(60)
-    return `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect?ticket=${ticket}${query}`
+  const metaCursor = (terminal: TerminalReader): number | undefined =>
+    terminal.items.flatMap((item) => (item.type === 'meta' ? [item.cursor] : [])).at(0)
+
+  type RpcSocketClient = {socket: WebSocket; closes: number[]; terminal: PtyClient}
+
+  const openRpcSocket = async (
+    url: string,
+    options: {origin?: string; trust?: string} = {},
+  ): Promise<RpcSocketClient> => {
+    const socket = new WebSocket(url, options.origin === undefined ? {} : {headers: {origin: options.origin}})
+    const closes: number[] = []
+    socket.on('close', (code) => closes.push(code))
+    await once(socket, 'open')
+    if (options.trust !== undefined) socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: options.trust}))
+    const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket: socket}))
+    return {socket, closes, terminal: rpc.experimental.persistentPty}
   }
 
   const readPid = (file: string): number => z.coerce.number().int().positive().parse(readFileSync(file, 'utf8').trim())
@@ -8456,9 +8766,9 @@ describe('session terminal', () => {
       const resumed = await terminal.create({sessionId, model: BUSY_MODEL})
       expect(resumed.id).not.toBe(created.id)
       expect(fake.connects[1]).toMatchObject({resume: true, harnessSessionId: first?.harnessSessionId})
-      const banner = await openTerminalSocket(await connectUrl(base, resumed.id))
+      const banner = await readTerminal(terminal, resumed.id)
       await shows(banner, '\u2500 conciv: resumed session \u2500')
-      banner.socket.close()
+      banner.stop()
 
       await expect.poll(async () => (await terminal.create({sessionId})).busy).toBe(true)
       await expect(terminal.remove({ptyId: resumed.id})).rejects.toMatchObject({code: 'BUSY'})
@@ -8506,152 +8816,210 @@ describe('session terminal', () => {
     },
   )
 
-  it(
-    'a ticketed socket carries the terminal both ways and replays to a late attacher, a socket with a missing, used, foreign, disallowed or other-origin ticket is refused, and outside agents cannot use the terminal',
-    {timeout: 20_000},
-    async () => {
-      const root = tempDir('conciv-terminal-socket-')
-      const fake = terminalHarness('fake-terminal-socket', join(root, 'pid'))
-      const engine = await start({
-        options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-socket'},
-        root,
-        harness: fake.harness,
-        launchEditor: () => {},
-        homeDir: tempDir('conciv-home-'),
-      })
-      onTestFinished(() => engine.stop())
-      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-      const rpc = makeRpcClient(base)
-      const terminal = rpc.experimental.persistentPty
-      const {sessionId} = await rpc.sessions.create(undefined)
-      const pty = await terminal.create({sessionId})
-
-      const first = await openTerminalSocket(await connectUrl(base, pty.id, '&cols=100&rows=30'))
-      first.socket.send('echo ws-roundtrip-$((40+2))\r')
-      await shows(first, 'ws-roundtrip-42')
-      expect(first.controls).toContain(JSON.stringify({type: 'busy', busy: false}))
-      first.socket.send('stty size\r')
-      await shows(first, '30 100')
-      first.socket.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
-      first.socket.send('stty size\r')
-      await shows(first, '27 91')
-      first.socket.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
-      await shows(first, '\r\nconciv says hi\r\n')
-      first.socket.close()
-
-      const late = await openTerminalSocket(await connectUrl(base, pty.id))
-      await shows(late, 'ws-roundtrip-42')
-      await shows(late, '\r\nconciv says hi\r\n')
-      late.socket.close()
-
-      const connectPath = (ptyId: string) =>
-        `${base.replace(/^http/, 'ws')}/api/experimental/persistent-pty/${ptyId}/connect`
-      expect(await refusedStatus(connectPath(pty.id))).toBe(403)
-      expect(await refusedStatus(`${connectPath(pty.id)}?ticket=not-a-ticket`)).toBe(403)
-      const used = await connectUrl(base, pty.id)
-      const usedOnce = await openTerminalSocket(used)
-      usedOnce.socket.close()
-      expect(await refusedStatus(used)).toBe(403)
-      const foreign = new URL(await connectUrl(base, pty.id)).searchParams.get('ticket')
-      expect(await refusedStatus(`${connectPath(`pty_${randomUUID()}`)}?ticket=${foreign}`)).toBe(403)
-      expect(await refusedStatus(await connectUrl(base, pty.id), 'https://evil.example')).toBe(403)
-      await expect(terminal.connectToken({ptyId: `pty_${randomUUID()}`})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
-
-      const widget = 'http://localhost:5173'
-      const sameOrigin = await openTerminalSocket(await connectUrl(base, pty.id, '', widget), widget)
-      await shows(sameOrigin, 'ws-roundtrip-42')
-      sameOrigin.socket.close()
-      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget), 'http://127.0.0.1:5173')).toBe(403)
-      expect(await refusedStatus(await connectUrl(base, pty.id, '', widget))).toBe(403)
-
-      const outside = makeRpcClient(base, {
-        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
-      }).experimental.persistentPty
-      await expect(outside.create({sessionId})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      await expect(outside.connectToken({ptyId: pty.id})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
-      expect((await terminal.create({sessionId})).id).toBe(pty.id)
-
-      const gone = await connectUrl(base, pty.id)
-      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
-      expect(await closeCode(gone)).toBe(4404)
-    },
-  )
-
-  const trustedBrowserTerminal = async (prefix: string) => {
+  const startTerminalEngine = async (prefix: string, id: string) => {
     const root = tempDir(prefix)
-    const fake = terminalHarness('fake-terminal-revoke', join(root, 'pid'))
+    const fake = terminalHarness(id, join(root, 'pid'))
     const engine = await start({
-      options: {stateRoot: root, systemPrompt: false, harness: 'fake-terminal-revoke'},
+      options: {stateRoot: root, systemPrompt: false, harness: id},
       root,
       harness: fake.harness,
       launchEditor: () => {},
       homeDir: tempDir('conciv-home-'),
     })
     onTestFinished(() => engine.stop())
-    const origin = `http://127.0.0.1:${engine.port}`
-    const base = `${origin}/t/${engine.agentToken}`
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const rpc = makeRpcClient(base)
     const {sessionId} = await rpc.sessions.create(undefined)
+    return {root, engine, base, rpc, sessionId, terminal: rpc.experimental.persistentPty}
+  }
+
+  it(
+    'the terminal procedures carry the terminal both ways, replay to a late reader in bounded pieces before a meta frame with the cursor, resume from that cursor without repeating output, refuse an unknown pty or a never-admitted origin, and outside agents cannot use the terminal',
+    {timeout: 30_000},
+    async () => {
+      const {engine, base, rpc, sessionId, terminal} = await startTerminalEngine(
+        'conciv-terminal-socket-',
+        'fake-terminal-socket',
+      )
+      const pty = await terminal.create({sessionId, size: {cols: 100, rows: 30}})
+
+      const first = await readTerminal(terminal, pty.id)
+      await terminal.write({ptyId: pty.id, data: 'echo ws-roundtrip-$((40+2))\r'})
+      await shows(first, 'ws-roundtrip-42')
+      expect(first.items).toContainEqual({type: 'busy', busy: false})
+      await terminal.write({ptyId: pty.id, data: 'stty size\r'})
+      await shows(first, '30 100')
+      expect(await terminal.resize({ptyId: pty.id, cols: 91, rows: 27})).toEqual({ok: true})
+      await terminal.write({ptyId: pty.id, data: 'stty size\r'})
+      await shows(first, '27 91')
+      expect(await terminal.inject({ptyId: pty.id, text: 'conciv says hi'})).toEqual({ok: true})
+      await shows(first, '\r\nconciv says hi\r\n')
+      await terminal.write({
+        ptyId: pty.id,
+        data: "head -c 200000 /dev/zero | tr '\\0' x; echo; echo bulk-$((1+1))-done\r",
+      })
+      await shows(first, 'bulk-2-done')
+      first.stop()
+
+      const late = await readTerminal(terminal, pty.id)
+      await until(() => metaCursor(late) !== undefined)
+      const replay = late.items.slice(
+        0,
+        late.items.findIndex((item) => item.type === 'meta'),
+      )
+      const pieces = replay.flatMap((item) => (item.type === 'output' ? [item.data.length] : []))
+      expect(pieces.length).toBeGreaterThan(2)
+      expect(Math.max(...pieces)).toBeLessThanOrEqual(REPLAY_PIECE)
+      expect(late.text()).toContain('ws-roundtrip-42')
+      expect(late.text()).toContain('\r\nconciv says hi\r\n')
+      const cursor = metaCursor(late) ?? 0
+      expect(cursor).toBe(late.text().length)
+      late.stop()
+
+      await terminal.write({ptyId: pty.id, data: 'echo after-$((5+5))\r'})
+      const resumed = await readTerminal(terminal, pty.id, cursor)
+      await shows(resumed, 'after-10')
+      await until(() => metaCursor(resumed) !== undefined)
+      expect(resumed.text()).not.toContain('ws-roundtrip-42')
+      expect(resumed.text()).not.toContain('bulk-2-done')
+      expect(metaCursor(resumed)).toBeGreaterThan(cursor)
+      resumed.stop()
+
+      const unknown = `pty_${randomUUID()}`
+      await expect(terminal.output({ptyId: unknown})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+      await expect(terminal.write({ptyId: unknown, data: 'x'})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+
+      const widget = 'http://localhost:5173'
+      const other = await rpc.sessions.create(undefined)
+      const fromWidget = makeRpcClient(base, {headers: {origin: widget}}).experimental.persistentPty
+      const widgetPty = await fromWidget.create({sessionId: other.sessionId})
+      const sameOrigin = await readTerminal(fromWidget, widgetPty.id)
+      await fromWidget.write({ptyId: widgetPty.id, data: 'echo widget-$((2+2))\r'})
+      await shows(sameOrigin, 'widget-4')
+      sameOrigin.stop()
+      const elsewhere = await openRpcSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${RPC_WS_PATH}`, {
+        origin: 'http://127.0.0.1:5173',
+      })
+      onTestFinished(() => elsewhere.socket.close())
+      for (const stranger of [elsewhere.terminal, terminal]) {
+        const refused = {code: 'PTY_NOT_FOUND'}
+        await expect(stranger.output({ptyId: widgetPty.id})).rejects.toMatchObject(refused)
+        await expect(stranger.write({ptyId: widgetPty.id, data: 'x'})).rejects.toMatchObject(refused)
+        await expect(stranger.resize({ptyId: widgetPty.id, cols: 80, rows: 24})).rejects.toMatchObject(refused)
+        await expect(stranger.inject({ptyId: widgetPty.id, text: 'x'})).rejects.toMatchObject(refused)
+      }
+
+      const outside = makeRpcClient(base, {
+        headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+      }).experimental.persistentPty
+      const denied = {code: 'APPROVAL_DENIED'}
+      await expect(outside.create({sessionId})).rejects.toMatchObject(denied)
+      await expect(outside.remove({ptyId: pty.id})).rejects.toMatchObject(denied)
+      await expect(outside.output({ptyId: pty.id})).rejects.toMatchObject(denied)
+      await expect(outside.write({ptyId: pty.id, data: 'x'})).rejects.toMatchObject(denied)
+      await expect(outside.resize({ptyId: pty.id, cols: 80, rows: 24})).rejects.toMatchObject(denied)
+      await expect(outside.inject({ptyId: pty.id, text: 'x'})).rejects.toMatchObject(denied)
+      expect((await terminal.create({sessionId})).id).toBe(pty.id)
+
+      expect(await terminal.remove({ptyId: pty.id})).toEqual({ok: true})
+      await expect(terminal.output({ptyId: pty.id})).rejects.toMatchObject({code: 'PTY_NOT_FOUND'})
+    },
+  )
+
+  it(
+    'a reader that stops reading its rpc socket gets SLOW_CONSUMER instead of the engine buffering the output for it',
+    {timeout: 60_000},
+    async () => {
+      const {root, engine, sessionId, terminal} = await startTerminalEngine(
+        'conciv-terminal-slow-',
+        'fake-terminal-slow',
+      )
+      const pty = await terminal.create({sessionId})
+      const slow = await openRpcSocket(`ws://127.0.0.1:${engine.port}/t/${engine.agentToken}${RPC_WS_PATH}`)
+      onTestFinished(() => slow.socket.close())
+      const reader = await readTerminal(slow.terminal, pty.id)
+      await until(() => metaCursor(reader) !== undefined)
+      slow.socket.pause()
+      const flood = "head -c 33554432 /dev/zero | tr '\\0' x; echo; echo flood-$((3+3))-over; touch flood-done\r"
+      await terminal.write({ptyId: pty.id, data: flood})
+      await until(() => existsSync(join(root, 'flood-done')), {hangGuardMs: 30_000})
+      slow.socket.resume()
+      const delivered = until(() =>
+        reader.items
+          .slice(-8)
+          .flatMap((item) => (item.type === 'output' ? [item.data] : []))
+          .join('')
+          .includes('flood-6-over'),
+      ).then(
+        () => 'all delivered',
+        () => 'never delivered',
+      )
+      expect(await Promise.race([reader.ended, delivered])).toMatchObject({code: 'SLOW_CONSUMER'})
+    },
+  )
+
+  const trustedBrowserTerminal = async (prefix: string) => {
+    const {root, engine, rpc, sessionId, terminal} = await startTerminalEngine(prefix, 'fake-terminal-revoke')
     const pty = await rpc.experimental.persistentPty.create({sessionId})
     const browserToken = engine.trustBrowser(
       {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'},
       Date.now(),
     )
-    const browserTicketUrl = async (): Promise<string> => {
-      const url = new URL(await connectUrl(`${origin}/t/${browserToken}`, pty.id))
-      url.pathname = url.pathname.replace(`/t/${browserToken}`, '')
-      return url.toString()
-    }
-    const openAsBrowser = async (url: string) => {
-      const terminal = await openTerminalSocket(url)
-      const closes: number[] = []
-      terminal.socket.on('close', (code) => closes.push(code))
-      terminal.socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: browserToken}))
-      return {...terminal, closes}
+    const openAsBrowser = async () => {
+      const opened = await openRpcSocket(`ws://127.0.0.1:${engine.port}${RPC_WS_PATH}`, {trust: browserToken})
+      onTestFinished(() => opened.socket.close())
+      return opened
     }
     const revoke = (): void => {
       revokeBrowsers(concivStateDir(root), 'all')
     }
     const shownToEngine = async (proof: string): Promise<string> => {
-      const witness = await openTerminalSocket(await connectUrl(base, pty.id))
-      witness.socket.send(`\recho ${proof}-$((3+4))\r`)
+      const witness = await readTerminal(terminal, pty.id)
+      await terminal.write({ptyId: pty.id, data: `\recho ${proof}-$((3+4))\r`})
       await shows(witness, `${proof}-7`)
-      witness.socket.close()
+      witness.stop()
       return witness.text()
     }
-    return {browserTicketUrl, openAsBrowser, revoke, shownToEngine}
+    const written = (client: PtyClient, data: string): Promise<string> =>
+      client.write({ptyId: pty.id, data}).then(
+        () => 'written',
+        () => 'refused',
+      )
+    return {ptyId: pty.id, openAsBrowser, revoke, shownToEngine, written}
   }
 
   it(
-    'revoking a browser closes its terminal socket with 1008, and nothing it writes afterwards reaches the terminal',
+    'revoking a browser fails its terminal output with UNAUTHORIZED, closes its rpc socket with 1008, and nothing it writes afterwards reaches the terminal',
     {timeout: 20_000},
     async () => {
       const browser = await trustedBrowserTerminal('conciv-terminal-revoke-live-')
-      const kept = await browser.openAsBrowser(await browser.browserTicketUrl())
-      kept.socket.send('\recho kept-$((40+2))\r')
-      await shows(kept, 'kept-42')
+      const kept = await browser.openAsBrowser()
+      const reader = await readTerminal(kept.terminal, browser.ptyId)
+      expect(await browser.written(kept.terminal, '\recho kept-$((40+2))\r')).toBe('written')
+      await shows(reader, 'kept-42')
 
       browser.revoke()
+      expect(await reader.ended).toMatchObject({code: 'UNAUTHORIZED'})
       await until(() => kept.closes.length > 0)
       expect(kept.closes).toEqual([1008])
-      kept.socket.send('\recho late-$((5+6))\r')
+      expect(await browser.written(kept.terminal, '\recho late-$((5+6))\r')).toBe('refused')
       expect(await browser.shownToEngine('after-late')).not.toContain('late-11')
     },
   )
 
   it(
-    'a terminal ticket a browser was given before its revoke opens no terminal after it: the socket closes 1008',
+    'a browser that opens its rpc socket after its revoke gets no terminal: its output and writes are refused UNAUTHORIZED and nothing reaches the terminal',
     {timeout: 20_000},
     async () => {
-      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-ticket-')
-      const minted = await browser.browserTicketUrl()
+      const browser = await trustedBrowserTerminal('conciv-terminal-revoke-stale-')
       browser.revoke()
 
-      const stale = await browser.openAsBrowser(minted)
-      stale.socket.send('\recho stale-$((2+3))\r')
-      await until(() => stale.closes.length > 0)
-      expect(stale.closes).toEqual([1008])
+      const stale = await browser.openAsBrowser()
+      const unauthorized = {code: 'UNAUTHORIZED'}
+      await expect(stale.terminal.output({ptyId: browser.ptyId})).rejects.toMatchObject(unauthorized)
+      await expect(stale.terminal.write({ptyId: browser.ptyId, data: '\recho stale-$((2+3))\r'})).rejects.toMatchObject(
+        unauthorized,
+      )
       expect(await browser.shownToEngine('after-stale')).not.toContain('stale-5')
     },
   )

@@ -1,5 +1,4 @@
 import {z} from 'zod'
-import {PageCaptureBundleSchema} from './element-capture-types.js'
 import {CODE_MODE_TIMEOUT_MS} from './chat-types.js'
 
 export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
@@ -8,37 +7,12 @@ export const PLUGIN_OVERLAY_ATTR = 'data-conciv-overlay'
 
 export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${EFFECTS_SURFACE_ATTR}], [${PLUGIN_OVERLAY_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
 
-export const PAGE_QUEUE_TOOL = 'page_queue'
 export const PAGE_QUEUE_ASYNC_TOOL = 'page_queue_async'
 export const PAGE_QUEUE_SYNC_MS = CODE_MODE_TIMEOUT_MS - 30_000
 export const PAGE_QUEUE_MAX_ACTIONS = 50
 export const PAGE_QUEUE_STOPPED = 'QUEUE_STOPPED'
 export const PAGE_QUEUE_REFUSED = 'QUEUE_REFUSED'
 export const PAGE_QUEUE_STOPPED_MESSAGE = 'stopped by the user before this action'
-
-export const PageQueueSlotSchema = z.object({
-  id: z.string().min(1),
-  index: z.number().int().min(-1),
-  of: z.number().int().min(1),
-})
-export type PageQueueSlot = z.infer<typeof PageQueueSlotSchema>
-
-export const PageQuerySchema = z.object({
-  requestId: z.string().optional(),
-  agentId: z.string().min(1).describe('the agent the page call acts for; keys its cursor on the page'),
-  name: z.string().min(1).describe('registry tool name whose client body runs in the page'),
-  input: z.record(z.string(), z.unknown()).describe('schema-validated input for the named tool'),
-  mutating: z.boolean().optional().describe('an act call, played in turn behind a queue playing on the tab'),
-  queue: z
-    .object({id: z.string().min(1), replies: z.array(z.string().min(1)).min(1)})
-    .optional()
-    .describe('a page_queue call: the queue id and the request id each played action replies with'),
-  queued: PageQueueSlotSchema.optional().describe('the queue slot this action plays in'),
-})
-
-export const PageQueueActionsSchema = z.object({actions: z.array(z.looseObject({tool: z.string().min(1)})).min(1)})
-
-export type PageQuery = z.infer<typeof PageQuerySchema>
 
 export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handler-error'] as const
 export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
@@ -59,16 +33,6 @@ export const PageErrorSchema = z.object({
 })
 export type PageError = z.infer<typeof PageErrorSchema>
 
-const PageOutcomeSchema = z.discriminatedUnion('ok', [
-  z.object({
-    ok: z.literal(true),
-    result: z.record(z.string(), z.unknown()).default({}),
-    capture: PageCaptureBundleSchema.optional(),
-  }),
-  z.object({ok: z.literal(false), error: PageErrorSchema}),
-])
-export type PageOutcome = z.infer<typeof PageOutcomeSchema>
-
 export type PageFailureError = {code: PageErrorCode; message: string; raised?: PageRaisedError}
 
 export type PageFailure = Error & {readonly isPageFailure: true; error: PageFailureError}
@@ -81,9 +45,6 @@ export function pageFailure(code: PageErrorCode, message: string, raised?: PageR
 export function isPageFailure(value: unknown): value is PageFailure {
   return value instanceof Error && 'isPageFailure' in value && value.isPageFailure === true
 }
-
-export const PageReplySchema = z.object({requestId: z.string(), outcome: PageOutcomeSchema})
-export type PageReply = z.infer<typeof PageReplySchema>
 
 export const PageChangeEntrySchema = z.object({
   seq: z.number(),

@@ -17,7 +17,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `collectClientTools` / `collectClientEffects` / `collectToolRenderers` / `collectAttachmentCards` / `resolveCaptureMode` (`collect-client.ts`)
 - `getExtensionApi` (`extension-api.ts`)
 - `useScope` (`use-scope.ts`): an `ExtensionScope` whose `settings` follow the engine over `settings.changes`; the stream closes on owner cleanup
-- `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useDialog, useSessionId, useGrab, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
+- `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useDialog, useSessionId, useGrab, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useColorScheme
 - `HostWiring` / `HostApiContext` / `use` / `useExtensionValue` (`host-context.ts`)
 - `MountedExtension` / `MountedSurface` / `MountedView` (`mount-extension.tsx`)
 - `ensureEffectsSurface` / `openSource` (`client-host.ts`); `EFFECTS_SURFACE_ATTR` / `CONCIV_UI_SELECTOR` re-exported from `@conciv/protocol/page-types`
@@ -30,7 +30,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `createSettingsStore` (`settings-store.ts`): the `SettingsStore` surface (get, set, delete, all, onChange) over a lazily resolved `SettingsState`, shared by the engine and the client
 - `createClientSettings(rpc, namespace, signal?)` (`settings-client.ts`): `{global, project}` stores that follow `settings.changes`, answer reads from the latest snapshot after the first one, run each store's calls in order, and ignore a snapshot older than the one held
-- `ExtensionSlot` (`types.ts`): 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract, its `settings` reads the extension's own parsed settings), `ExtensionSettingsSchema`, `NoSettings`, `InferSettings`, `SettingsReader`, `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
+- `ExtensionSlot` (`types.ts`): 'composer' | 'empty' | 'status' | 'widget' | 'surface'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract, its `settings` reads the extension's own parsed settings), `ExtensionSettingsSchema`, `NoSettings`, `InferSettings`, `SettingsReader`, `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
 
 ## Invariants
 

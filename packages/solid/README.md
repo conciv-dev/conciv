@@ -19,10 +19,10 @@ Renders a single empty anchor `<div>`; the widget mounts into it inside a shadow
 
 Props (all optional): `extensions` (conciv extensions to load: an array, or a `() => Promise<AnyExtension[]>` loader), `settings` (same shape as the `conciv-widget` meta config), `apiBase` (conciv server URL; defaults to the meta/query resolution). The Terminal panel is built into the widget: no extension is needed for it.
 
-In SSR setups (SolidStart), pass `extensions` as a loader with a dynamic import (the example loads `@conciv/extension-tanstack`, which you install yourself); extension client modules are browser code and must not be imported during the server render:
+In SSR setups (SolidStart), pass `extensions` as a loader with a dynamic import (the example loads `@conciv/extension-recorder`, which you install yourself); extension client modules are browser code and must not be imported during the server render:
 
 ```tsx
-const extensions = () => import('@conciv/extension-tanstack/client').then((mod) => [mod.default])
+const extensions = () => import('@conciv/extension-recorder/client').then((mod) => [mod.default])
 
 <ConcivWidget extensions={extensions} />
 ```
@@ -38,7 +38,7 @@ Published package that wraps @conciv/embed in a Solid `<ConcivWidget />` compone
 ## Interface
 
 - `exports['.']` (`package.json`): ./dist/index.js with ./dist/index.d.ts; sideEffects false; engines node &gt;=26.0.0
-- `dependencies` / `peerDependencies` (`package.json`): @conciv/embed and peer solid-js &gt;=1.8
+- `dependencies` / `peerDependencies` (`package.json`): @conciv/embed and peer solid-js ^1.8
 - `scripts.test` (`package.json`): `vite build --config vite.fixture.config.ts && vitest run`; also build (tsdown), typecheck, lint, publint, attw
 - `tsdown.config.ts`: entry src/index.ts, esm, dts; externals @conciv/*, solid-js, solid-js/web
 - `vite.fixture.config.ts`: root test/fixtures/host, vite-plugin-solid, output to test/dist

@@ -1,4 +1,4 @@
-import type {ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent} from '@conciv/plugin/experimental'
 import {anchorCard} from './anchor-card.js'
 import {canvasCard} from './canvas-card.js'
 import {commentCard} from './comment-card.js'
@@ -27,4 +27,4 @@ export const whiteboardCards = {
   whiteboard_pin_set_state: commentCard,
   whiteboard_element_reference: elementCard,
   whiteboard_anchor_resolve: anchorCard,
-} satisfies Record<string, ToolCardView>
+} satisfies Record<string, ToolComponent>

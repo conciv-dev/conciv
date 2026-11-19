@@ -20,7 +20,7 @@ import {
   proxyTo,
   type ProxyCore,
   type WidgetSuite,
-  openPagePlaneHost,
+  awaitTabAttached,
   captureNativePosts,
   installNativeStub,
   type NativeBridge,
@@ -54,6 +54,7 @@ import {makeRpcClient, type DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/plugin-testkit/rpc-wire'
 import {rpcObserverFor, type RpcObserver} from '@conciv/plugin-testkit/rpc-observer'
 import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
+import {rpcCallCursor} from '@conciv/plugin-testkit/rpc-counts'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/plugin-testkit/connect-handshake'
@@ -198,10 +199,25 @@ test.describe('embed boot', () => {
 
 test.describe('composer rich input', () => {
   const ASSISTANT_TEXT = 'Rich input reply'
+  const MENTION_PROBE_PLUGIN = `export default {
+  id: 'mention-probe',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'mention_probe',
+        description: 'Probes the mention list',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      })
+    })
+  },
+}
+`
 
   const suite = setupWidgetSuite({
     text: ASSISTANT_TEXT,
     extensions: [recorderServer],
+    files: {'conciv/plugins/mention-probe.ts': MENTION_PROBE_PLUGIN},
     commands: [
       {name: 'compact', description: 'Compact the conversation'},
       {name: 'config', description: 'Open configuration'},
@@ -249,18 +265,42 @@ test.describe('composer rich input', () => {
       await pickSuggestion(page, 'Commands', '/config')
 
       await input.pressSequentially('then ')
+      await input.pressSequentially('@report')
+      await pickSuggestion(page, 'Context', '@report')
+
       await input.pressSequentially('@recording_start')
-      await pickSuggestion(page, 'Tools', '@recording_start')
+      await pickSuggestion(page, 'Context', '@recording_start')
+
+      await input.pressSequentially('@mention_probe')
+      await pickSuggestion(page, 'Context', '@mention_probe')
 
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @recording_start \nsecond line'
+      const expected = 'please run /config then @report @recording_start @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)
       await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
       await expect(input).toHaveText('')
+    })
+
+    test('typed text and an attached text file reach the wire as separate paragraphs', async ({page}) => {
+      test.setTimeout(180_000)
+      const wire = watchChatWire(page)
+      await openComposer(page)
+      const input = composer(page)
+
+      await input.pressSequentially('hello')
+      const chooser = page.waitForEvent('filechooser')
+      await page.getByRole('button', {name: 'Add an attachment'}).click()
+      await (await chooser).setFiles({name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('the file body')})
+      await expect(panel(page).getByRole('button', {name: 'Remove x.txt'})).toBeVisible({timeout: 10_000})
+
+      const sent = wire.nextTurn().then((turn) => turn.content)
+      await page.getByRole('button', {name: 'Send message'}).click()
+      expect(await sent).toBe('hello\n\nAttachment x.txt:\nthe file body')
+      await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     })
 
     test('backspace removes a selected command chip in two steps, never a partial directive', async ({page}) => {
@@ -635,7 +675,7 @@ test.describe('element capture', () => {
     await kit.cleanup()
   })
 
-  const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, kit, host.base)
+  const openHostPage = (page: Page): Promise<void> => openLoggedIn(page, kit, host.base)
 
   function rowIdentities(stored: SessionCaptures): string[] {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
@@ -658,6 +698,7 @@ test.describe('element capture', () => {
     await openHostPage(page)
     await openPanel(page)
     await switchToSessionByTitle(page, title)
+    await awaitTabAttached(kit, fresh.sessionId)
     return fresh.sessionId
   }
 
@@ -697,11 +738,18 @@ test.describe('element capture', () => {
       expect(JSON.stringify(stored)).not.toContain(PASSWORD)
     })
 
-    test('hands the harness a result with no capture in it', async ({page}) => {
+    test('hands the harness a result with no capture in it, through the page plugin alone', async ({page}) => {
       test.setTimeout(90_000)
+      const socketPaths = new Set<string>()
+      page.on('websocket', (socket) => socketPaths.add(new URL(socket.url()).pathname))
+      await rpcSocketFor(page).installed
+      const calls = rpcCallCursor(page)
       const chatSessionId = await openSessionPanel(page, 'harness result')
       const result = await runInChat(page, chatSessionId, "return await external_page_click({selector: '#cta'})")
       expect(result).toContain('"success":true')
+      expect(calls.startedSince(['page', 'queries'])).toBe(0)
+      expect(calls.startedSince(['page', 'reply'])).toBe(0)
+      expect([...socketPaths].toSorted()).toEqual([CHAT_WS_PATH, RPC_WS_PATH].toSorted())
       expect(JSON.stringify(result)).not.toContain('cssBundleId')
       expect(JSON.stringify(result)).not.toContain('selectorPath')
       expect(JSON.stringify(result)).not.toContain('data-rr-target')
@@ -727,6 +775,7 @@ test.describe('element capture', () => {
       await openHostPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, fresh.sessionId)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
       })
@@ -752,6 +801,7 @@ test.describe('element capture', () => {
       await openHostPage(page)
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, fresh.sessionId)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_click({selector: '#cta'})",
       })
@@ -1452,7 +1502,7 @@ test.describe('native widget', () => {
 
 test.describe('page dispatch parity', () => {
   const HOST_BODY = `
-  <div id="probe">page-bus-ok</div>
+  <div id="probe">page-probe-ok</div>
   <button id="press-btn" onclick="document.getElementById('clicked-flag').textContent='clicked'">Press target</button>
   <output id="clicked-flag"></output>
 `
@@ -1490,12 +1540,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `page dispatch ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1538,7 +1589,7 @@ test.describe('page dispatch parity', () => {
     })
   })
 
-  test.describe('bootConnect: the connect handle serves page tools through the dispatcher', () => {
+  test.describe('servers mode: the connect handle serves page tools through the dispatcher', () => {
     let kit: EmbedKit
     let host: {base: string; close: () => Promise<void>}
     let page: Page
@@ -1602,7 +1653,7 @@ test.describe('page dispatch parity', () => {
 
     test('holding Alt and clicking a page element with no source says so', async () => {
       const hint = page.getByRole('status').filter({hasText: 'Inspecting'})
-      const probe = page.getByText('page-bus-ok')
+      const probe = page.getByText('page-probe-ok')
 
       await probe.click()
       await expect(hint).toHaveCount(0)
@@ -1632,12 +1683,13 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       title = `deleted while open ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1652,12 +1704,12 @@ test.describe('page dispatch parity', () => {
         path: ['plugin', 'call'],
         input: {rpcId: 'experimental.page', method: 'attach', input: {sessionId: deleted}},
       }
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       const ended = wire.completed(attach)
       await kit.rpc.sessions.delete({sessionId: deleted})
       await ended
       const since = wire.mark()
-      await page.getByText('page-bus-ok').click()
+      await page.getByText('page-probe-ok').click()
       const refused = await wire.completed({...attach, since})
       expect(refused.output).toMatchObject({message: `session "${deleted}" does not exist`, data: {type: 'missing'}})
       await page.reload({waitUntil: 'domcontentloaded'})
@@ -1686,12 +1738,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `restart untouched ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
     })
 
     test.afterAll(async () => {
@@ -1706,10 +1759,10 @@ test.describe('page dispatch parity', () => {
         kit.rpc.plugin
           .call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}})
           .then((attached) => AttachedSchema.parse(attached))
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       await kit.restartServer()
       await expect.poll(attachedNow, {timeout: 30_000}).toContain(sessionId)
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
     })
   })
 
@@ -1730,7 +1783,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1776,7 +1829,7 @@ test.describe('page dispatch parity', () => {
           )
           .join('\n')
       }
-      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-bus-ok')
+      await expect.poll(toolResults, {timeout: 30_000}).toContain('page-probe-ok')
     })
   })
 
@@ -1803,7 +1856,7 @@ test.describe('page dispatch parity', () => {
       page = await browser.newPage()
       wire = rpcObserverFor(page)
       await rpcSocketFor(page).installed
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
     })
 
@@ -1827,7 +1880,7 @@ test.describe('page dispatch parity', () => {
       expect(await attachedNow()).not.toContain(existing)
       database.exec('DROP TRIGGER refuse_page_grant')
       await expect.poll(attachedNow, {timeout: 30_000}).toContain(existing)
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
     })
   })
 
@@ -1844,12 +1897,13 @@ test.describe('page dispatch parity', () => {
         hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
       )
       const page = await browser.newPage()
-      await openPagePlaneHost(page, kit, host.base)
+      await openLoggedIn(page, kit, host.base)
       const shown = await kit.session()
       const title = `headless eval ${shown.slice(-12)}`
       await kit.rpc.sessions.rename({sessionId: shown, title})
       await openPanel(page)
       await switchToSessionByTitle(page, title)
+      await awaitTabAttached(kit, shown)
       return {kit, host, page}
     }
 
@@ -1907,7 +1961,7 @@ test.describe('page dispatch parity', () => {
 
     test('with no rule in the host config, eval fails at once asking for approval and the page is untouched', async () => {
       const {kit, page} = refused
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
         code: 1,
         document: {
@@ -1919,12 +1973,12 @@ test.describe('page dispatch parity', () => {
           },
         },
       })
-      await expect(page.getByText('page-bus-ok', {exact: true})).toBeVisible()
+      await expect(page.getByText('page-probe-ok', {exact: true})).toBeVisible()
     })
 
     test('with page_eval allowed in the host config, eval runs with no click and the page shows its effect', async () => {
       const {kit, page} = allowed
-      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-bus-ok'})
+      await expect(pageRun(kit, {type: 'text', selector: '#probe'})).resolves.toMatchObject({text: 'page-probe-ok'})
       expect(await toolsPage(kit, ['eval', '--code', EVAL])).toEqual({
         code: 0,
         document: {ok: true, data: {result: 'evaluated'}},
@@ -2599,6 +2653,73 @@ test.describe('reload continuity', () => {
       await page.reload({waitUntil: 'domcontentloaded'})
 
       await expect(chatBox(page)).toHaveText('typed then reloaded at once')
+    })
+
+    test('text typed and reloaded while another tab holds the draft database is back in the composer', async ({
+      page,
+    }) => {
+      await openPanelOnNewSession(page, suite)
+      const otherTab = await page.context().newPage()
+      try {
+        await otherTab.goto(`${suite.host().base}/conciv-widget.global.js`, {waitUntil: 'domcontentloaded'})
+        await otherTab.evaluate(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              const opening = indexedDB.open('conciv-drafts', 1)
+              opening.addEventListener('error', () => reject(opening.error))
+              opening.addEventListener('success', () => {
+                const documents = opening.result.transaction('documents', 'readwrite').objectStore('documents')
+                const hold = () => {
+                  if (Reflect.get(window, 'releaseDrafts') === true) return
+                  documents.count().addEventListener('success', hold)
+                }
+                hold()
+                resolve()
+              })
+            }),
+        )
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('typed while another tab writes')
+        await page.reload({waitUntil: 'domcontentloaded'})
+        await otherTab.evaluate(() => Reflect.set(window, 'releaseDrafts', true))
+
+        await expect(chatBox(page)).toHaveText('typed while another tab writes')
+      } finally {
+        await otherTab.close()
+      }
+    })
+
+    test('a draft kept only in this browser survives another tab loading before it is trusted', async ({page}) => {
+      const KEPT = 'kept here while another tab logs in'
+      const context = page.context()
+      const refused = await failRpcCalls(page, {path: ['drafts', 'set']})
+      const lastRefused = await failRpcCalls(page, {path: ['drafts', 'set'], input: {text: KEPT}})
+      const otherEngine = await proxyTo(suite.kit().base)
+      try {
+        const sessionId = await openPanelOnNewSession(page, suite)
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially(KEPT)
+        await lastRefused.answered()
+        await page.close()
+
+        const untrusted = await context.newPage()
+        await untrusted.goto(`${suite.host().base}/?apiBase=${encodeURIComponent(otherEngine.base)}`, {
+          waitUntil: 'domcontentloaded',
+        })
+        await expect(untrusted.getByRole('button', {name: 'Unauthorized. Authorize conciv'})).toBeVisible()
+
+        const later = await context.newPage()
+        await openLoggedIn(later, suite.kit(), suite.host().base)
+        await openPanel(later)
+        await switchToSessionByTitle(later, `session under test ${sessionId.slice(-12)}`)
+        await expect(chatBox(later)).toHaveText(KEPT)
+      } finally {
+        await lastRefused.dispose()
+        await refused.dispose()
+        await otherEngine.close()
+      }
     })
 
     test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({

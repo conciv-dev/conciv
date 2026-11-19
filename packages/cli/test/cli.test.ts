@@ -34,8 +34,10 @@ import {
 import {readApprovalAsk, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {pageTabs, type PageAnswer, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
-import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
+import {makeRpcClient, SOCKET_TRUST_FRAME, type RpcClient} from '@conciv/contract'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {createORPCClient} from '@orpc/client'
+import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
@@ -79,7 +81,6 @@ import {claudeInit} from '@conciv/harness-init/claude'
 import {type HarnessInitIo, harnessInitStep} from '../src/init/steps/harness/install-harness.js'
 import {hasIt, installItStep} from '../src/init/steps/install-it.js'
 import {
-  answerNextQuery,
   bootCli,
   captureStdout,
   cliSession,
@@ -93,6 +94,7 @@ import {
   statusById,
   stepContext,
   readSteps,
+  type SeenQuery,
 } from './helpers.js'
 
 const DiscoverTextSchema = z.tuple([z.object({type: z.literal('text'), text: z.string()})])
@@ -108,6 +110,18 @@ const elementTarget = {
   name: z.string().optional().describe('component name (targets the first match)'),
 }
 
+const servedCalls: SeenQuery[] = []
+
+function serve<Output>(name: string, input: Record<string, unknown>, output: Output): Output {
+  servedCalls.push({name, input})
+  return output
+}
+
+function nextServedCall(): {seen: () => SeenQuery | null} {
+  const from = servedCalls.length
+  return {seen: () => servedCalls[from] ?? null}
+}
+
 const formTools = defineExtension({
   name: 'acme-form',
   tools: [
@@ -117,14 +131,14 @@ const formTools = defineExtension({
       inputSchema: z.object(elementTarget),
       outputSchema: z.object({ok: z.boolean()}),
       meta: {summary: 'click an element', positional: 'selector', mutating: true},
-    }).client(),
+    }).server((input) => serve('acme_click', input, {ok: true})),
     defineTool({
       name: 'acme_fill',
       description: 'Type a value into a form field.',
       inputSchema: z.object({...elementTarget, value: z.string().describe('the value to type')}),
       outputSchema: z.object({ok: z.boolean()}),
       meta: {summary: 'type a value into a form field', positional: 'selector', mutating: true},
-    }).client(),
+    }).server((input) => serve('acme_fill', input, {ok: true})),
     defineTool({
       name: 'acme_override',
       description: 'Patch a slice of a live component.',
@@ -137,7 +151,7 @@ const formTools = defineExtension({
       }),
       outputSchema: z.object({ok: z.boolean()}),
       meta: {summary: 'patch a slice of a live component', positional: 'selector', mutating: true},
-    }).client(),
+    }).server((input) => serve('acme_override', input, {ok: true})),
   ],
 })
 
@@ -155,8 +169,8 @@ describe('cli', () => {
 
     describe('conciv CLI argument rejection', () => {
       it('rejects a mistyped flag with the closest known flag and never runs the verb', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         const code = await runCli(cliMain, ['tools', 'acme', 'click', '--refs', 'e12'])
         expect(code).toBe(1)
         expect(answer.seen()).toBeNull()
@@ -166,11 +180,11 @@ describe('cli', () => {
       })
 
       it('rejects a mistyped kebab spelling of a real flag and keeps accepting the real one', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
+        await bootCli(cleanups, {extensions: [formTools]})
         expect(await runCli(cliMain, ['tools', 'acme', 'override', '#a', '--hook-idx', '2'])).toBe(1)
         expect(failureText()).toContain('--hookId')
         written.length = 0
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, target: 'hooks', path: ''}})
+        const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
             'tools',
@@ -192,8 +206,8 @@ describe('cli', () => {
       })
 
       it('rejects an unknown flag placed before the first or a nested subcommand instead of dropping it', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', '--bogus', 'acme', 'click', '#a'])).toBe(1)
         expect(failureText()).toContain('--bogus')
         written.length = 0
@@ -203,8 +217,8 @@ describe('cli', () => {
       })
 
       it('still accepts an envelope flag placed before a nested subcommand', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', '--json', 'acme', 'click', '#a'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_click'})
       })
@@ -224,16 +238,16 @@ describe('cli', () => {
       })
 
       it('rejects a positional passed as a flag and says how to pass it', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'click', '--selector', '#a'])).toBe(1)
         expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('selector')
       })
 
       it('rejects an extra positional instead of dropping it', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'click', '#a', '#b'])).toBe(1)
         expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('#b')
@@ -353,7 +367,7 @@ describe('cli', () => {
         label: {running: 'Raising the beacon', done: 'Raised the beacon'},
         mutating: true,
       },
-    }).client()
+    }).server((input) => serve('acme_beacon', input, {raised: true}))
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
 
@@ -363,7 +377,7 @@ describe('cli', () => {
       inputSchema: z.object({}),
       outputSchema: z.object({green: z.boolean()}),
       meta: {summary: 'report the acme status board', mutating: false},
-    }).client()
+    }).server((input) => serve('server_status', input, {green: true}))
 
     const paint = defineTool({
       name: 'acme_paint',
@@ -378,7 +392,7 @@ describe('cli', () => {
       }),
       outputSchema: z.object({painted: z.boolean()}),
       meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
-    }).client()
+    }).server((input) => serve('acme_paint', input, {painted: true}))
 
     const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
 
@@ -399,8 +413,8 @@ describe('cli', () => {
 
     describe('the CLI reads its commands from the tool declarations', () => {
       it('sends every repeat of an array flag to the server as one array', async () => {
-        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
             'tools',
@@ -420,8 +434,8 @@ describe('cli', () => {
       })
 
       it('resolves a relative path flag against the CLI working directory', async () => {
-        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = nextServedCall()
         const home = process.cwd()
         const dir = tempDir('conciv-path-flag-')
         writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
@@ -447,24 +461,24 @@ describe('cli', () => {
       })
 
       it('serves a group from an extension the CLI has never heard of', async () => {
-        const kit = await bootCli(cleanups, {extensions: [beaconExtension]})
+        await bootCli(cleanups, {extensions: [beaconExtension]})
         expect(await helpText(['tools', 'acme', '--help'])).toContain('raise the acme beacon over the page')
-        const answer = await answerNextQuery(kit, {ok: true, result: {raised: true}})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
       })
 
       it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
-        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {green: true}})
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'server_status'})
         expect(onlyDocument(written)).toMatchObject({ok: true, data: {green: true}})
       })
 
       it('parses object and array-of-object flags as JSON before sending them', async () => {
-        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
             'tools',
@@ -485,8 +499,8 @@ describe('cli', () => {
       })
 
       it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
-        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = nextServedCall()
         expect(
           await runCli(cliMain, [
             'tools',
@@ -520,15 +534,15 @@ describe('cli', () => {
       })
 
       it('clears a field when the value is explicitly empty', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email', '--value', ''])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_fill', input: {selector: '#email', value: ''}})
       })
 
       it('still refuses a required flag that was never passed at all', async () => {
-        const kit = await bootCli(cleanups, {extensions: [formTools]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
+        await bootCli(cleanups, {extensions: [formTools]})
+        const answer = nextServedCall()
         expect(await runCli(cliMain, ['tools', 'acme', 'fill', '#email'])).toBe(1)
         expect(answer.seen()).toBeNull()
       })
@@ -980,30 +994,48 @@ describe('cli', () => {
         const token = await loginThroughTerminal(origin, () => printed.join('\n'))
         const call = async () => fetchStatus(`/t/${token}`)
         expect(await call()).not.toBe(401)
-        const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
-        const serving: PageServingFrame = {channel: 'page-serving', serving: true}
-        const pushSocket = (prefix: string, frames: unknown[]) => {
-          const socket = new WebSocket(
-            `ws://127.0.0.1:${engine.port}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
-          )
-          socket.addEventListener('open', () => frames.forEach((frame) => socket.send(JSON.stringify(frame))))
-          return socket
+        const rpcSocket = (prefix: string, trustToken?: string) => {
+          const websocket = new WebSocket(`ws://127.0.0.1:${engine.port}${prefix}${RPC_WS_PATH}`)
+          if (trustToken !== undefined) {
+            websocket.addEventListener('open', () =>
+              websocket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: trustToken})),
+            )
+          }
+          return websocket
         }
-        const framed = pushSocket('', [{type: SOCKET_TRUST_FRAME, token}, serving])
-        const [browser, agent] = [
-          pushSocket(`/t/${token}`, [serving]),
-          pushSocket(`/t/${engine.agentToken}`, [serving]),
-        ]
-        await Promise.all(
-          [browser, agent, framed].map((socket) => once(socket, 'message', {signal: AbortSignal.timeout(3_000)})),
+        const openChanges = async (websocket: WebSocket) => {
+          const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket}))
+          const stream = await rpc.settings.changes({scope: 'project', namespace: 'revoke-probe'})
+          const first = await stream.next()
+          return {kind: first.done ? 'ended' : 'snapshot', stream}
+        }
+        const framed = rpcSocket('', token)
+        const [browser, agent] = [rpcSocket(`/t/${token}`), rpcSocket(`/t/${engine.agentToken}`)]
+        const [browserChanges, agentChanges, framedChanges] = await Promise.all(
+          [browser, agent, framed].map(openChanges),
         )
+        expect([browserChanges?.kind, agentChanges?.kind, framedChanges?.kind]).toEqual([
+          'snapshot',
+          'snapshot',
+          'snapshot',
+        ])
         const closedCode = async (socket: WebSocket) =>
           z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
+        const pulled = Promise.all(
+          [browserChanges, framedChanges].map((changes) =>
+            changes?.stream.next().then(
+              () => 'yielded',
+              (error: unknown) => error,
+            ),
+          ),
+        )
         runRevoke({all: true, cwd: project.nested})
         expect([await call(), await fetchStatus(`/t/${linkedToken}`)]).toEqual([401, 401])
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
+        const refused = {code: 'UNAUTHORIZED', message: 'this browser is no longer trusted'}
+        expect(await pulled).toMatchObject([refused, refused])
         agent.close()
       } finally {
         await engine.stop()
@@ -1322,7 +1354,7 @@ describe('cli', () => {
         inputSchema: z.object({brightness: z.number().int().min(1)}),
         outputSchema: z.object({lit: z.boolean()}),
         meta: {summary: 'light the lantern over the page', category: 'act', mutating: true},
-      }).client()
+      }).server(() => ({lit: true}))
       const cwdEngine = await engineWithTab(home)
       const holder = await engineWithTab(home, {extensions: [defineExtension({name: 'lantern', tools: [lantern]})]})
       const project = tempDir('conciv-project-')
@@ -2556,7 +2588,10 @@ describe('cli', () => {
           seen.push(chunk)
           if (chunk.type === ChatEventType.RUN_FINISHED) break
         }
-        expect(JSON.stringify(seen.at(-2))).toMatch(/abort/i)
+        const result = seen.findLast(
+          (chunk) => z.object({type: z.literal(ChatEventType.TOOL_CALL_RESULT)}).safeParse(chunk).success,
+        )
+        expect(JSON.stringify(result)).toMatch(/abort/i)
         await silent.cancelled(requestId)
         await expect(silent.command(requestId)).rejects.toThrow('Page request is no longer available.')
       } finally {
@@ -3287,10 +3322,11 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never an extension, the harness or an agent sdk', () => {
+    test('the CLI installs alone with its native addon, never an extension, the harness or an agent sdk', () => {
       const manifests = prodClosureDirs().map(readManifest)
       const names = manifests.map((manifest) => manifest.name)
-      expect(names).toContain('@conciv/harness-init')
+      expect(names).toEqual(['@conciv/cli'])
+      expect(manifests.flatMap((manifest) => Object.keys(manifest.dependencies))).toEqual(['@ast-grep/napi'])
       expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
       for (const banned of BANNED) expect(names).not.toContain(banned)
       for (const manifest of manifests) {

@@ -6,9 +6,9 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import conciv from '@conciv/it/plugin/vite'
 import recorder from '@conciv/extension-recorder'
-import tanstack from '@conciv/extension-tanstack'
 
 const testRunnerPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-test-runner/package.json')))
+const tanstackPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-tanstack/package.json')))
 const whiteboardPlugin = fileURLToPath(new URL('.', import.meta.resolve('@conciv/plugin-whiteboard/package.json')))
 const withNitro = process.env.CONCIV_NITRO === '1'
 
@@ -25,8 +25,8 @@ export default defineConfig(async () => {
       viteReact(),
       conciv({
         widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: [tanstack(), recorder()],
-        plugins: [testRunnerPlugin, whiteboardPlugin],
+        extensions: [recorder()],
+        plugins: [testRunnerPlugin, tanstackPlugin, whiteboardPlugin],
       }),
     ],
   }

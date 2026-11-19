@@ -33,21 +33,21 @@ type ToolMeta = {
 }
 ```
 
-(`packages/extension/src/define-tool.ts:5-62`.) `assertToolMeta` runs synchronously inside
+(`packages/extension/src/define-tool.ts:10-46`.) `assertToolMeta` runs synchronously inside
 `defineTool` — a bad `meta.summary` throws at module load, before any handler runs
-(`define-tool.ts:205-213`).
+(`define-tool.ts:186-194`).
 
 ## Binding rules
 
-A `ToolBuilder` starts unbound. `.server(execute)` and `.client(execute?)` each claim the binding
-exactly once — calling either a second time (including calling `.client()` again after
-`.client(fn)`) throws `tool "<name>" already has a <binding> binding` (`define-tool.ts:215-217`,
-verified by `packages/extension/test/extension.test.ts:303-312`). `.render(renderer)` is
-independent of binding and can be chained before or after `.server`/`.client`.
+A `ToolBuilder` starts unbound. `.server(execute)` is the only binding: it claims it exactly once,
+and calling it a second time throws `tool "<name>" already has a server binding`
+(`define-tool.ts:196-198`, verified by `packages/extension/test/extension.test.ts:829-832`).
+`.render(renderer)` is independent of binding and can be chained before or after `.server`. A tool
+with no binding is render-only: it carries the card for a tool whose work runs somewhere else.
 
 Derivations never leak into siblings: calling `.server(...)` on a base builder returns a _new_
-builder; the base stays unbound and can still be `.client(...)`'d separately
-(`packages/extension/test/extension.test.ts:390-407`) — this is how the split
+builder; the base stays unbound and can still be `.render(...)`'d separately
+(`packages/extension/test/extension.test.ts:331-342`) — this is how the split
 `def.ts`/`server.ts`/`client.ts` pattern below works: one `toolDefinition(...)` feeds an independent
 `defineTool(def)` call per build target.
 
@@ -55,49 +55,42 @@ builder; the base stays unbound and can still be `.client(...)`'d separately
 
 For a package meant to be installed by other apps, keep tool metadata, server execution, and card
 rendering in separate files so the server build never imports Solid and the client build never
-imports node-only code. Real example, `@conciv/extension-tanstack`:
+imports node-only code. Real example, `@conciv/extension-recorder`:
 
-```ts title="packages/extensions/tanstack/src/tool/def.ts (shape)"
+```ts title="packages/extensions/recorder/src/tool/def.ts (shape)"
 import {toolDefinition} from '@conciv/extension/tool'
-export const routerStateDef = toolDefinition({
-  name: 'tanstack_router_state',
+export const startToolDef = toolDefinition({
+  name: 'recording_start',
   description: '…',
-  inputSchema: z.object({}),
-  outputSchema: RouterCurrentSchema,
+  inputSchema: StartInput,
+  outputSchema: z.union([z.object({error: z.string()}), z.object({captureId: z.string(), startedAt: z.number()})]),
 })
 ```
 
-```ts title="packages/extensions/tanstack/src/tool/client.ts (shape)"
+```ts title="packages/extensions/recorder/src/tool/client.ts"
 import {defineTool} from '@conciv/extension'
-import {routerStateDef /* … */} from './def.js'
-import {readRouterState} from '../client/router-adapter.js'
-import {routerStateCard} from './router-state-card.js'
+import {pullToolDef, startToolDef, stopToolDef} from './def.js'
+import {recordingToolCard} from './card.js'
 
-export const tanstackClientTools = [
-  defineTool(routerStateDef)
-    .client(() => readRouterState())
-    .render(routerStateCard),
-]
+export const startToolClient = defineTool(startToolDef).render(recordingToolCard)
 ```
 
-```ts title="packages/extensions/tanstack/src/tool/server.ts (shape)"
-import {defineTool, toolError} from '@conciv/extension'
-import {routeManifestDef, TANSTACK_PAGE_TOOL_DEFS} from './def.js'
+```ts title="packages/extensions/recorder/src/tool/server.ts (shape)"
+import {defineTool} from '@conciv/extension'
+import {pullToolDef, startToolDef, stopToolDef} from './def.js'
 
-export const tanstackServerTools = [
-  defineTool(routeManifestDef).server((_input, ctx: ToolCtx, _request, _page, tools) =>
-    ctx.makeAdapter(tools).server.manifest.routes(),
-  ),
-  ...TANSTACK_PAGE_TOOL_DEFS.map(pageToolDeclaration),
-]
+export const startTool = defineTool(startToolDef).server(async (_input, ctx: Ctx) => {
+  const {captureId, startTs} = ctx.recorder.control.startCapture()
+  return {captureId, startedAt: startTs}
+})
 ```
 
-One tool per verb, one name. A page verb IS the tool: the browser build binds it with `.client(impl)`
-and hangs its card off the same builder, while the server build registers the same definition as a
-bare `.client()` declaration so the server registry knows the name exists and routes a `tools.call`
-to the page. Never wrap a page verb in a second server-bound tool under a different name — the model
-would then see two catalog entries for one capability. A tool only earns a `.server(...)` binding
-when its work genuinely happens in node (reading a manifest off disk, draining a bundler ring).
+A tool only earns a `.server(...)` binding when its work genuinely happens in node (reading a
+manifest off disk, draining a bundler ring). Work that has to happen in the page (reading the DOM,
+the router, the query cache) is not a tool binding: it is an operation of a plugin's browser half,
+which the engine calls over the plugin's connection to the tab. The page plugin answers its page
+operations in `packages/builtin-plugins/src/page/operations.ts`, and the TanStack plugin answers
+its router and query operations in `packages/plugins/tanstack/src/client/operations.ts`.
 
 The extension's `server.ts` entry imports the server tools array into its `tools`; its `client.tsx`
 entry imports the client tools array into its own. The bundler transform picks the right file per
@@ -108,7 +101,7 @@ ships as an installable package with real client/server build outputs.
 ## Error contract
 
 Declare every code a tool can throw in its `errors` field, then throw with `toolError(code,
-{message?, data?})` from inside `.server`/`.client`:
+{message?, data?})` from inside `.server`:
 
 ```ts title="removed whiteboard extension: src/tool/comment/def.ts:18,59,108"
 const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}
@@ -121,9 +114,10 @@ import {defineTool, toolError} from '@conciv/extension'
 if (!row) throw toolError('COMMENT_NOT_FOUND', {message: `comment ${cid} not found`})
 ```
 
-`isToolError(value)` (`define-tool.ts:42-44`) narrows an unknown catch value back to `ToolError &
-{code, data?}` on the render/consuming side — it checks `value instanceof Error && 'isToolError' in
-value && value.isToolError === true`, so a plain `Error` you throw yourself never satisfies it; use
+`isToolError(value)` (`packages/protocol/src/tool-call-types.ts:18-20`, re-exported from
+`define-tool.ts:7`) narrows an unknown catch value back to `ToolError &
+{code, data?}` on the render/consuming side — it checks `value instanceof Error` and an `isToolError`
+property of `true`, so a plain `Error` you throw yourself never satisfies it; use
 `toolError` to throw, not a hand-rolled `Object.assign(new Error(...), {isToolError: true})`, so the
 shape stays exactly what `isToolError` expects.
 
@@ -135,26 +129,14 @@ The widget surfaces an Approve/Deny card; from a test, `callToolApproved` (see
 `references/rpc-and-testing.md`) answers that prompt automatically so you can assert on the
 post-approval result.
 
-## Client tool context (`ClientToolCtx`)
+## Page work belongs to a plugin
 
-`.client(execute)` handlers receive `ClientToolCtx` (`packages/extension/src/define-tool.ts:28-36`):
-
-```ts
-type ClientToolCtx = {
-  document: Document
-  target: (locator: ClientToolLocator) => Element // throws if the locator can't resolve
-  resolve: (locator: ClientToolLocator) => Element | null // null instead of throwing
-  addRef: (el: Element) => string
-  resetRefs: () => void
-  consoleEntries: (since?: number) => ClientConsoleEntry[]
-  effects: readonly ClientEffect[]
-}
-```
-
-`ClientToolLocator` is `{ref?, selector?, name?}` — how the built-in page-inspection tools address
-DOM elements the agent has referenced (`packages/builtin-plugins/src/page/operations.ts:248` throws
-`toolError('UNKNOWN_EFFECT', ...)`, imported at `packages/builtin-plugins/src/page/operations.ts:19`,
-from inside a page handler using exactly this pattern).
+There is no browser-bound tool. A capability that runs in the page is an operation of a plugin's
+browser half, and the engine reaches it through that plugin's connection to the tab serving the
+session. The page plugin's operations address the elements the agent has referenced by `{ref?,
+selector?, name?}` and throw structured failures the same way a server tool does:
+`packages/builtin-plugins/src/page/operations.ts:303` throws `toolError('UNKNOWN_EFFECT', ...)`,
+imported at `packages/builtin-plugins/src/page/operations.ts:19`.
 
 ## Card renderer signature
 
@@ -162,7 +144,7 @@ from inside a page handler using exactly this pattern).
 type ToolCardProps = {
   part: ToolCallPart // the call: id, name, arguments
   result: ToolResultPart | undefined // undefined while streaming; .content / .error once landed
-  ctx: ToolViewCtx // apiBase, harnessId, sendMessage, catalog, respondApproval?, durationFor?
+  ctx: ToolViewCtx // catalog, addResult, respondApproval?
   durationMs?: number
 }
 ```

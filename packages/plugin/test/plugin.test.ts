@@ -33,8 +33,6 @@ import {
   type Transform,
 } from '../src/promise/index.js'
 import type {ServerRef} from '../src/experimental/index.js'
-import type {ToolCall} from '../src/experimental/builtin.js'
-import type {ToolCardView} from '@conciv/protocol/tool-view-types'
 import type * as SessionMessage from '../src/schema/session-message.js'
 import type {Accessor} from 'solid-js'
 import * as Experimental from '../src/experimental/index.js'
@@ -380,18 +378,6 @@ describe('experimental', () => {
     stores: {prefs: Store.global(z.object({items: z.array(z.object({shown: z.boolean()}))}), {items: []})},
   })
   const Fixture = App.define({})
-
-  it('a ToolCall either draws a finished call body or a whole tool card', () => {
-    expectTypeOf<{
-      readonly tools: readonly string[]
-      readonly card: ToolCardView
-      readonly streamTitle: string
-      readonly display: 'standalone'
-    }>().toExtend<ToolCall>()
-    expectTypeOf<{readonly tools: readonly string[]; readonly card: ToolCardView}>().toExtend<ToolCall>()
-    expectTypeOf<{readonly tools: readonly string[]; render(): undefined}>().toExtend<ToolCall>()
-    expectTypeOf<{readonly tools: readonly string[]}>().not.toExtend<ToolCall>()
-  })
 
   it('tokens carry their kind and id', () => {
     expect(Registry.define<{readonly label: string}>('details.badge')).toEqual({kind: 'registry', id: 'details.badge'})

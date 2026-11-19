@@ -18,11 +18,10 @@ export default defineConfig({
       '../core/src/cards/**/*.{ts,tsx}',
       '../builtin-plugins/src/**/*.{ts,tsx}',
       '../extensions/recorder/src/**/*.{ts,tsx}',
-      '../extensions/try-it/src/**/*.{ts,tsx}',
-      '../extensions/tanstack/src/**/*.{ts,tsx}',
       '../plugins/test-runner/src/**/*.{ts,tsx}',
       '../plugins/tanstack/src/**/*.{ts,tsx}',
       '../plugins/whiteboard/src/**/*.{ts,tsx}',
+      '../plugins/try-it/src/**/*.{ts,tsx}',
     ],
   },
 

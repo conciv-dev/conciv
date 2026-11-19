@@ -19,6 +19,14 @@
     "dist"
   ],
   "type": "module",
+  "imports": {
+    "#fff": {
+      "types": "./dist/core/filesystem/fff.node.d.ts",
+      "workerd": "./dist/core/filesystem/fff.workerd.js",
+      "node": "./dist/core/filesystem/fff.node.js",
+      "default": "./dist/core/filesystem/fff.node.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -39,7 +47,9 @@
   "dependencies": {
     "@conciv/db": "workspace:^",
     "@conciv/plugin": "workspace:^",
+    "@effect/platform-node": "catalog:",
     "@effect/sql-sqlite-node": "catalog:",
+    "@ff-labs/fff-node": "catalog:",
     "@npmcli/arborist": "catalog:",
     "@npmcli/config": "catalog:",
     "@silvia-odwyer/photon-node": "catalog:",
@@ -47,22 +57,24 @@
     "detect-libc": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
+    "fuzzysort": "catalog:",
     "glob": "catalog:",
     "js-yaml": "catalog:",
     "npm-package-arg": "catalog:",
     "pacote": "catalog:",
     "picomatch": "catalog:",
+    "which": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/protocol": "workspace:*",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@effect/platform-node": "catalog:",
     "@types/node": "catalog:",
     "@types/npm-package-arg": "catalog:",
     "@types/npmcli__arborist": "catalog:",
     "@types/pacote": "catalog:",
+    "@types/which": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "esbuild": "catalog:",
     "fast-check": "catalog:",
