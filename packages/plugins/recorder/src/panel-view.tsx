@@ -1,12 +1,12 @@
-import {Match, Show, Switch, createResource, onCleanup, untrack, type JSX} from 'solid-js'
+import {Match, Show, Switch, onCleanup, untrack, type JSX} from 'solid-js'
 import {Effect, SubscriptionRef} from 'effect'
+import {useQuery, useQueryClient} from '@conciv/client'
 import {usePlugin} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {REPLAY_MIN_EVENTS, Recorder} from './rpc.js'
-import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {followClient} from './page-capture.js'
-import {ExportFailed, PresenceFailed, ResetFailed, exportRecording, openPanel} from './panel.js'
+import {openPanel, recorderPanelCalls} from './panel.js'
 import type {ReplaySource} from './player-follow.js'
 import {loadPlayerKit, streamPlayer, type PlayerKit} from './player.js'
 import {runInOwnerScope, subscriptionRefSignal, type PluginRuntime} from './subscription-ref-signal.js'
@@ -28,35 +28,14 @@ export function RecorderPanel(props: {
   const runtime = untrack(() => props.runtime)
   const followedClientId = untrack(() => props.clientId)
 
+  const queryClient = useQueryClient()
+  const recordingKey = () => recorder().window.key({input: {clientId: props.clientId}})
+  const refresh = (): Promise<void> => queryClient.invalidateQueries({queryKey: recordingKey()})
+
   const panel = runInOwnerScope(
     runtime,
     openPanel({
-      presence: (live) =>
-        Effect.asVoid(
-          Effect.tryPromise({
-            try: () => recorder().presence({viewerId, live}),
-            catch: (cause) => PresenceFailed.make({cause}),
-          }),
-        ),
-      exportRecording: exportRecording({
-        save: Effect.tryPromise({
-          try: () => recorder()['recordings.save']({clientId: followedClientId}),
-          catch: (cause) => ExportFailed.make({cause}),
-        }),
-        readPiece: (id, offset) =>
-          Effect.tryPromise({
-            try: () => recorder()['recordings.exportVideo']({clientId: followedClientId, id, offset}),
-            catch: (cause) => ExportFailed.make({cause}),
-          }),
-        saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
-      }),
-      reset: Effect.tryPromise({
-        try: async () => {
-          await recorder().reset(undefined)
-          await refetch()
-        },
-        catch: (cause) => ResetFailed.make({cause}),
-      }),
+      ...recorderPanelCalls({client: () => ctx.client, clientId: followedClientId, viewerId, refresh}),
       report: (title) => Effect.sync(() => void ctx.toast.show({title, variant: 'error'})),
     }),
   )
@@ -64,28 +43,39 @@ export function RecorderPanel(props: {
   const live = subscriptionRefSignal(runtime, panel.live)
   const run = (effect: Effect.Effect<void>): void => void runtime.runFork(effect)
 
-  const [recording, {refetch}] = createResource(
-    () => props.clientId,
-    async (clientId) => {
-      await runtime.runPromise(panel.renewPresence)
-      return recorder().window({clientId}, {signal: ctx.signal})
-    },
-  )
-  const retry = (): void => void refetch()
+  const recording = useQuery(() => {
+    const read = recorder().window.queryOptions({input: {clientId: props.clientId}})
+    return {
+      ...read,
+      queryFn: async (context: {readonly signal: AbortSignal}) => {
+        await runtime.runPromise(panel.renewPresence)
+        return read.queryFn(context)
+      },
+      retry: false,
+      gcTime: 0,
+      refetchOnWindowFocus: false,
+    }
+  })
+  const retry = (): void => void recording.refetch()
 
   const stopWatching = recorder().events.on(
     'appended',
     (event) =>
       untrack(() => {
-        if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.latest)) return
-        void refetch()
+        if (event.data.clientId !== props.clientId || recordingWithEnoughEvents(recording.data)) return
+        void refresh()
       }),
     {signal: ctx.signal},
   )
   onCleanup(stopWatching)
 
-  const [playerKit] = createResource(loadPlayerKit)
-  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.state === 'ready' ? playerKit() : undefined)
+  const playerKit = useQuery(() => ({
+    queryKey: ['plugin', 'recorder', 'player-kit'],
+    queryFn: loadPlayerKit,
+    retry: false,
+    refetchOnWindowFocus: false,
+  }))
+  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.isSuccess ? playerKit.data : undefined)
 
   const follow = followClient(ctx, followedClientId)
 
@@ -113,17 +103,17 @@ export function RecorderPanel(props: {
         <Match when={props.captureFailed()}>
           <RecorderNotice text="Recording is unavailable: capture failed to start on this page." />
         </Match>
-        <Match when={recording.error}>
+        <Match when={recording.isError}>
           <RecorderErrorNotice retry={retry} />
         </Match>
-        <Match when={recording.state === 'pending'}>
+        <Match when={recording.isPending}>
           <RecorderNotice text="Loading recording…" />
         </Match>
-        <Match keyed when={recordingWithEnoughEvents(recording.latest)}>
+        <Match keyed when={recordingWithEnoughEvents(recording.data)}>
           {(source) => (
             <>
               <Switch fallback={<RecorderNotice text="Loading player…" />}>
-                <Match when={playerKit.error}>
+                <Match when={playerKit.isError}>
                   <RecorderErrorNotice retry={() => location.reload()} text="Could not load the player." />
                 </Match>
                 <Match keyed when={loadedPlayerKit()}>
