@@ -78,8 +78,8 @@ export function PinsLayer(): JSX.Element {
                       class={tag() ? PIN_TAGGED : PIN}
                       onPointerDown={(event) => drag.grab(view(), pin, event)}
                       onPointerMove={(event) => drag.follow(view(), pin, event)}
-                      onPointerUp={() => drag.drop(pin, comment())}
-                      onPointerCancel={() => drag.abandon()}
+                      onPointerUp={(event) => drag.drop(pin, comment(), event)}
+                      onPointerCancel={(event) => drag.abandon(pin, event)}
                       onClick={(event) => event.detail === 0 && model.toggleThread(pin.cid)}
                       onKeyDown={(event) => event.key === 'Escape' && event.currentTarget.blur()}
                     >
