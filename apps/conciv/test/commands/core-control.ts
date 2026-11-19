@@ -350,9 +350,8 @@ const clearScript: BrowserCommand<[]> = (ctx): void => {
   requireKit(ctx).harness.script.clearScript()
 }
 
-const scriptCustomEvent: BrowserCommand<[string, unknown]> = (ctx, name, value): void => {
-  requireKit(ctx).harness.script.scriptCustomEvent(name, value)
-}
+const scriptPermissionAsk: BrowserCommand<[toolName: string, input: unknown]> = (ctx, toolName, input): string =>
+  requireKit(ctx).harness.script.scriptPermissionAsk({toolName, input})
 
 type HubCliHold = 'fail' | 'hold' | 'hold-remove'
 
@@ -867,7 +866,7 @@ export const coreCommands = {
   scriptTurn,
   scriptError,
   clearScript,
-  scriptCustomEvent,
+  scriptPermissionAsk,
   fakeHubCli,
   setHubConnection,
   rpcCallCount,

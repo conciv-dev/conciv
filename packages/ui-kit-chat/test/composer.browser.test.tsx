@@ -377,7 +377,9 @@ describe('attachment image viewer', () => {
     await refused.hover()
     await expect.element(page.getByRole('tooltip').filter({hasText: reason})).toBeVisible()
     vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']})
-    onTestFinished(() => vi.useRealTimers())
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     await page.getByRole('textbox', {name: 'Message'}).click()
     await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveFocus()
     vi.advanceTimersByTime(tooltipCloseDelay)
@@ -1437,7 +1439,7 @@ describe('composer send morph', () => {
           setState('stopRequests', (count) => count + 1)
           return heldStop.promise
         },
-        decide: () => Promise.resolve({startsTurn: false}),
+        decide: () => Promise.resolve(),
       })
       makeEventListener(window, 'keydown', (event) => {
         if (event.key !== 'Escape') return
@@ -2107,7 +2109,7 @@ describe('suggestions', () => {
         sessionId: 'suggestions-refused',
         connect: refusingConnection,
         stop: () => Promise.resolve(),
-        decide: () => Promise.resolve({startsTurn: false}),
+        decide: () => Promise.resolve(),
       })
       const handlers: ComposerHandlers = {
         onSendError: (error) => setFailures(failures.length, error instanceof Error ? error.message : String(error)),

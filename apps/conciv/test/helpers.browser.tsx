@@ -88,7 +88,7 @@ declare module 'vitest/internal/browser' {
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
     scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
-    scriptCustomEvent: (name: string, value: unknown) => Promise<void>
+    scriptPermissionAsk: (toolName: string, input: unknown) => Promise<string>
     fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
     setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[], input?: unknown) => Promise<number>

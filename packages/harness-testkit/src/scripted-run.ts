@@ -1,5 +1,11 @@
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {createReasoningChunks, createToolCallChunks, createToolResultChunk} from '@conciv/ai/testkit'
+import {
+  callPermissionPrompt,
+  createReasoningChunks,
+  createToolCallChunks,
+  createToolResultChunk,
+  type ChatCapabilities,
+} from '@conciv/ai/testkit'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 
 export type ScriptedTurnToolCall = {name: string; input: unknown; result?: unknown; error?: string}
@@ -15,7 +21,15 @@ export type ScriptedTurn = {
 
 export type PacedRelease = {everyMs: number}
 
-export type ScriptedRequest = {threadId?: string; runId?: string; request?: Request | RequestInit}
+export type ScriptedRequest = {
+  threadId?: string
+  runId?: string
+  request?: Request | RequestInit
+  abortController?: AbortController
+  capabilities?: ChatCapabilities
+}
+
+export type ScriptedPermissionAsk = {toolName: string; input: unknown; cut?: AbortSignal}
 
 export type ScriptedRun = {
   chatStream: (deps: HarnessChatDeps, options?: ScriptedRequest) => AsyncGenerator<ChatEvent>
@@ -30,14 +44,18 @@ export type ScriptedRun = {
   scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => string
   scriptTurn: (turn: ScriptedTurn) => string[]
   scriptCustomEvent: (name: string, value: unknown) => void
+  scriptPermissionAsk: (ask: ScriptedPermissionAsk) => string
   scriptError: (message: string) => void
   clearScript: () => void
 }
 
 type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown; error?: string}
 
+type QueuedPermissionAsk = ScriptedPermissionAsk & {id: string}
+
 type QueuedTurn = {
   toolCalls: QueuedToolCall[]
+  permissionAsk?: QueuedPermissionAsk
   text?: string
   thinking?: string
   textPace?: PacedText
@@ -134,6 +152,38 @@ function readRequestSignal(options: ScriptedRequest | undefined): AbortSignal | 
   return options?.request?.signal ?? undefined
 }
 
+function readRunSignal(options: ScriptedRequest | undefined): AbortSignal | undefined {
+  return options?.abortController?.signal ?? readRequestSignal(options)
+}
+
+async function promptForPermission(
+  ask: QueuedPermissionAsk,
+  options: ScriptedRequest | undefined,
+  run: RunIdentity,
+): Promise<string> {
+  if (options?.capabilities === undefined) throw new Error('a scripted permission ask needs the chat capabilities')
+  const signal = readRunSignal(options)
+  return callPermissionPrompt(options.capabilities, {
+    threadId: run.threadId,
+    toolName: ask.toolName,
+    input: ask.input,
+    ...(signal === undefined ? {} : {signal}),
+    ...(ask.cut === undefined ? {} : {cut: ask.cut}),
+  })
+}
+
+async function* permissionAskChunks(
+  ask: QueuedPermissionAsk,
+  options: ScriptedRequest | undefined,
+  run: RunIdentity,
+  messageId: string,
+): AsyncGenerator<ChatEvent> {
+  yield* requestChunks({id: ask.id, name: ask.toolName, input: ask.input}, messageId)
+  const reply = await promptForPermission(ask, options, run)
+  if (isAborted(readRunSignal(options))) return
+  yield createToolResultChunk(ask.id, reply)
+}
+
 function isAborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true
 }
@@ -227,6 +277,12 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const scriptCustomEvent = (name: string, value: unknown) => {
     queuedCustomEvents.push({name, value})
   }
+  const scriptPermissionAsk = (ask: ScriptedPermissionAsk) => {
+    toolCalls.count += 1
+    const id = `tc-${toolCalls.count}`
+    queuedTurns.push({toolCalls: [], permissionAsk: {...ask, id}, blocking: false})
+    return id
+  }
   const scriptError = (message: string) => {
     queuedErrors.push(message)
   }
@@ -268,6 +324,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     if (isAborted(signal)) return
     const messageId = nextId()
     if (turn) yield* turnChunks(turn, resultGate, drainCustomEvents, signal, messageId)
+    if (turn?.permissionAsk !== undefined) yield* permissionAskChunks(turn.permissionAsk, options, run, messageId)
     if (isAborted(signal)) return
     yield* settleTurn(turn, messageId, signal, run)
   }
@@ -284,6 +341,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     scriptToolCall,
     scriptTurn,
     scriptCustomEvent,
+    scriptPermissionAsk,
     scriptError,
     clearScript,
   }

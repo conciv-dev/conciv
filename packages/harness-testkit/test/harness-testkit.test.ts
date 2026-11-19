@@ -617,6 +617,7 @@ describe('scripted run', () => {
   const deps = (): HarnessChatDeps => ({
     cwd: '.',
     sessionId: SessionId.parse('conciv_s'),
+    askPermission: async () => ({allowed: false, message: 'nobody answers an ask in this test'}),
     resumeSessionId: null,
     env: {},
     kind: 'chat',

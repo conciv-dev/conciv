@@ -101,7 +101,6 @@ import {
   ManagedPolicy,
   Model,
   Permission,
-  PermissionSaved,
   PluginHooks,
   PluginHost,
   Rpc,
@@ -193,7 +192,6 @@ import {
 import {
   answerPermission,
   decidePermissionCard,
-  followPermissionCards,
   permissionSessions,
   pluginInstructions,
   sessionToolDomain,
@@ -924,6 +922,8 @@ describe('chat plane', () => {
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
       driver,
+      askPermission: async () => ({allowed: false, message: 'nobody answers an ask in this test'}),
+      pendingPermissions: async () => [],
       ...given,
     })
   }
@@ -4219,46 +4219,18 @@ describe('plugin permission cards', () => {
     return pick(next.value) ?? readNextEvent(events, pick)
   }
 
-  it('a plugin tool asks once on every client, an answer settles it without a turn, a gone request is cleared on click, another session cannot answer, session rules allow and hide, and a restart sweeps permission cards', async () => {
+  it('a plugin tool asks once on every client, an answer settles it without a turn, an unknown request is not a card, another session cannot answer, session rules allow and hide, and a restart keeps no card', async () => {
     const fixture = await makeChatFixture()
     const {plane, runtime, db, sessionId: id, stateRoot} = fixture
     const other = SessionId.parse('conciv_other')
     await ensureRow(fixture.rows, other)
-    const host = ManagedRuntime.make(
-      Layer.mergeAll(Tool.layer, Permission.layer).pipe(
-        Layer.provideMerge(Layer.mergeAll(Agent.layer, PermissionSaved.layer, permissionSessions(db))),
-        Layer.provideMerge(Layer.mergeAll(PluginHooks.layer, Image.layer)),
-        Layer.provideMerge(Bus.configured()),
-        Layer.provideMerge(
-          Layer.succeed(
-            Location.Service,
-            Location.Service.of(
-              Schema.decodeSync(Location.Info)({
-                directory: stateRoot,
-                project: {id: stateRoot, directory: stateRoot, canonical: stateRoot},
-              }),
-            ),
-          ),
-        ),
-        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
-      ),
-    )
+    const host = fixture.pluginHost
     const clients = new AbortController()
     onTestFinished(async () => {
       clients.abort()
-      await host.dispose()
       await fixture.dispose()
     })
-    await host.context()
-    const logged: string[] = []
     const scope = host.runSync(Scope.make())
-    await host.runPromise(
-      followPermissionCards({
-        plane,
-        publish: (sessionId, chunk) => runtime.forSession(sessionId).stream.publish(chunk),
-        log: (line) => logged.push(line),
-      }),
-    )
     await host.runPromise(
       Effect.gen(function* () {
         const tools = yield* Tool.Service
@@ -4297,7 +4269,7 @@ describe('plugin permission cards', () => {
       host.runPromise(answerPermission(sessionId, requestId, reply))
     const publish = (sessionId: SessionId, chunk: ChatEvent) => runtime.forSession(sessionId).stream.publish(chunk)
     const decide = (sessionId: SessionId, approvalId: string, reply: Permission.Reply) =>
-      decidePermissionCard({plane, answer, publish}, sessionId, {approvalId, reply})
+      decidePermissionCard({answer, publish}, sessionId, {approvalId, reply})
     const first = runtime.forSession(id).stream.events(clients.signal)
     const second = runtime.forSession(id).stream.events(clients.signal)
 
@@ -4318,51 +4290,39 @@ describe('plugin permission cards', () => {
       },
     ])
 
-    expect(await decide(id, shown.approvalId, 'always')).toEqual({startsTurn: false})
+    expect(await decide(id, shown.approvalId, 'always')).toBe(true)
     await expect(reading).resolves.toEqual({value: 'read src/.env', files: []})
     expect(await readNextEvent(second, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
-    expect(await plane.decide(id, shown.approvalId, true)).toBeNull()
+    expect(await decide(id, shown.approvalId, 'once')).toBe(false)
     await expect(call(id, 'src/.env')).resolves.toEqual({value: 'read src/.env', files: []})
 
     const foreign = call(other, 'other/.env')
     const otherAsk = await readNextEvent(runtime.forSession(other).stream.events(clients.signal), readApprovalAsk)
     expect(await answer(id, otherAsk.approvalId, 'once')).toBe('foreign')
-    expect(await decide(id, otherAsk.approvalId, 'once')).toBeNull()
-    expect(await decide(other, otherAsk.approvalId, 'reject')).toEqual({startsTurn: false})
+    expect(await decide(id, otherAsk.approvalId, 'once')).toBe(false)
+    expect(await decide(other, otherAsk.approvalId, 'reject')).toBe(true)
     await expect(foreign).rejects.toThrow()
 
     await setPermissions(db, other, [{action: 'read', resource: '*', effect: 'allow'}])
     await expect(call(other, 'other/.env')).resolves.toEqual({value: 'read other/.env', files: []})
     await setPermissions(db, other, [{action: 'unit_read_env', resource: '*', effect: 'deny'}])
-    expect(buildCapabilities(other)).toEqual([])
-    expect(buildCapabilities(id).map((capability) => capability.name)).toEqual(['unit_read_env'])
+    expect(buildCapabilities(other).map((capability) => capability.name)).not.toContain('unit_read_env')
+    expect(buildCapabilities(id).map((capability) => capability.name)).toContain('unit_read_env')
 
-    await plane.permissionAsked(id, {
-      approvalId: 'per_gone',
-      toolCallId: 'per_gone',
-      title: 'read gone',
-      input: {},
-      permission: {always: false},
-    })
-    expect(await decide(id, 'per_gone', 'once')).toBeNull()
-    expect(await readNextEvent(second, readApprovalSettled)).toBe('per_gone')
+    expect(await decide(id, 'per_gone', 'once')).toBe(false)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
 
-    await plane.permissionAsked(id, {
-      approvalId: 'per_left',
-      toolCallId: 'per_left',
-      title: 'read left',
-      input: {},
-      permission: {always: false},
-    })
+    const leftOpen = call(id, 'src/left.env')
+    const left = await readNextEvent(first, readApprovalAsk)
     const restarted = await bootMadeApp({stateRoot, cwd: stateRoot, harness: fixture.harness, print: () => {}})
     onTestFinished(() => restarted.dispose())
     expect((await restarted.plane.hydrate(id)).pendingApprovals).toEqual([])
-    expect(logged).toEqual([])
+    expect(await decide(id, left.approvalId, 'reject')).toBe(true)
+    await expect(leftOpen).rejects.toThrow()
   })
 
-  it('a plugin tool asking from inside execute_typescript stops asking when its run is stopped, and a late approval runs nothing and clears the card', async () => {
+  it('a plugin tool asking from inside execute_typescript stops asking when its run is stopped, its card goes with the stop, and a late approval runs nothing', async () => {
     const fixture = await makeChatFixture()
     const {plane, runtime, pluginHost, sessionId: id} = fixture
     const clients = new AbortController()
@@ -4417,17 +4377,17 @@ describe('plugin permission cards', () => {
     await plane.stop(id)
     await running
     expect(
-      await decidePermissionCard({plane, answer, publish}, id, {
+      await decidePermissionCard({answer, publish}, id, {
         approvalId: shown.approvalId,
         reply: 'once',
       }),
-    ).toBeNull()
+    ).toBe(false)
     expect(written).toEqual([])
     expect(await readNextEvent(events, readApprovalSettled)).toBe(shown.approvalId)
     expect((await plane.hydrate(id)).pendingApprovals).toEqual([])
   })
 
-  it('closing the engine clears a pending plugin card from storage before the database closes', async () => {
+  it('a pending plugin card replays from the permission service and is never written to storage', async () => {
     const fixture = await makeChatFixture()
     const {plane, pluginHost, db, sessionId: id, stateRoot} = fixture
     await setPermissions(db, id, [{action: 'edit', resource: '*', effect: 'ask'}])
@@ -4453,7 +4413,7 @@ describe('plugin permission cards', () => {
         .from(chatMetadata)
         .where(eq(chatMetadata.key, `${id}:pending-approvals`)),
     )
-    expect(stored).toEqual([{value: []}])
+    expect(stored).toEqual([])
   })
 })
 

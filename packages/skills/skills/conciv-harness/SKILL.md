@@ -185,7 +185,7 @@ const stream = chat({
     defineChatMiddleware({
       name: 'conciv-image-tools',
       provides: [ToolBridgeProvisionerCapability],
-      setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),
+      setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission)),
     }),
     withPersistence(persistence, {snapshotStreaming: true}),
     withLocks(locks),
@@ -224,10 +224,13 @@ transport's own stream durability keeps driving it and replays it on resume, not
 runs right before it: it writes the run's `running` row with `stores.runs.createOrResume`, then saves
 the incoming messages through `getPendingTurn(ctx, {optional: true})?.snapshot()`. A client that sees
 the run start therefore finds it active and finds the user's message in the thread. Tools that need
-approval are wrapped by `gatedTools` in `chat-server.ts`. An adapter neither sees nor
-makes those decisions, and `chatConfig` receives no approval callback: a CLI's own commands are governed
-by that CLI's native permission mode (`permissionMode: 'auto'` for Claude Code), set in `chatConfig`. Conciv
-keeps no command rules, so never add an "is this command risky" check to core or the widget.
+approval are wrapped by `gatedTools` in `chat-server.ts`. A CLI's own commands are governed by that
+CLI's native permission mode (`permissionMode: 'auto'` for Claude Code), set in `chatConfig`; when the CLI
+itself decides to ask, the ask goes to conciv's permission service (`permission.assert`) and waits on the
+user's card. Claude Code asks through its permission prompt tool, which conciv's tool bridge provisioner
+serves (`askingToolProvisioner`); an ACP CLI asks through `onPermissionRequest`, which calls
+`deps.askPermission`. An ask ends with its run: a stop, or a prompt call the CLI gives up on, ends it and
+drops the card. Never add an "is this command risky" check to core or the widget.
 
 ## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `tty.command()` legitimately does
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run turns, hydrate and clear threads, import harness transcripts, gate tool calls behind approvals, and expose the chat HTTP and WebSocket routes.
+The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run turns, hydrate and clear threads, import harness transcripts, replay the permission service's pending asks as cards, and expose the chat HTTP and WebSocket routes.
 
 ## Interface
 
@@ -11,7 +11,6 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `index.ts:CodeTool` / `CodeRunner` (carries `capabilities`, the name and description of every sandboxed capability) / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
 - `code-mode.ts:registryCapabilities` / `assistCapabilities` / `chatToolSet` - build `CodeCapability` lists and the code-mode and direct tool sets.
 - `code-mode.ts:toolDomainCapabilities` - appends a `@conciv/plugin-host` tool snapshot's code-mode tools to a capability list, named by their snapshot key; a tool whose name the list already has is left out and passed to `collided`. Each runs through the snapshot's code-mode `execute` on the given Effect runner, with the request's session, the session's selected agent (`ToolDomain.agent`), tool call id and signal; it returns the tool's output, else its text content joined, else null, plus the tool's `data:` file parts as TanStack content parts (an image as an image part, any other file as the stub text "Attached document or image follows."). A code-mode call hands the files to the run's `CodeFilesCapability`; a direct call returns its value as a text part followed by the files.
-- `approvals.ts:createApprovalStore` - pending approvals and grants per thread over the `metadata` chat store.
 - `approvals.ts:createUiChannel` - per-thread waiters for UI answers.
 - `stores.ts:runningThreadIds` / `clearThread` - list threads with a `running` chat run, delete a thread's rows.
 - `transcript.ts:createTranscriptImporter` - `sync` and `settle` a session's harness transcript into the message store; `toolNameNormalizer`, `normalizedChunk`, `normalizedMessages`.
@@ -21,8 +20,6 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 - `index.ts:catchUp` - the session's waiting asks as `approval-requested` events, then its active run as a `conciv.session-run` announcement; a new event subscriber receives these first, so an ask or a run started before it subscribed (a widget still opening its `chat.events` stream, or one resubscribing) still reaches it
 - `index.ts:FIRST_START_TIMEOUT_MS` / `FIRST_OUTPUT_TIMEOUT_MS` - the chat server's two limits on a turn: an agent that has not started 30000 ms after the turn began fails with `the agent did not start`, and an agent that started but has given no output 30000 ms (or `firstOutputTimeoutMs`) after it started fails as silent.
-- `approvals.ts:createApprovalStore.asked` - a pending approval with the same `approvalId` is not added twice.
-- `approvals.ts:createApprovalStore.forRun` - `once` and `denied` grants are cleared when a run reads them. A harness command card is answered once or rejected; there is no session grant.
 - `transcript.ts:createTranscriptImporter.sync` - messages already stored (by id) are skipped, and import resumes after the stored anchor `nativeId`; it reads only when the row's `harnessKind` is the session's harness, and stamps each imported assistant message with `metadata.conciv.harnessId`.
 - `turn.ts:turnHooks` - every hook resolves the adapter with `deps.harnessFor(sessionId)`; a native id is resumed only when the row's `harnessKind` is that adapter, otherwise the full history is replayed.
 - `index.ts:hydrate` - takes an optional `{limit, before}` window and returns that page plus `page`; `messageHarness` maps each assistant message id of the page to the harness that produced it: the `chat_runs.harness_id` of its run, else its import stamp. `pendingApprovals` and `lastRun` are never paged. The first page of a live session imports the harness transcript first (`transcripts.sync`); a deleted session's (non-null `deletedAt`) skips that import, so opening it writes nothing into its thread.

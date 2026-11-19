@@ -45,8 +45,8 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     stop: (runIds) => options.rpc.chat.stop({sessionId: options.sessionId, runIds}),
     decide: async (approvalId, reply) => {
       const answer = await safe(options.rpc.chat.permissionDecision({approvalId, reply}))
-      if (answer.isSuccess) return answer.data
-      if (answer.isDefined && answer.error.code === 'UNKNOWN_REQUEST') return {startsTurn: false}
+      if (answer.isSuccess) return
+      if (answer.isDefined && answer.error.code === 'UNKNOWN_REQUEST') return
       throw answer.error
     },
   })

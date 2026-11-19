@@ -183,47 +183,30 @@ describe('approval replay', () => {
     return mount
   }
 
-  test('an ask from a chat turn sits in the strip, and approving it posts the message that retries', async () => {
+  test('a command ask from a chat turn waits on its card: deny and approve each answer the waiting command, the turn goes on, and no message is posted', async () => {
     const sessionId = await newSession()
     keep(await attachedPane(sessionId))
-    await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
-    await coreControl.scriptCustomEvent('approval-requested', {
-      approvalId: 'turn-ask',
-      title: 'Approve Bash: rm -rf build',
-      input: {command: 'rm -rf build'},
-    })
+    const replies = page.getByText('Hello from conciv', {exact: true})
+    const answered = page.getByText(/^(Approved|Denied): /)
 
-    await composer().fill('delete the build directory')
-    await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.element(page.getByText('That needs your approval.')).toBeVisible()
-    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
-
-    await coreControl.scriptTurn({toolCalls: [], text: 'Deleted.'})
-    await approveButton().click()
-    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
-    await expect.element(page.getByText('Approved: Bash: rm -rf build', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('Deleted.')).toBeVisible()
-  }, 120_000)
-
-  test('an ask from a chat turn sits in the strip, and denying it posts the message that re-runs the turn refused', async () => {
-    const sessionId = await newSession()
-    keep(await attachedPane(sessionId))
-    await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
-    await coreControl.scriptCustomEvent('approval-requested', {
-      approvalId: 'turn-deny',
-      title: 'Approve Bash: git push --force',
-      input: {command: 'git push --force'},
-    })
-
+    await coreControl.scriptPermissionAsk('Bash', {command: 'git push --force'})
     await composer().fill('force push main')
     await page.getByRole('button', {name: 'Send message'}).click()
     await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
-
-    await coreControl.scriptTurn({toolCalls: [], text: 'Understood, I will not force push.'})
+    await expect.element(permissionRequest().getByText('bash git push --force')).toBeVisible()
     await page.getByRole('button', {name: 'Deny'}).click()
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
-    await expect.element(page.getByText('Denied: Bash: git push --force', {exact: true})).toBeVisible()
-    await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
+    await expect.element(replies.nth(0)).toBeVisible()
+    expect(answered.query()).toBeNull()
+
+    await coreControl.scriptPermissionAsk('Bash', {command: 'rm -rf build'})
+    await composer().fill('delete the build directory')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await expect.element(permissionRequest().getByText('bash rm -rf build'), {timeout: 15_000}).toBeVisible()
+    await approveButton().click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    await expect.element(replies.nth(1)).toBeVisible()
+    expect(answered.query()).toBeNull()
   }, 120_000)
 
   test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
@@ -299,7 +282,7 @@ describe('approval replay', () => {
     test('the second button saves for the project, and a card leaves once answered, refused as gone, or settled elsewhere', async () => {
       const announced: ChatSessionCallbacks[] = []
       const answers: Array<{approvalId: string; reply: string}> = []
-      const replies: Array<PromiseWithResolvers<{startsTurn: boolean}>> = []
+      const replies: Array<PromiseWithResolvers<void>> = []
       const session = createRoot((dispose) => {
         disposers.push(dispose)
         return createChatSession({
@@ -311,7 +294,7 @@ describe('approval replay', () => {
           stop: () => Promise.resolve(),
           decide: (approvalId, reply) => {
             answers.push({approvalId, reply})
-            const answered = Promise.withResolvers<{startsTurn: boolean}>()
+            const answered = Promise.withResolvers<void>()
             replies.push(answered)
             return answered.promise
           },
@@ -350,7 +333,7 @@ describe('approval replay', () => {
       await alwaysAllow('edit src/app.ts').click()
       await expect.element(card('edit src/app.ts').getByText('Approved', {exact: true})).toBeVisible()
       expect(answers).toEqual([{approvalId: 'edit-ask', reply: 'always'}])
-      replies[0]?.resolve({startsTurn: false})
+      replies[0]?.resolve()
       await expect.element(card('edit src/app.ts')).not.toBeInTheDocument()
 
       await card('bash git push').getByRole('button', {name: 'Deny'}).click()
@@ -382,7 +365,7 @@ describe('approval replay', () => {
             }
           },
           stop: () => Promise.resolve(),
-          decide: () => Promise.resolve({startsTurn: false}),
+          decide: () => Promise.resolve(),
         })
       })
       const ctx = makeToolViewCtx({
@@ -5605,31 +5588,6 @@ module.exports = {default: {setup(ctx) {
       await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
       await returnToRunning(titles)
     }, 30_000)
-
-    test('approving an ask and leaving while its turn is still unsent settles that turn in the background', async () => {
-      const {running, titles} = await twoSessions('approved')
-      harness.mountShell(`/panel/${running}?open=true`)
-      await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
-      await coreControl.scriptCustomEvent('approval-requested', {
-        approvalId: 'switch-ask',
-        title: 'Approve Bash: rm -rf build',
-        input: {command: 'rm -rf build'},
-      })
-      await composer().fill('delete the build directory')
-      await userEvent.keyboard('{Enter}')
-      await expect.element(page.getByRole('group', {name: 'Permission request'}), {timeout: 15_000}).toBeVisible()
-      await expect.element(stopButton()).not.toBeInTheDocument()
-      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
-      const unsent = await faults.install({kind: 'chat-gate'})
-      await page.getByRole('button', {name: 'Approve'}).click()
-      await coreControl.awaitFaultPending(unsent, 1)
-
-      await switchToOther(titles)
-      await coreControl.releaseFault(unsent)
-
-      await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
-      await returnToRunning(titles)
-    }, 30_000)
   })
 
   describe('the draft saves of a panel', () => {
@@ -5906,7 +5864,7 @@ describe('queue strip', () => {
           sessionId: 'queue-flush',
           connect: () => connection,
           stop: () => Promise.resolve(),
-          decide: () => Promise.resolve({startsTurn: false}),
+          decide: () => Promise.resolve(),
         }),
     }
   }
@@ -5947,7 +5905,7 @@ describe('queue strip', () => {
             return connection
           },
           stop: () => Promise.resolve(),
-          decide: () => Promise.resolve({startsTurn: false}),
+          decide: () => Promise.resolve(),
         })
       })
       const callbacks = announcements[0]

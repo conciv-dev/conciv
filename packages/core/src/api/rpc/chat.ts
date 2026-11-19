@@ -26,17 +26,16 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof c
       return {ok: true}
     }),
     permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
-      const decision = await decidePermissionCard(
+      const decided = await decidePermissionCard(
         {
-          plane: deps.chat.plane,
           answer: deps.answerPermission,
           publish: (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
         },
         context.session.id,
         input,
       )
-      if (decision === null) throw errors.UNKNOWN_REQUEST()
-      return {ok: true as const, startsTurn: decision.startsTurn}
+      if (!decided) throw errors.UNKNOWN_REQUEST()
+      return {ok: true as const}
     }),
     uiReply: os.chat.uiReply.handler(({input, errors}) => {
       if (!deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value)) {

@@ -43,7 +43,7 @@ export type CreateChatSessionOptions = {
   sessionId: string
   connect: (callbacks: ChatSessionCallbacks) => ChatSessionConnection
   stop: (runIds: string[]) => Promise<unknown>
-  decide: (approvalId: string, reply: PermissionReply) => Promise<{startsTurn: boolean}>
+  decide: (approvalId: string, reply: PermissionReply) => Promise<void>
   onError?: (error: Error) => void
 }
 
@@ -81,11 +81,6 @@ function withoutCard(pending: ApprovalAsk[], approvalId: string): ApprovalAsk[] 
 
 function arrived(pending: ApprovalAsk[], arrival: CardArrival): ApprovalAsk[] {
   return arrival.kind === 'ask' ? withAsk(pending, arrival.ask) : withoutCard(pending, arrival.approvalId)
-}
-
-function decisionText(title: string, reply: PermissionReply): string {
-  const action = title.replace(/^Approve /, '')
-  return reply === 'reject' ? `Denied: ${action}` : `Approved: ${action}`
 }
 
 function newerRun(current: RunClockSource | null, hydration: ChatSessionHydration): RunClockSource | null {
@@ -379,12 +374,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     chat.setMessages(beforeLastUser(chat.messages()))
     throw failure
   }
-  const decide = async (approvalId: string, reply: PermissionReply): Promise<void> => {
-    const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
-    const decision = await options.decide(approvalId, reply).finally(() => withdraw(approvalId))
-    if (!decision.startsTurn || ask === undefined) return
-    await chat.sendMessage(decisionText(ask.toolName, reply))
-  }
+  const decide = (approvalId: string, reply: PermissionReply): Promise<void> =>
+    options.decide(approvalId, reply).finally(() => withdraw(approvalId))
   return {
     ...chat,
     sendMessage,

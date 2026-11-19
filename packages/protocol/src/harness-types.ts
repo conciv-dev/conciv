@@ -99,9 +99,18 @@ export type HarnessInitContribution<Id extends string = string> =
   | HarnessInit<Id>
   | (HarnessInitBase<Id> & {init: 'none'})
 
+export type HarnessPermissionAsk = {
+  action: string
+  resources: readonly string[]
+  metadata: Record<string, unknown>
+}
+
+export type HarnessPermissionVerdict = {allowed: true} | {allowed: false; message: string}
+
 export type HarnessChatDeps = {
   cwd: string
   sessionId: SessionId
+  askPermission: (ask: HarnessPermissionAsk) => Promise<HarnessPermissionVerdict>
   resumeSessionId: HarnessSessionId | null
   model?: string
   effort?: ReasoningEffort

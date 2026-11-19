@@ -11,21 +11,15 @@ import {
   type ChatSend,
   type CodeDriver,
 } from '@conciv/ai/server'
-import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
+import {cappedValue, type ChatHistoryWindow, type ChatHydration, type ChatPendingApproval} from '@conciv/contract'
 import {chatRuns, markers, sessions, type ConcivDb} from '@conciv/db'
 import {isSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-import {
-  createApprovalStore,
-  createUiChannel,
-  dropPermissionCards,
-  type ApprovalDecision,
-  type ApprovalAsked,
-} from './approvals.js'
+import {createUiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {CodeModeCatalog} from '@conciv/plugin-host'
-import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
+import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {deletedSessionError, firstUserTitle, missingSession, sessionDeleted, turnHooks, type TurnDeps} from './turn.js'
 
@@ -45,6 +39,7 @@ type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   firstOutputTimeoutMs?: number
   driver: CodeDriver | null
+  pendingPermissions: (sessionId: SessionId) => Promise<ChatPendingApproval[]>
 }
 
 export type CodeTool = {
@@ -85,7 +80,6 @@ export type ChatPlane = {
   settled: (sessionId: SessionId) => Promise<void>
   recordRunError: (sessionId: SessionId, runId: string, message: string) => Promise<void>
   running: () => Promise<ReadonlySet<string>>
-  decide: (sessionId: SessionId, approvalId: string, approved: boolean) => Promise<ApprovalDecision | null>
   answerUi: (sessionId: SessionId, toolCallId: string, value: unknown) => boolean
   askUi: (sessionId: SessionId) => Promise<UiAnswer>
   codeRunner: (
@@ -95,11 +89,7 @@ export type ChatPlane = {
   ) => Promise<CodeRunner | null>
   followUp: (sessionId: SessionId, input: string) => Promise<FollowUpOutcome>
   catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
-  permissionAsked: (sessionId: SessionId, ask: PermissionAsk) => Promise<void>
-  permissionSettled: (sessionId: SessionId, approvalId: string) => Promise<void>
 }
-
-type PermissionAsk = Omit<ApprovalAsked, 'runId' | 'permission'> & {permission: {always: boolean}}
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const followingUp = new Map<SessionId, {answered: Promise<FollowUpOutcome>; ending: AbortController}>()
@@ -114,14 +104,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       }
     },
   })
-  const approvalMetadata = {
-    ...stores.metadata,
-    keysEndingWith: (namespace: string, suffix: string) => metadataKeysEndingWith(deps.db, namespace, suffix),
-  }
-  const approvals = createApprovalStore(approvalMetadata)
-  await dropPermissionCards(approvals, approvalMetadata).catch((error: unknown) =>
-    deps.log(`[chat] removing the permission cards of the previous engine failed: ${String(error)}`),
-  )
+  const pendingCards = (sessionId: SessionId): Promise<ChatPendingApproval[]> => deps.pendingPermissions(sessionId)
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
     harnessFor: deps.harnessFor,
@@ -138,12 +121,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const server = await createChatServer({
     stores,
     sandbox: {dir: deps.cwd},
-    hooks: turnHooks(deps, {approvals, ui, transcripts, codeMode: deps.driver !== null}),
+    hooks: turnHooks(deps, {ui, transcripts, codeMode: deps.driver !== null}),
     codeModeResult: cappedValue,
     startTimeoutMs: FIRST_START_TIMEOUT_MS,
     firstOutputTimeoutMs: deps.firstOutputTimeoutMs ?? FIRST_OUTPUT_TIMEOUT_MS,
     log: deps.log,
     driver: deps.driver,
+    askPermission: (threadId, ask, signal) => deps.askPermission(SessionId.parse(threadId), ask, signal),
   })
 
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
@@ -165,7 +149,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       messageHarness: messageHarnesses(messages, Object.fromEntries(runs.map((run) => [run.runId, run.harnessId]))),
       activeRun: thread.activeRun,
       lastRun: thread.lastRun,
-      pendingApprovals: await approvals.pending(sessionId),
+      pendingApprovals: await pendingCards(sessionId),
       interrupts: null,
       page: thread.page,
     }
@@ -238,11 +222,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       await stores.runs.update(runId, {error: {message}})
     },
     running: () => runningThreadIds(deps.db),
-    decide: (sessionId, approvalId, approved) => approvals.decide(sessionId, approvalId, approved),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
     catchUp: async (sessionId) => {
-      const asks: ChatEvent[] = (await approvals.pending(sessionId)).map(({toolName, runId: _runId, ...ask}) => ({
+      const asks: ChatEvent[] = (await pendingCards(sessionId)).map(({toolName, runId: _runId, ...ask}) => ({
         ...approvalRequestedEvent.create({...ask, title: toolName}),
         timestamp: Date.now(),
       }))
@@ -252,8 +235,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       })
       return active === null ? asks : [...asks, sessionRunEvent.create({runId: active.runId})]
     },
-    permissionAsked: (sessionId, ask) => approvals.asked(sessionId, {...ask, runId: null}),
-    permissionSettled: (sessionId, approvalId) => approvals.remove(sessionId, approvalId),
     followUp: async (sessionId, input) => {
       if (followingUp.has(sessionId) || server.driving(sessionId)) return {kind: 'busy'}
       const ending = new AbortController()

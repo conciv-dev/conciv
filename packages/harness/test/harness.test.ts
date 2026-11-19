@@ -109,10 +109,13 @@ async function expectPagingContract(
   expect(second.next).toBeNull()
 }
 
+const nobodyAnswers = async () => ({allowed: false as const, message: 'nobody answers an ask in this test'})
+
 describe('acp harnesses', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
     cwd: '/tmp/acp-test',
     sessionId: SessionId.parse('conciv_s-1'),
+    askPermission: nobodyAnswers,
     resumeSessionId: null,
     env: {},
     kind: 'chat',
@@ -264,6 +267,7 @@ describe('claude chat config', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
     cwd: process.cwd(),
     sessionId: SessionId.parse('conciv_s1'),
+    askPermission: nobodyAnswers,
     resumeSessionId: null,
     env: {},
     kind: 'chat',
@@ -977,6 +981,7 @@ describe('codex chat config', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
     cwd: '/tmp/codex-test',
     sessionId: SessionId.parse('conciv_s-1'),
+    askPermission: nobodyAnswers,
     resumeSessionId: null,
     env: {PATH: '/usr/bin'},
     kind: 'chat',
@@ -1570,6 +1575,7 @@ describe('opencode chat config', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
     cwd: '/tmp/opencode-test',
     sessionId: SessionId.parse('conciv_s-1'),
+    askPermission: nobodyAnswers,
     resumeSessionId: null,
     env: {},
     kind: 'chat',
@@ -2341,6 +2347,7 @@ describe('replayed history from another harness', () => {
       const config = adapter.chatConfig({
         cwd,
         sessionId: SessionId.parse('conciv_replay'),
+        askPermission: nobodyAnswers,
         resumeSessionId: null,
         env: {},
         kind: 'chat',
@@ -2439,6 +2446,7 @@ describe('stubs', () => {
       const config = adapter.chatConfig({
         cwd: '/r',
         sessionId: SessionId.parse('conciv_s'),
+        askPermission: nobodyAnswers,
         resumeSessionId: null,
         env: {},
         kind: 'chat',

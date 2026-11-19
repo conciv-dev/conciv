@@ -39,6 +39,7 @@ import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {callTrace} from '../call-trace.js'
 import {openCodeSession, type CodeSandboxSession} from '../mcp.js'
 import {callPluginTool, isPageTool, pluginSignature, pluginSignatures} from '../../runtime/plugin-signatures.js'
+import {settlingAsks} from '../../runtime/permission-cards.js'
 import type {SessionId} from '@conciv/protocol/chat-types'
 
 export const PAGE_ERROR_NAME = {
@@ -112,7 +113,11 @@ async function runPluginTool(
   if (!call.widget) await requireLiveSession(deps, call.sessionId, errors)
   if (isPageTool(call.name)) await requireAttachedPage(deps, call, errors)
   const exit = await deps.pluginHost.runPromiseExit(
-    callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
+    settlingAsks(
+      call.sessionId,
+      callPluginTool(call.sessionId, call.name, call.input, {id: call.callId, widget: call.widget}),
+      (sessionId, chunk) => deps.runtime.forSession(sessionId).stream.publish(chunk),
+    ),
     {signal: call.signal},
   )
   if (Exit.isFailure(exit)) throw pluginToolError(call.name, exit.cause, errors)

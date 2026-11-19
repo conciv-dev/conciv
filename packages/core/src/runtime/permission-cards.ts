@@ -1,11 +1,8 @@
-import type {ChatPlane, ToolDomain} from '@conciv/chat'
+import type {ToolDomain} from '@conciv/chat'
+import type {ChatPendingApproval} from '@conciv/contract'
 import type {ConcivDb} from '@conciv/db'
-import {
-  readApprovalAsk,
-  approvalRequestedEvent,
-  approvalSettledEvent,
-  type ChatEvent,
-} from '@conciv/protocol/chat-event-types'
+import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/protocol/harness-types'
+import {approvalRequestedEvent, approvalSettledEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId, type PermissionRule} from '@conciv/protocol/chat-types'
 import {
   Agent,
@@ -23,7 +20,7 @@ import {
   SkillInstructions,
   Tool,
 } from '@conciv/plugin-host'
-import {Effect, Layer, Option, Schema} from 'effect'
+import {Effect, Layer, Option, Ref, Schema} from 'effect'
 import {once} from 'es-toolkit'
 import {logError} from '../lib/debug.js'
 import {storedSessionRules, type StoredRules} from '../sessions/session-rows.js'
@@ -41,15 +38,11 @@ export type PermissionAnswer = (
   reply: Permission.Reply,
 ) => Promise<PermissionOutcome>
 
-type PermissionCards = {
-  plane: Pick<ChatPlane, 'permissionAsked' | 'permissionSettled'>
-  publish: (sessionId: SessionId, chunk: ChatEvent) => void
-  log: (line: string) => void
-}
+type CardPublish = (sessionId: SessionId, chunk: ChatEvent) => void
 
-type CardSettle = {
-  plane: Pick<ChatPlane, 'permissionSettled'>
-  publish: PermissionCards['publish']
+type PermissionCards = {
+  publish: CardPublish
+  log: (line: string) => void
 }
 
 type CardDecision = {approvalId: string; reply: Permission.Reply}
@@ -59,6 +52,8 @@ const isAsked = Schema.is(Permission.Event.Asked.data)
 const isReplied = Schema.is(Permission.Event.Replied.data)
 
 const decodeRequestId = Schema.decodeUnknownOption(Permission.Id)
+
+const isDeclined = Schema.is(Permission.DeclinedError)
 
 const NO_PLUGIN_TOOLS: PermissionRule[] = [
   {action: '*', resource: '*', effect: 'deny'},
@@ -173,42 +168,107 @@ function formatCardTitle(request: Permission.Request): string {
   return title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT - 1)}…` : title
 }
 
-async function showCard(cards: PermissionCards, request: Permission.Request): Promise<void> {
-  const sessionId = SessionId.parse(request.sessionId)
-  const card = {
+function buildCard(request: Permission.Request): ChatPendingApproval {
+  return {
     approvalId: request.id,
     toolCallId: request.id,
-    title: formatCardTitle(request),
+    toolName: formatCardTitle(request),
     input: request.metadata ?? {},
+    runId: null,
     permission: {always: (request.save?.length ?? 0) > 0},
   }
-  await cards.plane.permissionAsked(sessionId, card)
-  cards.publish(sessionId, {...approvalRequestedEvent.create(card), timestamp: Date.now()})
 }
 
-async function dropCard(cards: CardSettle, sessionId: string, requestId: string): Promise<void> {
-  const session = SessionId.parse(sessionId)
-  await cards.plane.permissionSettled(session, requestId)
-  cards.publish(session, {...approvalSettledEvent.create({approvalId: requestId}), timestamp: Date.now()})
+function showCard(cards: PermissionCards, request: Permission.Request): void {
+  const sessionId = SessionId.parse(request.sessionId)
+  const {toolName, runId: _runId, ...card} = buildCard(request)
+  cards.publish(sessionId, {...approvalRequestedEvent.create({...card, title: toolName}), timestamp: Date.now()})
 }
 
-function cardWork(cards: PermissionCards, type: string, data: unknown): Promise<void> | null {
-  if (type === Permission.Event.Asked.type && isAsked(data)) return showCard(cards, data)
-  if (type === Permission.Event.Replied.type && isReplied(data)) return dropCard(cards, data.sessionId, data.requestId)
-  return null
+function dropCard(publish: CardPublish, sessionId: string, requestId: string): void {
+  publish(SessionId.parse(sessionId), {...approvalSettledEvent.create({approvalId: requestId}), timestamp: Date.now()})
+}
+
+function cardWork(cards: PermissionCards, type: string, data: unknown): void {
+  if (type === Permission.Event.Asked.type && isAsked(data)) showCard(cards, data)
+  if (type === Permission.Event.Replied.type && isReplied(data)) dropCard(cards.publish, data.sessionId, data.requestId)
 }
 
 export function followPermissionCards(cards: PermissionCards): Effect.Effect<Bus.Unsubscribe, never, Bus.Interface> {
   return Effect.gen(function* () {
     const bus = yield* Bus.Service
     return yield* bus.listen((event) =>
-      Effect.promise(async () => {
-        await cardWork(cards, event.type, event.data)?.catch((error: unknown) =>
-          cards.log(`[core] the permission card for ${event.type} could not be updated: ${String(error)}`),
-        )
-      }),
+      Effect.try({try: () => cardWork(cards, event.type, event.data), catch: (error) => error}).pipe(
+        Effect.catch((error) =>
+          Effect.sync(() =>
+            cards.log(`[core] the permission card for ${event.type} could not be updated: ${String(error)}`),
+          ),
+        ),
+      ),
     )
   })
+}
+
+export function pendingPermissionCards(
+  sessionId: SessionId,
+): Effect.Effect<ChatPendingApproval[], never, Permission.Interface> {
+  return Permission.Service.use((permission) => permission.forSession(SessionSchema.Id.make(sessionId))).pipe(
+    Effect.map((requests) => requests.map(buildCard)),
+  )
+}
+
+export function settlingAsks<A, E, R>(
+  sessionId: SessionId,
+  effect: Effect.Effect<A, E, R>,
+  publish: CardPublish,
+): Effect.Effect<A, E, R | Bus.Interface | Permission.Interface> {
+  return Effect.gen(function* () {
+    const asked = yield* Ref.make<readonly string[]>([])
+    const unsubscribe = yield* (yield* Bus.Service).listen((event) => {
+      const data = event.data
+      if (event.type !== Permission.Event.Asked.type || !isAsked(data) || data.sessionId !== sessionId)
+        return Effect.void
+      return Ref.update(asked, (ids) => [...ids, data.id])
+    })
+    const settleLeft = Effect.gen(function* () {
+      yield* unsubscribe
+      const open = yield* Permission.Service.use((permission) =>
+        permission.forSession(SessionSchema.Id.make(sessionId)),
+      )
+      const left = (yield* Ref.get(asked)).filter((id) => !open.some((request) => request.id === id))
+      left.forEach((id) => dropCard(publish, sessionId, id))
+    })
+    return yield* effect.pipe(Effect.ensuring(settleLeft))
+  })
+}
+
+function refused(message: string): HarnessPermissionVerdict {
+  return {allowed: false, message}
+}
+
+export function askForHarness(
+  sessionId: SessionId,
+  ask: HarnessPermissionAsk,
+  publish: CardPublish,
+): Effect.Effect<HarnessPermissionVerdict, never, Permission.Interface | Bus.Interface> {
+  const asked = `${ask.action} ${ask.resources.join(', ')}`
+  const assert = Permission.Service.use((permission) =>
+    permission.assert({
+      sessionId: SessionSchema.Id.make(sessionId),
+      action: ask.action,
+      resources: ask.resources,
+      save: [],
+      fallback: 'ask',
+      metadata: ask.metadata,
+    }),
+  ).pipe(
+    Effect.as<HarnessPermissionVerdict>({allowed: true}),
+    Effect.catch((error) => Effect.succeed(refused(error.message || `Permission denied: ${asked}`))),
+    Effect.catchDefect((defect) =>
+      isDeclined(defect) ? Effect.succeed(refused(`The user rejected ${asked}.`)) : Effect.die(defect),
+    ),
+  )
+  return settlingAsks(sessionId, assert, publish)
 }
 
 export function answerPermission(
@@ -249,19 +309,11 @@ export function assertOutsideAgent(
 }
 
 export async function decidePermissionCard(
-  deps: {
-    plane: Pick<ChatPlane, 'catchUp' | 'decide' | 'permissionSettled'>
-    answer: PermissionAnswer
-    publish: PermissionCards['publish']
-  },
+  deps: {answer: PermissionAnswer; publish: CardPublish},
   sessionId: SessionId,
   decision: CardDecision,
-): Promise<{startsTurn: boolean} | null> {
-  const cards = (await deps.plane.catchUp(sessionId)).map(readApprovalAsk)
-  const card = cards.find((ask) => ask?.approvalId === decision.approvalId)
-  if (card?.permission === undefined)
-    return deps.plane.decide(sessionId, decision.approvalId, decision.reply !== 'reject')
+): Promise<boolean> {
   const outcome = await deps.answer(sessionId, decision.approvalId, decision.reply)
-  if (outcome === 'gone') await dropCard(deps, sessionId, decision.approvalId)
-  return outcome === 'replied' ? {startsTurn: false} : null
+  if (outcome === 'gone') dropCard(deps.publish, sessionId, decision.approvalId)
+  return outcome === 'replied'
 }

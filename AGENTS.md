@@ -219,9 +219,12 @@ README.md; this file is the non-obvious operational rules.
 ## Security & safety
 
 - The core dev server binds `127.0.0.1` only. Never commit or log credentials/tokens.
-- CLI commands are governed by each CLI's native permission mode (Claude Code runs `permissionMode: 'auto'`,
-  set in `packages/harness/src/claude/chat.ts`). conciv keeps no command rules; its own `approval: 'ask'` tools
-  use deny-and-retry.
+- CLI commands are governed by each CLI's native permission mode (Claude Code runs `permissionMode: 'auto'`
+  plus the ask rules in `packages/harness/src/claude/ask-rules.ts`, set in `packages/harness/src/claude/chat.ts`).
+  When a CLI asks, the ask goes to conciv's permission service (`permission.assert`) and waits on the user's card:
+  Claude Code through its permission prompt tool on conciv's tool bridge, an ACP CLI (Gemini) through
+  `onPermissionRequest`. An ask dies with its run (a stop, or a prompt call the CLI gives up on) and its card goes.
+  Codex never asks (`approvalPolicy: 'never'`); opencode's asks do not reach conciv (pending a ruling).
 
 ## Project status
 

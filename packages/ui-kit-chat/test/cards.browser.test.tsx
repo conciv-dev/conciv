@@ -542,7 +542,8 @@ describe('permission card session', () => {
     mountView(() => <PermissionCard part={askingPart({command: 'pnpm run build'})} ctx={ctxRecording(decisions)} />)
 
     await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
-    expect(document.querySelectorAll('button')).toHaveLength(2)
+    await expect.element(page.getByRole('button', {name: 'Allow for session'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Always allow'})).not.toBeInTheDocument()
     await page.getByRole('button', {name: 'Allow', exact: true}).click()
 
     expect(decisions).toEqual([{id: 'appr-1', reply: 'once'}])

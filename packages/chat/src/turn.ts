@@ -1,7 +1,6 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {
-  readApprovalAsk,
   ChatEventType,
   SESSION_DELETED_CODE,
   sessionRunEvent,
@@ -26,8 +25,9 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import type {HarnessPermissionAsk, HarnessPermissionVerdict} from '@conciv/protocol/harness-types'
 import type {CodeModeCatalog, PluginHooks} from '@conciv/plugin-host'
-import type {ApprovalStore, UiChannel} from './approvals.js'
+import type {UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
 
@@ -89,6 +89,11 @@ export type TurnDeps = {
     inventory: CodeModeCatalog.Inventory | undefined,
   ) => Promise<PluginInstructions>
   log: (message: string) => void
+  askPermission: (
+    sessionId: SessionId,
+    ask: HarnessPermissionAsk,
+    signal: AbortSignal,
+  ) => Promise<HarnessPermissionVerdict>
 }
 
 export const COMPACT_FALLBACK_PROMPT =
@@ -294,14 +299,14 @@ export function deletedSessionError(sessionId: SessionId): Error {
 
 export function turnHooks(
   deps: TurnDeps,
-  context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
+  context: {ui: UiChannel; transcripts: TranscriptImporter; codeMode: boolean},
 ): TurnHooks {
   return {
     admit: async (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       if (await sessionDeleted(deps.sessions, sessionId)) throw deletedSessionError(sessionId)
     },
-    plan: async (turn) => {
+    plan: async (turn, runSignal) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = await deps.harnessFor(sessionId)
       const systemText = buildSystemText(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
@@ -317,6 +322,7 @@ export function turnHooks(
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
+        askPermission: (ask) => deps.askPermission(sessionId, ask, runSignal),
         resumeSessionId,
         model: model ?? undefined,
         effort: own?.effort ?? undefined,
@@ -353,11 +359,9 @@ export function turnHooks(
           await deps.sessions.ensure(sessionId)
           await deps.sessions.onRunStart(sessionId)
           await context.transcripts.sync(sessionId)
-          const approvals = await context.approvals.forRun(sessionId)
           const {inventory} = await toolSet()
           await normalizer()
           instructions.resolve(deps.pluginInstructions(sessionId, reset, inventory))
-          return approvals
         },
         prompt: async (message, signal) => {
           if (turn.kind !== 'chat' || message.id === undefined) return message
@@ -392,11 +396,6 @@ export function turnHooks(
           }
           const minted = mintedSessionId(shaped)
           if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
-          const ask = readApprovalAsk(shaped)
-          if (ask !== null) {
-            const {toolName, ...asked} = ask
-            await context.approvals.asked(sessionId, {...asked, title: toolName, runId: turn.runId})
-          }
           return [shaped]
         },
       }

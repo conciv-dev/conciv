@@ -36,7 +36,7 @@ import {
   vi,
   beforeEach,
 } from 'vitest'
-import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
+import {createMCPClient, makeTextAdapter, askingToolProvisioner} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {
   browserRpcConnection,
@@ -96,6 +96,7 @@ import {pi as piHarness} from '@conciv/harness/pi'
 import * as Bundler from '@conciv/plugin/schema/bundler'
 import {
   readApprovalAsk,
+  readApprovalSettled,
   type ApprovalAsk,
   type ChatEvent,
   ChatEventType,
@@ -184,6 +185,19 @@ async function nextEvent<Value extends {readonly type: string}>(
   const next = await events.next()
   if (next.done !== true && next.value.type === 'server.heartbeat') return nextEvent(events)
   return next
+}
+
+async function nextPicked<T>(events: AsyncIterable<ChatEvent>, pick: (chunk: ChatEvent) => T | null): Promise<T> {
+  const iterator = events[Symbol.asyncIterator]()
+  for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
+    const picked = pick(next.value)
+    if (picked !== null) return picked
+  }
+  throw new Error('the event stream ended before the awaited event')
+}
+
+function settledCard(events: AsyncIterable<ChatEvent>): Promise<string> {
+  return nextPicked(events, readApprovalSettled)
 }
 
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
@@ -2708,10 +2722,7 @@ describe('rpc wire', () => {
           const ask = await firstAsk(events)
           listening.abort()
           expect(ask).toMatchObject({toolName: 'page_eval 1', permission: {always: expect.any(Boolean)}})
-          await expect(decide(sessionId, ask.approvalId, approved ? 'once' : 'reject')).resolves.toEqual({
-            ok: true,
-            startsTurn: false,
-          })
+          await expect(decide(sessionId, ask.approvalId, approved ? 'once' : 'reject')).resolves.toEqual({ok: true})
           return (await turn).done()
         }
         await evalTurn(false)
@@ -2721,40 +2732,61 @@ describe('rpc wire', () => {
         expect(tab.seen()).toEqual(['page_eval'])
         await evalTurn(false)
         expect(tab.seen()).toEqual(['page_eval'])
-      })
-
-      it('a harness command ask never times out and outlives a stop, a denial reaches the next run once, and a one-time approval reaches the next run once', async () => {
-        const sessionId = await newSession()
-        expect(JSON.stringify((await commandAsks(sessionId, [PLAIN_COMMAND])).all)).not.toMatch(/timed out/)
-        await chatKit().rpc.chat.stop({sessionId, runIds: []})
-        expect((await chatKit().hydrate(sessionId)).pendingApprovals.map((ask) => ask.approvalId)).toEqual([
-          PLAIN_COMMAND,
-        ])
-        await expect(decide(sessionId, PLAIN_COMMAND, 'reject')).resolves.toEqual({ok: true, startsTurn: true})
+        const listening = new AbortController()
+        const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
+        codeTurn('return await external_page_eval({code: "1"})')
+        const stopped = await send(sessionId, 'evaluate')
+        const asked = await firstAsk(events)
+        await stopActiveRun(sessionId)
+        expect(await settledCard(events)).toBe(asked.approvalId)
+        listening.abort()
+        await stopped.done()
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
-        await finished(sessionId, 'retry denied')
-        expect(findLastRun(sessionId).denials).toEqual([PLAIN_COMMAND])
-        await finished(sessionId, 'after the denial')
-        expect(findLastRun(sessionId).denials).toEqual([])
-        await commandAsks(sessionId, [PLAIN_COMMAND])
-        await decide(sessionId, PLAIN_COMMAND, 'once')
-        await finished(sessionId, 'retry approved')
-        expect(findLastRun(sessionId).approvals).toEqual([PLAIN_COMMAND])
-        await finished(sessionId, 'after the approval')
-        expect(findLastRun(sessionId).approvals).toEqual([])
-        await expect(decide(sessionId, 'claude-code:command:nothing', 'once')).rejects.toMatchObject({
-          code: 'UNKNOWN_REQUEST',
-        })
       })
 
-      it('a harness command ask has no session grant: an always reply reaches the next run once, like once', async () => {
+      it('a claude permission prompt waits on its card: reject denies with no run started, once allows the input, a stop and a timed-out prompt call each end the ask and drop the card', async () => {
         const sessionId = await newSession()
-        await commandAsks(sessionId, [PLAIN_COMMAND])
-        await expect(decide(sessionId, PLAIN_COMMAND, 'always')).resolves.toEqual({ok: true, startsTurn: true})
-        await finished(sessionId, 'retry one')
-        expect(findLastRun(sessionId).approvals).toEqual([PLAIN_COMMAND])
-        await finished(sessionId, 'retry two')
-        expect(findLastRun(sessionId).approvals).toEqual([])
+        const command = {command: 'rm -r junk'}
+        const prompted = async (cut?: AbortSignal) => {
+          const listening = new AbortController()
+          const events = await chatKit().rpc.chat.events({sessionId}, {signal: listening.signal})
+          script().scriptPermissionAsk({toolName: 'Bash', input: command, cut})
+          const turn = await send(sessionId, 'run the command')
+          const ended = turn.done().then((done) => {
+            throw new Error(`the turn ended without an ask: ${collectResults(foldChatEvents(done.all))}`)
+          })
+          const ask = await Promise.race([firstAsk(events), ended])
+          return {turn, ask, events, listening}
+        }
+        const rejected = await prompted()
+        rejected.listening.abort()
+        expect(rejected.ask).toMatchObject({toolName: 'bash rm -r junk', permission: {always: false}})
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([
+          expect.objectContaining({approvalId: rejected.ask.approvalId, toolName: 'bash rm -r junk'}),
+        ])
+        await expect(decide(sessionId, rejected.ask.approvalId, 'reject')).resolves.toEqual({ok: true})
+        expect(collectResults(foldChatEvents((await rejected.turn.done()).all))).toMatch(/"behavior":"deny"/)
+        expect(listRuns(sessionId)).toHaveLength(1)
+        const allowed = await prompted()
+        allowed.listening.abort()
+        await decide(sessionId, allowed.ask.approvalId, 'once')
+        expect(collectResults(foldChatEvents((await allowed.turn.done()).all))).toContain(
+          JSON.stringify({behavior: 'allow', updatedInput: command}),
+        )
+        const stopped = await prompted()
+        await stopActiveRun(sessionId)
+        expect(await settledCard(stopped.events)).toBe(stopped.ask.approvalId)
+        stopped.listening.abort()
+        await stopped.turn.done()
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+        await expect(decide(sessionId, stopped.ask.approvalId, 'once')).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+        const cut = new AbortController()
+        const timedOut = await prompted(cut.signal)
+        cut.abort()
+        expect(await settledCard(timedOut.events)).toBe(timedOut.ask.approvalId)
+        timedOut.listening.abort()
+        await timedOut.turn.done()
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
       })
 
       it('the widget calling page_eval is the approval, while malformed callers are refused', async () => {
@@ -2831,17 +2863,25 @@ describe('rpc wire', () => {
           expect.objectContaining({approvalId: approved.ask.approvalId, runId: null, permission: {always: false}}),
         ])
         expect(tab.seen()).toEqual([])
-        await expect(decide(sessionId, approved.ask.approvalId, 'once')).resolves.toEqual({ok: true, startsTurn: false})
+        await expect(decide(sessionId, approved.ask.approvalId, 'once')).resolves.toEqual({ok: true})
         expect(await approved.result).toEqual({value: EVALUATED})
         expect(tab.seen()).toEqual(['page_eval'])
         const rejected = await asked()
-        await expect(decide(sessionId, rejected.ask.approvalId, 'reject')).resolves.toEqual({
-          ok: true,
-          startsTurn: false,
-        })
+        await expect(decide(sessionId, rejected.ask.approvalId, 'reject')).resolves.toEqual({ok: true})
         expect(await rejected.result).toMatchObject({error: {code: 'APPROVAL_DENIED', message: EVAL_DENIED}})
         expect(tab.seen()).toEqual(['page_eval'])
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+        const leaving = new AbortController()
+        const watching = new AbortController()
+        const watched = await chatKit().rpc.chat.events({sessionId}, {signal: watching.signal})
+        const left = callerWith(sessionId).registry.call(EVALUATE, {signal: leaving.signal}).then(String, String)
+        const abandoned = await firstAsk(watched)
+        leaving.abort()
+        expect(await settledCard(watched)).toBe(abandoned.approvalId)
+        watching.abort()
+        await left
+        expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
+        expect(tab.seen()).toEqual(['page_eval'])
         const unknown = callerWith('conciv_unknown_probe').registry.call(EVALUATE)
         await expect(unknown).rejects.toThrow('session "conciv_unknown_probe" does not exist')
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
@@ -3922,7 +3962,8 @@ return seen`
       })
 
       it('the tool bridge hands the CLI an image block, with the text capped apart from it', async () => {
-        const bridge = await imageToolProvisioner.provision(
+        const unasked = async () => ({allowed: false as const, message: 'the bridge offers no permission tool'})
+        const bridge = await askingToolProvisioner(unasked).provision(
           [{name: 'shot', description: 'shot', execute: async () => cappedValue({path: 'a.webp', image: BIG_IMAGE})}],
           {threadId: 'thread', provider: 'local-process'},
         )
@@ -4017,7 +4058,6 @@ return seen`
   const GRAB_TEXT = '<button>Buy</button> in src/cart.tsx'
   const EVALUATE = {name: 'page_eval', input: {code: '1'}}
   const EVALUATED = {result: 'evaluated'}
-  const PLAIN_COMMAND = 'claude-code:command:git status'
   const TERMINAL_ID = 'sess-terminal-born'
   const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
@@ -4060,8 +4100,6 @@ return seen`
     resumeSessionId: string | null
     messages: string
     tools: string[]
-    approvals: string[]
-    denials: string[]
     startedAt: number
     endedAt: number | null
   }
@@ -4238,8 +4276,6 @@ return seen`
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),
-              approvals: [...(options.approvals ?? [])].flatMap(([id, granted]) => (granted ? [id] : [])),
-              denials: [...(options.approvals ?? [])].flatMap(([id, granted]) => (granted ? [] : [id])),
               startedAt: Date.now(),
               endedAt: null,
             }
@@ -4306,17 +4342,14 @@ return seen`
     return {turn, seen}
   }
 
-  function commandAsks(sessionId: string, approvalIds: string[]): Promise<RunEvents> {
-    for (const approvalId of approvalIds) script().scriptCustomEvent('approval-requested', {approvalId, title: 'Bash'})
-    return finished(sessionId, 'commands')
+  async function stopActiveRun(sessionId: string): Promise<void> {
+    const active = (await chatKit().hydrate(sessionId)).activeRun
+    if (active === null) throw new Error(`session ${sessionId} has no active run to stop`)
+    await chatKit().rpc.chat.stop({sessionId, runIds: [active.runId]})
   }
 
-  async function firstAsk(events: AsyncIterable<ChatEvent>): Promise<ApprovalAsk> {
-    for await (const chunk of events) {
-      const ask = readApprovalAsk(chunk)
-      if (ask !== null) return ask
-    }
-    throw new Error('the event stream ended before an ask was raised')
+  function firstAsk(events: AsyncIterable<ChatEvent>): Promise<ApprovalAsk> {
+    return nextPicked(events, readApprovalAsk)
   }
 
   function decide(sessionId: string, approvalId: string, reply: 'once' | 'always' | 'reject') {
@@ -4930,18 +4963,14 @@ describe('outside agent consent', () => {
     }
   }
 
-  async function askRaised(
-    base: string,
-    sessionId: string,
-    pastId?: string,
-  ): Promise<ReturnType<typeof readApprovalAsk>> {
+  async function askRaised(base: string, sessionId: string): Promise<ReturnType<typeof readApprovalAsk>> {
     const raised = new AbortController()
     const signal = AbortSignal.any([raised.signal, pages.signal])
     const events = await createSessionRpc(base, sessionId).chat.events({sessionId}, {signal})
     try {
       for await (const chunk of events) {
         const ask = readApprovalAsk(chunk)
-        if (ask !== null && ask.approvalId !== pastId) return ask
+        if (ask !== null) return ask
       }
       return null
     } finally {
@@ -4950,19 +4979,6 @@ describe('outside agent consent', () => {
   }
 
   type OutsideReply = 'once' | 'always' | 'reject'
-
-  async function decideNewOutside(base: string, sessionId: string, reply: OutsideReply, leftId: string) {
-    const ask = await askRaised(base, sessionId, leftId)
-    expect(ask).toMatchObject(OUTSIDE_ASK)
-    const fresh = (await loadPending(base, sessionId)).filter((card) => card.approvalId !== leftId)
-    expect(fresh).toEqual([expect.objectContaining({...OUTSIDE_ASK, approvalId: ask?.approvalId, runId: null})])
-    expect(fresh[0]?.permission).toEqual({always: true})
-    const decision = await createSessionRpc(base, sessionId).chat.permissionDecision({
-      approvalId: fresh[0]?.approvalId ?? '',
-      reply,
-    })
-    expect(decision.startsTurn).toBe(false)
-  }
 
   async function decideOutside(
     base: string,
@@ -4975,14 +4991,12 @@ describe('outside agent consent', () => {
     expect(pending).toHaveLength(1)
     const [card] = pending
     expect(card).toMatchObject({...ask, runId: null, permission: {always: true}})
-    const decision = await createSessionRpc(base, sessionId).chat.permissionDecision({
-      approvalId: card?.approvalId ?? '',
-      reply,
-    })
-    expect(decision.startsTurn).toBe(false)
+    expect(
+      await createSessionRpc(base, sessionId).chat.permissionDecision({approvalId: card?.approvalId ?? '', reply}),
+    ).toEqual({ok: true})
   }
 
-  it('an outside call waits on the card: once runs that call only, always saves a rule so later calls in every session run with no card, reject refuses', async () => {
+  it('an outside call waits on the card: once runs that call only, always saves a rule so later calls in every session run with no card, reject refuses, and a caller that leaves drops its card', async () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
@@ -5015,14 +5029,18 @@ describe('outside agent consent', () => {
     await decideOutside(base, second, 'reject', terminalAsk)
     expect(await refused).toContain('The user denied terminal access to this session')
     expect(await loadPending(base, second)).toEqual([])
+    const watching = await createSessionRpc(base, second).chat.events({sessionId: second}, {signal: pages.signal})
     const leaving = new AbortController()
     const left = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: second, ...TERMINAL}}).chat.hydrate(
       {sessionId: second},
       {signal: leaving.signal},
     )
-    expect(await askRaised(base, second)).toMatchObject(terminalAsk)
+    const leftAsk = await askRaised(base, second)
+    expect(leftAsk).toMatchObject(terminalAsk)
     leaving.abort()
     await expect(left).rejects.toThrow()
+    expect(await settledCard(watching)).toBe(leftAsk?.approvalId)
+    await vi.waitFor(async () => expect(await loadPending(base, second)).toEqual([]), {timeout: 3000})
   })
 
   it('a tab that subscribes after the ask was published still receives it on its event stream', async () => {
@@ -5297,11 +5315,12 @@ export default {
     expect(fields(oldId).compatible).toBe(true)
   }, 90_000)
 
-  it('cancelling a hub block while it waits on the card, nothing of it runs after a later allow', async () => {
+  it('cancelling a hub block while it waits on the card drops the card, and nothing of it runs after a later allow', async () => {
     const base = await boot()
     const heard: string[] = []
     const tab = await openTab(base, undefined, heard)
     const headers = {[CONCIV_SESSION_HEADER]: tab, ...HUB}
+    const watching = await createSessionRpc(base, tab).chat.events({sessionId: tab}, {signal: pages.signal})
     const leaving = await connectMcpClient(`${base}/api/mcp`, headers)
     const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
     const cancelled = execute?.execute({typescriptCode: 'return await external_page_screenshot({})'})
@@ -5309,8 +5328,10 @@ export default {
     expect(leftAsk).toMatchObject(OUTSIDE_ASK)
     await leaving.close()
     await expect(cancelled).rejects.toThrow()
+    expect(await settledCard(watching)).toBe(leftAsk?.approvalId)
+    await vi.waitFor(async () => expect(await loadPending(base, tab)).toEqual([]), {timeout: 3000})
     const routed = executeOverMcp(base, headers, 'return await external_page_route({})').then(String)
-    await decideNewOutside(base, tab, 'once', leftAsk?.approvalId ?? '')
+    await decideOutside(base, tab, 'once')
     expect(await routed).toContain(ROUTE.href)
     expect(heard.filter((name) => name === 'page_screenshot')).toEqual([])
   })
@@ -5460,29 +5481,31 @@ export default {
     ])
   })
 
-  it('a hub-origin rpc tool call waits for the allow and runs marked, a plain rpc call never asks, an eval waits marked on its card until a reject or the caller leaves, an always rule allows every session', async () => {
+  it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves drops its card, a plain rpc call never asks, an eval waits marked on its card until a reject or the caller leaves, an always rule allows every session', async () => {
     const base = await boot()
     const sessionId = await openTab(base)
     const route = {name: 'page_route', input: {}}
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
     expect(await createSessionRpc(base, sessionId).registry.call(route)).toMatchObject({href: ROUTE.href})
     expect(await loadPending(base, sessionId)).toEqual([])
+    const watching = await createSessionRpc(base, sessionId).chat.events({sessionId}, {signal: pages.signal})
     const leaving = new AbortController()
     const left = hubRpc.registry.call(route, {signal: leaving.signal})
     const leftRouteAsk = await askRaised(base, sessionId)
     expect(leftRouteAsk).toMatchObject(OUTSIDE_ASK)
-    const leftRouteId = leftRouteAsk?.approvalId ?? ''
     leaving.abort()
     await expect(left).rejects.toThrow()
+    expect(await settledCard(watching)).toBe(leftRouteAsk?.approvalId)
+    await vi.waitFor(async () => expect(await loadPending(base, sessionId)).toEqual([]), {timeout: 3000})
     const starts = await toolStarts(base, sessionId, 3)
     const waiting = hubRpc.registry.call(route)
-    await decideNewOutside(base, sessionId, 'always', leftRouteId)
+    await decideOutside(base, sessionId, 'always')
     expect(await waiting).toMatchObject({href: ROUTE.href})
     const namedHubRpc = makeRpcClient(base, {
       headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB, [CONCIV_NAMED_TAB_HEADER]: '1'},
     })
     const evaluating = namedHubRpc.registry.call({name: 'page_eval', input: {code: '1'}})
-    const evalAsk = await askRaised(base, sessionId, leftRouteId)
+    const evalAsk = await askRaised(base, sessionId)
     expect(evalAsk).toMatchObject({toolName: 'page_eval 1', permission: {always: false}})
     await createSessionRpc(base, sessionId).chat.permissionDecision({
       approvalId: evalAsk?.approvalId ?? '',
@@ -5492,7 +5515,7 @@ export default {
     const results = await createSessionRpc(base, sessionId).chat.events({sessionId}, {signal: pages.signal})
     const leavingEval = new AbortController()
     const leftEval = namedHubRpc.registry.call({name: 'page_eval', input: {code: '2'}}, {signal: leavingEval.signal})
-    const leftAsk = await askRaised(base, sessionId, leftRouteId)
+    const leftAsk = await askRaised(base, sessionId)
     expect(leftAsk).toMatchObject({toolName: 'page_eval 2'})
     leavingEval.abort()
     await expect(leftEval).rejects.toThrow()
@@ -5503,7 +5526,7 @@ export default {
         reply: 'once',
       }),
     ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
-    expect((await loadPending(base, sessionId)).filter((card) => card.approvalId !== leftRouteId)).toEqual([])
+    expect(await loadPending(base, sessionId)).toEqual([])
     const marked = {
       conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
       time: {start: expect.any(Number)},

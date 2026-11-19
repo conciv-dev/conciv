@@ -36,7 +36,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
-import {imageToolProvisioner} from './image-tool-results.js'
+import {askingToolProvisioner, type AskPermission} from './image-tool-results.js'
 import {childCards, withoutChildCalls} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, readSecretRefusal, stoppedWith} from './code-mode.js'
@@ -62,8 +62,6 @@ export type ChatStores = {
   metadata: MetadataStore
 }
 
-export type Approvals = ReadonlyMap<string, boolean>
-
 export type TurnTools = {
   codeMode: readonly ChatTool[]
   search: ((input: unknown) => Promise<unknown>) | null
@@ -76,7 +74,7 @@ export type TurnPlan = {
   systemPrompts: () => Promise<readonly string[]>
   context: RequestHook
   tools: () => Promise<TurnTools>
-  setup: () => Promise<Approvals>
+  setup: () => Promise<void>
   prompt: (message: ModelMessage, signal: AbortSignal) => Promise<ModelMessage>
   expand: (messages: ModelMessage[]) => Promise<ModelMessage[]>
   providerMessages: (messages: ModelMessage[]) => Promise<ModelMessage[]>
@@ -85,7 +83,7 @@ export type TurnPlan = {
 
 export type TurnHooks = {
   admit: (turn: Turn) => Promise<void>
-  plan: (turn: Turn) => Promise<TurnPlan>
+  plan: (turn: Turn, signal: AbortSignal) => Promise<TurnPlan>
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
   started: (turn: Turn) => void
@@ -100,6 +98,7 @@ export type ChatServerConfig = {
   firstOutputTimeoutMs: number
   log: (message: string) => void
   driver: CodeDriver | null
+  askPermission: AskPermission
 }
 
 const ThreadPageSchema = z.discriminatedUnion('truncated', [
@@ -172,7 +171,7 @@ function failedPlan(error: unknown): TurnPlan {
     systemPrompts: async () => [],
     context: async (request) => request,
     tools: async () => ({codeMode: [], search: null, direct: []}),
-    setup: async () => new Map(),
+    setup: async () => undefined,
     prompt: async (user) => user,
     expand: async (messages) => messages,
     providerMessages: async (messages) => messages,
@@ -180,9 +179,9 @@ function failedPlan(error: unknown): TurnPlan {
   }
 }
 
-async function planned(hooks: TurnHooks, turn: Turn): Promise<TurnPlan> {
+async function planned(hooks: TurnHooks, turn: Turn, signal: AbortSignal): Promise<TurnPlan> {
   try {
-    return await hooks.plan(turn)
+    return await hooks.plan(turn, signal)
   } catch (error) {
     return failedPlan(error)
   }
@@ -434,7 +433,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   function concivTurn(
     turn: Turn,
     plan: TurnPlan,
-    granted: {approvals: Approvals},
     view: RunMessages,
     entry: LiveRun,
     offered: () => Promise<OfferedTools>,
@@ -482,7 +480,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           }
         }
         if (ctx.phase !== 'init') return
-        granted.approvals = await plan.setup()
+        await plan.setup()
         const next = await offered()
         prepared.system = await plan.systemPrompts()
         const systemPrompts = [
@@ -501,10 +499,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           providerMessages: prepared.provider,
           systemPrompts,
           tools: next.tools,
-          resumeToolState: {
-            ...current.resumeToolState,
-            approvals: new Map([...(current.resumeToolState?.approvals ?? []), ...granted.approvals]),
-          },
         }
       },
       onChunk: async (_ctx, chunk) => {
@@ -580,7 +574,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     controller: AbortController,
     entry: LiveRun,
   ): AsyncGenerator<ChatEvent> {
-    const plan = await planned(hooks, turn)
+    const plan = await planned(hooks, turn, controller.signal)
     const prompted = await hooks
       .admit(turn)
       .then(() => promptedMessages(turn.threadId, messages, plan, controller.signal))
@@ -599,7 +593,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     entry: LiveRun,
     plan: TurnPlan,
   ) {
-    const granted: {approvals: Approvals} = {approvals: new Map()}
     const coding = driver === null ? null : stoppedWith(driver, controller.signal, config.log)
     const offered = async (): Promise<OfferedTools> => {
       const tools = await plan.tools()
@@ -641,7 +634,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         defineChatMiddleware({
           name: 'conciv-image-tools',
           provides: [ToolBridgeProvisionerCapability],
-          setup: (ctx) => provideToolBridgeProvisioner(ctx, imageToolProvisioner),
+          setup: (ctx) => provideToolBridgeProvisioner(ctx, askingToolProvisioner(config.askPermission)),
         }),
         withPersistence(persistence, {snapshotStreaming: true}),
         withLocks(locks),
@@ -662,7 +655,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         }),
         withSandbox(sandbox, {locks}),
         toolHistory(),
-        concivTurn(turn, plan, granted, view, entry, offered),
+        concivTurn(turn, plan, view, entry, offered),
       ],
     })
     return endedWithItsRecord(stream, () => recordLifecycle(turn.runId))

@@ -9,10 +9,15 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {idleFailedEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
+import {idleFailedEvent, type ChatEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
-import type {ServerHarness, ServerSessions} from '@conciv/protocol/harness-types'
+import type {
+  HarnessPermissionAsk,
+  HarnessPermissionVerdict,
+  ServerHarness,
+  ServerSessions,
+} from '@conciv/protocol/harness-types'
 import {assertToolName} from '@conciv/protocol/tool-call-types'
 import type {ResolvedConcivConfig} from './config.js'
 import {listHarnesses, transcriptPathWithin} from '@conciv/harness'
@@ -64,9 +69,12 @@ import {createPersistentPtys, type PersistentPtys} from './pty/persistent-ptys.j
 import concivPage from '@conciv/plugin-page'
 import {
   answerPermission,
+  askForHarness,
   assertOutsideAgent,
   followPermissionCards,
+  pendingPermissionCards,
   pluginInstructions,
+  settlingAsks,
   currentToolDomain,
 } from './runtime/permission-cards.js'
 import {makePluginRuntime, type PluginRuntime} from './runtime/plugin-runtime.js'
@@ -521,6 +529,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         ),
       ),
     )
+  const publishCard = (sessionId: SessionId, chunk: ChatEvent): void => stream.publish(sessionId, chunk)
   const reportToolCollision = memoize((name: string) =>
     logError(`[core] the plugin tool "${name}" is left out: a built-in capability already has that name`),
   )
@@ -529,7 +538,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       capabilities,
       await pluginHost.runPromise(currentToolDomain(sessionId)),
       currentToolDomain(sessionId),
-      (effect, signal) => pluginHost.runPromiseExit(effect, {signal}),
+      (effect, signal) => pluginHost.runPromiseExit(settlingAsks(sessionId, effect, publishCard), {signal}),
       reportToolCollision,
     )
 
@@ -550,6 +559,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const hub = createHubInstaller(opts.home)
   const driver = loadIsolateDriver(logError)
+  const askPermission = async (
+    sessionId: SessionId,
+    ask: HarnessPermissionAsk,
+    signal: AbortSignal,
+  ): Promise<HarnessPermissionVerdict> => {
+    const asked = await pluginHost.runPromiseExit(askForHarness(sessionId, ask, publishCard), {signal})
+    if (Exit.isSuccess(asked)) return asked.value
+    if (!Cause.hasInterruptsOnly(asked.cause))
+      logError(`[core] the permission ask of session ${sessionId} failed: ${String(Cause.squash(asked.cause))}`)
+    return {allowed: false, message: 'The ask ended before the user answered it.'}
+  }
   const plane = await createChatPlane({
     cwd: opts.cwd,
     harnessFor,
@@ -577,12 +597,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     firstOutputTimeoutMs: opts.firstChunkTimeoutMs,
     log: logError,
     driver,
+    askPermission,
+    pendingPermissions: (sessionId) => pluginHost.runPromise(pendingPermissionCards(sessionId)),
   }).catch(startFailed([]))
   planeRef.current = plane
   await pluginHost
-    .runPromise(
-      followPermissionCards({plane, publish: (sessionId, chunk) => stream.publish(sessionId, chunk), log: logError}),
-    )
+    .runPromise(followPermissionCards({publish: publishCard, log: logError}))
     .catch(startFailed([() => plane.endAllRuns()]))
   const chatDeps: ChatContext = {
     defaultHarness: harness,
@@ -640,7 +660,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     const deleted = (row?.deletedAt ?? null) !== null
     if (opts.cfg.hubAccess === 'open' && !deleted) return null
     if (row === null || deleted) return `session "${scope.id}" does not exist`
-    const exit = await pluginHost.runPromiseExit(assertOutsideAgent(scope.id, client ?? UNNAMED_CLIENT), {signal})
+    const exit = await pluginHost.runPromiseExit(
+      settlingAsks(scope.id, assertOutsideAgent(scope.id, client ?? UNNAMED_CLIENT), publishCard),
+      {signal},
+    )
     return readOutsideRefusal(exit, client)
   }
 

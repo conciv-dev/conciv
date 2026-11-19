@@ -179,7 +179,6 @@ describe('chat stores', () => {
           firstInSetup.resolve()
           await firstSetup.promise
         }
-        return new Map()
       },
     }))
     const server = await chatServer(hooks, () => undefined)
@@ -492,7 +491,6 @@ const watched = require('node:net').connect(data.socket, () => {
             inSetup.resolve()
             await setupHeld.promise
           }
-          return new Map()
         },
         chunk: async (chunk) => {
           if (turn.runId === 'finishing' && chunk.type === ChatEventType.TEXT_MESSAGE_END) {
@@ -683,7 +681,7 @@ const watched = require('node:net').connect(data.socket, () => {
         systemPrompts: async () => [],
         context: async (request) => request,
         tools: async () => ({codeMode: [], search: null, direct: []}),
-        setup: async () => new Map(),
+        setup: async () => undefined,
         prompt: async (message) => message,
         expand: async (messages) => messages,
         providerMessages: async (messages) => messages,
@@ -721,6 +719,7 @@ const watched = require('node:net').connect(data.socket, () => {
       firstOutputTimeoutMs,
       log,
       driver,
+      askPermission: async () => ({allowed: false, message: 'no permission prompt runs in this test'}),
     })
     onTestFinished(() => server.endAllRuns())
     return server
@@ -1051,7 +1050,7 @@ describe('events', () => {
             }
           },
           stop: async () => undefined,
-          decide: async () => ({startsTurn: false}),
+          decide: async () => undefined,
         }),
       )
       expect(session.pendingApprovals()).toEqual([live])
