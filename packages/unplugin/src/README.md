@@ -6,8 +6,8 @@ The unplugin factory and its per-bundler entries. Vite gets the full hook; webpa
 
 ## Interface
 
-- `index.ts:createConcivUnplugin(builtins = NO_BUILTINS)` - `UnpluginInstance<ConcivConfig | undefined>` named `conciv`.
-- `index.ts:unplugin` (default export) - `createConcivUnplugin()`; also re-exports `NO_BUILTINS` and `Builtins`.
+- `index.ts:createConcivUnplugin(builtins = {})` - `UnpluginInstance<ConcivConfig | undefined>` named `conciv`.
+- `index.ts:unplugin` (default export) - `createConcivUnplugin()`; also re-exports the `Builtins` type.
 - `vite.ts` / `webpack.ts` / `rspack.ts` / `rollup.ts` / `esbuild.ts` - default export `unplugin.<bundler>`.
 - `nextjs.ts` - re-exports `withConciv`, `register`, `CONCIV_DEFAULT_PORT` from `core/nextjs.ts`.
 - `nextjs-widget.ts` - client entry that starts the widget (`core/widget-start.ts`) with `Number(NEXT_PUBLIC_CONCIV_PORT)`.

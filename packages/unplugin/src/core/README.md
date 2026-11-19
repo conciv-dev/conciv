@@ -2,17 +2,17 @@
 
 ## Overview
 
-The plugin internals: booting the engine process, the Vite hook (HTML tags, widget middleware, virtual widget module, dev-server telemetry), the Next.js config wrapper and register hook.
+The plugin internals: booting the engine process, the Vite hook (HTML tags, widget middleware, the widget module, dev-server telemetry), the Next.js config wrapper and register hook, and the webpack/rspack widget client.
 
 ## Interface
 
-- `boot.ts:makeEngineBooter(options, root, builtins, portPolicy)` - returns a memoized function that loads server extensions and starts the engine; `PortPolicy` is `'exact' | 'preferred'`.
+- `boot.ts:makeEngineBooter(options, root, builtins, portPolicy)` - returns a memoized function that starts the engine; `PortPolicy` is `'exact' | 'preferred'`.
 - `vite-bridge.ts:makeViteBridge(server)` (the `./vite-bridge` export, a build entry of its own: `dist/core/vite-bridge.js`): a `BundlerBridge` over a Vite dev server (config, resolve, module graph, transform, urls, restart); the module graph takes a file path relative to the Vite root, a `/src/...` url or an absolute path, and throws a `NOT_FOUND` oRPC error naming the file when no module matches (an oRPC error because it is the one error the engine passes to the CLI as a user error today; a declared error on the `server_graph` tool would be a contract change); its `subscribe` reports `build-error`, `hmr-update` and `request-trace` diagnostics; the first subscribe wraps the client hot channel, watches file changes and unshifts a request-trace middleware.
 - `vite.ts:makeViteHook(options, builtins)` - the Vite plugin (`apply: 'serve'`, `enforce: 'pre'`) with `resolveId`, `load`, `transform`, `transformIndexHtml` and `configureServer`.
-- `widget-middleware.ts:htmlTags(corePort, {widget, entry})` - `conciv-api-base` meta, plus `conciv-widget` meta and the `entry` module script unless `widget === false`. `makeViteHook` passes `EXTENSIONS_DOCK_ROUTE` when Vite DevTools is installed, else `EXTENSIONS_ROUTE`.
-- `widget-middleware.ts:makeWidgetInject(apiBase, widgetConfig)` - middleware that injects the same tags into served HTML when absent, always with the page module `EXTENSIONS_ROUTE`; an html already carrying either route gets no second script.
-- `nextjs.ts:withConciv(nextConfig, options)` - adds `NEXT_PUBLIC_CONCIV_PORT` and `CONCIV_OPTIONS` env, and turbopack config.
-- `nextjs.ts:register` / `CONCIV_DEFAULT_PORT` (24170) - boot the engine from Next.js `instrumentation`. `register` loads `extensions-watch` and `boot` from their own dist files (`dist/core/extensions-watch.js`, `dist/core/boot.js`, extra `tsdown.config.ts` entries) with `import(/* webpackIgnore: true */ url)`, so Turbopack and webpack keep the engine out of the instrumentation bundle even when `@conciv/it` is workspace-linked and `serverExternalPackages` does not apply.
+- `widget-middleware.ts:htmlTags(corePort, {widget, entry})` - `conciv-api-base` meta, plus `conciv-widget` meta and the `entry` module script unless `widget === false`. `makeViteHook` passes `WIDGET_DOCK_ROUTE` when Vite DevTools is installed, else `WIDGET_ROUTE`.
+- `widget-middleware.ts:makeWidgetInject(apiBase, widgetConfig)` - middleware that injects the same tags into served HTML when absent, always with the page module `WIDGET_ROUTE`; an html already carrying either route gets no second script.
+- `nextjs.ts:withConciv(nextConfig, options)` - adds `NEXT_PUBLIC_CONCIV_PORT` and `CONCIV_OPTIONS` env, the engine packages to `serverExternalPackages`, and a webpack hook that aliases the edge register entries away.
+- `nextjs.ts:register` / `CONCIV_DEFAULT_PORT` (24170) - boot the engine from Next.js `instrumentation`. `register` loads `boot` from its own dist file (`dist/core/boot.js`, an extra `tsdown.config.ts` entry) with `import(/* webpackIgnore: true */ url)`, so Turbopack and webpack keep the engine out of the instrumentation bundle even when `@conciv/it` is workspace-linked and `serverExternalPackages` does not apply.
 - `bin-shim.ts:installConcivBinShim(stateDir)` - returns a `PATH` with `<stateDir>/bin` first.
 - `open-editor.ts:makeOpenInEditor(root)` - opens `file:line` or `file:line:column` with `launch-editor`.
 - `widget-start.ts:isEnginePort(port)` - true for an integer from 1 to 65535; the starter and `writeWidgetClient` both check the port with it.

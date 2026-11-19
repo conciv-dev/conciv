@@ -7,7 +7,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 ## Interface
 
 - `mount.ts:createConciv` - returns a `ConcivHandle` with `mount(el)`, `unmount()`, `open()`, `close()`, `toggle()`, `rebind(apiBase)`.
-- `mount.ts:ConcivInit` - `plugins`, `settings`, `apiBase`, `grabProvider`.
+- `mount.ts:ConcivInit` - `plugins`, `settings`, `apiBase`, `grabProvider`, `engineToken`.
 - `mount.ts:mountConciv` - appends a `[data-conciv-script-root]` div to `document.body` and mounts the widget with the given plugin entries.
 - `mount-impl.tsx:mountImpl` - creates the `[data-conciv-root]` element and shadow root, boots the app, returns `{ready, teardown, rebind}`.
 - `navigation-storage.ts:makeNavigationStorage` - a `WebStorage` backed by `rpc.navigation.get`/`set`, with `restored`, `flush` and `dispose`.

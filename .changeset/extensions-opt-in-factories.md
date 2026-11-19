@@ -4,7 +4,6 @@
 '@conciv/protocol': patch
 '@conciv/core': patch
 '@conciv/extension': patch
-'@conciv/extension-compiler': patch
 '@conciv/extension-design': patch
 ---
 

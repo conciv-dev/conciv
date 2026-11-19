@@ -69,7 +69,7 @@ README.md; this file is the non-obvious operational rules.
 - Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,
   then `CLAUDECODE` etc.); combined with `@tanstack/devtools-vite`'s server-to-browser console pipe,
   a single page `console.error` round-trips forever as growing `[Server] ...` entries (12+ GB tabs
-  observed). `concivSolidConfig` (extension-compiler) now sets `server.forwardConsole: false`
+  observed). `concivSolidConfig` (unplugin) now sets `server.forwardConsole: false`
   unconditionally for every host wired through the conciv vite plugin, so scrubbing agent env vars
   before starting a dev server is no longer load-bearing.
 - On large commits the prek hook can abort with a `next-index-*.lock.lock` error (file-lock race).
@@ -130,7 +130,7 @@ README.md; this file is the non-obvious operational rules.
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - Never add tests under `apps/examples/*`: example apps are demos; verify behavior via the owning
-  package's tests, `@conciv/extension-testkit`, or an `e2e/` consumer app. Sanctioned exception:
+  package's tests, `@conciv/plugin-testkit`, or an `e2e/` consumer app. Sanctioned exception:
   `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
   something to run out of the box; they are demo content, not behavior verification — behavior
   tests still live in the owning packages.

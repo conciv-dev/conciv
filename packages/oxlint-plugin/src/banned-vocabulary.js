@@ -60,7 +60,6 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
   'apps/conciv/src/pane/chat-pane.tsx',
   'packages/extension/src/hooks.tsx',
   'packages/extension/src/host-context.ts',
-  'packages/extension-testkit/src/host/host-runtime.tsx',
 ]
 
 const PRE_REWRITE_ATTACH_PATHS = [
@@ -90,7 +89,6 @@ const PREEXISTING_TERM_SITES = [
     paths: [
       'apps/conciv/uno.config.ts',
       'packages/embed/uno.config.ts',
-      'packages/extension-testkit/src/test-host-config.ts',
       'packages/ui-kit-chat/uno.config.ts',
       'packages/ui-kit-chat-tools/uno.config.ts',
       'packages/ui-kit-system/uno.config.ts',

@@ -11,7 +11,6 @@ Engine and plugin:
 - core: [core/README.md](./core/README.md) - `@conciv/core`, the Hono engine: sessions, chat plane, oRPC router, MCP endpoint, push WebSocket and extension mounting.
 - it: [it/README.md](./it/README.md) - `@conciv/it`, the installable umbrella. Builds the per-bundler plugin entries and bundles the built-in extensions.
 - unplugin: [unplugin/README.md](./unplugin/README.md) - `@conciv/unplugin`, the unplugin that boots the engine and injects the widget (Vite full hook, webpack/rspack boot and widget entry, Next.js wrapper).
-- extension-compiler: [extension-compiler/README.md](./extension-compiler/README.md) - Build plumbing for extension code: client/server split, Solid compile, source stamping, the `virtual:conciv-extensions` module.
 - cli: [cli/README.md](./cli/README.md) - The `conciv` binary: `init` and `tools`, each leaf command writing one JSON envelope.
 - try: [try/README.md](./try/README.md) - `npx @conciv/try --token`: a token-gated loopback core paired with conciv.dev.
 - serve: [serve/README.md](./serve/README.md) - Hono node server wrapper with WebSocket support and graceful shutdown.
@@ -31,7 +30,6 @@ Contracts:
 - extension: [extension/README.md](./extension/README.md) - The extension authoring contract: `defineExtension`, `defineTool`, host hooks, server tool registry.
 - grab: [grab/README.md](./grab/README.md) - Element-grab types, `GrabApi` and the size-bounded attachment serializer.
 - extensions: [extensions/README.md](./extensions/README.md) - The nine built-in `@conciv/extension-*` packages.
-- extension-testkit: [extension-testkit/README.md](./extension-testkit/README.md) - Mounts an extension in a real browser against a real server.
 - plugin-testkit: [plugin-testkit/README.md](./plugin-testkit/README.md) - Boots the real engine and widget with the fake model chat for widget and plugin tests: core kit, wire observers and fault injectors.
 
 Browser widget:
