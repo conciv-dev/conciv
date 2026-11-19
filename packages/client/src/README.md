@@ -16,7 +16,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that car
 
 ## Invariants
 
-- `overRpc` (`chat-connection.ts`): one TanStack AI `rpcStream` adapter; a turn is `rpc.chat.send` and `joinRun` is `rpc.chat.join`, and the rpc retry resubscribes a dropped stream from its last event id
+- `overRpc` (`chat-connection.ts`): one TanStack AI `rpcStream` adapter; a turn is `rpc.chat.send` and `joinRun` is `rpc.chat.join`, and the rpc retry resubscribes a dropped stream from its last event id; a resume the engine refuses with `UNAUTHORIZED` (the run's stream was cut by a revoke or logout) waits until the api base's trust is `trusted` again and resumes, while a turn refused before its stream began fails as before
 - `send` (`chat-connection.ts`): for ChatMessages sends only the last turn from the last user message
 - `announcedRuns` (`chat-connection.ts`): stops at the first announcement read after its scope aborts, so a closed chat never drains a backlog of announcements into hydrate calls; joins a pushed run only when `sessionRunEvent.parse` succeeds and `options.joinsRun(runId)` is true
 - `finishedOnItsLifecycle` (`chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own `aborted` run lifecycle (a stopped run, which has no `RUN_FINISHED`/`RUN_ERROR`) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating; a completed or failed run ends on its own `RUN_FINISHED`/`RUN_ERROR`, which the server sends after the lifecycle

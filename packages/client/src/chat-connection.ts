@@ -68,7 +68,7 @@ const RUN_RECONNECT_ATTEMPTS = 5
 const RUN_RECONNECT_FIRST_DELAY_MS = 250
 const RUN_RECONNECT_MAX_DELAY_MS = 5000
 
-function runReconnects(): RpcClientContext {
+function runReconnects(apiBase: string): RpcClientContext {
   let progressed: {attemptIndex: number; lastEventId: string | undefined} = {attemptIndex: 0, lastEventId: undefined}
   const attemptsSinceProgress = (attemptIndex: number, lastEventId: string | undefined): number => {
     if (lastEventId !== progressed.lastEventId) progressed = {attemptIndex, lastEventId}
@@ -76,10 +76,14 @@ function runReconnects(): RpcClientContext {
   }
   return {
     retry: Number.POSITIVE_INFINITY,
-    shouldRetry: ({attemptIndex, lastEventId, error, signal}) =>
-      signal?.aborted !== true &&
-      !(error instanceof ORPCError) &&
-      attemptsSinceProgress(attemptIndex, lastEventId) < RUN_RECONNECT_ATTEMPTS,
+    shouldRetry: async ({attemptIndex, lastEventId, error, signal}) => {
+      if (signal === undefined || signal.aborted) return false
+      if (refused(error) && (attemptIndex > 0 || lastEventId !== undefined)) {
+        await trustedAgain(apiBase, signal)
+        return !signal.aborted
+      }
+      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < RUN_RECONNECT_ATTEMPTS
+    },
     retryDelay: ({attemptIndex, lastEventId}) =>
       Math.min(
         RUN_RECONNECT_MAX_DELAY_MS,
@@ -100,14 +104,20 @@ async function* boundedRun(
   }
 }
 
-function overRpc(rpc: RpcClient, sessionId: string, lifetime: AbortSignal): Turns {
+function overRpc(rpc: RpcClient, apiBase: string, sessionId: string, lifetime: AbortSignal): Turns {
   const joinRun: JoinRun = (runId, abortSignal) =>
-    boundedRun((signal) => rpc.chat.join({runId}, {signal, context: runReconnects()}), within(lifetime, abortSignal))
+    boundedRun(
+      (signal) => rpc.chat.join({runId}, {signal, context: runReconnects(apiBase)}),
+      within(lifetime, abortSignal),
+    )
   const turns = rpcStream(
     (_messages, _data, abortSignal, input) =>
       boundedRun(
         (signal) =>
-          rpc.chat.send({sessionId, runId: input.runId, messages: input.messages}, {signal, context: runReconnects()}),
+          rpc.chat.send(
+            {sessionId, runId: input.runId, messages: input.messages},
+            {signal, context: runReconnects(apiBase)},
+          ),
         within(lifetime, abortSignal),
       ),
     {joinRun},
@@ -285,7 +295,7 @@ export function chatConnection(
   options: ChatConnectionOptions = {},
 ): ChatConnection {
   const lifetime = new AbortController()
-  const turns = overRpc(rpc, sessionId, lifetime.signal)
+  const turns = overRpc(rpc, apiBase, sessionId, lifetime.signal)
   const events: SessionEvents = (abortSignal) =>
     sessionEvents(rpc, apiBase, sessionId, within(lifetime.signal, abortSignal))
   const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
