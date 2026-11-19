@@ -5,7 +5,7 @@ import {writeExtensionsEntry} from './extensions-entry.js'
 import type * as Boot from './boot.js'
 import type * as ExtensionsWatch from './extensions-watch.js'
 
-export const CONCIV_DEFAULT_PORT = 41700
+export const CONCIV_DEFAULT_PORT = 24170
 
 export const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
 export const WIDGET_START_SPECIFIER = '@conciv/widget-start'

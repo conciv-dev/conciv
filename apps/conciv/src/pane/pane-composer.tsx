@@ -39,6 +39,7 @@ export type PaneComposerProps = {
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{onRemove?: (id: string) => void}>
   notes?: JSX.Element
+  menuBoundary?: () => Element | undefined
 }
 
 const GHOST =
@@ -168,6 +169,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           triggers={props.triggers}
           onReady={receiveInputHandle}
           onSelectionChange={props.onSelectionChange}
+          menuBoundary={props.menuBoundary}
         />
         <ComposerActionsHost maxInlineAuto={MAX_INLINE_AUTO_ACTIONS} onOverflowDismissed={() => inputHandle?.focus()}>
           <ComposerActions.Trigger>
