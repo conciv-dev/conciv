@@ -2,7 +2,7 @@
 
 ## Overview
 
-Package root for `@conciv/harness-testkit`. `package.json` exports the TypeScript sources directly; there is no build step.
+Package root for `@conciv/harness-testkit`. `package.json` exports the tsdown build in `dist`, with `.d.ts` from `tsc -p tsconfig.build.json`.
 
 ## Product path
 
@@ -11,6 +11,7 @@ The testkit runs the real product path and fakes only the expensive externals, t
 ## Interface
 
 - `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./login`, `./rpc-mounts`.
+- `./login` reads the local engine's port and token from the project's `.conciv/server.json` to build the authenticated engine URL and mint a login code or trusted browser token.
 - `vitest.config.ts` - `ciTest()` with the `node` environment.
 - Source: [src](./src/README.md).
 

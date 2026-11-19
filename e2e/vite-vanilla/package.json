@@ -15,7 +15,9 @@
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
     "@playwright/test": "catalog:",
+    "es-toolkit": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "zod": "catalog:"
   }
 }

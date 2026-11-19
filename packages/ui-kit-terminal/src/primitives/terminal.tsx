@@ -20,6 +20,21 @@ function Root(props: {model: TerminalModel; class?: string; children: JSX.Elemen
   )
 }
 
+function focusedElement(root: Document | ShadowRoot): Element | null {
+  const active = root.activeElement
+  return active?.shadowRoot ? (focusedElement(active.shadowRoot) ?? active) : active
+}
+
+function focusStayedOnTheTab(screen: HTMLElement): boolean {
+  const focused = focusedElement(screen.ownerDocument)
+  if (focused === null || focused === screen.ownerDocument.body) return true
+  const panel = screen.closest('[role="tabpanel"]') ?? screen
+  return panel.contains(focused) || (panel.id !== '' && focused.getAttribute('aria-controls') === panel.id)
+}
+
+const SCREEN_FRAME_STYLE: JSX.CSSProperties = {display: 'flex'}
+const SCREEN_HOST_STYLE: JSX.CSSProperties = {flex: '1 1 0', 'min-width': '0', 'min-height': '0'}
+
 function Screen(props: {class?: string}): JSX.Element {
   const model = useTerminal()
   let element: HTMLDivElement | undefined = undefined
@@ -34,7 +49,7 @@ function Screen(props: {class?: string}): JSX.Element {
       injectXtermCss(screen.getRootNode())
       model.fit()
       model.connect()
-      model.focus()
+      if (focusStayedOnTheTab(screen)) model.focus()
     }
     start()
     const observer = new ResizeObserver(() => (started ? model.fit() : start()))
@@ -45,13 +60,14 @@ function Screen(props: {class?: string}): JSX.Element {
     })
   })
   return (
-    <div
-      ref={(node) => {
-        element = node
-      }}
-      class={props.class}
-      data-terminal-screen
-    />
+    <div class={props.class} style={SCREEN_FRAME_STYLE} data-terminal-screen>
+      <div
+        ref={(node) => {
+          element = node
+        }}
+        style={SCREEN_HOST_STYLE}
+      />
+    </div>
   )
 }
 

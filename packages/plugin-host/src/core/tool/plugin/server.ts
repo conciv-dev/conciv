@@ -1,10 +1,10 @@
 export * as ServerTools from './server.js'
 
-import type {BundlerDomain} from '@conciv/plugin'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {makeToolFailure} from '../../../ai/effect.js'
 import {Effect, Schema} from 'effect'
-import {EditorSource} from '../../plugin/host.js'
+import {BundlerSource, EditorSource} from '../../plugin/host.js'
 import {Permission} from '../../permission.js'
 import {Rpc} from '../../rpc.js'
 import type {Tool} from '@conciv/plugin/schema/tool'
@@ -86,9 +86,9 @@ const Definition = Rpc.define({
 const options: Tool.Options = {namespace: 'server', codemode: true}
 
 const withBundler = <A>(
-  bundler: BundlerDomain | undefined,
+  bundler: Bundler.BundlerBridge | undefined,
   failure: string,
-  read: (bundler: BundlerDomain) => A | Promise<A>,
+  read: (bundler: Bundler.BundlerBridge) => A | Promise<A>,
 ): Effect.Effect<A, ServerFailure> => {
   if (bundler === undefined) return Effect.fail(bundlerUnavailable)
   return Effect.tryPromise({
@@ -134,7 +134,7 @@ const methodAnswer = <A, Unavailable, Failed>(
 export const Plugin = {
   id: 'conciv.tool.server',
   effect: Effect.fn('ServerTools.Plugin')(function* (ctx: Context) {
-    const bundler = ctx.bundler
+    const bundler = yield* BundlerSource
     const openInEditor = yield* EditorSource
     const open = (input: typeof OpenInput.Type) =>
       Effect.sync((): typeof Opened.Type => {

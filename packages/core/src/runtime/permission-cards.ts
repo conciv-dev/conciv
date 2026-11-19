@@ -73,10 +73,10 @@ export function permissionSessions(db: ConcivDb) {
     Permission.PermissionSessions,
     Permission.PermissionSessions.of({
       get: (sessionId) =>
-        Effect.sync(() => {
+        Effect.gen(function* () {
           const parsed = SessionId.safeParse(sessionId)
           if (!parsed.success) return undefined
-          const stored = storedSessionRules(db, parsed.data)
+          const stored = yield* storedSessionRules(db, parsed.data).pipe(Effect.orDie)
           if (stored === null) return undefined
           return {agent: Agent.defaultId, permissions: sessionPermissions(parsed.data, stored)}
         }),
@@ -134,13 +134,13 @@ export function pluginInstructions(
     const skills = yield* (yield* SkillInstructions.Service).load((yield* sessionRules(sessionId)).rules)
     const entries = yield* loadInstructionEntries(yield* KV.Service, id)
     const instructions = Instructions.combine([CodeModeInstructions.make(inventory), skills, entries])
-    const {read, previewed, observation} = yield* db
+    const read = yield* Instructions.read(instructions)
+    const {previewed, observation} = yield* db
       .transaction(() =>
         Effect.gen(function* () {
-          const read = yield* Instructions.read(instructions)
           const previewed = yield* InstructionState.preview(db, id, instructions, read)
           const observation = yield* InstructionState.observe(db, instructions, id)
-          return {read, previewed, observation}
+          return {previewed, observation}
         }),
       )
       .pipe(

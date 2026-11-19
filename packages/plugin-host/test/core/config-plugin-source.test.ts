@@ -44,7 +44,7 @@ const services = (root: string, plugins: readonly string[]) =>
 
 describe('ConfigPluginSource', () => {
   it.live(
-    'lists the plugin folder before the configured entries and reports a write in a configured folder',
+    'lists the plugin folder before the configured entries and reports a write in a configured folder, also after that folder is deleted and created again and while it has no entrypoint',
     () =>
       Effect.gen(function* () {
         const root = yield* temporaryProject
@@ -75,12 +75,67 @@ describe('ConfigPluginSource', () => {
 
           yield* Effect.promise(() => writeFile(path.join(local, 'added.ts'), 'export {}\n'))
           expect(yield* Fiber.join(changes)).toEqual([undefined])
+
+          const later = yield* Queue.unbounded<void>()
+          yield* source.changes().pipe(
+            Stream.runForEach((change) => Queue.offer(later, change)),
+            Effect.forkScoped({startImmediately: true}),
+          )
+          const localTime = source
+            .operations()
+            .pipe(
+              Effect.map((operations) =>
+                operations.flatMap((operation) =>
+                  operation.type === 'add' && operation.target === local ? [operation.mtime] : [],
+                ),
+              ),
+            )
+          const untilLocalTime = (write: Effect.Effect<void>, expected: readonly (number | undefined)[]) =>
+            Effect.gen(function* () {
+              yield* Queue.clear(later)
+              const writes = yield* write.pipe(
+                Effect.uninterruptible,
+                Effect.repeat(Schedule.spaced('10 millis')),
+                Effect.forkScoped,
+              )
+              return yield* Queue.take(later).pipe(
+                Effect.andThen(localTime),
+                Effect.repeat({
+                  until: (times) =>
+                    times.length === expected.length && times.every((time, index) => time === expected[index]),
+                }),
+                Effect.ensuring(Fiber.interrupt(writes)),
+              )
+            })
+          const entrypoint = path.join(local, 'index.ts')
+
+          expect(
+            yield* untilLocalTime(
+              Effect.promise(() => rm(local, {recursive: true, force: true})),
+              [undefined],
+            ),
+          ).toEqual([undefined])
+          expect(yield* untilLocalTime(writeAt(entrypoint, 'export default {}\n', 4_000), [4_000_000])).toEqual([
+            4_000_000,
+          ])
+          expect(yield* untilLocalTime(writeAt(path.join(local, 'package.json'), '{}\n', 5_000), [5_000_000])).toEqual([
+            5_000_000,
+          ])
+          expect(
+            yield* untilLocalTime(
+              Effect.promise(() => rm(entrypoint, {force: true})),
+              [],
+            ),
+          ).toEqual([])
+          expect(yield* untilLocalTime(writeAt(entrypoint, 'export default {}\n', 6_000), [6_000_000])).toEqual([
+            6_000_000,
+          ])
         }).pipe(Effect.provide(services(root, ['./local-plugin', 'some-package'])))
       }),
     5_000,
   )
   it.live(
-    'reports a plugins folder created after start, a plugin folder in it, its deletion and its recreation',
+    'reports a plugins folder created after start, a plugin folder in it, its deletion, its recreation and a plugin added to it again',
     () =>
       Effect.gen(function* () {
         const root = yield* temporaryProject
@@ -106,7 +161,11 @@ describe('ConfigPluginSource', () => {
           const untilSeen = (write: Effect.Effect<void, unknown>, expected: readonly string[]) =>
             Effect.gen(function* () {
               yield* Queue.clear(changes)
-              const writes = yield* write.pipe(Effect.repeat(Schedule.spaced('10 millis')), Effect.forkScoped)
+              const writes = yield* write.pipe(
+                Effect.uninterruptible,
+                Effect.repeat(Schedule.spaced('10 millis')),
+                Effect.forkScoped,
+              )
               return yield* untilState(expected).pipe(Effect.ensuring(Fiber.interrupt(writes)))
             })
           const recreatePlugins = Effect.suspend(() =>
@@ -128,6 +187,8 @@ describe('ConfigPluginSource', () => {
           yield* Queue.clear(changes)
           yield* fs.ensureDir(plugins)
           expect(yield* untilState([])).toEqual([])
+
+          expect(yield* untilSeen(writeAlpha, [alpha])).toEqual([alpha])
         }).pipe(Effect.provide(services(root, [])))
       }),
     5_000,

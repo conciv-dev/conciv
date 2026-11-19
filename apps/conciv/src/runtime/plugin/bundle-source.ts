@@ -1,4 +1,5 @@
 import {isEqual, uniqBy} from 'es-toolkit'
+import {observable, untrack, type Accessor} from 'solid-js'
 import {z} from 'zod'
 import {subscribeRpcReachability} from '@conciv/contract'
 import type {ConcivClient} from '@conciv/plugin'
@@ -9,10 +10,17 @@ import {
   type BridgePluginExperimental,
   type BridgePluginExperimentals,
   type EnableState,
+  type Entry,
   type Installed,
 } from '@conciv/plugin/experimental/host'
-import {builtins} from './builtins'
-import {createHostState, isCurrentHostWatch, transitionHost, type HostCommand, type HostEvent} from './host-machine'
+import {
+  createHostState,
+  isCurrentHostWatch,
+  transitionHost,
+  type HostCommand,
+  type HostEndpoint,
+  type HostEvent,
+} from './host-machine'
 import {pluginError} from './error'
 import {createManager} from './manager'
 import type {PluginExperimentalSource} from './plugins'
@@ -46,6 +54,8 @@ type Listing = {
 
 type Resources = {
   unfollow?: () => void
+  reachability?: () => void
+  enableState?: () => void
   watch?: AbortController
   watchTimer?: ReturnType<typeof setTimeout>
   list?: AbortController
@@ -69,9 +79,16 @@ export type BundleSource = PluginExperimentalSource & {
   readonly dispose: () => void
 }
 
-export function createBundleSource(input: {readonly client: ConcivClient; readonly apiBase: string}): BundleSource {
-  const endpoint = {url: input.apiBase, authorization: undefined}
-  const local = builtins.map((definition) => definition.id)
+function endpointFor(url: string): HostEndpoint | undefined {
+  return url === '' ? undefined : {url, authorization: undefined}
+}
+
+export function createBundleSource(input: {
+  readonly client: ConcivClient
+  readonly apiBase: Accessor<string>
+  readonly builtins: readonly Entry[]
+}): BundleSource {
+  const local = input.builtins.map((definition) => definition.id)
   const enableStore = createManager(input.client, local)
   const plugins = new Map<string, BridgePluginExperimental>()
   const inventory: {reserved: readonly string[]; server: ReadonlySet<string>; unreadable: ReadonlyMap<string, string>} =
@@ -84,8 +101,14 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   const resources: Resources = {}
   const machine = {following: createHostState()}
   const firstListing = Promise.withResolvers<void>()
+  const followed = () => (machine.following.status === 'following' ? machine.following.endpoint : undefined)
 
-  firstListing.promise.catch(() => undefined)
+  firstListing.promise.then(
+    () => {
+      if (plugins.size === 0) publish()
+    },
+    () => undefined,
+  )
 
   const dispatch = (event: HostEvent<Listing>) => {
     const next = transitionHost(machine.following, event)
@@ -100,9 +123,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
   const perform = (command: HostCommand<Listing>) => {
     switch (command.type) {
       case 'subscribe-credentials':
-        resources.unfollow = subscribeRpcReachability(input.apiBase, (reachable) =>
-          dispatch({type: 'endpoint.changed', endpoint: reachable ? endpoint : undefined, quitting: false}),
-        )
+        resources.unfollow = followEndpoint()
 
         return
       case 'unsubscribe-credentials':
@@ -111,6 +132,8 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
 
         return
       case 'start-watch':
+        followEnableState()
+
         return void watchPlugins(command.attempt)
       case 'schedule-watch-retry':
         clearTimeout(resources.watchTimer)
@@ -121,6 +144,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
 
         return
       case 'cancel-watch':
+        stopEnableState()
         resources.watch?.abort()
         resources.watch = undefined
         clearTimeout(resources.watchTimer)
@@ -145,6 +169,43 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
 
         return firstListing.resolve()
     }
+  }
+
+  const followEndpoint = () => {
+    const subscription = observable(input.apiBase).subscribe((url) => {
+      resources.reachability?.()
+      resources.reachability =
+        url === ''
+          ? undefined
+          : subscribeRpcReachability(url, (reachable) =>
+              dispatch({type: 'endpoint.changed', endpoint: reachable ? endpointFor(url) : undefined, quitting: false}),
+            )
+
+      if (followed()?.url === endpointFor(url)?.url) return
+      dispatch({type: 'endpoint.changed', endpoint: endpointFor(url), quitting: false})
+    })
+
+    return () => {
+      subscription.unsubscribe()
+      resources.reachability?.()
+      resources.reachability = undefined
+    }
+  }
+
+  const stopEnableState = () => {
+    resources.enableState?.()
+    resources.enableState = undefined
+  }
+
+  const followEnableState = () => {
+    stopEnableState()
+    resources.enableState = enableStore.on(
+      (rows) => {
+        settle(rows)
+        loaded.resolve(rows)
+      },
+      (cause) => loaded.reject(cause),
+    )
   }
 
   const watchPlugins = async (attempt: number) => {
@@ -194,7 +255,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
 
     const shipped = listed.filter(shipsPluginExperimental)
     const reserved = ReservedSchema.parse(
-      shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, builtins) ? [] : [plugin.id])),
+      shipped.flatMap((plugin) => (pluginIdAvailable(plugin.id, input.builtins) ? [] : [plugin.id])),
     )
 
     const parts = {
@@ -253,6 +314,10 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
     inventory.server = next.parts.server
     inventory.unreadable = next.parts.unreadable
     changed()
+    publish()
+  }
+
+  const publish = () => {
     const message: PluginExperimentalsMessage = {type: 'pluginExperimentals', ...pluginExperimentals()}
     listeners.forEach((listener) => listener(message))
   }
@@ -304,14 +369,6 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
 
   loaded.promise.catch(() => undefined)
 
-  const unfollowEnableState = enableStore.on(
-    (rows) => {
-      settle(rows)
-      loaded.resolve(rows)
-    },
-    (cause) => loaded.reject(cause),
-  )
-
   const setEnabled = async (pluginId: string, value: boolean) => {
     if (!known(pluginId)) throw pluginError('notFound')
 
@@ -327,7 +384,7 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
     })
   }
 
-  dispatch({type: 'started', endpoint, quitting: false})
+  dispatch({type: 'started', endpoint: endpointFor(untrack(input.apiBase)), quitting: false})
 
   return {
     pluginExperimentals: () => firstListing.promise.then(pluginExperimentals),
@@ -347,8 +404,8 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
       return () => sessionsChangedListeners.delete(listener)
     },
     manager: {
-      initial: loaded.promise,
-      list: () => loaded.promise.then(installed),
+      initial: followed() ? loaded.promise : Promise.resolve(undefined),
+      list: () => (followed() ? loaded.promise.then(installed) : Promise.resolve(installed())),
       on(listener) {
         installedListeners.add(listener)
 
@@ -363,7 +420,6 @@ export function createBundleSource(input: {readonly client: ConcivClient; readon
       },
     },
     dispose: () => {
-      unfollowEnableState()
       loaded.reject(new Error('the plugin manager was disposed'))
       firstListing.reject(new Error('the engine trust ended before the engine first listed its plugins'))
       dispatch({type: 'stopped'})

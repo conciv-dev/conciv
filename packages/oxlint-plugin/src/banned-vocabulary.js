@@ -26,8 +26,8 @@ const DEV_BUNDLER_BRIDGE_PATHS = [
   'packages/core/src/start.ts',
   'packages/core/src/api/rpc/router.ts',
   'packages/core/src/api/rpc/mount.ts',
+  'packages/plugin/src/schema/bundler.ts',
   'packages/plugin-testkit/src/core-kit.ts',
-  'packages/protocol/src/bundler-types.ts',
   'packages/extension/src/vite-bridge.ts',
   'packages/unplugin/src/',
 ]
@@ -66,7 +66,6 @@ const COMPOSER_ATTACHMENT_INGRESS_PATHS = [
 const PRE_REWRITE_ATTACH_PATHS = [
   'apps/site/src/components/landing/',
   'packages/core/src/pty/pty-sessions.ts',
-  'packages/extensions/terminal/src/server/pty-sessions.ts',
   'packages/page/src/react-bridge.ts',
   'packages/try/src/cli.ts',
   'packages/vitest-config/src/summary.ts',

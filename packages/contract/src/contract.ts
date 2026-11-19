@@ -27,10 +27,8 @@ import {
   PageQueueHandleSchema,
   PageQueueProgressSchema,
   PageQueueResultSchema,
-  PageReplySchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
-import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
@@ -132,6 +130,7 @@ export const ChatHydrationSchema = z.object({
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
+
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
@@ -168,7 +167,7 @@ export const ToolCommandSignatureSchema = z.object({
   approval: z.literal('ask').optional(),
   inputSchema: z.unknown(),
   outputSchema: z.unknown(),
-  errors: z.array(z.object({code: z.string(), message: z.string(), transport: z.boolean()})).default([]),
+  errors: z.array(z.object({code: z.string(), message: z.string()})).default([]),
 })
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
@@ -429,10 +428,7 @@ export const contract = {
   },
   drafts: {
     get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc
-      .errors(approvalDenied)
-      .input(DraftRowSchema.omit({updatedAt: true}))
-      .output(Ok),
+    set: oc.errors(approvalDenied).input(DraftRowSchema).output(Ok),
   },
   markers: {
     list: oc.errors(approvalDenied).input(SessionIdInput).output(z.array(MarkerRowSchema)),
@@ -472,9 +468,6 @@ export const contract = {
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
   },
-  captures: {
-    list: oc.errors(approvalDenied).input(SessionIdInput).output(SessionCapturesSchema),
-  },
   tabs: {
     list: oc.output(TabsSchema),
     get: oc.input(SessionIdInput).output(TabOpenSchema),
@@ -500,11 +493,6 @@ export const contract = {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.errors(approvalDenied).output(Ok),
-    queries: oc.errors(approvalDenied).output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
-    reply: oc
-      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})
-      .input(PageReplySchema)
-      .output(Ok),
   },
   editor: {
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
@@ -513,7 +501,7 @@ export const contract = {
     models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
-    tools: oc.output(ChatToolsSchema),
+    tools: oc.input(SessionIdInput).output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     hubAgents: oc.output(eventIterator(HubAgentsSchema)),
     connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),

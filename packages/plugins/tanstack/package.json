@@ -1,7 +1,6 @@
 {
   "name": "@conciv/plugin-tanstack",
   "version": "0.0.22",
-  "private": true,
   "description": "The conciv TanStack plugin: build errors, the route manifest and server-function traces of a TanStack Router or Start app, read from the dev server by code-mode tools.",
   "keywords": [
     "conciv",
@@ -47,11 +46,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:packed": "vitest run test/tanstack.test.ts --mode packed --tags-filter=packed",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints plugin-experimental"
   },
   "dependencies": {
-    "@conciv/protocol": "workspace:^",
+    "@conciv/plugin-page": "workspace:^",
     "effect": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"

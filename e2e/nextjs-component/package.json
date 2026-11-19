@@ -10,7 +10,6 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@conciv/extension-terminal": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/react": "workspace:*",
     "next": "catalog:",
@@ -26,9 +25,6 @@
     "typescript": "catalog:"
   },
   "dependenciesMeta": {
-    "@conciv/extension-terminal": {
-      "injected": true
-    },
     "@conciv/it": {
       "injected": true
     },

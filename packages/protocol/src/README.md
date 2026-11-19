@@ -2,7 +2,7 @@
 
 ## Overview
 
-Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and content, AG-UI custom chat events, push WebSocket frames, page queries and replies, element captures, terminal control messages, bundler bridge contracts, and harness types. A few runtime helpers: a CustomEvent event bus, a node sanitizer, path and port helpers, and a payload budget. No RPC method names are defined here.
+Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and content, AG-UI custom chat events, push WebSocket frames, page queries and replies, element captures, terminal control messages, bundler config and module-graph schemas, and harness types. A few runtime helpers: a CustomEvent event bus, a node sanitizer, path and port helpers, and a payload budget. No RPC method names are defined here.
 
 ## Interface
 
@@ -11,13 +11,12 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - Chat events (`chat-event-types.ts`): `defineChatEvent`; 'approval-requested', 'conciv.run-lifecycle', 'conciv.session-run', 'conciv.idle-failed' (`{runId}`: the run's `experimental.idle` hook failed and its record now carries the error); `readApprovalAsk`, `isRunPhaseTerminal`; `CONTEXT_OVERFLOW_CODE` (re-exported from `@tanstack/ai`) and `SESSION_DELETED_CODE` (`'session_deleted'`, the `code` of a turn or compaction refused because its session is deleted), each a `RUN_ERROR` / `Error` `code`
 - Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `toChatMessages`, `CompactionMetadataSchema`, `OutsideCallMetadataSchema` (the `{conciv: {origin: 'hub', client, run}}` marker an outside agent's call carries), `isContentParts`, and `imagesIn` / `withoutImages` / `imageBlocks` (find image parts anywhere in a value, replace them with a stub, and turn them into MCP image blocks)
 - `chatBusy` (`chat-busy.ts`); `ChatTool` / `defineTool` (`chat-tool-types.ts`)
-- Push frames (`push-types.ts`): PUSH_WS_PATH '/push-ws', PUSH_SESSION_PARAM 'sessionId', PushFrameSchema (channels ready, page, chat), PageServingFrameSchema (client to server: 'page-serving' with `serving`)
 - Page protocol (`page-types.ts`): PageQuerySchema, PageReplySchema, PAGE_ERROR_CODES, SymbolicateSchema, OpenSourceResultSchema, `pageFailure`, PageQueueHandleSchema (`{queueId, actions}`), PAGE_QUEUE_TOOL, PAGE_QUEUE_ASYNC_TOOL, PAGE_QUEUE_SYNC_MS (`CODE_MODE_TIMEOUT_MS` minus 30 s), EFFECTS_SURFACE_ATTR, PLUGIN_OVERLAY_ATTR, CONCIV_UI_SELECTOR (the conciv-owned DOM a page capture or selection skips). Every plugin overlay host (`ctx.overlay`) carries `PLUGIN_OVERLAY_ATTR`, so captures and selection skip all of them.
 - Element captures (`element-capture-types.ts`): ELEMENT_CAPTURE_KINDS, TOOL_CAPTURE_MODES, ElementCaptureSchema, PageCaptureBundleSchema
 - Terminal control (`terminal-types.ts`): TtyClientControlSchema (resize, inject), TtyServerControlSchema (exit, busy, error)
 - UI input (`ui-types.ts`): UiInputSchema, UiAnswerSchema, `aguiSnapshotFor`
 - `EditorOpenSchema` (`editor-types.ts`); usage helpers (`usage-types.ts`)
-- Bundler (`bundler-types.ts`): BundlerBridge, `defineBundlerBridge`
+- Bundler (`bundler-types.ts`): BundlerConfigSchema, ModuleNodeSchema (the bridge itself is `@conciv/plugin/schema/bundler`)
 - Harness contracts (`harness-types.ts`): HarnessCapabilities, HarnessInit, TranscriptHandle, TRANSCRIPT_FAILURES
 - RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, `CONCIV_VERSION_HEADER` (`'x-conciv-version'`), `RPC_WS_PATH` (`'/rpc-ws'`), RpcContext (with optional `clientVersion` and `socket`, the per-connection `RpcSocketTrust` `{allows(path), admit(token)}` a socket-served call carries, and `replied`, a per-request promise that resolves true once that call's reply has gone out and false when it did not), `rpcHeader`
 - Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
@@ -35,7 +34,6 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - `isRunPhaseTerminal` (`chat-event-types.ts`): completed, failed and aborted are terminal
 - `TtyClientControlSchema` (`terminal-types.ts`): cols and rows 2..500; inject text 1..4096 chars
 - `SymbolicateSchema` (`page-types.ts`): 1..32 frames
-- `defineBundlerBridge` (`bundler-types.ts`): throws without an id
 - `aguiSnapshotFor` (`ui-types.ts`): throws unless the chunk is a MESSAGES_SNAPSHOT
 - `isDroppableAttribute` / `isDangerousTag` (`element-capture-sanitize.ts`): drop on* handlers, unsafe styles and non-local URLs; reject iframe, object, embed, script, link, style, meta
 - `createEventBusClient` (`event-bus.ts`): queues events until the connect handshake succeeds; retries every 300ms up to 5 times, then 'failed'

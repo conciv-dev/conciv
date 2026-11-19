@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import {Effect, type ManagedRuntime} from 'effect'
 import type {ChatPlane} from '@conciv/chat'
-import {clearPageChanges, deleteSessionCaptures, drafts, markers, sessions, type ConcivDb} from '@conciv/db'
+import {drafts, markers, sessions, type ConcivDb} from '@conciv/db'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {Bus, KV, SessionEvent, SessionSchema} from '@conciv/plugin-host'
 import {runInOrder} from '../lib/shutdown.js'
@@ -39,7 +39,7 @@ function chatRow(scope: RowScope, sessionId: SessionId): FreshRowInput {
 }
 
 async function markNew(db: ConcivDb, sessionId: SessionId): Promise<void> {
-  await db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'})
+  await Effect.runPromise(db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'}))
 }
 
 export async function createChatSession(
@@ -67,7 +67,9 @@ export async function renameSession(
   const row = await rowById(renaming.db, sessionId)
   if (!row) return 'missing'
   const title = cleanTitle(given)
-  await renaming.db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, sessionId))
+  await Effect.runPromise(
+    renaming.db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)),
+  )
   if (row.harnessSessionId !== null) await renaming.search.retitle(row.harnessKind, row.harnessSessionId, title)
   return {title}
 }
@@ -80,13 +82,10 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
   await deletion.queues.cancelSession(sessionId)
   await deletion.pluginHost.runPromise(KV.Service.use((kv) => removeInstructionEntries(kv, sessionId)))
   await tombstoneRow(deletion.db, sessionId)
-  const draftFailures = await deletion.db
-    .delete(drafts)
-    .where(eq(drafts.sessionId, sessionId))
-    .then(
-      (): unknown[] => [],
-      (failure: unknown) => [failure],
-    )
+  const draftFailures = await Effect.runPromise(deletion.db.delete(drafts).where(eq(drafts.sessionId, sessionId))).then(
+    (): unknown[] => [],
+    (failure: unknown) => [failure],
+  )
   const publishFailures = await deletion.pluginHost
     .runPromise(
       Bus.Service.use((bus) =>
@@ -99,14 +98,7 @@ export async function deleteSession(deletion: SessionDeletion, sessionId: Sessio
       (): unknown[] => [],
       (failure: unknown) => [failure],
     )
-  const cleanupFailures = await runInOrder(
-    [
-      () => deletion.plane.clear(sessionId),
-      () => deleteSessionCaptures(deletion.db, sessionId),
-      () => clearPageChanges(deletion.db, sessionId),
-    ],
-    deletionFailed,
-  ).then(
+  const cleanupFailures = await runInOrder([() => deletion.plane.clear(sessionId)], deletionFailed).then(
     (): unknown[] => [],
     (cleanup: unknown): unknown[] => (cleanup instanceof AggregateError ? cleanup.errors : [cleanup]),
   )

@@ -44,7 +44,6 @@
     "@conciv/embed": "workspace:^"
   },
   "devDependencies": {
-    "@conciv/extension-terminal": "workspace:^",
     "@conciv/plugin-testkit": "workspace:^",
     "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

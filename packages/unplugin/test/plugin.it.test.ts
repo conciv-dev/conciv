@@ -33,7 +33,7 @@ import {devtools} from '@tanstack/devtools-vite'
 import {createLogger, createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, type Builtins} from '@conciv/extension-compiler/extensions'
-import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {SessionCapturesSchema, type ToolCaptureRow} from '@conciv/protocol/element-capture-types'
 import type {ExtensionPackage} from '@conciv/protocol/config-types'
@@ -127,7 +127,7 @@ describe('bundler diagnostics', () => {
       const port = typeof address === 'object' && address ? address.port : 0
       const base = `http://127.0.0.1:${port}`
 
-      const ring: BundlerDiagnostic[] = []
+      const ring: Bundler.Diagnostic[] = []
       const bridge = makeViteBridge(server)
       const unsubscribe = bridge.subscribe?.((diagnostic) => ring.push(diagnostic))
 

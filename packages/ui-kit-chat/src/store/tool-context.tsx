@@ -4,9 +4,6 @@ import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/
 export const INERT_ADD_RESULT: ToolCardProps['addResult'] = () => Promise.resolve()
 
 export const INERT_TOOL_CTX: ToolViewCtx = {
-  apiBase: '',
-  harnessId: '',
-  sendMessage: () => {},
   catalog: INERT_TOOL_CATALOG,
   addResult: () => Promise.resolve(),
 }

@@ -105,19 +105,6 @@ export function host(overrides: Overrides = {}): Plugin.Context {
         throw new Error('unused servers.get')
       },
     },
-    harness: overrides.harness ?? {
-      get: () => {
-        throw new Error('unused harness.get')
-      },
-      resumeToken: () => {
-        throw new Error('unused harness.resumeToken')
-      },
-      recordToken: () => {
-        throw new Error('unused harness.recordToken')
-      },
-      mcpUrl: undefined,
-    },
-    bundler: overrides.bundler,
   }
 }
 

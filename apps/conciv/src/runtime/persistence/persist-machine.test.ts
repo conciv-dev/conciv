@@ -9,6 +9,13 @@ import {
   type PersistStoreEvent,
   type PersistStoreState,
 } from './persist-machine'
+import {
+  canEvict,
+  INITIAL_LOCAL_STORAGE_STATE,
+  isStorageNoticePending,
+  transitionLocalStorage,
+  type LocalStorageEvent,
+} from './storage-machine'
 
 const zero = JSON.stringify({count: 0})
 
@@ -92,7 +99,11 @@ describe('persist store machine', () => {
       {type: 'flushed', serialized: edited},
     ])
 
-    expect(saved.state).toEqual({status: 'clean', last: edited})
+    expect(saved.state).toEqual({
+      status: 'clean',
+      last: edited,
+      writing: {type: 'save', serialized: edited, fallback: undefined},
+    })
     expect(saved.effects).toEqual([{type: 'schedule-save'}, {type: 'save', serialized: edited, fallback: undefined}])
 
     expect(canWriteBackHydration(saved.state)).toBe(false)
@@ -109,20 +120,26 @@ describe('persist store machine', () => {
       {type: 'flushed', serialized: edited},
     ])
 
-    expect(result.state).toEqual({status: 'clean', last: edited})
+    expect(result.state).toEqual({
+      status: 'clean',
+      last: edited,
+      writing: {type: 'save', serialized: edited, fallback: stored},
+    })
     expect(result.effects.at(-1)).toEqual({type: 'save', serialized: edited, fallback: stored})
   })
 
   test('a failed write rolls `last` back so the same value is written again', () => {
-    const saved = replay({status: 'clean', last: stored}, [
+    const saved = replay({status: 'clean', last: stored, writing: undefined}, [
       {type: 'edited', baseline: undefined},
       {type: 'flushed', serialized: edited},
     ])
 
     expect(saved.effects.at(-1)).toEqual({type: 'save', serialized: edited, fallback: stored})
 
-    const failed = transitionPersistStore(saved.state, {type: 'write.failed', attempted: edited, fallback: stored})
-    expect(failed.state).toEqual({status: 'clean', last: stored})
+    const save = saved.state.status === 'clean' ? saved.state.writing : undefined
+    if (!save) throw new Error('the flush started no write')
+    const failed = transitionPersistStore(saved.state, {type: 'write.failed', save})
+    expect(failed.state).toEqual({status: 'clean', last: stored, writing: undefined})
 
     const retried = replay(failed.state, [
       {type: 'edited', baseline: undefined},
@@ -133,8 +150,11 @@ describe('persist store machine', () => {
   })
 
   test('a failed write that a newer value superseded is ignored', () => {
-    const state: PersistStoreState = {status: 'clean', last: remote}
-    const result = transitionPersistStore(state, {type: 'write.failed', attempted: edited, fallback: stored})
+    const state: PersistStoreState = {status: 'clean', last: remote, writing: undefined}
+    const result = transitionPersistStore(state, {
+      type: 'write.failed',
+      save: {type: 'save', serialized: edited, fallback: stored},
+    })
     expect(result.state).toBe(state)
   })
 
@@ -149,14 +169,20 @@ describe('persist store machine', () => {
   })
 
   test('disposal saves a real edit once, never hydrates, and ignores every later event', () => {
-    const dirty: PersistStoreState = {status: 'dirty', last: stored, remote: undefined, baseline: undefined}
+    const dirty: PersistStoreState = {
+      status: 'dirty',
+      last: stored,
+      remote: undefined,
+      baseline: undefined,
+      writing: undefined,
+    }
     const disposed = transitionPersistStore(dirty, {type: 'disposed', serialized: edited})
     expect(disposed).toEqual({
       state: {status: 'disposed'},
       effects: [{type: 'save', serialized: edited, fallback: stored}],
     })
 
-    const held: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined}
+    const held: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined, writing: undefined}
     expect(transitionPersistStore(held, {type: 'disposed', serialized: stored}).effects).toEqual([])
 
     const events: PersistStoreEvent[] = [
@@ -170,13 +196,69 @@ describe('persist store machine', () => {
   })
 
   test('events that do not apply return the same state', () => {
-    const clean: PersistStoreState = {status: 'clean', last: stored}
+    const clean: PersistStoreState = {status: 'clean', last: stored, writing: undefined}
     expect(transitionPersistStore(clean, {type: 'remote.received', raw: stored}).state).toBe(clean)
     expect(transitionPersistStore(clean, {type: 'flushed', serialized: edited}).state).toBe(clean)
 
-    const dirty: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined}
+    const dirty: PersistStoreState = {status: 'dirty', last: stored, remote, baseline: undefined, writing: undefined}
     expect(transitionPersistStore(dirty, {type: 'edited', baseline: undefined}).state).toBe(dirty)
     expect(transitionPersistStore(dirty, {type: 'remote.received', raw: remote}).state).toBe(dirty)
     expect(transitionPersistStore(loading(), {type: 'flushed', serialized: edited}).effects).toEqual([])
+  })
+})
+
+const replayStorage = (events: readonly LocalStorageEvent[]) =>
+  events.reduce(transitionLocalStorage, INITIAL_LOCAL_STORAGE_STATE)
+
+const evictionFailed: LocalStorageEvent = {type: 'eviction.failed', now: 0}
+
+describe('localStorage machine', () => {
+  test('a failed eviction waits out a cooldown instead of disabling storage', () => {
+    const state = replayStorage([{type: 'eviction.failed', now: 1_000}])
+    expect(state.eviction).toEqual({status: 'cooldown', failures: 1, retryAt: 6_000})
+    expect(canEvict(state, 5_999)).toBe(false)
+    expect(canEvict(state, 6_000)).toBe(true)
+  })
+
+  test('the cooldown doubles with each failed eviction up to a minute, and a success resets it', () => {
+    const retries = [1, 2, 3, 4, 5, 6].map((count) => replayStorage(Array.from({length: count}, () => evictionFailed)))
+
+    expect(retries.map((state) => (state.eviction.status === 'cooldown' ? state.eviction.retryAt : 0))).toEqual([
+      5_000, 10_000, 20_000, 40_000, 60_000, 60_000,
+    ])
+
+    const recovered = transitionLocalStorage(replayStorage(Array.from({length: 6}, () => evictionFailed)), {
+      type: 'eviction.succeeded',
+    })
+    expect(recovered.eviction).toEqual({status: 'ready'})
+    expect(canEvict(recovered, 0)).toBe(true)
+    expect(transitionLocalStorage(recovered, evictionFailed).eviction).toEqual({
+      status: 'cooldown',
+      failures: 1,
+      retryAt: 5_000,
+    })
+  })
+
+  test('the first failed write asks for the notice once per page', () => {
+    const failed = replayStorage([{type: 'write.failed'}])
+    expect(isStorageNoticePending(failed)).toBe(true)
+    expect(failed.eviction).toBe(INITIAL_LOCAL_STORAGE_STATE.eviction)
+
+    const shown = transitionLocalStorage(failed, {type: 'notice.shown'})
+    expect(isStorageNoticePending(shown)).toBe(false)
+    expect(transitionLocalStorage(shown, {type: 'write.failed'})).toBe(shown)
+    expect(isStorageNoticePending(transitionLocalStorage(shown, evictionFailed))).toBe(false)
+  })
+
+  test('events that change nothing return the same state', () => {
+    expect(transitionLocalStorage(INITIAL_LOCAL_STORAGE_STATE, {type: 'eviction.succeeded'})).toBe(
+      INITIAL_LOCAL_STORAGE_STATE,
+    )
+    expect(transitionLocalStorage(INITIAL_LOCAL_STORAGE_STATE, {type: 'notice.shown'})).toBe(
+      INITIAL_LOCAL_STORAGE_STATE,
+    )
+
+    const pending = replayStorage([{type: 'write.failed'}])
+    expect(transitionLocalStorage(pending, {type: 'write.failed'})).toBe(pending)
   })
 })

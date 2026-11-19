@@ -1,4 +1,4 @@
-import {Show, createEffect, onCleanup, type JSX} from 'solid-js'
+import {Show, createEffect, onCleanup, onMount, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {useQuery} from '@conciv/client'
 import {useRouteContext, useRouter} from '@tanstack/solid-router'
@@ -56,7 +56,8 @@ export function EngineStaleNotice(): JSX.Element {
 
 export function EngineOutdatedNotice(): JSX.Element {
   const apiBase = useApiBase()
-  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase()))
+  const connected = useConnected()
+  const engineVersion = useQuery(() => engineVersionQueryOptions(apiBase(), connected()))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (
     <Show when={outdated()}>
@@ -65,9 +66,10 @@ export function EngineOutdatedNotice(): JSX.Element {
   )
 }
 
-export function engineVersionQueryOptions(apiBase: string) {
+export function engineVersionQueryOptions(apiBase: string, connected: boolean) {
   return {
     queryKey: ['conciv', 'engine-version', apiBase],
+    enabled: connected,
     queryFn: async () => (await fetch(`${apiBase}/health`)).headers.get(CONCIV_VERSION_HEADER),
   }
 }
@@ -121,12 +123,23 @@ export function EngineLockedNotice(): JSX.Element {
 function LockedNotice(props: {login: EngineLogin; message: string}): JSX.Element {
   const composerFocus = usePanelComposerFocus()
   const [view, setView] = createStore({loggingIn: false})
+  const composerHeldFocus = composerFocus?.handle()?.focused() === true
+  let logIn: HTMLButtonElement | undefined
+  onMount(() => {
+    if (composerHeldFocus) logIn?.focus({focusVisible: true})
+  })
   onCleanup(() => {
     if (view.loggingIn) composerFocus?.handle()?.focus()
   })
   return (
     <>
-      <StandingNotice message={props.message} action={{label: 'Log in', run: () => setView('loggingIn', true)}} />
+      <StandingNotice
+        message={props.message}
+        action={{label: 'Log in', run: () => setView('loggingIn', true)}}
+        actionRef={(button) => {
+          logIn = button
+        }}
+      />
       <Show when={view.loggingIn}>
         <EngineLoginDialog trust={props.login.trust()} onClose={() => setView('loggingIn', false)} />
       </Show>

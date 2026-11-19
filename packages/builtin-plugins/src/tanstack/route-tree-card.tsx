@@ -3,10 +3,9 @@ import {z} from 'zod'
 import {RouteNode} from '@conciv/plugin-tanstack/rpc'
 import {sumBy} from 'es-toolkit'
 import CornerDownRight from 'lucide-solid/icons/corner-down-right'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, InspectionCard, settledCardBody} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, parseOutput} from './card-shared.js'
 import {countLabel} from '../page/cards/shared.js'
 
 const RouteBranchSchema = RouteNode.pick({id: true})
@@ -20,8 +19,8 @@ const RouteBranchSchema = RouteNode.pick({id: true})
 
 type RouteBranchNode = z.infer<typeof RouteBranchSchema>
 
-function parseTree(result: ToolCardProps['result']): RouteBranchNode | null {
-  const parsed = RouteBranchSchema.safeParse(parseResultPayload(result))
+function parseTree(result: string | undefined): RouteBranchNode | null {
+  const parsed = RouteBranchSchema.safeParse(parseOutput(result))
   return parsed.success ? parsed.data : null
 }
 
@@ -50,14 +49,14 @@ function RouteBranch(props: {node: RouteBranchNode; root: boolean}): JSX.Element
   )
 }
 
-function RouteTreeCard(props: ToolCardProps): JSX.Element {
-  const tree = () => parseTree(props.result)
+function RouteTreeCard(props: ToolProps): JSX.Element {
+  const tree = () => parseTree(props.output)
   const summary = () => {
     const root = tree()
     return root ? countLabel(countRoutes(root), 'route', 'routes') : ''
   }
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} hasContent={parseTree(props.output) !== null}>
       <Show when={tree()}>
         {(root) => (
           <CardRows>
@@ -69,7 +68,4 @@ function RouteTreeCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const routeTreeCard: ToolCardView = {
-  render: RouteTreeCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseTree(result) !== null),
-}
+export const routeTreeCard: ToolComponent = RouteTreeCard

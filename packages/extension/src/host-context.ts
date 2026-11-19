@@ -1,35 +1,25 @@
-import {createContext, useContext, type Component, type ComponentProps} from 'solid-js'
+import {createContext, useContext} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabApi} from '@conciv/grab'
-import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
+import type {DialogApi} from '@conciv/ui-kit-system'
 import type {ExtensionSlot} from './types.js'
 
 export type ColorScheme = 'light' | 'dark'
 export type Toast = (message: string, tone?: 'info' | 'success' | 'error') => void
-export type ConnectHostApi = {origin: string; found: (apiBase: string) => void}
-export type PopoverParts = {
-  Root: Component<ComponentProps<PopoverApi['Root']>>
-  Positioner: Component<ComponentProps<PopoverApi['Positioner']>>
-  Content: Component<ComponentProps<PopoverApi['Content']>>
-}
 
 export type HostWiring = {
   rpc: RpcClient
   apiBase: () => string
   toast: Toast
-  openEditor: (file: string, line?: number) => void
   registerLayer: (isOpen: () => boolean, hides: boolean) => () => void
   dialog: DialogApi
-  popover: PopoverParts
   sessionId: () => string | null
   grab: GrabApi
-  insert: (text: string) => void
   attach: (file: File) => void
   newSession: () => void
   viewLock: (locked: boolean) => void
   viewLeave: () => void
   slot: ExtensionSlot
-  connect: ConnectHostApi
   colorScheme: () => ColorScheme
   value: object
 }

@@ -37,16 +37,17 @@ export function storeName(plugin: string, key: string) {
   return `plugin.${plugin}.${key}`
 }
 
-export function globalStoreTarget(
+export function globalStoreTarget(plugin: string, key: string, from: StoreFrom | readonly StoreFrom[] | undefined) {
+  return {...Persist.global(storeName(plugin, key)), copyFrom: storeImports(from)}
+}
+
+export function projectStoreTarget(
   plugin: string,
   key: string,
   from: StoreFrom | readonly StoreFrom[] | undefined,
-  scope: 'global' | 'project',
+  directory: string,
 ) {
-  return {
-    ...Persist[scope](storeName(plugin, key)),
-    copyFrom: storeImports(from),
-  }
+  return {...Persist.project(directory, storeName(plugin, key)), copyFrom: storeImports(from)}
 }
 
 export function storeImports(from: StoreFrom | readonly StoreFrom[] | undefined): CopyFrom[] {
@@ -130,6 +131,7 @@ export function whenLoaded<T>(handle: Persisted<T>) {
 
 export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Persisted<T> {
   const machine = {state: createDeferredStoreState<Persisted<T>, T>()}
+  const opened = Promise.withResolvers<Persisted<T>>()
 
   const dispatch = (event: DeferredStoreEvent<Persisted<T>, T>) => {
     const next = transitionDeferredStore(machine.state, event)
@@ -149,7 +151,12 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Pe
     )
   }
 
-  createRenderEffect(() => dispatch({type: 'sync', handle: store()}))
+  createRenderEffect(() => {
+    const handle = store()
+
+    if (handle) opened.resolve(handle)
+    dispatch({type: 'sync', handle})
+  })
 
   if (getOwner()) onCleanup(() => dispatch({type: 'disposed'}))
 
@@ -158,7 +165,7 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Pe
     dispatch({type: 'write', write: value})
   }
 
-  return {
+  const handle: Persisted<T> = {
     get value() {
       return store()?.value
     },
@@ -166,6 +173,13 @@ export function deferredHandle<T>(store: Accessor<Persisted<T> | undefined>): Pe
     update: (mutate) => write({kind: 'update', mutate}),
     set: (next) => write({kind: 'set', value: next}),
   }
+
+  const loaded = opened.promise.then((inner) => whenLoaded(inner))
+
+  void loaded.catch(() => undefined)
+  loads.set(handle, loaded)
+
+  return handle
 }
 
 function forward<T>(handle: Persisted<T>, write: StoreWrite<T>) {

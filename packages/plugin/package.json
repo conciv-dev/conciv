@@ -64,10 +64,6 @@
       "types": "./dist/experimental/vite.d.ts",
       "import": "./dist/experimental/vite.js"
     },
-    "./experimental/builtin": {
-      "types": "./dist/experimental/builtin.d.ts",
-      "import": "./dist/experimental/builtin.js"
-    },
     "./experimental/host": {
       "types": "./dist/experimental/host.d.ts",
       "import": "./dist/experimental/host.js"
@@ -87,6 +83,10 @@
     "./schema/agent": {
       "types": "./dist/schema/agent.d.ts",
       "import": "./dist/schema/agent.js"
+    },
+    "./schema/bundler": {
+      "types": "./dist/schema/bundler.d.ts",
+      "import": "./dist/schema/bundler.js"
     },
     "./schema/event": {
       "types": "./dist/schema/event.d.ts",

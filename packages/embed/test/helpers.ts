@@ -1,21 +1,36 @@
 import type {AnyExtension} from '@conciv/extension'
-import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCapabilities,
+  HarnessCommand,
+  HarnessModel,
+  HarnessSessionMeta,
+} from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
+import {makeRpcClient} from '@conciv/contract'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createServer, type Server, request as httpRequest, type IncomingMessage} from 'node:http'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
 import type {Duplex} from 'node:stream'
-import {test, expect, type Page} from '@playwright/test'
+import {test, expect, type ConsoleMessage, type Page} from '@playwright/test'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
-import {awaitPagePlaneSubscribed} from '@conciv/plugin-testkit/page-plane'
+import {rpcSocketFor} from '@conciv/plugin-testkit/rpc-socket'
 
 export type EmbedKit = CoreKit
+
+function shellTerminal(): TtyCommand {
+  return {
+    bin: 'bash',
+    args: ['-c', "export PS1='P> '; exec bash --noprofile --norc -i"],
+    env: {TERM: 'xterm-256color', BASH_SILENCE_DEPRECATION_WARNING: '1'},
+  }
+}
 
 export async function bootEmbedKit(
   opts: Pick<ConcivConfig, 'permission' | 'permissions'> & {
@@ -24,6 +39,9 @@ export async function bootEmbedKit(
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: HarnessSessionMeta[]
+    imageInput?: HarnessCapabilities['imageInput']
+    terminal?: boolean
+    files?: Readonly<Record<string, string>>
   } = {},
 ): Promise<EmbedKit> {
   const kit = await bootCoreKit({
@@ -33,8 +51,11 @@ export async function bootEmbedKit(
     models: opts.models,
     commands: opts.commands,
     history: opts.history,
+    imageInput: opts.imageInput,
     permission: opts.permission,
     permissions: opts.permissions,
+    tty: opts.terminal ? {command: shellTerminal} : undefined,
+    files: opts.files,
   })
   return {
     ...kit,
@@ -103,7 +124,7 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string}
     <meta name="conciv-api-base" content="${browserBase(opts.apiBase)}">
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
   </head><body>
-    ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
+    ${opts.body ?? '<div id="probe">page-probe-ok</div>'}
     <script src="/conciv-widget.global.js"></script>
   </body></html>`
 }
@@ -113,7 +134,7 @@ export function handleHostPage(body?: string): string {
   return `<!doctype html><html><head>
     <meta charset="utf-8">
   </head><body>
-    ${body ?? '<div id="probe">page-bus-ok</div>'}
+    ${body ?? '<div id="probe">page-probe-ok</div>'}
     <script>${handleBundle}</script>
   </body></html>`
 }
@@ -225,7 +246,9 @@ export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit(options)
-    host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+    host = await serveWidgetHost((url) =>
+      hostPage({apiBase: url.searchParams.get('apiBase') ?? kit.base, widget: '{"quickTerminal":false}'}),
+    )
   })
 
   test.afterEach(async () => {
@@ -305,18 +328,33 @@ export async function sendChatMessage(page: Page, text: string): Promise<void> {
   await page.getByRole('button', {name: 'Send message'}).click()
 }
 
-export function untilPanelDraft(
+export async function untilPanelDraft(
+  page: Page,
   kit: EmbedKit,
   sessionId: string,
   matches: (draft: DraftRow) => boolean,
 ): Promise<void> {
-  return until(
-    async () => {
-      const draft = await kit.rpc.drafts.get({sessionId})
-      return draft !== null && matches(draft)
-    },
-    {hangGuardMs: 30_000, intervalMs: 100},
-  )
+  const rpcSocket = rpcSocketFor(page)
+  const consoleLines: string[] = []
+  const keepLine = (message: ConsoleMessage): void => void consoleLines.push(`${message.type()}: ${message.text()}`)
+  page.on('console', keepLine)
+  try {
+    await until(
+      async () => {
+        const draft = await kit.rpc.drafts.get({sessionId})
+        return draft !== null && matches(draft)
+      },
+      {hangGuardMs: 30_000, intervalMs: 100},
+    )
+  } catch (error) {
+    const lines = consoleLines.length === 0 ? 'none' : consoleLines.join('\n')
+    throw new Error(
+      `the panel draft never matched: rpc sockets opened while waiting: ${rpcSocket.opened()}; page console while waiting: ${lines}`,
+      {cause: error},
+    )
+  } finally {
+    page.off('console', keepLine)
+  }
 }
 
 export async function mountHandle(page: Page, apiBase: string): Promise<void> {
@@ -373,14 +411,15 @@ export async function installNativeStub(page: Page): Promise<void> {
   })
 }
 
-const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const PAGE_ATTACH_TIMEOUT_MS = 30_000
 
-export async function openPagePlaneHost(page: Page, kit: EmbedKit, base: string): Promise<Page> {
-  await awaitPagePlaneSubscribed(page, async () => {
-    await openLoggedIn(page, kit, base)
-    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
-  })
-  return page
+export async function awaitTabAttached(kit: EmbedKit, sessionId: string): Promise<void> {
+  const rpc = makeRpcClient(kit.base)
+  await expect
+    .poll(() => rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}), {
+      timeout: PAGE_ATTACH_TIMEOUT_MS,
+    })
+    .toContain(sessionId)
 }
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

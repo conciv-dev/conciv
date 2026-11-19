@@ -20,6 +20,7 @@ import {Timer, TooltipGroup, useTooltipGroup, type TooltipGroupApi, type Tooltip
 import {popIn, sideFromPlacement} from './tooltip-motion.js'
 import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
 import {nativeFocusPart} from './native-focus.js'
+import {LayerPortal} from './layer-portal.js'
 
 const CONTENT =
   'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] font-chat max-w-60 focus-visible:outline-none'
@@ -222,8 +223,16 @@ function Root(props: RootProps) {
 const Trigger = nativeFocusPart(Ark.Trigger, 'button')
 
 function Positioner(props: ComponentProps<typeof Ark.Positioner>) {
+  const [local, rest] = splitProps(props, ['class'])
   return (
-    <Show when={useContext(MemberContext)} fallback={<Ark.Positioner {...props} />}>
+    <Show
+      when={useContext(MemberContext)}
+      fallback={
+        <LayerPortal>
+          <Ark.Positioner {...rest} class={`pointer-events-none ${local.class ?? ''}`} />
+        </LayerPortal>
+      }
+    >
       {props.children}
     </Show>
   )

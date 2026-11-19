@@ -1,16 +1,16 @@
 import {Show, createMemo, type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Plus from 'lucide-solid/icons/plus'
 import {
   ComposerActions,
   ComposerActionsHost,
   ComposerPrimitive,
-  AttachmentUI,
+  ComposerAttachment,
   useChatContext,
   useComposer,
   useComposerContext,
   type AttachmentAdapter,
+  type ComposerDraftWriter,
 } from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
@@ -22,9 +22,11 @@ import {
   type SelectionOffsets,
 } from './composer-input-adapter.js'
 import {lockedMessage} from '../shell/engine-lock-messages.js'
+import {useReportFailure} from '../shell/notice-context.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
+  draftWriter?: ComposerDraftWriter
   draftKey: string
   placeholder: string
   inputLabel: string
@@ -35,7 +37,7 @@ export type PaneComposerProps = {
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
   attachmentAdapter?: AttachmentAdapter
-  AttachmentComponent?: Component<{removable?: boolean}>
+  AttachmentComponent?: Component<{onRemove?: (id: string) => void}>
 }
 
 const GHOST =
@@ -52,11 +54,14 @@ const TRAILING_STOP = '[background:var(--chat-fill-strong)] text-chat-text-hi ho
 const TRAILING_HINT = '[font-family:var(--chat-mono)] text-[9px] tracking-normal opacity-65'
 
 const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
+const LOCKED_PLACEHOLDER = 'Log in to continue'
+const LOCKED_INPUT = 'opacity-50 cursor-not-allowed'
 const ATTACHMENT_LABEL = 'Add an attachment'
 const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
 const STOPPING_LABEL = 'Stopping the run'
 const MAX_INLINE_AUTO_ACTIONS = 0
+const REMOVE_FAILED = 'Could not remove the attachment.'
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
@@ -101,7 +106,8 @@ function ComposerSendControl(): JSX.Element {
   )
 }
 
-function composerPlaceholder(running: boolean, queued: boolean, idle: string): string {
+function composerPlaceholder(locked: boolean, running: boolean, queued: boolean, idle: string): string {
+  if (locked) return LOCKED_PLACEHOLDER
   if (queued) return 'Queue another instruction…'
   if (running) return 'Add an instruction…'
   return idle
@@ -115,22 +121,27 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
   }
   const composer = useComposer()
   const chat = useChatContext()
+  const reportFailure = useReportFailure()
+  const reachability = useEngineReachability()
+  const locked = createMemo(() => reachability.locked() !== null)
   const placeholder = createMemo(() =>
-    composerPlaceholder(composer.isRunning(), chat.queue().length > 0, props.placeholder),
+    composerPlaceholder(locked(), composer.isRunning(), chat.queue().length > 0, props.placeholder),
   )
   return (
     <ComposerPrimitive.Root
       attachmentAdapter={props.attachmentAdapter}
       draftStorage={props.draftStorage}
+      draftWriter={props.draftWriter}
       draftKey={props.draftKey}
       class="flex flex-col relative shrink-0 [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >
       <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
         <ComposerPrimitive.Attachments
           component={() => (
-            <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
-              {(component) => <Dynamic component={component()} removable />}
-            </Show>
+            <ComposerAttachment
+              component={props.AttachmentComponent}
+              onRemoveFailed={(error) => reportFailure(REMOVE_FAILED, error)}
+            />
           )}
         />
       </div>
@@ -147,7 +158,8 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
         </Show>
         <ComposerInputAdapter
           placeholder={placeholder()}
-          editableClass={`${INPUT} flex-1`}
+          editableClass={`${INPUT} flex-1 ${locked() ? LOCKED_INPUT : ''}`}
+          disabled={locked()}
           inputLabel={props.inputLabel}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
           triggers={props.triggers}
@@ -162,7 +174,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
             <Show when={props.attachmentAdapter}>
               <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL}>
                 {(buttonProps) => (
-                  <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
+                  <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST} disabled={locked()}>
                     <Plus size={16} aria-hidden="true" />
                   </ComposerPrimitive.AddAttachment>
                 )}

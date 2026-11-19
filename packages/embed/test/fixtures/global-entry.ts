@@ -1,9 +1,8 @@
 import type {AnyExtension} from '@conciv/extension'
-import terminal from '@conciv/extension-terminal/client'
 import recorder from '@conciv/extension-recorder/client'
 import {mountConciv} from '../../src/mount.js'
 
-const available: AnyExtension[] = [terminal, recorder]
+const available: AnyExtension[] = [recorder]
 
 function mounted(search: string): AnyExtension[] {
   const requested = new URLSearchParams(search).get('extensions')
