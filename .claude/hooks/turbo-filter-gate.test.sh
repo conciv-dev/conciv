@@ -66,6 +66,12 @@ run_case "unfiltered turbo run build allowed (not test/typecheck)" \
 run_case "affected filter form allowed" \
   "pnpm exec turbo run test --filter='...[origin/main]'" 0
 
+run_case "affected set form allowed" \
+  "pnpm exec turbo run test --affected" 0
+
+run_case "affected set form with a base env allowed" \
+  "TURBO_SCM_BASE=origin/main pnpm exec turbo run typecheck --affected" 0
+
 run_case "pnpm test root script blocked" \
   "pnpm test" 2
 

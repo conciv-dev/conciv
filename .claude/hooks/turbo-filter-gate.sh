@@ -19,13 +19,15 @@ set -euo pipefail
 #
 # Rule 2 (no filter at all): an unfiltered `turbo run test`/`turbo run
 # typecheck` runs every package's suite instead of the one(s) touched. Allowed
-# scoping forms: `--filter=<pkg>`, the affected form
+# scoping forms: `--filter=<pkg>`, `--affected` (turbo's affected set, which
+# with futureFlags.affectedUsingTaskInputs selects by task inputs), the ref form
 # `--filter='...[origin/main]'` (or any other ref), and the leading-dots
 # dependents form. `--dry` runs are exempt (nothing executes). The root
 # scripts `pnpm test`/`pnpm typecheck`/`pnpm run test`/`pnpm run typecheck`
 # expand to unfiltered `turbo run test`/`turbo run typecheck` and are blocked
-# the same way; `pnpm test:affected`/`pnpm typecheck:affected` expand to the
-# already-filtered affected form and are allowed.
+# the same way; `pnpm test:affected`/`pnpm typecheck:affected` expand to
+# `TURBO_SCM_BASE=origin/main turbo run <task> --affected --filter=!@conciv/extension-design`
+# and are allowed.
 #
 # Rule 3 (--force): the turbo cache hash already covers source and deps, so
 # `--force` (equivalent to `--cache=local:w,remote:w`) never fixes a real
@@ -80,8 +82,8 @@ strip_quoted() {
 
 map_pnpm_script() {
   sed -E \
-    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?test:affected#\\1turbo run test --filter='...[origin/main]'#" \
-    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?typecheck:affected#\\1turbo run typecheck --filter='...[origin/main]'#" \
+    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?test:affected#\\1turbo run test --affected --filter=!@conciv/extension-design#" \
+    -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?typecheck:affected#\\1turbo run typecheck --affected --filter=!@conciv/extension-design#" \
     -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?test([[:space:]]|\$)#\\1turbo run test\\3#" \
     -e "s#(^|[[:space:];|&()])pnpm[[:space:]]+(run[[:space:]]+)?typecheck([[:space:]]|\$)#\\1turbo run typecheck\\3#"
 }
@@ -190,6 +192,7 @@ while IFS= read -r RAW_INVOCATION; do
 
   SELECTORS="$(printf '%s\n' "$INVOCATION" | grep -oE -- '--filter[=[:space:]]+[^[:space:]]+' | sed -E "s/--filter[=[:space:]]+//; s/^['\"]//; s/[)'\"]+\$//" || true)"
   if [ -z "$SELECTORS" ]; then
+    printf '%s\n' "$INVOCATION" | grep -Eq -- '(^|[[:space:]])--affected([[:space:]]|$)' && continue
     NO_FILTER_OFFENDERS="${NO_FILTER_OFFENDERS}${INVOCATION}"$'\n'
     continue
   fi
