@@ -156,18 +156,17 @@ export default whiteboard
 
 `.client(factory)`'s return `{value, effects?, dispose?}` — `value` is merged into what
 `getExtensionApi(name).useContext()` / your own `useContext` return, typed. `.server(factory)`
-receives a `ServerApi<Config>` (`config`, `cwd`, `basePath`, `stateDir`, `sessions`, `harness`,
-`page`, `tools`, `symbolicate`, `bundler?`, `nativeUrl()` —
-`packages/extension/src/types.ts:96-108`) and returns `{context, router?, app?, turnEnd?, dispose?}`:
+receives a `ServerApi<Config>` (`config`, `settings`, `scope`, `cwd`, `basePath`, `stateDir`,
+`sessions`, `harness`, `symbolicate`, `bundler?`, `nativeUrl()`, `upgradeWebSocket` —
+`packages/extension/src/types.ts:107-120`) and returns `{context, router?, app?, turnEnd?, dispose?}`:
 `context` feeds your tools' server handlers, `router` is an oRPC router mounted at
 `/rpc/ext/<name>` (see RPC below), `app` is an optional Hono app for anything a tool result can't
 carry (SSE, uploads), `dispose` runs at shutdown.
 
 ## The tool contract
 
-`defineTool(definition)` returns a builder; chain `.server(execute)` XOR `.client(execute?)` to bind
-it to a runtime (calling both throws — a tool has exactly one binding), then optionally
-`.render(renderer)` for a card. `toolDefinition(definition)` is the identity function used when a
+`defineTool(definition)` returns a builder; chain `.server(execute)` to bind it to node (calling it
+twice throws — a tool has exactly one binding), then optionally `.render(renderer)` for a card. `toolDefinition(definition)` is the identity function used when a
 def needs to be imported by both a `server.ts` and a `client.ts` file (split-bundle packages);
 `defineTool` itself works for `toolDefinition`'s return value too.
 
@@ -188,10 +187,10 @@ const tool = defineTool({
   .render((props) => <Card {...props} />)
 ```
 
-(`packages/extension/src/define-tool.ts:46-96` for the exact `ToolDefinition`/`ToolBuilder` types.)
+(`packages/extension/src/define-tool.ts:27-79` for the exact `ToolDefinition`/`ToolBuilder` types.)
 `meta.summary` is required whenever you pass `meta` at all, and must not just repeat the tool name —
 `defineTool` throws at module-load time otherwise
-(`packages/extension/src/define-tool.ts:205-213`).
+(`packages/extension/src/define-tool.ts:186-194`).
 
 - `.server(execute)` runs in node. `execute(input, ctx, request)`: `input` is fully typed and
   already `inputSchema.parse`d; `ctx` is whatever your extension's `.server(...)` factory returned
@@ -200,20 +199,20 @@ const tool = defineTool({
   `packages/extensions/recorder/src/tool/server.ts:5` does with a `type Ctx =
   {recorder: RecorderRuntime}` annotation); `request` is `{sessionId: string; model: string | null}`
   for the calling chat turn.
-- `.client(execute?)` binds the tool to run in the browser instead (a DOM inspection tool, for
-  example) — its handler receives `ClientToolCtx` (`document`, `target`, `resolve`, `addRef`,
-  `resetRefs`, `consoleEntries`, `effects`). Calling `.client()` with no argument still claims the
-  client binding (useful when only a render/no-op is needed).
+- Work that has to run in the page (a DOM inspection, the router) is not a tool binding: it is an
+  operation of a plugin's browser half, which the engine calls over the plugin's connection to the
+  tab (`packages/builtin-plugins/src/page/operations.ts` for the page plugin). A tool with no
+  `.server` is render-only and carries the card for such work.
 - `.render(renderer)` replaces the generic result card. The renderer is a Solid component receiving
   `ToolCardProps`: `{part, result, ctx, durationMs?}` — `part` is the tool call, `result` is
   `undefined` while running and carries `.content`/`.error` once it lands, `ctx` is the widget's
   `ToolViewCtx` (`packages/protocol/src/tool-view-types.ts:32-37`). To restyle a **built-in** tool
-  you don't own, define a render-only tool with its exact name (no `.server`/`.client`) — a
+  you don't own, define a render-only tool with its exact name (no `.server`) — a
   same-name tool wins over the built-in card.
 
 ### Errors: `toolError` / `isToolError`
 
-Throw a `toolError(code, {message?, data?})` from inside `.server`/`.client` for a structured
+Throw a `toolError(code, {message?, data?})` from inside `.server` for a structured
 failure the card can branch on; `isToolError(value)` narrows it back on the render side.
 
 ```ts title="packages/extensions/design/src/client/capture.ts (excerpted)"
@@ -357,8 +356,8 @@ non-installed extensions).
 
 ## Red flags — stop and fix
 
-- A tool with both `.server(...)` and `.client(...)` chained, or `.client()` called twice — a tool
-  has exactly one binding; the second call throws `"already has a … binding"` at module load.
+- A tool with `.server(...)` called twice — a tool has exactly one binding; the second call throws
+  `"already has a server binding"` at module load.
 - `meta` passed without `meta.summary`, or `meta.summary` that just repeats the tool name — `defineTool`
   throws at load time, so this fails immediately, not in some later review.
 - A `.render` card that assumes `result` is always defined — it is `undefined` while the tool call

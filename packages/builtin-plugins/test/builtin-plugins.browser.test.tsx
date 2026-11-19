@@ -19,7 +19,7 @@ import {GrabCard} from '../src/page/cards/grab-card.js'
 import {GrabSnapshotFrame} from '../src/page/cards/grab-snapshot-frame.js'
 import {mountAttachment} from './fixtures/attachment-harness.js'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
-import {getReactGrabAdapter, installReactBridge, MASKED_VALUE, picking} from '@conciv/page'
+import {getReactGrabAdapter, installReactBridge, loadSnapshotLibrary, MASKED_VALUE, picking} from '@conciv/page'
 import {Menu} from '@conciv/ui-kit-system'
 import tokens from '@conciv/ui-kit-system/tokens.css?inline'
 import utilities from 'virtual:uno.css?inline'
@@ -1017,6 +1017,59 @@ describe.skipIf(inFirefox)('page tools', () => {
       })
       expect(result.waitedMs).toBeGreaterThanOrEqual(50)
     })
+  })
+})
+
+describe.skipIf(inFirefox)('a page call carries its capture', () => {
+  const CARD_SENTINEL = 'card-sentinel-0000'
+
+  const captured = async (verb: string, input: Record<string, unknown>) => {
+    const driver = makePageOperations(noEffects)
+    onTestFinished(() => driver.dispose())
+    const call = command(verb, input)
+    onTestFinished(() => dropCursor(call.agentId))
+    const outcome = await driver.execute(call)
+    if (outcome.type === 'failure') throw new Error(`expected a result for ${verb}, got ${outcome.code}`)
+    return outcome.result
+  }
+
+  it('carries the page css once per capture call, shared by an unchanged before and after, and keeps a payment field out of the result and the capture', async () => {
+    const style = document.createElement('style')
+    style.textContent = '.capture-form .cta {color: rgb(1, 2, 3);}'
+    document.head.appendChild(style)
+    const host = document.createElement('div')
+    host.className = 'capture-form'
+    host.innerHTML = `
+      <button class="cta">Send it</button>
+      <p id="capture-prose">original prose</p>
+      <input id="capture-card" autocomplete="cc-number" value="${CARD_SENTINEL}">
+    `
+    document.body.appendChild(host)
+    onTestFinished(() => {
+      host.remove()
+      style.remove()
+    })
+    await loadSnapshotLibrary()
+
+    const filled = await captured('fill', {selector: '#capture-card', value: '1'})
+    expect(filled.capture).toMatchObject({
+      after: {cssBundleId: expect.stringMatching(/^css/)},
+      cssBundles: [{css: expect.stringContaining('.capture-form .cta')}],
+    })
+    const [bundle] = filled.capture?.cssBundles ?? []
+    const shared = {cssBundleId: bundle?.hash}
+    expect(filled.capture).toMatchObject({after: shared})
+    expect(await captured('fill', {selector: '#capture-card', value: '2'})).toMatchObject({
+      capture: {after: shared, cssBundles: [bundle]},
+    })
+    expect(await captured('settext', {selector: '#capture-prose', text: 'rewritten'})).toMatchObject({
+      capture: {before: shared, after: shared, cssBundles: [bundle]},
+    })
+
+    const paid = await captured('fill', {selector: '#capture-card', value: CARD_SENTINEL})
+    expect(JSON.stringify(paid.value)).not.toContain(CARD_SENTINEL)
+    expect(JSON.stringify(paid.capture)).not.toContain(CARD_SENTINEL)
+    expect(paid.capture).toMatchObject({after: {descriptor: {value: '***'}}})
   })
 })
 

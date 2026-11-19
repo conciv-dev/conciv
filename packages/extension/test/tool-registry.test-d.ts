@@ -5,14 +5,14 @@ import {isDefinedError, safe} from '@orpc/client'
 import {defineTool} from '../src/define-tool.js'
 import type {RegistryToolMeta} from '../src/tool-registry.js'
 
-test('the client binding handler receives input typed by the schema', () => {
+test('the server binding handler receives input typed by the schema', () => {
   defineTool({
     name: 'page_fill',
     description: 'type text into a field',
     inputSchema: z.object({target: z.string(), value: z.string()}),
     outputSchema: z.object({filled: z.boolean()}),
     meta: {summary: 'type text into a field on the page'},
-  }).client((input) => {
+  }).server((input) => {
     expectTypeOf(input.target).toEqualTypeOf<string>()
     expectTypeOf(input.value).toEqualTypeOf<string>()
     return {filled: true}
