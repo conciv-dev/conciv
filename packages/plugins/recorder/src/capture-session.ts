@@ -11,12 +11,7 @@ import {makeMachineDriver} from './machine-driver.js'
 import {runVisibilityPause} from './visibility-pause.js'
 
 export const ConfigReloadFailed = Schema.TaggedStruct('RecorderConfigReloadFailed', {cause: Schema.Defect()})
-export type ConfigReloadFailed = typeof ConfigReloadFailed.Type & globalThis.Error
-
-export const makeConfigReloadFailed = (fields: Omit<typeof ConfigReloadFailed.Type, '_tag'>): ConfigReloadFailed =>
-  Object.assign(new globalThis.Error('Reloading the recorder config failed'), ConfigReloadFailed.make(fields), {
-    name: 'RecorderConfigReloadFailed',
-  })
+export type ConfigReloadFailed = typeof ConfigReloadFailed.Type
 
 export const openCaptureSession = Effect.fn('recorder.captureSession')(function* (options: {
   readonly config: RecorderConfig

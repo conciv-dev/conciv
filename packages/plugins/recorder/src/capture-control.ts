@@ -13,12 +13,7 @@ import type {RecorderControl} from './rpc.js'
 const CAPTURE_TICK = '5 seconds'
 
 export const CaptureNotFound = Schema.TaggedStruct('RecorderCaptureNotFound', {captureId: Schema.String})
-export type CaptureNotFound = typeof CaptureNotFound.Type & globalThis.Error
-
-export const makeCaptureNotFound = (fields: Omit<typeof CaptureNotFound.Type, '_tag'>): CaptureNotFound =>
-  Object.assign(new globalThis.Error(`The capture ${fields.captureId} was not found`), CaptureNotFound.make(fields), {
-    name: 'RecorderCaptureNotFound',
-  })
+export type CaptureNotFound = typeof CaptureNotFound.Type
 
 export type StartedCapture = {readonly captureId: string; readonly startTs: number; readonly appendCursor: number}
 
@@ -94,7 +89,7 @@ export const captureControlLayer = Layer.effect(
         const cursor = yield* appendCursor
         const {effects} = yield* dispatch((now) => ({type: 'capture.stopped', captureId, now}))
         const range = readStop(effects)
-        if (!range) return yield* Effect.fail(makeCaptureNotFound({captureId}))
+        if (!range) return yield* Effect.fail(CaptureNotFound.make({captureId}))
         return {...range, appendCursor: cursor}
       }),
       renewViewer: (viewerId) => Effect.asVoid(dispatch((now) => ({type: 'viewer.renewed', viewerId, now}))),

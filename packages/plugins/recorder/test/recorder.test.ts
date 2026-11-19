@@ -10,19 +10,14 @@ import {z} from 'zod'
 import {connectMcpClient, makeDiscoverTools} from '@conciv/harness-testkit'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
-import {makeFlushFailed, makeFlusher} from '../src/flusher.js'
+import {FlushFailed, makeFlusher} from '../src/flusher.js'
 import {MAX_FLUSH_BYTES, type RecorderConfig} from '../src/rpc.js'
 import {Deferred, Effect, Exit, Fiber, Layer, Option, Path, Queue, Ref, Scope, Stream, SubscriptionRef} from 'effect'
 import {TestClock} from 'effect/testing'
 import * as CaptureControlModel from '../src/capture-control.js'
 import * as ClientRingsModel from '../src/rings.js'
 import * as RendererCacheModel from '../src/renderer-cache.js'
-import {
-  makeRenderFailed,
-  makeRendererUnavailable,
-  launchChromiumRenderer,
-  type KeyframeRenderer,
-} from '../src/render.js'
+import {RenderFailed, RendererUnavailable, launchChromiumRenderer, type KeyframeRenderer} from '../src/render.js'
 import {pullWindow} from '../src/runtime.js'
 import {
   initialCaptureControl,
@@ -37,7 +32,7 @@ import {initialVisibilityPause, transitionVisibilityPause} from '../src/visibili
 import {runBoot} from '../src/boot.js'
 import {openCaptureSession} from '../src/capture-session.js'
 import {openPanel} from '../src/panel.js'
-import {makeFollowFailed, followRecording} from '../src/player-follow.js'
+import {FollowFailed, followRecording} from '../src/player-follow.js'
 import {runVisibilityPause} from '../src/visibility-pause.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -622,8 +617,8 @@ describe('a keyframe render with no full snapshot', () => {
 describe('a recording pulled with no renderer', () => {
   it('holds the text log and no image when the renderer fails', async () => {
     const failingRenderer: KeyframeRenderer = {
-      render: () => Effect.fail(makeRenderFailed({cause: new Error('no browser to render with')})),
-      renderVideo: () => Effect.fail(makeRenderFailed({cause: new Error('no browser to render with')})),
+      render: () => Effect.fail(RenderFailed.make({cause: new Error('no browser to render with')})),
+      renderVideo: () => Effect.fail(RenderFailed.make({cause: new Error('no browser to render with')})),
     }
     const parts = await runTimed(
       Layer.mergeAll(ringsLayer, RendererCacheModel.rendererCacheLayer(Effect.succeed(failingRenderer))),
@@ -795,7 +790,7 @@ describe('the page flusher', () => {
               sent.flushes += 1
               await call(kit, 'flush', {clientId, events: [...events]})
             },
-            catch: (cause) => makeFlushFailed({cause}),
+            catch: (cause) => FlushFailed.make({cause}),
           }),
       })
     const padded = (timestamp: number, bytes: number): RrwebEvent => ({
@@ -1286,14 +1281,14 @@ describe('the renderer cache', () => {
   it('shares one renderer between uses, disposes it after five idle minutes and not before, and launches again after a failed launch', async () => {
     const renderer: KeyframeRenderer = {
       render: () => Effect.succeed([]),
-      renderVideo: () => Effect.fail(makeRenderFailed({cause: 'no video in the fake'})),
+      renderVideo: () => Effect.fail(RenderFailed.make({cause: 'no video in the fake'})),
     }
     const launches = Effect.runSync(Ref.make(0))
     const disposals = Effect.runSync(Ref.make(0))
     const failNext = Effect.runSync(Ref.make(true))
     const launch = Effect.gen(function* () {
       if (yield* Ref.getAndSet(failNext, false))
-        return yield* Effect.fail(makeRendererUnavailable({cause: 'no chromium'}))
+        return yield* Effect.fail(RendererUnavailable.make({cause: 'no chromium'}))
       yield* Ref.update(launches, (count) => count + 1)
       yield* Effect.addFinalizer(() => Ref.update(disposals, (count) => count + 1))
       return renderer
@@ -1335,7 +1330,7 @@ describe('the flusher model', () => {
             Ref.update(attempts, (count) => count + 1),
             Effect.flatMap(
               Ref.getAndUpdate(failuresLeft, (left) => Math.max(left - 1, 0)),
-              (left) => (left > 0 ? Effect.fail(makeFlushFailed({cause: 'offline'})) : Effect.void),
+              (left) => (left > 0 ? Effect.fail(FlushFailed.make({cause: 'offline'})) : Effect.void),
             ),
           )
         const flusher = yield* makeFlusher({send})
@@ -1497,7 +1492,7 @@ describe('the player follow model', () => {
         const cues = Stream.unwrap(
           Effect.map(
             Ref.updateAndGet(subscriptions, (count) => count + 1),
-            (count) => (count === 1 ? Stream.fail(makeFollowFailed({cause: 'dropped'})) : Stream.make('cue')),
+            (count) => (count === 1 ? Stream.fail(FollowFailed.make({cause: 'dropped'})) : Stream.make('cue')),
           ),
         )
         const followed = yield* Effect.forkScoped(

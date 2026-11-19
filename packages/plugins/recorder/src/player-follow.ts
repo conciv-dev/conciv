@@ -2,12 +2,7 @@ import {Effect, Ref, Schedule, Stream, Schema} from 'effect'
 import type {RrwebEvent} from './rpc.js'
 
 export const FollowFailed = Schema.TaggedStruct('RecorderFollowFailed', {cause: Schema.Defect()})
-export type FollowFailed = typeof FollowFailed.Type & globalThis.Error
-
-export const makeFollowFailed = (fields: Omit<typeof FollowFailed.Type, '_tag'>): FollowFailed =>
-  Object.assign(new globalThis.Error('Following the recording failed'), FollowFailed.make(fields), {
-    name: 'RecorderFollowFailed',
-  })
+export type FollowFailed = typeof FollowFailed.Type
 
 export type ReplaySource = {readonly events: RrwebEvent[]; readonly cursor: number}
 

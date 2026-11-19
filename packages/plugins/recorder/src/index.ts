@@ -17,10 +17,7 @@ import {info} from './skill.js'
 import {register} from './tools.js'
 
 const ConfigInvalid = Schema.TaggedStruct('RecorderConfigInvalid', {message: Schema.String})
-type ConfigInvalid = typeof ConfigInvalid.Type & globalThis.Error
-
-const makeConfigInvalid = (fields: Omit<typeof ConfigInvalid.Type, '_tag'>): ConfigInvalid =>
-  Object.assign(new globalThis.Error(fields.message), ConfigInvalid.make(fields), {name: 'RecorderConfigInvalid'})
+type ConfigInvalid = typeof ConfigInvalid.Type
 
 const RESET_SNAPSHOT_WAIT_MS = 1500
 
@@ -117,7 +114,7 @@ export default Plugin.define<Plugin.Services, ConfigInvalid>({
   effect: (ctx) =>
     Effect.gen(function* () {
       const parsed = recorderConfig.safeParse(ctx.options)
-      if (!parsed.success) return yield* Effect.fail(makeConfigInvalid({message: z.prettifyError(parsed.error)}))
+      if (!parsed.success) return yield* Effect.fail(ConfigInvalid.make({message: z.prettifyError(parsed.error)}))
       const config = parsed.data
       const path = yield* Path.Path
       const services = yield* Layer.build(servicesLayer(config, recordingsDirectory(path, ctx.location.directory)))

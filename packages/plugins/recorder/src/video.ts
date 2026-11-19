@@ -5,22 +5,12 @@ import {RendererCache} from './renderer-cache.js'
 export type VideoPiece = {data: string; eof: boolean}
 
 export const VideoUnrendered = Schema.TaggedStruct('RecorderVideoUnrendered', {cause: Schema.Defect()})
-export type VideoUnrendered = typeof VideoUnrendered.Type & globalThis.Error
-
-export const makeVideoUnrendered = (fields: Omit<typeof VideoUnrendered.Type, '_tag'>): VideoUnrendered =>
-  Object.assign(new globalThis.Error('The recording could not be rendered to video'), VideoUnrendered.make(fields), {
-    name: 'RecorderVideoUnrendered',
-  })
+export type VideoUnrendered = typeof VideoUnrendered.Type
 
 export const VideoUnreadable = Schema.TaggedStruct('RecorderVideoUnreadable', {cause: Schema.Defect()})
-export type VideoUnreadable = typeof VideoUnreadable.Type & globalThis.Error
+export type VideoUnreadable = typeof VideoUnreadable.Type
 
-export const makeVideoUnreadable = (fields: Omit<typeof VideoUnreadable.Type, '_tag'>): VideoUnreadable =>
-  Object.assign(new globalThis.Error('The video of the recording could not be read'), VideoUnreadable.make(fields), {
-    name: 'RecorderVideoUnreadable',
-  })
-
-const unrendered = (cause: unknown) => makeVideoUnrendered({cause})
+const unrendered = (cause: unknown) => VideoUnrendered.make({cause})
 
 export const renderVideoFile = Effect.fn('recorder.video.render')(function* (file: string, events: RrwebEvent[]) {
   const fs = yield* FileSystem.FileSystem
@@ -48,5 +38,5 @@ export const readVideoPiece = Effect.fn('recorder.video.read')(
     return {data: Buffer.from(bytes).toString('base64'), eof: offset + bytes.length >= Number(size)}
   },
   Effect.scoped,
-  Effect.mapError((cause) => makeVideoUnreadable({cause})),
+  Effect.mapError((cause) => VideoUnreadable.make({cause})),
 )

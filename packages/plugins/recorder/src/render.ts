@@ -6,20 +6,10 @@ import type {Keyframe} from './format.js'
 import type {RrwebEvent} from './rpc.js'
 
 export const RendererUnavailable = Schema.TaggedStruct('RecorderRendererUnavailable', {cause: Schema.Defect()})
-export type RendererUnavailable = typeof RendererUnavailable.Type & globalThis.Error
-
-export const makeRendererUnavailable = (fields: Omit<typeof RendererUnavailable.Type, '_tag'>): RendererUnavailable =>
-  Object.assign(new globalThis.Error('The Chromium renderer could not be launched'), RendererUnavailable.make(fields), {
-    name: 'RecorderRendererUnavailable',
-  })
+export type RendererUnavailable = typeof RendererUnavailable.Type
 
 export const RenderFailed = Schema.TaggedStruct('RecorderRenderFailed', {cause: Schema.Defect()})
-export type RenderFailed = typeof RenderFailed.Type & globalThis.Error
-
-export const makeRenderFailed = (fields: Omit<typeof RenderFailed.Type, '_tag'>): RenderFailed =>
-  Object.assign(new globalThis.Error('Rendering the recording failed'), RenderFailed.make(fields), {
-    name: 'RecorderRenderFailed',
-  })
+export type RenderFailed = typeof RenderFailed.Type
 
 export type KeyframeRenderer = {
   readonly render: (events: RrwebEvent[], timestamps: number[]) => Effect.Effect<Keyframe[], RenderFailed>
@@ -43,7 +33,7 @@ function readViewport(events: RrwebEvent[]): {width: number; height: number} {
 }
 
 function attemptRender<Value>(work: () => Promise<Value>) {
-  return Effect.tryPromise({try: work, catch: (cause) => makeRenderFailed({cause})})
+  return Effect.tryPromise({try: work, catch: (cause) => RenderFailed.make({cause})})
 }
 
 const readAssets = Effect.gen(function* () {
@@ -93,7 +83,7 @@ function recordVideo(browser: Browser, assets: {script: string; style: string}) 
     const viewport = readViewport(events)
     const videoDir = yield* fs
       .makeTempDirectoryScoped({prefix: 'conciv-recorder-video-'})
-      .pipe(Effect.mapError((cause) => makeRenderFailed({cause})))
+      .pipe(Effect.mapError((cause) => RenderFailed.make({cause})))
     const context = yield* scopedContext(() =>
       browser.newContext({viewport, recordVideo: {dir: videoDir, size: viewport}}),
     )
@@ -112,7 +102,7 @@ function recordVideo(browser: Browser, assets: {script: string; style: string}) 
       return video?.path()
     })
     if (!videoPath) return Option.none()
-    return Option.some(yield* fs.readFile(videoPath).pipe(Effect.mapError((cause) => makeRenderFailed({cause}))))
+    return Option.some(yield* fs.readFile(videoPath).pipe(Effect.mapError((cause) => RenderFailed.make({cause}))))
   }, Effect.scoped)
 }
 
@@ -121,7 +111,7 @@ export const launchChromiumRenderer = Effect.gen(function* () {
   const browser = yield* Effect.acquireRelease(
     Effect.tryPromise({
       try: async () => (await import('playwright-core')).chromium.launch(),
-      catch: (cause) => makeRendererUnavailable({cause}),
+      catch: (cause) => RendererUnavailable.make({cause}),
     }),
     (launched) => Effect.tryPromise(() => launched.close()).pipe(Effect.ignore),
   )

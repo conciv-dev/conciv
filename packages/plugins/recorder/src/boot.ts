@@ -4,20 +4,10 @@ import {initialBoot, transitionBoot, type BootEffect, type BootEvent, type BootS
 import {makeMachineDriver} from './machine-driver.js'
 
 export const ConfigReadFailed = Schema.TaggedStruct('RecorderConfigReadFailed', {cause: Schema.Defect()})
-export type ConfigReadFailed = typeof ConfigReadFailed.Type & globalThis.Error
-
-export const makeConfigReadFailed = (fields: Omit<typeof ConfigReadFailed.Type, '_tag'>): ConfigReadFailed =>
-  Object.assign(new globalThis.Error('Reading the recorder config failed'), ConfigReadFailed.make(fields), {
-    name: 'RecorderConfigReadFailed',
-  })
+export type ConfigReadFailed = typeof ConfigReadFailed.Type
 
 export const StateReadFailed = Schema.TaggedStruct('RecorderStateReadFailed', {cause: Schema.Defect()})
-export type StateReadFailed = typeof StateReadFailed.Type & globalThis.Error
-
-export const makeStateReadFailed = (fields: Omit<typeof StateReadFailed.Type, '_tag'>): StateReadFailed =>
-  Object.assign(new globalThis.Error('Reading whether the recorder is live failed'), StateReadFailed.make(fields), {
-    name: 'RecorderStateReadFailed',
-  })
+export type StateReadFailed = typeof StateReadFailed.Type
 
 export function runBoot<Prepared, PrepareFailed>(options: {
   readonly connected: Stream.Stream<boolean>

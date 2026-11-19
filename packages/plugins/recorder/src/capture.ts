@@ -20,22 +20,11 @@ export type CaptureLibrary = {record: typeof record; getRecordConsolePlugin: typ
 export const CaptureLibraryLoadFailed = Schema.TaggedStruct('RecorderCaptureLibraryLoadFailed', {
   cause: Schema.Defect(),
 })
-export type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type & globalThis.Error
-
-export const makeCaptureLibraryLoadFailed = (
-  fields: Omit<typeof CaptureLibraryLoadFailed.Type, '_tag'>,
-): CaptureLibraryLoadFailed =>
-  Object.assign(
-    new globalThis.Error('Loading the rrweb capture library failed'),
-    CaptureLibraryLoadFailed.make(fields),
-    {
-      name: 'RecorderCaptureLibraryLoadFailed',
-    },
-  )
+export type CaptureLibraryLoadFailed = typeof CaptureLibraryLoadFailed.Type
 
 export const loadCaptureLibrary: Effect.Effect<CaptureLibrary, CaptureLibraryLoadFailed> = Effect.tryPromise({
   try: () => Promise.all([import('rrweb'), import('@rrweb/rrweb-plugin-console-record')]),
-  catch: (cause) => makeCaptureLibraryLoadFailed({cause}),
+  catch: (cause) => CaptureLibraryLoadFailed.make({cause}),
 }).pipe(
   Effect.map(([rrweb, consoleRecord]) => ({
     record: rrweb.record,

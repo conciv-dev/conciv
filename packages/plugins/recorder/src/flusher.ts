@@ -10,12 +10,7 @@ import {
 import {makeMachineDriver, type MachineDriver} from './machine-driver.js'
 
 export const FlushFailed = Schema.TaggedStruct('RecorderFlushFailed', {cause: Schema.Defect()})
-export type FlushFailed = typeof FlushFailed.Type & globalThis.Error
-
-export const makeFlushFailed = (fields: Omit<typeof FlushFailed.Type, '_tag'>): FlushFailed =>
-  Object.assign(new globalThis.Error('Flushing the recorded events failed'), FlushFailed.make(fields), {
-    name: 'RecorderFlushFailed',
-  })
+export type FlushFailed = typeof FlushFailed.Type
 
 export type Flusher = {
   readonly state: SubscriptionRef.SubscriptionRef<FlusherState>

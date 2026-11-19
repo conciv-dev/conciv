@@ -6,7 +6,7 @@ import {REPLAY_MIN_EVENTS, Recorder} from './rpc.js'
 import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {followClient} from './page-capture.js'
-import {makeExportFailed, makePresenceFailed, makeResetFailed, exportRecording, openPanel} from './panel.js'
+import {ExportFailed, PresenceFailed, ResetFailed, exportRecording, openPanel} from './panel.js'
 import type {ReplaySource} from './player-follow.js'
 import {loadPlayerKit, streamPlayer, type PlayerKit} from './player.js'
 import {runInOwnerScope, subscriptionRefSignal, type PluginRuntime} from './subscription-ref-signal.js'
@@ -35,18 +35,18 @@ export function RecorderPanel(props: {
         Effect.asVoid(
           Effect.tryPromise({
             try: () => recorder().presence({viewerId, live}),
-            catch: (cause) => makePresenceFailed({cause}),
+            catch: (cause) => PresenceFailed.make({cause}),
           }),
         ),
       exportRecording: exportRecording({
         save: Effect.tryPromise({
           try: () => recorder()['recordings.save']({clientId: followedClientId}),
-          catch: (cause) => makeExportFailed({cause}),
+          catch: (cause) => ExportFailed.make({cause}),
         }),
         readPiece: (id, offset) =>
           Effect.tryPromise({
             try: () => recorder()['recordings.exportVideo']({clientId: followedClientId, id, offset}),
-            catch: (cause) => makeExportFailed({cause}),
+            catch: (cause) => ExportFailed.make({cause}),
           }),
         saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
       }),
@@ -55,7 +55,7 @@ export function RecorderPanel(props: {
           await recorder().reset(undefined)
           await refetch()
         },
-        catch: (cause) => makeResetFailed({cause}),
+        catch: (cause) => ResetFailed.make({cause}),
       }),
       report: (title) => Effect.sync(() => void ctx.toast.show({title, variant: 'error'})),
     }),
