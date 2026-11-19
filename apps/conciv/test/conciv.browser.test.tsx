@@ -10708,7 +10708,7 @@ module.exports = {default: {setup(ctx) {
       )
       .toMatchObject({
         parts: [
-          {type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body\nThe user /)},
+          {type: 'text', content: expect.stringMatching(/^Attachment alone\.txt:\nthe lone file body\n\nThe user /)},
         ],
         metadata: {comments: {length: 6}},
       })
