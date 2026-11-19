@@ -261,8 +261,6 @@ coverage:
       reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/extension-recorder'
       reason: 'internal to @conciv/it, not installed directly'
-    - name: '@conciv/extension-tanstack'
-      reason: 'internal to @conciv/it, not installed directly'
     - name: '@conciv/extension-ios'
       reason: 'internal to @conciv/embed (the WKWebView bridge of the native page), not installed directly'
     - name: '@conciv/mascot'

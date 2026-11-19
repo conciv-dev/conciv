@@ -575,7 +575,6 @@
     "**/*.gen.tsx",
     "**/test-results",
     "packages/unplugin/test/fixtures/**",
-    "packages/extensions/tanstack/test/fixtures/**",
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
