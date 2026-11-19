@@ -39,7 +39,6 @@ import {currentHref} from '@conciv/plugin-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/plugin-testkit/chat-wire'
-import whiteboardServer from '@conciv/extension-whiteboard/server'
 import {SessionCapturesSchema, type SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {
@@ -203,10 +202,30 @@ test.describe('embed boot', () => {
 
 test.describe('composer rich input', () => {
   const ASSISTANT_TEXT = 'Rich input reply'
+  const MENTION_PROBE_PLUGIN = `export default {
+  id: 'mention-probe',
+  async setup(ctx) {
+    await ctx.tool.transform((tools) => {
+      tools.add({
+        name: 'mention_probe',
+        description: 'Probes the mention list',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed'}),
+      })
+      tools.add({
+        name: 'mention_second_probe',
+        description: 'Probes the mention list again',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed again'}),
+      })
+    })
+  },
+}
+`
 
   const suite = setupWidgetSuite({
     text: ASSISTANT_TEXT,
-    extensions: [whiteboardServer],
+    files: {'conciv/plugins/mention-probe.ts': MENTION_PROBE_PLUGIN},
     commands: [
       {name: 'compact', description: 'Compact the conversation'},
       {name: 'config', description: 'Open configuration'},
@@ -254,13 +273,16 @@ test.describe('composer rich input', () => {
       await pickSuggestion(page, 'Commands', '/config')
 
       await input.pressSequentially('then ')
-      await input.pressSequentially('@canvas_read')
-      await pickSuggestion(page, 'Tools', '@canvas_read')
+      await input.pressSequentially('@mention_second_probe')
+      await pickSuggestion(page, 'Tools', '@mention_second_probe')
+
+      await input.pressSequentially('@mention_probe')
+      await pickSuggestion(page, 'Tools', '@mention_probe')
 
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @canvas_read \nsecond line'
+      const expected = 'please run /config then @mention_second_probe @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)

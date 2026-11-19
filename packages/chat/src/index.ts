@@ -172,7 +172,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     log: deps.log,
     driver: deps.driver,
   })
-  const normalize = toolNameNormalizer(deps.toolNames)
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
     if (deps.sessions.row(sessionId) === null || sessionDeleted(deps.sessions, sessionId)) {
@@ -204,7 +203,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       if (window?.before === undefined && !sessionDeleted(deps.sessions, sessionId)) await transcripts.sync(sessionId)
     }
     const thread = await server.hydrate(sessionId, window)
-    const messages = normalizedMessages(thread.messages, normalize)
+    const messages = normalizedMessages(thread.messages, toolNameNormalizer(await deps.toolNames(sessionId)))
     const runs = await deps.db
       .select({runId: chatRuns.runId, harnessId: chatRuns.harnessId})
       .from(chatRuns)
