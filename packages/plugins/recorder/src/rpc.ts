@@ -1,6 +1,35 @@
 import {Rpc} from '@conciv/plugin/rpc'
 import {z} from 'zod'
-import {MAX_FLUSH_BYTES, RecorderControlSchema, RrwebEventSchema, jsonByteLength, recorderConfig} from './protocol.js'
+
+export const recorderConfig = z.object({
+  masking: z.enum(['none', 'inputs', 'sensitive']).default('none'),
+  windowMinutes: z.number().int().positive().max(60).default(10),
+  console: z.boolean().default(true),
+})
+
+export type RecorderConfig = z.output<typeof recorderConfig>
+
+export type RrwebEvent = {type: number; data: unknown; timestamp: number}
+
+export const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestamp: z.number()})
+
+export const REPLAY_MIN_EVENTS = 2
+
+export const MAX_FLUSH_BYTES = 8 * 1024 * 1024
+
+const encoder = new TextEncoder()
+
+export function jsonByteLength(value: unknown): number {
+  return encoder.encode(JSON.stringify(value)).length
+}
+
+export const RecorderControlSchema = z.object({
+  live: z.boolean().optional(),
+  flush: z.boolean().optional(),
+  snapshot: z.boolean().optional(),
+})
+
+export type RecorderControl = z.infer<typeof RecorderControlSchema>
 
 const ClientId = z.string().min(1).max(128)
 
@@ -61,7 +90,12 @@ export const Recorder = Rpc.define({
     'recordings.exportVideo': {
       input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
       output: VideoPieceOutput,
-      errors: {expired: z.undefined(), missing: z.undefined(), 'render-failed': z.undefined()},
+      errors: {
+        expired: z.undefined(),
+        missing: z.undefined(),
+        'render-failed': z.undefined(),
+        unreadable: z.undefined(),
+      },
     },
   },
   events: {

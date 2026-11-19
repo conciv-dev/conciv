@@ -189,7 +189,7 @@ describe('catalog cards', () => {
       label: {running: 'Shipping the page', done: 'Shipped the page'},
       positional: 'selector',
     },
-  }).client()
+  }).server(() => ({ok: true as const}))
 
   const bannerTool = defineTool({
     name: 'page_banner',
@@ -205,7 +205,7 @@ describe('catalog cards', () => {
       mutating: true,
       hint: 'the banner disappears on the next navigation',
     },
-  }).client()
+  }).server(() => ({ok: true as const}))
 
   const plainTool = defineTool({
     name: 'page_plain',
@@ -213,7 +213,7 @@ describe('catalog cards', () => {
     inputSchema: z.object({}),
     outputSchema: z.object({ok: z.literal(true)}),
     meta: {summary: 'do something the widget has no cosmetics for', category: 'act'},
-  }).client()
+  }).server(() => ({ok: true as const}))
 
   const countTool = defineTool({
     name: 'page_count',
@@ -221,10 +221,10 @@ describe('catalog cards', () => {
     inputSchema: z.object({}),
     outputSchema: z.number(),
     meta: {summary: 'count the elements the page shows', category: 'read', icon: 'read'},
-  }).client()
+  }).server(() => 0)
 
   function declaredRegistry() {
-    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+    const registry = createToolRegistry()
     for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
     for (const tool of [shipTool, bannerTool, plainTool, countTool])
       registry.register(tool, {owner: 'a test registrant'})
@@ -365,10 +365,10 @@ describe('new tool projection', () => {
       label: {running: 'Shipping the page', done: 'Shipped the page'},
       hint: 'only once the user has approved the diff',
     },
-  }).client()
+  }).server(() => ({ok: true as const}))
 
   function registryWith(extra: AnyToolBuilder) {
-    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+    const registry = createToolRegistry()
     for (const tool of FIXTURE_TOOLS) registry.register(tool, {owner: 'a fixture tool'})
     registry.register(extra, {owner: 'a test registrant'})
     return registry
@@ -426,7 +426,7 @@ describe('new tool projection', () => {
       inputSchema: z.object({}),
       outputSchema: z.object({ok: z.literal(true)}),
       meta: {summary: 'do something the widget has no icon for', category: 'act'},
-    }).client()
+    }).server(() => ({ok: true as const}))
 
     expect(registryWith(plainTool).catalog.get('page_plain').summary).toBe('do something the widget has no icon for')
     expect(toolIconRender(plainTool.meta?.icon)).toBe(GENERIC_TOOL_ICON)

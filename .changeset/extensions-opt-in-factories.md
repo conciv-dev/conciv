@@ -8,7 +8,6 @@
 '@conciv/extension-design': patch
 '@conciv/extension-ios': patch
 '@conciv/extension-recorder': patch
-'@conciv/extension-tanstack': patch
 '@conciv/extension-terminal': patch
 '@conciv/extension-whiteboard': patch
 ---
@@ -17,6 +16,4 @@ Extensions are opt-in. `@conciv/it` no longer installs any extension: add the on
 passing them to the plugin, for example `conciv({extensions: [whiteboard(), design({comparator: 'pixelmatch'})]})`,
 or `withConciv(nextConfig, {extensions: [terminal()]})` on Next.js. Each extension package's default export is now a
 function that takes that extension's options, and the name-keyed `extensions: {design: {...}}` option is gone. The
-server extension object moved to each package's `/server` subpath. The TanStack inspector follows the same shape:
-replace the `conciv/extensions/tanstack.tsx` re-export with `extensions: [tanstack()]`. `register()` on Next.js now
-validates `CONCIV_OPTIONS` and fails with a clear error when it is not a valid conciv config.
+server extension object moved to each package's `/server` subpath. `register()` on Next.js now validates `CONCIV_OPTIONS` and fails with a clear error when it is not a valid conciv config.

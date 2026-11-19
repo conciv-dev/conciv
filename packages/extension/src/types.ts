@@ -45,8 +45,6 @@ export type ToolRenderer = Component<ToolCardProps>
 
 export type ToolCard = ToolCardView
 
-export type ServerToolPageAccess = {call: (name: string, input: Record<string, unknown>) => Promise<unknown>}
-
 export type ServerToolRegistryAccess = {call: (name: string, input: unknown) => Promise<unknown>}
 
 export type ExtensionTool = {
@@ -62,7 +60,6 @@ export type ExtensionTool = {
     input: unknown,
     ctx: unknown,
     request: ToolRequest,
-    page: ServerToolPageAccess,
     tools: ServerToolRegistryAccess,
   ) => Promise<unknown>
   __render?: ToolCard
