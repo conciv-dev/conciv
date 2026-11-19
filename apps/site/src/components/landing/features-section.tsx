@@ -8,6 +8,7 @@ import MessageCircleIcon from '@/components/ui/message-circle-icon'
 import MousePointer2Icon from '@/components/ui/mouse-pointer-2-icon'
 import TerminalIcon from '@/components/ui/terminal-icon'
 import PlugConnectedIcon from '@/components/ui/plug-connected-icon'
+import PenIcon from '@/components/ui/pen-icon'
 import ShieldCheck from '@/components/ui/shield-check'
 
 type AnimatedIcon = ForwardRefExoticComponent<AnimatedIconProps & RefAttributes<AnimatedIconHandle>>
@@ -32,8 +33,13 @@ const CAPABILITIES: Capability[] = [
   },
   {
     icon: PlugConnectedIcon,
-    title: 'Plugins',
-    body: 'Drop a folder in conciv/plugins/ and the agent grows a new tool, with its own panel in the widget.',
+    title: 'Extensions',
+    body: 'Drop a .tsx in conciv/extensions/ and the agent grows a new tool with its own UI.',
+  },
+  {
+    icon: PenIcon,
+    title: 'Shared whiteboard',
+    body: 'An Excalidraw canvas you and the AI draw on together, with source-anchored comments.',
   },
   {
     icon: ShieldCheck,

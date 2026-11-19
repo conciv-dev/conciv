@@ -1,28 +1,19 @@
 ---
 title: Plugins
-description: What a plugin is, the built-in ones, how conciv finds yours, and the TanStack plugin as a worked example.
+description: What a plugin is, where conciv finds plugins, and the test-runner plugin as a worked example.
 ---
 
-A plugin adds tools, skills and RPC methods to the engine, and panels, slots, pills and commands to the widget. It has
-up to three parts:
+A plugin adds tools, skills and RPC methods to the engine, and panels, slots and pills to the widget. It has up to
+three parts:
 
 - **The engine part** runs inside the conciv engine. It adds tools the agent calls, skills it reads, and RPC methods.
   See [Engine SDK](/docs/plugins/engine).
 - **The RPC contract** names the methods and events both parts share.
-- **The browser part** runs in the widget. It adds panels, slots, composer pills, commands and settings pages. See
+- **The browser part** runs in the widget. It adds panels, slots, composer pills and settings pages. See
   [Browser SDK](/docs/plugins/browser).
 
 You can call any plugin's RPC methods from a terminal with `conciv plugin call`. See
 [Calling a plugin from the terminal](/docs/plugins/terminal).
-
-## Built-in plugins
-
-Every engine runs these, with no config:
-
-- **The page plugin** (`conciv.page`) gives the agent the [page control](/docs/usage/page-control) tools.
-- **The server plugin** (`conciv.tool.server`) gives it the `server_*` tools and the `server` RPC. See
-  [Dev server](/docs/usage/dev-server).
-- **The terminal** adds the session terminal panel to the widget.
 
 ## Add a plugin from your config
 
@@ -32,17 +23,11 @@ List plugins in the `plugins` option of `conciv()`. An entry is a name, or `[nam
 conciv({plugins: [['@conciv/plugin-test-runner', {runner: 'playwright'}]]})
 ```
 
-- A package name loads that package. The engine installs it with npm into its own cache the first time, so it does
-  not need to be in your project's dependencies. See [Install a plugin](/docs/plugins/install).
+- A package name loads the installed package.
 - A path that starts with `./` or `../` resolves from the project folder. A `file://` URL works too. A path must point
   to a folder, not a file.
 - Every option value must be JSON: a string, number, boolean, null, array or object. The plugin reads them as
   `ctx.options`.
-- `'-<id>'` turns off a plugin that runs before it in the list, a built-in one included. `'-*'` turns off all of them.
-
-```ts title="vite.config.ts"
-conciv({plugins: ['-conciv.page']})
-```
 
 ## Add a plugin in the project
 
@@ -55,129 +40,74 @@ conciv also loads every plugin in a `conciv/plugins` (or `conciv/plugin`) folder
       <Folder name="deploy" defaultOpen>
         <File name="index.ts" />
         <File name="rpc.ts" />
-        <File name="plugin-experimental.cjs" />
       </Folder>
     </Folder>
   </Folder>
 </Files>
 
 The engine watches these folders and the configured plugin paths, and reloads a plugin when its files change.
-[Your first plugin](/docs/plugins/your-first-plugin) builds this folder step by step.
 
 ## Where conciv looks inside a plugin
 
-| Part         | In a package                                  | In a folder                           |
-| ------------ | --------------------------------------------- | ------------------------------------- |
-| Engine part  | the `./server` export, else the main export   | a `server` file, else an `index` file |
-| RPC contract | the `./rpc` export                            | an `rpc` file                         |
-| Browser part | the `./plugin-experimental` export (a `.cjs`) | `plugin-experimental.cjs` or `.js`    |
+| Part         | In a package                                  | In a folder                                 |
+| ------------ | --------------------------------------------- | ------------------------------------------- |
+| Engine part  | the `./server` export, else the main export   | a `server` file, else an `index` file       |
+| RPC contract | the `./rpc` export                            | an `rpc` file                               |
+| Browser part | the `./plugin-experimental` export (a `.cjs`) | `plugin-experimental.cjs` or `.js`          |
 
-Node imports the engine part as it is, with no build step. In a folder, write it as `.ts`, `.js`, `.mts`, `.mjs`,
-`.cts` or `.cjs`. Node strips the types from a `.ts` file, so use only syntax that erases: no `enum`, and no parameter
-properties. Import a sibling file by its real name, `./rpc.ts`. A `.tsx` or `.jsx` engine file fails to load: the
-plugin shows as failed with `Plugin failed to load`.
+A file in a folder can be `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.mjs`, `.cts` or `.cjs`. A folder whose
+`package.json` has a `name` and `exports` is read like a package.
 
-The browser part is always a built `.cjs` or `.js` file. See [Build it](/docs/plugins/browser#build-it).
+The test-runner package exports all three:
 
-A folder whose `package.json` has a `name` and `exports` is read like a package.
-
-## Worked example: the TanStack plugin
-
-[`@conciv/plugin-tanstack`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/tanstack) reads a TanStack
-Router or Start app's build errors, route manifest and server-function calls. It has all three parts, and every part
-uses the public SDK.
-
-<Steps>
-<Step>
-
-**Package.** It exports the three parts:
-
-```json title="packages/plugins/tanstack/package.json"
+```json title="packages/plugins/test-runner/package.json"
 "exports": {
   ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
   "./server": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
   "./rpc": {"types": "./dist/rpc.d.ts", "import": "./dist/rpc.js"},
-  "./plugin-experimental": "./dist/plugin-experimental.cjs",
-  "./package.json": "./package.json"
+  "./plugin-experimental": "./dist/plugin-experimental.cjs"
 }
 ```
 
-</Step>
+## Worked example: the test runner
+
+[`@conciv/plugin-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/plugins/test-runner) powers
+[live tests](/docs/usage/live-tests). Every part of it uses the public SDK.
+
+<Steps>
 <Step>
 
-**Options.** The engine part reads `ctx.options` with zod, and fails its activation on a bad value:
+**Options.** The engine part parses `ctx.options` with zod. `runner` defaults to `vitest`.
 
-```ts title="packages/plugins/tanstack/src/index.ts"
-const Options = z.object({bundlerWaitMs: z.number().int().positive().default(10_000)})
-
-function readOptions(input: unknown) {
-  const parsed = Options.safeParse(input)
-  if (parsed.success) return Effect.succeed(parsed.data)
-  const message = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
-  return Effect.fail(InvalidOptions.make({message}))
-}
-```
-
-</Step>
-<Step>
-
-**Engine part.** `define` names the plugin and runs `effect` when the engine loads it. It registers the RPC handlers,
-then the tools:
-
-```ts title="packages/plugins/tanstack/src/index.ts"
-export default define({
-  id: 'tanstack',
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      const options = yield* readOptions(ctx.options)
-      const rings = yield* Layer.build(Layer.mergeAll(diagnosticsLayer, serverFnTraceLayer))
-      const tanstack = yield* capabilities(ctx, ctx.location.directory, options).pipe(Effect.provide(rings))
-      yield* ctx.rpc
-        .register(Definition, {
-          buildErrors: (_input, call) =>
-            tanstack
-              .buildErrors()
-              .pipe(Effect.mapError((failure) => call.error('BUNDLER_UNAVAILABLE', failure.message, {}))),
-          routeManifest: (_input, call) =>
-            tanstack
-              .routeManifest()
-              .pipe(Effect.mapError((failure) => call.error('MANIFEST_UNREADABLE', failure.message, {}))),
-          serverFnTrace: ({count}) => tanstack.serverFnTrace(count),
-        })
-        .pipe(Effect.mapError((cause) => RpcRegisterFailed.make({message: failureMessage(cause)})))
-      yield* register(ctx, tanstack)
-    }),
+```ts title="src/index.ts"
+const testRunnerConfig = z.object({
+  runner: z.enum(['vitest', 'jest', 'node-test', 'playwright']).default('vitest'),
 })
 ```
 
-See [Define the plugin](/docs/plugins/engine#define-the-plugin).
+</Step>
+<Step>
+
+**Setup.** `Plugin.define` names the plugin and runs it when the engine loads it. It adds the tools, a skill and the
+RPC handlers. The test runner is written on the [promise entry](/docs/plugins/engine#the-promise-entry). For the
+Effect form, see [Define the plugin](/docs/plugins/engine#define-the-plugin).
 
 </Step>
 <Step>
 
-**Tools.** The tools stay in code mode: the agent calls them as `external_tanstack_build_errors()`,
-`external_tanstack_route_manifest()` and `external_tanstack_server_fn_trace({count})`. Its router and query tools run
-in the page: each one calls the page plugin's RPC, which runs the matching operation of the browser part. See
-[Tools](/docs/plugins/engine#tools).
+**Tools.** `test_runner_run` and `test_runner_status` are direct tools the agent calls by name. `list` stays in
+code mode as `external_test_runner_list`. See [Tools](/docs/plugins/engine#tools).
 
 </Step>
 <Step>
 
-**RPC.** The contract in `src/rpc.ts` declares `buildErrors`, `routeManifest` and `serverFnTrace`, so a terminal
-reads the same data:
-
-```bash
-conciv plugin call experimental.tanstack buildErrors
-```
-
-See [RPC](/docs/plugins/engine#rpc).
+**RPC.** The contract in `src/rpc.ts` declares `status`, `current`, `list`, `ui`, `run` and `stop`, and one `event`
+event. The Tests tab calls these methods and follows the events. See [RPC](/docs/plugins/engine#rpc).
 
 </Step>
 <Step>
 
-**Browser part.** `src/plugin-experimental.tsx` adds a chip above the composer as a [slot](/docs/plugins/browser#slot),
-and runs page operations on the React tree the page plugin provides. See
-[Contracts](/docs/plugins/browser#contracts).
+**Browser part.** `src/plugin-experimental.tsx` adds the Tests tab as a [panel](/docs/plugins/browser#panel).
 
 </Step>
 </Steps>
@@ -185,16 +115,8 @@ and runs page operations on the React tree the page plugin provides. See
 ## Next
 
 <Cards>
-  <Card
-    title="Install a plugin"
-    href="/docs/plugins/install"
-    description="The first-party plugins and their options."
-  />
-  <Card
-    title="Your first plugin"
-    href="/docs/plugins/your-first-plugin"
-    description="A tool, an RPC method and a pill."
-  />
   <Card title="Engine SDK" href="/docs/plugins/engine" description="Plugin.define, tools, skills and RPC." />
-  <Card title="Browser SDK" href="/docs/plugins/browser" description="Panels, slots, pills, commands and stores." />
+  <Card title="Browser SDK" href="/docs/plugins/browser" description="Panels, slots, pills and settings pages." />
+  <Card title="From the terminal" href="/docs/plugins/terminal" description="conciv plugin call." />
+  <Card title="Skills" href="/docs/skills" description="Built-in skills and skills from a folder." />
 </Cards>

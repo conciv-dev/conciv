@@ -8,7 +8,13 @@ The test-runner plugin runs your tests in a separate process. Vitest is the defa
 
 ## Install
 
-Add it to `plugins`. The engine installs the package on its first load. See [Install a plugin](/docs/plugins/install).
+```bash
+pnpm add -D @conciv/plugin-test-runner
+```
+
+## Load it
+
+Add it to `plugins`:
 
 ```ts title="vite.config.ts"
 conciv({plugins: ['@conciv/plugin-test-runner']})

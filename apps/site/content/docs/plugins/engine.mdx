@@ -1,82 +1,65 @@
 ---
 title: Engine SDK
-description: Plugin.define, tools, Tool.Error, approvals, skills, prompt hooks and Rpc.define for a plugin's engine part.
+description: Plugin.define, tools, Tool.Error, skills and Rpc.define for a plugin's engine part.
 ---
 
 The engine part runs inside the conciv engine. Write it with [Effect](https://effect.website) from
 `@conciv/plugin/effect`. The promise entry, `@conciv/plugin`, does the same without Effect: see
 [The promise entry](#the-promise-entry).
 
-A plugin in your project's `conciv/plugins` folder imports the SDK from the project's own dependencies:
-
 ```bash
-pnpm add -D @conciv/plugin effect zod
+pnpm add effect
+pnpm add -D @conciv/plugin
 ```
-
-A published plugin lists `@conciv/plugin` as a peer dependency and a dev dependency, and `effect` and `zod` as
-dependencies. See [Publishing](/docs/plugins/publishing).
 
 ## Define the plugin
 
 `Plugin.define({id, effect})` is the default export of the engine part. The engine runs `effect(ctx)` when it loads
 the plugin. Each `ctx` domain returns an `Effect`.
 
-```ts title="packages/plugins/test-runner/src/index.ts"
-export default Plugin.define({
-  id: 'test-runner',
+```ts title="packages/plugins/recorder/src/index.ts"
+function servicesLayer(config: RecorderConfig, directory: string) {
+  const rings = ClientRingsModel.clientRingsLayer({windowMs: config.windowMinutes * 60_000})
+  return Layer.mergeAll(
+    CaptureControlModel.captureControlLayer.pipe(Layer.provideMerge(rings)),
+    RecordingStoreModel.recordingStoreLayer(directory),
+    RendererCacheModel.rendererCacheLayer(launchChromiumRenderer),
+  )
+}
+
+export default Plugin.define<Scope.Scope | FileSystem.FileSystem | Path.Path>({
+  id: 'recorder',
   effect: (ctx) =>
     Effect.gen(function* () {
-      const manager = yield* Effect.sync(() => {
-        const config = testRunnerConfig.parse(ctx.options)
-        const adapter = getRunner(config.runner) ?? vitest
-        return adapter.create(ctx.location.directory)
-      })
-      yield* register(ctx, manager)
-      yield* ctx.skill.transform((editor) => editor.add(info))
-      const registration = yield* registerRpc(ctx.rpc, manager).pipe(Effect.orDie)
-      const events = yield* Queue.unbounded<TestEvent>()
-      yield* Stream.fromQueue(events).pipe(
-        Stream.runForEach((event) =>
-          registration.events
-            .emit('event', event)
-            .pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
-        ),
-        Effect.forkScoped({startImmediately: true}),
-      )
-      const unsubscribe = manager.subscribeRaw((event) => {
-        Queue.offerUnsafe(events, event)
-      })
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(unsubscribe).pipe(Effect.andThen(Effect.promise(() => manager.stop()))),
-      )
+      const config = yield* Effect.sync(() => recorderConfig.parse(ctx.options))
+      const path = yield* Path.Path
+      const services = yield* Layer.build(servicesLayer(config, recordingsDirectory(path, ctx.location.directory)))
+      yield* Effect.gen(function* () {
+        const recordings = yield* RecordingStore
+        const control = yield* CaptureControl
+        yield* Effect.forkScoped(recordings.sweep, {startImmediately: true})
+        const announcements = yield* Queue.unbounded<Announcement>()
+        yield* register(ctx)
+        yield* ctx.skill.transform((editor) => editor.add(info))
+        const registration = yield* registerRpc(ctx.rpc, config, announcements).pipe(Effect.orDie)
+        yield* Stream.fromQueue(announcements).pipe(
+          Stream.merge(Stream.map(control.controls, (message): Announcement => ['control', message])),
+          Stream.runForEach((event) =>
+            registration.events
+              .emit(...event)
+              .pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
+          ),
+          Effect.forkScoped({startImmediately: true}),
+        )
+      }).pipe(Effect.provideContext(services))
     }),
 })
 ```
 
 The effect runs in a scope that closes when the plugin stops or reloads. Every tool, skill and RPC handler it
-registers is removed then, every fiber it forked with `forkScoped` is interrupted, and every finalizer runs.
+registers is removed then, and so is every service built in it, like the `Layer.build` above.
 
-`Plugin.define<R, E>` takes the services the effect needs and the error it may fail with. `Plugin.Services` is the
-scope plus the platform services the engine provides: `FileSystem`, `Path` and `ChildProcessSpawner`. A failure must
-be a tagged value: the plugin shows as failed, with the tag and message.
-
-```ts title="packages/plugins/recorder/src/index.ts"
-const ConfigInvalid = Schema.TaggedStruct('RecorderConfigInvalid', {message: Schema.String})
-type ConfigInvalid = typeof ConfigInvalid.Type
-```
-
-```ts title="packages/plugins/recorder/src/index.ts"
-export default Plugin.define<Plugin.Services, ConfigInvalid>({
-  id: 'recorder',
-  effect: (ctx) =>
-    Effect.gen(function* () {
-      const parsed = recorderConfig.safeParse(ctx.options)
-      if (!parsed.success) return yield* Effect.fail(ConfigInvalid.make({message: z.prettifyError(parsed.error)}))
-      const config = parsed.data
-      const path = yield* Path.Path
-```
-
-The `ctx` fields:
+The `ctx` fields this page uses:
 
 <TypeTable
   type={{
@@ -84,23 +67,7 @@ The `ctx` fields:
     'location.directory': {type: 'string', description: 'The project folder the engine runs in.'},
     tool: {type: 'ToolDomain', description: 'Add, change and remove tools the agent calls.'},
     skill: {type: 'SkillDomain', description: 'Add, change and remove skills.'},
-    rpc: {
-      type: 'RpcDomain',
-      description: 'Register handlers for an RPC contract, or call another plugin with `ctx.rpc(Contract)`.',
-    },
-    session: {
-      type: 'SessionDomain',
-      description: 'Hook a session: `prompt`, `context`, `compaction`, `experimental.idle`.',
-    },
-    permission: {type: 'PermissionDomain', description: 'Ask the user before an action with `assert`.'},
-    agent: {type: 'AgentDomain', description: 'Change agents, for example add permission rules.'},
-    event: {type: 'EventDomain', description: 'Subscribe to engine events, such as `bundler.status`.'},
-    storage: {
-      type: 'StorageDomain',
-      description:
-        'JSON values by key, kept for the plugin (`get`, `set`, `remove`, `scan`), and a `directory` for its files.',
-    },
-    servers: {type: 'Servers', description: 'Every running conciv engine on this machine.'},
+    rpc: {type: 'RpcDomain', description: 'Register handlers for an RPC contract.'},
   }}
 />
 
@@ -141,20 +108,16 @@ export const register = Effect.fn('RecorderTools.register')(function* (ctx: Pick
           )
         }),
     })
+  })
+})
 ```
-
-Here `options` is `{namespace: 'recording', codemode: true}`, so the tool is `recording_start`.
 
 <TypeTable
   type={{
-    name: {
-      type: 'string',
-      description:
-        'Letters, digits and `_`. Any other character but `-` becomes `_`. A `-` is refused: the engine logs `Invalid tool name` and leaves the tool out. With a namespace, the tool is `<namespace>_<name>`.',
-    },
+    name: {type: 'string', description: 'Letters, digits and `_`. With a namespace, the tool is `<namespace>_<name>`.'},
     description: {type: 'string', description: 'What the tool does. The agent reads it to decide when to call it.'},
     input: {type: 'schema', description: 'The input schema. The engine checks the input against it.'},
-    output: {type: 'schema', description: 'The output schema. A result with `output` needs one.'},
+    output: {type: 'schema', description: 'The output schema, optional.'},
     execute: {
       type: '(input, context) => Effect<Result, Tool.Error>',
       description: 'Runs the tool. Succeed with `{output}`, or `{content}` with text, and optional `metadata`.',
@@ -165,31 +128,21 @@ Here `options` is `{namespace: 'recording', codemode: true}`, so the tool is `re
       description:
         'Defaults to code mode: the agent calls the tool from TypeScript as `external_<name>`. `false` makes it a direct tool the agent calls by name.',
     },
-    'options.pinned': {
-      type: 'boolean',
-      description: 'Code mode only. The code-mode summary always lists the tool, even when its budget runs out.',
-    },
-    'options.permission': {
-      type: 'string',
-      description: 'The action a `deny` permission rule matches to hide the tool. Defaults to the tool name.',
-    },
   }}
 />
 
 A schema is a zod schema, any Standard Schema (Valibot, ArkType ...), an Effect Schema, or a raw JSON Schema object.
 
-`execute` gets a context with `sessionId`, `agent`, `messageId`, the call `id`, `progress(update)`, and an optional
-`cancel` effect.
+`execute` gets a context with `sessionId`, `agent`, the call `id`, and `progress(update)`.
 
 ### Tool.Error
 
-Fail the effect with a `Tool.Error` to fail the call with a message the agent reads. Import `Tool` from
-`@conciv/plugin/schema/tool` (or from `@conciv/plugin`), and make one with `Tool.makeError` or `Tool.toolError`.
-`metadata` travels with it:
+Fail the effect with a `Tool.Error` to fail the call with a message the agent reads. Make one with `Tool.makeError` or
+`Tool.toolError`. `metadata` travels with it:
 
 ```ts title="packages/plugins/tanstack/src/tools.ts"
-function bundlerFailure(failure: BundlerUnavailable) {
-  return Tool.toolError({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})
+function toolFailure(failure: Failure) {
+  return Tool.toolError({message: failure.message, error: failure.error, metadata: {code: failure.code}})
 }
 ```
 
@@ -197,7 +150,7 @@ function bundlerFailure(failure: BundlerUnavailable) {
 execute: () =>
   tanstack.buildErrors().pipe(
     Effect.map((output) => ({output})),
-    Effect.mapError(bundlerFailure),
+    Effect.mapError(toolFailure),
   ),
 ```
 
@@ -215,59 +168,6 @@ execute: ({captureId, keyframes}) =>
     ),
   ),
 ```
-
-### Ask before a tool runs
-
-A tool that changes something real asks the user first. Add an `ask` rule for its action to every agent, then call
-`ctx.permission.assert` inside `execute`. It succeeds once the user allows the action, and fails with a `Tool.Error`
-when they deny it:
-
-```ts title="packages/plugins/ios/src/tools.ts"
-const ASKING_RULES: Permission.Rule[] = ['ios_build', 'ios_run'].map((action) => ({
-  action,
-  resource: '*',
-  effect: 'ask',
-}))
-```
-
-```ts title="packages/plugins/ios/src/tools.ts"
-function confirmed(permission: Context['permission'], action: string, tool: Tool.Context) {
-  return permission.assert({
-    action,
-    resources: ['*'],
-    save: ['*'],
-    metadata: {},
-    sessionId: tool.sessionId,
-    agent: tool.agent,
-    source: {type: 'tool', messageId: tool.messageId, id: tool.id},
-  })
-}
-```
-
-```ts title="packages/plugins/ios/src/tools.ts"
-  const asking = <Output>(
-    action: string,
-    tool: Tool.Context,
-    work: (runtime: IosRuntime) => Effect.Effect<Output, Tool.Error, Services>,
-  ) => configured((runtime) => confirmed(ctx.permission, action, tool).pipe(Effect.flatMap(() => work(runtime))))
-
-  yield* ctx.agent.transform((editor) => editor.list().forEach((agent) => agent.permissions.push(...ASKING_RULES)))
-  yield* ctx.tool.transform((editor) => {
-    editor.namespace({
-      name: 'ios',
-      description: 'The native iOS app on the simulator: build it, run it, capture its screen and read its logs.',
-    })
-    editor.add({
-      name: 'build',
-      description: 'Compile the native iOS project for the simulator and report build diagnostics.',
-      input: z.object({clean: z.boolean().optional()}),
-      output: BuildOutputSchema,
-      options: direct,
-      execute: (input, tool) => asking('ios_build', tool, (runtime) => built(build, runtime, input)),
-    })
-```
-
-The ask shows as an Approve or Deny card in the chat. See [Approvals](/docs/usage/approvals).
 
 ## Skills
 
@@ -291,23 +191,12 @@ export const info: Skill.Info = {
 }
 ```
 
-The test runner adds its skill the same way, in [Define the plugin](#define-the-plugin):
-`yield* ctx.skill.transform((editor) => editor.add(info))`. `@conciv/plugin/effect` exports the same `Skill`. For
-skills written as files in the project, see [Skills](/docs/skills).
-
-## Add to the system prompt
-
-A session `context` hook runs before every model request and can add text to the system prompt. The iOS plugin adds
-its rules this way:
-
-```ts title="packages/plugins/ios/src/tools.ts"
-  if (configuredRuntime === undefined) return
-  const rules = iosSystemPrompt(configuredRuntime.config, {cwd: configuredRuntime.cwd})
-  yield* ctx.session.hook('context', (event) => Effect.sync(() => event.system.push({type: 'text', text: rules})))
-})
+```ts title="packages/plugins/recorder/src/index.ts"
+yield * ctx.skill.transform((editor) => editor.add(info))
 ```
 
-This is the end of the plugin's `register` generator.
+`@conciv/plugin/effect` exports the same `Skill`. For skills written as files in the project, see
+[Skills](/docs/skills).
 
 ## RPC
 
@@ -319,42 +208,26 @@ so both parts import it.
 `Rpc.define({id, methods, events})` declares the contract. Each method has an `input` and `output` schema, and
 optional named `errors`. Each event has a `schema`.
 
-```ts title="packages/plugins/test-runner/src/rpc.ts"
+```ts title="packages/plugins/recorder/src/rpc.ts"
 import {Rpc} from '@conciv/plugin/rpc'
 import {z} from 'zod'
-import {TestEventSchema, TestRunResultSchema} from './shared/events.js'
 
-export const ListResultSchema = z.object({
-  files: z.array(z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})),
-})
-
-const UiServerInfoSchema = z.object({available: z.boolean(), url: z.string().optional()})
-
-const RunArgsSchema = z.object({
-  patterns: z.array(z.string()).optional(),
-  testNamePattern: z.string().optional(),
-  failedOnly: z.boolean().default(false),
-})
-
-const ListInputSchema = z.object({failedOnly: z.boolean().default(false)})
-
-const NoInputSchema = z.unknown()
-
-const CurrentRunSchema = z.object({events: z.array(TestEventSchema).nullable(), unavailable: z.string().nullable()})
-
-const unavailable = {UNAVAILABLE: z.object({available: z.literal(false), error: z.string()})}
-
-export const TestRunner = Rpc.define({
-  id: 'test-runner',
+export const Recorder = Rpc.define({
+  id: 'recorder',
   methods: {
-    status: {input: NoInputSchema, output: TestRunResultSchema},
-    current: {input: NoInputSchema, output: CurrentRunSchema},
-    list: {input: ListInputSchema, output: ListResultSchema, errors: unavailable},
-    ui: {input: NoInputSchema, output: UiServerInfoSchema, errors: unavailable},
-    run: {input: RunArgsSchema, output: TestRunResultSchema, errors: unavailable},
-    stop: {input: NoInputSchema, output: z.object({ok: z.boolean()})},
+    config: {input: NoInput, output: recorderConfig},
+    state: {input: NoInput, output: z.object({live: z.boolean()})},
+    reset: {input: NoInput, output: OkOutput},
+    'recordings.exportVideo': {
+      input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
+      output: VideoPieceOutput,
+      errors: {expired: z.undefined(), 'render-failed': z.undefined(), unreadable: z.undefined()},
+    },
   },
-  events: {event: {schema: TestEventSchema}},
+  events: {
+    control: {schema: RecorderControlSchema},
+    appended: {schema: z.object({clientId: z.string(), cursor: z.number()})},
+  },
 })
 ```
 
@@ -363,21 +236,8 @@ An error name that starts with `rpc.` is reserved: `Rpc.define` throws on it.
 ### Register the handlers
 
 `ctx.rpc.register(contract, handlers)` answers the methods. A handler gets the parsed input and a context with
-`error(name, message, data)`, which makes one of the method's declared errors, and returns an `Effect`:
-
-```ts title="packages/plugins/test-runner/src/index.ts"
-function registerRpc(rpc: Context['rpc'], manager: TestRunnerManager) {
-  return rpc.register(TestRunner, {
-    status: () => Effect.sync(() => manager.status()),
-    current: () => Effect.sync(() => manager.current()),
-    list: (input, call) =>
-      guarded(
-        () => manager.list(input.failedOnly),
-        (reason) => call.error('UNAVAILABLE', UNAVAILABLE_MESSAGE, {available: false, error: reason}),
-      ),
-```
-
-Each typed failure maps to a declared error once, at the edge:
+`error(name, message, data)`, which makes one of the method's declared errors, and returns an `Effect`. Each typed
+failure maps to a declared error once, at the edge:
 
 ```ts title="packages/plugins/recorder/src/index.ts"
 'recordings.exportVideo': (input, call) =>
@@ -399,23 +259,21 @@ Each typed failure maps to a declared error once, at the edge:
   ),
 ```
 
-The registration has `dispose` and `events.emit(name, data)`, which sends an event to every subscriber. The test
-runner emits each live test event, in [Define the plugin](#define-the-plugin).
+The registration has `dispose` and `events.emit(name, data)`, which sends an event to every subscriber:
+
+```ts title="packages/plugins/recorder/src/index.ts"
+const registration = yield * registerRpc(ctx.rpc, config, announcements).pipe(Effect.orDie)
+yield *
+  Stream.fromQueue(announcements).pipe(
+    Stream.merge(Stream.map(control.controls, (message): Announcement => ['control', message])),
+    Stream.runForEach((event) =>
+      registration.events.emit(...event).pipe(Effect.catch(reportUndelivered), Effect.catchDefect(reportUndelivered)),
+    ),
+    Effect.forkScoped({startImmediately: true}),
+  )
+```
 
 RPC methods never ask the user. An operation that must ask is a tool.
-
-### Call another plugin
-
-`ctx.rpc(Contract)` returns a typed client for another plugin's contract. The TanStack plugin calls the page plugin
-this way:
-
-```ts title="packages/plugins/tanstack/src/tools.ts"
-import {Definition as PageDefinition, State, TabId} from '@conciv/plugin-page/rpc'
-```
-
-```ts title="packages/plugins/tanstack/src/tools.ts"
-const page = ctx.rpc(PageDefinition)
-```
 
 To call these methods from the widget, see [Call the engine part](/docs/plugins/browser#call-the-engine-part). From
 a terminal, see [`conciv plugin call`](/docs/plugins/terminal).
@@ -426,5 +284,39 @@ a terminal, see [`conciv plugin call`](/docs/plugins/terminal).
 each `ctx` domain returns a `Promise`. `setup` may be async, and may return a cleanup that runs when the plugin stops
 or reloads.
 
-A tool's `execute` and an RPC handler return a `Promise`. A tool fails a call by throwing a `Tool.Error` made with
-`toolError({message, metadata})`, which the entry exports.
+```ts title="packages/plugins/test-runner/src/index.ts"
+import {Plugin} from '@conciv/plugin'
+
+export default Plugin.define({
+  id: 'test-runner',
+  async setup(ctx) {
+    const config = testRunnerConfig.parse(ctx.options)
+    const adapter = getRunner(config.runner) ?? vitest
+    const manager = adapter.create(ctx.location.directory)
+    await register(ctx.tool, manager)
+    await ctx.skill.transform((editor) => editor.add(info))
+    const registration = await registerRpc(ctx.rpc, manager)
+    const unsubscribe = manager.subscribeRaw((event) => {
+      registration.events.emit('event', event).catch((error: unknown) => {
+        console.error(`[test-runner] a live test event was not delivered: ${String(error)}`)
+      })
+    })
+    return () => {
+      unsubscribe()
+      return manager.stop()
+    }
+  },
+})
+```
+
+A tool's `execute` and an RPC handler return a `Promise`. A tool fails a call by throwing `Tool.toolError`:
+
+```ts title="packages/plugins/whiteboard/src/tool/refusal.ts"
+import {Tool} from '@conciv/plugin'
+
+type Failure = {code?: string; message: string; error?: unknown}
+
+export function fail({code, ...failure}: Failure): never {
+  throw Tool.toolError(code === undefined ? failure : {...failure, metadata: {code}})
+}
+```

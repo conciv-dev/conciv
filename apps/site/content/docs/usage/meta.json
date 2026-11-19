@@ -1,5 +1,15 @@
 {
   "title": "Usage",
   "icon": "MousePointerClick",
-  "pages": ["index", "logging-in", "chat", "quick-terminal", "page-control", "dev-server", "live-tests", "approvals"]
+  "pages": [
+    "index",
+    "logging-in",
+    "chat",
+    "quick-terminal",
+    "page-control",
+    "dev-server",
+    "live-tests",
+    "whiteboard",
+    "approvals"
+  ]
 }
