@@ -30,6 +30,9 @@ const SEED: CompleteAttachment[] = [
 
 function Frame(): JSX.Element {
   const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
+  const remove = (id: string): void => {
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+  }
   return (
     <ComposerProvider
       value={{
@@ -38,9 +41,7 @@ function Frame(): JSX.Element {
         addAttachment: async () => null,
         hasAttachment: () => false,
         replaceAttachment: async () => null,
-        removeAttachment: async (id) => {
-          setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
-        },
+        removeAttachment: async (id) => remove(id),
         sendingAttachments: () => false,
         snapshotDraft: () => ({draft: '', attachments: [], quote: null}),
         restoreDraft: () => {},
@@ -57,7 +58,7 @@ function Frame(): JSX.Element {
         <For each={attachments()}>
           {(draft) => (
             <AttachmentProvider value={draft}>
-              <AttachmentUI removable />
+              <AttachmentUI onRemove={remove} />
             </AttachmentProvider>
           )}
         </For>

@@ -103,6 +103,7 @@ import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConn
 import {PendingApprovals} from '../src/pane/pending-approvals.js'
 import {makeToolViewCtx} from '../src/pane/tool-view-ctx.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
+import {NoticeContextProvider} from '../src/shell/notice-context.js'
 import type {EngineLock} from '../src/app/engine-login.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {
@@ -442,7 +443,7 @@ describe('attachment widget', () => {
 
   function ComposerFixture(props: {
     adapter: AttachmentAdapter
-    AttachmentComponent: Component<{removable?: boolean}>
+    AttachmentComponent: Component<{onRemove?: (id: string) => void}>
     onSend?: (content: unknown) => void
     children: JSX.Element
   }): JSX.Element {
@@ -474,7 +475,7 @@ describe('attachment widget', () => {
               <AttachmentByMime cards={cards} />
             </section>
             <section aria-label="composer chip">
-              <AttachmentByMime cards={chips} removable={slotProps.removable} />
+              <AttachmentByMime cards={chips} onRemove={slotProps.onRemove} />
             </section>
           </>
         )}
@@ -2603,6 +2604,54 @@ describe('grab staging', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
   })
 
+  test('a grab staged in Chat stays in the chat draft when Chat closes mid-placement, and one grounded while it moves into Chat arrives grounded', async () => {
+    const [chatOpen, setChatOpen] = createSignal(true)
+    const chatGrab: Grab = {...HERO_GRAB, text: 'echo "chat[owned]"', source: null}
+    const terminalGrab: Grab = {...HERO_GRAB, text: 'echo "terminal(owned)"', source: null}
+    const groundCalled = Promise.withResolvers<void>()
+    const grounding = Promise.withResolvers<Grab | null>()
+    const ground = async (grab: Grab): Promise<Grab | null> => {
+      if (grab.text !== terminalGrab.text) return null
+      groundCalled.resolve()
+      return grounding.promise
+    }
+    const sessionId = await createSession(coreRpc(core()))
+    const mount = mountPane({base: core(), sessionId, ground}, () => (
+      <Show when={chatOpen()}>
+        <ChatPane sessionId={sessionId} />
+      </Show>
+    ))
+    keep(mount)
+    await expect.element(input()).toBeVisible()
+    const api = makePaneGrabApi(mount.pane.grabStaging, mount.pane.grabProvider)
+
+    api.stage(chatGrab)
+    setChatOpen(false)
+
+    await expect.element(input()).not.toBeInTheDocument()
+    expect(api.staged()).toEqual([])
+    api.clear()
+
+    setChatOpen(true)
+
+    await expect.element(input()).toBeVisible()
+    await expect.element(removeGrab()).toBeVisible()
+    expect(api.staged().map((grab) => grab.text)).toEqual([chatGrab.text])
+
+    setChatOpen(false)
+    await expect.element(input()).not.toBeInTheDocument()
+    api.stage(terminalGrab)
+    await groundCalled.promise
+    expect(api.staged().map((grab) => grab.text)).toEqual([terminalGrab.text])
+
+    grounding.resolve({...terminalGrab, source: HERO_GRAB.source})
+    setChatOpen(true)
+
+    await expect.element(input()).toBeVisible()
+    await expect.element(removeGrab().last()).toBeVisible()
+    await expect.element(page.getByText(`in ${HERO_LABEL}`)).toBeVisible()
+  })
+
   test('a grabbed element in a sent message shows its grab card', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const mount = mountPane({base: core(), sessionId}, () => <ChatPane sessionId={sessionId} />)
@@ -4188,16 +4237,18 @@ describe('pane composer stopping', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={stoppable}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={memoryStorage()}
-              draftKey="test"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-            />
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={stoppable}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={memoryStorage()}
+                draftKey="test"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+              />
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     )
   }
@@ -4248,18 +4299,20 @@ describe('pane composer attachments', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={chat()}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={storage}
-              draftKey="attachments"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-              attachmentAdapter={createTextAttachmentAdapter()}
-              onInputReady={(handle) => inputs.push(handle)}
-            />
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={chat()}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={storage}
+                draftKey="attachments"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+                attachmentAdapter={createTextAttachmentAdapter()}
+                onInputReady={(handle) => inputs.push(handle)}
+              />
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
     const focus = () => {
@@ -5793,19 +5846,21 @@ describe('queue strip', () => {
       <EngineReachabilityContext.Provider
         value={{online: () => true, sustainedOffline: () => false, locked: () => null}}
       >
-        <ChatProvider chat={session}>
-          <ComposerHandlersProvider value={{}}>
-            <PaneComposer
-              draftStorage={memoryStorage()}
-              draftKey="queue-flush"
-              placeholder="Ask anything…"
-              inputLabel="Message"
-              onInputReady={(handle) => inputs.push(handle)}
-            >
-              <DraftOutput />
-            </PaneComposer>
-          </ComposerHandlersProvider>
-        </ChatProvider>
+        <NoticeContextProvider>
+          <ChatProvider chat={session}>
+            <ComposerHandlersProvider value={{}}>
+              <PaneComposer
+                draftStorage={memoryStorage()}
+                draftKey="queue-flush"
+                placeholder="Ask anything…"
+                inputLabel="Message"
+                onInputReady={(handle) => inputs.push(handle)}
+              >
+                <DraftOutput />
+              </PaneComposer>
+            </ComposerHandlersProvider>
+          </ChatProvider>
+        </NoticeContextProvider>
       </EngineReachabilityContext.Provider>
     ))
     const sink = {
@@ -8971,6 +9026,11 @@ describe('terminal panel', () => {
       {id: 'busy-model', name: 'Busy model'},
     ],
     alternates: [{id: 'plain', displayName: 'Plain'}],
+    files: {
+      'dist/chunk.js': `console.log('chunk')
+`,
+      'dist/chunk.js.map': JSON.stringify({version: 3, sources: ['src/app.tsx'], names: [], mappings: 'AAAA'}),
+    },
   })
   const harness = createShellHarness(coreBase)
   const faults = trackedFaults()
@@ -8981,7 +9041,7 @@ describe('terminal panel', () => {
   const terminalTab = () => bar().getByRole('tab', {name: 'Terminal', exact: true})
   const terminalInput = () => page.getByRole('textbox', {name: 'Terminal input'})
   const terminalPanel = () => page.getByRole('tabpanel', {name: 'Terminal'})
-  const output = (text: string) => page.getByText(text, {exact: true})
+  const output = (text: string) => terminalPanel().getByRole('list').getByText(text, {exact: true})
   const terminalRoute = (sessionId: string) =>
     `/panel/${sessionId}/${encodeURIComponent('terminal:terminal')}?open=true`
 
@@ -9094,6 +9154,181 @@ describe('terminal panel', () => {
     await expect.element(picker()).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a pick that fails tells the user with a toast', async () => {
+    const failingPick = async (): Promise<Grab | null> => {
+      throw new Error('the page refused the pick')
+    }
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {
+      grabProvider: () => ({pick: failingPick, comment: failingPick, cancel: () => {}, isActive: () => false}),
+    })
+
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+
+    await expect.element(page.getByText('Could not select that element', {exact: true})).toBeVisible()
+  }, 60_000)
+
+  test('a grab picked in the terminal is grounded in place, and its Remove takes it away', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const unsourced: Grab = {...HERO_GRAB, source: null, frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(unsourced)})
+
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await expect.element(page.getByText('in src/app.tsx:1'), {timeout: 15_000}).toBeVisible()
+
+    await removeGrab().click()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+  }, 60_000)
+
+  test('a grab lives in one place: one picked in Chat stays in the chat draft, a waiting one picked in the terminal moves into the chat draft when Chat opens', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const composerInput = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const chatTab = () => bar().getByRole('tab', {name: 'Chat', exact: true})
+    const chatGrab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
+    const terminalGrab = {...HERO_GRAB, text: 'echo "terminal(owned)"'}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`, [], {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
+
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Select an element from the page'}))
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('chat[owned]')).not.toBeInTheDocument()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+
+    await terminalTab().click()
+    await expect.element(bar().getByRole('tab', {name: 'Terminal', selected: true})).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('terminal(owned)')).not.toBeInTheDocument()
+    await expect.element(output('chat[owned]')).not.toBeInTheDocument()
+
+    await chatTab().click()
+    await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
+  test('the crosshair picks an element and Enter in the terminal sends it to the CLI, then clears the staging', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+    const readsOneLine = {...HERO_GRAB, text: 'read -r line; echo "got[$line]"'}
+    const buttonGrab = {...HERO_GRAB, text: '<button>\nSave\n</button>'}
+    const linkGrab = {...HERO_GRAB, text: '<a>Next</a>'}
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(sessionId), [], {
+      grabProvider: grabProviderFor(readsOneLine, buttonGrab, linkGrab),
+    })
+
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+
+    await pickButton().click()
+    await expect.element(terminalPanel()).toBeVisible()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    const imeConfirm = {key: 'Enter', code: 'Enter', isComposing: true, bubbles: true, cancelable: true}
+    terminalInput().element().dispatchEvent(new KeyboardEvent('keydown', imeConfirm))
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('once')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('got[once]'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('got[]')).not.toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await typeLine('read -r line; echo "second($line)"')
+    await pickButton().click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+    await pickButton().click()
+    await expect.element(removeGrab().nth(1), {timeout: 15_000}).toBeVisible()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('second(<button> Save </button> <a>Next</a>)'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((5*5))')
+    await expect.element(output('25'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('second()')).not.toBeInTheDocument()
+    await expect.element(terminalPanel().getByText(/^bash: /)).not.toBeInTheDocument()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 15_000}).toBeVisible()
+    await expect.element(removeGrab()).not.toBeInTheDocument()
+
+    await terminalTab().click()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('exit')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText('Terminal session ended', {exact: true}), {timeout: 15_000}).toBeVisible()
+    await pickButton().click()
+    await terminalPanel().click()
+    await expect.element(terminalInput()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await bar().getByRole('tab', {name: 'Chat', exact: true}).click()
+    await expect.element(removeGrab(), {timeout: 15_000}).toBeVisible()
+  }, 60_000)
+
+  test('a pick that lands after the user moved to another session stages nothing in that session', async () => {
+    const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
+    const release: {pick: (grab: Grab) => void} = {pick: () => {}}
+    const held = new Promise<Grab>((resolve) => {
+      release.pick = resolve
+    })
+    const heldPick = () => held
+    const rpc = coreRpc(coreBase())
+    const otherSession = await createSession(rpc)
+    const sessionId = await createSession(rpc)
+    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], [], {
+      grabProvider: () => ({pick: heldPick, comment: heldPick, cancel: () => {}, isActive: () => false}),
+    })
+
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
+    await pickButton().click()
+    harness.back()
+    await expect.element(output('42'), {timeout: 15_000}).not.toBeInTheDocument()
+    await terminalPanel().click()
+    await typeLine('echo $((2*3))')
+    await expect.element(output('6'), {timeout: 15_000}).toBeInTheDocument()
+    expect(harness.pathname()).toContain(otherSession)
+
+    release.pick({...HERO_GRAB, text: 'echo "leaked[grab]"'})
+    await typeLine('echo $((3*3))')
+    await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await typeLine('echo $((4*4))')
+    await expect.element(output('16'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('leaked[grab]')).not.toBeInTheDocument()
+  }, 60_000)
+
   test('the page flipping between light and dark with the terminal open paints it the way a fresh mount in that scheme does', async () => {
     const pageScheme = document.documentElement.classList
     onTestFinished(() => pageScheme.remove('dark'))
@@ -9165,6 +9400,7 @@ describe('terminal panel', () => {
     await userEvent.keyboard('echo $((3*3))')
     await userEvent.keyboard('{Enter}')
     await expect.element(output('9'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('42')).toBeInTheDocument()
     await expect.element(output('hostmarker').first()).not.toBeInTheDocument()
 
     await expect.element(picker(), {timeout: 15_000}).toBeEnabled()

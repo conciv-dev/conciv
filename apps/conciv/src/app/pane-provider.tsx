@@ -1,22 +1,13 @@
 import type {JSX} from 'solid-js'
 import {useQuery} from '@conciv/client'
 import {useRouter} from '@tanstack/solid-router'
-import {
-  useAnnounce,
-  useAppData,
-  useAppQueryClient,
-  useGrabProvider,
-  useChatDeps,
-  useLiveSessions,
-  usePaneChat,
-} from './context.js'
+import {useAnnounce, useAppData, useAppQueryClient, useGrabProvider, useLiveSessions, usePaneChat} from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
-import {makeGrabStaging} from '../pane/grab-staging.js'
 import {makePaneGrabApi} from '../pane/pane-grab.js'
 import {PaneGrabBinding} from '../pane/plugin-session-parts.js'
-import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {useStartSession} from './start-session.js'
+import {useGrabStaging} from './use-grab-staging.js'
 
 export function PaneProvider(props: {
   sessionId: string
@@ -25,7 +16,6 @@ export function PaneProvider(props: {
   children: JSX.Element
 }): JSX.Element {
   const appData = useAppData()
-  const {rpc} = useChatDeps()
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const router = useRouter()
@@ -57,7 +47,7 @@ export function PaneProvider(props: {
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
-    grabStaging: makeGrabStaging({ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input))}),
+    grabStaging: useGrabStaging(),
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => {

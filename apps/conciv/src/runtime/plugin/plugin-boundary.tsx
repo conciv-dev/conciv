@@ -21,10 +21,10 @@ function CardFallback(props: {name: string}): JSX.Element {
   )
 }
 
-function ChipFallback(props: {name: string; removable: boolean}): JSX.Element {
+function ChipFallback(props: {name: string; onRemove?: (id: string) => void}): JSX.Element {
   return (
     <div role="status">
-      <AttachmentUI removable={props.removable} failure={`Failed to render ${props.name}`} />
+      <AttachmentUI onRemove={props.onRemove} failure={`Failed to render ${props.name}`} />
     </div>
   )
 }
@@ -32,7 +32,7 @@ function ChipFallback(props: {name: string; removable: boolean}): JSX.Element {
 export function PluginBoundary(props: {
   name: string
   fallback: PluginFallback
-  removable?: boolean
+  onRemove?: (id: string) => void
   focusAfterRetry?: () => HTMLElement | undefined
   children: JSX.Element
 }): JSX.Element {
@@ -57,7 +57,7 @@ export function PluginBoundary(props: {
         />
       )
     if (props.fallback === 'card') return <CardFallback name={props.name} />
-    if (props.fallback === 'chip') return <ChipFallback name={props.name} removable={props.removable ?? false} />
+    if (props.fallback === 'chip') return <ChipFallback name={props.name} onRemove={props.onRemove} />
     return null
   }
   return (
@@ -75,7 +75,7 @@ export function guardPluginAttachmentCard(
   return {
     ...entry,
     render: (props) => (
-      <PluginBoundary name={name} fallback={fallback} removable={props.remove !== undefined}>
+      <PluginBoundary name={name} fallback={fallback} onRemove={props.onRemove}>
         <entry.render {...props} />
       </PluginBoundary>
     ),
