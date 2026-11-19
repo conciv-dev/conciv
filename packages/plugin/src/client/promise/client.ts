@@ -41,7 +41,6 @@ export function make(
     navigation: raw.navigation,
     chat: raw.chat,
     registry: raw.registry,
-    captures: raw.captures,
     tabs: raw.tabs,
     code: raw.code,
     page: raw.page,

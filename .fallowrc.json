@@ -9,7 +9,6 @@
     "packages/aidx/**",
     "packages/extensions/design/**",
     "packages/contract/test/helpers/fake-native-socket.ts",
-    "packages/extensions/tanstack/test/fixtures/**",
     "packages/plugins/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/cli/test/fixtures/**",
@@ -40,10 +39,6 @@
         "patterns": ["packages/core/src/runtime/**", "packages/core/src/runtime.ts"]
       },
       {
-        "name": "core-primitives",
-        "patterns": ["packages/core/src/page/page-bus.ts", "packages/core/src/tool-registry.ts"]
-      },
-      {
         "name": "core-shared-leaf",
         "patterns": ["packages/core/src/lib/debug.ts", "packages/core/src/command-policy.ts"]
       },
@@ -63,13 +58,7 @@
     "rules": [
       {
         "from": "core-callers",
-        "allow": ["session-facade", "extension-servers", "core-shared-leaf"],
-        "allowTypeOnly": ["core-primitives"]
-      },
-      {
-        "from": "core-primitives",
-        "allow": ["session-facade", "core-shared-leaf"],
-        "allowTypeOnly": ["core-callers"]
+        "allow": ["session-facade", "extension-servers", "core-shared-leaf"]
       }
     ],
     "calls": {
@@ -494,7 +483,6 @@
     "@parcel/watcher-linux-x64-musl",
     "@parcel/watcher-win32-arm64",
     "@parcel/watcher-win32-x64",
-    "@conciv/extension-tanstack",
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
     "@tanstack/ai-mcp",
@@ -877,7 +865,6 @@
     "packages/ui-kit-chat/src/draft-storage.ts",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
-    "packages/extensions/tanstack/test/host/main.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "e2e/e2e-utils/src/packed-global-setup.ts",
     "e2e/e2e-utils/src/state-cleanup-reporter.ts",

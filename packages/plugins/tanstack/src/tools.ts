@@ -1,12 +1,16 @@
 import {z} from 'zod'
 import {omit} from 'es-toolkit'
-import {Deferred, Effect, Stream} from 'effect'
+import {Effect, FileSystem, Option, Path, Stream, SubscriptionRef} from 'effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import type {RpcClient} from '@conciv/plugin/effect/rpc'
+import type * as Bundler from '@conciv/plugin/schema/bundler'
 import type {SystemError} from '@conciv/plugin/schema/rpc'
 import {Tool} from '@conciv/plugin/schema/tool'
 import {Definition as PageDefinition, State, TabId} from '@conciv/plugin-page/rpc'
+import {DiagnosticsService} from './diagnostics.js'
 import {
+  BundlerUnavailable,
+  ManifestUnreadable,
   UNTRUSTED_NOTE,
   disconnectedAfterDispatch,
   disconnectedBeforeDispatch,
@@ -15,10 +19,9 @@ import {
   passedThrough,
   tabUnavailable,
 } from './failures.js'
-import {Action, Definition, Operations, Reply, type AppError, type Operation} from './rpc.js'
-import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
-import {readRouteManifest} from './server/route-manifest.js'
-import {makeServerFnTraceRing} from './server/serverfn-trace.js'
+import {Action, Definition, Operations, Reply, type Operation} from './rpc.js'
+import {readRouteManifest} from './route-manifest.js'
+import {ServerFnTraceService} from './serverfn-trace.js'
 import {info} from './skill.js'
 
 const options = {namespace: 'tanstack', codemode: true}
@@ -35,54 +38,48 @@ type PageError = Effect.Error<ReturnType<Page['operate']>> | Effect.Error<Return
 
 const UNTRUSTED = {type: 'text' as const, text: UNTRUSTED_NOTE}
 
-type Failure = {
-  readonly code: 'BUNDLER_UNAVAILABLE' | 'MANIFEST_UNREADABLE'
-  readonly message: string
-  readonly error: unknown
-}
+export type Options = {readonly bundlerWaitMs: number}
 
 export type Capabilities = Effect.Success<ReturnType<typeof capabilities>>
 
-function toFailure(code: Failure['code']) {
-  return (error: unknown): Failure => ({code, message: error instanceof Error ? error.message : String(error), error})
-}
-
-export const capabilities = Effect.fn('TanstackTools.capabilities')(function* (
-  ctx: Pick<Context, 'event' | 'location'>,
+export const capabilities = Effect.fn('tanstack.capabilities')(function* (
+  ctx: Pick<Context, 'event'>,
+  directory: string,
+  config: Options,
 ) {
-  const ring = makeDiagnosticsRing()
-  const serverFnRing = makeServerFnTraceRing()
-  const attached = yield* Deferred.make<boolean>()
+  const diagnostics = yield* DiagnosticsService
+  const serverFnTrace = yield* ServerFnTraceService
+  const platform = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+  const status = yield* SubscriptionRef.make<Bundler.Status | undefined>(undefined)
   yield* ctx.event.subscribe({types: ['bundler.status', 'bundler.diagnostic']}).pipe(
     Stream.runForEach((event) => {
-      if (event.type === 'bundler.status') return Deferred.succeed(attached, event.data.status === 'connected')
-      return Effect.sync(() => {
-        if (event.data.diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(event.data.diagnostic))
-        serverFnRing.observe(event.data.diagnostic)
-      })
+      if (event.type === 'bundler.status') return SubscriptionRef.set(status, event.data.status)
+      return Effect.andThen(diagnostics.observe(event.data.diagnostic), serverFnTrace.observe(event.data.diagnostic))
     }),
     Effect.forkScoped({startImmediately: true}),
   )
-  return {
-    buildErrors: (): Effect.Effect<AppError[], Failure> =>
-      Deferred.await(attached).pipe(
-        Effect.flatMap((available) =>
-          available
-            ? Effect.sync(() => ring.list())
-            : Effect.fail(toFailure('BUNDLER_UNAVAILABLE')(new Error('bundler bridge unavailable'))),
-        ),
-      ),
-    routeManifest: () =>
-      readRouteManifest(ctx.location.directory).pipe(Effect.mapError(toFailure('MANIFEST_UNREADABLE'))),
-    serverFnTrace: (count: number | undefined) => ({
-      traces: serverFnRing.traces(count ?? Number.MAX_SAFE_INTEGER),
-      functions: serverFnRing.functions(),
-    }),
-  }
+  const unavailable = BundlerUnavailable.make({message: 'bundler bridge unavailable'})
+  const buildErrors = Effect.fn('tanstack.buildErrors')(function* () {
+    const latest = yield* SubscriptionRef.changes(status).pipe(
+      Stream.filter((value) => value !== undefined),
+      Stream.runHead,
+      Effect.timeoutOption(config.bundlerWaitMs),
+    )
+    if (Option.getOrUndefined(Option.flatten(latest)) !== 'connected') return yield* Effect.fail(unavailable)
+    return [...(yield* diagnostics.list)]
+  })
+  const routeManifest = Effect.fn('tanstack.routeManifest')(function* () {
+    return yield* readRouteManifest(directory).pipe(Effect.provideContext(platform))
+  })
+  return {buildErrors, routeManifest, serverFnTrace: serverFnTrace.read}
 })
 
-function toolFailure(failure: Failure) {
-  return Tool.toolError({message: failure.message, error: failure.error, metadata: {code: failure.code}})
+function bundlerFailure(failure: BundlerUnavailable) {
+  return Tool.toolError({message: failure.message, metadata: {code: 'BUNDLER_UNAVAILABLE'}})
+}
+
+function manifestFailure(failure: ManifestUnreadable) {
+  return Tool.toolError({message: failure.message, error: failure.cause, metadata: {code: 'MANIFEST_UNREADABLE'}})
 }
 
 function failedFailure(name: string, error: Extract<PageError, {readonly type: 'failed'}>): Tool.Error {
@@ -158,7 +155,7 @@ export const register = Effect.fn('TanstackTools.register')(function* (
       execute: () =>
         tanstack.buildErrors().pipe(
           Effect.map((output) => ({output})),
-          Effect.mapError(toolFailure),
+          Effect.mapError(bundlerFailure),
         ),
     })
     editor.add({
@@ -171,7 +168,7 @@ export const register = Effect.fn('TanstackTools.register')(function* (
       execute: () =>
         tanstack.routeManifest().pipe(
           Effect.map((output) => ({output})),
-          Effect.mapError(toolFailure),
+          Effect.mapError(manifestFailure),
         ),
     })
     editor.add({
@@ -181,7 +178,7 @@ export const register = Effect.fn('TanstackTools.register')(function* (
       input: Definition.methods.serverFnTrace.input,
       output: Definition.methods.serverFnTrace.output,
       options,
-      execute: ({count}) => Effect.succeed({output: tanstack.serverFnTrace(count)}),
+      execute: ({count}) => tanstack.serverFnTrace(count).pipe(Effect.map((output) => ({output}))),
     })
     editor.add({
       name: 'list',

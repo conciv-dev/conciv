@@ -607,6 +607,150 @@ describe('page queue: where it started', () => {
   })
 })
 
+describe('page queue: plays and owes', () => {
+  type Held = PromiseWithResolvers<PageQueue.RequestSettlement>
+
+  function heldPage(syncMs?: number) {
+    const replies: Held[][] = []
+    const landed = new EventTarget()
+    const queues = PageQueue.fromPlay({
+      play: (_sessionId, play) => {
+        const held = play.actions.map(() => Promise.withResolvers<PageQueue.RequestSettlement>())
+        replies.push(held)
+        return held.map((each) => each.promise)
+      },
+      journal: async () => {},
+      finished: (record) => landed.dispatchEvent(new Event(record.queueId)),
+      ...(syncMs === undefined ? {} : {syncMs}),
+    })
+    const finished = (queueId: string): Promise<void> =>
+      new Promise((resolve) => landed.addEventListener(queueId, () => resolve(), {once: true}))
+    return {queues, replies, finished}
+  }
+
+  const checked = (value: Record<string, string | boolean>): PageQueue.RequestSettlement => ({
+    ok: true,
+    result: {value, files: []},
+  })
+
+  function checks(type: 'queue' | 'queue_async', selectors: string[]) {
+    const action = Page.Action.parse({type, actions: selectors.map((selector) => ({tool: 'page_check', selector}))})
+    if (action.type !== 'queue' && action.type !== 'queue_async') throw new Error('the action is not a queue')
+    return {agentId: 'build', action, toolCallId: 'call-1'}
+  }
+
+  it('keeps each reply for its own action, counts an unconfirmed one as lost, and owes only what no caller took', async () => {
+    const {queues, replies, finished} = heldPage(20)
+    const {queueId} = queues.start(sessionId, checks('queue_async', ['#first', '#second', '#third']))
+    const landing = finished(queueId)
+    const [first, second, third] = replies[0] ?? []
+    second?.resolve(checked({checked: '#second'}))
+    third?.resolve(checked({checked: '#third'}))
+    first?.resolve(checked({checked: '#first'}))
+    await landing
+    expect(await queues.wait(sessionId, queueId, 0)).toEqual({
+      queueId,
+      status: 'finished',
+      outcomes: ['#first', '#second', '#third'].map((selector, index) => ({
+        index,
+        tool: 'page_check',
+        ok: true,
+        result: {checked: selector},
+      })),
+      failed: 0,
+      played: 3,
+    })
+
+    const unconfirmed = queues.start(sessionId, checks('queue_async', ['#name', '#agree']))
+    const unconfirmedLanding = finished(unconfirmed.queueId)
+    replies[1]?.[0]?.resolve(checked({value: 'Ada'}))
+    replies[1]?.[1]?.resolve({
+      ok: false,
+      error: Tool.toolError({message: '[page.timeout] page.check did not finish within 1 seconds'}),
+    })
+    await unconfirmedLanding
+    expect(await queues.wait(sessionId, unconfirmed.queueId, 0)).toEqual({
+      queueId: unconfirmed.queueId,
+      status: 'lost',
+      outcomes: [
+        {index: 0, tool: 'page_check', ok: true, result: {value: 'Ada'}},
+        {
+          index: 1,
+          tool: 'page_check',
+          ok: false,
+          error: 'the page did not confirm page_check in time; it may already have run',
+        },
+      ],
+      failed: 0,
+      played: 1,
+    })
+
+    const outlasting = await queues.play(sessionId, checks('queue', ['#first', '#second']))
+    const readQueueId = (result: unknown): string => z.object({queueId: z.string()}).parse(result).queueId
+    const outlastingId = readQueueId(outlasting)
+    expect(outlasting).toEqual({queueId: outlastingId, status: 'playing', done: 0, of: 2})
+    expect(queues.startedBy(sessionId, ['call-1'])).toEqual([{queueId: outlastingId, actions: 2}])
+    const outlastingLanding = finished(outlastingId)
+    replies[2]?.forEach((reply) => reply.resolve(checked({})))
+    await outlastingLanding
+    expect(queues.startedBy(sessionId, ['call-1'])).toEqual([])
+    expect(queues.undelivered(sessionId, {toolCallIds: ['call-1']})).toEqual([
+      expect.objectContaining({queueId: outlastingId, status: 'finished', played: 2}),
+    ])
+    expect(queues.undelivered(sessionId, {toolCallIds: ['call-1']})).toEqual([])
+
+    const inCall = queues.play(sessionId, checks('queue', ['#agree']))
+    await Promise.resolve()
+    replies[3]?.[0]?.resolve(checked({checked: true}))
+    const inCallId = readQueueId(await inCall)
+    expect(await queues.claim(sessionId, inCallId, 0)).toMatchObject({before: null})
+    expect(queues.owed(sessionId, [], false)).toEqual([])
+  })
+
+  it('a result a claim holds outlives two hundred delivered queues and a deleted session puts nothing back', async () => {
+    const {queues, replies, finished} = heldPage()
+    const played = async (): Promise<string> => {
+      const {queueId} = queues.start(sessionId, checks('queue_async', ['#agree']))
+      const landing = finished(queueId)
+      replies.at(-1)?.[0]?.resolve(checked({checked: true}))
+      await landing
+      return queueId
+    }
+    const held = await played()
+    expect(await queues.claim(sessionId, held, 0)).toMatchObject({before: 'owed'})
+    for (const _ of Array.from({length: 205})) await queues.wait(sessionId, await played(), 0)
+    queues.settle(sessionId, [held], 'owed')
+    expect(queues.owed(sessionId, [], false).map((queue) => queue.queueId)).toEqual([held])
+
+    expect(await queues.claim(sessionId, held, 0)).toMatchObject({before: 'owed'})
+    queues.cancelSession(sessionId)
+    queues.settle(sessionId, [held], 'owed')
+    expect(queues.owed(sessionId, [], false)).toEqual([])
+    await expect(queues.wait(sessionId, held, 0)).rejects.toThrow(`no queue ${held} on this tab`)
+  })
+
+  it('at a thousand owed results a new queue is refused before it plays, and delivering one frees a place', async () => {
+    const {queues, replies, finished} = heldPage()
+    const started: string[] = []
+    for (const _ of Array.from({length: 1000})) {
+      const {queueId} = queues.start(sessionId, checks('queue_async', ['#agree']))
+      const landing = finished(queueId)
+      replies.at(-1)?.[0]?.resolve(checked({checked: true}))
+      await landing
+      started.push(queueId)
+    }
+    expect(() => queues.start(sessionId, checks('queue_async', ['#agree']))).toThrow(
+      '1000 queue results are still undelivered; collect them before queueing more',
+    )
+    expect(replies).toHaveLength(1000)
+    expect(await queues.wait(sessionId, started[0] ?? '', 0)).toMatchObject({queueId: started[0], status: 'finished'})
+    const freed = queues.start(sessionId, checks('queue_async', ['#agree']))
+    expect(replies).toHaveLength(1001)
+    expect(queues.owed(sessionId, [], false).map((queue) => queue.queueId)).toEqual(started.slice(1))
+    expect(freed.actions).toBe(1)
+  })
+})
+
 describe('page tools', () => {
   it('saved capture names never escape their directory or name a Windows device', async () => {
     const file = (name: string): Page.File => ({

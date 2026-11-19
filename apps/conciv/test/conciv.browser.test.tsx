@@ -7459,7 +7459,7 @@ describe('tool card dispatch', () => {
 
 describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
-    const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+    const registry = createToolRegistry()
     return registry
   }
 
