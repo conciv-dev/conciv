@@ -11,25 +11,24 @@ type TerminalSize = {readonly cols: number; readonly rows: number}
 
 type PtyRequest = {readonly sessionId: string; readonly terminal: TerminalSize; readonly model: string | undefined}
 
-function resolvedColor(probe: HTMLElement, token: string): string | undefined {
+function resolvedColor(element: Element, scheme: 'light' | 'dark', token: string): string | undefined {
+  const probe = document.createElement('span')
+  probe.style.colorScheme = scheme
   probe.style.color = `var(${token})`
+  element.append(probe)
   const color = getComputedStyle(probe).color
+  probe.remove()
   return color === '' ? undefined : color
 }
 
 function readTerminalTheme(element: Element, scheme: 'light' | 'dark'): TerminalTheme {
-  const probe = document.createElement('span')
-  probe.style.colorScheme = scheme
-  element.append(probe)
-  const text = resolvedColor(probe, '--chat-text-hi')
-  const theme = {
-    background: resolvedColor(probe, '--chat-bg'),
+  const text = resolvedColor(element, scheme, '--chat-text-hi')
+  return {
+    background: resolvedColor(element, scheme, '--chat-bg'),
     foreground: text,
     cursor: text,
-    selectionBackground: resolvedColor(probe, '--chat-fill-strong'),
+    selectionBackground: resolvedColor(element, scheme, '--chat-fill-strong'),
   }
-  probe.remove()
-  return theme
 }
 
 function readTerminalFont(element: Element, font: string): string {

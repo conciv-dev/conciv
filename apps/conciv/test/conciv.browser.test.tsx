@@ -1,7 +1,7 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
-import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
+import {cdp, page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {uniq} from 'es-toolkit'
 import {createElement} from 'react'
 import {createRoot as createReactRoot} from 'react-dom/client'
@@ -7726,6 +7726,40 @@ describe('terminal panel', () => {
     expect(await shot()).toBe(flippedToDark)
     pageScheme.remove('dark')
     expect(await shot()).toBe(freshLight)
+  }, 60_000)
+
+  test('under reduced motion the terminal opens in the colours it has with full motion, in light and in dark', async () => {
+    const pageScheme = document.documentElement.classList
+    onTestFinished(async () => {
+      pageScheme.remove('dark')
+      await cdp().send('Emulation.setEmulatedMedia', {features: []})
+    })
+    const shot = () => terminalPanel().screenshot({save: false})
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const mountSettled = async () => {
+      harness.dispose()
+      harness.mountShell(terminalRoute(sessionId))
+      await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(output('P>').last(), {timeout: 15_000}).toBeInTheDocument()
+      await expect.element(terminalInput(), {timeout: 15_000}).toHaveFocus()
+    }
+    harness.mountShell(terminalRoute(sessionId))
+    await typeLine('echo $((6*7))')
+    await expect.element(output('42'), {timeout: 15_000}).toBeInTheDocument()
+
+    await mountSettled()
+    const fullMotionLight = await shot()
+    pageScheme.add('dark')
+    await mountSettled()
+    const fullMotionDark = await shot()
+    pageScheme.remove('dark')
+
+    await cdp().send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-reduced-motion', value: 'reduce'}]})
+    await mountSettled()
+    expect(await shot()).toBe(fullMotionLight)
+    pageScheme.add('dark')
+    await mountSettled()
+    expect(await shot()).toBe(fullMotionDark)
   }, 60_000)
 
   test('the host page keeps its own keys: a click there leaves the terminal unfocused, Escape there reaches the page and leaves a busy CLI running, and only Escape in the terminal interrupts it', async () => {

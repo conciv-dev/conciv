@@ -176,17 +176,18 @@ type DiagramStyle = {
 
 let diagramCount = 0
 
-function resolvedColor(probe: HTMLElement, token: string): string {
+function resolvedColor(element: HTMLElement, token: string): string {
+  const probe = document.createElement('span')
   probe.style.color = `var(${token})`
-  return getComputedStyle(probe).color
+  element.append(probe)
+  const color = getComputedStyle(probe).color
+  probe.remove()
+  return color
 }
 
 function diagramStyle(element: HTMLElement): DiagramStyle {
   const computed = getComputedStyle(element)
-  const probe = document.createElement('span')
-  element.append(probe)
-  const themeVariables = mapValues(DIAGRAM_TOKENS, (token) => resolvedColor(probe, token))
-  probe.remove()
+  const themeVariables = mapValues(DIAGRAM_TOKENS, (token) => resolvedColor(element, token))
   return {darkMode: computed.colorScheme.trim() === 'dark', fontFamily: computed.fontFamily, themeVariables}
 }
 
