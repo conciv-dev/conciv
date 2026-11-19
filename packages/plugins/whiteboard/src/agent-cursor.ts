@@ -28,11 +28,12 @@ export const makeAgentCursor = Effect.fn('WhiteboardAgentCursor.make')(function*
       ([, perPeer]) =>
         perPeer.pipe(
           Stream.rechunk(1),
+          Stream.buffer({capacity: 1, strategy: 'sliding'}),
           Stream.throttle({
             cost: (chunk) => chunk.length,
             units: 1,
             duration: Duration.millis(throttleMs),
-            strategy: 'enforce',
+            strategy: 'shape',
           }),
         ),
       {concurrency: 'unbounded'},

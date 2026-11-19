@@ -1,5 +1,4 @@
 import {z} from 'zod'
-import type {ChatTransportPreference} from '@conciv/client'
 import type {ConcivSurface, TriggerPosition} from '@conciv/protocol/config-types'
 
 export type Launcher = 'native' | 'mascot' | false
@@ -11,7 +10,6 @@ export type ConcivSettings = {
   launcher: Launcher
   fromHost: {defaultOpen: boolean; launcher: boolean}
   surface: ConcivSurface
-  transport: ChatTransportPreference
 }
 
 const DEFAULT_POSITION: TriggerPosition = 'bottom-right'
@@ -41,12 +39,6 @@ function parseHotkeys(quickTerminal: unknown): string[] | null {
   return hotkey ? [String(hotkey)] : null
 }
 
-const TransportSchema = z.enum(['auto', 'websocket', 'fetch']).default('auto').catch('auto')
-
-function parseTransport(transport: unknown): ChatTransportPreference {
-  return TransportSchema.parse(transport)
-}
-
 function parseConfig(raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw || '{}')
@@ -67,6 +59,5 @@ export function parseConcivSettings(raw: string): ConcivSettings {
     launcher: parseLauncher(cfg.launcher),
     fromHost: {defaultOpen: Object.hasOwn(cfg, 'defaultOpen'), launcher: Object.hasOwn(cfg, 'launcher')},
     surface: cfg.surface === 'dock' ? 'dock' : 'page',
-    transport: parseTransport(cfg.transport),
   }
 }

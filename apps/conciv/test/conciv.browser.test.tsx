@@ -529,7 +529,7 @@ describe('chat pane', () => {
 
   function mountChatPane(
     sessionId: string,
-    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport' | 'engineOnlyDrafts'> = {},
+    options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'engineOnlyDrafts'> = {},
   ): PaneMount {
     const mount = mountPane({base: core(), sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
     active.pane = mount
@@ -1231,7 +1231,7 @@ describe('chat pane', () => {
   test('a rejected send keeps the draft in the composer, tells the user why, and a resend makes one turn', async () => {
     const {sessionId} = await newSession()
     const refused = await faults.install({kind: 'chat-refused', status: 500})
-    mountChatPane(sessionId, {transport: 'fetch'})
+    mountChatPane(sessionId)
     const typed = 'a message the server refuses'
     const turns = () => page.getByRole('log').getByText(typed, {exact: true})
     const replies = () => page.getByRole('log').getByText(UNSCRIPTED_REPLY, {exact: true})
@@ -1256,7 +1256,7 @@ describe('chat pane', () => {
     expect(replies().elements()).toHaveLength(1)
 
     active.pane?.dispose()
-    mountChatPane(sessionId, {transport: 'fetch'})
+    mountChatPane(sessionId)
     await expect.element(replies()).toBeVisible()
     expect(turns().elements()).toHaveLength(1)
     expect(replies().elements()).toHaveLength(1)
@@ -1307,7 +1307,7 @@ describe('chat pane', () => {
     await coreControl.holdTurn()
     const [connection, setConnection] = createStore({online: true})
     const reachability = {online: () => connection.online, sustainedOffline: () => false, locked: () => null}
-    active.pane = mountPane({base: core(), sessionId, transport: 'fetch'}, () => (
+    active.pane = mountPane({base: core(), sessionId}, () => (
       <EngineReachabilityContext.Provider value={reachability}>
         <ChatPane sessionId={sessionId} />
       </EngineReachabilityContext.Provider>
@@ -1568,7 +1568,7 @@ describe('chat pane', () => {
     const stoppingButton = () => page.getByRole('button', {name: 'Stopping the run'})
     const threadText = (text: string) => page.getByRole('log').getByText(text, {exact: true})
 
-    test('over the chat socket it waits for the run and then stops it with the Stopped line', async () => {
+    test('a held send waits for the run and then stops it with the Stopped line', async () => {
       const {sessionId} = await newSession()
       await coreControl.holdTurn()
       const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'deliver'})
@@ -1591,11 +1591,11 @@ describe('chat pane', () => {
       await expect.element(stoppedLine()).toBeVisible()
     })
 
-    test('over fetch it keeps the message and ends the run with the Stopped line', async () => {
+    test('a held send keeps the message and ends the run with the Stopped line', async () => {
       const {sessionId} = await newSession()
       await coreControl.holdTurn()
       const post = await faults.install({kind: 'chat-gate'})
-      mountChatPane(sessionId, {transport: 'fetch'})
+      mountChatPane(sessionId)
       await input().fill('stop before the post lands')
       await userEvent.keyboard('{Enter}')
       await coreControl.awaitFaultPending(post, 1)
@@ -1615,7 +1615,7 @@ describe('chat pane', () => {
 
     test('when the send fails it is taken back quietly, and a failed send with no Stop still says so', async () => {
       const {sessionId} = await newSession()
-      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+      const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
       mountChatPane(sessionId)
       await input().fill('take this one back')
       await userEvent.keyboard('{Enter}')
@@ -1629,16 +1629,14 @@ describe('chat pane', () => {
       await expect.element(page.getByRole('button', {name: 'Send message', exact: true})).toBeVisible()
       await expect.element(threadText('take this one back')).not.toBeInTheDocument()
       await expect.element(page.getByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
-      await expect
-        .element(notifications().getByText(/Stream response body read failed|could not be sent/))
-        .not.toBeInTheDocument()
+      await expect.element(notifications().getByText('Internal Server Error', {exact: true})).not.toBeInTheDocument()
 
-      const unstopped = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+      const unstopped = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
       await userEvent.click(input())
       await userEvent.keyboard('{Enter}')
       await coreControl.awaitFaultPending(unstopped, 1)
       await coreControl.releaseFault(unstopped)
-      await expect.element(notifications()).toMatchTextContent(/Stream response body read failed|could not be sent/)
+      await expect.element(notifications().getByText('Internal Server Error', {exact: true})).toBeVisible()
       await expect.element(input()).toHaveTextContent('take this one back')
     })
 
@@ -3786,7 +3784,7 @@ describe('launcher activity', () => {
     await expect.element(statusBar().getByRole('status')).not.toBeInTheDocument()
     await expect.element(page.getByText(/TASK|^LAST$|^ACTIVE$/)).not.toBeInTheDocument()
 
-    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    const frame = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
     await userEvent.click(composer())
     await userEvent.keyboard('take this one back{Enter}')
     await coreControl.awaitFaultPending(frame, 1)
@@ -5386,7 +5384,7 @@ describe('panel view tabs', () => {
     test('another session can open right after Send and the left run still settles in the background', async () => {
       const {running, titles} = await twoSessions('sent')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       const unsent = await faults.install({kind: 'chat-gate'})
       await composer().fill('start a long turn')
@@ -5410,7 +5408,7 @@ describe('panel view tabs', () => {
       const {running, titles} = await twoSessions('removed')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5433,7 +5431,7 @@ describe('panel view tabs', () => {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5456,7 +5454,7 @@ describe('panel view tabs', () => {
       const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5466,8 +5464,7 @@ describe('panel view tabs', () => {
       await composer().fill(waiting)
       await userEvent.keyboard('{Enter}')
       await expect.element(queueRow(waiting)).toBeVisible()
-      const refused = await faults.install({kind: 'chat-refused', status: 500})
-      const held = await faults.install({kind: 'chat-gate'})
+      const held = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
 
       await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
       await coreControl.awaitFaultPending(held, 1)
@@ -5476,9 +5473,8 @@ describe('panel view tabs', () => {
       await coreControl.releaseFault(held)
 
       await expect
-        .element(page.getByRole('region', {name: /Notifications/}))
-        .toMatchTextContent(/Internal Server Error|could not be sent/)
-      await coreControl.releaseFault(refused)
+        .element(page.getByRole('region', {name: /Notifications/}).getByText('Internal Server Error', {exact: true}))
+        .toBeVisible()
       await coreControl.awaitFaultPending(draftWrite, 1)
       await openSessions(titles.other)
       await option(new RegExp(`^${titles.running}`)).click()
@@ -5502,7 +5498,7 @@ describe('panel view tabs', () => {
         const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5512,17 +5508,15 @@ describe('panel view tabs', () => {
         await composer().fill(waiting)
         await userEvent.keyboard('{Enter}')
         await expect.element(queueRow(waiting)).toBeVisible()
-        const refused = await faults.install({kind: 'chat-refused', status: 500})
-        const held = await faults.install({kind: 'chat-gate'})
+        const held = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
         await queueRow(steered).getByRole('button', {name: 'Steer'}).click()
         await coreControl.awaitFaultPending(held, 1)
         await switchToOther(titles)
         const draftWrite = await faults.install(draftFault)
         await coreControl.releaseFault(held)
         await expect
-          .element(page.getByRole('region', {name: /Notifications/}))
-          .toMatchTextContent(/Internal Server Error|could not be sent/)
-        await coreControl.releaseFault(refused)
+          .element(page.getByRole('region', {name: /Notifications/}).getByText('Internal Server Error', {exact: true}))
+          .toBeVisible()
         return {
           running,
           titles,
@@ -5579,7 +5573,7 @@ describe('panel view tabs', () => {
         const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+        harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5591,17 +5585,15 @@ describe('panel view tabs', () => {
         await userEvent.click(composer())
         await userEvent.keyboard('{Enter}')
         await expect.element(queueRow).toBeVisible()
-        const refused = await faults.install({kind: 'chat-refused', status: 500})
-        const held = await faults.install({kind: 'chat-gate'})
+        const held = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
         await queueRow.getByRole('button', {name: 'Steer'}).click()
         await coreControl.awaitFaultPending(held, 1)
         await switchToOther(titles)
         const draftWrite = await faults.install({kind: 'fail', path: DRAFT_SET_PATH})
         await coreControl.releaseFault(held)
         await expect
-          .element(page.getByRole('region', {name: /Notifications/}))
-          .toMatchTextContent(/Internal Server Error|could not be sent/)
-        await coreControl.releaseFault(refused)
+          .element(page.getByRole('region', {name: /Notifications/}).getByText('Internal Server Error', {exact: true}))
+          .toBeVisible()
 
         await goBack(titles)
 
@@ -5625,7 +5617,7 @@ describe('panel view tabs', () => {
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
       const [connection, setConnection] = createStore({apiBase: coreBase()})
-      const turn = await mountHeldTurn(running, {transport: 'fetch', apiBase: () => connection.apiBase})
+      const turn = await mountHeldTurn(running, {apiBase: () => connection.apiBase})
 
       await switchToOther(titles)
       setConnection('apiBase', UNREACHABLE_BASE)
@@ -5641,7 +5633,7 @@ describe('panel view tabs', () => {
 
     test('approving an ask and leaving while its turn is still unsent settles that turn in the background', async () => {
       const {running, titles} = await twoSessions('approved')
-      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension])
       await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
       await coreControl.scriptCustomEvent('approval-requested', {
         approvalId: 'switch-ask',
@@ -6673,7 +6665,7 @@ describe('reachability flows', () => {
 
   test('a 500 from an otherwise healthy engine never raises the unreachable notice', async () => {
     const refused = await faults.install({kind: 'chat-refused', status: 500})
-    await openSessionPanel({transport: 'fetch'})
+    await openSessionPanel()
 
     await editor().fill('rename the widget package')
     await userEvent.keyboard('{Enter}')
@@ -10900,6 +10892,20 @@ module.exports = {default: {stores: {
       return Object.assign(document.createElement('p'), {textContent: 'Fixture card: ' + props.note.comment})
     },
   })
+  ctx.add(Slot, {at: 'window.bottom', render: () => askedLine})
+  ctx.add(Slot, {at: 'window.bottom', render: () => drawnLine})
+  const fixtureNote = (commentId, comment) =>
+    ({type: 'note', origin: 'fixture', commentId, label: 'Fixture note', icon: 'terminal', subject: 'the fixture subject', comment})
+  const drawnNote = (commentId, comment) =>
+    ({type: 'note', origin: 'fixture-drawn', commentId, label: 'Drawn note', icon: 'pencil', subject: 'a drawn subject', comment})
+  ctx.add(NoteCard, {
+    origins: ['fixture-drawn'],
+    render: (props) => {
+      if (props.note.comment.startsWith('a card it declines')) return undefined
+      if (props.note.comment === 'a card that throws') throw new Error('the fixture card failed')
+      return Object.assign(document.createElement('p'), {textContent: 'Fixture card: ' + props.note.comment})
+    },
+  })
   const engineLine = document.createElement('p')
   const engineAttaches = {count: 0}
   createKeyed(
@@ -11391,7 +11397,7 @@ module.exports = {default: {setup(ctx) {
     }
     const title = () => page.getByLabelText('Session: noted', {exact: true})
     const refused = await faults.install({kind: 'chat-refused', status: 500})
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
     await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
 
     await control('Attach two notes').click()
@@ -11551,7 +11557,7 @@ module.exports = {default: {setup(ctx) {
 
     const aloneId = await createSession(rpc)
     harness.dispose()
-    harness.mountShell(`${tabPath(aloneId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    harness.mountShell(`${tabPath(aloneId, 'fixture:tools')}?open=true`)
     await expect.element(control('Attach six notes alone'), {timeout: 15_000}).toBeVisible()
     await control('Attach six notes alone').click()
     await tab('Chat').click()
@@ -11648,7 +11654,7 @@ module.exports = {default: {setup(ctx) {
     const queued = () => page.getByRole('button', {name: 'Remove from queue'})
     const firstSentence = 'The user made the following comment regarding the fixture subject: the first comment'
     const otherSentence = 'The user made the following comment regarding the fixture subject: the other comment'
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`)
     await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
 
     await coreControl.holdTurn()
@@ -11690,7 +11696,7 @@ module.exports = {default: {setup(ctx) {
     const rpc = coreRpc(coreBase())
     const deletedId = await createSession(rpc)
     harness.dispose()
-    harness.mountShell(`${tabPath(deletedId, 'fixture:tools')}?open=true`, [], {transport: 'fetch'})
+    harness.mountShell(`${tabPath(deletedId, 'fixture:tools')}?open=true`)
     await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()
     const carriedWrite = await faults.install({kind: 'gate', path: ['drafts', 'set']})
     await control('Attach two notes').click()
@@ -11771,7 +11777,7 @@ module.exports = {default: {setup(ctx) {
     await rpc.sessions.rename({sessionId: returningId, title: 'the returning session'})
     await rpc.sessions.rename({sessionId: awayId, title: 'the session away'})
     const refusedSave = await faults.install({kind: 'fail', path: ['drafts', 'set'], status: 500})
-    const cut = await faults.install({kind: 'chat-frame-gate', onRelease: 'cut'})
+    const cut = await faults.install({kind: 'chat-frame-gate', onRelease: 'fail'})
     harness.dispose()
     harness.mountShell(`${tabPath(returningId, 'fixture:tools')}?open=true`)
     await expect.element(control('Attach two notes'), {timeout: 15_000}).toBeVisible()

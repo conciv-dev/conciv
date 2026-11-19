@@ -2,7 +2,7 @@
 
 ## Overview
 
-The server-side chat runtime. It runs turns through the TanStack `chat()` pipeline with middleware for persistence, locks, sandbox, code mode, tool approval and run lifecycle events, delivers runs over SSE and WebSocket with resume, and stores runs, threads and metadata in drizzle SQLite tables.
+The server-side chat runtime. It runs turns through the TanStack `chat()` pipeline with middleware for persistence, locks, sandbox, code mode, tool approval and run lifecycle events, delivers runs as async generators that resume from an event id, and stores runs, threads and metadata in drizzle SQLite tables.
 
 ## Interface
 
@@ -12,7 +12,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `code-mode.ts:codeModeTools` - the code-mode `discover_tools` carries our own short description (`DISCOVER_DESCRIPTION`) in place of the library's, which embeds the whole capability catalog; the same tool serves chat turns and MCP.
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
-- `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
+- `delivery.ts:createDelivery` - returns `send` (start a run once, then tail it), `join` (tail a run from an event id) and `drive` (headless run).
 - `delivery.ts:readTerminalPhase` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`; `endsTheRun` also counts a terminal run-lifecycle chunk.
 - `chat-stores.ts:drizzleChatStores(db, {readHarness, saved})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `readHarness(threadId)` in `harness_id`. `messages.saveThread` upserts one `chat_messages` row per message (rewriting only rows whose JSON changed) and deletes rows past the new end; once that commits and anything changed, it calls `saved(threadId, messages, at)`, where `at` is the newest `createdAt` among the rewritten rows, or now when none has one. `messages.loadThread` with a `limit` reads one page: the end position (the row count, or the `before` message's row through the `thread_id, message_id` index), the nearest user row at or before `end - limit`, then only the rows in that range, and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses. `messages.loadMessage(threadId, messageId)` reads that one message's row through the same index, or null; a turn uses it to find the message it prompts.
 - `chatMessages` / `chatMetadata` / `chatRuns` tables come from `@conciv/db`.
@@ -61,7 +61,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:saveStoppedTurn` - on abort saves the partial assistant messages and marks the run `failed` if an error was seen.
 - `chat-server.ts:createChatServer` - keeps an in-process `live` run map and an `InMemoryLockStore`.
 - `quickjs-thread.ts:quickJSThreadDriver` - starts one worker thread when the driver is created and keeps it; the worker imports `@tanstack/ai-isolate-quickjs` and loads the QuickJS WASM module before it reports ready. Workers are unref'd while idle, so they never hold the process open.
-- `delivery.ts:drive` / `events` / `socket` - stream runs as SSE responses or WebSocket messages through in-memory `memoryStream` durability.
+- `delivery.ts:send` / `join` - async generators over the in-memory `memoryStream` log; each event carries its log offset as its event id, a resend of a known run id tails it instead of running it again (`seenRun`).
 
 ## Verification
 

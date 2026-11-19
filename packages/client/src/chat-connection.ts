@@ -1,9 +1,10 @@
 import {
-  fetchServerSentEvents,
-  webSocket,
-  type ResumableConnectConnectionAdapter,
+  rpcStream,
+  StreamReconnectLimitError,
+  type ConnectConnectionAdapter,
   type SubscribeConnectionAdapter,
 } from '@conciv/ai/client'
+import {ORPCError} from '@orpc/client'
 import {type ModelMessage, type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   type ChatEvent,
@@ -16,27 +17,18 @@ import {
   readApprovalSettled,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
-import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import {ORPCError} from '@orpc/client'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
 import {
   browserRpcConnection,
-  engineHeaders,
-  engineWebSocket,
   type ChatHistoryWindow,
   type ChatHydration,
   type RpcClient,
+  type RpcClientContext,
 } from '@conciv/contract'
-import {readingValues, relayedValues} from './stream-relay.js'
-
-export type ChatTransport = 'websocket' | 'fetch'
-
-export type ChatTransportPreference = 'auto' | ChatTransport
+import {readingValues, relayedValues, type RelaySink} from './stream-relay.js'
 
 export type ChatConnectionOptions = {
-  transport?: ChatTransportPreference
-  probeTimeoutMs?: number
   onLifecycle?: (lifecycle: RunLifecycle) => void
-  onTransport?: (transport: ChatTransport) => void
   onHydrated?: (hydration: ChatHydration) => void
   onApprovalAsk?: (ask: ApprovalAsk) => void
   onApprovalSettled?: (approvalId: string) => void
@@ -47,99 +39,111 @@ export type ChatConnectionOptions = {
 export type ChatConnection = SubscribeConnectionAdapter & {
   joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
   hydrate: (threadId: string, window?: ChatHistoryWindow) => Promise<ChatHydration>
-  transport: () => ChatTransport | null
   refresh: (before?: string) => Promise<ChatHydration>
   close: () => void
 }
 
 type SessionEvents = (abortSignal: AbortSignal) => AsyncIterable<ChatEvent>
 
-const PROBE_TIMEOUT_MS = 2_000
+type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
 
-function absoluteUrl(apiBase: string, path: string): string {
-  const origin = typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.href
-  return new URL(`${apiBase}${path}`, origin).toString()
+type Turns = {adapter: SubscribeConnectionAdapter; joinRun: JoinRun; handovers: EventTarget}
+
+function within(lifetime: AbortSignal, abortSignal: AbortSignal | undefined): AbortSignal {
+  return abortSignal === undefined ? lifetime : AbortSignal.any([lifetime, abortSignal])
 }
 
-export function chatSocketUrl(apiBase: string): string {
-  const url = new URL(absoluteUrl(apiBase, CHAT_WS_PATH))
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  return url.toString()
+async function* streamed(
+  opened: (signal: AbortSignal) => Promise<AsyncIterable<ChatEvent>>,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  try {
+    yield* await opened(signal)
+  } catch (error) {
+    if (!signal.aborted) throw error
+  }
 }
 
-export function chatEventsUrl(apiBase: string): string {
-  return absoluteUrl(apiBase, CHAT_SSE_PATH)
-}
+const RUN_RECONNECT_ATTEMPTS = 5
+const RUN_RECONNECT_FIRST_DELAY_MS = 250
+const RUN_RECONNECT_MAX_DELAY_MS = 5000
 
-export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
-  if (typeof WebSocket === 'undefined') return Promise.resolve(false)
-  return new Promise<boolean>((resolve) => {
-    const socket = new WebSocket(url)
-    const settle = (opened: boolean): void => {
-      clearTimeout(timer)
-      socket.onopen = null
-      socket.onerror = null
-      socket.onclose = null
-      if (socket.readyState <= 1) socket.close()
-      resolve(opened)
-    }
-    const timer = setTimeout(() => settle(false), timeoutMs)
-    socket.onopen = () => settle(true)
-    socket.onerror = () => settle(false)
-    socket.onclose = () => settle(false)
-  })
-}
-
-type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
-type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
-
-function trackingWebSocketImpl(apiBase: string, live: Set<WebSocket>): typeof WebSocket {
-  return new Proxy(engineWebSocket(apiBase), {
-    construct: (target, args) => {
-      const socket: WebSocket = Reflect.construct(target, args)
-      live.add(socket)
-      socket.addEventListener('close', () => live.delete(socket), {once: true})
-      return socket
+function runReconnects(apiBase: string): RpcClientContext {
+  let progressed: {attemptIndex: number; lastEventId: string | undefined} = {attemptIndex: 0, lastEventId: undefined}
+  const attemptsSinceProgress = (attemptIndex: number, lastEventId: string | undefined): number => {
+    if (lastEventId !== progressed.lastEventId) progressed = {attemptIndex, lastEventId}
+    return attemptIndex - progressed.attemptIndex
+  }
+  return {
+    retry: Number.POSITIVE_INFINITY,
+    shouldRetry: async ({attemptIndex, lastEventId, error, signal}) => {
+      if (signal === undefined || signal.aborted) return false
+      if (refused(error) && (attemptIndex > 0 || lastEventId !== undefined)) {
+        await trustedAgain(apiBase, signal)
+        return !signal.aborted
+      }
+      return !(error instanceof ORPCError) && attemptsSinceProgress(attemptIndex, lastEventId) < RUN_RECONNECT_ATTEMPTS
     },
-  })
+    retryDelay: ({attemptIndex, lastEventId}) =>
+      Math.min(
+        RUN_RECONNECT_MAX_DELAY_MS,
+        RUN_RECONNECT_FIRST_DELAY_MS * 2 ** attemptsSinceProgress(attemptIndex, lastEventId),
+      ),
+  }
 }
 
-function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
-  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(apiBase, live)})
-  return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
+async function* boundedRun(
+  opened: (signal: AbortSignal) => Promise<AsyncIterable<ChatEvent>>,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  try {
+    yield* streamed(opened, signal)
+  } catch (error) {
+    if (error instanceof ORPCError) throw error
+    throw new StreamReconnectLimitError(RUN_RECONNECT_ATTEMPTS)
+  }
 }
 
-function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeConnectionAdapter {
-  const listeners = new Set<(chunk: ChatEvent) => void>()
+function overRpc(rpc: RpcClient, apiBase: string, sessionId: string, lifetime: AbortSignal): Turns {
+  const joinRun: JoinRun = (runId, abortSignal) =>
+    boundedRun(
+      (signal) => rpc.chat.join({runId}, {signal, context: runReconnects(apiBase)}),
+      within(lifetime, abortSignal),
+    )
+  const turns = rpcStream(
+    (_messages, _data, abortSignal, input) =>
+      boundedRun(
+        (signal) =>
+          rpc.chat.send(
+            {sessionId, runId: input.runId, messages: input.messages},
+            {signal, context: runReconnects(apiBase)},
+          ),
+        within(lifetime, abortSignal),
+      ),
+    {joinRun},
+  )
+  return {adapter: subscribeOver(turns), joinRun, handovers: new EventTarget()}
+}
+
+function subscribeOver(adapter: ConnectConnectionAdapter): SubscribeConnectionAdapter {
+  const listeners = new Set<RelaySink<ChatEvent>>()
   return {
     subscribe: (abortSignal) =>
-      relayedValues<ChatEvent>((emit) => {
-        listeners.add(emit)
-        return () => listeners.delete(emit)
+      relayedValues<ChatEvent>((sink) => {
+        listeners.add(sink)
+        return () => listeners.delete(sink)
       }, abortSignal),
     send: async (messages, data, abortSignal, runContext) => {
-      for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
-        for (const emit of listeners) emit(chunk)
+      try {
+        for await (const chunk of adapter.connect(messages, data, abortSignal, runContext)) {
+          for (const sink of listeners) sink.emit(chunk)
+        }
+      } catch (error) {
+        if (error instanceof StreamReconnectLimitError) for (const sink of listeners) sink.fail(error)
+        throw error
       }
     },
   }
-}
-
-function overEvents(apiBase: string): Selected {
-  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase), () => ({headers: engineHeaders(apiBase)}))
-  return {
-    transport: 'fetch',
-    adapter: subscribeOver(adapter),
-    joinRun: (runId, signal) => adapter.joinRun(runId, signal),
-  }
-}
-
-async function select(apiBase: string, options: ChatConnectionOptions, live: Set<WebSocket>): Promise<Selected> {
-  const preference = options.transport ?? 'auto'
-  if (preference === 'fetch') return overEvents(apiBase)
-  if (preference === 'websocket') return overSocket(apiBase, live)
-  const opened = await socketOpens(chatSocketUrl(apiBase), options.probeTimeoutMs ?? PROBE_TIMEOUT_MS)
-  return opened ? overSocket(apiBase, live) : overEvents(apiBase)
 }
 
 type Source<T> = (abortSignal: AbortSignal) => AsyncIterable<T>
@@ -173,7 +177,7 @@ function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | und
 }
 
 async function* announcedRuns(
-  chosen: Selected,
+  turns: Turns,
   events: SessionEvents,
   options: ChatConnectionOptions,
   scope: AbortSignal,
@@ -183,7 +187,7 @@ async function* announcedRuns(
     if (scope.aborted) return
     const announced = sessionRunEvent.parse(chunk)
     if (announced === null || !(await options.joinsRun?.(announced.runId))) continue
-    yield* finishedOnItsLifecycle(chosen.joinRun(announced.runId, scope), threadId, announced.runId)
+    yield* finishedOnItsLifecycle(turns.joinRun(announced.runId, scope), threadId, announced.runId)
   }
 }
 
@@ -201,20 +205,54 @@ async function* finishedOnItsLifecycle(
   }
 }
 
-async function* watching(
-  selected: Promise<Selected>,
+async function* joinedOrHandedOver(
+  turns: Turns,
+  runId: string,
+  abortSignal: AbortSignal | undefined,
+): AsyncGenerator<ChatEvent> {
+  const joined = turns.joinRun(runId, abortSignal)
+  const first = await joined.next()
+  if (first.done !== true) {
+    yield first.value
+    yield* joined
+    return
+  }
+  if (abortSignal?.aborted !== true) return
+  turns.handovers.dispatchEvent(new CustomEvent(HANDOVER, {detail: runId}))
+}
+
+const HANDOVER = 'handover'
+
+function handedOverRunIds(handovers: EventTarget, scope: AbortSignal): AsyncGenerator<string> {
+  return relayedValues<string>((sink) => {
+    const relay = (event: Event): void => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') sink.emit(event.detail)
+    }
+    handovers.addEventListener(HANDOVER, relay)
+    return () => handovers.removeEventListener(HANDOVER, relay)
+  }, scope)
+}
+
+async function* handedOverRuns(turns: Turns, scope: AbortSignal, threadId: string): AsyncGenerator<ChatEvent> {
+  for await (const runId of handedOverRunIds(turns.handovers, scope)) {
+    yield* finishedOnItsLifecycle(turns.joinRun(runId, scope), threadId, runId)
+  }
+}
+
+function watching(
+  turns: Turns,
   events: SessionEvents,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
-  const chosen = await selected
   const sources: Source<ChatEvent>[] = [
-    (scope) => chosen.adapter.subscribe(scope),
+    (scope) => turns.adapter.subscribe(scope),
     events,
-    (scope) => announcedRuns(chosen, events, options, scope, threadId),
+    (scope) => announcedRuns(turns, events, options, scope, threadId),
+    (scope) => handedOverRuns(turns, scope, threadId),
   ]
-  yield* noticing(merged(sources, abortSignal), options)
+  return noticing(merged(sources, abortSignal), options)
 }
 
 function trustedAgain(apiBase: string, signal: AbortSignal): Promise<void> {
@@ -285,55 +323,39 @@ function lastTurn<Message extends {role: string}>(messages: Message[]): Message[
   )
 }
 
-async function* joining(
-  selected: Promise<Selected>,
-  threadId: string,
-  runId: string,
-  abortSignal?: AbortSignal,
-): AsyncGenerator<ChatEvent> {
-  yield* finishedOnItsLifecycle((await selected).joinRun(runId, abortSignal), threadId, runId)
-}
-
 export function chatConnection(
   rpc: RpcClient,
   apiBase: string,
   sessionId: string,
   options: ChatConnectionOptions = {},
 ): ChatConnection {
-  const events: SessionEvents = (signal) => sessionEvents(rpc, apiBase, sessionId, signal)
-  const live = new Set<WebSocket>()
-  const chosen: {transport: ChatTransport | null} = {transport: null}
-  const selected = select(apiBase, options, live).then((choice) => {
-    chosen.transport = choice.transport
-    options.onTransport?.(choice.transport)
-    return choice
-  })
+  const lifetime = new AbortController()
+  const turns = overRpc(rpc, apiBase, sessionId, lifetime.signal)
+  const events: SessionEvents = (abortSignal) =>
+    sessionEvents(rpc, apiBase, sessionId, within(lifetime.signal, abortSignal))
   const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
     const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(selected, events, options, abortSignal, sessionId),
+    subscribe: (abortSignal) => watching(turns, events, options, within(lifetime.signal, abortSignal), sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
-      const {adapter} = await selected
+      const {adapter} = turns
       if (messages.every((message) => 'parts' in message)) {
         await adapter.send(lastTurn(messages), data, abortSignal, runContext)
         return
       }
       await adapter.send(messages, data, abortSignal, runContext)
     },
-    joinRun: (runId, abortSignal) => noticing(joining(selected, sessionId, runId, abortSignal), options),
+    joinRun: (runId, abortSignal) =>
+      noticing(finishedOnItsLifecycle(joinedOrHandedOver(turns, runId, abortSignal), sessionId, runId), options),
     hydrate,
-    transport: () => chosen.transport,
     refresh: (before) =>
       hydrate(
         sessionId,
         before === undefined ? {limit: CHAT_HISTORY_PAGE_SIZE} : {limit: CHAT_HISTORY_PAGE_SIZE, before},
       ),
-    close: () => {
-      for (const socket of live) socket.close()
-      live.clear()
-    },
+    close: () => lifetime.abort(),
   }
 }

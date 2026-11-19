@@ -1,6 +1,6 @@
 import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'solid-js'
 import {difference, partition, uniq} from 'es-toolkit'
-import {type QueryClient, useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
+import {type QueryClient, useChatSession, type ChatSession} from '@conciv/client'
 import {createStore, unwrap} from 'solid-js/store'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
@@ -38,7 +38,6 @@ export type LiveSessionsDeps = {
   rpc: RpcClient
   apiBase: Accessor<string>
   generation: Accessor<number>
-  transport: Accessor<ChatTransportPreference | undefined>
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
@@ -120,20 +119,14 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
 
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
     const chat = createMemo(
-      on(
-        [deps.generation, deps.apiBase, deps.transport, () => state.retired[sessionId]],
-        ([, apiBase, transport, retired]) => openChat(sessionId, apiBase, transport, retired !== undefined),
+      on([deps.generation, deps.apiBase, () => state.retired[sessionId]], ([, apiBase, retired]) =>
+        openChat(sessionId, apiBase, retired !== undefined),
       ),
     )
     return {sessionId, chat, dispose}
   }
 
-  const openChat = (
-    sessionId: string,
-    apiBase: string,
-    transport: ChatTransportPreference | undefined,
-    reopened: boolean,
-  ): ChatSession => {
+  const openChat = (sessionId: string, apiBase: string, reopened: boolean): ChatSession => {
     const session = useChatSession({
       rpc: deps.rpc,
       apiBase,
@@ -143,7 +136,6 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
         returnLostQueue(sessionId, session)
       },
       connection: {
-        transport,
         onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
         onLifecycle: (lifecycle) =>
           isRunPhaseTerminal(lifecycle.phase)

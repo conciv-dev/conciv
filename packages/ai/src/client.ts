@@ -9,10 +9,5 @@ export type {
   CreateChatOptions,
   CreateChatSessionOptions,
 } from './session/session.js'
-export {fetchServerSentEvents, webSocket} from '@tanstack/ai-client'
-export type {
-  ConnectConnectionAdapter,
-  QueuedMessage,
-  ResumableConnectConnectionAdapter,
-  SubscribeConnectionAdapter,
-} from '@tanstack/ai-client'
+export {rpcStream, StreamReconnectLimitError} from '@tanstack/ai-client'
+export type {ConnectConnectionAdapter, QueuedMessage, SubscribeConnectionAdapter} from '@tanstack/ai-client'
