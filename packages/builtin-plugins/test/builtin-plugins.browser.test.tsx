@@ -27,12 +27,13 @@ import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createElement, Fragment} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
+import {createRootRoute, createRoute, createRouter, RouterProvider} from '@tanstack/react-router'
 import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {makePageOperations, type PageEffect, type PageOperations} from '../src/page/operations.js'
-import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab} from '@conciv/plugin-page/rpc'
+import {Command, Operations, Outcome, PAGE_NAMESPACE, SHORT_MAX, Tab, type PageCommand} from '@conciv/plugin-page/rpc'
 import {readTab, reportChanges} from '../src/page/tab.js'
 import {watchHotUpdates, type HotSurface} from '../src/page/hmr.js'
 import {endTask, mountSimulator, startTask} from '../src/page/simulator.js'
@@ -41,10 +42,11 @@ import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 import {makeReactTree, pageMembers} from '../src/page/contracts.js'
 import {makeHighlight} from '../src/page/highlight.js'
 import {openSource, type SourceOpener} from '../src/page/open-source.js'
-import {INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {CardChromeProvider, INERT_TOOL_CTX, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {ReactFiber} from '@conciv/plugin/experimental/page'
 import {tanstackCards} from '../src/tanstack/cards.js'
+import {recorderCards} from '../src/recorder/cards.js'
 import {builtinToolMeta} from '../src/renderer.js'
 
 const inFirefox = server.browser === 'firefox'
@@ -53,8 +55,15 @@ const noEffects: readonly PageEffect[] = []
 
 const JsonRecord = z.record(z.string(), z.unknown())
 
-function command(verb: string, input: Record<string, unknown>, agentId = 'test-agent'): Command {
-  return Command.parse({action: {type: verb, ...input}, agentId, timeoutMs: 5000})
+function pageCommand(input: unknown): PageCommand {
+  const parsed = Command.parse(input)
+  const {action} = parsed
+  if (action.type === 'operation') throw new Error('expected one of the page plugin own actions')
+  return {...parsed, action}
+}
+
+function command(verb: string, input: Record<string, unknown>, agentId = 'test-agent'): PageCommand {
+  return pageCommand({action: {type: verb, ...input}, agentId, timeoutMs: 5000})
 }
 
 function readValue(outcome: Outcome, verb: string): Record<string, unknown> {
@@ -1519,7 +1528,7 @@ describe.skipIf(inFirefox)('page action queue', () => {
     const driver = makePageOperations(noEffects)
     onTestFinished(driver.dispose)
     const queued = (id: string, index: number, of: number, action: Record<string, unknown>, signal?: AbortSignal) =>
-      driver.execute(Command.parse({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
+      driver.execute(pageCommand({action, agentId: AGENT, timeoutMs: 5000, queued: {id, index, of}}), signal)
     const accept = (
       id: string,
       actions: Record<string, unknown>[],
@@ -2702,6 +2711,95 @@ describe('the tanstack cards', () => {
   })
 })
 
+describe('the recorder cards', () => {
+  const widgetSheet = document.createElement('style')
+  widgetSheet.textContent = `${tokens}${utilities}`
+  beforeAll(() => document.head.append(widgetSheet))
+  afterAll(() => widgetSheet.remove())
+
+  type Tool = keyof typeof recorderCards
+
+  const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const keyframe = {type: 'image', source: {type: 'data', value: PNG_1PX, mimeType: 'image/png'}}
+  const log = '+0.0s [click] button "Save"\n+2.5s [navigation] /settings\n+4.1s [console] error: boom'
+
+  function call(tool: Tool, input: Record<string, unknown>): ToolCallPart {
+    return {
+      type: 'tool-call',
+      id: `call-${tool}`,
+      name: tool,
+      arguments: JSON.stringify(input),
+      state: 'input-complete',
+    }
+  }
+
+  function settled(tool: Tool, content: string, state: 'complete' | 'error'): ToolResultPart {
+    return {
+      type: 'tool-result',
+      toolCallId: `call-${tool}`,
+      content,
+      state,
+      ...(state === 'error' ? {error: content} : {}),
+    }
+  }
+
+  function mountCard(tool: Tool, input: Record<string, unknown>, result: ToolResultPart) {
+    const Card = recorderCards[tool].render
+    render(() => (
+      <Card part={call(tool, input)} result={result} ctx={INERT_TOOL_CTX} addResult={() => Promise.resolve()} />
+    ))
+  }
+
+  const header = (tool: Tool) => page.getByRole('button', {name: new RegExp(tool)})
+
+  it('draws the pull window and its actions, the started capture, a failed stop, and the summary inside a trace', async () => {
+    onTestFinished(cleanup)
+    mountCard(
+      'recording_pull',
+      {secondsBack: 30, keyframes: 3},
+      settled('recording_pull', JSON.stringify([keyframe, keyframe, {type: 'text', content: log}]), 'complete'),
+    )
+    await expect.element(page.getByText('last 30s · 3 actions · 2 keyframes', {exact: true})).toBeVisible()
+    await header('recording_pull').click()
+    await expect.element(page.getByText('button "Save"')).toBeVisible()
+    await expect.element(page.getByText('navigation', {exact: true})).toBeVisible()
+    cleanup()
+
+    mountCard(
+      'recording_start',
+      {},
+      settled('recording_start', JSON.stringify({captureId: 'cap_1', startedAt: 1}), 'complete'),
+    )
+    await expect.element(page.getByText('capture started', {exact: true})).toBeVisible()
+    await header('recording_start').click()
+    await expect.element(page.getByText('cap_1', {exact: true})).toBeVisible()
+    cleanup()
+
+    mountCard(
+      'recording_stop',
+      {captureId: 'cap_9', keyframes: 0},
+      settled('recording_stop', 'no active capture cap_9', 'error'),
+    )
+    await expect.element(page.getByRole('img', {name: 'error'})).toBeVisible()
+    await header('recording_stop').click()
+    await expect.element(page.getByText('no active capture cap_9')).toBeVisible()
+    cleanup()
+
+    const Pull = recorderCards.recording_pull.render
+    render(() => (
+      <CardChromeProvider value="embedded">
+        <Pull
+          part={call('recording_pull', {secondsBack: 30, keyframes: 3})}
+          result={settled('recording_pull', JSON.stringify([keyframe, {type: 'text', content: log}]), 'complete')}
+          ctx={INERT_TOOL_CTX}
+          addResult={() => Promise.resolve()}
+        />
+      </CardChromeProvider>
+    ))
+    await expect.element(page.getByText('last 30s · 3 actions · 1 keyframe', {exact: true})).toBeVisible()
+  })
+})
+
 describe('the page tab the agent sees', () => {
   const tabId = `tab_${crypto.randomUUID()}`
 
@@ -2714,7 +2812,7 @@ describe('the page tab the agent sees', () => {
     })
   }
 
-  it('hides secret search and hash values and keeps the rest', () => {
+  it('hides secret search, hash and router path values and keeps the rest', async () => {
     keepLocation()
     history.replaceState(null, '', '/shop?token=abc&q=shoes#access_token=xyz')
     const url = new URL(readTab(tabId).url)
@@ -2730,6 +2828,28 @@ describe('the page tab the agent sees', () => {
       ],
       hash: [['access_token', '[redacted]']],
     })
+
+    history.replaceState(null, '', '/reset/param-secret-value')
+    installReactBridge()
+    const rootRoute = createRootRoute()
+    const resetRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/reset/$token',
+      component: () => createElement('h1', null, 'Reset password'),
+    })
+    const router = createRouter({routeTree: rootRoute.addChildren([resetRoute])})
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    const reactRoot = createRoot(mount)
+    reactRoot.render(createElement(RouterProvider, {router}))
+    onTestFinished(() => {
+      reactRoot.unmount()
+      mount.remove()
+    })
+    await expect.element(page.getByRole('heading', {name: 'Reset password'})).toBeVisible()
+    const routed = new URL(readTab(tabId).url)
+    expect(routed.pathname).toBe('/reset/[redacted]')
+    expect(routed.href).not.toContain('param-secret-value')
   })
 
   it('fits a very long url and title inside the rpc caps', () => {
