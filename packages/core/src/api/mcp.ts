@@ -1,7 +1,7 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, toolTimeEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {
   cappedText,
   cappedValue,
@@ -276,11 +276,22 @@ export async function openCodeSession(
     record: scope.run.record,
     driving: () => deps.driving(scope.id),
   })
-  const childCalls = new Set<string>()
+  const childStarts = new Map<string, number>()
+  const childCalls = (): ReadonlySet<string> => new Set(childStarts.keys())
+  const timed = (chunk: ChatEvent): ChatEvent[] => {
+    if (chunk.type === ChatEventType.TOOL_CALL_START) {
+      const start = Date.now()
+      childStarts.set(chunk.toolCallId, start)
+      return [{...chunk, metadata: {...chunk.metadata, time: {start}}}]
+    }
+    if (chunk.type !== ChatEventType.TOOL_CALL_RESULT) return [chunk]
+    const start = childStarts.get(chunk.toolCallId)
+    const time = start === undefined ? {end: Date.now()} : {start, end: Date.now()}
+    return [chunk, toolTimeEvent.create({toolCallId: chunk.toolCallId, time})]
+  }
   const publish = (chunk: ChatEvent): void => {
-    if (chunk.type === ChatEventType.TOOL_CALL_START) childCalls.add(chunk.toolCallId)
     if (hub && chunk.type === ChatEventType.TOOL_CALL_START) deps.hubCall(scope.id, chunk.toolCallId)
-    mirror.publish([caller.trace.mark(chunk)])
+    mirror.publish(timed(chunk).map(caller.trace.mark))
   }
   const runner = await deps.codeRunner(
     scope.id,
@@ -300,7 +311,7 @@ export async function openCodeSession(
   const hubRequest = async <Value>(work: () => Promise<Value>): Promise<Value> => {
     if (!hub) return work()
     deps.hubCall(scope.id, caller.trace.callId)
-    return work().finally(() => deps.hubReplied(scope.id, new Set([caller.trace.callId, ...childCalls])))
+    return work().finally(() => deps.hubReplied(scope.id, new Set([caller.trace.callId, ...childCalls()])))
   }
   const sandbox = (code: CodeSandbox): CodeSandboxSession => ({
     sandbox: code,
@@ -311,7 +322,7 @@ export async function openCodeSession(
     execute: (typescriptCode) =>
       hubRequest(async () => {
         const executed = await runExecute(code, typescriptCode, calls)
-        const started = await deps.startedQueues(scope.id, childCalls)
+        const started = await deps.startedQueues(scope.id, childCalls())
         const delivered = await finished()
         const finishedIds = new Set(delivered.map((result) => result.queueId))
         const result = {

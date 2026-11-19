@@ -31,6 +31,7 @@ import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
   runLifecycleEvent,
+  timedMessages,
   type ChatEvent,
   type RunLifecycle,
   type RunPhase,
@@ -58,7 +59,7 @@ export type ChatStores = {
   runs: RunStore &
     Required<Pick<RunStore, 'listByThread' | 'listReclaimable'>> & {
       listRunning: () => Promise<RunRecord[]>
-      known: (runId: string) => boolean
+      known: (runId: string) => Promise<boolean>
     }
   metadata: MetadataStore
 }
@@ -87,7 +88,7 @@ export type TurnPlan = {
 
 export type TurnHooks = {
   admit: (turn: Turn) => Promise<void>
-  plan: (turn: Turn) => TurnPlan
+  plan: (turn: Turn) => Promise<TurnPlan>
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
   end: (turn: Turn, run: RunLifecycle) => Promise<void>
   started: (turn: Turn) => void
@@ -182,9 +183,9 @@ function failedPlan(error: unknown): TurnPlan {
   }
 }
 
-function planned(hooks: TurnHooks, turn: Turn): TurnPlan {
+async function planned(hooks: TurnHooks, turn: Turn): Promise<TurnPlan> {
   try {
-    return hooks.plan(turn)
+    return await hooks.plan(turn)
   } catch (error) {
     return failedPlan(error)
   }
@@ -271,6 +272,18 @@ type RunMessages = {full: ModelMessage[]}
 
 function isSubagentChunk(chunk: ChatEvent): boolean {
   return 'subagentRunId' in chunk && chunk.subagentRunId !== undefined
+}
+
+function timedProcessor(): StreamProcessor {
+  const processor: StreamProcessor = new StreamProcessor({
+    events: {
+      onCustomEvent: (name, value) => {
+        const timed = timedMessages(processor.getMessages(), name, value)
+        if (timed !== null) processor.setMessages(timed)
+      },
+    },
+  })
+  return processor
 }
 
 function followRun(processor: StreamProcessor, chunk: ChatEvent): void {
@@ -463,7 +476,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       provider: [],
       system: [],
     }
-    const shown = new StreamProcessor({})
+    const shown = timedProcessor()
     const settle = async (): Promise<void> => {
       try {
         const lifecycle = await recordLifecycle(turn.runId)
@@ -589,7 +602,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       stopping: false,
     }
     live.set(turn.runId, entry)
-    return admitted(turn, messages, controller, entry, planned(hooks, turn))
+    return admitted(turn, messages, controller, entry)
   }
 
   async function* admitted(
@@ -597,8 +610,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     messages: Array<ChatMessage | ModelMessage>,
     controller: AbortController,
     entry: LiveRun,
-    plan: TurnPlan,
   ): AsyncGenerator<ChatEvent> {
+    const plan = await planned(hooks, turn)
     const prompted = await hooks
       .admit(turn)
       .then(() => promptedMessages(turn.threadId, messages, plan, controller.signal))
@@ -690,7 +703,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   return {
     ...createDelivery({
       run,
-      seenRun: (runId) => live.has(runId) || stores.runs.known(runId),
+      seenRun: async (runId) => live.has(runId) || (await stores.runs.known(runId)),
       debug,
       log: config.log,
     }),
@@ -730,7 +743,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       return {...thread, lastRun: latest === undefined ? null : buildLifecycle(latest)}
     },
     record: async (threadId, chunks) => {
-      const processor = new StreamProcessor({})
+      const processor = timedProcessor()
       for (const chunk of chunks) followRun(processor, chunk)
       await Promise.all(filterLiveRuns(threadId).map(([, entry]) => entry.settled.promise))
       await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))

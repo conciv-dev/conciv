@@ -1,9 +1,11 @@
 import {createServer} from 'node:http'
-import {Effect} from 'effect'
+import {Deferred, Effect, Exit, Fiber, Layer, Queue, Scope, Stream, SubscriptionRef} from 'effect'
+import {TestClock} from 'effect/testing'
 import {afterAll, describe, expect, it} from 'vitest'
 import {listenLocal} from '@conciv/plugin-testkit/listen-local'
-import {connect, type ConnectState} from '../src/connect/connect-model.js'
-import {probeCore} from '../src/connect/probe.js'
+import {connect} from '../src/connect.js'
+import {initialConnect, transitionConnect, type ConnectEvent, type ConnectState} from '../src/connect-machine.js'
+import {makeProbeSilent, probeCore, TryItProbe} from '../src/probe.js'
 
 const closers: Array<() => Promise<void>> = []
 
@@ -19,87 +21,296 @@ async function serveHealth(token: string): Promise<number> {
   return listening.port
 }
 
-async function freePort(): Promise<number> {
-  const listening = await listenLocal(createServer())
-  await listening.close()
-  return listening.port
-}
-
-function recorder() {
-  const states: ConnectState[] = []
-  const probing = Promise.withResolvers<void>()
-  const slow = Promise.withResolvers<void>()
-  const report = (state: ConnectState) => {
-    states.push(state)
-    if (state.phase === 'probing' && !state.slow) probing.resolve()
-    if (state.phase === 'probing' && state.slow) slow.resolve()
-  }
-  return {states, report, probing: probing.promise, slow: slow.promise}
+function probeOnce(token: string, ports: readonly number[]): Promise<string | null> {
+  return Effect.runPromise(
+    probeCore(token, ports, 2_000).pipe(Effect.catchTag('TryIt.ProbeSilent', () => Effect.succeed(null))),
+  )
 }
 
 describe('probeCore', () => {
   it('finds a token-gated core on any candidate port', async () => {
     const otherPort = await serveHealth('tok-other')
     const tokenPort = await serveHealth('tok-p')
-    expect(await probeCore('tok-p', [otherPort, tokenPort])).toBe(`http://127.0.0.1:${tokenPort}/t/tok-p`)
+    expect(await probeOnce('tok-p', [otherPort, tokenPort])).toBe(`http://127.0.0.1:${tokenPort}/t/tok-p`)
   })
 
   it('resolves null when nothing answers', async () => {
     const otherPort = await serveHealth('tok-other')
-    expect(await probeCore('tok-none', [otherPort])).toBe(null)
+    expect(await probeOnce('tok-none', [otherPort])).toBe(null)
   })
 })
 
-describe('connect model', () => {
-  const timings = {probeMs: 50, holdMs: 50, slowMs: 60_000}
+function replay(events: readonly ConnectEvent[]) {
+  return events.reduce(
+    (step, event) => {
+      const next = transitionConnect(step.state, event)
+      return {state: next.state, effects: [...step.effects, ...next.effects]}
+    },
+    {state: initialConnect.state, effects: initialConnect.effects},
+  )
+}
 
-  it('a core that answers the first sweep is connected at once, with no hold', async () => {
-    const port = await serveHealth('first')
-    const log = recorder()
+describe('connect machine', () => {
+  const base = 'http://127.0.0.1:4000/t/tok'
 
-    await Effect.runPromise(connect({token: 'first', ports: [port], timings, report: log.report}))
-
-    expect(log.states).toEqual([{phase: 'connected', base: `http://127.0.0.1:${port}/t/first`}])
-  })
-
-  it('a core that answers a later sweep is held as connected before the hand-off', async () => {
-    const port = await freePort()
-    const log = recorder()
-    const running = Effect.runPromise(connect({token: 'later', ports: [port], timings, report: log.report}))
-
-    await log.probing
-    const server = createServer((request, response) => {
-      response.writeHead(request.url === '/t/later/health' ? 200 : 404)
-      response.end('ok')
+  it('starts probing with one unspaced first sweep', () => {
+    expect(initialConnect).toEqual({
+      state: {status: 'probing', attempt: 1, slow: false, copied: false},
+      effects: [{type: 'sweep', attempt: 1, retry: false}],
     })
-    const listening = await listenLocal(server, port)
-    closers.push(listening.close)
-    await running
-
-    const base = `http://127.0.0.1:${port}/t/later`
-    expect(log.states).toEqual([
-      {phase: 'probing', slow: false},
-      {phase: 'holding', base},
-      {phase: 'connected', base},
-    ])
   })
 
-  it('hints that setup is slow once no core has answered for the slow wait', async () => {
-    const port = await freePort()
-    const log = recorder()
-    const controller = new AbortController()
-    const running = Effect.runPromise(
-      connect({token: 'slow', ports: [port], timings: {...timings, slowMs: 200}, report: log.report}),
-      {signal: controller.signal},
-    ).catch(() => undefined)
-
-    await log.slow
-    controller.abort()
-    await running
-
-    expect(log.states).toEqual([
-      {phase: 'probing', slow: false},
-      {phase: 'probing', slow: true},
-    ])
+  it('a first sweep that answers connects at once, with no hold', () => {
+    expect(replay([{type: 'answered', attempt: 1, base}])).toEqual({
+      state: {status: 'connected', base},
+      effects: [{type: 'sweep', attempt: 1, retry: false}, {type: 'stopSlow'}],
+    })
   })
+
+  it('a silent first sweep starts the slow hint and a spaced sweep, and a later answer holds before connecting', () => {
+    const events: ConnectEvent[] = [
+      {type: 'silent', attempt: 1},
+      {type: 'copied'},
+      {type: 'answered', attempt: 2, base},
+    ]
+    expect(replay(events)).toEqual({
+      state: {status: 'holding', base, copied: true},
+      effects: [
+        {type: 'sweep', attempt: 1, retry: false},
+        {type: 'startSlow'},
+        {type: 'sweep', attempt: 2, retry: true},
+        {type: 'stopSlow'},
+        {type: 'startHold'},
+      ],
+    })
+    expect(replay([...events, {type: 'holdElapsed'}]).state).toEqual({status: 'connected', base})
+  })
+
+  it('the slow hint marks probing slow once', () => {
+    const slow = replay([{type: 'silent', attempt: 1}, {type: 'slowElapsed'}]).state
+    expect(slow).toEqual({status: 'probing', attempt: 2, slow: true, copied: false})
+    expect(transitionConnect(slow, {type: 'slowElapsed'}).state).toBe(slow)
+  })
+
+  it('copying marks probing and holding copied, once', () => {
+    const copied = replay([{type: 'copied'}]).state
+    expect(copied).toEqual({status: 'probing', attempt: 1, slow: false, copied: true})
+    expect(transitionConnect(copied, {type: 'copied'}).state).toBe(copied)
+    const holding = replay([{type: 'silent', attempt: 1}, {type: 'answered', attempt: 2, base}, {type: 'copied'}])
+    expect(holding.state).toEqual({status: 'holding', base, copied: true})
+  })
+
+  it('stale attempts return the same state object', () => {
+    const probing = replay([{type: 'silent', attempt: 1}]).state
+    expect(transitionConnect(probing, {type: 'silent', attempt: 1})).toEqual({state: probing, effects: []})
+    expect(transitionConnect(probing, {type: 'silent', attempt: 1}).state).toBe(probing)
+    expect(transitionConnect(probing, {type: 'answered', attempt: 1, base}).state).toBe(probing)
+    expect(transitionConnect(probing, {type: 'answered', attempt: 3, base}).state).toBe(probing)
+  })
+
+  it('events that do not apply return the same state object', () => {
+    const probing = initialConnect.state
+    expect(transitionConnect(probing, {type: 'holdElapsed'}).state).toBe(probing)
+    const connected = replay([{type: 'answered', attempt: 1, base}]).state
+    const ignored: ConnectEvent[] = [
+      {type: 'answered', attempt: 1, base},
+      {type: 'silent', attempt: 1},
+      {type: 'slowElapsed'},
+      {type: 'holdElapsed'},
+      {type: 'copied'},
+    ]
+    ignored.forEach((event) => expect(transitionConnect(connected, event)).toEqual({state: connected, effects: []}))
+    const holding = replay([
+      {type: 'silent', attempt: 1},
+      {type: 'answered', attempt: 2, base},
+    ]).state
+    expect(transitionConnect(holding, {type: 'slowElapsed'}).state).toBe(holding)
+    expect(transitionConnect(holding, {type: 'answered', attempt: 2, base}).state).toBe(holding)
+  })
+
+  it('disposal ends every state, and nothing applies after it', () => {
+    expect(transitionConnect(initialConnect.state, {type: 'disposed'})).toEqual({
+      state: {status: 'disposed'},
+      effects: [{type: 'stopSlow'}],
+    })
+    const states: ConnectState[] = [
+      replay([
+        {type: 'silent', attempt: 1},
+        {type: 'answered', attempt: 2, base},
+      ]).state,
+      replay([{type: 'answered', attempt: 1, base}]).state,
+    ]
+    states.forEach((state) =>
+      expect(transitionConnect(state, {type: 'disposed'})).toEqual({state: {status: 'disposed'}, effects: []}),
+    )
+    const disposed = transitionConnect(initialConnect.state, {type: 'disposed'}).state
+    const late: ConnectEvent[] = [
+      {type: 'answered', attempt: 1, base},
+      {type: 'silent', attempt: 1},
+      {type: 'slowElapsed'},
+      {type: 'holdElapsed'},
+      {type: 'copied'},
+      {type: 'disposed'},
+    ]
+    late.forEach((event) => expect(transitionConnect(disposed, event)).toEqual({state: disposed, effects: []}))
+  })
+})
+
+type Outcome = string | null
+
+const runClocked = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>) =>
+  Effect.runPromise(effect.pipe(Effect.scoped, Effect.provide(TestClock.layer())))
+
+const scriptedProbe = (outcomes: Queue.Queue<Outcome>) =>
+  Layer.succeed(TryItProbe, {
+    probe: Queue.take(outcomes).pipe(
+      Effect.flatMap((outcome) => (outcome === null ? Effect.fail(makeProbeSilent()) : Effect.succeed(outcome))),
+    ),
+  })
+
+const reach = (state: SubscriptionRef.SubscriptionRef<ConnectState>, done: (current: ConnectState) => boolean) =>
+  SubscriptionRef.changes(state).pipe(Stream.filter(done), Stream.runHead)
+
+const collectUntil = Effect.fn(function* (
+  state: SubscriptionRef.SubscriptionRef<ConnectState>,
+  done: (current: ConnectState) => boolean,
+) {
+  const subscribed = yield* Deferred.make<void>()
+  const collected = yield* SubscriptionRef.changes(state).pipe(
+    Stream.tap(() => Deferred.succeed(subscribed, undefined)),
+    Stream.takeUntil(done),
+    Stream.runCollect,
+    Effect.forkScoped,
+  )
+  yield* Deferred.await(subscribed)
+  return Fiber.join(collected).pipe(Effect.map((states) => Array.from(states)))
+})
+
+describe('connect driver', () => {
+  const timings = {probeMs: 2_000, holdMs: 600, slowMs: 60_000}
+  const base = 'http://127.0.0.1:4000/t/tok'
+
+  it('a core that answers the first sweep is connected at once, with no hold', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
+        const seen = yield* collectUntil(connection.state, (current) => current.status === 'connected')
+        yield* Queue.offer(outcomes, base)
+        expect(yield* seen).toEqual([
+          {status: 'probing', attempt: 1, slow: false, copied: false},
+          {status: 'connected', base},
+        ])
+      }),
+    ))
+
+  it('a core that answers a later sweep is held as connected for holdMs before the hand-off', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
+        const seen = yield* collectUntil(connection.state, (current) => current.status === 'connected')
+        yield* Queue.offerAll(outcomes, [null, base])
+        yield* reach(connection.state, (current) => current.status === 'holding')
+        yield* TestClock.adjust(timings.holdMs - 1)
+        expect(yield* SubscriptionRef.get(connection.state)).toEqual({status: 'holding', base, copied: false})
+        yield* TestClock.adjust(1)
+        expect(yield* seen).toEqual([
+          {status: 'probing', attempt: 1, slow: false, copied: false},
+          {status: 'probing', attempt: 2, slow: false, copied: false},
+          {status: 'holding', base, copied: false},
+          {status: 'connected', base},
+        ])
+      }),
+    ))
+
+  it('retries a silent sweep every probeMs until a core answers', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
+        yield* Queue.offerAll(outcomes, [null, null, base])
+        yield* reach(connection.state, (current) => current.status === 'probing' && current.attempt === 2)
+        yield* TestClock.adjust(timings.probeMs - 1)
+        expect(yield* Queue.size(outcomes)).toBe(1)
+        yield* TestClock.adjust(1)
+        yield* reach(connection.state, (current) => current.status === 'holding')
+        expect(yield* Queue.size(outcomes)).toBe(0)
+      }),
+    ))
+
+  it('hints that setup is slow once no core has answered for slowMs', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
+        const seen = yield* collectUntil(connection.state, (current) => current.status === 'probing' && current.slow)
+        yield* Queue.offer(outcomes, null)
+        yield* reach(connection.state, (current) => current.status === 'probing' && current.attempt === 2)
+        yield* TestClock.adjust(timings.slowMs - 1)
+        expect(yield* SubscriptionRef.get(connection.state)).toEqual({
+          status: 'probing',
+          attempt: 2,
+          slow: false,
+          copied: false,
+        })
+        yield* TestClock.adjust(1)
+        expect(yield* seen).toEqual([
+          {status: 'probing', attempt: 1, slow: false, copied: false},
+          {status: 'probing', attempt: 2, slow: false, copied: false},
+          {status: 'probing', attempt: 2, slow: true, copied: false},
+        ])
+      }),
+    ))
+
+  it('an answer ends the slow hint, so nothing is dispatched at slowMs once probing is over', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({timings: {...timings, holdMs: 120_000}}).pipe(
+          Effect.provide(scriptedProbe(outcomes)),
+        )
+        yield* Queue.offerAll(outcomes, [null, base])
+        yield* reach(connection.state, (current) => current.status === 'holding')
+        const seen = yield* collectUntil(connection.state, (current) => current.status === 'holding' && current.copied)
+        yield* TestClock.adjust(timings.slowMs)
+        yield* connection.dispatch({type: 'copied'})
+        expect(yield* seen).toEqual([
+          {status: 'holding', base, copied: false},
+          {status: 'holding', base, copied: true},
+        ])
+      }),
+    ))
+
+  it('dispatches copied into the state', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)))
+        yield* connection.dispatch({type: 'copied'})
+        expect(yield* SubscriptionRef.get(connection.state)).toEqual({
+          status: 'probing',
+          attempt: 1,
+          slow: false,
+          copied: true,
+        })
+      }),
+    ))
+
+  it('closing its scope disposes the state and interrupts every sweep and timer', () =>
+    runClocked(
+      Effect.gen(function* () {
+        const outcomes = yield* Queue.unbounded<Outcome>()
+        const scope = yield* Scope.make()
+        const connection = yield* connect({timings}).pipe(Effect.provide(scriptedProbe(outcomes)), Scope.provide(scope))
+        yield* Queue.offer(outcomes, null)
+        yield* reach(connection.state, (current) => current.status === 'probing' && current.attempt === 2)
+        yield* Scope.close(scope, Exit.void)
+        expect(yield* SubscriptionRef.get(connection.state)).toEqual({status: 'disposed'})
+        yield* Queue.offer(outcomes, base)
+        yield* TestClock.adjust(timings.slowMs)
+        expect(yield* Queue.size(outcomes)).toBe(1)
+        expect(yield* SubscriptionRef.get(connection.state)).toEqual({status: 'disposed'})
+      }),
+    ))
 })

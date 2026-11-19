@@ -1,10 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isPlainObject} from 'es-toolkit'
-import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
+import type {ToolComponent, ToolProps} from '@conciv/plugin/experimental'
 import {TruncatedText} from '@conciv/ui-kit-system'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardRow, CardRows, settledCardBody, InspectionCard, JsonValue} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard, JsonValue, parseOutput} from './card-shared.js'
 import {countLabel} from '../page/cards/shared.js'
 
 type Entry = {key: string; preview: string; value: unknown}
@@ -43,28 +42,28 @@ function toEntries(payload: unknown): Entry[] {
 
 const LoaderDataPayload = z.looseObject({routeId: z.string(), data: z.unknown()})
 
-function loaderDataPayload(result: ToolCardProps['result']): z.infer<typeof LoaderDataPayload> | null {
-  const parsed = LoaderDataPayload.safeParse(parseResultPayload(result))
+function loaderDataPayload(result: string | undefined): z.infer<typeof LoaderDataPayload> | null {
+  const parsed = LoaderDataPayload.safeParse(parseOutput(result))
   return parsed.success ? parsed.data : null
 }
 
-function parseEntries(result: ToolCardProps['result']): Entry[] | null {
+function parseEntries(result: string | undefined): Entry[] | null {
   const payload = loaderDataPayload(result)
   if (payload === null || payload.data === undefined || payload.data === null) return null
   return toEntries(payload.data)
 }
 
-function LoaderDataCard(props: ToolCardProps): JSX.Element {
-  const entries = () => parseEntries(props.result)
+function LoaderDataCard(props: ToolProps): JSX.Element {
+  const entries = () => parseEntries(props.output)
   const summary = () => {
     const list = entries()
     if (!list) return ''
     const keys = countLabel(list.length, 'key', 'keys')
-    const routeId = loaderDataPayload(props.result)?.routeId
+    const routeId = loaderDataPayload(props.output)?.routeId
     return routeId ? `${keys} · ${routeId}` : keys
   }
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} hasContent={parseEntries(props.output) !== null}>
       <Show when={entries()}>
         {(list) => (
           <CardRows>
@@ -90,7 +89,4 @@ function LoaderDataCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const loaderDataCard: ToolCardView = {
-  render: LoaderDataCard,
-  hasEmbeddedBody: (part, result) => settledCardBody(part, result, parseEntries(result) !== null),
-}
+export const loaderDataCard: ToolComponent = LoaderDataCard

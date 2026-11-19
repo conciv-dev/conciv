@@ -1,38 +1,21 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCardEntry, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {effectCard} from './effect-card.js'
-import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, StoryTool, storyCall} from './story.fixtures.js'
 import {traceGallery, traceRow} from './trace.fixtures.js'
-
-const EffectCard = effectCard.render
 
 const meta: Meta = {title: 'Extensions/Page/tool/EffectCard'}
 export default meta
 type Story = StoryObj
 
-const effectMeta: ToolViewMeta = {
-  summary: 'enable, disable, toggle, report or list the visual effects the host page registered',
-  category: 'act',
-  icon: 'edit',
-  label: {running: 'Driving an effect', done: 'Drove an effect'},
-  mutating: true,
-  inputSchema: {
-    type: 'object',
-    properties: {action: {type: 'string'}, effect: {type: 'string'}},
-    required: [],
-  },
-  outputSchema: {type: 'object', properties: {effect: {type: 'string'}, enabled: {type: 'boolean'}}},
-}
-
 export const EffectTurnedOn: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <EffectCard
-        part={storyPart('page_effect', {action: 'enable', effect: 'grid-overlay'})}
-        result={storyResult({effect: 'grid-overlay', enabled: true})}
-        ctx={storyCtx({page_effect: effectMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_effect',
+          {action: 'enable', effect: 'grid-overlay'},
+          {effect: 'grid-overlay', enabled: true},
+        )}
       />
     </div>
   ),
@@ -42,7 +25,7 @@ export const EffectTurnedOn: Story = {
     await userEvent.click(canvas.getByRole('button'))
     await waitFor(() => expect(canvas.getByText('grid-overlay')).toBeVisible())
     await expect(canvas.getAllByText('grid-overlay')).toHaveLength(1)
-    await waitFor(() => expect(canvas.getByText('enable')).toBeVisible())
+    await waitFor(() => expect(canvas.getByText('action=enable')).toBeVisible())
     await waitFor(() => expect(canvas.getByText('on')).toBeVisible())
   },
 }
@@ -50,16 +33,17 @@ export const EffectTurnedOn: Story = {
 export const RegisteredEffects: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <EffectCard
-        part={storyPart('page_effect', {action: 'list'})}
-        result={storyResult({
-          effects: [
-            {name: 'grid-overlay', description: 'draw the layout grid over the page', enabled: true},
-            {name: 'focus-rings', description: 'highlight every focusable element', enabled: false},
-          ],
-        })}
-        ctx={storyCtx({page_effect: effectMeta})}
-        addResult={storyAddResult}
+      <StoryTool
+        call={storyCall(
+          'page_effect',
+          {action: 'list'},
+          {
+            effects: [
+              {name: 'grid-overlay', description: 'draw the layout grid over the page', enabled: true},
+              {name: 'focus-rings', description: 'highlight every focusable element', enabled: false},
+            ],
+          },
+        )}
       />
     </div>
   ),
@@ -74,12 +58,7 @@ export const RegisteredEffects: Story = {
 export const NoEffects: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>
-      <EffectCard
-        part={storyPart('page_effect', {action: 'list'})}
-        result={storyResult({effects: []})}
-        ctx={storyCtx({page_effect: effectMeta})}
-        addResult={storyAddResult}
-      />
+      <StoryTool call={storyCall('page_effect', {action: 'list'}, {effects: []})} />
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -89,20 +68,16 @@ export const NoEffects: Story = {
   },
 }
 
-const effectTool: ToolCardEntry = {names: ['page_effect'], ...effectCard}
-
 export const Trace: Story = {
   render: () =>
     traceGallery('1 effect', [
       traceRow(
-        effectTool,
-        storyPart('page_effect', {action: 'enable', effect: 'grid-overlay'}),
-        storyResult({effect: 'grid-overlay', enabled: true}),
+        storyCall('page_effect', {action: 'enable', effect: 'grid-overlay'}, {effect: 'grid-overlay', enabled: true}),
       ),
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('effect')).toBeVisible()
+    await expect(canvas.getByText('Drove an effect')).toBeVisible()
     await expect(canvas.getAllByText('grid-overlay').length).toBeGreaterThan(0)
     await expect(canvas.getAllByText('on').length).toBeGreaterThan(0)
   },

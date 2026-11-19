@@ -1,7 +1,7 @@
 {
   "name": "@conciv/page",
   "version": "0.0.22",
-  "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes the engine's page.queries stream and replies with executed verbs.",
+  "description": "The DOM helpers the conciv widget runs in the host page: element captures, react bridge, react-grab picking, overlays and toasts. Inlined by @conciv/embed.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
@@ -31,12 +31,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "bippy": "catalog:",
-    "p-queue": "catalog:",
     "react-grab": "catalog:",
     "rrweb-snapshot": "catalog:",
     "solid-js": "catalog:"
@@ -55,7 +53,6 @@
     "react-dom": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "zod": "catalog:"
+    "vitest": "catalog:"
   }
 }

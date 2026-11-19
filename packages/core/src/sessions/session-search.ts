@@ -1,4 +1,5 @@
 import {MessageChannel, Worker} from 'node:worker_threads'
+import {Effect} from 'effect'
 import {extname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {and, eq, inArray, isNotNull} from 'drizzle-orm'
@@ -308,19 +309,21 @@ async function rowTitles(
   harnessKind: string,
   metas: HarnessSessionMeta[],
 ): Promise<ReadonlyMap<string, string>> {
-  const rows = await db
-    .select({nativeId: sessions.harnessSessionId, title: sessions.title})
-    .from(sessions)
-    .where(
-      and(
-        eq(sessions.harnessKind, harnessKind),
-        isNotNull(sessions.title),
-        inArray(
-          sessions.harnessSessionId,
-          metas.map((meta) => meta.id),
+  const rows = await Effect.runPromise(
+    db
+      .select({nativeId: sessions.harnessSessionId, title: sessions.title})
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.harnessKind, harnessKind),
+          isNotNull(sessions.title),
+          inArray(
+            sessions.harnessSessionId,
+            metas.map((meta) => meta.id),
+          ),
         ),
       ),
-    )
+  )
   return new Map(
     rows.flatMap((row) => (row.nativeId !== null && row.title !== null ? [[row.nativeId, row.title]] : [])),
   )

@@ -22,7 +22,7 @@ import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {webSocket} from '@conciv/ai/client'
-import {makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
+import {drizzleChatStores, makeTextAdapter, quickJSThreadDriver} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   createChatPlane,
@@ -52,7 +52,6 @@ import {
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {
-  appendPageChange,
   chatMetadata,
   chatRuns,
   hubConnections,
@@ -79,7 +78,7 @@ import {
   sessionRunEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {CompactionMetadataSchema, type ChatMessage} from '@conciv/protocol/chat-message-types'
+import {CompactionMetadataSchema, type ChatMessage, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 import {
   CHAT_SSE_PATH,
@@ -121,6 +120,7 @@ import {
 } from '@conciv/plugin-host'
 import {Conciv, Plugin, Rpc as PluginRpc} from '@conciv/plugin'
 import {Model as ModelSchema} from '@conciv/plugin/schema/model'
+import {SqliteClient} from '@effect/sql-sqlite-node'
 import {Effect, Exit, Layer, ManagedRuntime, Schema, Scope} from 'effect'
 import {isEqual, isPlainObject, once as onceOnly} from 'es-toolkit'
 import {WSContext, defineWebSocketHelper} from 'hono/ws'
@@ -132,14 +132,13 @@ import {loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 import {homeDbReads} from '../src/lib/home-db-watch.js'
 import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
-import {makeJournal, makePageBus} from '../src/page/page-bus.js'
-import {makePageQueues, owesFollowUp, startQueueFollowUp, type PageQueues} from '../src/page/page-queue.js'
+import {owesFollowUp, startQueueFollowUp, type QueueDelivery} from '../src/page/page-queue.js'
+import type {PageQueueResult} from '@conciv/protocol/page-types'
 import {makePagePlugin} from '../src/page/page-plugin.js'
 import {pageTabs, type PageReply} from '@conciv/plugin-page-testkit/page-tabs'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {provideHarnessModels} from '../src/runtime/harness-models.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
-import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
 import {outsideRunCapabilities} from '../src/api/outside-run.js'
@@ -280,6 +279,12 @@ function rawRequest(port: number, path: string, headers: Record<string, string> 
   })
 }
 
+function openDatabase(root: string): Promise<ConcivDb> {
+  const scope = Scope.makeUnsafe()
+  onTestFinished(() => Effect.runPromise(Scope.close(scope, Exit.void)))
+  return Effect.runPromise(openDb(root).pipe(Scope.provide(scope)))
+}
+
 describe('api native page document', () => {
   it('pins the viewport so the WebView cannot pinch-zoom or rescale the overlay', () => {
     const viewport = /<meta name="viewport" content="([^"]+)">/.exec(hostDocument())?.[1]
@@ -344,7 +349,7 @@ describe('chat plane', () => {
     const skilled = sessionId('skills')
     const builtins = sessionId('builtins')
     const codeless = sessionId('codeless')
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     await bornRows(root, [skilled, builtins, codeless])
     const host = ManagedRuntime.make(
       Layer.mergeAll(SkillInstructions.layer, SessionProjector.layer, Tool.layer).pipe(
@@ -363,7 +368,7 @@ describe('chat plane', () => {
             ),
           ),
         ),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     onTestFinished(() => host.dispose())
@@ -573,23 +578,21 @@ describe('chat plane', () => {
     expect(told.tools.at(-1)).not.toContain('execute_typescript')
     expect(told.tools.at(-1)).not.toContain('discover_tools')
     const instructionKeys = async (id: SessionId) => {
-      const [row] = await db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id))
+      const [row] = await Effect.runPromise(
+        db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, id)),
+      )
       return Object.keys(row?.current_values ?? {})
     }
     expect(await instructionKeys(skilled)).toContain('core/codemode')
     expect(await instructionKeys(codeless)).not.toContain('core/codemode')
 
     const unchanged: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
-    const primitives = makeSessionPrimitives({
-      db,
-      root,
-      storeCapture: () => Promise.resolve(),
-    })
+    const primitives = makeSessionPrimitives()
     const runtime = makeCoreRuntime({
       primitives,
       plane: withoutDriver,
       db,
-      model: () => null,
+      model: async () => null,
       staleness: () => unchanged,
       interruptIdle: async () => false,
       symbolicate: async () => null,
@@ -726,8 +729,10 @@ describe('chat plane', () => {
     const stopping = engine.stop()
     const late = await rawRequest(engine.port, '/health')
     await stopping
-    const db = openDatabase(root)
-    const runs = db.select({status: chatRuns.status}).from(chatRuns).where(eq(chatRuns.runId, 'engine-stop-run')).all()
+    const db = await openDatabase(root)
+    const runs = await Effect.runPromise(
+      db.select({status: chatRuns.status}).from(chatRuns).where(eq(chatRuns.runId, 'engine-stop-run')),
+    )
     const logged = written.mock.calls.map(([chunk]) => String(chunk)).join('')
     written.mockRestore()
     cli.release()
@@ -750,17 +755,19 @@ describe('chat plane', () => {
       body: turnBody(sessionId('cut-short'), 'cut-short-run', 'keep talking'),
     })
     await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
-    const db = openDatabase(root)
-    const runRows = () =>
-      db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns).all()
-    expect(runRows()).toEqual([{runId: 'cut-short-run', status: 'running', finishedAt: null}])
+    const db = await openDatabase(root)
+    const runRows = async () =>
+      Effect.runPromise(
+        db.select({runId: chatRuns.runId, status: chatRuns.status, finishedAt: chatRuns.finishedAt}).from(chatRuns),
+      )
+    expect(await runRows()).toEqual([{runId: 'cut-short-run', status: 'running', finishedAt: null}])
     const restarted = await bootEngine(root, {harness: cliHarness(fakeCli())})
     await restarted.stop()
-    const swept = runRows()
+    const swept = await runRows()
     expect(swept).toEqual([{runId: 'cut-short-run', status: 'aborted', finishedAt: expect.any(Number)}])
     const again = await bootEngine(root, {harness: cliHarness(fakeCli())})
     await again.stop()
-    expect(runRows()).toEqual(swept)
+    expect(await runRows()).toEqual(swept)
   })
 
   it('a chat.events stream that opens on the rpc socket while a run is going is told about that run', async () => {
@@ -800,8 +807,8 @@ describe('chat plane', () => {
 
   it('one subscriber registering just as a run starts gets exactly one announcement for it', async () => {
     const root = tempDir('conciv-core-unit-')
-    const db = openDatabase(root)
-    const primitives = makeSessionPrimitives({db, root, storeCapture: () => Promise.resolve()})
+    const db = await openDatabase(root)
+    const primitives = makeSessionPrimitives()
     const starting = {entered: Promise.withResolvers<void>(), held: Promise.withResolvers<void>()}
     const chat = await plane(cliHarness(fakeCli()), root, {
       db,
@@ -818,7 +825,7 @@ describe('chat plane', () => {
       primitives,
       plane: chat,
       db,
-      model: () => null,
+      model: async () => null,
       staleness: () => ({stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}),
       interruptIdle: async () => false,
       symbolicate: async () => null,
@@ -848,51 +855,6 @@ describe('chat plane', () => {
     await collecting
     expect(announced).toEqual(['racing-run'])
   }, 10_000)
-
-  it('a page query goes to the browser tab focused last, each tab learning its id from the ready its stream opens with', async () => {
-    const reader = defineExtension({
-      name: 'focus-probe',
-      tools: [
-        defineTool({
-          name: 'focus_probe_read',
-          description: 'Read which tab answered.',
-          inputSchema: z.object({}),
-          outputSchema: z.object({tab: z.string()}),
-          meta: {summary: 'read which tab answered'},
-        }).client(),
-      ],
-    })
-    const engine = await bootEngine(tempDir('conciv-core-unit-'), {extensions: [reader]})
-    const abort = new AbortController()
-    onTestFinished(async () => {
-      abort.abort()
-      await engine.stop()
-    })
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-    const {sessionId: id} = await makeRpcClient(base).sessions.create(undefined)
-    const rpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: id}})
-    const openTab = async (focused: boolean) => {
-      const stream = await rpc.page.queries({focus: {focused, visible: true}}, {signal: abort.signal})
-      const first = await stream.next()
-      if (first.done || first.value.kind !== 'ready') throw new Error('a page query stream opened without its ready')
-      return {stream, browserTab: first.value.browserTab}
-    }
-    const answeredBy = async (tab: Awaited<ReturnType<typeof openTab>>, name: string): Promise<void> => {
-      const next = await tab.stream.next()
-      if (next.done || next.value.kind !== 'query') throw new Error(`tab ${name} got no page query`)
-      await rpc.page.reply({requestId: next.value.requestId, outcome: {ok: true, result: {tab: name}}})
-    }
-    const first = await openTab(true)
-    const second = await openTab(false)
-    expect(first.browserTab).not.toBe(second.browserTab)
-    const toFirst = rpc.registry.call({name: 'focus_probe_read', input: {}})
-    await answeredBy(first, 'first')
-    expect(await toFirst).toEqual({tab: 'first'})
-    expect(await rpc.page.focus({browserTab: second.browserTab, focused: true, visible: true})).toEqual({ok: true})
-    const toSecond = rpc.registry.call({name: 'focus_probe_read', input: {}})
-    await answeredBy(second, 'second')
-    expect(await toSecond).toEqual({tab: 'second'})
-  }, 15_000)
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling' | 'failing'
 
@@ -975,12 +937,12 @@ describe('chat plane', () => {
 
   function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
+      row: async () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind, deletedAt: null}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
       recordContextTokens: async () => undefined,
-      recordActivity: () => {},
+      recordActivity: async () => undefined,
       onRunStart: async () => undefined,
       publish: () => undefined,
       onRunEnd: async () => undefined,
@@ -992,14 +954,14 @@ describe('chat plane', () => {
     root = tempDir('conciv-core-unit-'),
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
-    const db = openDatabase(root)
+    const db = await openDatabase(root)
     const {driver = quickJSDriver(), ...given} = overrides
     return createChatPlane({
       db,
       hubAccess: 'session',
       hubGeneration: () => 0,
       cwd: root,
-      harnessFor: () => harness,
+      harnessFor: async () => harness,
       systemPrompt: {},
       sessions: sessionPort(),
       toolNames: async () => new Set(),
@@ -1073,12 +1035,6 @@ describe('chat plane', () => {
     return messages.map((message) =>
       message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
     )
-  }
-
-  function openDatabase(root: string): ConcivDb {
-    const db = openDb(root)
-    onTestFinished(() => db.$client.close())
-    return db
   }
 
   function sessionId(name: string): SessionId {
@@ -1466,11 +1422,15 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
 
   it('a request that reaches the engine while its app is failing to build fails instead of hanging, and the port is released', async () => {
     const root = tempDir('conciv-core-unit-')
-    const seeded = openDb(root)
-    seeded.run(
-      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.flatMap(openDb(root), (seeded) =>
+          seeded.run(
+            sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+          ),
+        ),
+      ),
     )
-    seeded.$client.close()
     const outcomes: Array<Promise<number | 'dropped'>> = []
     const bound = Promise.withResolvers<number>()
     const knocking = defineExtension({name: 'knocking'}).server(async () => {
@@ -1494,16 +1454,20 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
   }, 20_000)
 
   it('a start that fails to build its app leaves server.json as it found it: absent when there was none, and naming the engine still running in that project', async () => {
-    const seedUnreadableRun = (root: string): void => {
-      const seeded = openDb(root)
-      seeded.run(
-        sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    const seedUnreadableRun = async (root: string): Promise<void> => {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.flatMap(openDb(root), (seeded) =>
+            seeded.run(
+              sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+            ),
+          ),
+        ),
       )
-      seeded.$client.close()
     }
 
     const fresh = tempDir('conciv-core-unit-')
-    seedUnreadableRun(fresh)
+    await seedUnreadableRun(fresh)
     await expect(bootEngine(fresh)).rejects.toThrow(/is not valid JSON/)
     expect.soft(existsSync(join(concivStateDir(fresh), 'server.json'))).toBe(false)
 
@@ -1511,7 +1475,7 @@ describe('engine boot writes .conciv/mcp-endpoint.json', () => {
     const running = await bootEngine(root)
     onTestFinished(() => running.stop())
     expect(readServerRecord(root)).toEqual({port: running.port, token: running.agentToken})
-    seedUnreadableRun(root)
+    await seedUnreadableRun(root)
     await expect(bootEngine(root)).rejects.toThrow(/is not valid JSON/)
     const record = readServerRecord(root)
     expect.soft(record).toEqual({port: running.port, token: running.agentToken})
@@ -1524,12 +1488,12 @@ describe('configured session rows', () => {
   it('the configured conciv and harness session rows exist once the engine resolves, and the start leaves the database file mode alone', async () => {
     const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
-    openDb(root).$client.close()
+    await Effect.runPromise(Effect.scoped(openDb(root)))
     chmodSync(databaseFile, 0o644)
     const configured = {sessionId: 'conciv_configured', claudeSessionId: 'native-configured'}
     const made = await makeApp({cfg: resolveConfig(configured, root), cwd: root, openInEditor: () => {}})
     try {
-      const rows = await made.chat.db.select().from(sessionTable)
+      const rows = await Effect.runPromise(made.chat.db.select().from(sessionTable))
       expect(rows.map((row) => row.id)).toContain('conciv_configured')
       expect(rows.map((row) => row.harnessSessionId)).toContain('native-configured')
       expect([databaseFile, `${databaseFile}-wal`].map((file) => statSync(file).mode & 0o777)).toEqual([0o644, 0o644])
@@ -1541,12 +1505,39 @@ describe('configured session rows', () => {
   it('a start that fails once the plugin host is built closes every handle on the database', async () => {
     const root = tempDir('conciv-core-unit-')
     const databaseFile = join(concivStateDir(root), 'conciv.db')
-    const seeded = openDb(root)
-    seeded.run(
-      sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.flatMap(openDb(root), (seeded) =>
+          seeded.run(
+            sql`INSERT INTO chat_runs (run_id, thread_id, status, started_at, harness_id, usage_json) VALUES ('run-unreadable', 'conciv_unreadable', 'running', 1, 'claude', 'not json')`,
+          ),
+        ),
+      ),
     )
-    seeded.$client.close()
     await expect(makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})).rejects.toThrow()
+    expect(existsSync(`${databaseFile}-wal`)).toBe(false)
+  })
+
+  it('a start refused for a tool name collision disposes the mounted extensions and closes the database', async () => {
+    const root = tempDir('conciv-core-unit-')
+    const databaseFile = join(concivStateDir(root), 'conciv.db')
+    const disposed: string[] = []
+    const impostor = defineTool({
+      name: 'conciv_ui',
+      description: 'Pretends to be the conciv_ui tool.',
+      inputSchema: z.object({}),
+      outputSchema: z.string(),
+      meta: {summary: 'pretend to be the conciv_ui tool', category: 'fixture', mutating: false},
+    }).server(() => 'nope')
+    const shady = defineExtension({name: 'shady', tools: [impostor]}).server(() => ({
+      context: null,
+      dispose: () => {
+        disposed.push('shady')
+      },
+    }))
+    const booting = makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, extensions: [shady]})
+    await expect(booting).rejects.toThrow(/"conciv_ui".*conciv assist tool.*extension "shady"/)
+    expect.soft(disposed).toEqual(['shady'])
     expect(existsSync(`${databaseFile}-wal`)).toBe(false)
   })
 })
@@ -1554,7 +1545,7 @@ describe('configured session rows', () => {
 describe('session metadata', () => {
   it('a session starts with no metadata, and each setMetadata replaces the whole record', async () => {
     const root = tempDir('conciv-core-unit-')
-    const db = openDb(root)
+    const db = await openDatabase(root)
     const id = SessionId.parse('conciv_metadata')
     await bornRows(root, [id])
     expect((await rowById(db, id))?.metadata).toBeNull()
@@ -1563,446 +1554,104 @@ describe('session metadata', () => {
     expect((await rowById(db, id))?.metadata).toEqual({owner: 'review', tags: ['a', 'b']})
 
     await setMetadata(db, id, {round: 2, nested: {done: false}})
-    expect(currentRow(db, id)?.metadata).toEqual({round: 2, nested: {done: false}})
+    expect((await currentRow(db, id))?.metadata).toEqual({round: 2, nested: {done: false}})
   })
 })
 
-describe('page bus and the session scope', () => {
-  const SESSION_A = SessionId.parse('conciv_ambient_a')
-  const SESSION_B = SessionId.parse('conciv_ambient_b')
+describe('page queue follow-up', () => {
+  type Kept = {queueId: string; result: PageQueueResult; delivery: 'owed' | 'claimed' | 'nextReply' | 'delivered'}
 
-  function readRequestId(frame: unknown): string | null {
-    if (typeof frame !== 'object' || frame === null || !('requestId' in frame)) return null
-    return typeof frame.requestId === 'string' ? frame.requestId : null
-  }
-
-  const QueueFrameSchema = z.object({
-    requestId: z.string(),
-    queue: z.object({id: z.string(), replies: z.array(z.string())}),
-  })
-
-  type QueueFrame = z.infer<typeof QueueFrameSchema>
-
-  function queueingTab(
-    bus: ReturnType<typeof makePageBus>,
-    focus?: {focusedAt: number; visible: boolean},
-  ): QueueFrame[] {
-    return arrivingTab(bus, focus).queued
-  }
-
-  function arrivingTab(
-    bus: ReturnType<typeof makePageBus>,
-    focus?: {focusedAt: number; visible: boolean},
-  ): {queued: QueueFrame[]; frame: (index: number) => Promise<QueueFrame>; browserTab: string} {
-    const queued: QueueFrame[] = []
-    const arrivals = new Map<number, PromiseWithResolvers<QueueFrame>>()
-    const arrival = (index: number): PromiseWithResolvers<QueueFrame> => {
-      const known = arrivals.get(index)
-      if (known !== undefined) return known
-      const made = Promise.withResolvers<QueueFrame>()
-      arrivals.set(index, made)
-      return made
-    }
-    const {browserTab} = bus.subscribe(
-      SESSION_A,
-      (frame) => {
-        const parsed = QueueFrameSchema.safeParse(frame)
-        if (!parsed.success) return
-        queued.push(parsed.data)
-        arrival(queued.length - 1).resolve(parsed.data)
-        queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
+  function finishedResults() {
+    const kept: Kept[] = []
+    const awaiting = (queue: Kept): boolean => queue.delivery === 'owed' || queue.delivery === 'nextReply'
+    const delivery: QueueDelivery = {
+      owed: async (_sessionId, claim) =>
+        kept.filter(awaiting).map((queue) => {
+          const before = queue.delivery === 'owed' ? 'owed' : 'nextReply'
+          if (claim) queue.delivery = 'claimed'
+          return {queueId: queue.queueId, result: queue.result, before}
+        }),
+      settle: async (_sessionId, queueIds, settled) => {
+        kept
+          .filter((queue) => queueIds.includes(queue.queueId) && queue.delivery === 'claimed')
+          .forEach((queue) => (queue.delivery = settled))
       },
-      focus,
-    )
-    return {queued, frame: (index) => arrival(index).promise, browserTab}
-  }
-
-  function pageQueues(bus: ReturnType<typeof makePageBus>, syncMs?: number): PageQueues {
-    const db = openDb(tempDir('conciv-core-unit-'))
-    onTestFinished(() => db.$client.close())
-    const queues = makePageQueues({bus, journal: makeJournal(db), syncMs})
-    for (const callId of [HUB_CALL, 'call-1']) queues.hubCall(SESSION_A, callId)
-    return queues
-  }
-
-  function trackFinished(queues: PageQueues): (queueId: string) => Promise<void> {
-    const seen = new Map<string, PromiseWithResolvers<void>>()
-    const of = (queueId: string): PromiseWithResolvers<void> => {
-      const known = seen.get(queueId)
-      if (known !== undefined) return known
-      const made = Promise.withResolvers<void>()
-      seen.set(queueId, made)
-      return made
     }
-    queues.finished((record) => of(record.queueId).resolve())
-    return (queueId) => of(queueId).promise
-  }
-
-  const HUB_CALL = 'hub-call'
-
-  const queueStart = (actions: Record<string, unknown>[]) => ({
-    agentId: SESSION_A,
-    input: {actions},
-    toolCallId: HUB_CALL,
-  })
-
-  it('queued replies that arrive out of order are each kept for their own action', async () => {
-    const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
-    const checks = ['#first', '#second', '#third'].map((selector) => ({tool: 'page_check', selector}))
-    const {queueId} = await queues.start(SESSION_A, queueStart(checks))
-    const [first, second, third] = queued[0]?.queue.replies ?? []
-    const checked = (selector: string) => ({ok: true as const, result: {checked: selector}})
-    expect(bus.resolve(SESSION_A, second ?? '', checked('#second'))).toBe(true)
-    expect(bus.resolve(SESSION_A, third ?? '', checked('#third'))).toBe(true)
-    expect(bus.resolve(SESSION_A, first ?? '', checked('#first'))).toBe(true)
-    expect(await queues.wait(SESSION_A, queueId, 2000)).toEqual({
-      queueId,
-      status: 'finished',
-      outcomes: ['#first', '#second', '#third'].map((selector, index) => ({
-        index,
-        tool: 'page_check',
-        ok: true,
-        result: {checked: selector},
-      })),
-      failed: 0,
-      played: 3,
-    })
-  })
-
-  it('a queued action the page never confirms is unconfirmed: it may already have run and does not count as played', async () => {
-    const bus = makePageBus(2000, 50)
-    const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
-    const fill = {tool: 'page_fill', selector: '#name', value: 'Ada'}
-    const {queueId} = await queues.start(SESSION_A, queueStart([fill, {tool: 'page_check', selector: '#agree'}]))
-    const [onTab] = queued
-    expect(bus.resolve(SESSION_A, onTab?.queue.replies[0] ?? '', {ok: true, result: {value: 'Ada'}})).toBe(true)
-    expect(await queues.wait(SESSION_A, queueId, 2000)).toEqual({
-      queueId,
-      status: 'lost',
-      outcomes: [
-        {index: 0, tool: 'page_fill', ok: true, result: {value: 'Ada'}},
-        {
-          index: 1,
-          tool: 'page_check',
-          ok: false,
-          error: 'the page did not confirm page_check in time; it may already have run',
-        },
-      ],
-      failed: 0,
-      played: 1,
-    })
-  })
-
-  it('a sync queue returns its result in-call, and it is never announced or owed afterwards', async () => {
-    const bus = makePageBus(2000)
-    const tab = arrivingTab(bus)
-    const queues = pageQueues(bus)
-    const announced: string[] = []
-    queues.finished((record) => announced.push(record.queueId))
-    const played = queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-    const onTab = await tab.frame(0)
-    bus.resolve(SESSION_A, onTab.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-    const result = await played
-    expect(result).toMatchObject({status: 'finished', played: 1, failed: 0})
-    await setImmediate()
-    expect(announced).toEqual([])
-    expect(queues.undelivered(SESSION_A, true)).toEqual([])
-    expect(queues.startedBy(SESSION_A, new Set())).toEqual([])
-  })
-
-  it('a sync queue that outlasts its bound returns the progress and its queueId, and the result is owed later', async () => {
-    const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
-    const queues = pageQueues(bus, 20)
-    const finished = trackFinished(queues)
-    const checks = ['#first', '#second'].map((selector) => ({tool: 'page_check', selector}))
-    const progress = await queues.play(SESSION_A, {...queueStart(checks), toolCallId: 'call-1'})
-    const queueId = queued[0]?.queue.id ?? ''
-    expect(progress).toEqual({queueId, status: 'playing', done: 0, of: 2})
-    expect(queues.startedBy(SESSION_A, new Set(['call-1']))).toEqual([{queueId, actions: 2}])
-    for (const reply of queued[0]?.queue.replies ?? []) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
-    await finished(queueId)
-    expect(queues.startedBy(SESSION_A, new Set(['call-1']))).toEqual([])
-    expect(queues.undelivered(SESSION_A, true)).toEqual([
-      expect.objectContaining({queueId, status: 'finished', played: 2}),
-    ])
-    expect(queues.undelivered(SESSION_A, true)).toEqual([])
-  })
-
-  it('a hub call keeps the queues it started as hub work after it replies, until the session is deleted', async () => {
-    const bus = makePageBus(2000)
-    const tab = arrivingTab(bus)
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const playOut = async (index: number): Promise<void> => {
-      const frame = await tab.frame(index)
-      for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
-    }
-    queues.hubCall(SESSION_A, 'hub-early')
-    const {queueId: early} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-early'})
-    await playOut(0)
-    await finished(early)
-    queues.hubReplied(SESSION_A, new Set(['hub-early']))
-    expect(queues.owedTurn(SESSION_A)).toEqual([])
-    expect(queues.undelivered(SESSION_A, true)).toEqual([expect.objectContaining({queueId: early})])
-    queues.hubCall(SESSION_A, 'hub-replied')
-    const {queueId: replied} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-replied'})
-    queues.hubReplied(SESSION_A, new Set(['hub-replied']))
-    queues.hubCall(SESSION_A, 'hub-running')
-    const {queueId: running} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: 'hub-running'})
-    queues.cancelSession(SESSION_A)
-    const answered = async (index: number): Promise<boolean[]> => {
-      const frame = await tab.frame(index)
-      return frame.queue.replies.map((reply) => bus.resolve(SESSION_A, reply, {ok: true, result: {}}))
-    }
-    expect(await answered(1)).toEqual([true])
-    expect(await answered(2)).toEqual([true])
-    expect(queues.owedTurn(SESSION_A)).toEqual([])
-    expect(queues.undelivered(SESSION_A, true)).toEqual([])
-    await expect(queues.wait(SESSION_A, replied, 0)).rejects.toThrow(`no queue ${replied} on this tab`)
-    await expect(queues.wait(SESSION_A, running, 0)).rejects.toThrow(`no queue ${running} on this tab`)
-  })
-
-  it('a session deleted while a waiter holds a claim on its result: the reply that did not go out puts nothing back', async () => {
-    const bus = makePageBus(2000)
-    const tab = arrivingTab(bus)
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const announced: string[] = []
-    queues.finished((record) => announced.push(record.queueId))
-    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-    const frame = await tab.frame(0)
-    for (const reply of frame.queue.replies) bus.resolve(SESSION_A, reply, {ok: true, result: {}})
-    await finished(queueId)
-    const reply = Promise.withResolvers<boolean>()
-    expect(await queues.wait(SESSION_A, queueId, 0, undefined, reply.promise)).toMatchObject({queueId})
-    queues.cancelSession(SESSION_A)
-    reply.resolve(false)
-    await setImmediate()
-    expect(announced).toEqual([queueId])
-    expect(queues.owedTurn(SESSION_A)).toEqual([])
-    expect(queues.undelivered(SESSION_A, false)).toEqual([])
-    expect(queues.undelivered(SESSION_A, true)).toEqual([])
-    await expect(queues.wait(SESSION_A, queueId, 0)).rejects.toThrow(`no queue ${queueId} on this tab`)
-  })
-
-  it('undelivered results are never evicted: at 1000 owed a new queue is refused before it plays, and delivering one frees a place', async () => {
-    const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const started: string[] = []
-    for (const index of Array.from({length: 1000}, (_, at) => at)) {
-      const {queueId} = await queues.start(SESSION_A, queueStart(check))
-      bus.resolve(SESSION_A, queued[index]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-      await finished(queueId)
-      started.push(queueId)
-    }
-    await expect(queues.start(SESSION_A, queueStart(check))).rejects.toThrow(
-      '1000 queue results are still undelivered; collect them before queueing more',
-    )
-    expect(queued).toHaveLength(1000)
-    expect(await queues.wait(SESSION_A, started[0] ?? '', 0)).toMatchObject({queueId: started[0], status: 'finished'})
-    const {queueId: freed} = await queues.start(SESSION_A, queueStart(check))
-    expect(queued.at(-1)?.queue.id).toBe(freed)
-    expect(queues.undelivered(SESSION_A, true).map((result) => result.queueId)).toEqual(started.slice(1))
-  })
-
-  it('an async queue started while another plays answers its queueId at once, and its actions reach the tab only after the first finishes', async () => {
-    const bus = makePageBus(2000)
-    const tab = arrivingTab(bus)
-    const queued = tab.queued
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const earlier = await queues.start(SESSION_A, queueStart(check))
-    const later = await Promise.race([queues.start(SESSION_A, queueStart(check)), setImmediate(null)])
-    expect(later).toEqual({queueId: expect.stringMatching(/^q_/), actions: 1})
-    expect(queued.map((frame) => frame.queue.id)).toEqual([earlier.queueId])
-    expect(await queues.wait(SESSION_A, later?.queueId ?? '', 0)).toEqual({
-      queueId: later?.queueId,
-      status: 'playing',
-      done: 0,
-      of: 1,
-    })
-    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-    await finished(earlier.queueId)
-    const second = await tab.frame(1)
-    expect(queued.map((frame) => frame.queue.id)).toEqual([earlier.queueId, later?.queueId])
-    bus.resolve(SESSION_A, second.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-    await finished(later?.queueId ?? '')
-  })
-
-  it('a sync queue started while another plays waits for its turn and returns its own result', async () => {
-    const bus = makePageBus(2000)
-    const tab = arrivingTab(bus)
-    const queued = tab.queued
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const earlier = await queues.start(SESSION_A, queueStart(check))
-    const played = queues.play(SESSION_A, queueStart(check))
-    await setImmediate()
-    expect(queued).toHaveLength(1)
-    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-    await finished(earlier.queueId)
-    const second = await tab.frame(1)
-    bus.resolve(SESSION_A, second.queue.replies[0] ?? '', {ok: true, result: {checked: false}})
-    expect(await played).toMatchObject({queueId: second.queue.id, status: 'finished', played: 1, failed: 0})
-  })
-
-  it('queues started all at once past 1000 owed are refused: a start that is still waiting for the page holds its place', async () => {
-    const bus = makePageBus(2000)
-    const queued: z.infer<typeof QueueFrameSchema>[] = []
-    bus.subscribe(SESSION_A, (frame) => {
-      const parsed = QueueFrameSchema.safeParse(frame)
-      if (!parsed.success) return
-      queued.push(parsed.data)
-      queueMicrotask(() => {
-        bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}})
-        bus.resolve(SESSION_A, parsed.data.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-      })
-    })
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const starts = await Promise.allSettled(
-      Array.from({length: 1001}, () => queues.start(SESSION_A, queueStart(check))),
-    )
-    expect(starts.filter((each) => each.status === 'rejected')).toEqual([
-      {
-        status: 'rejected',
-        reason: new Error('1000 queue results are still undelivered; collect them before queueing more'),
-      },
-    ])
-    await Promise.all(starts.flatMap((each) => (each.status === 'fulfilled' ? [finished(each.value.queueId)] : [])))
-    expect(queued).toHaveLength(1000)
-  })
-
-  it('a follow-up turn that fails to start gives its results back even when 200 delivered queues pass them while it starts', async () => {
-    const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const played = async (hub: boolean): Promise<string> => {
-      const {queueId} = await queues.start(SESSION_A, {...queueStart(check), toolCallId: hub ? HUB_CALL : undefined})
-      bus.resolve(SESSION_A, queued.at(-1)?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-      await finished(queueId)
+    const played = (): string => {
+      const queueId = `q_${crypto.randomUUID()}`
+      const outcomes = [{index: 0, tool: 'page_check', ok: true as const, result: {checked: true}}]
+      kept.push({queueId, result: {queueId, status: 'finished', outcomes, failed: 0, played: 1}, delivery: 'owed'})
       return queueId
     }
-    const owed = await played(false)
-    const turns: string[] = []
-    const starting = Promise.withResolvers<FollowUpOutcome>()
-    const entered = Promise.withResolvers<void>()
-    const plane = {
-      live: async () => false,
-      followUp: async (_sessionId: SessionId, input: string): Promise<FollowUpOutcome> => {
-        turns.push(input)
-        entered.resolve()
-        return turns.length === 1 ? starting.promise : {kind: 'delivered'}
-      },
-    }
-    const following = startQueueFollowUp(queues, plane, SESSION_A, () => false)
-    await entered.promise
-    for (const _ of Array.from({length: 205})) {
-      const queueId = await played(true)
-      await queues.wait(SESSION_A, queueId, 0)
-    }
-    starting.resolve({kind: 'busy'})
-    await following
-    expect(queues.owedTurn(SESSION_A).map((record) => record.queueId)).toEqual([owed])
-    await startQueueFollowUp(queues, plane, SESSION_A, () => false)
-    expect(turns).toHaveLength(2)
-    expect(turns[1]).toContain(`queue ${owed} finished`)
-    expect(queues.owedTurn(SESSION_A)).toEqual([])
-  })
+    const nextReply = (): string[] =>
+      kept.filter(awaiting).map((queue) => {
+        queue.delivery = 'delivered'
+        return queue.queueId
+      })
+    const owedIds = (): string[] => kept.filter((queue) => queue.delivery === 'owed').map((queue) => queue.queueId)
+    const deliveries = (): Kept['delivery'][] => kept.map((queue) => queue.delivery)
+    return {delivery, played, nextReply, owedIds, deliveries}
+  }
 
   async function followUpFixture() {
     const fixture = await makeChatFixture()
     onTestFinished(() => fixture.dispose())
-    const bus = makePageBus(2000)
-    bus.subscribe(fixture.sessionId, (frame) => {
-      const parsed = QueueFrameSchema.safeParse(frame)
-      if (!parsed.success) return
-      queueMicrotask(() => {
-        bus.resolve(fixture.sessionId, parsed.data.requestId, {ok: true, result: {}})
-        for (const reply of parsed.data.queue.replies) {
-          bus.resolve(fixture.sessionId, reply, {ok: true, result: {checked: true}})
-        }
-      })
-    })
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const played = async (): Promise<string> => {
-      const {queueId} = await queues.start(fixture.sessionId, {
-        agentId: fixture.sessionId,
-        input: {actions: [{tool: 'page_check', selector: '#agree'}]},
-        toolCallId: undefined,
-      })
-      await finished(queueId)
-      return queueId
-    }
-    const owedIds = () => queues.owedTurn(fixture.sessionId).map((record) => record.queueId)
-    const runStatuses = () =>
-      fixture.db
-        .select({status: chatRuns.status})
-        .from(chatRuns)
-        .where(eq(chatRuns.threadId, fixture.sessionId))
-        .orderBy(chatRuns.startedAt)
-        .all()
-        .map((run) => run.status)
-    return {fixture, queues, played, owedIds, runStatuses}
+    const results = finishedResults()
+    const runStatuses = async () =>
+      (
+        await Effect.runPromise(
+          fixture.db
+            .select({status: chatRuns.status})
+            .from(chatRuns)
+            .where(eq(chatRuns.threadId, fixture.sessionId))
+            .orderBy(chatRuns.startedAt),
+        )
+      ).map((run) => run.status)
+    return {fixture, queues: results.delivery, results, runStatuses}
   }
 
   it('a follow-up run that ends in RUN_ERROR is retried, and the retry that finishes delivers the result', async () => {
-    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
-    await played()
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
+    results.played()
     fixture.harness.script.scriptError('the harness could not launch')
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'completed'])
-    expect(owedIds()).toEqual([])
-    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+    expect(await runStatuses()).toEqual(['failed', 'completed'])
+    expect(results.owedIds()).toEqual([])
+    expect(results.nextReply()).toEqual([])
   })
 
   it('three failed follow-up runs end follow-ups for the result, and the next reply delivers it', async () => {
-    const {fixture, queues, played, runStatuses} = await followUpFixture()
-    const owed = await played()
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
+    const owed = results.played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
-    expect(queues.owedTurn(fixture.sessionId).map((record) => record.delivery)).toEqual(['nextReply'])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(results.deliveries()).toEqual(['nextReply'])
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
-    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
-    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    expect(results.nextReply()).toEqual([owed])
+    expect(results.nextReply()).toEqual([])
   })
 
   it('a result whose follow-ups failed rides the next follow-up another queue starts, and nothing else starts one', async () => {
-    const {fixture, queues, played, runStatuses} = await followUpFixture()
-    const stranded = await played()
-    const [record] = queues.owedTurn(fixture.sessionId)
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
+    const stranded = results.played()
     for (const attempt of [1, 2, 3]) fixture.harness.script.scriptError(`launch failure ${attempt}`)
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(record?.delivery).toBe('nextReply')
+    expect(results.deliveries()).toEqual(['nextReply'])
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed'])
-    const later = await played()
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed'])
+    const later = results.played()
     const inputs: string[] = []
     const plane = {
       live: fixture.plane.live,
@@ -2012,17 +1661,17 @@ describe('page bus and the session scope', () => {
       },
     }
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
-    expect(runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
+    expect(await runStatuses()).toEqual(['failed', 'failed', 'failed', 'completed'])
     expect(inputs).toHaveLength(1)
     expect(inputs[0]).toContain(`queue ${stranded} finished`)
     expect(inputs[0]).toContain(`queue ${later} finished`)
-    expect(record?.delivery).toBe('delivered')
-    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+    expect(results.deliveries()).toEqual(['delivered', 'delivered'])
+    expect(results.nextReply()).toEqual([])
   })
 
   it('a follow-up run the user stops is not retried, and its result waits for the next reply', async () => {
-    const {fixture, queues, played, runStatuses} = await followUpFixture()
-    const owed = await played()
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
+    const owed = results.played()
     fixture.harness.script.hold()
     const started = Promise.withResolvers<void>()
     const unlisten = fixture.runtime.forSession(fixture.sessionId).stream.listen((chunk) => {
@@ -2036,13 +1685,13 @@ describe('page bus and the session scope', () => {
     await fixture.plane.stop(fixture.sessionId)
     fixture.harness.script.release()
     await following
-    expect(runStatuses()).toEqual(['aborted'])
-    expect(queues.undelivered(fixture.sessionId, false).map((result) => result.queueId)).toEqual([owed])
+    expect(await runStatuses()).toEqual(['aborted'])
+    expect(results.nextReply()).toEqual([owed])
   })
 
   it('a follow-up the plane declines because a run is driving is not retried', async () => {
-    const {fixture, queues, played, owedIds, runStatuses} = await followUpFixture()
-    const owed = await played()
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
+    const owed = results.played()
     fixture.harness.script.hold()
     const driving = fixture.plane.followUp(fixture.sessionId, 'an earlier follow-up')
     const plane = {
@@ -2055,18 +1704,18 @@ describe('page bus and the session scope', () => {
       },
     }
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
-    expect(runStatuses()).toEqual(['completed'])
-    expect(owedIds()).toEqual([owed])
+    expect(await runStatuses()).toEqual(['completed'])
+    expect(results.owedIds()).toEqual([owed])
   })
 
   it('a follow-up run that finishes confirms its result delivered', async () => {
-    const {fixture, queues, played, owedIds} = await followUpFixture()
-    await played()
+    const {fixture, queues, results} = await followUpFixture()
+    results.played()
     await startQueueFollowUp(queues, fixture.plane, fixture.sessionId, (sessionId) =>
       isDeletedRow(fixture.db, sessionId),
     )
-    expect(owedIds()).toEqual([])
-    expect(queues.undelivered(fixture.sessionId, false)).toEqual([])
+    expect(results.owedIds()).toEqual([])
+    expect(results.nextReply()).toEqual([])
     expect(await fixture.plane.followUp(fixture.sessionId, 'queue q_a finished')).toEqual({kind: 'delivered'})
     fixture.harness.script.scriptError('the harness could not launch')
     expect(await fixture.plane.followUp(fixture.sessionId, 'queue q_b finished')).toEqual({
@@ -2075,14 +1724,14 @@ describe('page bus and the session scope', () => {
     })
   })
 
-  it('a follow-up admitted in the same tick as the runs of its session end (not held in its read), or deleted while its turn is in flight, starts no other turn, and its queue is gone', async () => {
-    const {fixture, queues, played, runStatuses} = await followUpFixture()
+  it('a follow-up admitted in the same tick as the runs of its session end (not held in its read), or deleted while its turn is in flight, starts no other turn', async () => {
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
     const admitted = fixture.plane.followUp(fixture.sessionId, 'admitted just before the session ends')
     const ended = fixture.plane.endRuns(fixture.sessionId)
     expect(await admitted).toEqual({kind: 'stopped'})
     await ended
-    expect(runStatuses()).toEqual([])
-    const owed = await played()
+    expect(await runStatuses()).toEqual([])
+    results.played()
     const turns: string[] = []
     const answering = Promise.withResolvers<FollowUpOutcome>()
     const entered = Promise.withResolvers<void>()
@@ -2099,19 +1748,24 @@ describe('page bus and the session scope', () => {
     )
     await entered.promise
     await deleteSession(
-      {db: fixture.db, plane: fixture.plane, runtime: fixture.runtime, pluginHost: fixture.pluginHost, queues},
+      {
+        db: fixture.db,
+        plane: fixture.plane,
+        runtime: fixture.runtime,
+        pluginHost: fixture.pluginHost,
+        queues: makePagePlugin(() => fixture.pluginHost),
+      },
       fixture.sessionId,
     )
     answering.resolve({kind: 'failed', error: 'the harness could not launch'})
     await following
     expect(turns).toHaveLength(1)
-    expect(runStatuses()).toEqual([])
-    await expect(queues.wait(fixture.sessionId, owed, 0)).rejects.toThrow(`no queue ${owed} on this tab`)
+    expect(await runStatuses()).toEqual([])
   })
 
   it('a queue result still kept after its session is deleted, as when the page plugin has not yet heard session.deleted, starts no turn', async () => {
-    const {fixture, queues, played, runStatuses} = await followUpFixture()
-    await played()
+    const {fixture, queues, results, runStatuses} = await followUpFixture()
+    results.played()
     const turns: string[] = []
     const plane = {
       live: fixture.plane.live,
@@ -2133,7 +1787,7 @@ describe('page bus and the session scope', () => {
     expect(await owesFollowUp(queues, fixture.sessionId)).toBe(true)
     await startQueueFollowUp(queues, plane, fixture.sessionId, (sessionId) => isDeletedRow(fixture.db, sessionId))
     expect(turns).toEqual([])
-    expect(runStatuses()).toEqual([])
+    expect(await runStatuses()).toEqual([])
   })
 
   it('a queue result landing after the delete cancels the session queues and before the tombstone starts no turn: the page plugin no longer holds the queue', async () => {
@@ -2289,8 +1943,10 @@ describe('page bus and the session scope', () => {
     await ensureRow(made.chat.rows, id)
     const tab = await tabs.open(id, () => ({type: 'success', result: {value: {ok: true}, files: [], capture: {}}}))
     onTestFinished(() => tab.end())
-    made.chat.db.$client.exec(
-      "CREATE TRIGGER refuse_page_records BEFORE INSERT ON kv WHEN NEW.key LIKE '%:captures/%' OR NEW.key LIKE '%:changes/%' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    await Effect.runPromise(
+      made.chat.db.$client.unsafe(
+        "CREATE TRIGGER refuse_page_records BEFORE INSERT ON kv WHEN NEW.key LIKE '%:captures/%' OR NEW.key LIKE '%:changes/%' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+      ).raw,
     )
     const response = await fetch(`${origin}/t/${made.agentToken}/api/mcp`, {
       method: 'POST',
@@ -2319,220 +1975,12 @@ describe('page bus and the session scope', () => {
     const output = reply.result.content.map((part) => part.text).join('')
     expect(output).not.toContain('disk full')
     expect(z.object({result: z.object({ok: z.boolean()})}).parse(JSON.parse(output)).result).toEqual({ok: true})
-    const stored = made.chat.db.$client
-      .prepare("SELECT count(*) AS count FROM kv WHERE key LIKE '%:captures/%' OR key LIKE '%:changes/%'")
-      .get()
-    expect(stored).toEqual({count: 0})
-  })
-
-  it('a queue the page refuses plays nothing: it ends lost with no action counted as played', async () => {
-    const bus = makePageBus(2000)
-    bus.subscribe(SESSION_A, (frame) => {
-      const parsed = QueueFrameSchema.safeParse(frame)
-      if (!parsed.success) return
-      queueMicrotask(() =>
-        bus.resolve(SESSION_A, parsed.data.requestId, {ok: false, error: {code: 'invalid-args', message: 'no list'}}),
-      )
-    })
-    const queues = pageQueues(bus)
-    const result = await queues.play(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-    expect(result).toMatchObject({
-      status: 'lost',
-      played: 0,
-      failed: 0,
-      outcomes: [{index: 0, tool: 'page_check', ok: false, error: expect.stringContaining('refused the queue')}],
-    })
-  })
-
-  it('a queue started while a mutating call is in flight reaches the tab only after that call answers', async () => {
-    const bus = makePageBus(2000)
-    const frames: unknown[] = []
-    const queueFrame = Promise.withResolvers<QueueFrame>()
-    bus.subscribe(SESSION_A, (frame) => {
-      frames.push(frame)
-      const parsed = QueueFrameSchema.safeParse(frame)
-      if (!parsed.success) return
-      queueFrame.resolve(parsed.data)
-      queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
-    })
-    const queues = pageQueues(bus)
-    const clicked = bus.ask(
-      SESSION_A,
-      {name: 'fixture_click', input: {}, agentId: SESSION_A, mutating: true},
-      {mutating: true},
+    const [stored] = await Effect.runPromise(
+      made.chat.db.$client.unsafe(
+        "SELECT count(*) AS count FROM kv WHERE key LIKE '%:captures/%' OR key LIKE '%:changes/%'",
+      ),
     )
-    await setImmediate()
-    const clickId = readRequestId(frames[0]) ?? ''
-    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-    await setImmediate()
-    expect(frames).toHaveLength(1)
-    expect(bus.resolve(SESSION_A, clickId, {ok: true, result: {clicked: true}})).toBe(true)
-    await clicked
-    expect((await queueFrame.promise).queue.id).toBe(queueId)
-  })
-
-  it('a queue for a session whose earlier queue still plays reaches the newly focused tab only once that queue is done', async () => {
-    const bus = makePageBus(2000)
-    const first = queueingTab(bus, {focusedAt: 2, visible: true})
-    const secondTab = arrivingTab(bus, {focusedAt: 1, visible: true})
-    const second = secondTab.queued
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const earlier = await queues.start(SESSION_A, queueStart(check))
-    bus.focus(SESSION_A, secondTab.browserTab, {focused: true, visible: true})
-    const later = queues.start(SESSION_A, queueStart(check))
-    expect(second).toHaveLength(0)
-    expect(bus.resolve(SESSION_A, first[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
-    await finished(earlier.queueId)
-    expect((await later).queueId).toBe(second[0]?.queue.id)
-    expect(first).toHaveLength(1)
-  })
-
-  it('a queue waiting behind another plays on the tab that serves the session when its turn comes, though the tab it was queued for closed', async () => {
-    const bus = makePageBus(2000)
-    const onFirst: z.infer<typeof QueueFrameSchema>[] = []
-    const {unsubscribe: closeFirst} = bus.subscribe(SESSION_A, (frame) => {
-      const parsed = QueueFrameSchema.safeParse(frame)
-      if (!parsed.success) return
-      onFirst.push(parsed.data)
-      queueMicrotask(() => bus.resolve(SESSION_A, parsed.data.requestId, {ok: true, result: {}}))
-    })
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const check = [{tool: 'page_check', selector: '#agree'}]
-    const earlier = await queues.start(SESSION_A, queueStart(check))
-    const later = queues.start(SESSION_A, queueStart(check))
-    closeFirst()
-    const second = arrivingTab(bus)
-    const {queueId} = await later
-    const onSecond = await second.frame(0)
-    expect(onFirst.map((frame) => frame.queue.id)).toEqual([earlier.queueId])
-    expect(second.queued.map((frame) => frame.queue.id)).toEqual([queueId])
-    expect(bus.resolve(SESSION_A, onSecond.queue.replies[0] ?? '', {ok: true, result: {checked: true}})).toBe(true)
-    await finished(queueId)
-    expect(await queues.wait(SESSION_A, queueId, 0)).toMatchObject({queueId, status: 'finished', played: 1})
-  })
-
-  it('a queue wait its caller aborts rejects at once and leaves the result owed to the next reply', async () => {
-    const bus = makePageBus(2000)
-    const queued = queueingTab(bus)
-    const queues = pageQueues(bus)
-    const finished = trackFinished(queues)
-    const {queueId} = await queues.start(SESSION_A, queueStart([{tool: 'page_check', selector: '#agree'}]))
-    const caller = new AbortController()
-    const waiting = queues.wait(SESSION_A, queueId, 60_000, caller.signal)
-    caller.abort()
-    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
-    bus.resolve(SESSION_A, queued[0]?.queue.replies[0] ?? '', {ok: true, result: {checked: true}})
-    await finished(queueId)
-    expect(queues.undelivered(SESSION_A, true)).toEqual([expect.objectContaining({queueId, status: 'finished'})])
-  })
-
-  it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
-    const bus = makePageBus(2000)
-    const frames: unknown[] = []
-    const {unsubscribe} = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
-    const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A})
-    bus.subscribe(SESSION_A, () => {})
-    unsubscribe()
-    await expect(answered).rejects.toMatchObject({
-      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
-    })
-    const requestId = frames.map(readRequestId).find((found) => found !== null)
-    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(false)
-  })
-
-  function replyingTab(bus: ReturnType<typeof makePageBus>, result: Record<string, unknown>): unknown[] {
-    const frames: unknown[] = []
-    bus.subscribe(SESSION_A, (frame) => {
-      frames.push(frame)
-      const requestId = readRequestId(frame)
-      if (requestId !== null) queueMicrotask(() => bus.resolve(SESSION_A, requestId, {ok: true, result}))
-    })
-    return frames
-  }
-
-  it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
-    const bus = makePageBus(2000)
-    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
-    const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
-    lost()
-    await setImmediate()
-    const reloaded = replyingTab(bus, {href: '/after-reload'})
-    expect(await answered).toEqual({result: {href: '/after-reload'}})
-    expect(reloaded).toHaveLength(1)
-  })
-
-  it('a reading call that loses its browser tab goes at once to the other tab of the session, focused last', async () => {
-    const bus = makePageBus(2000)
-    const other = replyingTab(bus, {href: '/other'})
-    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {}, {focusedAt: 1, visible: true})
-    const answered = bus.ask(SESSION_A, {name: 'fixture_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
-    lost()
-    expect(await answered).toEqual({result: {href: '/other'}})
-    expect(other).toHaveLength(1)
-  })
-
-  it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
-    const bus = makePageBus(100)
-    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
-    const answered = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
-    lost()
-    await expect(answered).rejects.toMatchObject({
-      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
-    })
-  })
-
-  it('a call whose browser tab stays open and never replies times out once, never as a lost tab', async () => {
-    const bus = makePageBus(100)
-    const frames: unknown[] = []
-    bus.subscribe(SESSION_A, (frame) => frames.push(frame))
-    const reading = bus.ask(SESSION_A, {name: 'fixture_read', input: {}, agentId: SESSION_A}, {mutating: false})
-    await expect(reading).rejects.toMatchObject({error: {code: 'timeout'}})
-    expect(frames.map(readRequestId).filter((found) => found !== null)).toHaveLength(1)
-    const changing = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A}, {mutating: true})
-    await expect(changing).rejects.toMatchObject({error: {code: 'timeout'}})
-  })
-
-  it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
-    const bus = makePageBus(2000)
-    const {unsubscribe: lost} = bus.subscribe(SESSION_A, () => {})
-    const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A}, {mutating: true})
-    lost()
-    await expect(answered).rejects.toMatchObject({
-      error: {
-        code: 'no-widget',
-        message:
-          'the page reloaded or closed during fixture_click; it may already have run. Take a new snapshot before continuing',
-      },
-    })
-    expect(replyingTab(bus, {})).toHaveLength(0)
-  })
-
-  it('a call its caller aborts rejects at once, settles nothing later and is never sent again', async () => {
-    const bus = makePageBus(60_000)
-    const frames: unknown[] = []
-    const {unsubscribe: lost} = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
-    const route = {name: 'fixture_read', input: {}, agentId: SESSION_A}
-    const waiting = new AbortController()
-    const answered = bus.ask(SESSION_A, route, {mutating: false}, waiting.signal)
-    waiting.abort()
-    await expect(answered).rejects.toMatchObject({name: 'AbortError'})
-    const requestId = frames.map(readRequestId).find((found) => found !== null)
-    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {}})).toBe(false)
-    const lostTab = new AbortController()
-    const reading = bus.ask(SESSION_A, route, {mutating: false}, lostTab.signal)
-    lost()
-    await setImmediate()
-    lostTab.abort()
-    await expect(reading).rejects.toMatchObject({name: 'AbortError'})
-    const returned = replyingTab(bus, {href: '/after-abort'})
-    await expect(bus.ask(SESSION_A, route, {mutating: false}, lostTab.signal)).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(returned).toHaveLength(0)
-    expect(frames.map(readRequestId).filter((found) => found !== null)).toHaveLength(2)
+    expect(stored).toEqual({count: 0})
   })
 
   it('two page queue follow-ups asked for at once start one run', async () => {
@@ -2547,53 +1995,6 @@ describe('page bus and the session scope', () => {
       await fixture.dispose()
     }
   })
-
-  it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
-    const fixture = await makeChatFixture()
-    try {
-      const fresh: EngineStaleness = {stale: false, changed: [], tracked: [], bootedAt: 0, fingerprint: 'test'}
-      const primitives = makeSessionPrimitives({
-        db: fixture.db,
-        root: fixture.stateRoot,
-        storeCapture: () => Promise.resolve(),
-      })
-      const clicker = defineTool({
-        name: 'fixture_click',
-        description: 'Click something on the page',
-        inputSchema: z.object({ref: z.string()}),
-        outputSchema: z.object({clicked: z.string()}),
-        meta: {summary: 'click a page element', category: 'fixture', mutating: true},
-      }).client()
-      primitives.registry.register(clicker, {owner: 'a fixture'})
-      const {plane, db} = fixture
-      const runtime = makeCoreRuntime({
-        primitives,
-        plane,
-        db,
-        model: () => null,
-        staleness: () => fresh,
-        interruptIdle: async () => false,
-        symbolicate: async () => null,
-      })
-      const {unsubscribe} = primitives.page.bus.subscribe(SESSION_A, (frame) => {
-        const requestId = readRequestId(frame)
-        if (requestId === null) return
-        queueMicrotask(() => primitives.page.bus.resolve(SESSION_A, requestId, {ok: true, result: {clicked: 'a'}}))
-      })
-      const reachableIn = (id: SessionId) => runtime.forSession(id).tools.catalog.get('fixture_click').reachable
-      expect([reachableIn(SESSION_A), reachableIn(SESSION_B)]).toEqual([true, false])
-      const request = {sessionId: SESSION_B, agentId: SESSION_B, model: null}
-      const result = await runWithSession(runtime.forSession(SESSION_A), () =>
-        primitives.registry.call('fixture_click', {ref: 'r1'}, {request}),
-      )
-      unsubscribe()
-      expect(result).toEqual({clicked: 'a'})
-      expect(await runtime.forSession(SESSION_A).page.changes()).toHaveLength(1)
-      expect(await runtime.forSession(SESSION_B).page.changes()).toHaveLength(0)
-    } finally {
-      await fixture.dispose()
-    }
-  }, 30_000)
 })
 
 describe('system prompt', () => {
@@ -2761,19 +2162,13 @@ describe('engine login', () => {
         const headers = {[CONCIV_SESSION_HEADER]: sessionId}
         const rpc: RpcClient = createORPCClient(new WebsocketRpcLink({websocket, headers}))
         const refusal = (error: unknown) => (error instanceof ORPCError ? error.code : 'not served')
-        const outcomes = await Promise.all([
-          rpc.chat.events({sessionId}).then(() => 'served', refusal),
-          rpc.page.queries({focus: {focused: true, visible: true}}).then(() => 'served', refusal),
-        ])
+        const outcome = await rpc.chat.events({sessionId}).then(() => 'served', refusal)
         websocket.close()
-        return outcomes
+        return outcome
       }
       const untrusted = JSON.stringify({type: SOCKET_TRUST_FRAME, token: 'not-a-token'})
       const streamRefusals = await Promise.all([refusedStreams(untrusted), refusedStreams('{"channel":"ready"}')])
-      expect(streamRefusals).toEqual([
-        ['UNAUTHORIZED', 'UNAUTHORIZED'],
-        ['not served', 'not served'],
-      ])
+      expect(streamRefusals).toEqual(['UNAUTHORIZED', 'not served'])
     } finally {
       await stop()
     }
@@ -3260,7 +2655,7 @@ async function bornRows(root: string, ids: readonly SessionId[]): Promise<void> 
 function sessionKey(made: MadeApp) {
   const search = createSessionSearch({db: made.chat.db, cwd: made.chat.cwd, harnesses: made.chat.harnesses})
   onTestFinished(() => search.dispose())
-  const queues = makePageQueues({bus: makePageBus(), journal: makeJournal(made.chat.db)})
+  const queues = makePagePlugin(() => made.pluginHost)
   const layer = provideSessions(() => ({
     chat: made.chat,
     runtime: made.runtime,
@@ -3292,28 +2687,71 @@ describe('plugin host bus', () => {
         expect.objectContaining({data: {sessionID: sessionId}}),
       ])
       expect(
-        db.all(
-          sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+        await Effect.runPromise(
+          db.all(
+            sql`SELECT aggregate_id FROM event WHERE aggregate_id = ${sessionId} UNION ALL SELECT aggregate_id FROM event_sequence WHERE aggregate_id = ${sessionId}`,
+          ),
         ),
       ).toEqual([])
       await rpc.sessions.restore({sessionId})
       expect(
-        db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)).all(),
+        await Effect.runPromise(
+          db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, sessionId)),
+        ),
       ).toEqual([{deletedAt: null}])
 
       const kept = await rpc.sessions.create(undefined)
-      db.run(sql`DROP TABLE kv`)
+      await Effect.runPromise(db.run(sql`DROP TABLE kv`))
       await expect(rpc.sessions.delete({sessionId: kept.sessionId})).rejects.toThrow()
       expect(
-        db
-          .select({deletedAt: sessionTable.deletedAt})
-          .from(sessionTable)
-          .where(eq(sessionTable.id, kept.sessionId))
-          .all(),
+        await Effect.runPromise(
+          db.select({deletedAt: sessionTable.deletedAt}).from(sessionTable).where(eq(sessionTable.id, kept.sessionId)),
+        ),
       ).toEqual([{deletedAt: null}])
     } finally {
       await served.stop()
     }
+  })
+
+  test('an engine thread save while a plugin host transaction waits lands after that transaction commits, and both writes are kept', async () => {
+    const served = await serveCore(tempDir('conciv-core-unit-'), [], {})
+    onTestFinished(() => served.stop())
+    const rpc = makeRpcClient(`${served.origin}/t/${served.made.agentToken}`)
+    const {sessionId} = await rpc.sessions.create(undefined)
+    const sequence = async () =>
+      (
+        await Effect.runPromise(
+          served.made.chat.db.all<{seq: number}>(sql`SELECT seq FROM event_sequence WHERE aggregate_id = ${sessionId}`),
+        )
+      ).map((row) => row.seq)
+    const [before = 0] = await sequence()
+    const entered = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const renaming = served.made.pluginHost.runPromise(
+      Bus.Service.use((bus) =>
+        bus.publish(
+          SessionEvent.Renamed,
+          {sessionID: SessionSchema.Id.make(sessionId), title: 'renamed while the lock is held'},
+          {
+            commit: () =>
+              Effect.promise(() => {
+                entered.resolve()
+                return held.promise
+              }),
+          },
+        ),
+      ),
+    )
+    await entered.promise
+    const stores = drizzleChatStores(served.made.chat.db, {readHarness: async () => 'fake-cli'})
+    const message: ModelMessage = {id: 'saved-while-held', role: 'user', content: 'saved while the plugin host waits'}
+    const saving = stores.messages.saveThread(sessionId, [message])
+    held.resolve()
+    const [saved, renamed] = await Promise.allSettled([saving, renaming])
+    expect(saved).toEqual({status: 'fulfilled', value: undefined})
+    expect(renamed).toMatchObject({status: 'fulfilled'})
+    expect(await stores.messages.loadThread(sessionId)).toEqual([message])
+    expect(await sequence()).toEqual([before + 1])
   })
 
   test('a listener that reads a session back on session.deleted finds it already gone with its draft, as a reader does after the delete', async () => {
@@ -3424,7 +2862,7 @@ describe('plugin host bus', () => {
     expect(await rpc.drafts.get({sessionId: made.typed})).toMatchObject({text: 'typed before the restart'})
   })
 
-  test('a delete whose session.deleted publish fails still clears the messages, captures and page changes, and rejects with the publish failure', async () => {
+  test('a delete whose session.deleted publish fails still clears the messages, and rejects with the publish failure', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
@@ -3433,60 +2871,17 @@ describe('plugin host bus', () => {
     const id = SessionId.parse('conciv_deleted_while_the_bus_is_broken')
     await ensureRow(made.chat.rows, id)
     expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
-    const scope = made.runtime.forSession(id)
-    await scope.captures.store('call-1', {
-      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
-    })
-    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
-    const left = async () => [
-      (await made.plane.hydrate(id)).messages.length,
-      (await scope.captures.list()).captures.length,
-      (await scope.page.changes()).length,
-    ]
-    expect(await left()).toEqual([1, 1, 1])
-    made.chat.db.run(sql`DROP TABLE event_sequence`)
+    const left = async () => (await made.plane.hydrate(id)).messages.length
+    expect(await left()).toBe(1)
+    await Effect.runPromise(made.chat.db.run(sql`DROP TABLE event_sequence`))
     await expect(key.run((sessions) => sessions.remove(SessionSchema.Id.make(id)))).rejects.toThrow(/event_sequence/)
     expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
       _tag: 'Session.NotFoundError',
     })
-    expect(await left()).toEqual([0, 0, 0])
+    expect(await left()).toBe(0)
   })
 
-  test('a delete whose session.deleted publish and captures cleanup both fail still clears the messages and page changes, and rejects with both failures, the publish first', async () => {
-    const stateRoot = tempDir('conciv-core-unit-')
-    const harness = createTestHarness(requireClaude())
-    const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
-    onTestFinished(() => made.dispose())
-    const key = sessionKey(made)
-    const id = SessionId.parse('conciv_deleted_while_the_bus_and_captures_are_broken')
-    await ensureRow(made.chat.rows, id)
-    expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
-    const scope = made.runtime.forSession(id)
-    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
-    const left = async () => [(await made.plane.hydrate(id)).messages.length, (await scope.page.changes()).length]
-    expect(await left()).toEqual([1, 1])
-    made.chat.db.run(sql`DROP TABLE event_sequence`)
-    made.chat.db.run(sql`DROP TABLE tool_captures`)
-    const failure = await key
-      .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
-      .then(
-        () => null,
-        (error: unknown) => error,
-      )
-    expect(failure).toBeInstanceOf(AggregateError)
-    expect(failure).toMatchObject({
-      errors: [
-        expect.objectContaining({message: expect.stringMatching(/event_sequence/)}),
-        expect.objectContaining({message: expect.stringMatching(/tool_captures/)}),
-      ],
-    })
-    expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
-      _tag: 'Session.NotFoundError',
-    })
-    expect(await left()).toEqual([0, 0])
-  })
-
-  test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, captures and page changes, and rejects with the drafts failure', async () => {
+  test('a delete whose drafts delete fails still publishes session.deleted and clears the messages, and rejects with the drafts failure', async () => {
     const stateRoot = tempDir('conciv-core-unit-')
     const harness = createTestHarness(requireClaude())
     const made = await bootMadeApp({stateRoot, cwd: stateRoot, harness, print: () => {}})
@@ -3495,22 +2890,13 @@ describe('plugin host bus', () => {
     const id = SessionId.parse('conciv_deleted_while_drafts_are_broken')
     await ensureRow(made.chat.rows, id)
     expect(await made.plane.followUp(id, 'leave a message behind')).toEqual({kind: 'delivered'})
-    const scope = made.runtime.forSession(id)
-    await scope.captures.store('call-1', {
-      after: {kind: 'after', ts: 1, descriptor: {tagName: 'input', selectorPath: '#agree'}},
-    })
-    await appendPageChange(made.chat.db, id, {verb: 'check', selector: '#agree', args: {}}, 1)
-    const left = async () => [
-      (await made.plane.hydrate(id)).messages.length,
-      (await scope.captures.list()).captures.length,
-      (await scope.page.changes()).length,
-    ]
-    expect(await left()).toEqual([1, 1, 1])
+    const left = async () => (await made.plane.hydrate(id)).messages.length
+    expect(await left()).toBe(1)
     const heard: {type: string; data: unknown}[] = []
     await made.pluginHost.runPromise(
       Bus.Service.use((bus) => bus.listen((event) => Effect.sync(() => heard.push(event)))),
     )
-    made.chat.db.run(sql`DROP TABLE drafts`)
+    await Effect.runPromise(made.chat.db.run(sql`DROP TABLE drafts`))
     const failure = await key
       .run((sessions) => sessions.remove(SessionSchema.Id.make(id)))
       .then(
@@ -3526,7 +2912,7 @@ describe('plugin host bus', () => {
     expect(await key.fail((sessions) => sessions.get(SessionSchema.Id.make(id)))).toMatchObject({
       _tag: 'Session.NotFoundError',
     })
-    expect(await left()).toEqual([0, 0, 0])
+    expect(await left()).toBe(0)
   })
 
   test('a plugin experimental.idle hook fires for a run that completes and not for one that fails or is stopped, while turnEnd fires for all three', async () => {
@@ -3647,7 +3033,9 @@ describe('plugin host bus', () => {
     await compacting.unregister()
     expect(await made.runtime.forSession(id).run.compact()).toBeUndefined()
     expect(await waitingThenCompacted).toEqual({kind: 'delivered'})
-    const compactedBoundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    const compactedBoundaries = await Effect.runPromise(
+      made.chat.db.select().from(markers).where(eq(markers.sessionId, id)),
+    )
     expect(compactedBoundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
     expect(published.flatMap((chunk) => idleFailedEvent.parse(chunk) ?? [])).toHaveLength(1)
 
@@ -3666,7 +3054,8 @@ describe('plugin host bus', () => {
     const key = sessionKey(made)
     const id = SessionId.parse('conciv_keyed_run')
     await ensureRow(made.chat.rows, id)
-    const runs = async () => (await made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id))).length
+    const runs = async () =>
+      (await Effect.runPromise(made.chat.db.select().from(chatRuns).where(eq(chatRuns.threadId, id)))).length
 
     harness.script.hold()
     const started = Promise.withResolvers<void>()
@@ -3703,7 +3092,7 @@ describe('plugin host bus', () => {
     expect(compaction.time.created).toBeGreaterThanOrEqual(before)
     expect(compaction.time.created).toBeLessThanOrEqual(after)
     await key.run((sessions) => sessions.wait(SessionSchema.Id.make(id)))
-    const boundaries = await made.chat.db.select().from(markers).where(eq(markers.sessionId, id))
+    const boundaries = await Effect.runPromise(made.chat.db.select().from(markers).where(eq(markers.sessionId, id)))
     expect(boundaries.filter((marker) => marker.kind === 'compact')).toHaveLength(1)
     expect(await runs()).toBe(ranBefore + 1)
     expect(
@@ -3989,13 +3378,13 @@ describe('plugin host bus', () => {
       runId: 'never-seen-run',
     })
     expect((await firstTurn.done()).errors()).toEqual([])
-    expect(currentRow(made.chat.db, neverSeen)?.deletedAt).toBeNull()
+    expect((await currentRow(made.chat.db, neverSeen))?.deletedAt).toBeNull()
 
     const quiet = await created()
     const quietNative = HarnessSessionId.parse(randomUUID())
     await recordNativeId(made.chat.db, quiet, harness.id, quietNative)
     await kit.rpc.sessions.delete({sessionId: quiet})
-    const tombstone = currentRow(made.chat.db, quiet)
+    const tombstone = await currentRow(made.chat.db, quiet)
     const quietTranscript = requireTranscriptPath(harness)(made.chat.cwd, quietNative)
     mkdirSync(dirname(quietTranscript), {recursive: true})
     writeFileSync(
@@ -4006,7 +3395,7 @@ describe('plugin host bus', () => {
       }),
     )
     const quietHydration = await made.plane.hydrate(quiet)
-    expect(currentRow(made.chat.db, quiet)?.updatedAt).toBe(tombstone?.updatedAt)
+    expect((await currentRow(made.chat.db, quiet))?.updatedAt).toBe(tombstone?.updatedAt)
     expect(quietHydration.messages).toEqual([])
     expect((await kit.rpc.chat.hydrate({sessionId: quiet})).messages).toEqual([])
 
@@ -4066,18 +3455,23 @@ describe('session.created on the plugin host bus', () => {
     )
     const created = () => heard.filter((event) => event.type === 'session.created').map((event) => event.data)
     const bornAs = (sessionId: string) => created().filter((data) => isEqual(data, {sessionID: sessionId}))
-    const rowOfNative = (nativeId: HarnessSessionId) =>
-      made.chat.db
-        .select({id: sessionTable.id})
-        .from(sessionTable)
-        .where(eq(sessionTable.harnessSessionId, nativeId))
-        .get()?.id ?? 'no row'
-    const externalRows = () =>
-      made.chat.db
-        .select({id: sessionTable.id})
-        .from(sessionTable)
-        .where(and(eq(sessionTable.origin, 'external'), isNull(sessionTable.harnessSessionId)))
-        .all()
+    const rowOfNative = async (nativeId: HarnessSessionId) =>
+      (
+        await Effect.runPromise(
+          made.chat.db
+            .select({id: sessionTable.id})
+            .from(sessionTable)
+            .where(eq(sessionTable.harnessSessionId, nativeId))
+            .get(),
+        )
+      )?.id ?? 'no row'
+    const externalRows = async () =>
+      Effect.runPromise(
+        made.chat.db
+          .select({id: sessionTable.id})
+          .from(sessionTable)
+          .where(and(eq(sessionTable.origin, 'external'), isNull(sessionTable.harnessSessionId))),
+      )
 
     const draft = SessionId.parse('conciv_born_on_first_send')
     await runTurn(kit, 'the first send', draft)
@@ -4103,12 +3497,12 @@ describe('session.created on the plugin host bus', () => {
     })
     await hub.tools()
     await hub.close()
-    const [external] = externalRows()
-    expect(externalRows()).toHaveLength(1)
+    const [external] = await externalRows()
+    expect(await externalRows()).toHaveLength(1)
     expect.soft(bornAs(external?.id ?? 'no external row')).toHaveLength(1)
 
     await kit.rpc.sessions.list({limit: 30})
-    const fromList = rowOfNative(listedNative)
+    const fromList = await rowOfNative(listedNative)
     expect.soft(bornAs(fromList)).toHaveLength(1)
     await kit.rpc.sessions.list({limit: 30})
     expect.soft(bornAs(fromList)).toHaveLength(1)
@@ -4612,7 +4006,7 @@ describe('session context hook', () => {
       ),
     ).toEqual(['the summary the plugin wrote'])
     expect(hydrated.lastRun?.phase).toBe('completed')
-    const [row] = await made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session))
+    const [row] = await Effect.runPromise(made.chat.db.select().from(sessionTable).where(eq(sessionTable.id, session)))
     expect(row?.usage).toMatchObject({
       inputTokens: 40,
       outputTokens: 7,
@@ -4869,7 +4263,7 @@ describe('plugin permission cards', () => {
             ),
           ),
         ),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     const clients = new AbortController()
@@ -5084,13 +4478,13 @@ describe('plugin permission cards', () => {
       expect((await plane.hydrate(id)).pendingApprovals.map((entry) => entry.approvalId)).toEqual([asked.id]),
     )
     await fixture.dispose()
-    const reopened = openDb(stateRoot)
-    onTestFinished(() => reopened.$client.close())
-    const stored = reopened
-      .select({value: chatMetadata.valueJson})
-      .from(chatMetadata)
-      .where(eq(chatMetadata.key, `${id}:pending-approvals`))
-      .all()
+    const reopened = await openDatabase(stateRoot)
+    const stored = await Effect.runPromise(
+      reopened
+        .select({value: chatMetadata.valueJson})
+        .from(chatMetadata)
+        .where(eq(chatMetadata.key, `${id}:pending-approvals`)),
+    )
     expect(stored).toEqual([{value: []}])
   })
 })
@@ -5259,19 +4653,23 @@ describe('direct tools on the MCP surface', () => {
       )
         .result.content.map((part) => part.text)
         .join('')
-    await made.chat.db
-      .update(sessionTable)
-      .set({permissions: sql`'{not json'`})
-      .where(eq(sessionTable.id, id))
+    await Effect.runPromise(
+      made.chat.db
+        .update(sessionTable)
+        .set({permissions: sql`'{not json'`})
+        .where(eq(sessionTable.id, id)),
+    )
     expect(await listed()).toEqual(builtIn)
     expect(await searchedCoded()).not.toContain('external_unit_coded')
     const rpc = makeRpcClient(`${origin}/t/${made.agentToken}`)
     expect((await rpc.sessions.list(undefined)).sessions.map((session) => session.id)).toContain(id)
     expect(await rpc.sessions.get({sessionId: id})).toMatchObject({id})
-    await made.chat.db
-      .update(sessionTable)
-      .set({permissions: sql`'[{"action":"unit_coded"}]'`})
-      .where(eq(sessionTable.id, id))
+    await Effect.runPromise(
+      made.chat.db
+        .update(sessionTable)
+        .set({permissions: sql`'[{"action":"unit_coded"}]'`})
+        .where(eq(sessionTable.id, id)),
+    )
     expect(await listed()).toEqual(builtIn)
     expect(await searchedCoded()).not.toContain('external_unit_coded')
   })
@@ -5312,7 +4710,7 @@ describe('plugin context keys provided by core', () => {
       }
     }
     const sonnetVariants = [{id: 'low', settings: {effort: 'low'}}]
-    const db = openDb(root)
+    const db = await openDatabase(root)
     const id = SessionId.parse('conciv_entries')
     const other = SessionId.parse('conciv_entries_other')
     await bornRows(root, [id, other])
@@ -5344,7 +4742,7 @@ describe('plugin context keys provided by core', () => {
           Layer.mergeAll(Skill.layer, Agent.layer, PluginHooks.layer, Image.layer, permissionSessions(db)),
         ),
         Layer.provideMerge(Layer.mergeAll(Bus.configured(), KV.layer)),
-        Layer.provideMerge(Database.layer({path: db.$client.location() ?? ':memory:'})),
+        Layer.provideMerge(Database.configuredClient(Layer.succeed(SqliteClient.SqliteClient, db.$client))),
       ),
     )
     onTestFinished(() => host.dispose())
