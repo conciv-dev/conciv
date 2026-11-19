@@ -1031,6 +1031,26 @@ describe('tooltip icon button', () => {
   })
 })
 
+describe('tooltip on a rising panel', () => {
+  it('lays the tooltip outside the panel that is still rising, so it opens beside the focused button', async () => {
+    render(() => (
+      <section aria-label="Rising panel" class="p-10 anim-rise">
+        <ClipboardCopyButton text="rising" writeText={() => Promise.resolve()} />
+      </section>
+    ))
+    const panel = page.getByRole('region', {name: 'Rising panel'})
+    const button = panel.getByRole('button', {name: 'Copy'})
+    await expect.element(button).toBeVisible()
+
+    await userEvent.tab()
+
+    await expect.element(button).toHaveFocus()
+    expect(button.element().matches(':focus-visible')).toBe(true)
+    await expect.element(page.getByRole('tooltip', {name: 'Copy'})).toBeVisible()
+    await expect.element(panel.getByRole('tooltip')).not.toBeInTheDocument()
+  })
+})
+
 describe('tooltip in a shadow root', () => {
   afterEach(() => {
     cleanupMounts()

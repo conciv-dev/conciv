@@ -189,7 +189,7 @@ export {
   type ThreadRootProps,
   type TurnPrefixSource,
 } from './styled/thread.js'
-export {Composer, type ComposerProps} from './styled/composer.js'
+export {Composer, ComposerAttachment, type ComposerProps} from './styled/composer.js'
 export {
   Markdown,
   MarkdownHighlightProvider,

@@ -1,4 +1,4 @@
-import type {JSX} from 'solid-js'
+import type {Component, JSX} from 'solid-js'
 import type {IconName} from './icon-name.js'
 import {Registry} from './core.js'
 import type {ComposerNote, SessionRef, MountedSession, SessionScreen} from './host-apis.js'
@@ -531,3 +531,48 @@ export const NoteCard = Registry.define<NoteCard>('note-card')
  * ```
  */
 export const Slot = Registry.define<Slot>('slot')
+
+export interface ToolProps {
+  input: Record<string, unknown>
+  error?: string
+  metadata: Record<string, unknown>
+  tool: string
+  sessionID?: string
+  output?: string
+  status?: string
+  hideDetails?: boolean
+  defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  fileOpen?: (path: string) => boolean | undefined
+  onFileOpenChange?: (path: string, open: boolean) => void
+  deferContent?: boolean
+  virtualizeDiff?: boolean
+  onContentRendered?: () => void
+  pendingFiles?: readonly string[]
+  forceOpen?: boolean
+  locked?: boolean
+}
+
+export type ToolComponent = Component<ToolProps>
+
+export interface ToolRegistry {
+  readonly name: string
+  readonly render?: ToolComponent
+  readonly errorComponent?: ToolComponent
+}
+
+/**
+ * The registry of tool renders, by tool name. A call to the tool draws the render of the most recently loaded plugin
+ * that registered the name; when that plugin unloads, the earlier one draws again. A tool with no render draws the
+ * generic card. A call that failed draws the winning entry's errorComponent, or the error card when it has none.
+ *
+ * @example
+ * ```tsx
+ * ctx.add(ToolRegistry, {
+ *   name: "page_click",
+ *   render: (props) => <BasicTool {...props} icon="mouse-pointer" trigger={{title: "Click", subtitle: selector(props.input)}} />,
+ * })
+ * ```
+ */
+export const ToolRegistry = Registry.define<ToolRegistry>('tool-registry')

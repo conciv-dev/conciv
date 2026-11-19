@@ -26,6 +26,21 @@ function SessionLog(props: {model: TerminalModel; label: string}): JSX.Element {
   return <section aria-label={props.label}>{text()}</section>
 }
 
+function WrapLog(props: {model: TerminalModel; label: string}): JSX.Element {
+  const [row, setRow] = createSignal(0)
+  onMount(() => {
+    const {terminal} = props.model
+    terminal.onWriteParsed(() =>
+      setRow(
+        translateBuffer(terminal)
+          .split('\n')
+          .findIndex((line) => line.includes('Z')) + 1,
+      ),
+    )
+  })
+  return <section aria-label={props.label}>Z on row {row()}</section>
+}
+
 function region(label: string) {
   return page.getByRole('region', {name: label})
 }
@@ -408,6 +423,34 @@ describe('terminal rail', () => {
     const {dispose} = mount(() => <Terminal model={model} rail={<Rail />} />)
     await expect.element(page.getByText('rail build 1')).toBeVisible()
     expect(builds.count).toBe(1)
+    dispose()
+  })
+})
+
+describe('terminal screen inset', () => {
+  it('wraps lines at the columns that fit inside the screen padding', async () => {
+    const unpadded = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const padded = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const {dispose} = mount(() => (
+      <>
+        <style>{'.inset-screen{box-sizing:border-box;padding-inline:48px}'}</style>
+        <div style={{width: '384px', height: '120px'}}>
+          <TerminalPrimitive.Root model={unpadded}>
+            <TerminalPrimitive.Screen />
+          </TerminalPrimitive.Root>
+        </div>
+        <div style={{width: '480px', height: '120px'}}>
+          <TerminalPrimitive.Root model={padded}>
+            <TerminalPrimitive.Screen class="inset-screen" />
+          </TerminalPrimitive.Root>
+        </div>
+        <WrapLog model={padded} label="padded wrap" />
+      </>
+    ))
+    const fittedColumns = unpadded.terminal.cols
+    expect(fittedColumns).toBeLessThan(80)
+    padded.terminal.write(`${'a'.repeat(fittedColumns)}Z`)
+    await expect.element(region('padded wrap')).toMatchTextContent('Z on row 2')
     dispose()
   })
 })

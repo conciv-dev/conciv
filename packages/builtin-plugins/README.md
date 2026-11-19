@@ -101,7 +101,7 @@ A page failure is the plugin's own error, a `[page.<code>]` message; the old reg
 ## test-runner-card
 
 The card the thread draws for a finished `test_runner_run` or `test_runner_status` call of the test-runner plugin
-(built-in id `test-runner-card`, a `ToolCall` contribution): the count pills, each file as a disclosure named by the
+(built-in id `test-runner-card`, a `ToolRegistry` contribution): the count pills, each file as a disclosure named by the
 last two path segments, a failing test closed until opened, and its failure with Open (the desktop editor, at the
 failing line) and Fix this (a prefilled composer message). The card shows the finished result; the plugin's Tests tab
 streams the live rows.
@@ -115,10 +115,10 @@ extension is deleted.
 
 ## recorder-card
 
-The recorder tools (`recording_start`, `recording_stop`, `recording_pull`) share one card claim that draws the whole
-card: the started capture's id, the pulled or stopped window's action list with its window, action and keyframe
-counts, and a failed call's error. It lives here, not in `@conciv/plugin-recorder`, because a whole-card claim is for
-built-in plugins only and a plugin's own bundle may not import the kit the widget bundles.
+The recorder tools (`recording_start`, `recording_stop`, `recording_pull`) share one `ToolRegistry` render: the
+started capture's id, and the pulled or stopped window's action list with its window, action and keyframe counts. A
+failed call draws the kit's error card. It lives here, not in `@conciv/plugin-recorder`, because the render is built
+from the kit the widget bundles, which a plugin's own bundle may not import.
 
 ## terminal
 
