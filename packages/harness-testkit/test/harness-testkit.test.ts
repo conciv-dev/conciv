@@ -973,7 +973,7 @@ describe('until', () => {
 
 describe('rpc clients abort a stream after the request behind it was collected', () => {
   const queries = implement(contract).page.queries.handler(async function* ({signal}) {
-    yield {requestId: 'first', query: null}
+    yield {kind: 'ready' as const, browserTab: 'b1'}
     if (signal) await once(signal, 'abort')
   })
   const handler = new RPCHandler({page: {queries}})
@@ -996,7 +996,7 @@ describe('rpc clients abort a stream after the request behind it was collected',
 
   async function expectAbortAfterCollection(client: RpcClient): Promise<void> {
     const abort = new AbortController()
-    const stream = await client.page.queries(undefined, {signal: abort.signal})
+    const stream = await client.page.queries({focus: {focused: true, visible: true}}, {signal: abort.signal})
     await stream.next()
     setFlagsFromString('--expose-gc')
     const collect: unknown = runInNewContext('gc')

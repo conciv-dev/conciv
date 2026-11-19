@@ -1,6 +1,9 @@
 import pTimeout, {TimeoutError} from 'p-timeout'
 import type {ConsoleMessage, Frame, Page, Request, Response, WebSocket as PageWebSocket} from 'playwright'
-import {PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
+import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
+import {decodeRequestMessage, decodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {z} from 'zod'
 
 const SUBSCRIBE_TIMEOUT_MS = 30_000
 const JOURNAL_LIMIT = 200
@@ -8,6 +11,11 @@ const CONSOLE_TEXT_LIMIT = 200
 const SNAPSHOT_TIMEOUT_MS = 2_000
 const ERROR_SCREEN_TEXT_LIMIT = 300
 const FAILED_STATUS = 400
+const PAGE_QUERIES_PATH = '/page/queries'
+
+const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+
+const ReadyItemSchema = z.object({kind: z.literal('ready')})
 
 export type PagePlaneWatch = {
   subscribed: () => Promise<void>
@@ -98,33 +106,41 @@ async function explain(input: {line: string; journal: Journal; page: Page}): Pro
   return [input.line, ...entries, await pageState(input.page)].join('\n')
 }
 
-function parsedJson(payload: string): unknown {
-  try {
-    return JSON.parse(payload)
-  } catch {
-    return null
+type WireFrame = string | Buffer
+
+async function pageQueriesRequest(payload: WireFrame): Promise<string | null> {
+  const decoded = await decodeRequestMessage(payload).catch(() => null)
+  if (decoded === null || decoded[1] !== MessageType.REQUEST) return null
+  return decoded[2].url.pathname.endsWith(PAGE_QUERIES_PATH) ? decoded[0] : null
+}
+
+async function answersReady(payload: WireFrame, requests: ReadonlySet<string>): Promise<boolean> {
+  const decoded = await decodeResponseMessage(payload).catch(() => null)
+  if (decoded === null || decoded[1] !== MessageType.EVENT_ITERATOR || !requests.has(decoded[0])) return false
+  return ReadyItemSchema.safeParse(serializer.deserialize(decoded[2].data)).success
+}
+
+function isRpcSocket(socket: PageWebSocket): boolean {
+  return new URL(socket.url()).pathname.endsWith(RPC_WS_PATH)
+}
+
+function watchReady(socket: PageWebSocket, open: () => void, unreadable: (error: unknown) => void): void {
+  const requests = new Set<string>()
+  const read = {tail: Promise.resolve()}
+  const inOrder = (step: () => Promise<void>): void => {
+    read.tail = read.tail.then(step).catch(unreadable)
   }
-}
-
-function isReadyFrame(payload: string): boolean {
-  const frame = PushFrameSchema.safeParse(parsedJson(payload))
-  return frame.success && frame.data.channel === 'ready'
-}
-
-function isPushSocket(socket: PageWebSocket): boolean {
-  return socket.url().includes(PUSH_WS_PATH)
-}
-
-function waitForReady(socket: PageWebSocket): Promise<boolean> {
-  return socket
-    .waitForEvent('framereceived', {
-      timeout: SUBSCRIBE_TIMEOUT_MS,
-      predicate: (event) => isReadyFrame(String(event.payload)),
-    })
-    .then(
-      () => true,
-      () => false,
-    )
+  socket.on('framesent', (event) =>
+    inOrder(async () => {
+      const requestId = await pageQueriesRequest(event.payload)
+      if (requestId !== null) requests.add(requestId)
+    }),
+  )
+  socket.on('framereceived', (event) =>
+    inOrder(async () => {
+      if (await answersReady(event.payload, requests)) open()
+    }),
+  )
 }
 
 function readyGate(): ReadyGate {
@@ -140,15 +156,13 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   const onSocket = (socket: PageWebSocket): void => {
     note(`websocket open ${socket.url()}`)
     const gate = held.gate
-    if (isPushSocket(socket)) {
-      void waitForReady(socket).then((ready) => {
-        if (ready) gate.open()
-      })
+    if (isRpcSocket(socket)) {
+      watchReady(socket, gate.open, (error) => note(`rpc frame unreadable: ${failureReason(error)}`))
     }
     const onClose = (): void => {
       note(`websocket close ${socket.url()}`)
       socketCleanups.delete(cleanup)
-      if (isPushSocket(socket) && held.gate === gate) held.gate = readyGate()
+      if (isRpcSocket(socket) && held.gate === gate) held.gate = readyGate()
     }
     const cleanup = (): void => {
       socket.off('close', onClose)
@@ -199,7 +213,7 @@ function watchPagePlane(page: Page): PagePlaneWatch {
         fallback: async () => {
           throw new TimeoutError(
             await explain({
-              line: `no push socket on ${PUSH_WS_PATH} sent the ready frame that marks it serving page queries`,
+              line: `no page.queries stream on ${RPC_WS_PATH} yielded the ready that marks it serving page queries`,
               journal,
               page,
             }),

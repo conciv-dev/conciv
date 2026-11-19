@@ -17,14 +17,15 @@ import {
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
+import {ORPCError} from '@orpc/client'
 import {
+  browserRpcConnection,
   engineHeaders,
   engineWebSocket,
   type ChatHistoryWindow,
   type ChatHydration,
   type RpcClient,
 } from '@conciv/contract'
-import {acquirePushChannel} from './push-channel.js'
 import {readingValues, relayedValues} from './stream-relay.js'
 
 export type ChatTransport = 'websocket' | 'fetch'
@@ -51,9 +52,7 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   close: () => void
 }
 
-type PushEvents = {events: (abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>; dispose: () => void}
-
-type PushSource = () => PushEvents
+type SessionEvents = (abortSignal: AbortSignal) => AsyncIterable<ChatEvent>
 
 const PROBE_TIMEOUT_MS = 2_000
 
@@ -175,12 +174,12 @@ function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | und
 
 async function* announcedRuns(
   chosen: Selected,
-  channel: PushEvents,
+  events: SessionEvents,
   options: ChatConnectionOptions,
   scope: AbortSignal,
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
-  for await (const chunk of channel.events(scope)) {
+  for await (const chunk of events(scope)) {
     if (scope.aborted) return
     const announced = sessionRunEvent.parse(chunk)
     if (announced === null || !(await options.joinsRun?.(announced.runId))) continue
@@ -204,22 +203,59 @@ async function* finishedOnItsLifecycle(
 
 async function* watching(
   selected: Promise<Selected>,
-  push: PushSource,
+  events: SessionEvents,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
   const chosen = await selected
-  const channel = push()
-  try {
-    const sources: Source<ChatEvent>[] = [
-      (scope) => chosen.adapter.subscribe(scope),
-      (scope) => channel.events(scope),
-      (scope) => announcedRuns(chosen, channel, options, scope, threadId),
-    ]
-    yield* noticing(merged(sources, abortSignal), options)
-  } finally {
-    channel.dispose()
+  const sources: Source<ChatEvent>[] = [
+    (scope) => chosen.adapter.subscribe(scope),
+    events,
+    (scope) => announcedRuns(chosen, events, options, scope, threadId),
+  ]
+  yield* noticing(merged(sources, abortSignal), options)
+}
+
+function trustedAgain(apiBase: string, signal: AbortSignal): Promise<void> {
+  const {trust, release} = browserRpcConnection(apiBase)
+  if (trust.isTrusted() || signal.aborted) {
+    release()
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => {
+    const settle = (): void => {
+      stopTrust()
+      signal.removeEventListener('abort', settle)
+      release()
+      resolve()
+    }
+    const stopTrust = trust.subscribe((status) => {
+      if (status === 'trusted') settle()
+    })
+    signal.addEventListener('abort', settle)
+  })
+}
+
+function refused(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === 'UNAUTHORIZED'
+}
+
+async function* sessionEvents(
+  rpc: RpcClient,
+  apiBase: string,
+  sessionId: string,
+  signal: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  while (!signal.aborted) {
+    try {
+      yield* await rpc.chat.events({sessionId}, {signal})
+      return
+    } catch (error) {
+      if (signal.aborted) return
+      if (!refused(error)) throw error
+    }
+    await trustedAgain(apiBase, signal)
   }
 }
 
@@ -264,7 +300,7 @@ export function chatConnection(
   sessionId: string,
   options: ChatConnectionOptions = {},
 ): ChatConnection {
-  const push: PushSource = () => acquirePushChannel({apiBase, sessionId})
+  const events: SessionEvents = (signal) => sessionEvents(rpc, apiBase, sessionId, signal)
   const live = new Set<WebSocket>()
   const chosen: {transport: ChatTransport | null} = {transport: null}
   const selected = select(apiBase, options, live).then((choice) => {
@@ -278,7 +314,7 @@ export function chatConnection(
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(selected, push, options, abortSignal, sessionId),
+    subscribe: (abortSignal) => watching(selected, events, options, abortSignal, sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       const {adapter} = await selected
       if (messages.every((message) => 'parts' in message)) {

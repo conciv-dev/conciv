@@ -16,8 +16,7 @@ import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {test as browserTest} from '@conciv/browser-fixture'
 import {createHash} from 'node:crypto'
 import type {Duplex} from 'node:stream'
-import {PUSH_WS_PATH} from '@conciv/protocol/push-types'
-import {watchPushWire} from '../src/push-wire.js'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 
 describe('core kit seams', () => {
   const STALENESS: EngineStaleness = {
@@ -428,7 +427,7 @@ describe('rpc faults by input', () => {
   )
 })
 
-describe('push wire', () => {
+describe('rpc socket liveness', () => {
   const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
   const handshakeAnswer = (key: string): string =>
@@ -442,7 +441,7 @@ describe('push wire', () => {
     ].join('\r\n')
 
   browserTest(
-    'a push socket counts as live once it opens, not when its handshake is sent',
+    'an rpc socket counts as live once the page speaks on it, not when its handshake is sent',
     async ({browser}) => {
       const upgraded = Promise.withResolvers<() => void>()
       const upgrades: Duplex[] = []
@@ -455,8 +454,9 @@ describe('push wire', () => {
       const bound = await listenLocal(server)
       const page = await browser.newPage()
       try {
+        const watch = rpcSocketFor(page)
+        await watch.installed
         await page.goto(bound.base)
-        const watch = watchPushWire(page)
         const order: string[] = []
         const live = watch.awaitLive().then(() => order.push('live'))
         const requested = page.waitForEvent('websocket')
@@ -465,7 +465,7 @@ describe('push wire', () => {
             const socket = new WebSocket(url)
             socket.addEventListener('open', () => socket.send('{}'))
           },
-          `${bound.base.replace('http:', 'ws:')}${PUSH_WS_PATH}`,
+          `${bound.base.replace('http:', 'ws:')}${RPC_WS_PATH}`,
         )
         const answer = await upgraded.promise
         await requested

@@ -10,7 +10,7 @@ The testkit runs the real product path: the page under test uses the same transp
 
 ## Interface
 
-- `exports` subpaths (`package.json`): ./connect-handshake, ./core-kit, ./host/grab, ./widget-suite, ./page-plane, ./listen-local, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./push-wire, ./rpc-fault, ./rpc-socket, ./rpc-observer, ./chat-fault
+- `exports` subpaths (`package.json`): ./connect-handshake, ./core-kit, ./host/grab, ./widget-suite, ./page-plane, ./listen-local, ./navigation-state, ./rpc-counts, ./rpc-wire, ./chat-wire, ./rpc-fault, ./rpc-socket, ./rpc-observer, ./chat-fault
 - `scripts` (`package.json`): build, typecheck, lint, test, publint, attw
 - `vitest.config.ts`: project 'plugin-testkit', node env, test/**/*.test.ts
 - Subdirectories:

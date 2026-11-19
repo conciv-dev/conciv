@@ -10,7 +10,7 @@ Package root for the wire types package. It builds 24 ESM entry points from src 
 
 ## Interface
 
-- `exports` (`package.json`): 24 subpaths: ./chat-types, ./push-types, ./chat-busy, ./chat-message-types, ./chat-event-types, ./chat-tool-types, ./usage-types, ./ui-types, ./editor-types, ./harness-types, ./framework-types, ./rpc-types, ./terminal-types, ./bundler-types, ./config-types, ./page-types, ./element-capture-sanitize, ./element-capture-types, ./page-introspect-types, ./tool-icon-types, ./tool-view-types, ./connect-ports, ./state-types, ./event-bus
+- `exports` (`package.json`): 23 subpaths: ./chat-types, ./chat-busy, ./chat-message-types, ./chat-event-types, ./chat-tool-types, ./usage-types, ./ui-types, ./editor-types, ./harness-types, ./framework-types, ./rpc-types, ./terminal-types, ./bundler-types, ./config-types, ./page-types, ./element-capture-sanitize, ./element-capture-types, ./page-introspect-types, ./tool-icon-types, ./tool-view-types, ./connect-ports, ./state-types, ./event-bus
 - `dependencies` (`package.json`): @tanstack/ai and zod
 - `scripts` (`package.json`): build (`tsdown && tsc -p tsconfig.build.json`), typecheck, lint, test, publint, attw
 - Subdirectories:

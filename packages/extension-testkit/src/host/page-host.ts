@@ -1,4 +1,4 @@
-import {acquirePushChannel} from '@conciv/client'
+import {pageQueries} from '@conciv/client'
 import {
   browserRpcConnection,
   forgetMagicLinkCode,
@@ -47,10 +47,9 @@ function servePagePlane(input: {
   session: string
 }): void {
   if (input.session === '') return
-  const channel = acquirePushChannel({apiBase: input.apiBase, sessionId: input.session})
   const {rpc} = makeBrowserRpcClient(input.apiBase, {session: () => input.session})
   startPagePlane({
-    source: {queries: channel.queries, reply: (reply) => rpc.page.reply(reply)},
+    source: {queries: (signal) => pageQueries(rpc, signal), reply: (reply) => rpc.page.reply(reply)},
     driver: makeDomPageDriver({
       tools: collectClientTools([input.extension]),
       effects: collectClientEffects([{name: input.extension.name, effects: input.effects}]),

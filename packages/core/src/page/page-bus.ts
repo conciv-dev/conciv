@@ -94,6 +94,10 @@ export type PageAnswer = {result: Record<string, unknown>; capture?: PageCapture
 
 export type BrowserTabFocus = {focusedAt: number; visible: boolean}
 
+export type BrowserTabFocusReport = {focused: boolean; visible: boolean}
+
+export type BrowserTabSubscription = {browserTab: string; unsubscribe: () => void}
+
 export type QueuePlay = {accepted: Promise<PageAnswer>; played: Promise<PageOutcome>[]}
 
 export const QUEUED_ACTION_MS = 7000
@@ -109,7 +113,8 @@ export type PageBus = {
   anySubscriber: () => boolean
   openSessions: () => Array<{sessionId: SessionId; browserTabs: string[]}>
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
-  subscribe: (sessionId: SessionId, emit: (frame: unknown) => void, focus?: () => BrowserTabFocus) => () => void
+  subscribe: (sessionId: SessionId, emit: (frame: unknown) => void, focus?: BrowserTabFocus) => BrowserTabSubscription
+  focus: (sessionId: SessionId, browserTab: string, report: BrowserTabFocusReport) => void
   playQueue: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>, queueId: string, count: number) => QueuePlay
 }
 
@@ -121,7 +126,7 @@ export type CaptureSink = (params: {
 
 export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink; queues: PageQueues}
 
-type BrowserTab = {id: string; order: number; emit: (frame: unknown) => void; focus: () => BrowserTabFocus}
+type BrowserTab = {id: string; order: number; emit: (frame: unknown) => void; focus: BrowserTabFocus}
 
 type SessionPage = {pending: Pending<PageOutcome>; browserTabs: Map<string, BrowserTab>}
 
@@ -169,18 +174,26 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
   function subscribe(
     sessionId: SessionId,
     emit: (frame: unknown) => void,
-    focus: () => BrowserTabFocus = () => UNREPORTED,
-  ): () => void {
+    focus: BrowserTabFocus = UNREPORTED,
+  ): BrowserTabSubscription {
     const page = ensurePage(sessionId)
     subscribed.count += 1
     const id = `b${subscribed.count}`
     page.browserTabs.set(id, {id, order: subscribed.count, emit, focus})
     arrivals.dispatchEvent(new Event(sessionId))
-    return () => {
-      page.browserTabs.delete(id)
-      page.pending.abandon(id, pageFailure('no-widget', `browser tab ${id} closed before it replied`))
-      dropIfIdle(sessionId, page)
+    return {
+      browserTab: id,
+      unsubscribe: () => {
+        page.browserTabs.delete(id)
+        page.pending.abandon(id, pageFailure('no-widget', `browser tab ${id} closed before it replied`))
+        dropIfIdle(sessionId, page)
+      },
     }
+  }
+
+  function focus(sessionId: SessionId, browserTab: string, report: BrowserTabFocusReport): void {
+    const tab = bySession.get(sessionId)?.browserTabs.get(browserTab)
+    if (tab !== undefined) tab.focus = reportedFocus(report, tab.focus)
   }
 
   function openSessions(): Array<{sessionId: SessionId; browserTabs: string[]}> {
@@ -345,8 +358,13 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
     openSessions,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
+    focus,
     playQueue,
   }
+}
+
+export function reportedFocus(report: BrowserTabFocusReport, previous: BrowserTabFocus = UNREPORTED): BrowserTabFocus {
+  return {focusedAt: report.focused ? performance.now() : previous.focusedAt, visible: report.visible}
 }
 
 function unanswered(): Error {
@@ -360,7 +378,7 @@ function isAbort(error: unknown): boolean {
 function focusOrder(page: SessionPage): BrowserTab[] {
   return orderBy(
     [...page.browserTabs.values()],
-    [(tab) => tab.focus().focusedAt, (tab) => (tab.focus().visible ? 1 : 0), (tab) => tab.order],
+    [(tab) => tab.focus.focusedAt, (tab) => (tab.focus.visible ? 1 : 0), (tab) => tab.order],
     ['desc', 'desc', 'desc'],
   )
 }
@@ -371,30 +389,35 @@ function frameRequestId(frame: unknown): string | null {
   return frame.requestId
 }
 
+export type PageQueryStreamItem =
+  | {kind: 'ready'; browserTab: string}
+  | {kind: 'query'; requestId: string; query: unknown}
+
 export async function* pageQueryStream(
   bus: PageBus,
   sessionId: SessionId,
   signal: AbortSignal,
-  focus?: () => BrowserTabFocus,
-): AsyncGenerator<{requestId: string; query: unknown}> {
+  focus: BrowserTabFocusReport,
+): AsyncGenerator<PageQueryStreamItem> {
   const queue: unknown[] = []
   const waiter = {wake: () => {}}
-  const unsubscribe = bus.subscribe(
+  const {browserTab, unsubscribe} = bus.subscribe(
     sessionId,
     (frame) => {
       queue.push(frame)
       waiter.wake()
     },
-    focus,
+    reportedFocus(focus),
   )
   const onAbort = () => waiter.wake()
   signal.addEventListener('abort', onAbort, {once: true})
   try {
+    yield {kind: 'ready', browserTab}
     while (!signal.aborted) {
       const frame = queue.shift()
       if (frame !== undefined) {
         const requestId = frameRequestId(frame)
-        if (requestId !== null) yield {requestId, query: frame}
+        if (requestId !== null) yield {kind: 'query', requestId, query: frame}
         continue
       }
       await new Promise<void>((resolve) => {

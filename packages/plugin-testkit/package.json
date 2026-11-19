@@ -63,10 +63,6 @@
       "types": "./dist/chat-wire.d.ts",
       "import": "./dist/chat-wire.js"
     },
-    "./push-wire": {
-      "types": "./dist/push-wire.d.ts",
-      "import": "./dist/push-wire.js"
-    },
     "./rpc-fault": {
       "types": "./dist/rpc-fault.d.ts",
       "import": "./dist/rpc-fault.js"

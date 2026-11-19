@@ -19,7 +19,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Invariants
 
-- `index.ts:catchUp` - the session's waiting asks as `approval-requested` events, then its active run as a `conciv.session-run` announcement; a new event subscriber receives these first, so an ask or a run started before it subscribed (a widget still opening its push socket, or one reconnecting) still reaches it
+- `index.ts:catchUp` - the session's waiting asks as `approval-requested` events, then its active run as a `conciv.session-run` announcement; a new event subscriber receives these first, so an ask or a run started before it subscribed (a widget still opening its `chat.events` stream, or one resubscribing) still reaches it
 - `index.ts:admitCall` - returns null when the call may run, else `{reason, message}`: `missing` (`session "<id>" does not exist`, when `deps.sessions.row` is null or the row is deleted), `denied`, or `asked` (the ask was just published). Given `until`, an ask holds the call until the user decides it (allowed: null, denied: `denied`) or `until` aborts (`asked`, the ask stays pending); every call waiting on the same approval resolves from one decision.
 - `index.ts:FIRST_START_TIMEOUT_MS` / `FIRST_OUTPUT_TIMEOUT_MS` - the chat server's two limits on a turn: an agent that has not started 30000 ms after the turn began fails with `the agent did not start`, and an agent that started but has given no output 30000 ms (or `firstOutputTimeoutMs`) after it started fails as silent.
 - `approvals.ts:createApprovalStore.asked` - a pending approval with the same `approvalId` is not added twice.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Source for @conciv/client: oRPC TanStack Query utils, a chat connection that picks the WebSocket transport or falls back to fetch/SSE and merges three event sources, a ref-counted push WebSocket per apiBase and session, and engine reachability tracking wired into TanStack's onlineManager.
+Source for @conciv/client: oRPC TanStack Query utils, a chat connection that picks the WebSocket transport or falls back to fetch/SSE and merges three event sources (its transport's subscription and two `rpc.chat.events` streams), the page plane's `rpc.page.queries` stream, and engine reachability tracking wired into TanStack's onlineManager.
 
 ## Interface
 
@@ -11,7 +11,6 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `ChatTransport` / `ChatTransportPreference` / `ChatConnectionOptions` (`chat-connection.ts`): 'websocket' | 'fetch', plus 'auto'
 - `chatSocketUrl` / `chatEventsUrl` / `socketOpens` (`chat-connection.ts`)
 - `useChatSession(options)` (`use-chat-session.ts`): `createChatSession` with chatConnection, `rpc.chat.stop` and `rpc.chat.permissionDecision`
-- `openPushChannel` / `acquirePushChannel` / `PushChannel` / `pushSocketUrl` / `livePushChannelCount` (`push-channel.ts`)
 - `setupEngineReachability` / `engineOnline` / `sustainedEngineOffline` / `isReachabilityError` / `subscribeEngineOnline` (`reachability.ts`)
 - `ENGINE_OFFLINE_GRACE_MS` = 1000 (`reachability.ts`)
 - `index.ts`: re-exports the modules above; `stream-relay.ts` helpers are internal
@@ -24,10 +23,8 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `announcedRuns` (`chat-connection.ts`): stops at the first announcement read after its scope aborts, so a closed chat never drains a backlog of announcements into hydrate calls; joins a pushed run only when `sessionRunEvent.parse` succeeds and `options.joinsRun(runId)` is true
 - `finishedOnItsLifecycle` (`chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own `aborted` run lifecycle (a stopped run, which has no `RUN_FINISHED`/`RUN_ERROR`) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating; a completed or failed run ends on its own `RUN_FINISHED`/`RUN_ERROR`, which the server sends after the lifecycle
 - `merged` (`chat-connection.ts`): aborts all sources when any finishes
-- `decoded` (`push-channel.ts`): drops frames failing `PushFrameSchema.safeParse`
-- `acquirePushChannel` (`push-channel.ts`): ref-counted per apiBase and session; the socket closes when the last holder releases
-- `openPushChannel` (`push-channel.ts`): a second socket beside the browser oRPC socket (`@conciv/contract`'s `/rpc-ws`); it is per session and carries server-pushed frames plus the `page-serving` announcement, which have no oRPC procedure, so it stays its own `/push-ws` socket
-- `openPushChannel` (`push-channel.ts`): the socket tells the server it serves page queries (`page-serving` frame) while at least one `queries()` consumer is live, and says so again on every reconnect and on every browser-tab focus, blur or visibility change, carrying `focus: {focused, visible}` (`document.hasFocus()`, `visibilityState`) so the engine sends each page query to the browser tab focused last; a `queries()` consumer stops it when aborted, returned or broken out of; a socket held only for `events()` never receives page queries, so a session the page is not showing has its page tools refused at once
+- `sessionEvents` (`chat-connection.ts`): an `rpc.chat.events` stream the engine refuses with `UNAUTHORIZED` (opened while logged out, or failed by a revoke) is not a chat error: it waits until the api base's trust is `trusted` again and subscribes anew, as the push socket's reconnect did
+- `pageQueries` (`page-queries.ts`): opens `rpc.page.queries` with the tab's focus (`document.hasFocus()`, `visibilityState`), drops the stream's `ready` and sends `rpc.page.focus` for its browser tab on every `ready` (a resubscribe after a reconnect gets a new tab id) and on every window focus, blur and visibility change, so the engine sends each page query to the tab focused last; it ends quietly when its signal aborts
 - `registerReachabilitySource` (`reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects
@@ -35,7 +32,6 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `socketOpens` (`chat-connection.ts`): opens and closes a probe WebSocket
 - `close` (`chat-connection.ts`): closes every tracked WebSocket
 - `hydrate` / SSE (`chat-connection.ts`): fetch calls and the `rpc.chat.hydrate` RPC
-- `openPushChannel` (`push-channel.ts`): partysocket ReconnectingWebSocket; module-level shared channel map
 - `setupEngineReachability` (`reachability.ts`): sets the onlineManager event listener and window online/offline listeners
 - `useChatSession` (`use-chat-session.ts`): calls `rpc.chat.stop` and `rpc.chat.permissionDecision`
 
