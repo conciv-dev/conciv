@@ -28,12 +28,13 @@ export const Rows: Story = {
   ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
     const clipped = c.getByText(CLIPPED)
     await userEvent.hover(clipped)
-    await expect(await c.findByRole('tooltip')).toHaveTextContent(CLIPPED)
+    await expect(await page.findByRole('tooltip')).toHaveTextContent(CLIPPED)
     await userEvent.unhover(clipped)
-    await waitFor(() => expect(c.queryByRole('tooltip')).toBeNull())
+    await waitFor(() => expect(page.queryByRole('tooltip')).toBeNull())
     await userEvent.hover(clipped)
-    await expect(await c.findByRole('tooltip')).toHaveTextContent(CLIPPED)
+    await expect(await page.findByRole('tooltip')).toHaveTextContent(CLIPPED)
   },
 }

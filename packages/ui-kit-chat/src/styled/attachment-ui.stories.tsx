@@ -70,14 +70,14 @@ export const ImageAndFileTiles: Story = {
   render: () => <Frame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
 
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
 
     await userEvent.hover(c.getByRole('button', {name: 'Remove diagram.png'}))
-    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
+    await waitFor(() => expect(page.getByRole('tooltip')).toHaveTextContent('Remove diagram.png'))
 
-    const page = within(canvasElement.ownerDocument.body)
     await userEvent.click(c.getByRole('button', {name: 'Open diagram.png'}))
     const viewer = await page.findByRole('dialog', {name: 'diagram.png'})
     await expect(within(viewer).getByRole('button', {name: 'Show actual size'})).toBeVisible()
