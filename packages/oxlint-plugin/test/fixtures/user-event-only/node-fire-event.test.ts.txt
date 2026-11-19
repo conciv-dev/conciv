@@ -1,0 +1,6 @@
+import {fireEvent, screen} from '@testing-library/dom'
+import {test} from 'vitest'
+
+test('clicks', () => {
+  fireEvent.click(screen.getByRole('button'))
+})

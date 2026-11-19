@@ -305,6 +305,33 @@ describe('solid test render', () => {
   })
 })
 
+describe('user event only', () => {
+  async function lintFixture(fixture: string): Promise<{line: number; message: string}[]> {
+    const diagnostics = await lintDiagnostics(
+      'test/oxlintrc-user-event-only.json',
+      `test/fixtures/user-event-only/${fixture}`,
+    )
+    return diagnostics
+      .filter((diagnostic) => diagnostic.code === 'conciv(user-event-only)')
+      .map((diagnostic) => ({line: firstLine(diagnostic), message: String(diagnostic.message)}))
+  }
+
+  test.each([
+    {fixture: 'solid-fire-event.dom.test.tsx', lines: [1]},
+    {fixture: 'dom-fire-event.dom.test.ts', lines: [1]},
+    {fixture: 'aliased-fire-event.dom.test.tsx', lines: [1]},
+    {fixture: 'namespace-fire-event.dom.test.ts', lines: [5]},
+    {fixture: 'render-only.dom.test.tsx', lines: []},
+    {fixture: 'node-fire-event.test.ts', lines: []},
+  ])('$fixture reports fireEvent on lines $lines', async ({fixture, lines}) => {
+    const findings = await lintFixture(fixture)
+    expect(findings.map((finding) => finding.line)).toEqual(lines)
+    expect(findings.map((finding) => finding.message)).toEqual(
+      lines.map(() => expect.stringContaining('userEvent.setup()')),
+    )
+  })
+})
+
 describe('tool card shell', () => {
   async function lintFixture(fixture: string): Promise<string[]> {
     const diagnostics = await lintDiagnostics('test/oxlintrc-tool-card-shell.json', `test/fixtures/${fixture}`)

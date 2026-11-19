@@ -34,6 +34,7 @@
     "conciv/solid-test-render": "error",
     "conciv/test-file-budget": "error",
     "conciv/tool-card-shell": "error",
+    "conciv/user-event-only": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",
@@ -126,16 +127,6 @@
           {
             "name": "@orpc/tanstack-query",
             "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
-          },
-          {
-            "name": "@solidjs/testing-library",
-            "importNames": ["fireEvent"],
-            "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
-          },
-          {
-            "name": "@testing-library/dom",
-            "importNames": ["fireEvent"],
-            "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
           }
         ],
         "patterns": [
@@ -189,28 +180,6 @@
       }
     },
     {
-      "files": ["packages/ui-kit-system/**/*.dom.test.ts", "packages/ui-kit-system/**/*.dom.test.tsx"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "paths": [
-              {
-                "name": "@solidjs/testing-library",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
-              },
-              {
-                "name": "@testing-library/dom",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
       "files": ["packages/ui-kit-*/src/**", "apps/conciv/src/**"],
       "rules": {
         "conciv/no-delegated-focus": "error"
@@ -239,16 +208,6 @@
               {
                 "name": "@orpc/tanstack-query",
                 "message": "Import TanStack Query from @conciv/client, never @orpc/tanstack-query directly. @conciv/client bundles the one solid-query + query-core copy the widget and every plugin share, and that copy carries our TanStack/query#11230 patch; a direct import resolves a second, unpatched copy with its own QueryClient context and onlineManager."
-              },
-              {
-                "name": "@solidjs/testing-library",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
-              },
-              {
-                "name": "@testing-library/dom",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
               }
             ],
             "patterns": [
@@ -273,16 +232,6 @@
                 "name": "@hono/node-server",
                 "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
                 "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
-              },
-              {
-                "name": "@solidjs/testing-library",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
-              },
-              {
-                "name": "@testing-library/dom",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
               }
             ],
             "patterns": [
@@ -323,16 +272,6 @@
               {
                 "name": "@orpc/tanstack-query",
                 "message": "A plugin imports useQuery, useMutation and useQueryClient from @conciv/client, never @orpc/tanstack-query. Read engine methods with useQuery(() => ctx.client.rpc(Definition).method.queryOptions({input})); no plugin imports a @tanstack/* Query package."
-              },
-              {
-                "name": "@solidjs/testing-library",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
-              },
-              {
-                "name": "@testing-library/dom",
-                "importNames": ["fireEvent"],
-                "message": "Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces."
               }
             ],
             "patterns": [

@@ -1,0 +1,10 @@
+import {render, screen} from '@solidjs/testing-library'
+import {userEvent} from '@testing-library/user-event'
+import {expect, test} from 'vitest'
+
+test('clicks', async () => {
+  const user = userEvent.setup()
+  render(() => <button type="button">go</button>)
+  await user.click(screen.getByRole('button'))
+  expect(screen.getByRole('button')).toBeTruthy()
+})

@@ -24,6 +24,10 @@ const RENDER_EXEMPT_FILE = /[\\/]test[\\/]fixtures[\\/]host[\\/]main\.tsx$/
 const SOLID_WEB_SOURCE = 'solid-js/web'
 const SOLID_WEB_RENDER_NAMES = new Set(['render', 'hydrate'])
 
+const DOM_TEST_FILE = /\.dom\.test\.tsx?$/
+const TESTING_LIBRARY_SOURCES = new Set(['@solidjs/testing-library', '@testing-library/dom'])
+const FIRE_EVENT_NAME = 'fireEvent'
+
 function importedName(specifier) {
   if (specifier.type !== 'ImportSpecifier') return undefined
   if (!isIdentifier(specifier.imported)) return undefined
@@ -71,6 +75,40 @@ function checkSolidWebImport(node, context) {
   if (!rendersInTestFile(context.filename)) return
   if (node.source.value !== SOLID_WEB_SOURCE) return
   for (const specifier of node.specifiers) reportSolidWebSpecifier(specifier, context)
+}
+
+function reportFireEventSpecifier(specifier, context) {
+  if (importedName(specifier) !== FIRE_EVENT_NAME) return
+  context.report({node: specifier, messageId: 'fireEvent'})
+}
+
+function checkTestingLibraryImport(node, context) {
+  if (!DOM_TEST_FILE.test(context.filename)) return
+  if (!TESTING_LIBRARY_SOURCES.has(node.source.value)) return
+  for (const specifier of node.specifiers) reportFireEventSpecifier(specifier, context)
+}
+
+function isTestingLibraryModuleObject(identifier, sourceCode) {
+  const reference = sourceCode.getScope(identifier).references.find((entry) => entry.identifier === identifier)
+  const definition = reference?.resolved?.defs[0]
+  if (definition?.type !== 'ImportBinding') return false
+  if (definition.node.type === 'ImportSpecifier') return false
+  return TESTING_LIBRARY_SOURCES.has(definition.parent.source.value)
+}
+
+function isFireEventProperty(property) {
+  return isIdentifier(property) && property.name === FIRE_EVENT_NAME
+}
+
+function isFireEventRead(node) {
+  return !node.computed && isIdentifier(node.object) && isFireEventProperty(node.property)
+}
+
+function checkFireEventMember(node, context) {
+  if (!DOM_TEST_FILE.test(context.filename)) return
+  if (!isFireEventRead(node)) return
+  if (!isTestingLibraryModuleObject(node.object, context.sourceCode)) return
+  context.report({node, messageId: 'fireEvent'})
 }
 
 const noDelegatedFocus = {
@@ -149,6 +187,27 @@ const solidTestRender = {
   },
 }
 
+const userEventOnly = {
+  meta: {
+    type: 'problem',
+    messages: {
+      fireEvent:
+        'Act like a user: drive dom tests with userEvent.setup() from @testing-library/user-event (await user.click, user.type, user.keyboard), never fireEvent, which skips the pointer, focus and keyboard events a real user produces.',
+    },
+    schema: [],
+  },
+  createOnce(context) {
+    return {
+      ImportDeclaration(node) {
+        checkTestingLibraryImport(node, context)
+      },
+      MemberExpression(node) {
+        checkFireEventMember(node, context)
+      },
+    }
+  },
+}
+
 export default {
   meta: {name: 'conciv'},
   rules: {
@@ -169,5 +228,6 @@ export default {
     'solid-test-render': solidTestRender,
     'test-file-budget': testFileBudget,
     'tool-card-shell': toolCardShell,
+    'user-event-only': userEventOnly,
   },
 }

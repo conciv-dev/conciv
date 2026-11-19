@@ -1,0 +1,7 @@
+import {fireEvent, render, screen} from '@solidjs/testing-library'
+import {test} from 'vitest'
+
+test('clicks', () => {
+  render(() => <button type="button">go</button>)
+  fireEvent.click(screen.getByRole('button'))
+})
