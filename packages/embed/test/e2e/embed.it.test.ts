@@ -2601,6 +2601,41 @@ test.describe('reload continuity', () => {
       await expect(chatBox(page)).toHaveText('typed then reloaded at once')
     })
 
+    test('text typed and reloaded while another tab holds the draft database is back in the composer', async ({
+      page,
+    }) => {
+      await openPanelOnNewSession(page, suite)
+      const otherTab = await page.context().newPage()
+      try {
+        await otherTab.goto(`${suite.host().base}/conciv-widget.global.js`, {waitUntil: 'domcontentloaded'})
+        await otherTab.evaluate(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              const opening = indexedDB.open('conciv-drafts', 1)
+              opening.addEventListener('error', () => reject(opening.error))
+              opening.addEventListener('success', () => {
+                const documents = opening.result.transaction('documents', 'readwrite').objectStore('documents')
+                const hold = () => {
+                  if (Reflect.get(window, 'releaseDrafts') === true) return
+                  documents.count().addEventListener('success', hold)
+                }
+                hold()
+                resolve()
+              })
+            }),
+        )
+        const input = chatBox(page)
+        await input.click()
+        await input.pressSequentially('typed while another tab writes')
+        await page.reload({waitUntil: 'domcontentloaded'})
+        await otherTab.evaluate(() => Reflect.set(window, 'releaseDrafts', true))
+
+        await expect(chatBox(page)).toHaveText('typed while another tab writes')
+      } finally {
+        await otherTab.close()
+      }
+    })
+
     test('an image attached through the file chooser, with the engine refusing every draft save, is back after a reload', async ({
       page,
     }) => {
