@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@conciv/embed": "workspace:*",
-    "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",

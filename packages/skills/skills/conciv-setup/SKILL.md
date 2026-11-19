@@ -107,30 +107,27 @@ mount call yourself the same way a plugin's `enabled` option would:
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
 if (process.env.NODE_ENV !== 'production') {
-  const handle = createConciv({
-    extensions: [],
-    apiBase: 'http://localhost:5178',
-  })
+  const handle = createConciv({apiBase: 'http://localhost:5178'})
   await handle.mount(document.getElementById('conciv-root')!)
   // later: handle.unmount()
 }
 ```
 
-`ConcivInit` fields: `extensions` (array or async loader), `settings` (`ConcivSettingsInit`),
+`ConcivInit` fields: `plugins` (composed plugin entries), `settings` (`ConcivSettingsInit`),
 `apiBase` (engine origin — required whenever the engine isn't served from the same origin/port the
 page loads from), `grabProvider` (`packages/embed/src/mount.ts:9-14`). The handle also exposes
 `open()`/`close()`/`toggle()` (dispatch DOM `CustomEvent`s the widget listens for) and
 `rebind(apiBase)` to repoint an already-mounted widget at a different engine
 (`packages/embed/src/mount.ts:16-23`, `packages/embed/src/mount.ts:72-89`).
 
-For a single always-on instance with no manual lifecycle, `mountConciv(extensions)` is a bare
+For a single always-on instance with no manual lifecycle, `mountConciv(plugins?)` is a bare
 fire-and-forget call — it no-ops if a `[data-conciv-script-root]` element already exists, so it is
 safe to call more than once (`packages/embed/src/mount.ts:92-101`):
 
 ```ts
 import {mountConciv} from '@conciv/embed'
 
-mountConciv([myExtension])
+mountConciv()
 ```
 
 (Real `mountConciv` call site: `apps/site/src/lib/mount-live-widget.ts:28` (import) and
@@ -138,7 +135,7 @@ mountConciv([myExtension])
 
 For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv` —
 `@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears
-down on unmount, and remounts only when `apiBase`/`settings`/`extensions` actually change
+down on unmount, and remounts only when `apiBase`/`settings` actually change
 (`packages/react/src/index.ts:8-23`).
 
 ## Connecting a harness

@@ -20,8 +20,6 @@
   "dependencies": {
     "@conciv/cli": "workspace:*",
     "@conciv/embed": "workspace:*",
-    "@conciv/extension-recorder": "workspace:*",
-    "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/plugin-tanstack": "workspace:*",
     "@conciv/plugin-test-runner": "workspace:*",

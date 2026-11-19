@@ -12,7 +12,6 @@
         "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/core/src/cards/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/whiteboard/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/plugins/tanstack/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/plugins/test-runner/src/**/*.{ts,tsx}",
         "$TURBO_ROOT$/packages/plugins/whiteboard/src/**/*.{ts,tsx}"

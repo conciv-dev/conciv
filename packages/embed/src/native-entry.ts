@@ -1,4 +1,4 @@
-import iosClient, {makeNativeGrabProvider, nativePageBase} from '@conciv/extension-ios/client'
+import {makeNativeGrabProvider, nativePageBase} from '@conciv/extension-ios/client'
 import {engineAddress} from './agent-base.js'
 import {createConciv} from './mount.js'
 
@@ -9,7 +9,6 @@ function readLauncher(search: string): 'native' | 'mascot' {
 }
 
 const handle = createConciv({
-  extensions: [iosClient],
   settings: {launcher: readLauncher(window.location.search)},
   ...engineAddress(nativePageBase(window.location)),
   grabProvider: makeNativeGrabProvider(),

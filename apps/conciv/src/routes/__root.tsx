@@ -9,10 +9,8 @@ import {
   useSearch,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@conciv/client'
-import {Dialog, EnvironmentProvider} from '@conciv/ui-kit-system'
-import {HostApiProvider} from '@conciv/extension/host'
+import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {createClientSettings} from '@conciv/contract'
-import {showToast} from '@conciv/page'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -48,7 +46,6 @@ import {EngineReachabilityContext, makeEngineReachability} from '../app/reachabi
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
-import {EffectsSurface} from '../shell/effects-surface.js'
 import {NoticeContextProvider} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
@@ -141,7 +138,6 @@ function RootComponent() {
     host: app.settings,
   })
   const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined, preferences.stored)
-  const colorScheme = () => theme().scheme
 
   const value: AppContextValue = {
     rpc: app.rpc,
@@ -197,19 +193,6 @@ function RootComponent() {
                       politeMessage={politeMessage}
                       assertiveMessage={assertiveMessage}
                     />
-                    <Show when={app.login === undefined || engineConnected(app.login.status())}>
-                      <HostApiProvider
-                        rpc={app.rpc}
-                        apiBase={app.apiBase}
-                        toast={showToast}
-                        registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-                        dialog={layers.track(Dialog)}
-                        sessionId={activeSession}
-                        colorScheme={colorScheme}
-                      >
-                        <EffectsSurface instances={app.instances} />
-                      </HostApiProvider>
-                    </Show>
                     <PluginOverlay />
                   </PluginAttachment>
                 </PluginRoot>

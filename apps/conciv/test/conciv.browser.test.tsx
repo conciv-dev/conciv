@@ -2684,7 +2684,7 @@ describe('engine version', () => {
   const outdated = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
 
   test('an engine from before release versions still answers the widget, and the widget asks to update it, a same-origin engine included', async () => {
-    harness.mountShell('/panel?open=true', [], {apiBase: () => ''})
+    harness.mountShell('/panel?open=true', {apiBase: () => ''})
 
     await expect
       .element(page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('alert'), {timeout: 10_000})
@@ -3967,7 +3967,7 @@ describe('launcher drag', () => {
   const LOCKED_NAME = 'Unauthorized. Authorize conciv'
   const locked = () => page.getByRole('button', {name: LOCKED_NAME})
   const unauthorized = () => locked().getByText('Unauthorized')
-  const mountLocked = () => harness.mountShell('/', [], {login: {apiBase: new URL(core()).origin}})
+  const mountLocked = () => harness.mountShell('/', {login: {apiBase: new URL(core()).origin}})
   const leaveLocked = () => coreControl.hoverButton({name: LOCKED_NAME, settleMs: 0, moves: [{deltaX: 0, deltaY: 200}]})
 
   test('the locked launcher dropped just right of the middle grows its pill to the right and its robot stays put', async () => {
@@ -4382,7 +4382,7 @@ module.exports = {default: {setup(ctx) {
     expect(reloaded.generic).toBe(false)
 
     harness.dispose()
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: new URL(coreBase()).origin}})
+    harness.mountShell(`/panel/${sessionId}?open=true`, {login: {apiBase: new URL(coreBase()).origin}})
     const loadFailed = page.getByRole('alert').filter({hasText: 'Couldn’t load this conversation'})
     await expect.element(loadFailed, {timeout: 15_000}).toBeVisible()
     await expect.element(loadFailed.getByRole('button', {name: 'Retry', exact: true})).toBeVisible()
@@ -4707,7 +4707,7 @@ describe('panel connect', () => {
   afterEach(harness.dispose)
 
   const mountShell = (): void =>
-    harness.mountShell('/panel/connect?open=true', [], {
+    harness.mountShell('/panel/connect?open=true', {
       plugins: foundServerPlugins('connect-probe', (found) => (
         <button type="button" onClick={() => found(core())}>
           Simulate found
@@ -4800,13 +4800,13 @@ describe('server cover', () => {
   test('a composed plugin covers the panel until its server is ready, holds there while it says so, then the panel binds to it in place, keeps its id from the engine, and follows the engine plugin switches', async () => {
     const token = new URL(core()).pathname.split('/')[2] ?? ''
     expect(() =>
-      harness.mountShell('/panel/connect?open=true', [], {
+      harness.mountShell('/panel/connect?open=true', {
         plugins: [...tryItPlugins(token, 1), ...tryItPlugins(token, 1)],
       }),
     ).toThrow('The plugin id "try-it" is already taken')
     harness.dispose()
     expect(() =>
-      harness.mountShell('/panel/connect?open=true', [], {
+      harness.mountShell('/panel/connect?open=true', {
         plugins: compose({grab: {windowEntry: async () => ({default: tryItSetup})}}).map((entry): ComposedPlugin => [
           entry,
           {token},
@@ -4816,7 +4816,7 @@ describe('server cover', () => {
     harness.dispose()
 
     await coreRpc(core()).settings.set({scope: 'global', namespace: 'plugin-enable', key: 'layout', value: false})
-    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 600_000)})
+    harness.mountShell('/panel/connect?open=true', {plugins: tryItPlugins(token, 600_000)})
 
     await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
     await expect.element(panel().getByText(`npx @conciv/try --token ${token}`)).toBeVisible()
@@ -4830,7 +4830,7 @@ describe('server cover', () => {
 
     harness.dispose()
     await coreControl.closeConnectForward()
-    harness.mountShell('/panel/connect?open=true', [], {plugins: tryItPlugins(token, 1)})
+    harness.mountShell('/panel/connect?open=true', {plugins: tryItPlugins(token, 1)})
 
     await expect.element(connectSteps(), {timeout: 10_000}).toBeVisible()
     await expect.element(editor()).not.toBeInTheDocument()
@@ -4857,7 +4857,7 @@ describe('server cover', () => {
 
     harness.dispose()
     await coreControl.closeConnectForward()
-    harness.mountShell('/panel/connect?open=true', [], {
+    harness.mountShell('/panel/connect?open=true', {
       plugins: compose({servers: {windowEntry: async () => ({default: twoServers})}}).map((entry): ComposedPlugin => [
         entry,
         {},
@@ -5287,7 +5287,7 @@ module.exports = {default: {setup(ctx) {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
       const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
-      harness.mountShell(`/panel/${sessionId}?open=true`, [], options)
+      harness.mountShell(`/panel/${sessionId}?open=true`, options)
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(narration()).toBeVisible()
       return turn
@@ -5353,7 +5353,7 @@ module.exports = {default: {setup(ctx) {
     test('another session can open right after Send and the left run still settles in the background', async () => {
       const {running, titles} = await twoSessions('sent')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
-      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
       const unsent = await faults.install({kind: 'chat-gate'})
       await composer().fill('start a long turn')
@@ -5377,7 +5377,7 @@ module.exports = {default: {setup(ctx) {
       const {running, titles} = await twoSessions('removed')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5400,7 +5400,7 @@ module.exports = {default: {setup(ctx) {
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5423,7 +5423,7 @@ module.exports = {default: {setup(ctx) {
       const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
-      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5469,7 +5469,7 @@ module.exports = {default: {setup(ctx) {
         const queueRow = (text: string) => page.getByRole('listitem').filter({hasText: text})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+        harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5546,7 +5546,7 @@ module.exports = {default: {setup(ctx) {
         const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
         await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
         await coreControl.holdTurn()
-        harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+        harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
         await composer().fill('start a long turn')
         await userEvent.keyboard('{Enter}')
         await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
@@ -5608,7 +5608,7 @@ module.exports = {default: {setup(ctx) {
 
     test('approving an ask and leaving while its turn is still unsent settles that turn in the background', async () => {
       const {running, titles} = await twoSessions('approved')
-      harness.mountShell(`/panel/${running}?open=true`, [], {transport: 'fetch'})
+      harness.mountShell(`/panel/${running}?open=true`, {transport: 'fetch'})
       await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
       await coreControl.scriptCustomEvent('approval-requested', {
         approvalId: 'switch-ask',
@@ -6476,7 +6476,7 @@ describe('a deleted session', () => {
       '',
       `${window.location.pathname}${window.location.search}#conciv_otp=${await coreControl.requestCode()}`,
     )
-    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`/panel/${deletedId}?open=true`, {login: {apiBase: origin}})
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     await editor().fill(TYPED)
     await coreControl.rpcStartedOnceServed(['drafts', 'set'], 1, [], {sessionId: deletedId, text: TYPED})
@@ -6484,7 +6484,7 @@ describe('a deleted session', () => {
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
 
     harness.dispose()
-    harness.mountShell(`/panel/${deletedId}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`/panel/${deletedId}?open=true`, {login: {apiBase: origin}})
 
     await expect.element(deletedTitle(), {timeout: 8000}).toBeVisible()
     await expect.element(movesLine()).toBeVisible()
@@ -6537,7 +6537,7 @@ describe('reachability flows', () => {
 
   async function openSessionPanel(options: ShellMountOptions = {}): Promise<void> {
     const sessionId = await createSession(coreRpc(core()))
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], options)
+    harness.mountShell(`/panel/${sessionId}?open=true`, options)
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
   }
 
@@ -6590,7 +6590,7 @@ describe('engine login', () => {
   const loginNotice = () => page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
 
   test('nothing pops up on load, the locked launcher opens the code dialog, and Escape dismisses it', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
     await locked().hover()
@@ -6604,7 +6604,7 @@ describe('engine login', () => {
   })
 
   test('a wrong code is refused inline and clears the boxes, and the printed code opens the panel', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(firstDigit()).toBeVisible()
     const code = await coreControl.printedCode()
@@ -6623,11 +6623,11 @@ describe('engine login', () => {
   test('a reload while the magic link is being exchanged still logs in, and the link leaves the URL once trusted', async () => {
     openMagicLink(await coreControl.requestCode())
     const exchange = await faults.install({kind: 'cut-on-release', path: ['auth', 'exchange']})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await coreControl.awaitFaultPending(exchange, 1)
     harness.dispose()
     await coreControl.releaseFault(exchange)
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await opener().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     expect(localStorage.getItem(storageKey())).not.toBeNull()
@@ -6639,7 +6639,7 @@ describe('engine login', () => {
     if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
     openMagicLink(await coreControl.requestCode())
     await faults.install({kind: 'fail', path: ['auth', 'exchange']})
-    harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource: async () => minted.token}})
+    harness.mountShell('/', {login: {apiBase: origin(), tokenSource: async () => minted.token}})
     await opener().click()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     expect(window.location.hash).toBe('')
@@ -6650,7 +6650,7 @@ describe('engine login', () => {
     expect(await makeRpcClient(origin()).auth.exchange({code})).toHaveProperty('token')
     openMagicLink(code)
     const exchange = await faults.install({kind: 'gate', path: ['auth', 'exchange']})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await coreControl.awaitFaultPending(exchange, 1)
     await coreControl.releaseFault(exchange)
     await coreControl.awaitFaultAnswered(exchange)
@@ -6684,7 +6684,7 @@ describe('engine login', () => {
     localStorage.setItem(storageKey(), minted.token)
     const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
 
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await coreControl.awaitFaultPending(trustAsk, 1)
     expect(await readKept(deleted)).toBe('left by a deleted session')
     await coreControl.releaseFault(trustAsk)
@@ -6696,7 +6696,7 @@ describe('engine login', () => {
   }, 30_000)
 
   test('Send a new code prints a fresh code, and only the fresh code opens the panel', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(firstDigit()).toBeVisible()
     await expect
@@ -6726,7 +6726,7 @@ describe('engine login', () => {
       return result.token
     }
     const mountTrusted = async (): Promise<void> => {
-      harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource}})
+      harness.mountShell('/', {login: {apiBase: origin(), tokenSource}})
       await opener().click()
       await expect.element(editor(), {timeout: 8000}).toBeVisible()
       harness.dispose()
@@ -6747,7 +6747,7 @@ describe('engine login', () => {
       selectionEnd: 0,
       attachments: [],
     })
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await expect.element(locked()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
     expect(await createBrowserDraftStore().keys()).toEqual([])
@@ -6761,7 +6761,7 @@ describe('engine login', () => {
 
   test('a revoked browser whose sockets the engine cannot reach locks on its next engine call', async () => {
     await faults.install({kind: 'detached-sockets'})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     await createBrowserDraftStore().setDocument('conciv_-kept-before-the-revoke', {
       text: 'kept before the revoke',
@@ -6781,7 +6781,7 @@ describe('engine login', () => {
   test('a draft save on the wire when a revoke locks the panel, refused once it reaches the engine, raises no unsaved notice, neither while locked out nor after the new code', async () => {
     const UNAUTHORIZED_STATUS = 401
     const unsaved = page.getByRole('status').filter({hasText: 'conciv could not save your draft.'})
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     const held = await faults.install({kind: 'gate', path: DRAFT_SET_PATH})
     await userEvent.click(editor())
@@ -6804,7 +6804,7 @@ describe('engine login', () => {
   }, 30_000)
 
   test('revoking a browser while its panel is open keeps the panel open behind a log-in notice with a read-only composer, moves focus from the composer to Log in, and the code restores it in place', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     await coreControl.awaitRpcSocketLive()
     const revoked = await coreControl.rpcSocketsRevoked()
@@ -6842,7 +6842,7 @@ describe('engine login', () => {
 
   const unlockOnNewSession = async (): Promise<void> => {
     await createSession(coreRpc(core()))
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
   }
 
@@ -6881,7 +6881,7 @@ describe('engine login', () => {
   }, 40_000)
 
   test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await unlock()
     await coreControl.scriptTurn({
       toolCalls: [{name: 'mystery_tool', input: {path: 'src/a.ts'}, result: {done: true}}],
@@ -6920,7 +6920,7 @@ describe('engine login', () => {
     expect(await keptDrafts()).toEqual([])
 
     harness.dispose()
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     await locked().click()
     await expect.element(dialog()).toBeVisible()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
@@ -6930,7 +6930,7 @@ describe('engine login', () => {
   test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
     const retryWhileOffline = async (): Promise<void> => {
       const offline = await faults.install({kind: 'offline'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await opener().click()
       const screen = page.getByRole('alert').filter({hasText: /couldn.t reach the engine/})
       await expect.element(screen, {timeout: 8000}).toBeVisible()
@@ -6949,7 +6949,7 @@ describe('engine login', () => {
   }, 30_000)
 
   test('an unreachable engine opens the panel onto the error screen instead of the login', async () => {
-    harness.mountShell('/', [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    harness.mountShell('/', {login: {apiBase: 'http://127.0.0.1:9'}})
     await opener().click()
     await expect.element(page.getByText(/couldn.t reach the engine/), {timeout: 8000}).toBeVisible()
     await expect.element(dialog()).not.toBeInTheDocument()
@@ -6977,7 +6977,7 @@ describe('engine login', () => {
 
     const unreachableUntilReleased = async (watch: ReturnType<typeof watchConnection>): Promise<void> => {
       const offline = await faults.install({kind: 'offline'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await expect.poll(() => watch.seen).toContain('socket closed')
       await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
       await opener().click()
@@ -7015,7 +7015,7 @@ describe('engine login', () => {
 
     test('logging in while the trust ask the reopened socket sent is still unanswered keeps the page logged in once that ask is refused', async () => {
       const offline = await faults.install({kind: 'offline'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await opener().click()
       await expect
         .element(page.getByRole('alert').filter({hasText: /couldn.t reach the engine/}), {timeout: 8000})
@@ -7042,7 +7042,7 @@ describe('engine login', () => {
 
     test('logging in again after a revoke whose close arrives late sends the code request and the exchange on the reopened socket', async () => {
       const lateClose = await faults.install({kind: 'late-close'})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await unlock()
       await coreControl.awaitRpcSocketLive()
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
@@ -7068,7 +7068,7 @@ describe('engine login', () => {
       const watch = watchConnection()
       try {
         const trustAsk = await faults.install({kind: 'gate', path: ['auth', 'trust']})
-        harness.mountShell('/', [], {login: {apiBase: origin()}})
+        harness.mountShell('/', {login: {apiBase: origin()}})
         await coreControl.awaitFaultPending(trustAsk, 1)
         await expect.poll(() => watch.status(), {timeout: 8000}).toBe('unreachable')
         await expect.element(locked()).not.toBeInTheDocument()
@@ -7088,7 +7088,7 @@ describe('engine login', () => {
 
     test('a code request and a code exchange the engine never answers each say so in the login dialog', async () => {
       const codeRequest = await faults.install({kind: 'gate', path: ['auth', 'requestCode']})
-      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      harness.mountShell('/', {login: {apiBase: origin()}})
       await locked().click()
       await expect.element(dialog()).toBeVisible()
       await coreControl.awaitFaultPending(codeRequest, 1)
@@ -7134,7 +7134,7 @@ describe('session picker after login', () => {
   })
 
   test('a widget mounted while the engine refused it shows text matches indexed after the login, without reopening', async () => {
-    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    harness.mountShell('/', {login: {apiBase: origin()}})
     const locked = page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})
     await expect.element(locked).toBeVisible()
     await userEvent.click(locked)
@@ -8199,7 +8199,7 @@ describe('settings page', () => {
     localStorage.removeItem('conciv-modal-width')
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
-    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`)
     await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'vertical')
     await expect.element(tab('Advanced')).toBeVisible()
     await tab('General').click()
@@ -8234,7 +8234,7 @@ describe('settings page', () => {
     await expect.element(widthHandle()).toHaveAttribute('aria-valuenow', '936')
     localStorage.removeItem('conciv-modal-width')
     harness.dispose()
-    harness.mountShell(`/panel/${sessionId}?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await renameTo('renamed before settings')
     const firstVisit = await coreControl.rpcStartedOnceServed(RENAME_PATH, 1, MOUNT_READS)
@@ -8298,7 +8298,7 @@ describe('settings page', () => {
 
     harness.dispose()
     document.documentElement.style.setProperty('--conciv-skin', 'terminal')
-    harness.mountShell(`${settingsPath('general')}?open=true`, [])
+    harness.mountShell(`${settingsPath('general')}?open=true`)
     await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
     await expect.element(page.getByText('Set by the page in --conciv-skin')).toBeVisible()
     await expect.element(skin('Terminal')).toBeChecked()
@@ -8343,7 +8343,7 @@ describe('settings page', () => {
       .toHaveTextContent(`Split pane${formatForDisplay('Control+Shift+J')}`)
 
     harness.dispose()
-    harness.mountShell(`${settingsPath('advanced')}?open=true`, [])
+    harness.mountShell(`${settingsPath('advanced')}?open=true`)
     await expect.element(tab('Advanced'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
 
     await tab('General').click()
@@ -8359,7 +8359,7 @@ describe('settings page', () => {
     await expect.element(allProjects()).toBeChecked()
     const reloadAt = harness.href()
     harness.dispose()
-    harness.mountShell(reloadAt, [])
+    harness.mountShell(reloadAt)
     await expect.element(allProjects(), {timeout: 8000}).toBeChecked()
 
     await resetAll().click()
@@ -8384,7 +8384,7 @@ describe('settings page', () => {
     await expect.element(gear()).toHaveFocus()
 
     harness.dispose()
-    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [], {
+    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, {
       host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
     })
     await expect.element(command('New quick terminal pane'), {timeout: 8000}).toBeVisible()
@@ -9279,7 +9279,7 @@ describe('terminal panel', () => {
     }
     const pickButton = () => bar().getByRole('button', {name: 'Select an element from the page'})
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {
+    harness.mountShell(terminalRoute(sessionId), {
       grabProvider: () => ({pick: failingPick, comment: failingPick, cancel: () => {}, isActive: () => false}),
     })
 
@@ -9294,7 +9294,7 @@ describe('terminal panel', () => {
     const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
     const unsourced: Grab = {...HERO_GRAB, source: null, frames: [{fileName: 'dist/chunk.js', line: 1, column: 1}]}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {grabProvider: grabProviderFor(unsourced)})
+    harness.mountShell(terminalRoute(sessionId), {grabProvider: grabProviderFor(unsourced)})
 
     await expect.element(pickButton(), {timeout: 15_000}).toBeEnabled()
     await pickButton().click()
@@ -9313,7 +9313,7 @@ describe('terminal panel', () => {
     const chatGrab = {...HERO_GRAB, text: 'echo "chat[owned]"'}
     const terminalGrab = {...HERO_GRAB, text: 'echo "terminal(owned)"'}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
+    harness.mountShell(`/panel/${sessionId}?open=true`, {grabProvider: grabProviderFor(chatGrab, terminalGrab)})
 
     await expect.element(composerInput(), {timeout: 15_000}).toBeVisible()
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
@@ -9360,7 +9360,7 @@ describe('terminal panel', () => {
     const buttonGrab = {...HERO_GRAB, text: '<button>\nSave\n</button>'}
     const linkGrab = {...HERO_GRAB, text: '<a>Next</a>'}
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {
+    harness.mountShell(terminalRoute(sessionId), {
       grabProvider: grabProviderFor(readsOneLine, buttonGrab, linkGrab),
     })
 
@@ -9425,7 +9425,7 @@ describe('terminal panel', () => {
     const rpc = coreRpc(coreBase())
     const otherSession = await createSession(rpc)
     const sessionId = await createSession(rpc)
-    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], [], {
+    harness.mountShell([terminalRoute(otherSession), terminalRoute(sessionId)], {
       grabProvider: () => ({pick: heldPick, comment: heldPick, cancel: () => {}, isActive: () => false}),
     })
 
@@ -9504,7 +9504,7 @@ describe('terminal panel', () => {
       hostLog.remove()
     })
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(terminalRoute(sessionId), [], {shadow: true})
+    harness.mountShell(terminalRoute(sessionId), {shadow: true})
 
     await expect.element(output('P>'), {timeout: 15_000}).toBeInTheDocument()
     await terminalPanel().click()
@@ -9723,7 +9723,7 @@ describe('plugins before a core is bound', () => {
       localStorage.removeItem(PREFS_KEY)
     })
     localStorage.removeItem('conciv:settings-tab')
-    harness.mountShell('/panel/connect?open=true', [], {
+    harness.mountShell('/panel/connect?open=true', {
       plugins: foundServerPlugins('typed-connect-probe', (found) => <TypedConnectForm found={found} />),
     })
 
@@ -10290,7 +10290,7 @@ function engineTrustedOrUnreachable(): Promise<void> {
 async function logInOnce(harness: ReturnType<typeof createShellHarness>, origin: string, at: string): Promise<void> {
   onTestFinished(() => localStorage.removeItem(`conciv:engine-token:${origin}`))
   const loginNotice = page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
-  harness.mountShell(at, [], {login: {apiBase: origin}})
+  harness.mountShell(at, {login: {apiBase: origin}})
   await expect.element(loginNotice, {timeout: 15_000}).toBeVisible()
   await loginNotice.getByRole('button', {name: 'Log in'}).click()
   await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.requestCode())
@@ -10318,7 +10318,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
     harness.dispose()
 
     const deadPort = engineTrustedOrUnreachable()
-    harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    harness.mountShell(pagePath('alpha:prefs'), {login: {apiBase: 'http://127.0.0.1:9'}})
     await deadPort
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
@@ -10328,7 +10328,7 @@ describe('plugin settings page links while plugins are not yet known', () => {
     await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
     const offline = await faults.install({kind: 'offline'})
     const trustChecked = engineTrustedOrUnreachable()
-    harness.mountShell(pagePath('alpha:prefs'), [], {login: {apiBase: origin}})
+    harness.mountShell(pagePath('alpha:prefs'), {login: {apiBase: origin}})
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     expect(harness.pathname()).toBe(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('alpha:prefs')}`)
@@ -10527,7 +10527,7 @@ describe('installed plugins in settings', () => {
     await page.viewport(1000, 900)
     localStorage.removeItem('conciv:settings-tab')
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`)
     await expect.element(tab('General'), {timeout: 8000}).toBeVisible()
     await expect.element(tab('Plugins')).toBeVisible()
     await expect.element(tab('Plugins')).toHaveAttribute('aria-selected', 'true')
@@ -10547,7 +10547,7 @@ describe('installed plugins in settings', () => {
       'conciv/plugins/neighbour.ts',
       "export default {id: 'neighbour', async setup() {}}\n",
     )
-    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`)
     await expect.element(page.getByText('neighbour', {exact: true}), {timeout: 15_000}).toBeVisible()
     await expect.element(page.getByText('conciv.page', {exact: true})).not.toBeInTheDocument()
     await expect.element(page.getByRole('switch', {name: 'conciv.page'})).not.toBeInTheDocument()
@@ -10562,7 +10562,7 @@ describe('installed plugins in settings', () => {
   test('each engine-only plugin a user adds one after another gets its own row', async () => {
     await page.viewport(1000, 900)
     const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`, [])
+    harness.mountShell(`/panel/${sessionId}/settings/plugins?open=true`)
     await expect.element(tab('Plugins'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
 
     await coreControl.writeProjectFile(
@@ -11176,7 +11176,7 @@ module.exports = {default: {setup(ctx) {
   test('its pop-out notice ends with the panel that raised it when the quick terminal replaces the panel', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     const popOutLost = () => page.getByText('The pop-out window could not be reopened.', {exact: true})
-    harness.mountShell(`/panel/${sessionId}?open=true&popOut=lost`, [], {
+    harness.mountShell(`/panel/${sessionId}?open=true&popOut=lost`, {
       host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
     })
     await expect.element(popOutLost(), {timeout: 15_000}).toBeVisible()
@@ -11355,7 +11355,7 @@ module.exports = {default: {setup(ctx) {
     harness.dispose()
 
     const deadPort = engineTrustedOrUnreachable()
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, {
       login: {apiBase: 'http://127.0.0.1:9'},
     })
     await deadPort
@@ -11367,7 +11367,7 @@ module.exports = {default: {setup(ctx) {
     await logInOnce(harness, origin, `/panel/${sessionId}?open=true`)
     const offline = await faults.install({kind: 'offline'})
     const trustChecked = engineTrustedOrUnreachable()
-    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`${tabPath(sessionId, 'fixture:tools')}?open=true`, {login: {apiBase: origin}})
     await trustChecked
     await expect.element(lostConnection(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toHaveAttribute('aria-selected', 'false')
@@ -11458,7 +11458,7 @@ module.exports = {default: {setup(ctx) {
       await expect.element(notice).not.toBeInTheDocument()
     }
 
-    harness.mountShell(`/panel/${sessionId}?open=true`, [], {login: {apiBase: origin}})
+    harness.mountShell(`/panel/${sessionId}?open=true`, {login: {apiBase: origin}})
     await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()
     await expect.element(tab('Chat')).toBeVisible()
     await expect.element(tab('Fixture tools')).not.toBeInTheDocument()
@@ -11512,7 +11512,7 @@ module.exports = {default: {setup(ctx) {
 
     harness.dispose()
     await coreControl.revokeBrowsers()
-    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, [], {
+    harness.mountShell(`/panel/${sessionId}/settings/plugins/${encodeURIComponent('fixture:prefs')}?open=true`, {
       login: {apiBase: origin},
     })
     await expect.element(loginNotice(), {timeout: 15_000}).toBeVisible()

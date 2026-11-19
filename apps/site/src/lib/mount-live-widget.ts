@@ -66,7 +66,7 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; router: Regist
       },
     })
     .map((entry): PluginEntry => [entry, {token}])
-  await embed.mountConciv([], plugins)
+  await embed.mountConciv(plugins)
 
   let hasBeenOpen = false
   window.addEventListener(PANEL_TOGGLED_EVENT, (event) => {

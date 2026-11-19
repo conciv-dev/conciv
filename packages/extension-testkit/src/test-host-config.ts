@@ -20,7 +20,7 @@ function concivBuildPlugin(): Plugin {
     enforce: 'pre',
     config: () => concivSolidConfig(),
     resolveId: (id) => resolveExtensionsModule(id),
-    load: (id) => loadExtensionsModule(id, []),
+    load: (id) => loadExtensionsModule(id),
     transform(code, id, opts) {
       return transformConcivModule(code, id, opts?.ssr ?? false)
     },

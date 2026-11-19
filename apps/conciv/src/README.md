@@ -6,18 +6,17 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 
 ## Interface
 
-- `createConcivRouter(config)` (`router.tsx`): builds the Solid router with a QueryClient whose queries never go stale on their own (`staleTime: Infinity`; data changes through a server push, an invalidation after our own action, or a window refocus, `refetchOnWindowFocus: 'always'`), AppData, the client instances of any extensions the host passes (today only the iOS bridge, see `extension/`), engine reachability and router context
-- `disposeConcivRouter(router)` (`router.tsx`): calls `router.options.context.disposeInstances()`
+- `createConcivRouter(config)` (`router.tsx`): builds the Solid router with a QueryClient whose queries never go stale on their own (`staleTime: Infinity`; data changes through a server push, an invalidation after our own action, or a window refocus, `refetchOnWindowFocus: 'always'`), AppData, engine reachability and router context
+- `disposeConcivRouter(router)` (`router.tsx`): calls `router.options.context.dispose()`, which stops the engine watch and disposes the AppData once
 - `ConcivRouterContext`, `ConcivRouterConfig`, `ConcivEnvironment` types (`router.tsx`)
 - `routeTree` (`routeTree.gen.ts`): generated; full paths `/`, `/panel`, `/quick`, `/panel/$sessionId`, `/panel/connect`, `/panel/latest`, `/pip/$sessionId`, `/panel/$sessionId/`, `/panel/$sessionId/$view`, `/panel/$sessionId/settings` and its tab routes
 - `start` (`entry-standalone.tsx`): reads `?settings` and `?core`, builds the router with `makeBrowserRpcClient`, renders into `#app`
 - `css.d.ts`: `*.css?inline` and `*.woff2?inline` string module declarations
-- Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data](./data/README.md), [extension](./extension/README.md), [lib](./lib/README.md), [pane](./pane/README.md), [routes](./routes/README.md), [settings](./settings/README.md), [shell](./shell/README.md)
+- Subdirectories: [app](./app/README.md), [composer](./composer/README.md), [data](./data/README.md), [lib](./lib/README.md), [pane](./pane/README.md), [routes](./routes/README.md), [settings](./settings/README.md), [shell](./shell/README.md)
 
 ## Invariants
 
 - `router.tsx:makeGuardedDisposer`: the dispose function runs at most once
-- `router.tsx:disposeExtensionInstances`: each `instance.dispose()` is wrapped in try/catch so one failing teardown does not stop the rest
 - `router.tsx:wireEngine`: reachability and the trust subscription are re-set up only when `apiBase()` changes, and the previous setup is cleaned up first
 - `router.tsx:watchEngine`: when trust flips from untrusted or revoked to trusted, it refetches the queries that ended in error
 - `router.tsx:watchEngine`: whenever the connection's trust is or becomes revoked (`engineLock` answers `revoked`: a token this browser held was refused), it calls `AppData.forgetLocalDrafts`; every way a held trust is lost ends in that status: the rpc socket or another engine socket closed with 1008, a 401 on a call made with a token, and a stored token the trust check refuses. An untrusted connection (no token held, as on a first load before the code exchange, or on an engine port this browser has no token for) clears nothing, because the draft database is shared by every tab of the page origin. `wireEngine`'s `locked()` reads `engineLocked` (untrusted or revoked) for `makeAppData`'s `lockedOut` and the draft store's `writable`
@@ -29,7 +28,6 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 
 - `entry-standalone.tsx:start`: writes `window.__CONCIV_API_BASE__`, reads `window.location.search`, creates browser history, renders into `#app`, opens an rpc client with `makeBrowserRpcClient(apiBase)`
 - `router.tsx:watchEngine`: calls `setupEngineReachability(apiBase)` from `@conciv/client` and subscribes to the trust of the connection it holds through `browserRpcConnection(apiBase)` from `@conciv/contract`, releasing it when the watch stops
-- `router.tsx:disposeExtensionInstances`: `console.error` on teardown failure
 - `runtime/plugin/plugin-boundary.tsx:reportCrash`: `console.error` with the crashed plugin's or extension's name and the error
 
 ## Verification

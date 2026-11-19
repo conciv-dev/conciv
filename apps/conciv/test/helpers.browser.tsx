@@ -35,7 +35,6 @@ import {createShadowRoot} from '../src/lib/shadow.js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
-import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../src/app/pane-context.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
@@ -470,7 +469,7 @@ function shellRpcFor(options: ShellMountOptions, apiBase: string, session: () =>
 }
 
 type ShellHarness = {
-  mountShell: (entry: string | string[], extensions?: AnyExtension[], options?: ShellMountOptions) => void
+  mountShell: (entry: string | string[], options?: ShellMountOptions) => void
   dispose: () => void
   pathname: () => string | undefined
   href: () => string
@@ -492,11 +491,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     removeRoot: () => {},
   }
 
-  const mountShell = (
-    entry: string | string[],
-    extensions: AnyExtension[] = [],
-    options: ShellMountOptions = {},
-  ): void => {
+  const mountShell = (entry: string | string[], options: ShellMountOptions = {}): void => {
     const apiBase = options.login?.apiBase ?? base()
     const login = shellLogin(options.login, (dispose) => {
       mounted.disposeLogin = dispose
@@ -517,7 +512,6 @@ export function createShellHarness(base: () => string): ShellHarness {
       connected: () => (login ? engineConnected(login.status()) : client.bound()),
       bindApiBase: shellRpc.bindApiBase,
       connectionGeneration: () => 0,
-      extensions,
       plugins: options.plugins,
       servers: options.plugins !== undefined,
       login,

@@ -705,9 +705,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../../packages/core
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../../packages/extension
       '@conciv/grab':
         specifier: workspace:^
         version: link:../../packages/grab
@@ -814,9 +811,9 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../../packages/db
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../../packages/extensions/whiteboard
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../../packages/extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../packages/harness-testkit
@@ -901,9 +898,6 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
@@ -950,12 +944,6 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../../packages/embed
-      '@conciv/extension-recorder':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/recorder
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../../../packages/extensions/whiteboard
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
@@ -2954,9 +2942,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/extension-ios':
         specifier: workspace:^
         version: link:../extensions/ios
@@ -3030,12 +3015,6 @@ importers:
       '@conciv/cli':
         specifier: workspace:*
         version: link:../cli
-      '@conciv/extension-recorder':
-        specifier: workspace:^
-        version: link:../extensions/recorder
-      '@conciv/extension-whiteboard':
-        specifier: workspace:*
-        version: link:../extensions/whiteboard
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -3166,9 +3145,6 @@ importers:
       '@babel/preset-typescript':
         specifier: ^7.29.7
         version: 7.29.7(@babel/core@7.29.7)
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -3181,10 +3157,10 @@ importers:
       babel-preset-solid:
         specifier: ^1.9.16
         version: 1.9.16(@babel/core@7.29.7)(solid-js@1.9.17)
-      jiti:
-        specifier: ^2.7.0
-        version: 2.7.0
     devDependencies:
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

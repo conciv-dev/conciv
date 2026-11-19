@@ -175,7 +175,7 @@ describe('mount node', () => {
     })
 
     it('mountConciv is safe to call without document', () => {
-      expect(() => mountConciv([])).not.toThrow()
+      expect(() => mountConciv()).not.toThrow()
     })
   })
 })

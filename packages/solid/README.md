@@ -17,15 +17,7 @@ export function App() {
 
 Renders a single empty anchor `<div>`; the widget mounts into it inside a shadow root and overlays the viewport with fixed positioning, so placement in your tree doesn't affect where it appears. Removing the component removes the widget. SSR-safe (renders nothing on the server). Props are reactive the Solid way: any tracked change remounts the widget with the new configuration, no memoization needed.
 
-Props (all optional): `extensions` (conciv extensions to load: an array, or a `() => Promise<AnyExtension[]>` loader), `settings` (same shape as the `conciv-widget` meta config), `apiBase` (conciv server URL; defaults to the meta/query resolution). The Terminal panel is built into the widget: no extension is needed for it.
-
-In SSR setups (SolidStart), pass `extensions` as a loader with a dynamic import (the example loads `@conciv/extension-whiteboard`, which you install yourself); extension client modules are browser code and must not be imported during the server render:
-
-```tsx
-const extensions = () => import('@conciv/extension-whiteboard/client').then((mod) => [mod.default])
-
-<ConcivWidget extensions={extensions} />
-```
+Props (all optional): `settings` (same shape as the `conciv-widget` meta config), `apiBase` (conciv server URL; defaults to the meta/query resolution). The Terminal panel is built into the widget. Plugins the engine lists reach the widget on their own.
 
 Your app and the widget share one `solid-js` copy (the widget externalizes it); keep `solid-js` deduped in your bundler config if you alias or vendor it.
 
