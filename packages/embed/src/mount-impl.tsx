@@ -2,7 +2,7 @@ import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {engineHeaders, makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
-import {acquirePushChannel} from '@conciv/client'
+import {pageQueries} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -86,15 +86,14 @@ function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => 
       const sessionId = config.session()
       const apiBase = config.apiBase()
       if (!sessionId || apiBase === '' || !config.trusted()) return
-      const channel = acquirePushChannel({apiBase, sessionId})
       const plane = startPagePlane({
-        source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
+        source: {
+          queries: (signal) => pageQueries(config.rpc, signal),
+          reply: (input) => config.rpc.page.reply(input),
+        },
         driver: config.driver(),
       })
-      onCleanup(() => {
-        plane.dispose()
-        channel.dispose()
-      })
+      onCleanup(() => plane.dispose())
     })
     return {dispose}
   })
