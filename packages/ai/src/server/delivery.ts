@@ -41,8 +41,6 @@ type DeliveryDeps = {
   log: (message: string) => void
 }
 
-async function* noStream(): AsyncGenerator<ChatEvent> {}
-
 const LIVE_BATCH = 1
 
 const FROM_START = '-1'
@@ -60,6 +58,8 @@ function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close
   }
   return {send: (data) => sink.send(data), close: (code, reason) => sink.close(code, reason), addEventListener}
 }
+
+async function* noStream(): AsyncGenerator<ChatEvent> {}
 
 export function readTerminalPhase(chunk: ChatEvent): RunPhase | null {
   if (chunk.type === EventType.RUN_ERROR) return 'failed'
@@ -97,14 +97,9 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     await response.text()
   }
 
-  async function* driveUnlessSeen(ctx: WsRunContext): AsyncGenerator<ChatEvent> {
-    if (!(await seenRun(ctx.runId))) {
-      IdentifiedMessagesSchema.parse(ctx.messages)
-      drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
-        log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
-      )
-    }
-    yield* noStream()
+  const driveUnlessSeen = async (ctx: WsRunContext): Promise<void> => {
+    if (await seenRun(ctx.runId)) return
+    await drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages)
   }
 
   const serveSocket = (socket: WebSocketLike, request: Request): void => {
@@ -116,7 +111,13 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
     toWebSocketStream(socket, request, {
       debug,
       durability: (ctx) => memoryStream({runId: ctx.runId, offset: FROM_START}),
-      onRun: driveUnlessSeen,
+      onRun: (ctx) => {
+        IdentifiedMessagesSchema.parse(ctx.messages)
+        driveUnlessSeen(ctx).catch((error: unknown) =>
+          log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
+        )
+        return noStream()
+      },
     })
   }
 

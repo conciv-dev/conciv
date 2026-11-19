@@ -67,7 +67,9 @@ export async function renameSession(
   const row = await rowById(renaming.db, sessionId)
   if (!row) return 'missing'
   const title = cleanTitle(given)
-  await renaming.db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, sessionId))
+  await Effect.runPromise(
+    renaming.db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, sessionId)),
+  )
   if (row.harnessSessionId !== null) await renaming.search.retitle(row.harnessKind, row.harnessSessionId, title)
   return {title}
 }
