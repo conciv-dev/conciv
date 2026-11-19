@@ -33,7 +33,6 @@ function readComposeTarget(anchor: ElementRect, grab: Grab): ComposeTarget {
   }
 }
 
-const isBound = (bound: ChatCover | undefined): bound is ChatCover => bound !== undefined
 const commentsUnbound = (): CommentsUnbound => CommentsUnbound.make({})
 
 export const makeCommentCompose = Effect.gen(function* () {
@@ -41,16 +40,25 @@ export const makeCommentCompose = Effect.gen(function* () {
   const cover = yield* SubscriptionRef.make<ChatCover | undefined>(undefined)
   const running = yield* FiberHandle.make<void>()
 
-  const boundCover = SubscriptionRef.changes(cover).pipe(
-    Stream.filter(isBound),
-    Stream.runHead,
-    Effect.timeout(BINDING_WAIT),
-    Effect.flatMap(Effect.fromOption(commentsUnbound)),
-    Effect.mapError(commentsUnbound),
-  )
+  const boundCover = (room: string | undefined) =>
+    SubscriptionRef.changes(cover).pipe(
+      Stream.filter((next): next is ChatCover => next !== undefined && (room === undefined || next.room === room)),
+      Stream.runHead,
+      Effect.timeout(BINDING_WAIT),
+      Effect.flatMap(Effect.fromOption(commentsUnbound)),
+      Effect.mapError(commentsUnbound),
+    )
+
+  const roomLeft = (room: string | undefined) =>
+    SubscriptionRef.changes(cover).pipe(
+      Stream.filter((next) => room !== undefined && next !== undefined && next.room !== room),
+      Stream.runHead,
+      Effect.as(''),
+    )
 
   const compose = (steps: ComposeSteps) =>
     Effect.gen(function* () {
+      const room = (yield* SubscriptionRef.get(cover))?.room
       yield* SubscriptionRef.set(phase, {status: 'picking'})
       const grab = yield* Effect.tryPromise(steps.pick).pipe(
         Effect.tapError((error) => Effect.logWarning('[whiteboard] the element pick failed', error)),
@@ -61,9 +69,9 @@ export const makeCommentCompose = Effect.gen(function* () {
       const target = readComposeTarget(anchor, grab)
       const reply = yield* Deferred.make<string>()
       yield* SubscriptionRef.set(phase, {status: 'composing', target, anchor, reply})
-      const text = (yield* Deferred.await(reply)).trim()
+      const text = (yield* Effect.race(Deferred.await(reply), roomLeft(room))).trim()
       if (!text) return
-      const bound = yield* boundCover
+      const bound = yield* boundCover(room)
       const reveal = steps.canvasOpen()
       bound.addComment(target, text, reveal)
       if (!reveal) steps.added()

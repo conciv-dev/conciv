@@ -25,6 +25,7 @@ export type ComposeTarget = {source: {file: string; line: number | null} | null;
 export type InboxSort = 'date' | 'unread'
 
 export type ChatCover = {
+  room: string
   threadOpen: Accessor<boolean>
   inboxOpen: Accessor<boolean>
   prompting: Accessor<boolean>
