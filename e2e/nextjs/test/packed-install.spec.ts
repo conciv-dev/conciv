@@ -92,15 +92,28 @@ test.describe.serial('installed TanStack plugin and extensions on packed Next 16
     }
   }
 
+  async function editExtensionsAndAwaitReload(page: Page, edit: () => void, applied: () => boolean): Promise<void> {
+    const reloaded = page.waitForEvent('load')
+    edit()
+    await waitFor(async () => applied(), 30_000)
+    await reloaded
+  }
+
   async function assertLiveAddRemove(page: Page, webpack: boolean): Promise<void> {
     expect(await page.getByText(SECOND_SENTINEL).count()).toBe(0)
-    writeSecondExtension(fixture.appDir)
-    await waitFor(async () => readGeneratedEntry(fixture.appDir).includes('second'), 30_000)
+    await editExtensionsAndAwaitReload(
+      page,
+      () => writeSecondExtension(fixture.appDir),
+      () => readGeneratedEntry(fixture.appDir).includes('second'),
+    )
     await restartFresh(page, webpack)
     await gotoAndOpen(page)
     await expect(page.getByText(SECOND_SENTINEL).first()).toBeVisible({timeout: 60_000})
-    removeSecondExtension(fixture.appDir)
-    await waitFor(async () => !readGeneratedEntry(fixture.appDir).includes('second'), 30_000)
+    await editExtensionsAndAwaitReload(
+      page,
+      () => removeSecondExtension(fixture.appDir),
+      () => !readGeneratedEntry(fixture.appDir).includes('second'),
+    )
     await restartFresh(page, webpack)
     await gotoAndOpen(page)
     await expect(chip(page)).toBeVisible()
