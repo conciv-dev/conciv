@@ -1222,7 +1222,7 @@ export interface Ui {
   Select<T extends string>(props: UiSelectProps<T>): JSX.Element
   /**
    * A short label in a pill, the chip the tool cards show for a state, a path or a name. A value too long for its
-   * room is cut with an ellipsis and shows in full in a tooltip on hover.
+   * room is cut with an ellipsis and shows in full in a tooltip on hover, above the tooltip text when one is given.
    *
    * @param props - The label, its tone, and an optional tooltip that explains it, which makes the chip focusable.
    *
