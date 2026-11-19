@@ -83,7 +83,7 @@ function SearchHeader(): JSX.Element {
 function matchOverflowLabel(groups: ReturnType<typeof groupSearchMatches>): (hidden: number) => string {
   return (hidden) => {
     const summary = hiddenMatchSummary(groups, hidden)
-    return `… ${countLabel(summary.matches, 'more match', 'more matches')} in ${countLabel(summary.files, 'file', 'files')}`
+    return `${countLabel(summary.matches, 'more match', 'more matches')} in ${countLabel(summary.files, 'file', 'files')}`
   }
 }
 

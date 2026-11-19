@@ -722,6 +722,33 @@ describe('tool row projections', () => {
     expect(document.querySelector('diffs-container')).not.toBeNull()
   })
 
+  it('heads a long bash output with its command, copies it from that header and expands the lines it hides', async () => {
+    const command = 'pnpm test --reporter verbose'
+    const lines = Array.from({length: 24}, (_, index) => `line ${index + 1} of a very tall body`)
+    const output = lines.join('\n')
+    const shownLines = 11
+    const lineText = (number: number) => page.getByText(`line ${number} of a very tall body`, {exact: true})
+    mountView(() => row(call('Bash', {command}), result(JSON.stringify({stdout: output, exitCode: 0}))))
+    const box = page.getByRole('group', {name: 'Output'})
+
+    await expect
+      .element(box.getByRole('button', {name: `${lines.length - shownLines} more lines`}))
+      .toHaveAttribute('aria-expanded', 'false')
+    await expect.element(box.getByText(command, {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('group', {name: 'Command'})).not.toBeInTheDocument()
+    await expect.element(lineText(shownLines)).toBeInViewport({ratio: 1})
+    await expect.element(lineText(shownLines + 1)).not.toBeInViewport()
+
+    await box.getByRole('button', {name: 'Copy'}).click()
+    await expect.element(box.getByRole('status')).toHaveTextContent('Copied to clipboard')
+    expect(await navigator.clipboard.readText()).toBe(output)
+
+    await box.getByRole('button', {name: `${lines.length - shownLines} more lines`}).click()
+    await expect.element(box.getByRole('button', {name: 'Show less'})).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(lineText(lines.length)).toBeInViewport({ratio: 1})
+    await expect.element(page.getByRole('button', {name: /more lines/})).not.toBeInTheDocument()
+  })
+
   it('renders ansi bash trace output through the ansi grammar so escape codes never leak as text', async () => {
     mountView(() => row(call('Bash', {command: 'pnpm test'}), result(JSON.stringify({stdout: ANSI_LOG, exitCode: 0}))))
 

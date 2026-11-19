@@ -30,7 +30,7 @@ function StoppedBody(): JSX.Element {
     <div class="flex flex-col gap-2">
       <Show when={bash.command()}>
         {(command) => (
-          <CodeBlock size="xs" title="Command" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />
+          <CodeBlock size="xs" label="Command" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />
         )}
       </Show>
       <ErrorBlock message={bash.stoppedReason()} outcome={bash.outcome()} />
@@ -44,35 +44,22 @@ function Body(): JSX.Element {
   return (
     <Show when={bash.outcome() === undefined} fallback={<StoppedBody />}>
       <Show
-        when={bash.hasOutput()}
+        when={bash.hasOutput() && text()}
         fallback={
           <span class="text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)]">
             no output
           </span>
         }
       >
-        <div class="flex flex-col gap-2">
-          <Show when={bash.command()}>
-            {(command) => (
-              <CodeBlock
-                size="xs"
-                title="Command"
-                file={{name: 'command.sh', lang: 'shellscript', contents: command()}}
-              />
-            )}
-          </Show>
-          <Show when={text()}>
-            {(value) => (
-              <CodeBlock
-                size="xs"
-                title={bash.isError() ? 'Error' : 'Output'}
-                tone={bash.isError() ? 'error' : 'normal'}
-                label={bash.isError() ? 'Error output' : 'Output'}
-                file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
-              />
-            )}
-          </Show>
-        </div>
+        {(value) => (
+          <CodeBlock
+            size="xs"
+            title={bash.command() || (bash.isError() ? 'Error' : 'Output')}
+            tone={bash.isError() ? 'error' : 'normal'}
+            label={bash.isError() ? 'Error output' : 'Output'}
+            file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
+          />
+        )}
       </Show>
     </Show>
   )

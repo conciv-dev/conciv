@@ -59,7 +59,18 @@ describe('code block actions', () => {
       .click()
 
     await expect.element(lastLine).toBeInViewport()
-    await expect.element(page.getByRole('button', {name: 'show less'})).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(page.getByRole('button', {name: 'Show less'})).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('heads a finished markdown fence with its language and copies the fence from that header', async () => {
+    mountView(() => <Markdown content={['```ts', SOURCE, '```'].join('\n')} />)
+    const fence = page.getByRole('group', {name: 'ts', exact: true})
+
+    await expect.element(fence.getByText('ts', {exact: true})).toBeVisible()
+    await fence.getByRole('button', {name: 'Copy'}).click()
+
+    await expect.element(fence.getByRole('status')).toHaveTextContent('Copied to clipboard')
+    expect(await navigator.clipboard.readText()).toBe(SOURCE)
   })
 })
 

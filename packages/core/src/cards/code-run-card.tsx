@@ -63,12 +63,7 @@ const SECTION_LABEL =
   'text-[length:var(--chat-text-micro)] text-chat-microlabel leading-none tracking-[0.13em] uppercase [font-family:var(--chat-mono)]'
 
 function ConsoleLogs(props: {logs: string[]}): JSX.Element {
-  return (
-    <>
-      <span class={SECTION_LABEL}>console</span>
-      <CodeBlock file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
-    </>
-  )
+  return <CodeBlock title="console" file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
 }
 
 function RunResult(props: {output: ExecuteResult | null}): JSX.Element {
