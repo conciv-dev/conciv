@@ -2,10 +2,10 @@ import {Plugin, type Rpc} from '@conciv/plugin/effect'
 import type {Context} from '@conciv/plugin/effect/plugin'
 import {Effect, FileSystem, Layer, Path, Queue, Stream, Schema} from 'effect'
 import {z} from 'zod'
-import {MAX_FILE_BYTES, Recorder, recorderConfig, type RecorderConfig} from './rpc.js'
+import {MAX_FILE_BYTES, Recorder, recorderConfig, type RecorderConfig, type RrwebEvent} from './rpc.js'
 import * as CaptureControlModel from './capture-control.js'
 import {CaptureControl} from './capture-control.js'
-import {distill} from './distill.js'
+import {distill, recordingSummary} from './distill.js'
 import * as RecordingStoreModel from './recordings.js'
 import {RecordingStore} from './recordings.js'
 import {launchChromiumRenderer} from './render.js'
@@ -23,7 +23,13 @@ const RESET_SNAPSHOT_WAIT_MS = 1500
 
 const OK: {ok: true} = {ok: true}
 
-const EXPIRED: {expired: true} = {expired: true}
+const EXPIRED: {kind: 'expired'} = {kind: 'expired'}
+
+const MISSING: {kind: 'missing'} = {kind: 'missing'}
+
+function foundRecording(events: RrwebEvent[]): {kind: 'found'; events: RrwebEvent[]} {
+  return {kind: 'found', events}
+}
 
 const VIDEO: {name: 'recording.webm'; mime: 'video/webm'} = {name: 'recording.webm', mime: 'video/webm'}
 
@@ -73,12 +79,19 @@ const registerRpc = Effect.fn('recorder.registerRpc')(function* (
     log: (input) => Effect.map(rings.window(input, input.clientId), (events) => ({entries: distill(events)})),
     'recordings.save': (input) =>
       Effect.flatMap(rings.window(input, input.clientId), recordings.save).pipe(
-        Effect.map((saved) => (saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason})),
+        Effect.map((stored) =>
+          stored.saved
+            ? {saved: stored.saved, recordingId: stored.recordingId, summary: recordingSummary(distill(stored.events))}
+            : stored,
+        ),
       ),
     'recordings.get': (input) =>
       recordings.get(input.recordingId).pipe(
-        Effect.map((events) => ({events})),
-        Effect.catchTag('RecorderRecordingNotFound', () => Effect.succeed(EXPIRED)),
+        Effect.map(foundRecording),
+        Effect.catchTags({
+          RecorderRecordingExpired: () => Effect.succeed(EXPIRED),
+          RecorderRecordingNotFound: () => Effect.succeed(MISSING),
+        }),
       ),
     'recordings.exportVideo': (input, call) =>
       Effect.gen(function* () {
@@ -89,7 +102,9 @@ const registerRpc = Effect.fn('recorder.registerRpc')(function* (
         return {...piece, ...VIDEO}
       }).pipe(
         Effect.catchTags({
-          RecorderRecordingNotFound: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
+          RecorderRecordingExpired: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
+          RecorderRecordingNotFound: () =>
+            Effect.fail(call.error('missing', `There is no saved recording ${input.id}`)),
           RecorderVideoUnrendered: () =>
             Effect.fail(call.error('render-failed', `The recording ${input.id} could not be rendered to video`)),
           RecorderVideoUnreadable: () =>

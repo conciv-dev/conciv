@@ -1,14 +1,16 @@
 import {Match, Show, Switch, onCleanup, untrack, type JSX} from 'solid-js'
 import {Effect, SubscriptionRef} from 'effect'
 import {useQuery, useQueryClient} from '@conciv/client'
-import {usePlugin} from '@conciv/plugin/experimental'
+import {usePlugin, type PanelProps} from '@conciv/plugin/experimental'
 import {Page} from '@conciv/plugin/experimental/page'
 import {REPLAY_MIN_EVENTS, Recorder} from './rpc.js'
+import {saveFileToDisk, videoPieceReader} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {followClient} from './page-capture.js'
 import {openPanel, recorderPanelCalls} from './panel.js'
 import type {ReplaySource} from './player-follow.js'
-import {loadPlayerKit, streamPlayer, type PlayerKit} from './player.js'
+import {streamPlayer, type PlayerKit} from './player.js'
+import {PlayerKitSwitch, usePlayerKit} from './player-kit.js'
 import {runInOwnerScope, subscriptionRefSignal, type PluginRuntime} from './subscription-ref-signal.js'
 
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
@@ -20,6 +22,8 @@ export function RecorderPanel(props: {
   clientId: string
   runtime: PluginRuntime
   captureFailed: () => boolean
+  flushNow: Effect.Effect<void>
+  host: PanelProps
 }): JSX.Element {
   const ctx = usePlugin()
   const page = ctx.use(Page)
@@ -27,7 +31,7 @@ export function RecorderPanel(props: {
   const viewerId = crypto.randomUUID()
   const runtime = untrack(() => props.runtime)
   const followedClientId = untrack(() => props.clientId)
-
+  const flushNow = untrack(() => props.flushNow)
   const queryClient = useQueryClient()
   const recordingKey = () => recorder().window.key({input: {clientId: props.clientId}})
   const refresh = (): Promise<void> => queryClient.invalidateQueries({queryKey: recordingKey()})
@@ -35,7 +39,29 @@ export function RecorderPanel(props: {
   const panel = runInOwnerScope(
     runtime,
     openPanel({
-      ...recorderPanelCalls({client: () => ctx.client, clientId: followedClientId, viewerId, refresh}),
+      ...recorderPanelCalls({
+        client: () => ctx.client,
+        clientId: followedClientId,
+        viewerId,
+        refresh,
+        flush: flushNow,
+        readPiece: videoPieceReader(ctx, followedClientId),
+        saveFile: (file) => Effect.sync(() => saveFileToDisk(file)),
+        noteSaved: ({recordingId, summary}) => {
+          props.host.screen.composer.attach({
+            type: 'note',
+            origin: ctx.id,
+            commentId: crypto.randomUUID(),
+            label: 'Screen recording',
+            subtitle: summary,
+            icon: 'clapperboard',
+            subject: `the screen recording ${recordingId} (Screen recording · ${summary})`,
+            href: recordingId,
+            comment: '',
+          })
+          ctx.layout.hide(`${ctx.id}:${props.host.tab.id}`, props.host.session)
+        },
+      }),
       report: (title) => Effect.sync(() => void ctx.toast.show({title, variant: 'error'})),
     }),
   )
@@ -69,13 +95,7 @@ export function RecorderPanel(props: {
   )
   onCleanup(stopWatching)
 
-  const playerKit = useQuery(() => ({
-    queryKey: ['plugin', 'recorder', 'player-kit'],
-    queryFn: loadPlayerKit,
-    retry: false,
-    refetchOnWindowFocus: false,
-  }))
-  const loadedPlayerKit = (): PlayerKit | undefined => (playerKit.isSuccess ? playerKit.data : undefined)
+  const playerKit = usePlayerKit()
 
   const follow = followClient(ctx, followedClientId)
 
@@ -112,17 +132,21 @@ export function RecorderPanel(props: {
         <Match keyed when={recordingWithEnoughEvents(recording.data)}>
           {(source) => (
             <>
-              <Switch fallback={<RecorderNotice text="Loading player…" />}>
-                <Match when={playerKit.isError}>
-                  <RecorderErrorNotice retry={() => location.reload()} text="Could not load the player." />
-                </Match>
-                <Match keyed when={loadedPlayerKit()}>
-                  {(kit) => (
-                    <div ref={replayRef(kit, source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
-                  )}
-                </Match>
-              </Switch>
+              <PlayerKitSwitch kit={playerKit}>
+                {(kit) => (
+                  <div ref={replayRef(kit, source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
+                )}
+              </PlayerKitSwitch>
               <div class="flex gap-2 items-center">
+                <ctx.ui.Button
+                  variant="contrast"
+                  size="small"
+                  disabled={panelState().status !== 'idle'}
+                  busy={panelState().status === 'sending'}
+                  onClick={() => run(panel.requestSend)}
+                >
+                  Send to agent
+                </ctx.ui.Button>
                 <ctx.ui.Button
                   variant="neutral"
                   size="small"
