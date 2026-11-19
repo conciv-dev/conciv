@@ -182,8 +182,15 @@ ctx.add(Panel, {
 
 A slot puts content at a fixed place in the widget:
 
-```tsx title="packages/plugins/tanstack/src/plugin-experimental.tsx"
-ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} />})
+```tsx title="packages/builtin-plugins/src/terminal/plugin-experimental.tsx"
+ctx.add(Slot, {
+  at: 'session.panel.end',
+  render: (input) => (
+    <Show when={ctx.layout.state(PANEL_KEY, input.session) === 'visible'}>
+      <TerminalToolbar session={input.session} terminal={terminal} />
+    </Show>
+  ),
+})
 ```
 
 | `at`                | Where                             | `render` input                           |
@@ -191,6 +198,7 @@ ctx.add(Slot, {at: 'session.status', render: () => <InspectorChip ui={ctx.ui} />
 | `window.bottom`     | the bottom of the widget window   | none                                     |
 | `session.header`    | a session's header                | `session`, `screen`, `active`, `compact` |
 | `session.status`    | above a session's composer        | `session`, `screen`                      |
+| `session.panel.end` | the end of a session's status bar | `session`, `screen`                      |
 | `page.overlay`      | over the page                     | none                                     |
 
 A `page.overlay` slot holds the focus unless it sets `hides: false`.
