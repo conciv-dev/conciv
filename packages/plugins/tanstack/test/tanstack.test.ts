@@ -12,7 +12,12 @@ import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
 import type * as Bundler from '@conciv/plugin/schema/bundler'
 import {buildAndPack, installPacked} from '@conciv/vitest-config/pack'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
+import {Effect, Fiber, FileSystem, Layer, Path, Stream} from 'effect'
+import {TestClock} from 'effect/testing'
+import {diagnosticsLayer} from '../src/diagnostics.js'
 import {Definition} from '../src/rpc.js'
+import {serverFnTraceLayer} from '../src/serverfn-trace.js'
+import {capabilities} from '../src/tools.js'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const FIXTURES = join(PACKAGE_DIR, 'test', 'fixtures')
@@ -167,7 +172,7 @@ describe('the tanstack plugin without a bundler', () => {
 
     rmSync(join(kit.stateRoot, 'src', 'routeTree.gen.ts'))
     const unreadable = await toolFailure(useTool(kit, 'route_manifest'))
-    expect(unreadable).toContain('ENOENT')
+    expect(unreadable).toContain('NotFound: FileSystem.readFile')
     expect(unreadable).toContain('routeTree.gen.ts')
     expect(await terminalCall(kit, 'routeManifest')).toEqual({
       ok: false,
@@ -519,4 +524,40 @@ describe('the packed tanstack plugin', {tags: ['packed']}, () => {
     expect(probed.id).toBe('tanstack')
     expect(probed.entry).toContain('node_modules/@conciv/plugin-tanstack/dist/index.js')
   }, 420_000)
+})
+
+describe('the tanstack plugin with an invalid option', () => {
+  it('fails its activation with Tanstack.InvalidOptions', async () => {
+    const kit = await bootCoreKit({id: 'fake', plugins: [[PACKAGE_DIR, {bundlerWaitMs: -1}]]})
+    onTestFinished(() => kit.cleanup())
+    const {data} = await kit.rpc.plugin.list()
+    expect(data.find((plugin) => plugin.id === 'tanstack')?.state).toEqual({
+      status: 'failed',
+      error: 'failed to load plugin: Tanstack.InvalidOptions: bundlerWaitMs: Too small: expected number to be >0',
+    })
+    expect(await terminalCall(kit, 'buildErrors')).toMatchObject({
+      ok: false,
+      error: {type: 'rpc.unavailable', message: 'RPC is unavailable: experimental.tanstack'},
+    })
+  })
+})
+
+describe('the tanstack plugin waiting for the bundler status', () => {
+  it('waits the set time on the test clock for a dev server, then fails BUNDLER_UNAVAILABLE', () =>
+    Effect.gen(function* () {
+      const rings = yield* Layer.build(Layer.mergeAll(diagnosticsLayer, serverFnTraceLayer))
+      const tanstack = yield* capabilities({event: {subscribe: () => Stream.never}}, PACKAGE_DIR, {
+        bundlerWaitMs: 5_000,
+      }).pipe(Effect.provide(rings))
+      const waiting = yield* tanstack.buildErrors().pipe(Effect.flip, Effect.forkChild)
+      yield* TestClock.adjust('4999 millis')
+      expect(waiting.pollUnsafe()).toBeUndefined()
+      yield* TestClock.adjust('1 millis')
+      const failure = yield* Fiber.join(waiting)
+      expect(failure).toEqual({_tag: 'Tanstack.BundlerUnavailable', message: 'bundler bridge unavailable'})
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(Layer.mergeAll(TestClock.layer(), FileSystem.layerNoop({}), Path.layer)),
+      Effect.runPromise,
+    ))
 })
