@@ -7914,6 +7914,45 @@ describe('terminal panel', () => {
     await expect.element(terminalTab(), {timeout: 15_000}).not.toBeInTheDocument()
   }, 60_000)
 
+  test('a CLI that was busy when Retry listed the models restarts with the saved pick once it is idle', async () => {
+    const picker = () => bar().getByRole('button', {name: 'Select model'})
+    const newTerminal = () => bar().getByRole('button', {name: 'New terminal'})
+    const saved = await createSession(coreRpc(coreBase()))
+    harness.mountShell(terminalRoute(saved))
+    await expect.element(picker(), {timeout: 15_000}).toBeEnabled()
+    await picker().click()
+    await page.getByRole('option', {name: 'Calm model'}).click()
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const broken = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
+    harness.dispose()
+    harness.mountShell(terminalRoute(sessionId))
+    const retry = () =>
+      page
+        .getByRole('dialog', {name: 'Model'})
+        .getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
+    await expect.element(output('model none'), {timeout: 15_000}).toBeInTheDocument()
+    await bar().getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+    await coreControl.releaseFault(broken)
+    const held = await faults.install({kind: 'gate', path: ['meta', 'models']})
+    await retry().click()
+    await coreControl.awaitFaultPending(held, 1)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', {name: 'Model'})).not.toBeInTheDocument()
+
+    await terminalPanel().click()
+    await typeLine(`printf '\\033\\1359;4;1\\007'; read; printf '\\033\\1359;4;0\\007'`)
+    await expect.element(newTerminal(), {timeout: 15_000}).toBeDisabled()
+    await faults.releaseAll()
+    await expect.element(picker(), {timeout: 15_000}).toBeDisabled()
+    await expect.element(output('model calm-model')).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(output('model calm-model'), {timeout: 15_000}).toBeInTheDocument()
+    await expect.element(output('model none')).not.toBeInTheDocument()
+  }, 60_000)
+
   test('a control the user opened before the terminal starts keeps focus and stays open once the terminal starts', async () => {
     const menu = () => page.getByRole('dialog', {name: 'Session options'})
     const sessionId = await createSession(coreRpc(coreBase()))

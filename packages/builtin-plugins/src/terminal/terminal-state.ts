@@ -97,12 +97,11 @@ export function createTerminalState(ctx: TerminalContext) {
       const session = ctx.sessions.current()
       const live = run.live
       if (!session || live?.key !== key(session.id) || meta(session.id) === undefined) return undefined
+      if (locked(session.id)) return undefined
       const model = spawnModel(session.id)
       return model === live.model ? undefined : {session, key: live.key, model}
     },
-    (behind) => {
-      if (!locked(behind.session.id)) void restart(behind.session)
-    },
+    (behind) => void restart(behind.session),
     {equals: (previous, next) => previous.key === next.key && previous.model === next.model},
   )
 
