@@ -21,7 +21,7 @@ Generated from project sources at 2026-08-15T19:07:07.532Z.
 
 ## Components
 
-- Installed: alert-dialog, badge, button, card, hover-card, input, message-circle-icon, mouse-pointer-2-icon, pen-icon, plug-connected-icon, scroll-area, select, shield-check, terminal-icon, tooltip, types
+- Installed: alert-dialog, badge, button, card, hover-card, input, message-circle-icon, mouse-pointer-2-icon, plug-connected-icon, scroll-area, select, shield-check, terminal-icon, tooltip, types
 - Preferred primitives: None detected
 
 ## Tokens

@@ -205,7 +205,7 @@ cross_references:
     reason: 'Most "widget never appears" symptoms trace back to the install path (bundler plugin vs manual mount) that conciv-setup owns.'
   - from: 'conciv-debug'
     to: 'conciv-harness'
-    reason: 'A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem — conciv-harness covers adapter wiring.'
+    reason: 'A stuck first-response with no tool call involved is a harness/CLI problem, not a gate problem: conciv-harness covers adapter wiring.'
   - from: 'conciv-develop'
     to: 'conciv-debug'
     reason: 'A plugin tool that asks through ctx.permission.assert goes through the same approval mechanism conciv-debug documents.'

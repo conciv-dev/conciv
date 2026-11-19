@@ -1,4 +1,4 @@
-# @conciv/skills — Skill Spec
+# @conciv/skills: Skill Spec
 
 conciv is a dev-only chat widget plus an engine that lets a coding agent read and act on a running
 app. `@conciv/skills` packages the agent-facing knowledge for building with it: installing the
@@ -29,8 +29,8 @@ runtime once it's live.
 
 | #   | Mistake                                                | Priority | Source                        | Cross-skill? |
 | --- | ------------------------------------------------------ | -------- | ----------------------------- | ------------ |
-| 1   | assuming Rollup/esbuild plugin entries boot the engine | HIGH     | `packages/it/README.md`       | —            |
-| 2   | shipping the widget to production with no enabled gate | CRITICAL | `packages/core/src/config.ts` | —            |
+| 1   | assuming Rollup/esbuild plugin entries boot the engine | HIGH     | `packages/it/README.md`       | none         |
+| 2   | shipping the widget to production with no enabled gate | CRITICAL | `packages/core/src/config.ts` | none         |
 
 ### conciv-develop (2 failure modes)
 
@@ -43,21 +43,21 @@ runtime once it's live.
 
 | #   | Mistake                                                                                     | Priority | Source                              | Cross-skill? |
 | --- | ------------------------------------------------------------------------------------------- | -------- | ----------------------------------- | ------------ |
-| 1   | spawning or decoding the CLI directly instead of returning a text adapter from chatConfig() | CRITICAL | `packages/core/src/chat/run.ts`     | —            |
-| 2   | passing a host-absolute cwd into an adapter config                                          | HIGH     | `packages/core/src/chat/sandbox.ts` | —            |
+| 1   | spawning or decoding the CLI directly instead of returning a text adapter from chatConfig() | CRITICAL | `packages/core/src/chat/run.ts`     | none         |
+| 2   | passing a host-absolute cwd into an adapter config                                          | HIGH     | `packages/core/src/chat/sandbox.ts` | none         |
 
 ### conciv-debug (2 failure modes)
 
 | #   | Mistake                                                          | Priority | Source                                | Cross-skill? |
 | --- | ---------------------------------------------------------------- | -------- | ------------------------------------- | ------------ |
-| 1   | treating every approval failure as a user denial                 | MEDIUM   | `packages/core/src/chat/gate.ts`      | —            |
-| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/chat/subscribe.ts` | —            |
+| 1   | treating every approval failure as a user denial                 | MEDIUM   | `packages/core/src/chat/gate.ts`      | none         |
+| 2   | using Playwright networkidle against a page with the live widget | HIGH     | `packages/core/src/chat/subscribe.ts` | none         |
 
 ## Tensions
 
-| Tension                       | Skills                        | Agent implication                                                                                                                                                            |
-| ----------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| fail-fast vs wait-for-a-human | conciv-harness ↔ conciv-debug | A stuck tool call is either an instant `noListenerRefusal` (code-mode) or a two-minute `ASK_TIMEOUT_MS` wait (normal chat tools) — the fix depends on which gate path fired. |
+| Tension                       | Skills                        | Agent implication                                                                                                                                                           |
+| ----------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| fail-fast vs wait-for-a-human | conciv-harness ↔ conciv-debug | A stuck tool call is either an instant `noListenerRefusal` (code-mode) or a two-minute `ASK_TIMEOUT_MS` wait (normal chat tools): the fix depends on which gate path fired. |
 
 ## Cross-References
 
@@ -71,23 +71,23 @@ runtime once it's live.
 
 | Skill          | Subsystems                                      | Reference candidates                                      |
 | -------------- | ----------------------------------------------- | --------------------------------------------------------- |
-| conciv-setup   | Vite, Next.js, webpack, Rspack, Rollup, esbuild | —                                                         |
-| conciv-develop | —                                               | tool contract (server/client/render/errors/approval/meta) |
+| conciv-setup   | Vite, Next.js, webpack, Rspack, Rollup, esbuild | none                                                      |
+| conciv-develop | none                                            | tool contract (server/client/render/errors/approval/meta) |
 | conciv-harness | claude, codex adapters                          | HarnessCapabilities flag matrix                           |
-| conciv-debug   | —                                               | —                                                         |
+| conciv-debug   | none                                            | none                                                      |
 
 ## Remaining Gaps
 
-None open — all four skills were authored and reviewed against current source in this pass.
+None open: all four skills were authored and reviewed against current source in this pass.
 
 ## Recommended Skill File Structure
 
-- **Core skills:** conciv-setup, conciv-develop, conciv-harness, conciv-debug — all framework-agnostic,
+- **Core skills:** conciv-setup, conciv-develop, conciv-harness, conciv-debug: all framework-agnostic,
   flat `skills/<slug>/SKILL.md` layout (fewer than 5 skills, minimal-library fast path).
-- **Framework skills:** none — @conciv/react/preact/solid are thin wrappers covered inline in
+- **Framework skills:** none: @conciv/react/preact/solid are thin wrappers covered inline in
   conciv-setup rather than split into per-framework skills.
 - **Lifecycle skills:** none.
-- **Composition skills:** none — cross-skill guidance is handled via cross-references, not a
+- **Composition skills:** none: cross-skill guidance is handled via cross-references, not a
   separate composition skill.
 - **Reference files:** conciv-develop and conciv-harness each carry a `references/` directory for
   dense API surfaces (tool contract details, transcript-history internals); conciv-setup and
@@ -95,6 +95,6 @@ None open — all four skills were authored and reviewed against current source 
 
 ## Composition Opportunities
 
-| Library      | Integration points                               | Composition skill needed?             |
-| ------------ | ------------------------------------------------ | ------------------------------------- |
-| @tanstack/ai | `chat()`, text adapters, sandbox/gate middleware | no — covered inline in conciv-harness |
+| Library      | Integration points                               | Composition skill needed?            |
+| ------------ | ------------------------------------------------ | ------------------------------------ |
+| @tanstack/ai | `chat()`, text adapters, sandbox/gate middleware | no: covered inline in conciv-harness |
