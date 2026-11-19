@@ -2,16 +2,11 @@ import {
   chatParamsFromRequestBody,
   EventType,
   memoryStream,
-  resolveResumeRunId,
-  resumeServerSentEventsResponse,
-  resumeWebSocketStream,
   toServerSentEventsResponse,
-  toWebSocketStream,
   type DebugConfig,
-  type WebSocketLike,
-  type WsRunContext,
 } from '@tanstack/ai'
 import {InMemoryLockStore} from '@tanstack/ai/locks'
+import {withEventMeta} from '@orpc/server'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import {z} from 'zod'
@@ -20,14 +15,13 @@ export type Turn =
   | {threadId: string; runId: string; kind: 'chat' | 'compact'}
   | {threadId: string; runId: string; kind: 'page-queue'; input: string}
 
-export type SocketSink = {send: (data: string) => void; close: (code?: number, reason?: string) => void}
+export type ChatJoin = {runId: string; lastEventId?: string}
 
-export type ChatSocket = {open: (sink: SocketSink) => void; message: (data: unknown) => void; close: () => void}
+export type ChatSend = ChatJoin & {threadId: string; messages: readonly unknown[]}
 
 export type ChatDelivery = {
-  socket: (request: Request) => ChatSocket
-  events: (request: Request) => Promise<Response>
-  resume: (request: Request) => Response | null
+  send: (request: ChatSend, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
+  join: (request: ChatJoin, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
   drive: (turn: Turn, messages: Array<ChatMessage | ModelMessage>) => Promise<void>
 }
 
@@ -47,20 +41,6 @@ const LIVE_BATCH = 1
 const FROM_START = '-1'
 
 const IdentifiedMessagesSchema = z.array(z.looseObject({id: z.string().min(1)}))
-
-type SocketHandler = (event: {data: unknown}) => void
-
-function socketLike(sink: SocketSink, handlers: {message: SocketHandler[]; close: (() => void)[]}): WebSocketLike {
-  function addEventListener(type: 'message', handler: (event: {data: unknown}) => void): void
-  function addEventListener(type: 'close' | 'error', handler: () => void): void
-  function addEventListener(type: 'message' | 'close' | 'error', handler: (event: {data: unknown}) => void): void {
-    if (type === 'message') handlers.message.push(handler)
-    if (type === 'close') handlers.close.push(() => handler({data: null}))
-  }
-  return {send: (data) => sink.send(data), close: (code, reason) => sink.close(code, reason), addEventListener}
-}
-
-async function* noStream(): AsyncGenerator<ChatEvent> {}
 
 export function readTerminalPhase(chunk: ChatEvent): RunPhase | null {
   if (chunk.type === EventType.RUN_ERROR) return 'failed'
@@ -100,78 +80,29 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
 
   const starts = new InMemoryLockStore()
 
-  const startUnlessSeen = (ctx: WsRunContext): Promise<void> =>
-    starts.withLock(ctx.runId, async () => {
-      if (await seenRun(ctx.runId)) return
-      drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
-        log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
+  async function* join({runId, lastEventId}: ChatJoin, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
+    for await (const {offset, chunk} of memoryStream({runId}).read(lastEventId ?? FROM_START, signal)) {
+      yield withEventMeta(chunk, {id: offset})
+    }
+  }
+
+  async function* send(request: ChatSend, signal?: AbortSignal): AsyncGenerator<ChatEvent> {
+    const params = await chatParamsFromRequestBody({
+      threadId: request.threadId,
+      runId: request.runId,
+      messages: request.messages,
+      tools: [],
+      context: [],
+    })
+    await starts.withLock(params.runId, async () => {
+      if (await seenRun(params.runId)) return
+      IdentifiedMessagesSchema.parse(params.messages)
+      drive({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages).catch((error: unknown) =>
+        log(`[ai] run ${params.runId} failed outside its stream: ${String(error)}`),
       )
     })
-
-  const serveSocket = (socket: WebSocketLike, request: Request): void => {
-    const resumed = memoryStream(request)
-    if (resolveResumeRunId(request) !== null && resumed.resumeFrom() !== null) {
-      resumeWebSocketStream(socket, {adapter: resumed, debug})
-      return
-    }
-    toWebSocketStream(socket, request, {
-      debug,
-      durability: (ctx) => memoryStream({runId: ctx.runId, offset: FROM_START}),
-      onRun: (ctx) => {
-        IdentifiedMessagesSchema.parse(ctx.messages)
-        startUnlessSeen(ctx).catch((error: unknown) => log(`[ai] run ${ctx.runId} could not start: ${String(error)}`))
-        return noStream()
-      },
-    })
+    yield* join(request, signal)
   }
 
-  const parsedParams = async (request: Request) => {
-    try {
-      const params = await chatParamsFromRequestBody(await request.json())
-      IdentifiedMessagesSchema.parse(params.messages)
-      return params
-    } catch (error) {
-      log(`[ai] refused a chat request: ${String(error)}`)
-      return null
-    }
-  }
-
-  return {
-    socket: (request) => {
-      const handlers: {message: SocketHandler[]; close: (() => void)[]} = {message: [], close: []}
-      return {
-        open: (sink) => serveSocket(socketLike(sink, handlers), request),
-        message: (data) => {
-          for (const handler of handlers.message) handler({data})
-        },
-        close: () => {
-          for (const handler of handlers.close) handler()
-        },
-      }
-    },
-    events: async (request) => {
-      const params = await parsedParams(request)
-      if (params === null) return Response.json({message: 'the request is not a valid chat run'}, {status: 400})
-      return starts.withLock(params.runId, async () => {
-        if (await seenRun(params.runId)) {
-          return resumeServerSentEventsResponse({adapter: memoryStream({runId: params.runId, offset: FROM_START})})
-        }
-        const durability = memoryStream({runId: params.runId})
-        const controller = new AbortController()
-        const stream = run({threadId: params.threadId, runId: params.runId, kind: 'chat'}, params.messages, controller)
-        return toServerSentEventsResponse(stream, {
-          abortController: controller,
-          durability: {adapter: durability, batch: LIVE_BATCH},
-          debug,
-        })
-      })
-    },
-    resume: (request) => {
-      if (resolveResumeRunId(request) === null) return null
-      const durability = memoryStream(request)
-      if (durability.resumeFrom() === null) return null
-      return resumeServerSentEventsResponse({adapter: durability})
-    },
-    drive,
-  }
+  return {send, join, drive}
 }

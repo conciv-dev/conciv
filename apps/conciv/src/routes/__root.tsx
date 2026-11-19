@@ -136,7 +136,6 @@ function AppRoot() {
     rpc: app.rpc,
     apiBase: app.apiBase,
     generation: app.connectionGeneration,
-    transport: () => app.settings.transport,
     appData: app.data,
     queryClient: app.queryClient,
     announce,

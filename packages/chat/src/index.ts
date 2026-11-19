@@ -1,8 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNotNull} from 'drizzle-orm'
 import {Effect} from 'effect'
-import {Hono} from 'hono'
-import type {UpgradeWebSocket} from '@conciv/serve/rpc'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
@@ -11,11 +9,13 @@ import {
   createChatServer,
   drizzleChatStores,
   toolApprovalId,
+  type ChatJoin,
+  type ChatSend,
   type CodeDriver,
 } from '@conciv/ai/server'
 import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, sessions, type ConcivDb} from '@conciv/db'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
+import {isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
   createApprovalStore,
@@ -89,7 +89,8 @@ type CallRefusal = {reason: 'asked' | 'denied' | 'missing'; message: string}
 export type FollowUpOutcome = {kind: 'delivered'} | {kind: 'busy'} | {kind: 'stopped'} | {kind: 'failed'; error: string}
 
 export type ChatPlane = {
-  routes: (upgrade: UpgradeWebSocket) => Hono
+  send: (request: ChatSend, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
+  join: (request: ChatJoin, signal?: AbortSignal) => AsyncGenerator<ChatEvent>
   hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
   history: (sessionId: SessionId) => Promise<ChatMessage[]>
   stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true; stopped: boolean}>
@@ -243,23 +244,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   }
 
   return {
-    routes: (upgrade) =>
-      new Hono()
-        .get(
-          CHAT_WS_PATH,
-          upgrade((c) => {
-            const socket = server.socket(c.req.raw)
-            return {
-              onOpen: (_event, ws) =>
-                socket.open({send: (data) => ws.send(data), close: (code, reason) => ws.close(code, reason)}),
-              onMessage: (event) => socket.message(event.data),
-              onClose: () => socket.close(),
-              onError: () => socket.close(),
-            }
-          }),
-        )
-        .post(CHAT_SSE_PATH, (c) => server.events(c.req.raw))
-        .get(CHAT_SSE_PATH, (c) => server.resume(c.req.raw) ?? c.json({message: 'no resume offset'}, 400)),
+    send: (request, signal) => server.send(request, signal),
+    join: (request, signal) => server.join(request, signal),
     hydrate,
     history: async (sessionId) => (await hydrate(sessionId)).messages,
     stop: async (sessionId, runIds) => {

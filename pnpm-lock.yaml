@@ -2480,9 +2480,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@conciv/serve':
-        specifier: workspace:^
-        version: link:../serve
       '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
@@ -2495,9 +2492,6 @@ importers:
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
-      hono:
-        specifier: 'catalog:'
-        version: 4.13.14
       zod:
         specifier: 'catalog:'
         version: 4.6.7
