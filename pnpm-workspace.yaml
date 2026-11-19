@@ -21,6 +21,8 @@ catalog:
   '@types/npm-package-arg': 6.1.4
   '@types/npmcli__arborist': 6.3.3
   '@types/pacote': 11.1.8
+  '@types/which': 3.0.4
+  '@ff-labs/fff-node': 0.10.5
   npm-package-arg: 13.0.2
   pacote: 21.5.1
   esbuild: 0.28.2
@@ -187,6 +189,7 @@ catalog:
   publint: '^0.3.25'
   react: '^19.3.1'
   react-dom: '^19.3.1'
+  react-error-boundary: '^6.1.6'
   react-grab: 0.2.0
   rehype-harden: '^1.1.8'
   rehype-raw: '^7.0.0'
@@ -213,6 +216,7 @@ catalog:
   vite-plugin-solid: '^2.11.14'
   vitest: '^5.1.0'
   webpack: 5.112.2
+  which: 6.0.1
   ws: '^8.22.0'
   zod: '^4.6.7'
 
