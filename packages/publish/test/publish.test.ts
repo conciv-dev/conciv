@@ -28,6 +28,7 @@ import {
 } from '../src/swift-mirror.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from '../src/workspace.ts'
 import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
+import {assertBuildDependsOnCoversImports} from '../src/turbo-depends-on.ts'
 import {tempDir} from '@conciv/vitest-config/temp-dir'
 
 async function scaffoldWorkspaceRoot(prefix: string, packageGlobs: string[] = ['packages/*']): Promise<string> {
@@ -182,6 +183,40 @@ describe('typecheck coverage', () => {
     await expect(assertTypecheckCoversTrackedFiles(root)).rejects.toThrow(
       'packages/a/tsconfig.node.json: sets "include"',
     )
+  }, 10_000)
+})
+
+describe('turbo build dependsOn', () => {
+  test('an explicit build list names every workspace build its build sources import, not test-only imports', async () => {
+    const root = await scaffoldWorkspaceRoot('turbo-depends-on-')
+    const files: Record<string, string> = {
+      'packages/a/turbo.json': JSON.stringify({tasks: {build: {dependsOn: ['@conciv/b#build']}}}),
+      'packages/a/src/index.ts': "import {b} from '@conciv/b'\nexport const c = await import('@conciv/c/view')\n",
+      'packages/a/vite.config.ts': "export const alias = import.meta.resolve('@conciv/d')\n",
+      'packages/a/vitest.config.ts': "import '@conciv/e'\n",
+      'packages/a/test/a.test.ts': "import '@conciv/e'\n",
+      'packages/a/src/a.test.ts': "import '@conciv/e'\nimport '@conciv/plain'\n",
+    }
+    await Promise.all([
+      writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', scripts: {build: 'tsdown'}}),
+      ...['b', 'c', 'd', 'e'].map((name) =>
+        writeManifest(join(root, 'packages', name), {name: `@conciv/${name}`, scripts: {build: 'tsdown'}}),
+      ),
+      writeManifest(join(root, 'packages', 'plain'), {name: '@conciv/plain'}),
+      ...Object.entries(files).map(async ([path, content]) => {
+        await mkdir(dirname(join(root, path)), {recursive: true})
+        await writeFile(join(root, path), content)
+      }),
+    ])
+    await execa('git', ['init', '-q'], {cwd: root})
+    await execa('git', ['add', '.'], {cwd: root})
+    const failure = await assertBuildDependsOnCoversImports(root).catch((error: unknown) => String(error))
+    expect(failure).toContain('packages/a/turbo.json: build imports @conciv/c but does not depend on @conciv/c#build')
+    expect(failure).toContain('packages/a/turbo.json: build imports @conciv/d but does not depend on @conciv/d#build')
+    expect(failure).not.toContain('@conciv/e')
+    const dependsOn = ['@conciv/b#build', '@conciv/c#build', '@conciv/d#build']
+    await writeFile(join(root, 'packages/a/turbo.json'), JSON.stringify({tasks: {build: {dependsOn}}}))
+    await expect(assertBuildDependsOnCoversImports(root)).resolves.toBeUndefined()
   }, 10_000)
 })
 
@@ -899,56 +934,33 @@ describe('workspace', () => {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
   }
 
-  test('readWorkspacePackages enumerates packages under an apps/ group, not just packages/', async () => {
-    const root = await scaffoldWorkspaceRoot('apps-enum-', ['packages/*', 'apps/*'])
+  test('readWorkspacePackages sees packages under every group dir declared in pnpm-workspace.yaml, driven by the glob not a hardcoded list', async () => {
+    const root = await scaffoldWorkspaceRoot('drift-group-', ['packages/*', 'apps/*', 'extras/*'])
     await Promise.all([
       writeManifest(join(root, 'packages', 'core'), {name: '@conciv/core', version: '0.0.14'}),
       writeManifest(join(root, 'apps', 'conciv'), {name: '@conciv/app', version: '0.0.14', private: true}),
-    ])
-    const packages = await readWorkspacePackages(root)
-    const names = packages.map((pkg) => pkg.manifest.name).toSorted()
-    expect(names).toEqual(['@conciv/app', '@conciv/core'])
-  })
-
-  test('readWorkspacePackages sees a package under a brand-new group dir declared in pnpm-workspace.yaml, driven by the glob not a hardcoded list', async () => {
-    const root = await scaffoldWorkspaceRoot('drift-group-', ['packages/*', 'extras/*'])
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'core'), {name: '@conciv/core', version: '0.0.14'}),
       writeManifest(join(root, 'extras', 'novel'), {name: '@conciv/novel', version: '0.0.14'}),
     ])
     const packages = await readWorkspacePackages(root)
     const names = packages.map((pkg) => pkg.manifest.name).toSorted()
-    expect(names).toEqual(['@conciv/core', '@conciv/novel'])
+    expect(names).toEqual(['@conciv/app', '@conciv/core', '@conciv/novel'])
   })
 
-  test('buildDependencyGraph + transitiveDependents trace a workspace:* dependency edge to its dependent', async () => {
+  test('buildDependencyGraph + transitiveDependents trace a workspace:* edge to its dependent, and no semver-range edge', async () => {
     const root = await scaffoldWorkspaceRoot('dep-graph-')
     await Promise.all([
       writeManifest(join(root, 'packages', 'shared'), {name: '@conciv/shared', version: '0.0.14', private: true}),
       writeManifest(join(root, 'packages', 'consumer'), {
         name: '@conciv/consumer',
-        version: '0.0.14',
         dependencies: {'@conciv/shared': 'workspace:*'},
       }),
-    ])
-    const packages = await readWorkspacePackages(root)
-    const graph = buildDependencyGraph(packages)
-    expect(transitiveDependents(graph, '@conciv/shared')).toEqual(new Set(['@conciv/consumer']))
-  })
-
-  test('buildDependencyGraph ignores an ordinary semver-range dependency, only workspace:* creates an edge', async () => {
-    const root = await scaffoldWorkspaceRoot('dep-graph-semver-')
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'shared'), {name: '@conciv/shared', version: '0.0.14', private: true}),
-      writeManifest(join(root, 'packages', 'consumer'), {
-        name: '@conciv/consumer',
-        version: '0.0.14',
+      writeManifest(join(root, 'packages', 'ranged'), {
+        name: '@conciv/ranged',
         dependencies: {'@conciv/shared': '^0.0.14'},
       }),
     ])
-    const packages = await readWorkspacePackages(root)
-    const graph = buildDependencyGraph(packages)
-    expect(transitiveDependents(graph, '@conciv/shared')).toEqual(new Set())
+    const graph = buildDependencyGraph(await readWorkspacePackages(root))
+    expect(transitiveDependents(graph, '@conciv/shared')).toEqual(new Set(['@conciv/consumer']))
   })
 
   test('readWorkspacePackages never includes the workspace root itself as a package', async () => {
