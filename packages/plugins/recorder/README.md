@@ -10,9 +10,6 @@ one) and the page plugin is active, it captures the page with rrweb, leaving the
 `capture.exclude`), and flushes the events to the engine part. The tab says why nothing is recorded when the page
 plugin is pending or inactive, or capture failed to start.
 
-The old `@conciv/extension-recorder` records separately, into its own tab and its own tools. Don't enable both: two
-Recorder tabs show, and two tool sets.
-
 ```ts
 plugins: ['@conciv/plugin-recorder']
 plugins: [['@conciv/plugin-recorder', {masking: 'inputs', windowMinutes: 10, console: true}]]

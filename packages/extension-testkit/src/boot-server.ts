@@ -8,14 +8,13 @@ import type {HarnessAdapter} from '@conciv/harness'
 export type BootedServer = {
   apiBase: string
   origin: string
-  extensionContexts: Record<string, unknown>
   stop: () => Promise<void>
 }
 
 const removeRoot = (root: string): Promise<void> => rm(root, {recursive: true, force: true, maxRetries: 10})
 
 export async function bootExtensionServer(
-  extension: AnyExtension,
+  _extension: AnyExtension,
   opts: {harness?: HarnessAdapter} = {},
 ): Promise<BootedServer> {
   const root = await mkdtemp(join(tmpdir(), 'conciv-testkit-'))
@@ -23,7 +22,6 @@ export async function bootExtensionServer(
     options: {stateRoot: root, systemPrompt: false, harness: opts.harness?.id},
     root,
     harness: opts.harness,
-    extensions: [extension],
     launchEditor: () => {},
     print: () => {},
   }).catch(async (error: unknown) => {
@@ -34,7 +32,6 @@ export async function bootExtensionServer(
   return {
     apiBase: `${origin}/t/${engine.agentToken}`,
     origin,
-    extensionContexts: engine.extensionContexts,
     stop: async () => {
       try {
         await engine.stop()

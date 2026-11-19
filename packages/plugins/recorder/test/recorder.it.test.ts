@@ -1,3 +1,4 @@
+import {mkdir, readFile, readdir, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, onTestFinished, vi} from 'vitest'
@@ -5,8 +6,10 @@ import {z} from 'zod'
 import type {Browser, Page} from 'playwright'
 import {expect} from 'playwright/test'
 import {test} from '@conciv/browser-fixture'
+import {tempDir} from '@conciv/vitest-config/temp-dir'
 import {openPluginWidget, type PluginWidget} from '@conciv/plugin-testkit/widget-suite'
 import {rpcSocketFor, type RpcSocket, type RpcSocketCall} from '@conciv/plugin-testkit/rpc-socket'
+import {currentHref} from '@conciv/plugin-testkit/navigation-state'
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
@@ -68,15 +71,7 @@ function replayed(page: Page, text: string) {
 
 async function showRecorderTab(page: Page): Promise<void> {
   await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
-  await page.getByRole('link', {name: 'Settings'}).click({timeout: 30_000})
-  await page.getByRole('tab', {name: 'Views', exact: true}).click({timeout: 30_000})
-  await page
-    .getByRole('region', {name: 'Tab bar'})
-    .getByText(/^Recorder/)
-    .click()
-  await expect(page.getByRole('checkbox', {name: /^Recorder/})).not.toBeChecked()
-  await page.getByRole('button', {name: 'Back to chat'}).click()
-  await page.getByRole('tab', {name: 'Recorder', exact: true}).click()
+  await page.getByRole('tab', {name: 'Recorder', exact: true}).click({timeout: 30_000})
 }
 
 const ControlEventSchema = z.object({
@@ -111,7 +106,7 @@ async function untilRecordingGoesLive(events: AsyncIterable<unknown>): Promise<v
 }
 
 describe('the recorder in the widget', () => {
-  test('is an active plugin with a browser part, and with the old extension Recorder view hidden shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page, then replays what the user does in the page without the widget, and records for a recording the agent started while the page was offline', async ({
+  test('is an active plugin with a browser part, and shows its Recorder tab loading the recording in the panel, then with nothing recorded yet for this page, then replays what the user does in the page without the widget, and records for a recording the agent started while the page was offline', async ({
     browser,
   }) => {
     const widget = await openPluginWidget(browser, {
@@ -151,13 +146,6 @@ describe('the recorder in the widget', () => {
       await page.getByRole('tab', {name: 'Plugins', exact: true}).click({timeout: 30_000})
       await expect(page.getByRole('switch', {name: 'recorder'})).toBeChecked({timeout: 30_000})
       await expect(page.getByText('Server', {exact: true})).toBeVisible({timeout: 30_000})
-      await page.getByRole('tab', {name: 'Views', exact: true}).click()
-      const oldRecorderView = page.getByRole('checkbox', {name: /^Recorder/})
-      await page
-        .getByRole('region', {name: 'Tab bar'})
-        .getByText(/^Recorder/)
-        .click()
-      await expect(oldRecorderView).not.toBeChecked()
       await page.getByRole('button', {name: 'Back to chat'}).click()
       const recorderTab = page.getByRole('tab', {name: 'Recorder', exact: true})
       await recorderTab.click()
@@ -246,6 +234,143 @@ describe('the recorder in the widget', () => {
   }, 120_000)
 })
 
+describe('sending a recording to the agent', () => {
+  test('the user acts on the page, opens Recorder, sends the recording to the agent and lands back on the chat with a Screen recording note in the composer, the agent reads a reference to the saved recording that the transcript does not show, the sent note still plays after a reload, and a send while a batch is still on its way saves the last click', async ({
+    browser,
+  }) => {
+    const widget = await openPluginWidget(browser, {
+      id: 'recorder-send',
+      plugins: [PACKAGE_DIR],
+      widgetBundle: WIDGET_BUNDLE,
+      body: `
+        <button type="button" onclick="this.textContent = 'Pressed by the user'">Press me</button>
+        <button type="button" onclick="this.textContent = ['Pressed', 'while a batch is sending'].join(' ')">Press while a batch is sending</button>
+        <button type="button" onclick="this.textContent = ['Pressed', 'right before the send'].join(' ')">Press right before the send</button>
+      `,
+    })
+    try {
+      const page = widget.page
+      const socket = rpcSocketFor(page)
+      await socket.installed
+      await page.reload({waitUntil: 'domcontentloaded'})
+      const notes = () => page.getByRole('list', {name: 'Notes', exact: true})
+      await showRecorderTab(page)
+      await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
+        timeout: 30_000,
+      })
+      await page.getByRole('button', {name: 'Press me', exact: true}).click()
+      await expect(replayed(page, 'Pressed by the user')).toBeAttached({timeout: 30_000})
+
+      const recordingsFolder = path.join(widget.kit.stateRoot, '.conciv', 'recorder', 'recordings')
+      await mkdir(path.dirname(recordingsFolder), {recursive: true})
+      await writeFile(recordingsFolder, 'a file where the recordings folder belongs', 'utf8')
+      await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
+      await expect(
+        page.getByText('Could not write the recording to the project folder. Try again.', {exact: true}),
+      ).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: true})).toBeVisible()
+      await rm(recordingsFolder)
+
+      socket.rule((call) => {
+        if (!isRecorderCall(call, 'log')) return 'pass'
+        void call.reply(500)
+        return 'handled'
+      })
+      await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
+      await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible({timeout: 30_000})
+      expect((await readdir(recordingsFolder)).filter((name) => name.endsWith('.json'))).toHaveLength(1)
+      await expect(page.getByRole('tab', {name: 'Recorder', exact: true, selected: false})).toBeVisible()
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+      await expect(notes().getByText('Screen recording', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(notes().getByText(/^\d+ actions? · \d+s$/)).toBeVisible()
+      await expect(notes().getByRole('button', {name: 'Remove Screen recording', exact: true})).toBeVisible()
+
+      await notes().getByRole('button', {name: 'Play', exact: true}).click()
+      const replayDialog = page.getByRole('dialog', {name: 'Screen recording replay', exact: true})
+      await expect(replayDialog.getByText(/^\d+ actions? · \d+s$/)).toBeVisible({timeout: 30_000})
+      await expect(replayDialog.getByRole('button', {name: 'Export video', exact: true})).toBeVisible()
+      const playback = replayDialog.getByRole('button', {name: 'Toggle playback', exact: true})
+      await expect(playback).toBeInViewport({ratio: 1, timeout: 30_000})
+      await expect(replayDialog.getByRole('slider', {name: 'Timeline', exact: true})).toBeInViewport({ratio: 1})
+      await playback.click()
+      await expect(
+        replayDialog.frameLocator('iframe').getByRole('button', {name: 'Pressed by the user', exact: true}),
+      ).toBeAttached({timeout: 30_000})
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+      await expect(replayDialog).toBeHidden()
+
+      const editor = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await editor.click()
+      await page.keyboard.press('Enter')
+      await expect(notes()).toBeHidden({timeout: 30_000})
+      const sentNotes = page.getByRole('list', {name: 'Notes on this message'})
+      await expect(sentNotes.getByText('Screen recording', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(sentNotes.getByText(/^\d+ actions? · \d+s$/)).toBeVisible()
+      await expect(page.getByText('Hello from conciv', {exact: true})).toBeVisible({timeout: 30_000})
+      const [savedRecording] = (await readdir(recordingsFolder)).filter((name) => name.endsWith('.json'))
+      if (!savedRecording) throw new Error('the sent recording was not saved in the project')
+      const reference = `The user referenced the screen recording ${path.basename(savedRecording, '.json')}`
+      const {sessions} = await widget.kit.rpc.sessions.list()
+      const sessionId = sessions[0]?.id
+      if (!sessionId) throw new Error('the widget session is not listed')
+      const hydrated = JSON.stringify((await widget.kit.rpc.chat.hydrate({sessionId})).messages)
+      expect(hydrated).toContain(reference)
+      await expect(page.getByRole('log').getByText(reference)).toHaveCount(0)
+      await sentNotes.getByRole('button', {name: 'Play', exact: true}).click()
+      await expect(replayDialog).toBeVisible()
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+      await expect(replayDialog).toBeHidden()
+
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(sentNotes.getByText('Screen recording', {exact: true})).toBeVisible({timeout: 30_000})
+      await sentNotes.getByRole('button', {name: 'Play', exact: true}).click()
+      await expect(replayDialog).toBeVisible({timeout: 30_000})
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+      await expect(replayDialog).toBeHidden()
+      await editor.click()
+      await page.keyboard.type('still alive after replay')
+      await expect(editor).toHaveText('still alive after replay')
+
+      await rm(recordingsFolder, {recursive: true})
+      await sentNotes.getByRole('button', {name: 'Play', exact: true}).click()
+      await expect(replayDialog.getByText('Recording not found: it is no longer saved in this project.')).toBeVisible({
+        timeout: 30_000,
+      })
+      await replayDialog.getByRole('button', {name: 'Close', exact: true}).click()
+
+      await page.getByRole('tab', {name: 'Recorder', exact: true}).click()
+      await expect(page.getByText('No recording yet: interact with the page first.', {exact: true})).toBeVisible({
+        timeout: 30_000,
+      })
+      await page.getByRole('button', {name: 'Press me', exact: true}).click()
+      await expect(replayed(page, 'Pressed by the user')).toBeAttached({timeout: 30_000})
+      const sendingBatch = Promise.withResolvers<() => void>()
+      const held = {batches: 0}
+      socket.rule((call) => {
+        if (held.batches > 0 || !isRecorderCall(call, 'flush')) return 'pass'
+        if (!carrying('Pressed while a batch is sending')(call.input)) return 'pass'
+        held.batches += 1
+        sendingBatch.resolve(call.forward)
+        return 'handled'
+      })
+      await page.getByRole('button', {name: 'Press while a batch is sending', exact: true}).click()
+      const deliverSendingBatch = await sendingBatch.promise
+      await page.getByRole('button', {name: 'Press right before the send', exact: true}).click()
+      await page.getByRole('button', {name: 'Send to agent', exact: true}).click()
+      deliverSendingBatch()
+      await expect(page.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible({timeout: 30_000})
+      const [lastSaved] = (await readdir(recordingsFolder)).filter((name) => name.endsWith('.json'))
+      if (lastSaved === undefined) throw new Error('the send saved no recording')
+      const lastRecording = await readFile(path.join(recordingsFolder, lastSaved), 'utf8')
+      expect(lastRecording.includes('Pressed right before the send'), 'the saved recording holds the last click').toBe(
+        true,
+      )
+    } finally {
+      await widget.close()
+    }
+  }, 120_000)
+})
+
 const RecordedEventSchema = z.object({type: z.number(), data: z.unknown(), timestamp: z.number()})
 const EventWindowSchema = z.object({events: z.array(RecordedEventSchema), cursor: z.number()})
 const LogSchema = z.object({entries: z.array(z.object({kind: z.string(), detail: z.string()}))})
@@ -291,12 +416,17 @@ async function stopRecording(widget: PluginWidget, captureId: string): Promise<s
 }
 
 function recorderReply(socket: RpcSocket, method: string, matches: (input: unknown) => boolean): Promise<number> {
+  return answeredCall(socket, (call) => isRecorderCall(call, method) && matches(call.input))
+}
+
+function answeredCall(
+  socket: RpcSocket,
+  matches: (call: {readonly path: readonly string[]; readonly input: unknown}) => boolean,
+): Promise<number> {
   const asked = Promise.withResolvers<string>()
   const answered = Promise.withResolvers<number>()
   const stopListening = socket.listen((event) => {
-    if (event.kind === 'request' && isRecorderCall(event, method) && matches(event.input)) {
-      asked.resolve(event.requestId)
-    }
+    if (event.kind === 'request' && matches(event)) asked.resolve(event.requestId)
     if (event.kind !== 'response') return
     void asked.promise.then((requestId) => {
       if (requestId === event.requestId) answered.resolve(event.status)
@@ -656,5 +786,49 @@ describe('the Recorder tab when a page library fails to load', () => {
     await page.getByRole('tab', {name: 'Recorder', exact: true}).click({timeout: 30_000})
     await expect(replayed(page, 'Recorded fixture')).toBeAttached({timeout: 30_000})
     await expect(page.getByText('Could not load the player.', {exact: true})).toHaveCount(0)
+  }, 120_000)
+})
+
+describe('restoring the Recorder tab once the recorder plugin is gone', () => {
+  test('lands on the chat view instead of an empty pane', async ({browser}) => {
+    const stateRoot = tempDir('conciv-recorder-restore-')
+    const withRecorder = await openPluginWidget(browser, {
+      id: 'recorder-restore',
+      plugins: [PACKAGE_DIR],
+      widgetBundle: WIDGET_BUNDLE,
+      stateRoot,
+    })
+    try {
+      const socket = rpcSocketFor(withRecorder.page)
+      await socket.installed
+      await withRecorder.page.reload({waitUntil: 'domcontentloaded'})
+      const recorderRouteSaved = answeredCall(
+        socket,
+        (call) => call.path.join('.') === 'navigation.set' && (JSON.stringify(call.input) ?? '').includes('recorder'),
+      )
+      await showRecorderTab(withRecorder.page)
+      await expect(withRecorder.page.getByRole('tab', {name: 'Recorder', exact: true, selected: true})).toBeVisible()
+      await recorderRouteSaved
+      expect(await currentHref(withRecorder.kit)).toContain('recorder')
+    } finally {
+      await withRecorder.close()
+    }
+
+    const withoutRecorder = await openPluginWidget(browser, {
+      id: 'recorder-restore',
+      plugins: [],
+      widgetBundle: WIDGET_BUNDLE,
+      stateRoot,
+    })
+    try {
+      const page = withoutRecorder.page
+      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+      const statusBar = page.getByRole('toolbar', {name: 'Session status'})
+      await expect(statusBar.getByRole('tab', {name: 'Chat', exact: true, selected: true})).toBeVisible()
+      await expect(page.getByRole('tab', {name: 'Recorder', exact: true})).toHaveCount(0)
+    } finally {
+      await withoutRecorder.close()
+    }
   }, 120_000)
 })

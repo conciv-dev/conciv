@@ -11,7 +11,7 @@ export default meta
 type Story = StoryObj<typeof VirtualJsonTree>
 
 const SHELL =
-  '[font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] max-h-[13.75rem] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto p-1.5 text-chat-text-2'
+  '[font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] max-h-[13.75rem] w-full bg-chat-sunken border border-chat-line-soft rounded-chat-sm overflow-auto p-1.5 text-chat-text-2'
 
 const ROLES = ['button', 'link', 'textbox', 'heading', 'listitem']
 

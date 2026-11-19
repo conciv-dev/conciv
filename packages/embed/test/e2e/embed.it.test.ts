@@ -45,7 +45,7 @@ import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/plugin-testkit/r
 import {fileURLToPath} from 'node:url'
 import {execFile} from 'node:child_process'
 import {bootCoreKit, type CoreKit} from '@conciv/plugin-testkit/core-kit'
-import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import type {PageToNativeMessage} from '@conciv/plugin-ios/bridge'
 import {Buffer} from 'node:buffer'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -207,6 +207,12 @@ test.describe('composer rich input', () => {
         input: {type: 'object', properties: {}},
         execute: async () => ({content: 'probed'}),
       })
+      tools.add({
+        name: 'mention_second_probe',
+        description: 'Probes the mention list again',
+        input: {type: 'object', properties: {}},
+        execute: async () => ({content: 'probed again'}),
+      })
     })
   },
 }
@@ -262,11 +268,8 @@ test.describe('composer rich input', () => {
       await pickSuggestion(page, 'Commands', '/config')
 
       await input.pressSequentially('then ')
-      await input.pressSequentially('@report')
-      await pickSuggestion(page, 'Context', '@report')
-
-      await input.pressSequentially('@recording_start')
-      await pickSuggestion(page, 'Context', '@recording_start')
+      await input.pressSequentially('@mention_second_probe')
+      await pickSuggestion(page, 'Context', '@mention_second_probe')
 
       await input.pressSequentially('@mention_probe')
       await pickSuggestion(page, 'Context', '@mention_probe')
@@ -274,7 +277,7 @@ test.describe('composer rich input', () => {
       await page.keyboard.press('Shift+Enter')
       await input.pressSequentially('second line')
 
-      const expected = 'please run /config then @report @recording_start @mention_probe \nsecond line'
+      const expected = 'please run /config then @mention_second_probe @mention_probe \nsecond line'
       const sent = wire.nextTurn().then((turn) => turn.content)
       await page.getByRole('button', {name: 'Send message'}).click()
       expect(await sent).toBe(expected)
@@ -2176,6 +2179,14 @@ test.describe('rebind', () => {
     await kit.cleanup()
   })
 
+  const AttachedSchema = z.array(z.string())
+
+  async function attachedSessions(): Promise<string[]> {
+    return AttachedSchema.parse(
+      await kit.rpc.plugin.call({rpcId: 'experimental.page', method: 'sessions.attached', input: {}}),
+    )
+  }
+
   async function panelSession(): Promise<string | null> {
     const state = await kit.rpc.navigation.get(undefined)
     const entry = state?.entries.find((row) => row.href.startsWith('/panel/'))
@@ -2207,12 +2218,13 @@ test.describe('rebind', () => {
       await mountHandle(page, proxyA.base)
       await openChatPanel(page)
 
-      const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
-      await expect(apiBaseProbe).toHaveText(browserBase(proxyA.base), {timeout: 30_000})
-
       await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
       const sessionBefore = await panelSession()
       expect(sessionBefore).not.toBeNull()
+      await until(async () => (await attachedSessions()).includes(String(sessionBefore)), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
 
       await sendChatMessage(page, USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -2227,7 +2239,10 @@ test.describe('rebind', () => {
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
-      await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base), {timeout: 30_000})
+      await until(async () => (await attachedSessions()).includes(String(sessionBefore)), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
       await page.getByRole('button', {name: 'Session options'}).click()
       await expect(page.getByRole('button', {name: `Session: ${renamed}`})).toBeVisible({timeout: 30_000})
       await page.keyboard.press('Escape')

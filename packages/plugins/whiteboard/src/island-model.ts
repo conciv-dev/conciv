@@ -132,6 +132,7 @@ type ExportScope = 'live' | 'draft' | 'both'
 
 const skeleton = z.custom<ExcalidrawElementSkeleton>(isPlainObject)
 const SkeletonsPayload = z.object({elements: z.array(skeleton)})
+const ScenePoint = z.object({x: z.number(), y: z.number()})
 const MermaidPayload = z.object({source: z.string()})
 const SvgPayload = z.object({svg: z.string(), x: z.number(), y: z.number(), width: z.number(), roughness: z.number()})
 const ExportPayload = z.object({requestId: z.string(), scope: z.enum(['live', 'draft', 'both'])})
@@ -169,6 +170,7 @@ export type CanvasPort = {
   readonly liveElements: () => readonly SceneElement[] | undefined
   readonly render: (elements: readonly SceneElement[]) => Promise<Blob>
   readonly skipOnPointer: (skipped: Deferred.Deferred<void>) => Effect.Effect<void, never, Scope.Scope>
+  readonly drawAt: (point: {x: number; y: number}) => void
 }
 
 export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function* (
@@ -214,13 +216,16 @@ export const makeCanvasPending = Effect.fn('whiteboard.canvasPending')(function*
       yield* canvas.skipOnPointer(skipped)
       const steps = drafts.map((draft) => ({
         elementId: draft.elementId,
-        write: () =>
-          db.canvasElements.utils.write({
+        write: () => {
+          const point = ScenePoint.safeParse(draft.data)
+          if (point.success) canvas.drawAt(point.data)
+          return db.canvasElements.utils.write({
             room: db.room,
             elementId: draft.elementId,
             data: draft.data,
             version: draft.version,
-          }),
+          })
+        },
       }))
       const written = yield* replayDraft(steps, skipped)
       yield* Effect.tryPromise(() => Promise.all(written.map((transaction) => transaction.isPersisted.promise)))

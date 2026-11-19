@@ -221,7 +221,12 @@ export const Recorder = Rpc.define({
     'recordings.exportVideo': {
       input: z.object({clientId: ClientId, id: z.string().min(1).max(256), offset: z.number().int().nonnegative()}),
       output: VideoPieceOutput,
-      errors: {expired: z.undefined(), 'render-failed': z.undefined(), unreadable: z.undefined()},
+      errors: {
+        expired: z.undefined(),
+        missing: z.undefined(),
+        'render-failed': z.undefined(),
+        unreadable: z.undefined(),
+      },
     },
   },
   events: {
@@ -249,7 +254,8 @@ failure maps to a declared error once, at the edge:
     return {...piece, ...VIDEO}
   }).pipe(
     Effect.catchTags({
-      RecorderRecordingNotFound: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
+      RecorderRecordingExpired: () => Effect.fail(call.error('expired', `The recording ${input.id} has expired`)),
+      RecorderRecordingNotFound: () => Effect.fail(call.error('missing', `There is no saved recording ${input.id}`)),
       RecorderVideoUnrendered: () =>
         Effect.fail(call.error('render-failed', `The recording ${input.id} could not be rendered to video`)),
       RecorderVideoUnreadable: () =>

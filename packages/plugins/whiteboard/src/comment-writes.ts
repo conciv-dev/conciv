@@ -1,3 +1,4 @@
+import type {MentionSegment} from '@conciv/ui-kit-tap'
 import type {CommentRow, PinRow, ReadRow} from './rows.js'
 import type {WhiteboardDb} from './db.js'
 
@@ -18,9 +19,14 @@ export function markThreadRead(
   })
 }
 
+function storedPart(segment: MentionSegment): Record<string, string> {
+  if (segment.type === 'mention') return {type: 'mention', id: segment.id, label: segment.label}
+  return {type: 'text', text: segment.text}
+}
+
 export function insertReply(
   db: WhiteboardDb,
-  input: {room: string; accountId: string; parent: CommentRow; text: string},
+  input: {room: string; accountId: string; parent: CommentRow; parts: readonly MentionSegment[]},
 ): void {
   const now = Date.now()
   db.comments.insert({
@@ -29,7 +35,7 @@ export function insertReply(
     cid: crypto.randomUUID(),
     threadId: input.parent.threadId,
     parentId: input.parent.cid,
-    parts: [{type: 'text', text: input.text}],
+    parts: input.parts.map(storedPart),
     authorKind: 'human',
     authorModel: null,
     authorId: input.accountId,
@@ -77,5 +83,52 @@ export function detachCommentAnchor(db: WhiteboardDb, comment: CommentRow): void
     draft.kind = 'floating'
     draft.anchor = null
     draft.anchorFile = null
+  })
+}
+
+export function insertComposedComment(
+  db: WhiteboardDb,
+  input: {
+    room: string
+    accountId: string
+    cid: string
+    source: {file: string; line: number | null} | null
+    text: string
+    at: {x: number; y: number}
+  },
+): void {
+  const now = Date.now()
+  db.comments.insert({
+    id: crypto.randomUUID(),
+    sessionId: input.room,
+    cid: input.cid,
+    threadId: input.cid,
+    parentId: null,
+    parts: [{type: 'text', text: input.text}],
+    authorKind: 'human',
+    authorModel: null,
+    authorId: input.accountId,
+    authorName: null,
+    authorAvatar: null,
+    status: 'open',
+    kind: input.source ? 'source-linked' : 'floating',
+    anchor: input.source ? {source: {file: input.source.file, line: input.source.line ?? 1, column: 1}} : null,
+    anchorFile: input.source?.file ?? null,
+    anchorComponent: null,
+    anchorHash: null,
+    createdAt: now,
+    updatedAt: now,
+    resolvedAt: null,
+  })
+  db.pins.insert({
+    id: crypto.randomUUID(),
+    room: input.room,
+    cid: input.cid,
+    x: input.at.x,
+    y: input.at.y,
+    elementId: null,
+    pinState: 'locked',
+    anchorX: null,
+    anchorY: null,
   })
 }

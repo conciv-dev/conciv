@@ -77,7 +77,6 @@ export type PluginRuntimeInput = {
   signal: AbortSignal
   bundler: Bundler.BundlerBridge | undefined
   openInEditor: (file: string, line?: number, column?: number) => void
-  extensionSlugs: ReadonlyArray<string>
   sessions: Parameters<typeof provideSessions>[0]
 }
 
@@ -155,7 +154,7 @@ function pluginHostLayer(input: PluginRuntimeInput) {
         provideServersSource({home: input.home, engineId: input.engineId}),
         provideBundlerSource(input.bundler),
         provideEditorSource(input.openInEditor),
-        provideExtensionSlugs(input.extensionSlugs),
+        provideExtensionSlugs([]),
         provideConfiguredPolicies(input.config.policies),
         provideConfiguredPermissions(input.config.permissions),
         Layer.succeed(ConfigPluginSource.ConfiguredPlugins, input.config.plugins),

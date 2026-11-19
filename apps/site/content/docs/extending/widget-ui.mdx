@@ -1,0 +1,163 @@
+---
+title: Widget UI
+description: 'Render into the widget: slots, hooks, and the client API.'
+---
+
+Beyond tool cards, an extension can render its own UI inside the widget: a composer button, a
+header control, a full panel. Attach a `Component` and pick where it shows with `useSlot`.
+
+<Callout>
+  Extension components are Solid JSX, even when your app is React. The plugin compiles `conciv/extensions/*` as a Solid
+  zone, so `Show`, signals, and stores all work as usual.
+</Callout>
+
+## Slots
+
+The widget mounts your `Component` once per slot and tells you where it currently is. Render
+nothing for slots you do not care about.
+
+```tsx title="conciv/extensions/deploy.tsx"
+import {Show} from 'solid-js'
+import {defineExtension} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
+const deploy = defineExtension({name: 'deploy', tools: [deployRun]})
+
+function DeployButton() {
+  const slot = deploy.useSlot()
+  const context = deploy.useContext()
+  const send = () => context.insert('deploy this branch to staging')
+  return (
+    <Show when={slot() === 'composer'}>
+      <ComposerActions.ActionButton priority={10} visible="always" tooltip="Deploy to staging" onClick={send}>
+        <svg
+          viewBox="0 0 24 24"
+          class="size-5 block"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </ComposerActions.ActionButton>
+    </Show>
+  )
+}
+
+export default Object.assign(deploy, {Component: DeployButton})
+```
+
+Slots: `composer`, `empty` (the blank-thread state), `status`, and `widget`
+(a free-floating layer).
+
+## Composer actions
+
+The composer toolbar is shared: the built-in actions, every extension, and the send button all live
+in one row, so it runs out of room on a narrow panel. Declare each action once with
+`ComposerActions.ActionButton` from `@conciv/ui-kit-chat` and the composer places it for you: it
+renders inline while it fits, and once it doesn't, the host builds a menu item from that same
+registration — same tooltip, icon, and `onClick` — in the shared overflow menu. There is no separate
+menu-item JSX to author. The conciv composer keeps the row short: it holds back every `visible="auto"`
+button (the default), so plan on your action living in the overflow menu unless you pass
+`visible="always"`.
+
+<TypeTable
+  type={{
+    'ActionButton.priority': {
+      type: 'number',
+      description: 'Higher sorts first, inline and in the menu. Built-ins run 40 (grab) down to 10 (launch).',
+    },
+    'ActionButton.tooltip': {
+      type: 'string',
+      description: 'The accessible name inline, and the menu-item label once collapsed.',
+    },
+    'ActionButton.visible': {
+      type: "'auto' | 'always'",
+      description:
+        '"always" pins the button inline at any width; "auto" (default) leaves it to the composer, which in conciv today always keeps it in the menu.',
+    },
+    'ActionButton.disabled': {type: '() => boolean', description: 'Disables both the inline button and the menu item.'},
+    'ActionButton.busy': {type: 'boolean', description: 'Marks the action in progress without disabling it.'},
+    Inline: {
+      type: '{priority?, visible?, children}',
+      description:
+        'Escape hatch for a control that is already its own trigger (a menu, a status chip). Counts toward the fit budget, has no menu form: hidden entirely once collapsed.',
+    },
+    'Action + ActionMenuItem': {
+      type: '{priority?, visible?, disabled?, children} + {label, onSelect, children?}',
+      description:
+        'The divergent case: wrap an ActionButton (or Inline) together with explicit ActionMenuItem children when the inline and collapsed representations must differ.',
+    },
+  }}
+/>
+
+A raw `<button>` in the composer slot never collapses, so it pushes the send button off a narrow
+panel. Use `ComposerActions.ActionButton` instead.
+
+## `useContext`
+
+`useContext()` returns the host context: everything the widget gives your component. Pass a
+selector to subscribe to one slice.
+
+Host actions, always available:
+
+<TypeTable
+  type={{
+    insert: {type: '(text: string) => void', description: 'Put text into the composer input.'},
+    notify: {type: '(message: string) => void', description: 'Post a passive notice into the thread.'},
+    setBusy: {type: '(busy: boolean) => void', description: 'Toggle the composer busy state.'},
+    newSession: {type: '() => void', description: 'Start a fresh chat session.'},
+    compact: {type: '() => void', description: 'Compact the current thread.'},
+  }}
+/>
+
+Plus `client` (the session API client), `requestMeta()` (session id and model for your own
+fetches), `grab` (the element-grab API), and `currentSlot`.
+
+## `.client(factory)`
+
+Extension-specific client state lives in a `.client(...)` factory. Its return value is merged into
+what `useContext()` returns, fully typed:
+
+```tsx
+const deploy = defineExtension({name: 'deploy', tools: [deployRun]}).client(() => {
+  const [lastUrl, setLastUrl] = createSignal<string | null>(null)
+  return {value: {lastUrl, setLastUrl}}
+})
+```
+
+Return `{value, dispose}`; `dispose` runs when the widget unmounts.
+
+## The client API
+
+`useClientApi()` (also exported standalone) is the widget-host surface:
+
+<TypeTable
+  type={{
+    toast: {type: '(message, tone?) => void', description: "Toast in the widget. Tones: 'info' | 'success' | 'error'."},
+    Dialog: {type: '() => DialogApi', description: 'Widget-styled dialog primitives.'},
+    Popover: {type: '() => PopoverApi', description: 'Widget-styled popover primitives.'},
+    page: {
+      type: 'PageInspect',
+      description: 'elementAt(x, y), describe(el) to component + file, locate(el) to a source location.',
+    },
+    openSource: {type: '(loc) => Promise<OpenSourceResult>', description: 'Open a located element in your editor.'},
+    surface: {type: '() => HTMLElement', description: 'The effects layer for free-floating UI.'},
+    env: {type: 'object', description: 'reducedMotion(), plus the doc and win the widget renders into.'},
+  }}
+/>
+
+## Mounting outside the widget
+
+The widget host does all of the above for you. For a custom host (or a test harness) the same
+machinery is exported from `@conciv/extension/client`:
+
+```ts
+import {mountExtension, MountedExtension} from '@conciv/extension/client'
+
+const dispose = mountExtension(extension, {clientApi, hostContext, slot: 'widget', root})
+```
+
+This is exactly what [the testkit](/docs/extending/testing) uses, so tested extensions run through
+their production mount path.

@@ -31,6 +31,8 @@ export type ModelMessage = LibraryModelMessage
 
 export type ContentPart = LibraryContentPart
 
+export type AttachmentDocumentPart = {type: 'document'; source: {type: 'data'; mimeType: string; value: string}}
+
 export type SendContent = {content: string | ContentPart[]; id?: string; metadata?: Record<string, unknown>}
 
 export const CompactionMetadataSchema = z.object({conciv: z.object({compaction: z.literal(true)})})
@@ -38,6 +40,38 @@ export const CompactionMetadataSchema = z.object({conciv: z.object({compaction: 
 export const OutsideCallMetadataSchema = z.object({
   conciv: z.object({origin: z.literal('hub'), client: z.string().nullable(), run: z.string().optional()}),
 })
+
+export const NoteCommentSchema = z.object({
+  type: z.literal('note'),
+  origin: z.string(),
+  label: z.string(),
+  title: z.string().optional().catch(undefined),
+  subtitle: z.string().optional().catch(undefined),
+  icon: z.string(),
+  subject: z.string(),
+  href: z.string().optional().catch(undefined),
+  live: z
+    .object({subject: z.string(), href: z.string().optional().catch(undefined)})
+    .optional()
+    .catch(undefined),
+  comment: z.string(),
+})
+
+export type NoteComment = z.infer<typeof NoteCommentSchema>
+
+const PromptAttachmentReferenceSchema = z.object({name: z.string(), mime: z.string(), path: z.string()})
+
+function decodedList<Item extends z.ZodType>(item: Item) {
+  return z.array(item.nullable().catch(null)).transform((items) => items.filter((entry) => entry !== null))
+}
+
+export const PromptPresentationSchema = z.object({
+  displayText: z.string(),
+  comments: decodedList(NoteCommentSchema),
+  attachments: decodedList(PromptAttachmentReferenceSchema).catch([]),
+})
+
+export type PromptPresentation = z.infer<typeof PromptPresentationSchema>
 
 export type QueuedMessage = {id: string; content: string | SendContent; createdAt: number}
 

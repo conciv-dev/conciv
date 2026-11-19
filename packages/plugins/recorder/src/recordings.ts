@@ -9,14 +9,21 @@ const MAX_TOTAL_RECORDING_BYTES = 200 * 1024 * 1024
 const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const RECORDING_ID = /^[A-Za-z0-9-]+$/
 
-export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}
+const SAVED_RECORDING_ID = /^(\d+)-[0-9a-z]{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+export type SaveResult =
+  | {saved: true; recordingId: string; events: RrwebEvent[]}
+  | {saved: false; error: 'too-large' | 'empty' | 'io-error'}
 
 export const RecordingNotFound = Schema.TaggedStruct('RecorderRecordingNotFound', {id: Schema.String})
 export type RecordingNotFound = typeof RecordingNotFound.Type
 
+export const RecordingExpired = Schema.TaggedStruct('RecorderRecordingExpired', {id: Schema.String})
+export type RecordingExpired = typeof RecordingExpired.Type
+
 export type RecordingStoreInterface = {
   readonly save: (events: RrwebEvent[]) => Effect.Effect<SaveResult>
-  readonly get: (id: string) => Effect.Effect<RrwebEvent[], RecordingNotFound>
+  readonly get: (id: string) => Effect.Effect<RrwebEvent[], RecordingNotFound | RecordingExpired>
   readonly videoFile: (id: string) => Effect.Effect<string, RecordingNotFound>
   readonly sweep: Effect.Effect<void>
 }
@@ -33,6 +40,11 @@ function trimToCap(events: RrwebEvent[]): RrwebEvent[] | undefined {
 function parseTimestamp(name: string): number {
   const parsed = Number(name.split('-')[0])
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isPastRetention(id: string, now: number): boolean {
+  const savedAt = SAVED_RECORDING_ID.exec(id)?.[1]
+  return savedAt !== undefined && Number(savedAt) <= now - RECORDING_TTL_MS
 }
 
 function decodeRecording(raw: string): RrwebEvent[] | undefined {
@@ -82,20 +94,20 @@ export function recordingStoreLayer(directory: string) {
         yield* Effect.forEach(doomed.names, remove, {discard: true})
       })
 
-      const publish = Effect.fn('recorder.recordings.publish')(function* (payload: string) {
+      const publish = Effect.fn('recorder.recordings.publish')(function* (events: RrwebEvent[]) {
         const now = yield* Clock.currentTimeMillis
         const count = yield* Ref.updateAndGet(sequence, (value) => value + 1)
         const recordingId = `${now}-${count.toString(36).padStart(6, '0')}-${crypto.randomUUID()}`
         const target = path.join(directory, `${recordingId}.json`)
         const written = yield* fs.makeDirectory(directory, {recursive: true}).pipe(
-          Effect.andThen(fs.writeFileString(`${target}.tmp`, payload)),
+          Effect.andThen(fs.writeFileString(`${target}.tmp`, JSON.stringify({events}))),
           Effect.andThen(fs.rename(`${target}.tmp`, target)),
           Effect.as(true),
           Effect.catch(() => Effect.as(fs.remove(`${target}.tmp`, {force: true}).pipe(Effect.ignore), false)),
         )
-        if (!written) return {ok: false, reason: 'io-error'} satisfies SaveResult
+        if (!written) return {saved: false, error: 'io-error'} satisfies SaveResult
         yield* prune.pipe(Effect.catch((error) => Effect.logError('pruning old recordings failed', error)))
-        return {ok: true, recordingId} satisfies SaveResult
+        return {saved: true, recordingId, events} satisfies SaveResult
       })
 
       const clearStrayTmp = Effect.gen(function* () {
@@ -120,14 +132,16 @@ export function recordingStoreLayer(directory: string) {
 
       return RecordingStore.of({
         save: (events) => {
-          if (events.length < 2) return Effect.succeed({ok: false, reason: 'empty'})
+          if (events.length < 2) return Effect.succeed({saved: false, error: 'empty'})
           const trimmed = trimToCap(events)
-          if (!trimmed || trimmed.length < 2) return Effect.succeed({ok: false, reason: 'too-large'})
-          return changes.withPermits(1)(publish(JSON.stringify({events: trimmed})))
+          if (!trimmed || trimmed.length < 2) return Effect.succeed({saved: false, error: 'too-large'})
+          return changes.withPermits(1)(publish(trimmed))
         },
         get: (id) =>
           Effect.gen(function* () {
             if (!RECORDING_ID.test(id)) return yield* Effect.fail(RecordingNotFound.make({id}))
+            if (isPastRetention(id, yield* Clock.currentTimeMillis))
+              return yield* Effect.fail(RecordingExpired.make({id}))
             const raw = yield* fs
               .readFileString(path.join(directory, `${id}.json`))
               .pipe(Effect.mapError(() => RecordingNotFound.make({id})))

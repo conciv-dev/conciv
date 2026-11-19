@@ -46,7 +46,7 @@ import {EngineReachabilityContext, makeEngineReachability} from '../app/reachabi
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
-import {NoticeContextProvider} from '../shell/notice-context.js'
+import {NoticeContextProvider, useNotices} from '../shell/notice-context.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -79,10 +79,19 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
 })
 
 function RootComponent() {
+  return (
+    <NoticeContextProvider>
+      <AppRoot />
+    </NoticeContextProvider>
+  )
+}
+
+function AppRoot() {
   const app = Route.useRouteContext()()
   const panelParams = useParams({from: '/panel/$sessionId', shouldThrow: false})
   const pipParams = useParams({from: '/pip/$sessionId', shouldThrow: false})
   const quickSearch = useSearch({from: '/quick', shouldThrow: false})
+  const notices = useNotices()
 
   const [politeMessage, setPoliteMessage] = createSignal('')
   const [assertiveMessage, setAssertiveMessage] = createSignal('')
@@ -126,6 +135,7 @@ function RootComponent() {
     appData: app.data,
     queryClient: app.queryClient,
     announce,
+    notify: notices.notify,
   })
   const rootNode = app.environment.rootNode
   const followingSettings = new AbortController()
@@ -182,22 +192,20 @@ function RootComponent() {
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
           <EngineReachabilityContext.Provider value={reachability}>
-            <NoticeContextProvider>
-              <DialogProvider>
-                <PluginRoot composed={app.plugins} servers={app.servers}>
-                  <PluginAttachment>
-                    <PluginPanelKeys />
-                    <RootChrome
-                      fab={fab}
-                      activeSession={activeSession}
-                      politeMessage={politeMessage}
-                      assertiveMessage={assertiveMessage}
-                    />
-                    <PluginOverlay />
-                  </PluginAttachment>
-                </PluginRoot>
-              </DialogProvider>
-            </NoticeContextProvider>
+            <DialogProvider>
+              <PluginRoot composed={app.plugins} servers={app.servers}>
+                <PluginAttachment>
+                  <PluginPanelKeys />
+                  <RootChrome
+                    fab={fab}
+                    activeSession={activeSession}
+                    politeMessage={politeMessage}
+                    assertiveMessage={assertiveMessage}
+                  />
+                  <PluginOverlay />
+                </PluginAttachment>
+              </PluginRoot>
+            </DialogProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>
       </QueryClientProvider>

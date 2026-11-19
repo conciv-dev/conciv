@@ -24,10 +24,12 @@ import {
   ToolProvider,
   useComposerContext,
   useThread,
+  type ComposerDraft,
   type PageSessionConfig,
   type TurnItem,
   type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {
   PAGE_ACT_TOOL_NAMES,
@@ -42,7 +44,7 @@ import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-ty
 import type {MarkerRow} from '@conciv/contract'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
+import {composerDraftSink, paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -53,6 +55,8 @@ import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyState} from '../shell/empty-state.js'
 import {ComposerActions} from '../composer/actions.js'
+import {promptWithNotes} from '../composer/comment-note.js'
+import {ComposerNotes, SentNotes} from '../composer/note-card.js'
 import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
@@ -110,6 +114,7 @@ function resetSlideOnSelf(reset: () => void) {
 
 type ComposerApi = {
   addAttachment: (file: File) => Promise<string | null>
+  addItem: (item: DraftItem) => void
 }
 
 function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
@@ -123,7 +128,7 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
       removeAttachment: context.removeAttachment,
       hasAttachment: context.hasAttachment,
     })
-    props.onReady({addAttachment: context.addAttachment})
+    props.onReady({addAttachment: context.addAttachment, addItem: context.addItem})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
   onCleanup(() => pane.grabStaging.disconnect())
@@ -292,9 +297,13 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     sessionId,
     openModelMenu: () => modelMenu.popover().setOpen(true),
   })
-  const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
-    if (typeof content === 'string' && commandSources.runTyped(content)) return
-    await messaging.onSend(content)
+  const addItem = (item: DraftItem) => composerApi.current?.addItem(item)
+  const sendOrRunCommand = async (content: string | SendContent, draft: ComposerDraft): Promise<void> => {
+    if (typeof content === 'string' && commandSources.runTyped(content)) {
+      draft.items.forEach(addItem)
+      return
+    }
+    await messaging.onSend(promptWithNotes(content, draft))
   }
   const insert = (text: string) => {
     inputHandle()?.append(text)
@@ -376,6 +385,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
         </>
       )
     }
+    const renderPromptSuffix = (source: TurnPrefixSource): JSX.Element => (
+      <SentNotes messages={() => source.turn().messages} session={pluginSession.view} />
+    )
     return (
       <div class="contents">
         <SessionHeaderSlot pane={pluginSession} />
@@ -406,6 +418,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       render={toolRender.render}
                       renderPending={toolRender.pending()}
                       turnPrefix={renderTurnPrefix}
+                      promptSuffix={renderPromptSuffix}
                       pageSession={PAGE_SESSION}
                       refreshDisabled={!messaging.resendAllowed()}
                     />
@@ -463,6 +476,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     inputLabel="Message the conciv agent"
                     attachmentAdapter={attachments().adapter}
                     AttachmentComponent={PaneAttachment}
+                    notes={<ComposerNotes session={pluginSession.view} onRemoved={focusInput} />}
                     onInputReady={setInputHandle}
                     onSelectionChange={draftStorage.noteSelection}
                     busy={compactingIndicator(compacting())}
@@ -484,7 +498,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     />
                     <DraftReturnReceiver
                       sessionId={sessionId}
-                      sinks={{queue: {insert, addFile: attach}, steered: {insert: insertFirst, addFile: attach}}}
+                      sinks={{
+                        queue: composerDraftSink({insert, addFile: attach, addItem}),
+                        steered: composerDraftSink({insert: insertFirst, addFile: attach, addItem}),
+                      }}
                     />
                     <Suspense fallback={<ComposerActionsPending />}>
                       <ComposerActions
@@ -520,7 +537,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
             onSteer: messaging.onSteer,
             onSteerError: messaging.onSteerError,
             onCancel: () => {
-              returnQueueToDraft(chat, {insert, addFile: attach})
+              returnQueueToDraft(chat, composerDraftSink({insert, addFile: attach, addItem}))
               void chat.stop()
             },
           }}

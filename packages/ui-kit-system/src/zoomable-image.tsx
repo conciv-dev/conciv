@@ -6,7 +6,7 @@ type View = 'closed' | 'fit' | 'actual' | {failed: string}
 
 const FOCUS_RING =
   'focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-0.125rem] focus-visible:![box-shadow:none]'
-const THUMBNAIL_BUTTON = `self-start max-w-full min-w-11 min-h-11 overflow-hidden rounded-[var(--chat-radius-sm)] !border-chat-line !cursor-zoom-in ${FOCUS_RING}`
+const THUMBNAIL_BUTTON = `self-start max-w-full min-w-11 min-h-11 overflow-hidden rounded-chat-sm !border-chat-line !cursor-zoom-in ${FOCUS_RING}`
 const THUMBNAIL_IMAGE = 'block max-w-full max-h-40 w-auto h-auto'
 const FIT_BUTTON = `!flex mx-auto w-fit max-w-full !cursor-zoom-in ${FOCUS_RING}`
 const ACTUAL_BUTTON = `!flex mx-auto w-max !cursor-zoom-out ${FOCUS_RING}`

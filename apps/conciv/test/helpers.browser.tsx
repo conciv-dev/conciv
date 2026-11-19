@@ -237,6 +237,7 @@ function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpc
     appData: data,
     queryClient,
     announce: (message) => announce?.(message),
+    notify: () => ({dismiss: () => {}}),
   })
   return {
     rpc,

@@ -139,9 +139,10 @@ export interface Composer {
   setVariant(variant: string | undefined): boolean
   /**
    * Attaches a file, a note or a quote to the next prompt. Focus stays where it is; call `focus` to move it. Before
-   * the session's draft loads, it waits and applies in call order.
+   * the session's draft loads, it waits and applies in call order. A note already attached with the same `origin`
+   * and `commentId` is kept, and the second attach does nothing.
    *
-   * @remarks Not implemented yet. Logs and attaches nothing in this version, for every part type.
+   * @remarks Notes only in this version. A file or a quote logs and attaches nothing.
    *
    * @param part - The part to attach.
    */
@@ -157,18 +158,30 @@ export interface Composer {
    * @param options - Optional placement beside the quote's source. Omit to anchor to its composer tile.
    */
   focus(commentId?: string, options?: ComposerFocusOptions): void
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly update:
-    | ((
-        id: string,
-        patch: {
-          readonly comment?: string
-          readonly preview?: string
-        },
-      ) => void)
-    | undefined
-  /** @remarks Not implemented yet. Always undefined in this version. */
-  readonly detach: ((id: string) => void) | undefined
+  /**
+   * Changes an attached part. Files, notes and quotes alike; a note or a quote takes only `comment`. Before the
+   * session's draft loads, it waits and applies in call order.
+   *
+   * @remarks Notes only in this version, as only notes attach.
+   *
+   * @param id - The part's `commentId`.
+   * @param patch - The fields to change.
+   */
+  update(
+    id: string,
+    patch: {
+      readonly comment?: string
+      readonly preview?: string
+    },
+  ): void
+  /**
+   * Removes an attached part. Before the session's draft loads, it waits and applies in call order.
+   *
+   * @remarks Notes only in this version, as only notes attach.
+   *
+   * @param id - The part's `commentId`.
+   */
+  detach(id: string): void
   /** @remarks Not implemented yet. Always undefined in this version. */
   readonly focused: (() => boolean) | undefined
 }

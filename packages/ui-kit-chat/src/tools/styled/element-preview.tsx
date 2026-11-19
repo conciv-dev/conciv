@@ -15,6 +15,7 @@ import type {createCache, createMirror, rebuildIntoSandboxedIframe} from 'rrweb-
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {Chip, ChipRow} from './chip.js'
+import {SUNKEN_SURFACE} from './code-block.js'
 
 type SerializedNode = Parameters<typeof rebuildIntoSandboxedIframe>[0]
 
@@ -42,8 +43,7 @@ const REPLICA_FRAME_ATTRIBUTES: Record<string, string> = {
   'aria-hidden': 'true',
 }
 
-const FRAME_BASE =
-  'relative w-full max-h-36 overflow-hidden contain-content rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
+const FRAME_BASE = `relative w-full max-h-36 overflow-hidden contain-content ${SUNKEN_SURFACE}`
 const FRAME_READY = `${FRAME_BASE} opacity-100`
 const FRAME_LOADING = `${FRAME_BASE} h-36 anim-skel`
 const FRAME_FAILED = `${FRAME_BASE} hidden`

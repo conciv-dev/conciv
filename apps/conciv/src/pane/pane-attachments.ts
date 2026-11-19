@@ -1,5 +1,6 @@
 import type {QueuedMessage} from '@conciv/ai/client'
-import type {ContentPart} from '@conciv/protocol/chat-message-types'
+import type {ContentPart, NoteComment} from '@conciv/protocol/chat-message-types'
+import type {DraftItem} from '@conciv/protocol/chat-types'
 import {
   composeAttachmentAdapters,
   createDocumentAttachmentAdapter,
@@ -11,6 +12,8 @@ import {
 } from '@conciv/ui-kit-chat'
 import {pageAttachmentCards} from '@conciv/builtin-plugins/renderer'
 import {guardPluginAttachmentCard} from '../runtime/plugin/plugin-boundary.js'
+import {commentContextItem, formatNoteComment, readPromptPresentation} from '../composer/comment-note.js'
+import {noteItem} from '../composer/note-schema.js'
 import type {DraftStore} from '../runtime/persistence/drafts.js'
 import {keepDraftImage} from './draft-storage.js'
 
@@ -51,14 +54,34 @@ export function paneAttachments(
   return {cards, chips: attachmentCards('chip'), adapter}
 }
 
-export type DraftSink = {insert: (text: string) => void; addFile: (file: File) => void}
+export type ReturnedDraft = {text: string; files: File[]; items: DraftItem[]}
+
+export type DraftSink = (returned: ReturnedDraft) => void
 
 export type QueueOwner = {queue: () => readonly QueuedMessage[]; cancelQueued: (id: string) => void}
+
+function queuedNotes(content: QueuedMessage['content']): NoteComment[] {
+  return typeof content === 'string' ? [] : (readPromptPresentation(content.metadata)?.comments ?? [])
+}
 
 function visibleParts(content: QueuedMessage['content']): ContentPart[] {
   const body = typeof content === 'string' ? content : content.content
   if (typeof body === 'string') return [{type: 'text', content: body}]
   return body.filter((part) => !partIsModelOnly(part))
+}
+
+function typedParts(content: QueuedMessage['content']): ContentPart[] {
+  const notes = queuedNotes(content)
+  if (typeof content === 'string' || notes.length === 0) return visibleParts(content)
+  const displayText = readPromptPresentation(content.metadata)?.displayText ?? ''
+  if (typeof content.content === 'string') return displayText === '' ? [] : [{type: 'text', content: displayText}]
+  return withoutAppendedSentences(visibleParts(content), notes.map(formatNoteComment).join('\n'))
+}
+
+function withoutAppendedSentences(parts: ContentPart[], sentences: string): ContentPart[] {
+  const appended = parts.at(-1)
+  if (appended?.type !== 'text' || appended.content.trimStart() !== sentences) return parts
+  return parts.slice(0, -1)
 }
 
 function partFile(part: ContentPart): File[] {
@@ -74,8 +97,22 @@ export function returnQueueToDraft(owner: QueueOwner, sink: DraftSink): void {
 }
 
 export function putBackInDraft(items: readonly QueuedMessage[], sink: DraftSink): void {
-  const parts = items.flatMap((item) => visibleParts(item.content))
-  const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
-  if (text.length > 0) sink.insert(text.join('\n'))
-  for (const file of parts.flatMap(partFile)) sink.addFile(file)
+  const parts = items.flatMap((item) => typedParts(item.content))
+  sink({
+    text: parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n'),
+    files: parts.flatMap(partFile),
+    items: items.flatMap((item) => queuedNotes(item.content)).map((note) => noteItem(commentContextItem(note))),
+  })
+}
+
+export function composerDraftSink(composer: {
+  insert: (text: string) => void
+  addFile: (file: File) => void
+  addItem: (item: DraftItem) => void
+}): DraftSink {
+  return (returned) => {
+    if (returned.text !== '') composer.insert(returned.text)
+    for (const file of returned.files) composer.addFile(file)
+    for (const item of returned.items) composer.addItem(item)
+  }
 }

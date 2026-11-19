@@ -1,0 +1,13 @@
+{
+  "title": "Extending",
+  "icon": "Puzzle",
+  "pages": [
+    "index",
+    "your-first-extension",
+    "install-first-party",
+    "tool-contract",
+    "widget-ui",
+    "testing",
+    "built-ins"
+  ]
+}

@@ -13,7 +13,7 @@ export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
 export const TRACE_HOVER_INDENT = 'ps-[var(--chat-trace-gutter)] pe-2'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
-export const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
+export const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-chat-sm [background:transparent] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
 const MARK = 'select-none flex-none w-chat-mark text-center text-chat-xs leading-none [font-family:var(--chat-mono)]'
 const LABEL = `${TRACE_MICROLABEL} min-w-10 text-chat-microlabel`
 const RUN_LABEL = `${TRACE_MICROLABEL} min-w-10 text-chat-accent`

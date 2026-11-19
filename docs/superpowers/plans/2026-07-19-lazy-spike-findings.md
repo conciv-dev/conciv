@@ -215,7 +215,7 @@ gets `approval: 'ask'`; additive/draft-only/read-only tools stay unguarded. Bias
 only tools already flagged were flagged; no new flags were added because none of the unguarded
 tools are clearly destructive (see judgment calls below).
 
-### Whiteboard — canvas (`packages/extensions/whiteboard/src/tool/canvas/def.ts`)
+### Whiteboard — canvas (the removed whiteboard extension's `src/tool/canvas/def.ts`)
 
 | Tool           | approval | Classification                                                                        |
 | -------------- | -------- | ------------------------------------------------------------------------------------- |
@@ -232,7 +232,7 @@ tools are clearly destructive (see judgment calls below).
 | canvas.discard | —        | Discards only the agent's uncommitted draft, never published/user content.            |
 | canvas.preview | —        | Read-only PNG of the draft.                                                           |
 
-### Whiteboard — comment (`packages/extensions/whiteboard/src/tool/comment/def.ts`)
+### Whiteboard — comment (the removed whiteboard extension's `src/tool/comment/def.ts`)
 
 | Tool            | approval | Classification                                               |
 | --------------- | -------- | ------------------------------------------------------------ |

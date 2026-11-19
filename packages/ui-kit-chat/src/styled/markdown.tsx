@@ -22,6 +22,7 @@ import {
   type OpenLocalFile,
 } from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
+import {CodeBlock} from '../tools/styled/code-block.js'
 
 const MAX_CACHE_ENTRIES = 512
 
@@ -386,6 +387,19 @@ const codeBlockView = memoize((language: string): FenceView => (props) => (
   <CodeBlockContent language={language} code={props.code} fallback={props.fallback} />
 ))
 
+function highlightableLanguage(language: string): string {
+  backendReadyTick()
+  return ensureBackend()?.isSupported(language) ? language : 'text'
+}
+
+const sharedFenceView = memoize((language: string): FenceView => (props) => (
+  <CodeBlock
+    title={language || 'text'}
+    maxHeight="log"
+    file={{name: language || 'text', lang: highlightableLanguage(language), contents: fenceCode(props.code)}}
+  />
+))
+
 function fenceLanguage(lang: string | undefined): string {
   return (lang ?? '').trim().toLowerCase()
 }
@@ -420,8 +434,10 @@ function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   const highlightCode: HighlightCode = (code, lang) => {
     const language = fenceLanguage(lang)
     const content = props.streaming !== true && markdown?.codeBlocks?.current().render.has(language)
-    if (content) return {view: codeBlockView(language), fallback: codeBlock(code, lang, false)}
-    return codeBlock(code, lang, props.streaming === true)
+    const kitFence = props.streaming === true || language === 'mermaid'
+    const fallback = kitFence ? codeBlock(code, lang, props.streaming === true) : sharedFenceView(language)
+    if (content) return {view: codeBlockView(language), fallback}
+    return fallback
   }
   return (
     <Streamdown

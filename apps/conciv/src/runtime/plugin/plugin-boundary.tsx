@@ -1,6 +1,6 @@
-import {ErrorBoundary, Suspense, type JSX} from 'solid-js'
+import {ErrorBoundary, Show, Suspense, type JSX} from 'solid-js'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {AttachmentUI, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
+import {AttachmentUI, CornerRemoveButton, useAttachment, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {NoteRow} from '@conciv/ui-kit-chat/tools'
 import {ErrorScreen} from '../../shell/error-screen.js'
 
@@ -22,9 +22,15 @@ function CardFallback(props: {name: string}): JSX.Element {
 }
 
 function ChipFallback(props: {name: string; onRemove?: (id: string) => void}): JSX.Element {
+  const attachment = useAttachment()
   return (
-    <div role="status">
-      <AttachmentUI onRemove={props.onRemove} failure={`Failed to render ${props.name}`} />
+    <div role="status" class="group relative w-fit">
+      <AttachmentUI failure={`Failed to render ${props.name}`} />
+      <Show when={props.onRemove}>
+        {(remove) => (
+          <CornerRemoveButton label={`Remove ${attachment.name}`} onRemove={() => remove()(attachment.id)} />
+        )}
+      </Show>
     </div>
   )
 }

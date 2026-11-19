@@ -190,7 +190,7 @@ describe('native bundle', () => {
   const occurrences = (bundle: string, marker: string) => bundle.split(marker).length - 1
 
   describe('embed native bundle', () => {
-    it('inlines the ios extension client so the WebView carries the native bridge', () => {
+    it('inlines the ios plugin browser half so the WebView carries the native bridge', () => {
       expect(nativeBundle.includes('concivBridge')).toBe(true)
       expect(nativeBundle.includes('__concivNative')).toBe(true)
     })
