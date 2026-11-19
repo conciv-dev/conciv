@@ -1,5 +1,5 @@
 import type {ManagedRuntime} from 'effect'
-import {Effect, Layer} from 'effect'
+import {Effect, Layer, Schema} from 'effect'
 import {clamp} from 'es-toolkit'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {
@@ -37,6 +37,15 @@ type Compaction = Effect.Success<ReturnType<Session.Interface['compact']>>
 
 const DEFAULT_PAGE_SIZE = 30
 const MAX_PAGE_SIZE = 100
+
+const HarnessReadError = Schema.TaggedStruct('ConcivCore.HarnessReadError', {
+  sessionId: Schema.String,
+  cause: Schema.Defect(),
+})
+type HarnessReadError = typeof HarnessReadError.Type & globalThis.Error
+
+const makeHarnessReadError = (fields: Omit<typeof HarnessReadError.Type, '_tag'>): HarnessReadError =>
+  Object.assign(new globalThis.Error(), HarnessReadError.make(fields), {name: 'ConcivCore.HarnessReadError'})
 
 const given = <Value>(value: Value | null | undefined): Value | undefined => value ?? undefined
 
@@ -210,7 +219,10 @@ export function provideSessions(started: () => SessionKeyDeps) {
         Effect.gen(function* () {
           const {chat} = started()
           yield* found(input.sessionId)
-          const harness = yield* Effect.promise(() => chat.harnessFor(input.sessionId))
+          const harness = yield* Effect.tryPromise({
+            try: () => chat.harnessFor(input.sessionId),
+            catch: (cause) => makeHarnessReadError({sessionId: input.sessionId, cause}),
+          }).pipe(Effect.orDie)
           const choice = yield* modelChoice(harness, input.model, chat.signal)
           if (choice === null || !(yield* applyModelChoice(chat, input.sessionId, choice))) {
             return yield* Effect.fail(SessionErrors.makeNotFoundError({sessionId: input.sessionId}))
