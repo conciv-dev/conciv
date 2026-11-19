@@ -4,7 +4,7 @@ import type {EngineStaleness, RawFrame, SourceLoc, ToolCommandSignature} from '@
 import type {ToolRequest} from '@conciv/protocol/tool-call-types'
 import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {ChatPlane} from '@conciv/chat'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import {sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {logError} from '../lib/debug.js'
 import {pageQueryStream} from '../page/page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
@@ -98,6 +98,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
       queries: (signal, focus) => pageQueryStream(page.bus, id, signal, focus),
+      focus: (browserTab, report) => page.bus.focus(id, browserTab, report),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
       changes: () => page.journal.list(id),
@@ -138,14 +139,20 @@ async function* caughtUpThenLive(
   missed: () => Promise<ChatEvent[]>,
 ): AsyncGenerator<ChatEvent> {
   const first = live.next()
-  yield* await missed().catch((error: unknown) => {
+  const caught = await missed().catch((error: unknown): ChatEvent[] => {
     logError(`[core] reading what a new subscriber missed failed: ${String(error)}`)
     return []
   })
+  yield* caught
   const opened = await first
   if (opened.done === true) return
-  yield opened.value
+  if (!announcedAgain(opened.value, caught)) yield opened.value
   yield* live
+}
+
+function announcedAgain(event: ChatEvent, caught: ChatEvent[]): boolean {
+  const runId = sessionRunEvent.parse(event)?.runId
+  return runId !== undefined && caught.some((missed) => sessionRunEvent.parse(missed)?.runId === runId)
 }
 
 function established(raw: SessionScope): SessionScope {
@@ -159,6 +166,7 @@ function established(raw: SessionScope): SessionScope {
       ...raw.page,
       ask: inScope(raw.page.ask),
       queries: inScope(raw.page.queries),
+      focus: inScope(raw.page.focus),
       reply: inScope(raw.page.reply),
       changes: inScope(raw.page.changes),
       clearChanges: inScope(raw.page.clearChanges),

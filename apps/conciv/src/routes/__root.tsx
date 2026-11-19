@@ -161,6 +161,7 @@ function AppRoot() {
     layers,
     suppressed,
     fabAnchor: fab.anchor,
+    panelWidthCap: fab.panelWidthCap,
     instances: app.instances,
     connected: app.connected,
     arrivedFromConnect,
