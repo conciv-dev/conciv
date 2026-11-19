@@ -1,6 +1,6 @@
 import {arch} from 'node:os'
 import {join} from 'node:path'
-import {Clock, Data, Effect, FileSystem, Option, Path, Schema, Semaphore, type PlatformError} from 'effect'
+import {Clock, Effect, FileSystem, Option, Path, Schema, Semaphore, type PlatformError} from 'effect'
 import {uniq} from 'es-toolkit'
 import {z} from 'zod'
 import {
@@ -16,7 +16,7 @@ import {DiagnosticSchema, parseDiagnostics, type Diagnostic} from './diagnostics
 import * as Simctl from './simctl.js'
 import {boundedCommandError, stdoutText} from './simctl.js'
 
-export const BuildFileFailed = Data.TaggedError('BuildFileFailed')<{readonly message: string; readonly cause: unknown}>
+export const BuildFileFailed = Schema.TaggedStruct('BuildFileFailed', {message: Schema.String, cause: Schema.Unknown})
 
 export const BuildOutputSchema = z.union([
   z.object({
@@ -32,7 +32,7 @@ type Build = {ok: boolean; appPath: string | null; durationMs: number; diagnosti
 
 function fileFailure(message: string) {
   return <Value, Requirements>(effect: Effect.Effect<Value, PlatformError.PlatformError, Requirements>) =>
-    effect.pipe(Effect.mapError((cause) => new BuildFileFailed({message, cause})))
+    effect.pipe(Effect.mapError((cause) => BuildFileFailed.make({message, cause})))
 }
 
 const collectSwiftSources = Effect.fn('ios.build.collectSwiftSources')(function* (

@@ -70,9 +70,9 @@ const LogsInput = z.object({
 })
 
 const runToolErrors = {
-  SpawnFailed: (failure: InstanceType<typeof Simctl.SpawnFailed>) =>
+  SpawnFailed: (failure: typeof Simctl.SpawnFailed.Type) =>
     Effect.fail(Tool.toolError({message: `could not run ${failure.command}`, error: failure.cause})),
-  OutputTooLarge: (failure: InstanceType<typeof Simctl.OutputTooLarge>) =>
+  OutputTooLarge: (failure: typeof Simctl.OutputTooLarge.Type) =>
     Effect.fail(Tool.toolError({message: `${failure.command} printed more output than the 128MB limit`})),
 }
 
@@ -168,7 +168,7 @@ export const register = Effect.fn('ios.tools.register')(function* (ctx: Registra
   const services = yield* Effect.context<Services>()
   const build = yield* makeBuild
   const parsed = IosConfigSchema.safeParse(ctx.options)
-  if (!parsed.success) return yield* new InvalidOptions({message: z.prettifyError(parsed.error)})
+  if (!parsed.success) return yield* Effect.fail(InvalidOptions.make({message: z.prettifyError(parsed.error)}))
   const config = parsed.data
   const configuredRuntime: IosRuntime | undefined = config && {
     config,

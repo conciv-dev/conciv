@@ -1,15 +1,15 @@
-import {Context, Data, Effect, Layer, Stream} from 'effect'
+import {Context, Effect, Layer, Schema, Stream} from 'effect'
 import {ChildProcess, ChildProcessSpawner} from 'effect/process'
 
 export type RunOptions = {cwd?: string; env?: Record<string, string>}
 
 export type RunResult = {code: number; stdout: Uint8Array; stderr: string}
 
-export const SpawnFailed = Data.TaggedError('SpawnFailed')<{readonly command: string; readonly cause: unknown}>
+export const SpawnFailed = Schema.TaggedStruct('SpawnFailed', {command: Schema.String, cause: Schema.Unknown})
 
-export const OutputTooLarge = Data.TaggedError('OutputTooLarge')<{readonly command: string}>
+export const OutputTooLarge = Schema.TaggedStruct('OutputTooLarge', {command: Schema.String})
 
-export type RunError = InstanceType<typeof SpawnFailed> | InstanceType<typeof OutputTooLarge>
+export type RunError = typeof SpawnFailed.Type | typeof OutputTooLarge.Type
 
 export interface Interface {
   readonly run: (command: string, args: readonly string[], options?: RunOptions) => Effect.Effect<RunResult, RunError>
@@ -33,13 +33,13 @@ function joinChunks(collected: Collected): Uint8Array {
 function collectBytes<Failure>(
   command: string,
   stream: Stream.Stream<Uint8Array, Failure>,
-): Effect.Effect<Uint8Array, Failure | InstanceType<typeof OutputTooLarge>> {
+): Effect.Effect<Uint8Array, Failure | typeof OutputTooLarge.Type> {
   return Stream.runFoldEffect(
     stream,
     (): Collected => ({chunks: [], size: 0}),
     (collected, chunk) => {
       const size = collected.size + chunk.length
-      if (size > MAX_OUTPUT_BYTES) return Effect.fail(new OutputTooLarge({command}))
+      if (size > MAX_OUTPUT_BYTES) return Effect.fail(OutputTooLarge.make({command}))
       const next: Collected = {chunks: [...collected.chunks, chunk], size}
       return Effect.succeed(next)
     },
@@ -63,7 +63,7 @@ export const layer = Layer.effect(
         return result
       }).pipe(
         Effect.scoped,
-        Effect.catchTag('PlatformError', (cause) => Effect.fail(new SpawnFailed({command, cause}))),
+        Effect.catchTag('PlatformError', (cause) => Effect.fail(SpawnFailed.make({command, cause}))),
       )
     })
     return Service.of({run})
