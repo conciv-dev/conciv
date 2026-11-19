@@ -886,7 +886,7 @@ describe('the session prompt hook', () => {
 
 describe('text parts keep their own paragraph', () => {
   it('the instructions update and the attached text file reach the model as separate paragraphs', async () => {
-    const {root, db} = openDatabase()
+    const {root, db} = await openDatabase()
     const sessionId = SessionId.parse('conciv_text_parts')
     const chat = await chatPlane(db, root, {
       pluginInstructions: async () => ({initial: '', update: 'a skill was added', told: async () => undefined}),

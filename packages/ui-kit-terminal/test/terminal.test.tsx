@@ -2,10 +2,47 @@ import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {createSignal, onMount, type JSX} from 'solid-js'
-import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import {TtyServerControlSchema, type TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/model.js'
+import type {TerminalTransport} from '../src/transport.js'
 import {TerminalPrimitive} from '../src/primitives/terminal.js'
 import {Terminal} from '../src/styled/terminal.js'
+
+function webSocketTransport(url: string): TerminalTransport {
+  return (_terminal, listener) => {
+    const socket = new WebSocket(url)
+    socket.binaryType = 'arraybuffer'
+    socket.addEventListener('message', (event: MessageEvent<string | ArrayBuffer>) => {
+      if (typeof event.data !== 'string') {
+        listener.data(new Uint8Array(event.data))
+        return
+      }
+      const parsed = safeControl(event.data)
+      if (parsed) listener.control(parsed)
+    })
+    socket.addEventListener('open', () => listener.open())
+    socket.addEventListener('close', () => listener.closed())
+    const send = (frame: string): void => {
+      if (socket.readyState === WebSocket.OPEN) socket.send(frame)
+    }
+    return {
+      write: send,
+      resize: (size) => send(JSON.stringify({type: 'resize', cols: size.cols, rows: size.rows})),
+      inject: (text) => send(JSON.stringify({type: 'inject', text})),
+      close: () => socket.close(),
+    }
+  }
+}
+
+function safeControl(raw: string): TtyServerControl | null {
+  try {
+    const parsed = TtyServerControlSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : null
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
+  }
+}
 
 function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} {
   const host = document.createElement('div')
@@ -54,12 +91,12 @@ function ModelState(props: {model: TerminalModel; label: string}): JSX.Element {
 
 function controlModel(): TerminalModel {
   const base = inject('controlBase')
-  return createTerminalModel({url: () => base})
+  return createTerminalModel({transport: webSocketTransport(base)})
 }
 
 function greetedModel(key: string): TerminalModel {
   const base = inject('controlBase')
-  return createTerminalModel({url: () => `${base}/?greet=${key}`})
+  return createTerminalModel({transport: webSocketTransport(`${base}/?greet=${key}`)})
 }
 
 function dropConnection(model: TerminalModel): void {
@@ -73,7 +110,7 @@ async function emit(model: TerminalModel, label: string, frame: TtyServerControl
 
 describe('terminal primitives', () => {
   it('mounts xterm and renders written bytes', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const {dispose} = mount(() => (
       <>
         <TerminalPrimitive.Root model={model}>
@@ -89,13 +126,13 @@ describe('terminal primitives', () => {
   })
 
   it('inject is a safe no-op while disconnected', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     expect(() => model.inject('note')).not.toThrow()
     model.disconnect()
   })
 
   it('paste routes through terminal input', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const received: string[] = []
     model.terminal.onData((data) => received.push(data))
     const {dispose} = mount(() => (
@@ -113,7 +150,7 @@ describe('terminal primitives', () => {
   })
 
   it('rail overlay sits beside the screen, not over it', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const {host, dispose} = mount(() => (
       <TerminalPrimitive.Root model={model}>
         <div style={{display: 'flex', 'flex-direction': 'row', width: '640px', height: '320px'}}>
@@ -138,7 +175,7 @@ describe('terminal primitives', () => {
   })
 
   it('top-right overlay pins to the root corner above the screen', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const {host, dispose} = mount(() => (
       <div style={{position: 'relative', width: '640px', height: '320px', display: 'flex'}}>
         <TerminalPrimitive.Root model={model}>
@@ -166,7 +203,7 @@ describe('terminal primitives', () => {
     const container = document.createElement('div')
     container.style.cssText = 'width:640px;height:320px;display:flex'
     shadow.appendChild(container)
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const dispose = render(
       () => (
         <TerminalPrimitive.Root model={model}>
@@ -216,6 +253,27 @@ describe('terminal primitives', () => {
     await emit(model, 'error state', {type: 'error', message: 'spawn failed'})
     await expect.element(page.getByText('failed: spawn failed')).toBeVisible()
     expect(model.status()).toBe('error')
+    dispose()
+  })
+
+  it('keeps the failure a session reports before it says it opened', async () => {
+    const reportsFailureFirst: TerminalTransport = (_terminal, listener) => {
+      listener.control({type: 'error', message: 'spawn failed early'})
+      listener.open()
+      return {write: () => {}, resize: () => {}, inject: () => {}, close: () => {}}
+    }
+    const model = createTerminalModel({transport: reportsFailureFirst})
+    const {dispose} = mount(() => (
+      <>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+          <TerminalPrimitive.Banner>{(state) => <p>failed: {state.message}</p>}</TerminalPrimitive.Banner>
+        </TerminalPrimitive.Root>
+        <ModelState model={model} label="early failure state" />
+      </>
+    ))
+    await expect.element(page.getByText('failed: spawn failed early')).toBeVisible()
+    await expect.element(region('early failure state')).toMatchTextContent('status=error')
     dispose()
   })
 
@@ -294,7 +352,7 @@ describe('terminal reconnection', () => {
 
 describe('terminal rail', () => {
   it('builds the rail overlay exactly once', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const builds = {count: 0}
     const Rail = (): JSX.Element => {
       builds.count += 1
@@ -309,8 +367,8 @@ describe('terminal rail', () => {
 
 describe('terminal screen inset', () => {
   it('wraps lines at the columns that fit inside the screen padding', async () => {
-    const unpadded = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
-    const padded = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const unpadded = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
+    const padded = createTerminalModel({transport: webSocketTransport('ws://127.0.0.1:1/never')})
     const {dispose} = mount(() => (
       <>
         <style>{'.inset-screen{box-sizing:border-box;padding-inline:48px}'}</style>

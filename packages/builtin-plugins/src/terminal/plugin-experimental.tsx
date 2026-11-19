@@ -15,7 +15,7 @@ const tab: PanelTab = {
   label: () => (
     <span class="flex gap-1 items-center">
       <TerminalIcon class="shrink-0 size-3" aria-hidden="true" />
-      Terminal
+      <span class="self-baseline">Terminal</span>
     </span>
   ),
 }
